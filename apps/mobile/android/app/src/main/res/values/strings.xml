@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OpenFrame</string>
+    <string name="title_activity_main">OpenFrame</string>
+    <string name="package_name">ai.openframe.mobile</string>
+    <!-- OAuth callback scheme (coordinated with the gateway redirect allowlist and
+         the iOS Info.plist CFBundleURLTypes) — the value the NativeAuth deep-link
+         intent-filter below matches. NOT the applicationId. -->
+    <string name="custom_url_scheme">com.openframe.app</string>
+</resources>

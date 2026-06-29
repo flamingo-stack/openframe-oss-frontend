@@ -1,0 +1,96 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "ai.openframe.mobile"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "ai.openframe.mobile"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // Release signing, wired only when the upload keystore is supplied out-of-band
+    // (env vars win over gradle properties; both kept out of git — see app/src/README.md).
+    // Absent → `signingConfigs.release` is never created, so debug/dev builds and
+    // unsigned `release` builds keep working with no keystore present.
+    def ofStoreFile = System.getenv('OF_UPLOAD_STORE_FILE') ?: findProperty('OF_UPLOAD_STORE_FILE')
+    def ofStorePassword = System.getenv('OF_UPLOAD_STORE_PASSWORD') ?: findProperty('OF_UPLOAD_STORE_PASSWORD')
+    def ofKeyAlias = System.getenv('OF_UPLOAD_KEY_ALIAS') ?: findProperty('OF_UPLOAD_KEY_ALIAS')
+    def ofKeyPassword = System.getenv('OF_UPLOAD_KEY_PASSWORD') ?: findProperty('OF_UPLOAD_KEY_PASSWORD')
+    def hasReleaseSigning = ofStoreFile && ofStorePassword && ofKeyAlias && ofKeyPassword
+    if (hasReleaseSigning) {
+        signingConfigs {
+            release {
+                storeFile file(ofStoreFile)
+                storePassword ofStorePassword
+                keyAlias ofKeyAlias
+                keyPassword ofKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.lifecycle("No OF_UPLOAD_* keystore config — release build left unsigned (see app/src/README.md).")
+            }
+        }
+    }
+    // Per-environment variants. Distinct applicationId (via suffix) so prod/stage/dev
+    // install side-by-side and each binds to its own Firebase project. `namespace`
+    // stays constant, so MainActivity is NOT moved. Each env's google-services.json
+    // goes in src/{prod,stage,dev}/google-services.json.
+    flavorDimensions "env"
+    productFlavors {
+        prod  { dimension "env" }                                 // ai.openframe.mobile
+        stage { dimension "env"; applicationIdSuffix ".stage" }   // ai.openframe.mobile.stage
+        dev   { dimension "env"; applicationIdSuffix ".dev" }     // ai.openframe.mobile.dev
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    // Chrome Custom Tabs — the system-browser login surface for NativeAuthPlugin.
+    implementation "androidx.browser:browser:$androidxBrowserVersion"
+    // BiometricPrompt + BiometricManager — biometric-gated token storage (NativeAuthPlugin).
+    implementation "androidx.biometric:biometric:$androidxBiometricVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+// Apply the google-services plugin only when a google-services.json exists at the
+// module root or in an env flavor source set (src/{prod,stage,dev}/). Keeps the app
+// buildable before the Firebase projects exist; once a flavor's file is added,
+// building that flavor picks it up (building a flavor whose file is absent then fails).
+def hasGoogleServices = file('google-services.json').exists() ||
+    ['prod', 'stage', 'dev'].any { file("src/${it}/google-services.json").exists() }
+if (hasGoogleServices) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
+    logger.info("No google-services.json (root or env flavor) — google-services plugin not applied. Push Notifications won't work.")
+}

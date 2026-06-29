@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ system splash: match the app's dark chrome so the brief OS
+     splash (adaptive OpenFrame icon, centered) shows on #161616 rather than the
+     default window background. The full-screen drawable splash (values/styles.xml)
+     still applies via the Capacitor splash-screen plugin. -->
+<resources>
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:windowSplashScreenBackground">#161616</item>
+        <item name="android:background">@drawable/splash</item>
+    </style>
+</resources>
