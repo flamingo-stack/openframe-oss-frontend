@@ -29,22 +29,54 @@ env:
 # =============================================================================
 
 jobs:
-  version:
-    name: Resolve Version
-    uses: ./.github/workflows/version.yml
-    with:
-      version: ${{ inputs.version }}
-
-
   build_image:
     name: "Build Frontend"
-    needs: [version]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+
+      - name: Get Previous Version
+        id: previous
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          IMAGE: ${{ github.event.repository.name }}
+        run: |
+          latest=$(gh api --paginate \
+            "/orgs/${OWNER}/packages/container/${IMAGE}%2F${IMAGE}/versions" \
+            --jq '.[].metadata.container.tags[]' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          echo "Previous version: ${latest}"
+          echo "OLD_VERSION=${latest}" >> "$GITHUB_OUTPUT"
+
+      - name: Set Release Version
+        if: github.event_name == 'workflow_dispatch'
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          OLD_VERSION: ${{ steps.previous.outputs.OLD_VERSION }}
+        run: |
+          IFS='.' read -r cur_major cur_minor cur_patch <<< "$OLD_VERSION"
+          if [ -z "$INPUT_VERSION" ]; then
+            version="${cur_major}.${cur_minor}.$((cur_patch + 1))"
+            echo "No version provided, auto patch bump: ${OLD_VERSION} -> ${version}"
+          else
+            if ! [[ "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Invalid version format: ${INPUT_VERSION} (expected x.y.z)"
+              exit 1
+            fi
+            IFS='.' read -r new_major new_minor new_patch <<< "$INPUT_VERSION"
+            if ! ([ "$new_major" -eq $((cur_major + 1)) ] && [ "$new_minor" -eq 0 ] && [ "$new_patch" -eq 0 ]) &&
+               ! ([ "$new_major" -eq "$cur_major" ] && [ "$new_minor" -eq $((cur_minor + 1)) ] && [ "$new_patch" -eq 0 ]) &&
+               ! ([ "$new_major" -eq "$cur_major" ] && [ "$new_minor" -eq "$cur_minor" ] && [ "$new_patch" -eq $((cur_patch + 1)) ]); then
+              echo "Invalid version bump: ${OLD_VERSION} -> ${INPUT_VERSION} (expected $((cur_major + 1)).0.0, ${cur_major}.$((cur_minor + 1)).0, or ${cur_major}.${cur_minor}.$((cur_patch + 1)))"
+              # exit 1
+            fi
+            version="$INPUT_VERSION"
+          fi
+          echo "NEW_VERSION=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -68,7 +100,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.ORGANISATION }}/${{ env.REPOSITORY }}/${{ env.REPOSITORY }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ needs.version.outputs.version }},enable=${{ needs.version.outputs.version != '' }}
+            type=raw,value=${{ steps.version.outputs.NEW_VERSION }},enable=${{ steps.version.outputs.NEW_VERSION != '' }}
           labels: |
             org.opencontainers.image.vendor=${{ env.ORGANISATION }}
             org.opencontainers.image.description=OpenFrame is a platform for building and deploying AI agents.
