@@ -48,6 +48,10 @@ export const runtimeEnv = {
   enableDevTicketObserver(): boolean {
     return (getEnvVar('NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER') || 'false') === 'true';
   },
+  /** Shows the optional PR Number field on the signup form (dev environments only). */
+  prNumberEnabled(): boolean {
+    return (getEnvVar('NEXT_PUBLIC_PR_NUMBER_ENABLED') || 'false') === 'true';
+  },
   authCheckIntervalMs(): number {
     const raw = getEnvVar('NEXT_PUBLIC_AUTH_CHECK_INTERVAL') || '300000';
     const parsed = parseInt(raw, 10);

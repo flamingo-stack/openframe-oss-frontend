@@ -140,6 +140,7 @@ class AuthApiClient {
     password: string;
     tenantName: string;
     tenantDomain: string;
+    prNumber?: number;
   }) {
     return request<T>('/sas/oauth/register', {
       method: 'POST',
