@@ -5,7 +5,7 @@ import {
   type AuthSsoProvider,
   CompleteAccountForm,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
@@ -13,6 +13,7 @@ import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registrati
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { isAuthOnlyMode, isSaasSharedMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
+import { runtimeEnv } from '@/lib/runtime-config';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -30,12 +31,12 @@ export default function SignupPage() {
   const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [prNumber, setPrNumber] = useState('');
+  const showPrNumber = runtimeEnv.prNumberEnabled();
 
   const storedOrgName = typeof window !== 'undefined' ? sessionStorage.getItem('auth:org_name') || '' : '';
   const storedDomain = typeof window !== 'undefined' ? sessionStorage.getItem('auth:domain') || '' : '';
   const storedEmail = typeof window !== 'undefined' ? sessionStorage.getItem('auth:email') || '' : '';
-  // Optional PR number collected on the Create Organization step (dev-only field).
-  const storedPrNumber = typeof window !== 'undefined' ? sessionStorage.getItem('auth:pr_number') || '' : '';
 
   useEffect(() => {
     if (isAuthenticated && !isAuthOnlyMode()) {
@@ -68,7 +69,7 @@ export default function SignupPage() {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       password,
-      ...(storedPrNumber ? { prNumber: Number(storedPrNumber) } : {}),
+      ...(showPrNumber && prNumber ? { prNumber: Number(prNumber) } : {}),
     });
   };
 
@@ -124,7 +125,19 @@ export default function SignupPage() {
           password: isTooShort ? `Password must be at least ${MIN_PASSWORD_LENGTH} characters` : undefined,
           confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
         }}
-      />
+      >
+        {showPrNumber && (
+          <Input
+            label="PR Number (optional)"
+            placeholder="Enter PR Number"
+            inputMode="numeric"
+            value={prNumber}
+            disabled={isLoading || loadingProviders}
+            // Digits only — typing or pasting anything else (minus sign included) is stripped.
+            onChange={event => setPrNumber(event.target.value.replace(/\D/g, ''))}
+          />
+        )}
+      </CompleteAccountForm>
     </AuthShell>
   );
 }
