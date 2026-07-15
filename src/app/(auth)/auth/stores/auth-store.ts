@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { useOnboardingStore } from '@/stores/onboarding-store';
 
 /**
  * Authentication Store
@@ -99,13 +100,21 @@ export const useAuthStore = create<AuthState>()(
             state.error = null;
           }),
 
-        logout: () =>
+        logout: () => {
           set(state => {
             state.user = null;
             state.isAuthenticated = false;
             state.error = null;
             state.tenantId = null; // Clear tenant ID on logout
-          }),
+          });
+          // Reset in-memory onboarding progress. Both logout funnels (`use-auth`
+          // and `forceLogout`) call this action, and two of them don't reload the
+          // page — native-shell logout and saas-tenant `forceLogout`. Without this,
+          // the next user in the same tab inherits the previous user's onboarding
+          // state (stale chrome, and a wrong post-login onboarding redirect). Mirrors
+          // the existing `clearMingoContext()` reset in `forceLogout`.
+          useOnboardingStore.getState().reset();
+        },
 
         updateUser: userUpdate =>
           set(state => {
