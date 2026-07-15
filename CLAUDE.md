@@ -171,9 +171,9 @@ Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query 
 
 - **Authentication** (`/auth`) — Multi-provider SSO, signup, login, password reset, invite
 - **Dashboard** (`/dashboard`) — Overview stats + onboarding; standalone `/onboarding` behind flag `new-onboarding`
-- **Devices** (`/devices`) — Fleet MDM + Tactical RMM, detail pages, MeshCentral remote shell/desktop/file manager
+- **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
-- **Scripts** (`/scripts` legacy Tactical REST; `/scripts-v2` Relay, behind flag `scripts-v2` — implementation lives in `src/app/(app)/scripts/v2/components/`)
+- **Scripts** (`/scripts` legacy, Tactical backend removed — hooks are `TODO(openframe-rmm)` stubs; `/scripts-v2` Relay, behind flag `scripts-v2` — implementation lives in `src/app/(app)/scripts/v2/components/`)
 - **Customers** (`/customers`) — Customer/organization CRM (route renamed from `/organizations`; sidebar item id is still `organizations`)
 - **Monitoring** (`/monitoring`) — Fleet osquery queries + policies (not feature-flagged)
 - **Tickets** (`/tickets`) — Ticket board + AI chat dialogs (saas-tenant only; talks to `/chat/graphql`)
@@ -208,7 +208,6 @@ src/
 │   ├── api-client.ts          # Centralized REST API client (singleton, 401 refresh queue)
 │   ├── auth-api-client.ts     # Auth endpoints against NEXT_PUBLIC_SHARED_HOST_URL
 │   ├── fleet-api-client.ts    # Fleet MDM via /tools/fleetmdm-server
-│   ├── tactical-api-client.ts # Tactical RMM via /tools/tactical-rmm
 │   ├── relay/                 # Relay environment + provider (singleton, 401 refresh)
 │   ├── relay-id.ts            # toGlobalId / global-id normalization
 │   ├── token-store.ts  token-refresh-manager.ts  force-logout.ts  # auth token plumbing
@@ -679,10 +678,17 @@ OpenFrame integrates device monitoring data from multiple sources with normaliza
 **Data Sources:**
 1. **GraphQL** — Primary device registry and agent information
 2. **Fleet MDM** — Accurate hardware specs, battery health, users
-3. **Tactical RMM** — Legacy device monitoring data
+3. **MeshCentral** — Live online/offline status + last-seen
+
+> **Tactical RMM has been fully removed** from the frontend — no `tactical-api-client.ts`,
+> no Tactical types, and no Tactical fields in the device merge. Remaining references are
+> legacy `/scripts` stubs (see `src/app/(app)/scripts/lib/scripts-migration.ts`, all marked
+> `TODO(openframe-rmm)`) that return empty / throw a "migration pending" error, plus mention-chip
+> id-shape handling in Mingo. `runScript` now means a GraphQL mutation via scripts-v2
+> (`src/graphql/scripts/run-script-mutation.ts`), not Tactical REST.
 
 **Merge logic locations** (there is no `normalize-device.ts`):
-- Detail page: `createDevice()` in `src/app/(app)/devices/hooks/use-device-details.ts` — raw-POST GraphQL node + fan-out to Tactical agent, Fleet host, and Mesh deviceStatus
+- Detail page: `createDevice()` in `src/app/(app)/devices/hooks/use-device-details.ts` — raw-POST GraphQL node + fan-out to Fleet host and MeshCentral deviceStatus (no Tactical)
 - List page: `createDeviceListItem()` in `src/app/(app)/devices/utils/device-transform.ts` — GraphQL node only, no external fan-out
 
 **Priority rules** (in `createDevice()`):
@@ -714,15 +720,9 @@ export interface FleetHost {
 }
 ```
 
-**Unified types** — `src/app/devices/types/device.types.ts`:
-```typescript
-export interface UnifiedUser {
-  username: string;
-  uid?: number;
-  type?: string;            // "person" | "service"
-  source: 'fleet' | 'tactical' | 'unknown';
-}
-```
+**Unified types** — `src/app/(app)/devices/types/device.types.ts`: flat `Device` with all fields at
+root (no nesting). Fleet is the only external source that populates hardware/users/software, so
+there is no multi-source `source` discriminator on the user/hardware types anymore.
 
 ### Key Files
 - `src/app/(app)/devices/types/fleet.types.ts` — Complete Fleet MDM types
@@ -731,7 +731,7 @@ export interface UnifiedUser {
 - `src/app/(app)/devices/utils/device-transform.ts` — List-item transform
 - `src/app/(app)/devices/components/tabs/` — hardware/network/users/os/software/… tabs
 - `src/lib/fleet-api-client.ts` — Fleet API integration
-- `src/lib/tactical-api-client.ts` — Tactical RMM API integration
+- `src/lib/meshcentral/meshcentral-api.ts` — MeshCentral live status / last-seen
 
 ## Accessibility Standards
 
@@ -829,7 +829,7 @@ localStorage.removeItem('auth-storage');
 - **GraphQL** — `/api/graphql` — openframe-api (Relay + legacy); `/chat/graphql` — saas-ai-agent (tickets/mingo, raw-POST, SaaS only)
 - **Live updates** — NATS over WebSocket at `/ws/nats-api` (notifications, chat chunks); tool WS at `/ws/tools/{toolId}`
 - **Authentication** — `/oauth/*` (gateway BFF: login/callback/refresh/logout/dev-exchange); registration via `/sas/oauth/*`
-- **Tool proxies** — `/tools/{toolId}/*` (Fleet, Tactical; API keys injected by the gateway)
+- **Tool proxies** — `/tools/{toolId}/*` (Fleet; API keys injected by the gateway)
 
 ### API Client Architecture
 
@@ -855,7 +855,6 @@ if (response.ok) {
 - **Terminal** — @xterm/xterm 6.0 integration
 - **Code Editor** — Monaco Editor for script editing
 - **Fleet MDM** — Device monitoring integration
-- **Tactical RMM** — Device monitoring integration
 - **MeshCentral** — Remote desktop/shell/file management (via `src/lib/meshcentral/`)
 
 ---
