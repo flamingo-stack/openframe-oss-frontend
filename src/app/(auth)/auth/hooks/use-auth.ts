@@ -38,6 +38,8 @@ interface RegisterRequest {
   lastName: string;
   email: string;
   password: string;
+  /** Links the registration to a git PR for testing (dev environments only). */
+  prNumber?: number;
 }
 
 interface SsoRegisterRequest {
@@ -146,6 +148,7 @@ export function useAuth() {
         password: data.password,
         tenantName: data.tenantName,
         tenantDomain: data.tenantDomain || 'localhost',
+        ...(data.prNumber !== undefined ? { prNumber: data.prNumber } : {}),
       });
 
       if (!response.ok) {
