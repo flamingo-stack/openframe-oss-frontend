@@ -2,10 +2,9 @@
 
 import { AuthShell, type AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LoginSection } from '@/app/(auth)/auth/components/login-form-section';
+import { type LoginDiscoveryResult, LoginSection } from '@/app/(auth)/auth/components/login-form-section';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { isAuthOnlyMode } from '@/lib/app-mode';
@@ -26,14 +25,12 @@ const FORM_PROVIDER_ORDER: AuthSsoProvider[] = ['openframe', 'google', 'microsof
 
 export default function LoginPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { isAuthenticated } = useAuthStore();
-  const { hasDiscoveredTenants, availableProviders, isLoading, loginWithSso, discoverTenants } = useAuth();
+  const { loginWithSso, discoverTenants } = useAuth();
 
-  // The SSO state (locked email + provider buttons) is shown only after a
-  // discovery made on THIS visit — a persisted discovery from a previous
-  // session would otherwise trap the user on a screen with a locked email.
-  const [discoveredThisVisit, setDiscoveredThisVisit] = useState(false);
+  // Local flag for the SSO redirect only — useAuth's isLoading also toggles on
+  // every background discovery and would flicker the whole form.
+  const [ssoLoading, setSsoLoading] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && !isAuthOnlyMode()) {
@@ -41,28 +38,26 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, router]);
 
-  // Redesigned flow: email entry → discovery → SSO providers, all in one shell.
-  const handleContinue = async (enteredEmail: string) => {
-    const result = await discoverTenants(enteredEmail);
-    if (result && !result.has_existing_accounts) {
-      toast({
-        title: 'Account Not Found',
-        description: "You don't have an account yet. Please create an organization first.",
-        variant: 'destructive',
-      });
-      return;
+  // Single-screen flow: the email field runs debounced discovery; provider
+  // buttons are always visible and unlock for the discovered tenant.
+  const handleDiscover = async (email: string): Promise<LoginDiscoveryResult | null> => {
+    const result = await discoverTenants(email);
+    if (!result) return null;
+    const backendProviders = result.auth_providers || ['openframe-sso'];
+    return {
+      found: result.has_existing_accounts,
+      providers: FORM_PROVIDER_ORDER.filter(provider => backendProviders.some(id => SSO_TO_FORM[id] === provider)),
+    };
+  };
+
+  const handleSso = async (provider: AuthSsoProvider) => {
+    setSsoLoading(true);
+    try {
+      await loginWithSso(FORM_TO_SSO[provider]);
+    } finally {
+      setSsoLoading(false);
     }
-    if (result) setDiscoveredThisVisit(true);
   };
-
-  const handleSso = (provider: AuthSsoProvider) => {
-    void loginWithSso(FORM_TO_SSO[provider]);
-  };
-
-  const formProviders =
-    discoveredThisVisit && hasDiscoveredTenants
-      ? FORM_PROVIDER_ORDER.filter(provider => availableProviders.some(id => SSO_TO_FORM[id] === provider))
-      : undefined;
 
   const tabs = (
     <TabSelector
@@ -80,8 +75,12 @@ export default function LoginPage() {
 
   return (
     <AuthShell tabs={tabs}>
-      {/* No initialEmail on purpose — the field always starts empty */}
-      <LoginSection ssoProviders={formProviders} onContinue={handleContinue} onSso={handleSso} isLoading={isLoading} />
+      <LoginSection
+        onDiscover={handleDiscover}
+        onSso={handleSso}
+        allProviders={FORM_PROVIDER_ORDER}
+        isLoading={ssoLoading}
+      />
     </AuthShell>
   );
 }
