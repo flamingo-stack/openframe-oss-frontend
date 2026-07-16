@@ -1,10 +1,12 @@
 'use client';
 
-import { AuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { AuthShell, type AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { CreateOrganizationSection } from '@/app/(auth)/auth/components/create-organization-section';
+import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
+import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { isAuthOnlyMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
@@ -12,6 +14,8 @@ import { routes } from '@/lib/routes';
 export default function AuthPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const { isLoading, registerOrganizationSso } = useAuth();
+  const { providers } = useRegistrationProviders();
 
   useEffect(() => {
     if (isAuthenticated && !isAuthOnlyMode()) {
@@ -25,6 +29,22 @@ export default function AuthPage() {
     sessionStorage.setItem('auth:domain', domain);
     sessionStorage.setItem('auth:email', email);
     router.push('/auth/signup/');
+  };
+
+  // External providers offered by the backend for registration.
+  const ssoProviders: AuthSsoProvider[] = (['google', 'microsoft'] as const).filter(provider =>
+    providers.some(sp => sp.provider === provider),
+  );
+
+  const handleSsoRegister = (orgName: string, domain: string, email: string, provider: AuthSsoProvider) => {
+    if (provider !== 'google' && provider !== 'microsoft') return;
+    void registerOrganizationSso({
+      tenantName: orgName,
+      tenantDomain: domain,
+      email,
+      provider,
+      redirectTo: '/auth/login',
+    });
   };
 
   const tabs = (
@@ -43,7 +63,12 @@ export default function AuthPage() {
 
   return (
     <AuthShell tabs={tabs}>
-      <CreateOrganizationSection onCreateOrganization={handleCreateOrganization} />
+      <CreateOrganizationSection
+        onCreateOrganization={handleCreateOrganization}
+        ssoProviders={ssoProviders}
+        onSsoRegister={handleSsoRegister}
+        isLoading={isLoading}
+      />
     </AuthShell>
   );
 }
