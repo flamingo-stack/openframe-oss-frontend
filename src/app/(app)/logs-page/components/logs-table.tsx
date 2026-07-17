@@ -1,7 +1,6 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
   ArrowRightUpIcon,
   CalendarIcon,
@@ -47,7 +46,6 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { logsTableRelay_query$key as LogsFragmentKey } from '@/__generated__/logsTableRelay_query.graphql';
 import type { logsTableRelayPaginationQuery as LogsPaginationQueryType } from '@/__generated__/logsTableRelayPaginationQuery.graphql';
 import type { logsTableRelayQuery as LogsQueryType } from '@/__generated__/logsTableRelayQuery.graphql';
-import { useAskMingo } from '@/app/(app)/mingo/hooks/use-ask-mingo';
 import { EMBEDDED_PAGE_OFFSET, EmptyState, LogDrawer } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { LogSortField, SortDirection } from '@/generated/schema-enums';
@@ -216,7 +214,6 @@ function LogsTableContent({
   onMobileFilterClose,
 }: LogsTableContentProps) {
   const { toast } = useToast();
-  const askMingo = useAskMingo();
   const [isPending, startTransition] = useTransition();
   const [selectedLog, setSelectedLog] = useState<UiLogEntry | null>(null);
 
@@ -610,15 +607,6 @@ function LogsTableContent({
           { icon: <Filter01ListIcon />, label: 'Filter by user, action type, Customer, or date range' },
           { icon: <SearchIcon />, label: 'Investigate incidents and audit security events' },
         ]}
-        buttonLabel="Ask Mingo about Logs"
-        buttonIcon={
-          <MingoIcon
-            className="size-5"
-            eyesColor="var(--ods-flamingo-cyan-base)"
-            cornerColor="var(--ods-flamingo-cyan-base)"
-          />
-        }
-        onButtonClick={() => askMingo('logs')}
       />
     );
   }

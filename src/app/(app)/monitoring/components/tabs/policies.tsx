@@ -1,6 +1,5 @@
 'use client';
 
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
   BellCheckIcon,
   FolderShieldIcon,
@@ -21,7 +20,6 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
-import { useAskMingo } from '@/app/(app)/mingo/hooks/use-ask-mingo';
 import { EmptyState, PoliciesTable, type PolicyTableRow, type PolicyTableStatus } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -48,7 +46,6 @@ const PAGE_SIZE = 20;
 
 export function Policies() {
   const router = useRouter();
-  const askMingo = useAskMingo();
 
   const { params, setParams } = useApiParams({
     search: { type: 'string', default: '' },
@@ -222,15 +219,6 @@ export function Policies() {
             { icon: <RadarIcon />, label: 'Target devices by Customer, OS, or tag' },
             { icon: <BellCheckIcon />, label: 'Get alerts when devices fall out of compliance' },
           ]}
-          buttonLabel="Ask Mingo about Policies"
-          buttonIcon={
-            <MingoIcon
-              className="size-5"
-              eyesColor="var(--ods-flamingo-cyan-base)"
-              cornerColor="var(--ods-flamingo-cyan-base)"
-            />
-          }
-          onButtonClick={() => askMingo('policies')}
         />
       ) : (
         <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
