@@ -10,6 +10,7 @@ import {
 import { Controller } from 'react-hook-form';
 import { featureFlags } from '@/lib/feature-flags';
 import { useCustomerAiAssistantForm } from '../hooks/use-customer-ai-assistant-form';
+import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
 import { getProviderModelLabel, useSupportedModels } from '../hooks/use-supported-models';
 import type { AgentAiConfig, ClientView } from '../types/ai-settings';
 import { CUSTOMER_AI_ASSISTANT_FORM_ID, type CustomerAiAssistantSubmit } from '../types/customer-ai-assistant.types';
@@ -48,6 +49,12 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
   // is not released yet — keep it behind the feature flag.
   const showCustomization = featureFlags.customerAiAssistantSettings.enabled();
 
+  // OpenFrame defaults come straight from the Product Hub (the BE stores only
+  // customs); shown in view mode and as the editor's dimmed preview/seed.
+  const hubDefaults = useHubDefaultQuickActions(ASSISTANT_QUICK_ACTIONS_CONFIG.agentSlug, {
+    enabled: showCustomization,
+  });
+
   if (!isEditMode) {
     const modelLabel = getProviderModelLabel(modelsByProvider, aiConfig.llmProvider, aiConfig.providerModel);
     return (
@@ -55,7 +62,7 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
         aiConfig={aiConfig}
         view={view}
         providerModelLabel={modelLabel}
-        quickActions={aiConfig.quickActions}
+        quickActions={aiConfig.quickActionsIsDefault ? hubDefaults.actions : aiConfig.quickActions}
       />
     );
   }
@@ -150,8 +157,7 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
             control={form.control}
             title="Assistant Quick Actions"
             agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
-            configActions={aiConfig.quickActions}
-            configIsDefault={aiConfig.quickActionsIsDefault}
+            defaultActions={hubDefaults.actions}
             className="mt-8"
           />
         </>

@@ -20,12 +20,11 @@ interface AiSettingsQuickActionsEditorProps<T extends QuickActionsFormValues & F
   title?: string;
   agentConfig: QuickActionsAgentConfig;
   /**
-   * The persisted config actions + flag. When the config is still on defaults,
-   * these are the Product Hub actions: they seed the editor on uncheck and
-   * render as the dimmed read-only preview while the checkbox stays on.
+   * The OpenFrame defaults, fetched by the host from the Product Hub (the
+   * tenant BE stores only customs). They render as the dimmed read-only
+   * preview while the checkbox is on and seed the editor rows on uncheck.
    */
-  configActions: AiQuickAction[];
-  configIsDefault: boolean;
+  defaultActions: AiQuickAction[];
   className?: string;
 }
 
@@ -34,16 +33,15 @@ interface AiSettingsQuickActionsEditorProps<T extends QuickActionsFormValues & F
  * Owns the `quickActions` field array + the `quickActionsIsDefault` flag; the
  * host form only needs fields matching QuickActionsFormValues in its schema.
  *
- * Checked → the hub defaults are shown read-only (dimmed) and the BE keeps
- * serving them; unchecking seeds the rows with those defaults for editing;
- * re-checking asks for confirmation (customs are replaced on save).
+ * Checked → the hub defaults are shown read-only (dimmed); unchecking seeds
+ * the rows with those defaults for editing; re-checking asks for confirmation
+ * (customs are replaced on save).
  */
 export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & FieldValues>({
   control,
   title = 'Assistant Quick Actions',
   agentConfig,
-  configActions,
-  configIsDefault,
+  defaultActions,
   className,
 }: AiSettingsQuickActionsEditorProps<T>) {
   // The generic constraint guarantees the form has compatible quick-action
@@ -59,8 +57,8 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
       onChange(false);
       // Seed the editor with the hub defaults (as new custom rows — no ids, the
       // BE assigns them on save). Only when the rows aren't already populated.
-      if (fields.length === 0 && configIsDefault) {
-        replace(configActions.map(action => ({ name: action.name, instructions: action.instructions })));
+      if (fields.length === 0) {
+        replace(defaultActions.map(action => ({ name: action.name, instructions: action.instructions })));
       }
       return;
     }
@@ -111,12 +109,11 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
       />
 
       {isDefault ? (
-        // Defaults preview: only rendered when the persisted config still holds
-        // them (after a custom→default toggle the hub set arrives on save).
-        configIsDefault &&
-        configActions.length > 0 && (
+        // Hub-defaults preview (fetched by the host, so it's available even
+        // when the persisted config holds customs).
+        defaultActions.length > 0 && (
           <AiSettingsQuickActions
-            actions={configActions}
+            actions={defaultActions}
             isDefault
             agentConfig={agentConfig}
             className="opacity-50 pointer-events-none"
