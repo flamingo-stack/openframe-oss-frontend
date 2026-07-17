@@ -1,6 +1,9 @@
 'use client';
 
-import { CreateOrganizationForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  type AuthSsoProvider,
+  CreateOrganizationForm,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useState } from 'react';
@@ -11,6 +14,10 @@ import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 
 interface CreateOrganizationSectionProps {
   onCreateOrganization: (orgName: string, domain: string, email: string) => void;
+  /** SSO registration alternatives shown below the primary submit ("or continue with"). */
+  ssoProviders?: AuthSsoProvider[];
+  /** SSO registration with the validated org details (same validation path as the primary submit). */
+  onSsoRegister?: (orgName: string, domain: string, email: string, provider: AuthSsoProvider) => void;
   isLoading?: boolean;
 }
 
@@ -20,7 +27,12 @@ interface CreateOrganizationSectionProps {
  * mode also handles subdomain sanitizing, live/submit-time domain availability
  * and the tenant-registration capacity check. Delegates submission upward.
  */
-export function CreateOrganizationSection({ onCreateOrganization, isLoading }: CreateOrganizationSectionProps) {
+export function CreateOrganizationSection({
+  onCreateOrganization,
+  ssoProviders,
+  onSsoRegister,
+  isLoading,
+}: CreateOrganizationSectionProps) {
   const { toast } = useToast();
   const isSaasShared = isSaasSharedMode();
 
@@ -59,11 +71,13 @@ export function CreateOrganizationSection({ onCreateOrganization, isLoading }: C
     setSuggestedDomains([]);
   };
 
-  const handleSubmit = async () => {
+  // Shared submit path for the primary button and the SSO alternatives: both
+  // need validated org details, and in saas-shared a submit-time domain check.
+  const runWithValidatedOrg = async (action: (orgName: string, domain: string, email: string) => void) => {
     if (!isValid || isCheckingDomain) return;
 
     if (!isSaasShared) {
-      onCreateOrganization(organizationName.trim(), domain.trim(), email.trim());
+      action(organizationName.trim(), domain.trim(), email.trim());
       return;
     }
 
@@ -76,7 +90,7 @@ export function CreateOrganizationSection({ onCreateOrganization, isLoading }: C
       if (response.ok && response.data) {
         const { available, suggestedUrl } = response.data as { available: boolean; suggestedUrl?: string[] };
         if (available) {
-          onCreateOrganization(organizationName.trim(), `${subdomain}.${SAAS_DOMAIN_SUFFIX}`, email.trim());
+          action(organizationName.trim(), `${subdomain}.${SAAS_DOMAIN_SUFFIX}`, email.trim());
         } else {
           toast({
             title: 'Domain Not Available',
@@ -115,6 +129,11 @@ export function CreateOrganizationSection({ onCreateOrganization, isLoading }: C
       setIsCheckingDomain(false);
     }
   };
+
+  const handleSubmit = () => runWithValidatedOrg(onCreateOrganization);
+
+  const handleSso = (provider: AuthSsoProvider) =>
+    runWithValidatedOrg((orgName, orgDomain, orgEmail) => onSsoRegister?.(orgName, orgDomain, orgEmail, provider));
 
   const emailStatusMessage = !isEmailValid
     ? undefined
@@ -171,8 +190,12 @@ export function CreateOrganizationSection({ onCreateOrganization, isLoading }: C
       onDomainChange={handleDomainChange}
       onAgreedToTermsChange={setAgreedToTerms}
       onSubmit={handleSubmit}
+      submitLabel="Create Account"
       submitDisabled={!isValid}
       loading={isLoading || isCheckingDomain}
+      ssoProviders={ssoProviders}
+      onSsoClick={handleSso}
+      ssoDisabled={!isValid}
       domainSuffix={isSaasShared ? `.${SAAS_DOMAIN_SUFFIX}` : undefined}
       termsUrl="https://www.flamingo.run/terms-of-service"
       privacyPolicyUrl="https://www.flamingo.run/privacy-policy"

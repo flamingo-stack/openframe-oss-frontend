@@ -51,3 +51,4 @@ for (const def of enums) {
 mkdirSync(dirname(OUT_PATH), { recursive: true });
 writeFileSync(OUT_PATH, lines.join('\n'));
 console.log(`Generated ${enums.length} enum(s) → ${OUT_PATH.replace(`${ROOT}/`, '')}`);
+
