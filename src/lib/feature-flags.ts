@@ -87,7 +87,7 @@ export const featureFlags = {
   },
   customerGuardrails: {
     enabled(): boolean {
-      return true; //getFlagValue('customer-guardrails', () => false);
+      return getFlagValue('customer-guardrails', () => false);
     },
   },
   timeTracker: {

@@ -3,6 +3,7 @@
 import type { ApprovalLevel } from '@flamingo-stack/openframe-frontend-core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from '../../hooks/chat-graphql';
 import type { PolicyRule } from './guardrails.types';
 
 /**
@@ -68,11 +69,6 @@ interface OrganizationGuardrailsGql {
 
 export interface OrganizationGuardrails extends Omit<OrganizationGuardrailsGql, 'rules'> {
   rules: PolicyRule[];
-}
-
-interface GraphqlResponse<T> {
-  data?: T;
-  errors?: { message: string }[];
 }
 
 // GuardrailRule has nullable descriptive fields; PolicyRule (shared with the
@@ -154,21 +150,6 @@ export interface OrganizationGuardrailsInput {
   /** Server id of the base TEMPLATE policy from the tenant preset list. */
   templateId: string;
   overrides: { naturalKey: string; approvalLevel: ApprovalLevel }[];
-}
-
-interface MutationPayloadGql {
-  userErrors: { message: string }[];
-}
-
-function throwOnErrors(
-  response: { ok: boolean; error?: string; data?: GraphqlResponse<Record<string, MutationPayloadGql>> },
-  fallbackMessage: string,
-) {
-  if (!response.ok || !response.data) throw new Error(response.error || fallbackMessage);
-  if (response.data.errors?.length) throw new Error(response.data.errors.map(e => e.message).join(', '));
-  const payload = response.data.data && Object.values(response.data.data)[0];
-  const userErrors = payload?.userErrors ?? [];
-  if (userErrors.length > 0) throw new Error(userErrors.map(e => e.message).join(', '));
 }
 
 /**

@@ -38,6 +38,7 @@ import { useHubDefaultQuickActions } from '@/app/(app)/settings/ai-settings/hook
 import {
   useOrganizationClientAiConfig,
   useResetOrganizationClientAiConfig,
+  useResetOrganizationClientAiQuickActions,
   useUpdateOrganizationClientAiConfig,
 } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
@@ -91,6 +92,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
     const { reset: resetView, isPending: isResettingView } = useResetClientView(organizationId);
     const { update: updateAiConfig } = useUpdateOrganizationClientAiConfig(organizationId);
     const { reset: resetAiConfig, isPending: isResettingAi } = useResetOrganizationClientAiConfig(organizationId);
+    const { resetQuickActions } = useResetOrganizationClientAiQuickActions(organizationId);
     const { modelsByProvider } = useSupportedModels();
 
     const [useDefault, setUseDefault] = useState(true);
@@ -133,8 +135,13 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
     useImperativeHandle(
       ref,
       () => ({
-        validate: () => (useDefault ? Promise.resolve(true) : form.trigger()),
+        // Until the seed effect has reflected server state into the toggle
+        // (org queries loading or errored), this block must not validate or
+        // write — an unseeded `useDefault: true` would silently reset the
+        // customer's existing overrides on an unrelated "Save Customer".
+        validate: () => (!seededRef.current || useDefault ? Promise.resolve(true) : form.trigger()),
         commit: async () => {
+          if (!seededRef.current) return;
           if (useDefault) {
             // Overrides are dropped when the user confirms the toggle; this
             // covers the case where one still exists at save time.
@@ -149,10 +156,19 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
             applicationTheme: values.applicationTheme,
             accentColor: values.accentColor,
           });
-          const clientViewId = savedView?.id ?? orgView?.id;
-          if (clientViewId) await commitAvatar(clientViewId);
 
           await updateAiConfig(toAgentAiConfigInput(values));
+          // The update omits `quickActions` while defaults are on, and the
+          // backend ignores `quickActionsIsDefault` for orgs — re-checking
+          // "use defaults" over an existing custom list needs the dedicated
+          // reset mutation or it would be a silent no-op.
+          if (values.quickActionsIsDefault && hasAiOverride && orgConfig?.quickActions?.length) {
+            await resetQuickActions();
+          }
+
+          // Avatar last: its failure must not drop the config writes above.
+          const clientViewId = savedView?.id ?? orgView?.id;
+          if (clientViewId) await commitAvatar(clientViewId);
 
           // Single refetch after the avatar lands — the view and its avatar
           // live in separate stores, so this is where both are current.
@@ -163,12 +179,14 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
         useDefault,
         organizationId,
         orgView,
+        orgConfig,
         hasAiOverride,
         form,
         updateView,
         updateAiConfig,
         resetView,
         resetAiConfig,
+        resetQuickActions,
         commitAvatar,
         queryClient,
       ],
@@ -205,7 +223,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
             leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
             className="w-full md:w-auto"
           >
-            Edit Default Appearance
+            Edit Default Configuration
           </Button>
         }
       />
@@ -297,7 +315,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                   />
                 </div>
 
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
                   <p className="text-h3 text-ods-text-primary">Accent Color</p>
                   <Controller
                     name="accentColor"

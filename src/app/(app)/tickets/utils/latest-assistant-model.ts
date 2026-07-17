@@ -2,13 +2,10 @@ import {
   getModelLabelByName,
   type SupportedModelsByProvider,
 } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
+import type { AiModel } from '@/app/hooks/use-ai-model';
+import { OWNER_TYPE } from '../constants';
 import type { MessagePage } from '../services/ticket-service.types';
 import type { AssistantOwner } from '../types/dialog.types';
-
-export interface AssistantModelInfo {
-  provider: string;
-  displayName: string;
-}
 
 /**
  * Model provenance of the newest assistant message across the fetched history
@@ -18,13 +15,13 @@ export interface AssistantModelInfo {
 export function latestAssistantModel(
   pages: MessagePage[] | undefined,
   modelsByProvider: SupportedModelsByProvider | undefined,
-): AssistantModelInfo | null {
+): AiModel | null {
   if (!pages) return null;
 
   for (const page of pages) {
     for (const message of page.messages) {
       const owner = message.owner as Partial<AssistantOwner> | undefined;
-      if (owner?.type === 'ASSISTANT' && owner.model && owner.providerName) {
+      if (owner?.type === OWNER_TYPE.ASSISTANT && owner.model && owner.providerName) {
         return { provider: owner.providerName, displayName: getModelLabelByName(modelsByProvider, owner.model) };
       }
     }

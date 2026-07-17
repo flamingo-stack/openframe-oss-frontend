@@ -18,6 +18,12 @@ import {
   GuardrailsTemplatePicker,
 } from '@/app/(app)/settings/ai-settings/components/guardrails/guardrails-template-picker';
 import {
+  applyEditsToRules,
+  buildBaseLevels,
+  withCategoryEdits,
+  withPolicyEdit,
+} from '@/app/(app)/settings/ai-settings/components/guardrails/rule-edits';
+import {
   useGuardrailsTemplate,
   useGuardrailsTemplates,
 } from '@/app/(app)/settings/ai-settings/components/guardrails/use-guardrails-policies';
@@ -70,6 +76,7 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
       templates,
       activeTemplateId,
       isLoading: isTemplatesLoading,
+      error: templatesError,
       refetch: refetchTemplates,
     } = useGuardrailsTemplates();
     const { update } = useUpdateOrganizationGuardrails(organizationId);
@@ -122,24 +129,11 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
       useDefault ? null : displayTemplateId,
     );
 
-    const baseLevels = useMemo(() => {
-      const levels = new Map<string, ApprovalLevel>();
-      for (const rule of displayTemplate?.rules ?? []) {
-        levels.set(rule.naturalKey, rule.approvalLevel);
-      }
-      return levels;
-    }, [displayTemplate]);
+    const baseLevels = useMemo(() => buildBaseLevels(displayTemplate?.rules ?? []), [displayTemplate]);
 
     const editorGroups = useMemo(() => {
-      const rules = displayTemplate?.rules ?? [];
       const edits = selection?.kind === 'custom' ? selection.edits : null;
-      const effectiveRules = edits?.size
-        ? rules.map(rule => {
-            const level = edits.get(rule.naturalKey);
-            return level ? { ...rule, approvalLevel: level } : rule;
-          })
-        : rules;
-      return buildPolicyGroups(effectiveRules);
+      return buildPolicyGroups(applyEditsToRules(displayTemplate?.rules ?? [], edits));
     }, [displayTemplate, selection]);
 
     // Inherited view (toggle ON): the org query already returns the effective
@@ -171,24 +165,14 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
       setSelection({ kind: 'custom', baseTemplateId, edits: new Map() });
     }, []);
 
-    const withEdit = useCallback(
-      (edits: Map<string, ApprovalLevel>, naturalKey: string, level: ApprovalLevel) => {
-        if (baseLevels.get(naturalKey) === level) edits.delete(naturalKey);
-        else edits.set(naturalKey, level);
-      },
-      [baseLevels],
-    );
-
     const setPolicyPermission = useCallback(
       (_categoryId: string, policyId: string, level: ApprovalLevel) => {
         setSelection(prev => {
           if (prev?.kind !== 'custom') return prev;
-          const edits = new Map(prev.edits);
-          withEdit(edits, policyId, level);
-          return { ...prev, edits };
+          return { ...prev, edits: withPolicyEdit(prev.edits, baseLevels, policyId, level) };
         });
       },
-      [withEdit],
+      [baseLevels],
     );
 
     const allCategories = useMemo(() => Array.from(editorGroups.values()).flat(), [editorGroups]);
@@ -199,14 +183,10 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
         if (!category) return;
         setSelection(prev => {
           if (prev?.kind !== 'custom') return prev;
-          const edits = new Map(prev.edits);
-          for (const policy of category.policies) {
-            withEdit(edits, policy.naturalKey, level);
-          }
-          return { ...prev, edits };
+          return { ...prev, edits: withCategoryEdits(prev.edits, baseLevels, category, level) };
         });
       },
-      [allCategories, withEdit],
+      [allCategories, baseLevels],
     );
 
     const isDirty = useMemo(() => {
@@ -265,7 +245,10 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
       );
     }
 
-    if (error || !guardrails) {
+    // The templates list drives seeding, the picker, and preset labels — a
+    // failure there would otherwise misrender the org as "using defaults"
+    // with a dead picker, so it is as fatal as the org query failing.
+    if (error || templatesError || !guardrails) {
       return (
         <LoadError
           message="Couldn't load customer guardrails. The service may be temporarily unavailable."

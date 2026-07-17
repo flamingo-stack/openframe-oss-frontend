@@ -1,6 +1,7 @@
 'use client';
 
-import { ActionsMenuDropdown, Button, RadioGroupBlock, SlidersIcon } from '@flamingo-stack/openframe-frontend-core';
+import { ActionsMenuDropdown, Button, RadioGroupBlock } from '@flamingo-stack/openframe-frontend-core';
+import { Filter03HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 
 export interface GuardrailsTemplateOption {
   id: string;
@@ -47,8 +48,8 @@ export function GuardrailsTemplatePicker({
                 e.stopPropagation();
                 onCreateCustomPolicyFrom(option.id);
               }}
-              className="hidden md:inline-flex md:!text-sm text-ods-text-primary bg-ods-card border-ods-border hover:bg-ods-bg-hover font-bold !px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] h-auto"
-              leftIcon={<SlidersIcon className="w-4 h-4" />}
+              className="hidden md:inline-flex !text-h3 text-ods-text-primary bg-ods-card border-ods-border hover:bg-ods-bg-hover gap-[var(--spacing-system-xsf)] !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] h-auto [&_svg]:!size-6"
+              leftIcon={<Filter03HrIcon className="text-ods-text-secondary"/>}
               disabled={disabled}
             >
               Use for Custom Policy
@@ -70,7 +71,7 @@ export function GuardrailsTemplatePicker({
                       {
                         id: 'use-for-custom-policy',
                         label: 'Use for Custom Policy',
-                        icon: <SlidersIcon className="w-4 h-4" />,
+                        icon: <Filter03HrIcon className="text-ods-text-secondary"/>,
                         onClick: () => onCreateCustomPolicyFrom(option.id),
                         disabled,
                       },

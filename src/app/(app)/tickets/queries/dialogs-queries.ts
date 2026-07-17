@@ -41,9 +41,7 @@ export function getDialogMessagesQuery() {
             }
             ... on AssistantOwner {
               model
-              modelName
               providerName
-              contextWindow
             }
           }
           messageData {

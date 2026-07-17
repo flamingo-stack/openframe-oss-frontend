@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildPolicyGroups } from './build-policy-groups';
 import { CUSTOM_CREATION_TEMPLATE_ID, CUSTOM_POLICY_DESCRIPTION, CUSTOM_POLICY_TYPE } from './guardrails.types';
 import type { GuardrailsTemplateOption } from './guardrails-template-picker';
+import { applyEditsToRules, buildBaseLevels, withCategoryEdits, withPolicyEdit } from './rule-edits';
 import {
   useActivateGuardrailsTemplate,
   useGuardrailsTemplate,
@@ -72,24 +73,11 @@ export function useGuardrailsEditor({ isEditMode }: UseGuardrailsEditorArgs) {
 
   // Approval levels as the server knows them — edits that return to these are
   // dropped from the draft instead of being sent as overrides.
-  const baseLevels = useMemo(() => {
-    const levels = new Map<string, ApprovalLevel>();
-    for (const rule of displayTemplate?.rules ?? []) {
-      levels.set(rule.naturalKey, rule.approvalLevel);
-    }
-    return levels;
-  }, [displayTemplate]);
+  const baseLevels = useMemo(() => buildBaseLevels(displayTemplate?.rules ?? []), [displayTemplate]);
 
   const policyGroups = useMemo(() => {
-    const rules = displayTemplate?.rules ?? [];
     const edits = draft && draft.kind !== 'template' ? draft.edits : null;
-    const effectiveRules = edits?.size
-      ? rules.map(rule => {
-          const level = edits.get(rule.naturalKey);
-          return level ? { ...rule, approvalLevel: level } : rule;
-        })
-      : rules;
-    return buildPolicyGroups(effectiveRules);
+    return buildPolicyGroups(applyEditsToRules(displayTemplate?.rules ?? [], edits));
   }, [displayTemplate, draft]);
 
   const allCategories = useMemo(() => Array.from(policyGroups.values()).flat(), [policyGroups]);
@@ -154,24 +142,14 @@ export function useGuardrailsEditor({ isEditMode }: UseGuardrailsEditorArgs) {
     setDraft({ kind: 'new-custom', baseTemplateId, edits: new Map() });
   }, []);
 
-  const withEdit = useCallback(
-    (edits: Map<string, ApprovalLevel>, naturalKey: string, level: ApprovalLevel) => {
-      if (baseLevels.get(naturalKey) === level) edits.delete(naturalKey);
-      else edits.set(naturalKey, level);
-    },
-    [baseLevels],
-  );
-
   const setPolicyPermission = useCallback(
     (_categoryId: string, policyId: string, level: ApprovalLevel) => {
       setDraft(prev => {
         if (!prev || prev.kind === 'template') return prev;
-        const edits = new Map(prev.edits);
-        withEdit(edits, policyId, level);
-        return { ...prev, edits };
+        return { ...prev, edits: withPolicyEdit(prev.edits, baseLevels, policyId, level) };
       });
     },
-    [withEdit],
+    [baseLevels],
   );
 
   const applyCategoryPermission = useCallback(
@@ -180,14 +158,10 @@ export function useGuardrailsEditor({ isEditMode }: UseGuardrailsEditorArgs) {
       if (!category) return;
       setDraft(prev => {
         if (!prev || prev.kind === 'template') return prev;
-        const edits = new Map(prev.edits);
-        for (const policy of category.policies) {
-          withEdit(edits, policy.naturalKey, level);
-        }
-        return { ...prev, edits };
+        return { ...prev, edits: withCategoryEdits(prev.edits, baseLevels, category, level) };
       });
     },
-    [allCategories, withEdit],
+    [allCategories, baseLevels],
   );
 
   // Ref guard: isPending flips asynchronously, a double form submit would

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import type { AgentAiConfigInput, AIProvider, AiQuickAction, AnswerStyle } from '../types/ai-settings';
+import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from './chat-graphql';
 
 /**
  * Per-organization CLIENT AI config via the ai-agent GraphQL API
@@ -64,6 +65,16 @@ const RESET_ORGANIZATION_CLIENT_AI_CONFIG_MUTATION = `
   }
 `;
 
+const RESET_ORGANIZATION_CLIENT_AI_QUICK_ACTIONS_MUTATION = `
+  mutation ResetOrganizationClientAiQuickActions($organizationId: ID!) {
+    resetOrganizationClientAiQuickActions(organizationId: $organizationId) {
+      userErrors {
+        message
+      }
+    }
+  }
+`;
+
 export interface OrganizationClientAiConfig {
   organizationId: string;
   /** True when the org has no override and the values are the tenant defaults. */
@@ -75,26 +86,6 @@ export interface OrganizationClientAiConfig {
   /** Effective quick actions; null means nothing configured anywhere (bundled fallback). */
   quickActions: AiQuickAction[] | null;
   updatedAt: string | null;
-}
-
-interface GraphqlResponse<T> {
-  data?: T;
-  errors?: { message: string }[];
-}
-
-interface MutationPayloadGql {
-  userErrors: { message: string }[];
-}
-
-function throwOnErrors(
-  response: { ok: boolean; error?: string; data?: GraphqlResponse<Record<string, MutationPayloadGql>> },
-  fallbackMessage: string,
-) {
-  if (!response.ok || !response.data) throw new Error(response.error || fallbackMessage);
-  if (response.data.errors?.length) throw new Error(response.data.errors.map(e => e.message).join(', '));
-  const payload = response.data.data && Object.values(response.data.data)[0];
-  const userErrors = payload?.userErrors ?? [];
-  if (userErrors.length > 0) throw new Error(userErrors.map(e => e.message).join(', '));
 }
 
 export function useOrganizationClientAiConfig(organizationId: string, { enabled = true }: { enabled?: boolean } = {}) {
@@ -173,4 +164,29 @@ export function useResetOrganizationClientAiConfig(organizationId: string) {
   });
 
   return { reset: result.mutateAsync, isPending: result.isPending };
+}
+
+/**
+ * Replaces the org's quick actions with a copy of the tenant default's ones,
+ * keeping the rest of the override intact — the backend ignores
+ * `quickActionsIsDefault` on org updates, so re-checking "use defaults" must
+ * go through this mutation. Feedback is owned by the caller.
+ */
+export function useResetOrganizationClientAiQuickActions(organizationId: string) {
+  const queryClient = useQueryClient();
+
+  const result = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<GraphqlResponse<Record<string, MutationPayloadGql>>>('/chat/graphql', {
+        query: RESET_ORGANIZATION_CLIENT_AI_QUICK_ACTIONS_MUTATION,
+        variables: { organizationId },
+      });
+      throwOnErrors(response, 'Failed to reset customer quick actions');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationAiConfigQueryKeys.detail(organizationId) });
+    },
+  });
+
+  return { resetQuickActions: result.mutateAsync, isPending: result.isPending };
 }

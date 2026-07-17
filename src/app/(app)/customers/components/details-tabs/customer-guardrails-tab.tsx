@@ -57,9 +57,13 @@ export function CustomerGuardrailsTab({ organizationId }: CustomerGuardrailsTabP
 
   const inheritsDefault = guardrails.inheritDefault;
   const sourceTemplateLabel = templates.find(t => t.id === guardrails.sourceTemplate)?.displayName;
+  // An org policy without overrides IS the source preset (materialized as-is
+  // by the edit page's preset radio) — only overridden rules make it custom.
   const presetLabel = inheritsDefault
     ? templates.find(t => t.id === activeTemplateId)?.displayName || 'None'
-    : `Custom Policy${sourceTemplateLabel ? ` (based on ${sourceTemplateLabel})` : ''}`;
+    : guardrails.overrides.length === 0 && sourceTemplateLabel
+      ? sourceTemplateLabel
+      : `Custom Policy${sourceTemplateLabel ? ` (based on ${sourceTemplateLabel})` : ''}`;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">

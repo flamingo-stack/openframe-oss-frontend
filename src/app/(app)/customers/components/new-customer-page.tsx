@@ -21,7 +21,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { featureFlags } from '@/lib/feature-flags';
 import { getFullImageUrl } from '@/lib/image-url';
-import { routes } from '@/lib/routes';
+import { routes, TAB_IDS } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { deleteWithAuth, uploadWithAuth } from '@/lib/upload-with-auth';
 import { dashboardQueryKeys } from '../../dashboard/utils/query-keys';
@@ -94,6 +94,8 @@ const contactToDto = (c: { name: string; title: string; phone: string; email: st
   email: c.email,
 });
 
+const [DETAILS_TAB, AI_CONFIGURATION_TAB, GUARDRAILS_TAB] = TAB_IDS.customerEdit;
+
 export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -134,9 +136,9 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
 
   const editTabs = useMemo<TabItem[]>(
     () => [
-      { id: 'details', label: 'Details', icon: FileContentIcon },
-      ...(showAppearance ? [{ id: 'ai-configuration', label: 'Customer AI Configuration', icon: ChatsIcon }] : []),
-      ...(showGuardrails ? [{ id: 'guardrails', label: 'Customer AI Guardrails', icon: ShieldCheckIcon }] : []),
+      { id: DETAILS_TAB, label: 'Details', icon: FileContentIcon },
+      ...(showAppearance ? [{ id: AI_CONFIGURATION_TAB, label: 'Customer AI Configuration', icon: ChatsIcon }] : []),
+      ...(showGuardrails ? [{ id: GUARDRAILS_TAB, label: 'Customer AI Guardrails', icon: ShieldCheckIcon }] : []),
     ],
     [showAppearance, showGuardrails],
   );
@@ -145,8 +147,8 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   // "Edit Customer" from a details-page tab lands on the matching edit tab and
   // a refresh keeps the current one. Unknown or flag-hidden tab ids fall back
   // to Details. Panels stay mounted across switches, so form state survives.
-  const requestedTab = searchParams?.get('tab') ?? 'details';
-  const activeTab = editTabs.some(tab => tab.id === requestedTab) ? requestedTab : 'details';
+  const requestedTab = searchParams?.get('tab') ?? DETAILS_TAB;
+  const activeTab = editTabs.some(tab => tab.id === requestedTab) ? requestedTab : DETAILS_TAB;
   const handleTabChange = useCallback(
     (tabId: string) => {
       const params = new URLSearchParams(searchParams?.toString() ?? '');
@@ -494,14 +496,14 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
             // details form state and the AI blocks' imperative refs must
             // survive tab switches so one "Save Customer" persists them all.
             <div className="pt-[var(--spacing-system-l)]">
-              <div className={activeId === 'details' ? undefined : 'hidden'}>{detailsForm}</div>
+              <div className={activeId === DETAILS_TAB ? undefined : 'hidden'}>{detailsForm}</div>
               {showAppearance && (
-                <div className={activeId === 'ai-configuration' ? undefined : 'hidden'}>
+                <div className={activeId === AI_CONFIGURATION_TAB ? undefined : 'hidden'}>
                   <CustomerAiConfiguration ref={aiConfigurationRef} organizationId={organizationId} />
                 </div>
               )}
               {showGuardrails && (
-                <div className={activeId === 'guardrails' ? undefined : 'hidden'}>
+                <div className={activeId === GUARDRAILS_TAB ? undefined : 'hidden'}>
                   <CustomerGuardrailsSettings ref={guardrailsRef} organizationId={organizationId} />
                 </div>
               )}

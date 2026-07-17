@@ -50,7 +50,7 @@ import type { startTimerMutation as StartTimerMutationType } from '@/__generated
 import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { useAiModel } from '@/app/hooks/use-ai-model';
+import { type AiModel, useAiModel } from '@/app/hooks/use-ai-model';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
 import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation';
@@ -153,8 +153,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // Tenant-wide ADMIN (Mingo) model — the admin agent has no per-org override.
   const initialAdminModel = useAiModel();
   const { modelsByProvider } = useSupportedModels();
-  const [currentClientModel, setCurrentClientModel] = useState<{ provider: string; displayName: string } | null>(null);
-  const [currentAdminModel, setCurrentAdminModel] = useState<{ provider: string; displayName: string } | null>(null);
+  const [currentClientModel, setCurrentClientModel] = useState<AiModel | null>(null);
+  const [currentAdminModel, setCurrentAdminModel] = useState<AiModel | null>(null);
   const isClientOwner = useCallback((owner: ClientDialogOwner | DialogOwner): owner is ClientDialogOwner => {
     return owner != null && typeof owner === 'object' && 'machineId' in owner;
   }, []);

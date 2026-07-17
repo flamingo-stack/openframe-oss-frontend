@@ -150,7 +150,7 @@ export function buildNotificationColumns({
               href={isRoute ? action.route : undefined}
               onClick={openDrawer}
               aria-label={action.label}
-              leftIcon={<ArrowRightUpIcon/>}
+              leftIcon={<ArrowRightUpIcon />}
             />
           </div>
         );

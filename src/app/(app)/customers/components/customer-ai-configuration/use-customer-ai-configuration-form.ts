@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { OrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
-import type { ClientView } from '@/app/(app)/settings/ai-settings/types/ai-settings';
+import { type ClientView, getDefaultAgentAiConfig } from '@/app/(app)/settings/ai-settings/types/ai-settings';
 import {
   type CustomerAiAssistantFormValues,
   customerAiAssistantSchema,
@@ -25,13 +25,14 @@ function getCustomerAiConfigurationDefaults(
   view: ClientView,
   config: OrganizationClientAiConfig | null,
 ): CustomerAiAssistantFormValues {
+  const baseConfig = getDefaultAgentAiConfig('CLIENT');
   return {
     assistantName: view.assistantName,
     applicationTheme: view.applicationTheme,
     accentColor: view.accentColor,
-    llmProvider: config?.llmProvider ?? 'ANTHROPIC',
-    providerModel: config?.providerModel ?? '',
-    answerStyle: config?.answerStyle ?? 'STANDARD',
+    llmProvider: config?.llmProvider ?? baseConfig.llmProvider,
+    providerModel: config?.providerModel ?? baseConfig.providerModel,
+    answerStyle: config?.answerStyle ?? baseConfig.answerStyle ?? 'STANDARD',
     customPrompt: config?.customPrompt ?? '',
     // The org config has no explicit flag — a null action list means "no
     // customs" (hub defaults apply). Mirrors getAiLogicDefaults: rows stay

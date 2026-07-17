@@ -11,6 +11,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ComponentType } from 'react';
+import type { CustomerDetailTab } from '@/lib/routes';
 import type { CustomerDetails } from '../../hooks/use-customer-details';
 import { CustomerCustomAiAssistantTab } from './customer-custom-ai-assistant-tab';
 import { CustomerDetailsTab } from './customer-details-tab';
@@ -58,8 +59,10 @@ function GuardrailsTab({ organization }: CustomerTabProps) {
   return <CustomerGuardrailsTab organizationId={organization.organizationId} />;
 }
 
-export const CUSTOM_AI_ASSISTANT_TAB_ID = 'custom-ai-assistant';
-export const CUSTOMER_GUARDRAILS_TAB_ID = 'customer-ai-guardrails';
+// `satisfies` links these ids to the route registry's tab union — renaming a
+// tab in TAB_IDS.customerDetails without updating them fails tsc.
+export const CUSTOM_AI_ASSISTANT_TAB_ID = 'custom-ai-assistant' satisfies CustomerDetailTab;
+export const CUSTOMER_GUARDRAILS_TAB_ID = 'customer-ai-guardrails' satisfies CustomerDetailTab;
 
 const BASE_CUSTOMER_TABS: TabItem[] = [
   { id: 'devices', label: 'Devices', icon: MonitorIcon, component: DevicesTab },
