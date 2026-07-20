@@ -155,6 +155,10 @@ export const routes = {
     list: '/scripts-v2',
     new: '/scripts-v2/new',
     archived: '/scripts-v2/archived',
+    schedules: {
+      list: '/scripts-v2/schedules',
+      archived: '/scripts-v2/schedules/archived',
+    },
     details: (id: string | number, o?: { tab?: ScriptsV2DetailTab }) =>
       withQuery('/scripts-v2/details', { id, tab: o?.tab }),
     run: (id: string | number) => withQuery('/scripts-v2/details/run', { id }),
