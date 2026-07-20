@@ -96,8 +96,7 @@ export interface MingoUnifiedChat {
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const { aiModel } = useAiModelStatus();
 
-  const { activeDialogId, setActiveDialogId, resetUnread, addMessage, getStreamingMessage, tokenUsageByDialog } =
-    useMingoMessagesStore();
+  const { activeDialogId, setActiveDialogId, resetUnread, addMessage, tokenUsageByDialog } = useMingoMessagesStore();
 
   // Server-side dialog search. The embeddable chat's search bar emits the
   // already-debounced term via `setSearchQuery`; it rides the `useMingoDialogs`
@@ -220,13 +219,16 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   }, [processedMessages]);
 
   // ─── Streaming phase: idle → thinking → streaming ─────────────────────────
+  // The lib reducer's phase machine is the source of truth (mirrored per
+  // dialog); a standalone compaction window still locks the composer.
+  const reducerPhase = useMingoMessagesStore(s =>
+    activeDialogId ? (s.phaseByDialog.get(activeDialogId) ?? 'idle') : 'idle',
+  );
   const streamingPhase = useMemo<StreamingPhase>(() => {
-    if (!isTyping && !isCompacting) return 'idle';
-    if (!activeDialogId) return 'thinking';
-    const streaming = getStreamingMessage(activeDialogId);
-    const hasContent = !!streaming && Array.isArray(streaming.content) && streaming.content.length > 0;
-    return hasContent ? 'streaming' : 'thinking';
-  }, [isTyping, isCompacting, activeDialogId, getStreamingMessage]);
+    if (reducerPhase !== 'idle') return reducerPhase;
+    if (isTyping || isCompacting) return 'thinking';
+    return 'idle';
+  }, [reducerPhase, isTyping, isCompacting]);
 
   // ─── Dialog selection (mirrors the /mingo page glue, minus URL syncing) ───
   const selectDialog = useCallback(

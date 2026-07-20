@@ -31,8 +31,7 @@ export function useMingoDialogSelection() {
     setMessages,
     prependWithBoundaryMerge,
     getMessages,
-    getStreamingMessage,
-    setStreamingMessage,
+    getStreamingId,
     setTyping,
     getTyping,
     getHighestStreamSeq,
@@ -134,7 +133,7 @@ export function useMingoDialogSelection() {
   // MESSAGE_END. While in that state we poll the dialog and trust a FRESH
   // server-side IDLE (fetched after the busy assertion) to clear the lock.
   const isActiveTyping = useMingoMessagesStore(s =>
-    activeDialogId ? (s.typingStates.get(activeDialogId) ?? false) : false,
+    activeDialogId ? (s.phaseByDialog.get(activeDialogId) ?? 'idle') !== 'idle' : false,
   );
   const lastBusyAssertAtRef = useRef(0);
   useEffect(() => {
@@ -235,9 +234,10 @@ export function useMingoDialogSelection() {
     // Only a post-mount fetch is trusted for closure — a cache-served IDLE
     // inside the staleTime window may predate a stream.
     if (dialogStreamState !== 'IDLE' || !dialogQuery.isFetchedAfterMount) return;
-    if (getStreamingMessage(activeDialogId)) {
+    if (getStreamingId(activeDialogId)) {
       if (getHighestStreamSeq(activeDialogId) > baselineSeqRef.current.seq) return;
-      setStreamingMessage(activeDialogId, null);
+      // Forcing the phase to idle closes the stale streaming bubble AND
+      // releases the typing lock in one reducer command.
       setTyping(activeDialogId, false);
       return;
     }
@@ -251,15 +251,14 @@ export function useMingoDialogSelection() {
     dialogQuery.dataUpdatedAt,
     isActiveTyping,
     getHighestStreamSeq,
-    getStreamingMessage,
-    setStreamingMessage,
+    getStreamingId,
     setTyping,
   ]);
 
   // Streaming exemption for the history merge, gated on the same server-side
   // signal so a not-yet-closed stale entry can't exempt its synthetic.
   const streamingEntryId = useMingoMessagesStore(s =>
-    activeDialogId ? (s.streamingMessages.get(activeDialogId)?.id ?? null) : null,
+    activeDialogId ? (s.streamingIdByDialog.get(activeDialogId) ?? null) : null,
   );
   const streamingExemptId = dialogStreamState === 'IDLE' ? null : streamingEntryId;
 

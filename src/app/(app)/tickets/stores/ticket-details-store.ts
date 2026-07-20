@@ -1,23 +1,159 @@
+import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-core';
+import type { ChatStreamEvent } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
-  type ApprovalBatchExecutionState,
-  type ApprovalBatchSegment,
-  type Message as ChatMessage,
-  createMessageSegmentAccumulator,
-  type MessageSegment,
-  type MessageSegmentAccumulator,
-  type TokenUsageData,
-  type ToolExecutionSegment,
-} from '@flamingo-stack/openframe-frontend-core';
+  type ChatApprovalStatus,
+  type ChatStreamReducer,
+  type ChatStreamReducerOptions,
+  createChatDialogStore,
+  type UnifiedChatMessage,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
+import { fromUnifiedMessage, toUnifiedMessage } from '@/lib/chat-stream-thread';
+import { featureFlags } from '@/lib/feature-flags';
 
 export type ChatSide = 'client' | 'admin';
 
+/**
+ * Phase 4 of the chat unification: each chat side is a lib
+ * `createChatStreamReducer` instance held in a `createChatDialogStore`
+ * keyed (dialog, side). The store's built-in cross-side projections
+ * (approval resolution by requestId, tool-execution merge by execId)
+ * replace the app's both-sides fan-out. This zustand store survives as
+ * persistence/cache + identity: per-side seq bookkeeping, approval-status
+ * map, and a converted READ MIRROR of each reducer snapshot so existing
+ * selectors keep working.
+ *
+ * Only one ticket dialog is open at a time (the view clears state on
+ * ticket switch/unmount), so the reducers use a constant thread key —
+ * the two SIDES are the real keys.
+ */
+const TICKET_THREAD_KEY = 'ticket-details';
+
+export const ticketChatDialogStore = createChatDialogStore();
+
+const SIDE_IDENTITY: Record<ChatSide, { assistantName: string; assistantType: 'fae' | 'mingo' }> = {
+  client: { assistantName: 'Fae', assistantType: 'fae' },
+  admin: { assistantName: 'Mingo', assistantType: 'mingo' },
+};
+
+const approvalHandlersBySide = new Map<
+  ChatSide,
+  { onApprove?: (requestId?: string) => void | Promise<void>; onReject?: (requestId?: string) => void | Promise<void> }
+>();
+const lastSyncedSnapshot: Partial<Record<ChatSide, unknown>> = {};
+const lastConvertedThread: Partial<Record<ChatSide, { source: UnifiedChatMessage[]; out: ChatMessage[] }>> = {};
+
+function reducerOptions(side: ChatSide): ChatStreamReducerOptions {
+  return {
+    transport: 'nats',
+    displayApprovalTypes: ['CLIENT', 'ADMIN'],
+    batchApprovalsEnabled: featureFlags.batchApproval.enabled(),
+    callbacks: {
+      onApprove: id => approvalHandlersBySide.get(side)?.onApprove?.(id),
+      onReject: id => approvalHandlersBySide.get(side)?.onReject?.(id),
+    },
+  };
+}
+
+function getSideReducer(side: ChatSide): ChatStreamReducer {
+  return ticketChatDialogStore.getReducer(TICKET_THREAD_KEY, side, () => reducerOptions(side));
+}
+
+/** Mirror one side's reducer snapshot into zustand (no-op when unchanged). */
+function syncSide(side: ChatSide): void {
+  getSideReducer(side);
+  const snap = ticketChatDialogStore.getSnapshot(TICKET_THREAD_KEY, side);
+  if (lastSyncedSnapshot[side] === snap) return;
+  lastSyncedSnapshot[side] = snap;
+
+  const prevConverted = lastConvertedThread[side];
+  const messages =
+    prevConverted && prevConverted.source === snap.messages
+      ? prevConverted.out
+      : snap.messages.map(u => fromUnifiedMessage(u, SIDE_IDENTITY[side]));
+  lastConvertedThread[side] = { source: snap.messages, out: messages };
+
+  const phase = snap.streamingPhase;
+  const last = messages[messages.length - 1];
+  const streamingId = phase === 'streaming' && last?.role === 'assistant' ? last.id : null;
+
+  useTicketDetailsStore.setState(state => {
+    const nextSide: SideState = {
+      ...state[side],
+      messages,
+      isTyping: phase !== 'idle',
+      streamingId,
+    };
+
+    // Approval resolutions the reducer learned from stream events flow
+    // back into the shared status map (history processing + pending-card
+    // extraction read it).
+    let approvalStatuses = state.approvalStatuses;
+    for (const [id, status] of Object.entries(snap.approvalStatuses)) {
+      if ((status === 'approved' || status === 'rejected') && approvalStatuses[id] !== status) {
+        if (approvalStatuses === state.approvalStatuses) approvalStatuses = { ...approvalStatuses };
+        approvalStatuses[id] = status;
+      }
+    }
+
+    return side === 'client' ? { client: nextSide, approvalStatuses } : { admin: nextSide, approvalStatuses };
+  });
+}
+
+/** Apply one decoded stream event to a side. The dialog store fans the
+ *  cross-side projections out to the other side, so both mirrors resync. */
+export function applyTicketChatEvent(side: ChatSide, event: ChatStreamEvent): void {
+  getSideReducer('client');
+  getSideReducer('admin');
+  ticketChatDialogStore.apply(TICKET_THREAD_KEY, side, event);
+  syncSide('client');
+  syncSide('admin');
+}
+
+/** Run reducer commands (non-wire mutations) against one side, then mirror. */
+export function mutateTicketSide<T>(side: ChatSide, fn: (reducer: ChatStreamReducer) => T): T {
+  const result = ticketChatDialogStore.mutate(TICKET_THREAD_KEY, side, fn);
+  syncSide(side);
+  return result;
+}
+
+/** Merge the app's approval-status map into one side's reducer lookup.
+ *  Merge — never replace — so stream-learned statuses survive. */
+export function syncTicketApprovalStatuses(side: ChatSide, statuses: Record<string, string>): void {
+  mutateTicketSide(side, r =>
+    r.syncApprovalStatuses({
+      ...r.state.approvalStatuses,
+      ...(statuses as Record<string, ChatApprovalStatus>),
+    }),
+  );
+}
+
+/** Read-modify-write on one side's app-shape thread. */
+function mutateThread(side: ChatSide, op: (messages: ChatMessage[]) => ChatMessage[]): void {
+  mutateTicketSide(side, reducer => {
+    const current = reducer.state.messages.map(u => fromUnifiedMessage(u, SIDE_IDENTITY[side]));
+    const next = op(current);
+    if (next === current) return;
+    reducer.setMessages(next.map(m => toUnifiedMessage(m)));
+  });
+}
+
+function dropSideCaches(side: ChatSide): void {
+  ticketChatDialogStore.remove(TICKET_THREAD_KEY, side);
+  approvalHandlersBySide.delete(side);
+  delete lastSyncedSnapshot[side];
+  delete lastConvertedThread[side];
+}
+
+// ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
+
 interface SideState {
+  /** Read mirror of the side reducer's message thread (app shape). */
   messages: ChatMessage[];
-  streaming: ChatMessage | null;
-  accumulator: MessageSegmentAccumulator;
-  tokenUsage: TokenUsageData | null;
+  /** Read mirror: reducer streamingPhase !== 'idle'. */
   isTyping: boolean;
+  /** Id of the assistant bubble an open stream writes into (merge exemption). */
+  streamingId: string | null;
   // Highest chunk `streamSeq` this client has consumed for the side (live or replayed). Compared
   // against history's max persisted seq in mergeHistoryWithRealtime to drop replayed synthetics
   // whose turns are already in history.
@@ -27,10 +163,8 @@ interface SideState {
 function createSideState(): SideState {
   return {
     messages: [],
-    streaming: null,
-    accumulator: createMessageSegmentAccumulator(),
-    tokenUsage: null,
     isTyping: false,
+    streamingId: null,
     highestStreamSeq: 0,
   };
 }
@@ -48,7 +182,7 @@ interface TicketDetailsStore {
   // Reset all chat-side state (e.g. on ticket switch)
   clearChatState: () => void;
 
-  // Per-side message actions
+  // Per-side message actions (delegate to the lib reducer)
   setMessages: (side: ChatSide, messages: ChatMessage[]) => void;
   prependMessages: (side: ChatSide, messages: ChatMessage[]) => void;
   prependWithBoundaryMerge: (
@@ -62,33 +196,18 @@ interface TicketDetailsStore {
   removeMessage: (side: ChatSide, messageId: string) => void;
   getMessages: (side: ChatSide) => ChatMessage[];
 
-  // Streaming
-  setStreamingMessage: (side: ChatSide, message: ChatMessage | null) => void;
-  getStreamingMessage: (side: ChatSide) => ChatMessage | null;
-  updateStreamingMessageSegments: (side: ChatSide, segments: MessageSegment[], streamSeq?: number) => void;
-  appendSegmentsToLastAssistant: (side: ChatSide, segments: MessageSegment[], streamSeq?: number) => void;
-
   // Approvals
+  /** Cross-message approval flip on one side (reducer accumulator + projection). */
   updateApprovalStatusInMessages: (
     side: ChatSide,
     requestId: string,
     status: ApprovalStatus,
     resolvedByName?: string | null,
   ) => void;
-  /** Merge an EXECUTING/EXECUTED event into the matching tool segment or
-   *  batch `executions` slot. `executionRequestId` is optional — without it,
-   *  an EXECUTED chunk pairs with the newest EXECUTING of the same
-   *  (integratedToolType, toolFunction). Returns whether anything matched so
-   *  the caller can append a fresh segment instead of dropping the event. */
-  updateToolExecutionInMessages: (
-    side: ChatSide,
-    executionRequestId: string | undefined,
-    executedData: ToolExecutionSegment['data'],
-  ) => boolean;
   setApprovalStatus: (requestId: string, status: ApprovalStatus) => void;
   mergeApprovalStatuses: (entries: ApprovalStatusMap) => void;
 
-  // Accumulator
+  // Approve/reject handlers stamped onto approval segments
   setAccumulatorCallbacks: (
     side: ChatSide,
     callbacks: {
@@ -96,13 +215,8 @@ interface TicketDetailsStore {
       onReject?: (requestId?: string) => void | Promise<void>;
     },
   ) => void;
-  resetAccumulator: (side: ChatSide) => void;
 
-  // Token usage
-  setTokenUsage: (side: ChatSide, data: TokenUsageData | null) => void;
-  getTokenUsage: (side: ChatSide) => TokenUsageData | null;
-
-  // Typing
+  // Typing (delegates to the reducer's phase machine)
   setTypingIndicator: (side: ChatSide, typing: boolean) => void;
 
   // Stream-seq coverage tracking (history/realtime dedupe)
@@ -127,305 +241,72 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
   admin: createSideState(),
   approvalStatuses: {},
 
-  clearChatState: () =>
+  clearChatState: () => {
+    dropSideCaches('client');
+    dropSideCaches('admin');
     set({
       client: createSideState(),
       admin: createSideState(),
       approvalStatuses: {},
-    }),
+    });
+  },
 
-  setMessages: (side, messages) => set(state => produceSide(state, side, s => ({ ...s, messages }))),
+  setMessages: (side, messages) => {
+    mutateTicketSide(side, r => r.setMessages(messages.map(m => toUnifiedMessage(m))));
+  },
 
-  prependMessages: (side, messages) =>
-    set(state =>
-      produceSide(state, side, s => ({
-        ...s,
-        messages: [...messages, ...s.messages],
-      })),
-    ),
+  prependMessages: (side, messages) => {
+    mutateTicketSide(side, r => r.prependMessages(messages.map(m => toUnifiedMessage(m))));
+  },
 
-  prependWithBoundaryMerge: (side, newMessages, boundaryMessageId, boundaryUpdates) =>
-    set(state =>
-      produceSide(state, side, s => {
-        let current = s.messages;
-        if (boundaryMessageId && boundaryUpdates) {
-          const idx = current.findIndex(m => m.id === boundaryMessageId);
-          if (idx !== -1) {
-            current = [...current];
-            current[idx] = { ...current[idx], ...boundaryUpdates };
-          }
+  prependWithBoundaryMerge: (side, newMessages, boundaryMessageId, boundaryUpdates) => {
+    mutateThread(side, current => {
+      let messages = current;
+      if (boundaryMessageId && boundaryUpdates) {
+        const idx = messages.findIndex(m => m.id === boundaryMessageId);
+        if (idx !== -1) {
+          messages = [...messages];
+          messages[idx] = { ...messages[idx], ...boundaryUpdates };
         }
-        const next = newMessages.length > 0 ? [...newMessages, ...current] : current;
-        return { ...s, messages: next };
-      }),
-    ),
+      }
+      return newMessages.length > 0 ? [...newMessages, ...messages] : messages;
+    });
+  },
 
-  addMessage: (side, message) =>
-    set(state =>
-      produceSide(state, side, s => {
-        const existingIndex = s.messages.findIndex(m => m.id === message.id);
-        if (existingIndex !== -1) {
-          const updated = [...s.messages];
-          updated[existingIndex] = message;
-          return { ...s, messages: updated };
-        }
-        return { ...s, messages: [...s.messages, message] };
-      }),
-    ),
+  addMessage: (side, message) => {
+    mutateThread(side, current => {
+      const existingIndex = current.findIndex(m => m.id === message.id);
+      if (existingIndex !== -1) {
+        const updated = [...current];
+        updated[existingIndex] = message;
+        return updated;
+      }
+      return [...current, message];
+    });
+  },
 
-  updateMessage: (side, messageId, updates) =>
-    set(state =>
-      produceSide(state, side, s => {
-        const idx = s.messages.findIndex(m => m.id === messageId);
-        if (idx === -1) return s;
-        const updated = [...s.messages];
-        updated[idx] = { ...updated[idx], ...updates };
-        return { ...s, messages: updated };
-      }),
-    ),
+  updateMessage: (side, messageId, updates) => {
+    mutateThread(side, current => {
+      const idx = current.findIndex(m => m.id === messageId);
+      if (idx === -1) return current;
+      const updated = [...current];
+      updated[idx] = { ...updated[idx], ...updates };
+      return updated;
+    });
+  },
 
-  removeMessage: (side, messageId) =>
-    set(state =>
-      produceSide(state, side, s => ({
-        ...s,
-        messages: s.messages.filter(m => m.id !== messageId),
-      })),
-    ),
+  removeMessage: (side, messageId) => {
+    mutateThread(side, current => {
+      const filtered = current.filter(m => m.id !== messageId);
+      return filtered.length === current.length ? current : filtered;
+    });
+  },
 
   getMessages: side => get()[side].messages,
 
-  setStreamingMessage: (side, message) => set(state => produceSide(state, side, s => ({ ...s, streaming: message }))),
-
-  getStreamingMessage: side => get()[side].streaming,
-
-  updateStreamingMessageSegments: (side, segments, streamSeq) =>
-    set(state =>
-      produceSide(state, side, s => {
-        if (!s.streaming) return s;
-        const processed = s.accumulator.replaySegments(segments);
-        const updatedMessage: ChatMessage = {
-          ...s.streaming,
-          content: processed,
-          streamSeq: streamSeq != null ? Math.max(s.streaming.streamSeq ?? 0, streamSeq) : s.streaming.streamSeq,
-        };
-        const idx = s.messages.findIndex(m => m.id === updatedMessage.id);
-        const nextMessages = idx !== -1 ? s.messages.map((m, i) => (i === idx ? updatedMessage : m)) : s.messages;
-        return { ...s, streaming: updatedMessage, messages: nextMessages };
-      }),
-    ),
-
-  appendSegmentsToLastAssistant: (side, segments, streamSeq) => {
-    const incomingCompaction = [...segments]
-      .reverse()
-      .find((seg): seg is Extract<MessageSegment, { type: 'context_compaction' }> => seg.type === 'context_compaction');
-
-    set(state =>
-      produceSide(state, side, s => {
-        for (let i = s.messages.length - 1; i >= 0; i--) {
-          if (s.messages[i].role !== 'assistant') continue;
-          const existing = Array.isArray(s.messages[i].content) ? (s.messages[i].content as MessageSegment[]) : [];
-
-          let nextContent: MessageSegment[];
-          if (incomingCompaction) {
-            // Mirror the lib's upsertTrailingCompaction: replace the LAST
-            // 'started' (earlier compactions in the bubble are already
-            // completed-in-place), else append. The previous first-match +
-            // any-compaction blanket silently dropped a second compaction
-            // landing in the same bubble.
-            let startedIdx = -1;
-            for (let k = existing.length - 1; k >= 0; k--) {
-              const seg = existing[k];
-              if (seg.type === 'context_compaction' && seg.status === 'started') {
-                startedIdx = k;
-                break;
-              }
-            }
-            if (startedIdx !== -1) {
-              nextContent = [...existing];
-              nextContent[startedIdx] = incomingCompaction;
-            } else {
-              nextContent = [...existing, incomingCompaction];
-            }
-          } else {
-            nextContent = s.accumulator.replaySegments([...existing, ...segments]);
-          }
-
-          const updated = [...s.messages];
-          updated[i] = {
-            ...updated[i],
-            content: nextContent,
-            streamSeq: streamSeq != null ? Math.max(updated[i].streamSeq ?? 0, streamSeq) : updated[i].streamSeq,
-          };
-          return { ...s, messages: updated };
-        }
-        // No assistant message anywhere (thread cleared / history not yet
-        // hydrated): open a fresh bubble instead of dropping the segments —
-        // mirrors the lib's appendToTrailingAssistant. Silently dropping the
-        // first post-MESSAGE_END tool chunk here is exactly the
-        // invisible-tool-run bug this pipeline was fixed for.
-        const fallback: ChatMessage = {
-          id: `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          role: 'assistant',
-          content: incomingCompaction ? [incomingCompaction] : [...segments],
-          timestamp: new Date(),
-          ...(streamSeq != null ? { streamSeq } : {}),
-        };
-        return { ...s, messages: [...s.messages, fallback] };
-      }),
-    );
-  },
-
-  updateApprovalStatusInMessages: (side, requestId, status, resolvedByName) =>
-    set(state => {
-      let matched = false;
-      const nextSides = produceSide(state, side, s => {
-        const updatedMessages = s.messages.map(message => {
-          if (message.role !== 'assistant' || !Array.isArray(message.content)) return message;
-          let changed = false;
-          const updatedContent = message.content.map(segment => {
-            if (segment.type === 'approval_request' && segment.data?.requestId === requestId) {
-              matched = true;
-              changed = true;
-              return { ...segment, status };
-            }
-            if (segment.type === 'approval_batch' && segment.data?.approvalRequestId === requestId) {
-              matched = true;
-              changed = true;
-              return {
-                ...segment,
-                status,
-                resolvedByName: resolvedByName ?? segment.resolvedByName,
-              } as ApprovalBatchSegment;
-            }
-            return segment;
-          });
-          return changed ? { ...message, content: updatedContent } : message;
-        });
-
-        const updatedSegments = s.accumulator.updateApprovalStatus(requestId, status, resolvedByName);
-        const updatedStreaming =
-          s.streaming && Array.isArray(s.streaming.content)
-            ? { ...s.streaming, content: updatedSegments }
-            : s.streaming;
-
-        return { ...s, messages: updatedMessages, streaming: updatedStreaming };
-      });
-      const approvalStatusChanged = state.approvalStatuses[requestId] !== status;
-      if (!matched && !approvalStatusChanged) return state;
-      return {
-        ...nextSides,
-        approvalStatuses: approvalStatusChanged
-          ? { ...state.approvalStatuses, [requestId]: status }
-          : state.approvalStatuses,
-      };
-    }),
-
-  updateToolExecutionInMessages: (side, executionRequestId, executedData) => {
-    let matched = false;
-    set(state => {
-      const nextSides = produceSide(state, side, s => {
-        // Scan NEWEST-first: an id-less EXECUTED must pair with the newest
-        // in-flight EXECUTING of the same tool (a stale interrupted card from
-        // an earlier turn must not swallow the current run); execId matches
-        // are unique so direction doesn't change them.
-        let msgIdx = -1;
-        let segIdx = -1;
-        for (let i = s.messages.length - 1; i >= 0 && msgIdx === -1; i--) {
-          const message = s.messages[i];
-          if (message.role !== 'assistant' || !Array.isArray(message.content)) continue;
-          const content = message.content as MessageSegment[];
-          for (let j = content.length - 1; j >= 0; j--) {
-            const segment = content[j];
-            if (segment.type === 'tool_execution') {
-              const idMatches = executionRequestId
-                ? segment.data.toolExecutionRequestId === executionRequestId
-                : segment.data.type === 'EXECUTING_TOOL' &&
-                  segment.data.integratedToolType === executedData.integratedToolType &&
-                  segment.data.toolFunction === executedData.toolFunction;
-              if (idMatches) {
-                msgIdx = i;
-                segIdx = j;
-                break;
-              }
-            } else if (
-              executionRequestId &&
-              segment.type === 'approval_batch' &&
-              segment.data.toolCalls.some(c => c.toolExecutionRequestId === executionRequestId)
-            ) {
-              msgIdx = i;
-              segIdx = j;
-              break;
-            }
-          }
-        }
-
-        if (msgIdx === -1) return s;
-        matched = true;
-
-        const message = s.messages[msgIdx];
-        const content = message.content as MessageSegment[];
-        const segment = content[segIdx];
-        let nextSegment: MessageSegment;
-
-        if (segment.type === 'tool_execution') {
-          // Never downgrade a completed run back to EXECUTING (JetStream
-          // redelivery of the EXECUTING chunk after EXECUTED landed).
-          // `matched` stays TRUE here on purpose: the run is already
-          // represented on screen, so the caller's append fallback must not
-          // fire — a `false` would duplicate the card.
-          if (executedData.type === 'EXECUTING_TOOL' && segment.data.type === 'EXECUTED_TOOL') {
-            return s;
-          }
-          nextSegment = {
-            type: 'tool_execution',
-            data: {
-              ...executedData,
-              toolTitle: executedData.toolTitle ?? segment.data.toolTitle,
-              parameters: executedData.parameters ?? segment.data.parameters,
-            },
-          } satisfies ToolExecutionSegment;
-        } else {
-          const batch = segment as ApprovalBatchSegment;
-          const prev: ApprovalBatchExecutionState | undefined = batch.data.executions?.[executionRequestId as string];
-          // Same no-downgrade rule for a batch slot: a redelivered EXECUTING
-          // must not flip a 'done' entry back (matched stays true → no append).
-          if (executedData.type === 'EXECUTING_TOOL' && prev?.status === 'done') {
-            return s;
-          }
-          const next: ApprovalBatchExecutionState =
-            executedData.type === 'EXECUTED_TOOL'
-              ? { status: 'done', result: executedData.result, success: executedData.success }
-              : { status: 'executing', result: prev?.result, success: prev?.success };
-          nextSegment = {
-            ...batch,
-            data: {
-              ...batch.data,
-              executions: { ...(batch.data.executions ?? {}), [executionRequestId as string]: next },
-            },
-          } as ApprovalBatchSegment;
-        }
-
-        const nextContent = [...content];
-        nextContent[segIdx] = nextSegment;
-        const updatedMessages = [...s.messages];
-        updatedMessages[msgIdx] = { ...message, content: nextContent };
-
-        const updatedStreaming = s.streaming
-          ? (updatedMessages.find(m => m.id === s.streaming?.id) ?? s.streaming)
-          : s.streaming;
-        return {
-          ...s,
-          messages: updatedMessages,
-          streaming: updatedStreaming,
-        };
-      });
-      // Outer short-circuit: produceSide always builds a new {client, admin}
-      // wrapper even when its updater returned `s` unchanged, so without
-      // this guard zustand notifies every subscriber on every no-match.
-      if (!matched) return state;
-      return nextSides;
-    });
-    return matched;
+  updateApprovalStatusInMessages: (side, requestId, status, resolvedByName) => {
+    mutateTicketSide(side, r => r.updateApprovalStatus(requestId, status, resolvedByName));
+    get().setApprovalStatus(requestId, status);
   },
 
   setApprovalStatus: (requestId, status) =>
@@ -449,18 +330,20 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
     }),
 
   setAccumulatorCallbacks: (side, callbacks) => {
-    get()[side].accumulator.setCallbacks(callbacks);
+    approvalHandlersBySide.set(side, callbacks);
   },
 
-  resetAccumulator: side => {
-    get()[side].accumulator.reset();
+  setTypingIndicator: (side, typing) => {
+    mutateTicketSide(side, r => {
+      if (typing) {
+        // Only 'idle' upgrades to 'thinking' — an open stream keeps
+        // ownership of the phase (mirrors the reducer's agent-busy rule).
+        if (r.state.streamingPhase === 'idle') r.setPhase('thinking');
+      } else {
+        r.setPhase('idle');
+      }
+    });
   },
-
-  setTokenUsage: (side, data) => set(state => produceSide(state, side, s => ({ ...s, tokenUsage: data }))),
-
-  getTokenUsage: side => get()[side].tokenUsage,
-
-  setTypingIndicator: (side, typing) => set(state => produceSide(state, side, s => ({ ...s, isTyping: typing }))),
 
   recordHighestStreamSeq: (side, seq) =>
     set(state =>
@@ -469,5 +352,8 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
 
   getHighestStreamSeq: side => get()[side].highestStreamSeq,
 
-  clearSide: side => set(state => produceSide(state, side, _s => createSideState())),
+  clearSide: side => {
+    dropSideCaches(side);
+    set(state => produceSide(state, side, _s => createSideState()));
+  },
 }));

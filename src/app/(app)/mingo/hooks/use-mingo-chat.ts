@@ -98,7 +98,7 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
   const {
     messagesByDialog,
     addMessage,
-    typingStates,
+    phaseByDialog,
     setTyping,
     removeWelcomeMessages,
     updateApprovalStatusInMessages,
@@ -108,8 +108,8 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
 
   const isTyping = useMemo(() => {
     if (!dialogId) return false;
-    return typingStates.get(dialogId) || false;
-  }, [dialogId, typingStates]);
+    return (phaseByDialog.get(dialogId) ?? 'idle') !== 'idle';
+  }, [dialogId, phaseByDialog]);
 
   const createDialogMutation = useCreateDialogMutation();
   const sendMessageMutation = useSendMessageMutation();

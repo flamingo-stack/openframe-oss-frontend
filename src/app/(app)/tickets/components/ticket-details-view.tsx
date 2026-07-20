@@ -319,8 +319,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     undefined;
 
   const processClientChunk = useSideChunkProcessor('client', {
-    assistantName: ASSISTANT_CONFIG.FAE.name,
-    assistantType: ASSISTANT_CONFIG.FAE.type,
     userDisplayName: clientDisplayName,
     isDirectMode,
     onMetadata: useCallback((metadata: { modelDisplayName: string; providerName: string }) => {
@@ -329,8 +327,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   });
 
   const processAdminChunk = useSideChunkProcessor('admin', {
-    assistantName: ASSISTANT_CONFIG.MINGO.name,
-    assistantType: ASSISTANT_CONFIG.MINGO.type,
     onMetadata: useCallback((metadata: { modelDisplayName: string; providerName: string }) => {
       setCurrentAdminModel({ provider: metadata.providerName, displayName: metadata.modelDisplayName });
     }, []),

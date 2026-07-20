@@ -1,42 +1,21 @@
 'use client';
 
-import {
-  type AssistantType,
-  type ChatApprovalStatus,
-  type Message as ChatMessage,
-  extractIncompleteMessageState,
-  type MessageSegment,
-  type SegmentsUpdateMetadata,
-  type TokenUsageData,
-  type ToolExecutionSegment,
-  useRealtimeChunkProcessor,
-} from '@flamingo-stack/openframe-frontend-core';
-import { useCallback, useEffect, useMemo } from 'react';
-import { featureFlags } from '@/lib/feature-flags';
+import { decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { useCallback, useEffect, useRef } from 'react';
+import { computeIncompleteTailState } from '@/lib/chat-stream-thread';
 import { useAuthStore } from '@/stores';
-import { type ChatSide, useTicketDetailsStore } from '../stores/ticket-details-store';
-
-function isInProgress(segments: MessageSegment[]): boolean {
-  return segments.some(seg => {
-    if (seg.type === 'tool_execution' && seg.data.type === 'EXECUTING_TOOL') return true;
-    if (seg.type === 'approval_request') return true;
-    if (seg.type === 'approval_batch') {
-      const allDone =
-        !!seg.data.executions &&
-        seg.data.toolCalls.every(c => seg.data.executions?.[c.toolExecutionRequestId]?.status === 'done');
-      return seg.status !== 'rejected' && !allDone;
-    }
-    return false;
-  });
-}
+import { OWNER_TYPE } from '../constants';
+import {
+  applyTicketChatEvent,
+  type ChatSide,
+  mutateTicketSide,
+  syncTicketApprovalStatuses,
+  useTicketDetailsStore,
+} from '../stores/ticket-details-store';
 
 interface UseSideChunkProcessorOptions {
-  assistantName: string;
-  assistantType: AssistantType;
   userDisplayName?: string;
   isDirectMode?: boolean;
-  onApprove?: (requestId?: string) => void | Promise<void>;
-  onReject?: (requestId?: string) => void | Promise<void>;
   onMetadata?: (metadata: {
     modelDisplayName: string;
     modelName: string;
@@ -47,244 +26,113 @@ interface UseSideChunkProcessorOptions {
 
 /**
  * Drives one chat side (client or admin) of a dialog from NATS chunks.
+ *
+ * Phase 4: chunks feed the lib master stream reducer directly
+ * (`decodeNatsChunk` → `ticketChatDialogStore.apply`). The reducer owns
+ * every accumulation rule the ~200-LOC callback glue here used to
+ * re-implement, and the dialog store's built-in cross-side projections
+ * (approval resolution by requestId, tool-execution merge by execId)
+ * replace the app's both-sides fan-out. Remaining side concerns: own-echo
+ * suppression, the metadata side-channel for the model badge, the direct-
+ * mode flag sync, client-authored direct-message rows (the lib reducer
+ * renders every direct message as admin-authored — see the comment
+ * below), and the one-shot incomplete-turn seed after history hydration.
  */
 export function useSideChunkProcessor(
   side: ChatSide,
-  {
-    assistantName,
-    assistantType,
-    userDisplayName,
-    isDirectMode,
-    onApprove,
-    onReject,
-    onMetadata,
-  }: UseSideChunkProcessorOptions,
+  { userDisplayName, isDirectMode, onMetadata }: UseSideChunkProcessorOptions,
 ) {
-  const {
-    [side]: sideState,
-    addMessage,
-    getMessages,
-    getStreamingMessage,
-    setStreamingMessage,
-    setTypingIndicator,
-    setTokenUsage,
-    updateStreamingMessageSegments,
-    appendSegmentsToLastAssistant,
-    setAccumulatorCallbacks,
-    updateApprovalStatusInMessages,
-    updateToolExecutionInMessages,
-  } = useTicketDetailsStore();
-
-  const { messages } = sideState;
+  const messages = useTicketDetailsStore(s => s[side].messages);
+  const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
+  const addMessage = useTicketDetailsStore(s => s.addMessage);
 
   const currentUserId = useAuthStore(state => state.user?.id);
+  const currentUserIdRef = useRef(currentUserId);
+  currentUserIdRef.current = currentUserId;
+  const onMetadataRef = useRef(onMetadata);
+  onMetadataRef.current = onMetadata;
+  const userDisplayNameRef = useRef(userDisplayName);
+  userDisplayNameRef.current = userDisplayName;
 
+  // Direct-mode barrier: engage optimistically from the host-known mode so
+  // the reducer drops AI events the moment the technician takes over.
   useEffect(() => {
-    if (onApprove || onReject) {
-      setAccumulatorCallbacks(side, { onApprove, onReject });
+    mutateTicketSide(side, r => r.setDirectMode(!!isDirectMode));
+  }, [side, isDirectMode]);
+
+  // Status lookup the reducer consults when an APPROVAL_REQUEST replays.
+  useEffect(() => {
+    if (Object.keys(approvalStatuses).length > 0) {
+      syncTicketApprovalStatuses(side, approvalStatuses);
     }
-  }, [side, onApprove, onReject, setAccumulatorCallbacks]);
+  }, [side, approvalStatuses]);
 
-  const ensureAssistantMessage = useCallback(() => {
-    if (getStreamingMessage(side)) return;
+  // One-shot incomplete-turn seed: once the hydrated thread shows an
+  // unfinished trailing assistant run (pending approvals / executing
+  // tools), seed the reducer's per-turn kernel so continuation chunks
+  // merge instead of replaying into a fresh bubble.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || messages.length === 0) return;
+    const extras = computeIncompleteTailState(messages);
+    if (!extras) return;
+    seededRef.current = true;
+    mutateTicketSide(side, r => r.initializeWithState(null, extras));
+  }, [side, messages]);
 
-    const last = getMessages(side).at(-1);
-    if (last?.role === 'assistant' && Array.isArray(last.content) && isInProgress(last.content)) {
-      setStreamingMessage(side, last);
-      return;
-    }
+  const processChunk = useCallback(
+    (chunk: unknown) => {
+      const event = decodeNatsChunk(chunk);
+      if (!event) return;
 
-    const assistantMessage: ChatMessage = {
-      id: `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      role: 'assistant',
-      content: [],
-      name: assistantName,
-      assistantType,
-      timestamp: new Date(),
-    };
-
-    setStreamingMessage(side, assistantMessage);
-    addMessage(side, assistantMessage);
-  }, [side, assistantName, assistantType, getMessages, getStreamingMessage, setStreamingMessage, addMessage]);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: history loads async; need to recompute when `messages` arrives so the accumulator picks up the real initial state.
-  const incompleteState = useMemo(() => {
-    const tail: MessageSegment[] = [];
-    let lastAssistantId = '';
-    let lastAssistantTimestamp = new Date();
-
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (msg.role !== 'assistant') break;
-      if (!lastAssistantId) {
-        lastAssistantId = msg.id;
-        lastAssistantTimestamp = msg.timestamp || new Date();
-      }
-      if (Array.isArray(msg.content)) {
-        tail.unshift(...msg.content);
-      } else if (typeof msg.content === 'string' && msg.content) {
-        tail.unshift({ type: 'text', text: msg.content } as MessageSegment);
-      }
-    }
-
-    if (!tail.length || !lastAssistantId) return undefined;
-
-    return extractIncompleteMessageState({
-      id: lastAssistantId,
-      role: 'assistant',
-      content: tail,
-      name: assistantName,
-      assistantType,
-      timestamp: lastAssistantTimestamp,
-    });
-  }, [messages, assistantName, assistantType]);
-
-  const callbacks = useMemo(
-    () => ({
-      onStreamStart: () => {
-        ensureAssistantMessage();
-        setTypingIndicator(side, true);
-      },
-      onStreamEnd: () => {
-        setTypingIndicator(side, false);
-        setStreamingMessage(side, null);
-      },
-      onSegmentsUpdate: (segments: MessageSegment[], metadata?: SegmentsUpdateMetadata) => {
-        // Compaction emits must not FORCE the indicator off (the end-emit
-        // would unlock the composer until the continuation's first chunk);
-        // leave it as-is on compaction, set it on everything else.
-        if (!metadata?.isCompacting) setTypingIndicator(side, true);
-        if (metadata?.append) {
-          appendSegmentsToLastAssistant(side, segments, metadata?.streamSeq);
-        } else {
-          ensureAssistantMessage();
-          updateStreamingMessageSegments(side, segments, metadata?.streamSeq);
-        }
-      },
-      // EXECUTING_TOOL / approved APPROVAL_RESULT chunks land OUTSIDE the
-      // message_start/end window (approved commands run between the approval
-      // bubble and the continuation stream) — without this the composer
-      // unlocks while commands execute. Cleared by onStreamEnd / onError.
-      onAgentBusy: () => {
-        setTypingIndicator(side, true);
-      },
-      onError: (error: string) => {
-        console.error(`[DialogDetails:${side}] stream error:`, error);
-        setTypingIndicator(side, false);
-        setStreamingMessage(side, null);
-      },
-      onTokenUsage: (data: TokenUsageData) => setTokenUsage(side, data),
-      onApprovalResolved: (
-        requestId: string,
-        status: ChatApprovalStatus,
-        _approvalType: string,
-        resolvedByName?: string | null,
-      ) => {
-        if (status === 'approved' || status === 'rejected') {
-          updateApprovalStatusInMessages('client', requestId, status, resolvedByName);
-          updateApprovalStatusInMessages('admin', requestId, status, resolvedByName);
-        }
-      },
-      onToolExecuted: (segment: ToolExecutionSegment) => {
-        // With an execId, merge into an existing card on either side (a batch
-        // card can live in the other side's thread) — the id is unique, so a
-        // cross-side lookup can't touch the wrong segment. WITHOUT an id the
-        // fallback pairs by (toolType, toolFunction), which on the wrong side
-        // could flip an unrelated same-tool run — so fuzzy-match only THIS
-        // side. When NOTHING matches (the common case for the FIRST
-        // post-MESSAGE_END EXECUTING chunk of an approved command), append
-        // the segment to this side's last assistant bubble instead of
-        // dropping it, or the whole tool run stays invisible.
-        const execId = segment.data.toolExecutionRequestId;
-        let matched: boolean;
-        if (execId) {
-          const matchedClient = updateToolExecutionInMessages('client', execId, segment.data);
-          const matchedAdmin = updateToolExecutionInMessages('admin', execId, segment.data);
-          matched = matchedClient || matchedAdmin;
-        } else {
-          matched = updateToolExecutionInMessages(side, undefined, segment.data);
-        }
-        if (!matched) {
-          appendSegmentsToLastAssistant(side, [segment]);
-        }
-      },
-      onUserMessage: (
-        text: string,
-        meta?: { ownerType?: string; displayName?: string; userId?: string; streamSeq?: number },
-      ) => {
-        if (meta?.userId && meta.userId === currentUserId) return;
-
-        const isAdminAuthor = meta?.ownerType === 'ADMIN';
-        const name = isAdminAuthor ? meta?.displayName : (userDisplayName ?? meta?.displayName);
-
-        addMessage(side, {
-          id: `user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          role: 'user',
-          content: text,
-          name,
-          authorType: isAdminAuthor ? 'admin' : 'user',
-          timestamp: new Date(),
-          streamSeq: meta?.streamSeq,
+      // Side-channel: model badge refinement (kept outside the reducer).
+      if (event.type === 'metadata') {
+        onMetadataRef.current?.({
+          modelDisplayName: event.modelLabel ?? event.modelName ?? '',
+          modelName: event.modelName ?? '',
+          providerName: event.provider ?? '',
+          contextWindow: event.contextWindowMaxTokens ?? 0,
         });
-      },
-      onDirectMessage: (text: string, meta?: { ownerType?: string; displayName?: string; streamSeq?: number }) => {
-        const isAdminAuthor = meta?.ownerType === 'ADMIN';
-        const name = isAdminAuthor ? meta?.displayName : (userDisplayName ?? meta?.displayName);
+      }
 
+      // Own MESSAGE_REQUEST echo — the optimistic admin send already
+      // rendered it.
+      if (
+        event.type === 'participant' &&
+        event.kind === 'message-request' &&
+        event.userId &&
+        event.userId === currentUserIdRef.current
+      ) {
+        return;
+      }
+
+      // Client-authored DIRECT_MESSAGE: the lib reducer renders every
+      // direct message as an admin-authored row (its home surface only
+      // sees technician takeovers). The tickets client chat also carries
+      // the END USER's direct replies — keep them user-authored with the
+      // device display name, exactly like the pre-Phase-4 glue.
+      if (
+        event.type === 'participant' &&
+        event.kind === 'direct-message' &&
+        event.ownerType &&
+        event.ownerType !== OWNER_TYPE.ADMIN
+      ) {
         addMessage(side, {
           id: `direct-${Date.now()}-${Math.random().toString(16).slice(2)}`,
           role: 'user',
-          content: text,
-          name,
-          authorType: isAdminAuthor ? 'admin' : 'user',
+          content: event.text,
+          name: userDisplayNameRef.current ?? event.displayName,
+          authorType: 'user',
           timestamp: new Date(),
-          streamSeq: meta?.streamSeq,
+          streamSeq: event.seq,
         });
-      },
-      onSystemMessage: (text: string, meta?: { streamSeq?: number }) => {
-        addMessage(side, {
-          id: `system-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          role: 'user',
-          content: '',
-          name: text,
-          authorType: 'system',
-          timestamp: new Date(),
-          streamSeq: meta?.streamSeq,
-        });
-      },
-      onMetadata,
-      onApprove,
-      onReject,
-    }),
-    [
-      side,
-      ensureAssistantMessage,
-      setTypingIndicator,
-      setStreamingMessage,
-      updateStreamingMessageSegments,
-      appendSegmentsToLastAssistant,
-      setTokenUsage,
-      addMessage,
-      userDisplayName,
-      currentUserId,
-      onMetadata,
-      onApprove,
-      onReject,
-      updateApprovalStatusInMessages,
-      updateToolExecutionInMessages,
-    ],
+        return;
+      }
+
+      applyTicketChatEvent(side, event);
+    },
+    [side, addMessage],
   );
-
-  const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
-
-  const { processChunk } = useRealtimeChunkProcessor({
-    callbacks,
-    displayApprovalTypes: ['CLIENT', 'ADMIN'],
-    initialState: incompleteState,
-    approvalStatuses,
-    batchApprovalsEnabled: featureFlags.batchApproval.enabled(),
-    isDirectMode,
-  });
 
   return processChunk;
 }
