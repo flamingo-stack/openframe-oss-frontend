@@ -146,52 +146,6 @@ function InfoCardSkeleton() {
 }
 
 /**
- * OnboardingStepCard skeleton - matches OnboardingStepCard exactly
- * Structure: bg-ods-card, rounded-[6px], h-[80px], flex row
- */
-function OnboardingStepCardSkeleton() {
-  return (
-    <div className="bg-ods-card border border-ods-border rounded-[6px] min-h-[80px] md:h-[80px] flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 px-4 py-4 md:py-0">
-      {/* Left - title and description */}
-      <div className="flex-1 w-full md:w-auto min-w-0 flex flex-col justify-center gap-1">
-        <Skeleton className="h-6 w-40" /> {/* title - 18px/24px line height */}
-        <Skeleton className="h-5 w-64" /> {/* description - 14px/20px line height, h-[20px] explicit */}
-      </div>
-      {/* Right - buttons */}
-      <div className="flex items-center gap-2 w-full md:w-auto justify-start md:justify-end shrink-0">
-        <Skeleton className="h-14 w-full md:w-[100px] rounded-[6px]" />{' '}
-        {/* Skip button - h-14 matches Button default */}
-        <Skeleton className="h-14 w-full md:w-[160px] rounded-[6px]" />{' '}
-        {/* Action button - h-14 matches Button default */}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Onboarding skeleton - matches OnboardingWalkthrough exactly
- * Structure: header row + vertical list of OnboardingStepCards
- */
-function OnboardingSkeleton() {
-  return (
-    <div className="w-full space-y-4">
-      {/* Header - title + button */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
-        <Skeleton className="h-8 w-36" /> {/* "Get Started" title - 24px/32px line height */}
-        <Skeleton className="h-12 w-full md:w-[180px] rounded-[6px]" />{' '}
-        {/* "Skip Onboarding" button - w-full md:w-auto matches actual Button */}
-      </div>
-      {/* Step cards - 5 vertical cards */}
-      <div className="space-y-4">
-        {Array.from({ length: 5 }, (_, i) => (
-          <OnboardingStepCardSkeleton key={i} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
  * Devices skeleton - matches DevicesOverviewSection exactly
  * Structure: h2 title + p subtitle + grid of InfoCards
  */
@@ -339,9 +293,11 @@ export function AppShellSkeleton() {
           {/* ContentPageContainer wrapper - EXACT flex flex-col w-full gap-8 */}
           <div className="flex flex-col w-full gap-8">
             <div className="flex-1">
-              {/* Dashboard content skeleton - EXACT space-y-10 pt-6 */}
+              {/* Dashboard content skeleton - EXACT space-y-10 pt-6.
+                  No onboarding skeleton: onboarding is an optional, dismissible,
+                  dashboard-only surface, so reserving a tall block for it here (the
+                  app-wide shell fallback) just flashes a section that collapses on load. */}
               <div className="space-y-10 pt-6">
-                <OnboardingSkeleton />
                 <DevicesSkeleton />
                 <TicketsSkeleton />
                 <CustomersSkeleton />
