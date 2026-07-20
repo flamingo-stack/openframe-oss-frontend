@@ -74,19 +74,21 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
 
   const { organization, isLoading, error } = useCustomerDetails(id);
 
-  // The Custom AI Assistant tab is gated behind the customer-ai-assistant-settings
-  // flag (feature not released yet) and depends on the openframe-saas-ai-agent
-  // service (/chat/graphql), so it's saas-tenant only; it appears only when the
-  // customer has a custom appearance override (an org-scoped ClientView exists).
-  const isCustomerAiEnabled = featureFlags.customerAiAssistantSettings.enabled();
+  // The customer AI-assistant tab depends on the openframe-saas-ai-agent
+  // service (/chat/graphql), so it's saas-tenant only. `customer-ai-configuration`
+  // switches the NEW full view vs the legacy appearance-only view; the latter
+  // still respects the original `customer-ai-assistant-settings` flag. The tab
+  // appears only when the customer actually overrides part of the AI setup.
+  const isNewAiConfig = featureFlags.customerAiConfiguration.enabled();
+  const isCustomerAiEnabled = isNewAiConfig || featureFlags.customerAiAssistantSettings.enabled();
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
-  // The Customer AI Configuration tab appears when the customer overrides any
-  // part of the AI setup: appearance (org ClientView) or AI logic (org config).
   const aiTabQueriesEnabled = isCustomerAiEnabled && isSaasTenant && !!id;
   const { view: clientView } = useClientView(id, { enabled: aiTabQueriesEnabled });
   const { config: orgAiConfig } = useOrganizationClientAiConfig(id, { enabled: aiTabQueriesEnabled });
-  const showCustomAiAssistant =
-    isCustomerAiEnabled && isSaasTenant && (!!clientView || (!!orgAiConfig && !orgAiConfig.inheritDefault));
+  // New view surfaces both overrides; the legacy appearance view only renders a
+  // ClientView override, so gate it on that alone to avoid an empty tab.
+  const hasOverride = isNewAiConfig ? !!clientView || (!!orgAiConfig && !orgAiConfig.inheritDefault) : !!clientView;
+  const showCustomAiAssistant = isCustomerAiEnabled && isSaasTenant && hasOverride;
   // Effective per-org guardrails via /chat/graphql (saas-ai-agent), so
   // saas-tenant only; own release flag, independent of the appearance feature.
   const showGuardrails = featureFlags.customerGuardrails.enabled() && isSaasTenant;
