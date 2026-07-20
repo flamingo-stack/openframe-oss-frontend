@@ -210,9 +210,25 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       // realtime `MESSAGE_REQUEST` echo; the lib resolves each chip's icon from
       // `contextPicker.entityTypes` by `type`.
       const context = role === 'user' && m.contextItems?.length ? { contextItems: m.contextItems } : {};
+      // `hidden` is load-bearing, NOT cosmetic: it marks synthetic rows (e.g.
+      // an auto-continuation directive) that the model must see but the reader
+      // must not. This field-by-field rebuild drops anything not listed, so the
+      // flag has to be forwarded explicitly — without it the lib's message list
+      // has nothing to skip on and renders an author label with no body (or the
+      // raw directive text) in the transcript.
+      const visibility = m.hidden ? { hidden: true as const } : {};
       const unified: UnifiedChatMessage = Array.isArray(m.content)
-        ? { id: m.id, role, content: '', segments: m.content, timestamp: m.timestamp, ...identity, ...context }
-        : { id: m.id, role, content: m.content, timestamp: m.timestamp, ...identity, ...context };
+        ? {
+            id: m.id,
+            role,
+            content: '',
+            segments: m.content,
+            timestamp: m.timestamp,
+            ...identity,
+            ...context,
+            ...visibility,
+          }
+        : { id: m.id, role, content: m.content, timestamp: m.timestamp, ...identity, ...context, ...visibility };
       cache.set(m, unified);
       return unified;
     });

@@ -39,6 +39,12 @@ interface ProcessedMessage {
   authorType?: AuthorType;
   assistantType?: 'fae' | 'mingo';
   timestamp: Date;
+  /** Synthetic row the model must see but the reader must not (e.g. an
+   *  auto-continuation directive). Part of the conversation, never rendered —
+   *  the lib's message list skips it. Every field-by-field seam between the
+   *  reducer and the lib has to forward this or the raw directive text (or a
+   *  bare author label) leaks into the transcript. */
+  hidden?: boolean;
 }
 
 interface UseMingoChat {
@@ -83,6 +89,7 @@ function isSameProcessedMessage(a: ProcessedMessage, b: ProcessedMessage): boole
     a.avatar === b.avatar &&
     a.authorType === b.authorType &&
     a.assistantType === b.assistantType &&
+    a.hidden === b.hidden &&
     a.timestamp.getTime() === b.timestamp.getTime() &&
     // Reference equality — contextItems is set once on the optimistic send and
     // never mutated, so a stable reference means the chips are unchanged.
@@ -183,6 +190,8 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
         assistantType: msg.assistantType as 'fae' | 'mingo' | undefined,
         timestamp: msg.timestamp || new Date(),
         contextItems: msg.contextItems,
+        // Carry the invisible-but-real flag through (see ProcessedMessage).
+        ...(msg.hidden ? { hidden: true as const } : {}),
       });
     }
 
