@@ -237,6 +237,12 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
 
       // Core Actions
       setActiveDialogId: (dialogId: string | null) => {
+        // The active dialog is the only DISPLAYED thread, so it is the only
+        // one pinned against the reducer LRU. Every other visited dialog
+        // falls back to protection-by-recency (plus the store's own
+        // mid-stream guard); if one is evicted, the mirror suppresses its
+        // empty snapshot and the selection effect re-seeds it from history.
+        mirror.setActiveKeys(dialogId ? [dialogId] : []);
         set({ activeDialogId: dialogId });
       },
 
@@ -415,6 +421,8 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
 
       resetAll: () => {
         for (const dialogId of mirror.knownKeys()) dropDialogCaches(dialogId);
+        // Nothing is displayed after a reset — release any surviving pin.
+        mirror.setActiveKeys([]);
         set({
           messagesByDialog: new Map(),
           phaseByDialog: new Map(),

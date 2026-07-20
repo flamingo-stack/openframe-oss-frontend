@@ -100,9 +100,19 @@ function mutateThread(side: ChatSide, op: (messages: ChatMessage[]) => ChatMessa
   mirror.mutateThread(side, op);
 }
 
+/** Both sides of the OPEN ticket are displayed, so both are pinned against
+ *  the reducer LRU. The thread key is constant and only one ticket is open at
+ *  a time, so this set never changes — but it is re-asserted after a drop,
+ *  which releases the pin along with the reducer. */
+function retainOpenTicketSides(): void {
+  mirror.setActiveKeys(BOTH_SIDES);
+}
+retainOpenTicketSides();
+
 function dropSideCaches(side: ChatSide): void {
   mirror.drop(side);
   handlersBySide.delete(side);
+  retainOpenTicketSides();
 }
 
 // ─── Zustand store (persistence/cache + identity + read mirror) ─────────────

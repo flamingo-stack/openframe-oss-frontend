@@ -205,6 +205,17 @@ export interface ReducerMirror<K extends string> {
   /** Pre-curried, per-key-stable `{ apply, mutate, mergeApprovalStatuses }`.
    *  Memoized inside the mirror so React hosts need no `useCallback`. */
   bind: (key: K) => BoundMirror;
+  /**
+   * Declare the key(s) currently DISPLAYED. Exactly those are pinned against
+   * the dialog store's LRU eviction; any previously-active key not in `keys`
+   * is released back to LRU protection-by-recency. Idempotent — call it on
+   * every selection change.
+   *
+   * Retention tracks what is on screen, NOT what the mirror has ever seen:
+   * pinning every touched key makes memory grow with dialogs-visited and
+   * defeats the cap the LRU exists to enforce.
+   */
+  setActiveKeys: (keys: readonly K[]) => void;
   /** Drop the reducer + conversion caches for `key`. Force-flushes first. */
   drop: (key: K) => void;
   /** Every key this mirror has seen and not dropped. */
@@ -224,17 +235,29 @@ export interface ReducerMirror<K extends string> {
  * the previously converted output array verbatim. Break either and every
  * inline approval/tool card remounts on each chunk.
  *
- * RETENTION is the mirror's job, not the hosts'. The dialog store evicts
+ * RETENTION FOLLOWS WHAT IS DISPLAYED. The dialog store evicts
  * least-recently-used reducers past its cap (10) unless a key is RETAINED;
  * the React `useChatStreamReducer` hook retains for its lifetime, but this
  * factory is the only NON-React host and serves BOTH mingo (one key per
- * dialog) and tickets. Without retention, an idle-but-OPEN thread past the
- * 10th touched key gets evicted, the next `sync` recreates an EMPTY reducer,
- * and the changed (empty) snapshot patches the host store with
- * `messages: []` — the visible thread blanks, and the one-shot seeding guard
- * has already latched so it never re-hydrates. So: retain once per key at
- * first materialization, release in `drop`. Retention then means exactly
- * "the mirror still knows this key", which is the contract the store wants.
+ * dialog) and tickets. The OPEN thread must be pinned — evict it and the next
+ * `sync` recreates an EMPTY reducer whose changed snapshot patches the host
+ * store with `messages: []`, blanking a visible thread. But pinning every key
+ * the mirror has ever SEEN makes memory track dialogs-visited and defeats the
+ * cap outright, so hosts declare the displayed key(s) via `setActiveKeys`
+ * (mingo: its `activeDialogId`; tickets: both sides of the open ticket) and
+ * everything else falls back to LRU protection-by-recency plus the store's
+ * own `streamingPhase !== 'idle'` guard, which already refuses to evict a
+ * live stream.
+ *
+ * EVICTION OF A NON-DISPLAYED KEY IS THEN SAFE because `getReducer` detects
+ * RECREATION by reducer identity: a key whose reducer object changed had its
+ * predecessor evicted, so the mirror suppresses the pristine-empty snapshot
+ * instead of projecting it into the host store. The host's own hydration
+ * (which re-runs on selection — mingo resets its processed-history guard on
+ * `activeDialogId` change and re-`setMessages` the merged thread) then fills
+ * the fresh reducer, and that non-empty snapshot syncs normally. Emptiness
+ * alone is NOT the discriminator: a genuine `setMessages([])` must still
+ * reach the host.
  *
  * DELTA BATCHING is NOT reimplemented here: the lib's framework-free
  * `createDeltaBatcher` is the single implementation, shared with the React
@@ -253,9 +276,15 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
   const lastSyncedSnapshot = new Map<K, ChatReducerState>();
   const lastConvertedThread = new Map<K, { source: readonly UnifiedChatMessage[]; out: ChatMessage[] }>();
   const boundByKey = new Map<K, BoundMirror>();
-  /** key → the store's release fn. Presence IS the retention — see the
-   *  RETENTION note above; `drop` is the only place it is called. */
+  /** key → the store's release fn for a DISPLAYED key. Driven by
+   *  `setActiveKeys` (and released in `drop`) — see the RETENTION note. */
   const releaseByKey = new Map<K, () => void>();
+  /** key → the reducer instance last handed out, so a recreated (i.e.
+   *  previously evicted) reducer is detectable by identity. */
+  const reducerByKey = new Map<K, ChatStreamReducer>();
+  /** Keys whose reducer was recreated and has not been re-seeded yet. Their
+   *  pristine-empty snapshot must not blank the host's cached thread. */
+  const recreatedKeys = new Set<K>();
 
   // The batcher applies against the key it FLUSHED, which on a key change is
   // the PREVIOUS key — never assume it is the key currently being handled.
@@ -286,11 +315,34 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
   function getReducer(key: K): ChatStreamReducer {
     knownKeys.add(key);
     const { dialogId, side } = identityFor(key);
-    // Retain BEFORE resolving: `getReducer` on an 11th key would otherwise be
-    // free to evict this one on its way in. Refcounted + idempotent in the
-    // store, but the map keeps it at exactly one retain per known key.
-    if (!releaseByKey.has(key)) releaseByKey.set(key, store.retain(dialogId, side));
-    return store.getReducer(dialogId, side, () => options(key));
+    const reducer = store.getReducer(dialogId, side, () => options(key));
+    const previous = reducerByKey.get(key);
+    if (previous !== undefined && previous !== reducer) {
+      // A DIFFERENT instance for a key we already held means the old one was
+      // LRU-evicted. Everything derived from it is stale, and its pristine
+      // state must not be projected — see the RETENTION note.
+      recreatedKeys.add(key);
+      lastSyncedSnapshot.delete(key);
+      lastConvertedThread.delete(key);
+    }
+    reducerByKey.set(key, reducer);
+    return reducer;
+  }
+
+  function setActiveKeys(keys: readonly K[]): void {
+    const next = new Set<K>(keys);
+    // Retain the newcomers BEFORE releasing anyone: a key present in both the
+    // old and new set must never dip to zero retains in between.
+    for (const key of next) {
+      if (releaseByKey.has(key)) continue;
+      const { dialogId, side } = identityFor(key);
+      releaseByKey.set(key, store.retain(dialogId, side));
+    }
+    for (const [key, release] of [...releaseByKey]) {
+      if (next.has(key)) continue;
+      release();
+      releaseByKey.delete(key);
+    }
   }
 
   function sync(key: K): void {
@@ -298,6 +350,14 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     const { dialogId, side, defaults } = identityFor(key);
     const snap = store.getSnapshot(dialogId, side);
     if (lastSyncedSnapshot.get(key) === snap) return;
+    if (recreatedKeys.has(key)) {
+      // Post-eviction reducer that nothing has re-seeded yet: projecting its
+      // empty thread would blank the host's cached one. Wait for the host's
+      // hydration to land (it re-runs on selection); the resulting non-empty
+      // snapshot clears the flag and syncs normally.
+      if (snap.messages.length === 0) return;
+      recreatedKeys.delete(key);
+    }
     lastSyncedSnapshot.set(key, snap);
 
     const prevConverted = lastConvertedThread.get(key);
@@ -427,11 +487,17 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     store.remove(dialogId, side);
     lastSyncedSnapshot.delete(key);
     lastConvertedThread.delete(key);
+    // A dropped key is intentionally gone — the next `getReducer` builds a
+    // fresh reducer that the host is expected to seed, so this is NOT the
+    // eviction case the recreation guard exists for.
+    reducerByKey.delete(key);
+    recreatedKeys.delete(key);
     knownKeys.delete(key);
   }
 
   return {
     getReducer,
+    setActiveKeys,
     sync,
     apply,
     mutate,
@@ -497,16 +563,12 @@ export function natsMirrorOptions<K extends string>(
     // for ADMIN rows (correct on hosts where an ADMIN row is a
     // technician's reply) and every message we send renders twice.
     ownEchoIncludesAdmin: true,
-    // TODO(lib-export): `selfUserId` is not yet an option on
-    // `ChatStreamReducerOptions` (a parallel lib change is adding it, along
-    // with a TTL on `pendingEchoTexts`). Wired here already because
-    // `ownEchoIncludesAdmin` above matches on RAW TEXT with no author check:
-    // if our own echo never lands, the stale pending text can consume a
-    // SECOND technician's identical message on the ticket ADMIN side and that
-    // message never renders. Spread (not a plain key) so the excess-property
-    // check stays quiet until the option exists; harmlessly ignored by a
-    // reducer that does not read it yet.
-    ...(selfUserId() ? { selfUserId: selfUserId() } : {}),
+    // Pairs with `ownEchoIncludesAdmin` above, which matches on RAW TEXT: the
+    // author check is what keeps a stale pending echo from consuming a SECOND
+    // technician's identical message on the ticket ADMIN side (that message
+    // would then never render). The lib also ages entries out after
+    // `OWN_ECHO_TTL_MS`, so a dropped echo cannot poison the thread forever.
+    selfUserId: selfUserId(),
     callbacks: {
       onApprove: (id?: string) => handlersFor(key)?.onApprove?.(id),
       onReject: (id?: string) => handlersFor(key)?.onReject?.(id),

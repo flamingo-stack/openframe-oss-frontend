@@ -27,6 +27,7 @@
  *     why the header precedence there is a security boundary.
  */
 
+import { normalizeIpForBucketKey } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { NextResponse } from 'next/server';
 
 /** Resolve the hub origin, normalizing away any trailing slash. */
@@ -39,58 +40,22 @@ function hubOrigin(): string | null {
 /** Emitted once per process — a deployed misconfiguration must not be silent. */
 let warnedMissingServiceToken = false;
 
-// Deliberately shape-only (not a full RFC-compliant validator): the point is
-// to reject anything that could smuggle CR/LF or extra header material into
-// the forwarded value. Anything that isn't recognisably an address is dropped.
-const IPV4_SHAPE = /^(\d{1,3}\.){3}\d{1,3}$/;
-const IPV6_SHAPE = /^[0-9a-fA-F:]{2,45}$/;
-// `::ffff:203.0.113.4` — what a dual-stack listener reports for an IPv4 peer
-// (nginx on an AF_INET6 socket, Node's `socket.remoteAddress`). Normalized to
-// the bare IPv4 so the rate-limit bucket matches the direct-connection case
-// rather than splitting into two buckets for the same visitor.
-const IPV4_MAPPED_SHAPE = /^::ffff:((?:\d{1,3}\.){3}\d{1,3})$/i;
-
-function isPlausibleIpv4(value: string): boolean {
-  return IPV4_SHAPE.test(value) && value.split('.').every(part => Number(part) <= 255);
-}
-
 /**
- * Normalize one candidate to a forwardable address, or null.
+ * Normalization of a candidate address is the LIB's job, not ours:
+ * `normalizeIpForBucketKey` (`@flamingo-stack/openframe-frontend-core/chat-protocol`)
+ * is the one rule both this proxy (the producer of `x-chat-ip`) and the hub
+ * (the consumer that buckets on it) apply. They previously each had their own
+ * — differing on `%zone` and IPv4-mapped forms — so one visitor could land in
+ * two rate-limit buckets depending on which side normalized.
  *
- * TODO(lib-export): replace this body with the shared
- * `normalizeIpForBucketKey(value): string | null` from
- * `@flamingo-stack/openframe-frontend-core/chat-protocol` once it lands (it is
- * not exported from that subpath yet). The hub shape-checks the SAME
- * `x-chat-ip` with different rules — it preserves the `%zone` this side strips
- * — so one visitor can currently land in two rate-limit buckets. The rules
- * below are the intended shared ones; keeping them here is a stopgap, not a
- * second opinion.
- *
- * Rejecting these forms is not a cosmetic nit: a false negative means NO
- * `x-chat-ip` is sent at all and every visitor silently collapses back into
- * this app's single egress bucket. Both routinely-seen non-canonical forms
- * are therefore handled explicitly:
- *   - `%zone` scope ids (`fe80::1%eth0`) are stripped before validation;
- *   - IPv4-mapped IPv6 (`::ffff:203.0.113.4`, which contains dots and so
- *     fails a naive hex/colon-only IPv6 shape) is unwrapped to its IPv4.
+ * Getting this right is not a cosmetic nit in either direction: a false
+ * negative means NO `x-chat-ip` is sent at all and every visitor silently
+ * collapses back into this app's single egress bucket, and a pass-through of
+ * junk could smuggle CR/LF or extra header material into the forwarded value.
+ * The lib handles the routinely-seen non-canonical forms (`[::1]:443`
+ * brackets + port, `fe80::1%eth0` zone ids, `::ffff:203.0.113.4` IPv4-mapped)
+ * and rejects everything that isn't recognisably an address.
  */
-// `[::1]` / `[::1]:443` — bracketed IPv6, with or without a port suffix. A
-// naive "strip a trailing ]" misses the ported form (the `]` is not final),
-// which then fails IPV6_SHAPE and returns null — a false negative that
-// silently restores the shared-bucket regression this function exists to
-// prevent.
-const BRACKETED_SHAPE = /^\[([^\]]+)\](?::\d+)?$/;
-
-function normalizeIpCandidate(raw: string): string | null {
-  const trimmed = raw.trim();
-  // Unwrap brackets (+ any `:port` suffix) first, then drop any zone id.
-  const value = (BRACKETED_SHAPE.exec(trimmed)?.[1] ?? trimmed).split('%')[0];
-  if (!value) return null;
-  if (isPlausibleIpv4(value)) return value;
-  const mapped = IPV4_MAPPED_SHAPE.exec(value);
-  if (mapped) return isPlausibleIpv4(mapped[1]) ? mapped[1] : null;
-  return value.includes(':') && IPV6_SHAPE.test(value) ? value : null;
-}
 
 /** Emitted once per process — a silently degraded bucket must be observable. */
 let warnedMissingVisitorIp = false;
@@ -150,7 +115,7 @@ function visitorIpFrom(request: Request): string | null {
     forwardedHops.length > 0 ? forwardedHops[forwardedHops.length - 1] : '',
   ];
   for (const raw of candidates) {
-    const candidate = normalizeIpCandidate(raw);
+    const candidate = normalizeIpForBucketKey(raw);
     if (candidate) return candidate;
   }
   if (!warnedMissingVisitorIp) {
