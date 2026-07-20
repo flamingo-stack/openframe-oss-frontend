@@ -1505,6 +1505,12 @@ type Query {
   subscriptionCancellationPreview: Date
 
   """
+  This tenant's current Stripe test-clock time (dev/stage only). Null when no test
+  clock has been attached yet — the tenant is running on real time.
+  """
+  testClockTime: TestClockResult
+
+  """
   Currently active AI model rate version — how provider tokens convert to OpenFrame tokens.
   Empty list when no rate version has been published yet.
   """
