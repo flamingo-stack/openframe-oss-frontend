@@ -1,5 +1,4 @@
 import type { TokenUsageData } from '@flamingo-stack/openframe-frontend-core';
-import type { ChatStreamEvent } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
   type ChatStreamReducer,
   createChatDialogStore,
@@ -32,11 +31,17 @@ import type { DialogNode, Message } from '../types';
 
 // ─── Lib reducer registry (module-level, outlives React) ────────────────────
 
-export const mingoChatDialogStore = createChatDialogStore();
-
 const MINGO_IDENTITY = { assistantName: 'Mingo', assistantType: 'mingo' as const };
 
 const handlersByDialog = new Map<string, NatsMirrorHandlers>();
+
+/** Creation options for a dialog's reducer. Shared by the mirror (which
+ *  pre-creates with them) and the STORE-level default below. */
+const mingoReducerOptions = natsMirrorOptions<string>(
+  dialogId => handlersByDialog.get(dialogId),
+  () => featureFlags.batchApproval.enabled(),
+  () => useAuthStore.getState().user?.id,
+);
 
 /** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
  *  detection, conversion cache, thread RMW, delta batching, approval-status
@@ -46,13 +51,18 @@ const handlersByDialog = new Map<string, NatsMirrorHandlers>();
  *  'main'); no `siblingKeys` — mingo dialogs are independent, so nothing
  *  projects across keys. */
 const mirror = createReducerMirror<string>({
-  store: mingoChatDialogStore,
+  // The mirror builds the store so it can wire its own `onEvict`; this host
+  // adds `defaultCreateOptions`, which closes the store-level hole: a reducer
+  // first materialized by a bare `apply()` / `mutate()` (no per-call options)
+  // would otherwise be built WITHOUT `ownEchoIncludesAdmin` / `selfUserId` and
+  // keep those semantics missing for its whole life — creation options are
+  // consulted once — so every message this user sends would render twice. The
+  // mirror happens to always pre-create with options today; this makes the
+  // guarantee structural rather than incidental. Mirror key = dialogId = the
+  // store's `dialogId`, so the mapping back is the identity.
+  createStore: storeOptions => createChatDialogStore({ ...storeOptions, defaultCreateOptions: mingoReducerOptions }),
   identityFor: dialogId => ({ dialogId, side: DEFAULT_DIALOG_SIDE, defaults: MINGO_IDENTITY }),
-  options: natsMirrorOptions<string>(
-    dialogId => handlersByDialog.get(dialogId),
-    () => featureFlags.batchApproval.enabled(),
-    () => useAuthStore.getState().user?.id,
-  ),
+  options: mingoReducerOptions,
   onSnapshot: (dialogId, { messages, phase, streamingId, state: snap }) => {
     const usage = snap.dialogTokenUsage ?? null;
     useMingoMessagesStore.setState(state => {
@@ -78,6 +88,9 @@ const mirror = createReducerMirror<string>({
   },
 });
 
+/** The dialog store behind this host's reducers (built by the mirror). */
+export const mingoChatDialogStore = mirror.store;
+
 /** Late-bind approve/reject + model-badge handlers (approve/reject are
  *  stamped onto approval segments; onMetadata rides the reducer effect). */
 export function setMingoChatHandlers(dialogId: string, handlers: NatsMirrorHandlers): void {
@@ -91,11 +104,6 @@ export function setMingoChatHandlers(dialogId: string, handlers: NatsMirrorHandl
  *  Identity is stable per dialogId (memoized inside the mirror). */
 export function bindMingoDialog(dialogId: string): BoundMirror {
   return mirror.bind(dialogId);
-}
-
-/** Apply one decoded stream event to a dialog's reducer, then mirror. */
-export function applyMingoChatEvent(dialogId: string, event: ChatStreamEvent): void {
-  mirror.apply(dialogId, event);
 }
 
 /** Run reducer commands (non-wire mutations) against a dialog, then mirror. */
@@ -260,29 +268,11 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       prependWithBoundaryMerge: (dialogId, newMessages, boundaryMessageId?, boundaryUpdates?) => {
-        mutateThread(dialogId, current => {
-          let messages = current;
-          if (boundaryMessageId && boundaryUpdates) {
-            const idx = messages.findIndex(m => m.id === boundaryMessageId);
-            if (idx !== -1) {
-              messages = [...messages];
-              messages[idx] = { ...messages[idx], ...boundaryUpdates };
-            }
-          }
-          return newMessages.length > 0 ? [...newMessages, ...messages] : messages;
-        });
+        mirror.prependWithBoundaryMerge(dialogId, newMessages, boundaryMessageId, boundaryUpdates);
       },
 
       addMessage: (dialogId, message) => {
-        mutateThread(dialogId, current => {
-          const existingIndex = current.findIndex(m => m.id === message.id);
-          if (existingIndex !== -1) {
-            const updated = [...current];
-            updated[existingIndex] = message;
-            return updated;
-          }
-          return [...current, message];
-        });
+        mirror.upsertMessage(dialogId, message);
       },
 
       pushOptimisticSend: (dialogId, message) => {
@@ -290,20 +280,11 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       updateMessage: (dialogId, messageId, updates) => {
-        mutateThread(dialogId, current => {
-          const idx = current.findIndex(m => m.id === messageId);
-          if (idx === -1) return current;
-          const updated = [...current];
-          updated[idx] = { ...updated[idx], ...updates };
-          return updated;
-        });
+        mirror.patchMessage(dialogId, messageId, updates);
       },
 
       removeMessage: (dialogId, messageId) => {
-        mutateThread(dialogId, current => {
-          const filtered = current.filter(m => m.id !== messageId);
-          return filtered.length === current.length ? current : filtered;
-        });
+        mirror.removeMessage(dialogId, messageId);
       },
 
       updateApprovalStatusInMessages: (dialogId, requestId, status, resolvedByName?) => {
@@ -323,15 +304,7 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
 
       // Typing / phase
       setTyping: (dialogId, typing) => {
-        mutateMingoDialog(dialogId, r => {
-          if (typing) {
-            // Only 'idle' upgrades to 'thinking' — an open stream keeps
-            // ownership of the phase (mirrors the reducer's agent-busy rule).
-            if (r.state.streamingPhase === 'idle') r.setPhase('thinking');
-          } else {
-            r.setPhase('idle');
-          }
-        });
+        mirror.setTyping(dialogId, typing);
       },
 
       getTyping: (dialogId: string) => {
@@ -365,12 +338,15 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
         return get().unreadCounts.get(dialogId) || 0;
       },
 
+      // Routed through the REDUCER, not written straight into the mirror map:
+      // the reducer's `onTokenUsage` frames already own `dialogTokenUsage`, so
+      // a direct `set` here made two writers for one field with no stated
+      // precedence — a persisted seed landing after a live frame would silently
+      // roll the counters back. Going through the reducer means the same
+      // last-write-wins rule applies to both, and the mirror stays the only
+      // writer of `tokenUsageByDialog`.
       setTokenUsage: (dialogId: string, data: TokenUsageData) => {
-        set(state => {
-          const newMap = new Map(state.tokenUsageByDialog);
-          newMap.set(dialogId, data);
-          return { tokenUsageByDialog: newMap };
-        });
+        mutateMingoDialog(dialogId, r => r.setDialogTokenUsage(data));
       },
 
       getTokenUsage: (dialogId: string) => {

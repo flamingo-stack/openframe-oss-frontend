@@ -164,7 +164,7 @@ function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProces
   const messages = useMingoMessagesStore(s => s.messagesByDialog.get(dialogId));
 
   const processChunk = useChatChunkProcessor({
-    mirror: bindMingoDialog(dialogId),
+    boundMirror: bindMingoDialog(dialogId),
     messages,
     seedKey: dialogId,
     approvalStatuses,

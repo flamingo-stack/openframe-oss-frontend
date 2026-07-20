@@ -27,6 +27,7 @@ import {
   type ChatReducerState,
   type ChatStreamReducer,
   type ChatStreamReducerOptions,
+  type CreateChatDialogStoreOptions,
   createDeltaBatcher,
   type DeltaBatcher,
   type DeltaEvent,
@@ -143,8 +144,29 @@ export interface ReducerMirrorSnapshot {
 }
 
 export interface ReducerMirrorConfig<K extends string> {
-  store: ChatDialogStore;
-  /** Map a host mirror key to its (dialogId, side) + assistant identity. */
+  /**
+   * Build the dialog store. A FACTORY, not a ready-made store, because the
+   * mirror must inject its own `onEvict` at creation (the store takes it as a
+   * creation option) — handing the mirror a finished store would leave every
+   * host free to forget the wiring, and the mirror would be back to inferring
+   * eviction. Hosts merge their own options (`defaultCreateOptions`, …) into
+   * the ones passed in and return the instance; read it back off
+   * `ReducerMirror.store` if the host needs to export it.
+   */
+  createStore: (storeOptions: CreateChatDialogStoreOptions) => ChatDialogStore;
+  /**
+   * Map a host mirror key to its (dialogId, side) + assistant identity.
+   *
+   * INVARIANT: a key must ALWAYS map to the SAME `(dialogId, side)` for the
+   * mirror's lifetime. Everything keyed by `K` here — the retain handles in
+   * `setActiveKeys`, the snapshot/conversion caches, the recreation
+   * bookkeeping — is looked up by key and resolved through this function
+   * lazily. `setActiveKeys` in particular short-circuits on a key that is
+   * already retained, so a key whose identity later changed would keep the
+   * retain (and the caches) pinned to its STALE `(dialogId, side)` forever.
+   * Encode any varying part in the key itself (mingo keys by dialogId;
+   * tickets keys by side over a constant thread key).
+   */
   identityFor: (key: K) => {
     dialogId: string;
     side: ChatDialogSide;
@@ -177,16 +199,38 @@ export interface BoundMirror {
 }
 
 export interface ReducerMirror<K extends string> {
-  /** Create-or-get the reducer behind `key` (registers it as known). */
-  getReducer: (key: K) => ChatStreamReducer;
-  /** Re-project `key`'s reducer snapshot into the host store (no-op when unchanged). */
-  sync: (key: K) => void;
-  /** Apply one decoded stream event, then sync. Deltas are batched (see below). */
-  apply: (key: K, event: ChatStreamEvent) => void;
+  /** The dialog store this mirror built via `ReducerMirrorConfig.createStore`
+   *  (with the mirror's `onEvict` wired in). Exposed so a host can export the
+   *  instance it would otherwise have had to construct itself. */
+  store: ChatDialogStore;
   /** Run reducer commands (non-wire mutations), then sync. Force-flushes deltas. */
   mutate: <T>(key: K, fn: (reducer: ChatStreamReducer) => T) => T;
   /** Read-modify-write on the app-shape thread, delegated to the reducer. */
   mutateThread: (key: K, op: (messages: ChatMessage[]) => ChatMessage[]) => void;
+  /** Upsert by id: replace the row carrying `message.id`, else append. */
+  upsertMessage: (key: K, message: ChatMessage) => void;
+  /** Shallow-patch the row carrying `id`. No-op when it is absent. */
+  patchMessage: (key: K, id: string, updates: Partial<ChatMessage>) => void;
+  /** Drop the row carrying `id`. No-op when it is absent. */
+  removeMessage: (key: K, id: string) => void;
+  /**
+   * Prepend an older history page, optionally shallow-patching the row that
+   * straddles the page boundary (the merge both hosts run after fetching an
+   * earlier page). No-op when nothing changes.
+   */
+  prependWithBoundaryMerge: (
+    key: K,
+    newMessages: ChatMessage[],
+    boundaryMessageId?: string,
+    boundaryUpdates?: Partial<ChatMessage>,
+  ) => void;
+  /**
+   * Host typing indicator → the reducer's phase machine. Only 'idle' upgrades
+   * to 'thinking': an open stream keeps ownership of the phase (this mirrors
+   * the reducer's own agent-busy rule). Turning typing OFF always returns to
+   * 'idle', which is what ends a host-driven indicator.
+   */
+  setTyping: (key: K, typing: boolean) => void;
   /**
    * Merge a host-held PERSISTED approval-status map into `key`'s reducer.
    * Delegates to the reducer's `mergeApprovalStatuses`, which bakes in
@@ -249,15 +293,24 @@ export interface ReducerMirror<K extends string> {
  * own `streamingPhase !== 'idle'` guard, which already refuses to evict a
  * live stream.
  *
- * EVICTION OF A NON-DISPLAYED KEY IS THEN SAFE because `getReducer` detects
- * RECREATION by reducer identity: a key whose reducer object changed had its
- * predecessor evicted, so the mirror suppresses the pristine-empty snapshot
- * instead of projecting it into the host store. The host's own hydration
- * (which re-runs on selection — mingo resets its processed-history guard on
- * `activeDialogId` change and re-`setMessages` the merged thread) then fills
- * the fresh reducer, and that non-empty snapshot syncs normally. Emptiness
- * alone is NOT the discriminator: a genuine `setMessages([])` must still
- * reach the host.
+ * EVICTION OF A NON-DISPLAYED KEY IS THEN SAFE because the store PUBLISHES
+ * it: the mirror injects `onEvict` when it builds the store (hence
+ * `createStore` being a factory), and on that signal it parks the key's last
+ * converted thread. The next `getReducer` for the key — the call that
+ * materializes the replacement instance — re-seeds it from that parked thread
+ * before anything reads it, so the fresh reducer starts out holding exactly
+ * what the host is already showing.
+ *
+ * Re-seeding, rather than suppressing the pristine-empty snapshot, is what
+ * makes this correct in both directions. Suppression (comparing reducer OBJECT
+ * IDENTITY across `getReducer` calls, then swallowing empty snapshots until
+ * something non-empty arrives) got two cases wrong: an evicted key that
+ * RESUMES STREAMING before the user re-selects it produces a first non-empty
+ * snapshot containing only the new turn, which then REPLACED the host's full
+ * thread; and a host write that legitimately empties a thread
+ * (`setMessages([])`, removing the last row) was swallowed for as long as the
+ * flag stayed armed. With the thread restored up front, an empty snapshot once
+ * again means exactly what it says and is projected unconditionally.
  *
  * DELTA BATCHING is NOT reimplemented here: the lib's framework-free
  * `createDeltaBatcher` is the single implementation, shared with the React
@@ -270,21 +323,45 @@ export interface ReducerMirror<K extends string> {
  * completion / dialog switch / unmount can never strand buffered text.
  */
 export function createReducerMirror<K extends string>(config: ReducerMirrorConfig<K>): ReducerMirror<K> {
-  const { store, identityFor, options, onSnapshot, siblingKeys } = config;
+  const { createStore, identityFor, options, onSnapshot, siblingKeys } = config;
 
   const knownKeys = new Set<K>();
   const lastSyncedSnapshot = new Map<K, ChatReducerState>();
   const lastConvertedThread = new Map<K, { source: readonly UnifiedChatMessage[]; out: ChatMessage[] }>();
   const boundByKey = new Map<K, BoundMirror>();
-  /** key → the store's release fn for a DISPLAYED key. Driven by
-   *  `setActiveKeys` (and released in `drop`) — see the RETENTION note. */
-  const releaseByKey = new Map<K, () => void>();
-  /** key → the reducer instance last handed out, so a recreated (i.e.
-   *  previously evicted) reducer is detectable by identity. */
-  const reducerByKey = new Map<K, ChatStreamReducer>();
-  /** Keys whose reducer was recreated and has not been re-seeded yet. Their
-   *  pristine-empty snapshot must not blank the host's cached thread. */
-  const recreatedKeys = new Set<K>();
+  /** Keys the host declared DISPLAYED, pushed to the store's policy-retain
+   *  set — see the RETENTION note. */
+  const activeKeys = new Set<K>();
+  /** Thread parked by `onEvict`, replayed into the replacement reducer by the
+   *  next `getReducer` — see the EVICTION note. */
+  const reseedByKey = new Map<K, ChatMessage[]>();
+
+  /** Inverse of `identityFor`, over the keys this mirror knows. Only used to
+   *  translate the store's `(dialogId, side)` eviction signal back into `K`;
+   *  the sets involved are per-host and tiny (mingo caps at the store's ten
+   *  reducers, tickets has two). */
+  function keyForIdentity(dialogId: string, side: ChatDialogSide): K | undefined {
+    for (const key of knownKeys) {
+      const identity = identityFor(key);
+      if (identity.dialogId === dialogId && identity.side === side) return key;
+    }
+    return undefined;
+  }
+
+  const store = createStore({
+    onEvict: (dialogId: string, side: ChatDialogSide) => {
+      const key = keyForIdentity(dialogId, side);
+      if (key === undefined) return;
+      // Park the converted thread rather than re-seeding here: `onEvict`
+      // fires from INSIDE the store's `getReducer`, before the replacement
+      // instance for this key exists (and possibly while another key is being
+      // resolved). The mirror's own `getReducer` does the seeding.
+      const cached = lastConvertedThread.get(key)?.out;
+      if (cached && cached.length > 0) reseedByKey.set(key, cached);
+      lastSyncedSnapshot.delete(key);
+      lastConvertedThread.delete(key);
+    },
+  });
 
   // The batcher applies against the key it FLUSHED, which on a key change is
   // the PREVIOUS key — never assume it is the key currently being handled.
@@ -316,33 +393,33 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     knownKeys.add(key);
     const { dialogId, side } = identityFor(key);
     const reducer = store.getReducer(dialogId, side, () => options(key));
-    const previous = reducerByKey.get(key);
-    if (previous !== undefined && previous !== reducer) {
-      // A DIFFERENT instance for a key we already held means the old one was
-      // LRU-evicted. Everything derived from it is stale, and its pristine
-      // state must not be projected — see the RETENTION note.
-      recreatedKeys.add(key);
-      lastSyncedSnapshot.delete(key);
-      lastConvertedThread.delete(key);
+    // This is the first look at the replacement instance for an evicted key —
+    // restore the parked thread before any caller reads it, so the resumed
+    // stream appends to the host's full thread instead of truncating it.
+    const reseed = reseedByKey.get(key);
+    if (reseed !== undefined) {
+      reseedByKey.delete(key);
+      reducer.setMessages(reseed.map(m => toUnifiedMessage(m)));
     }
-    reducerByKey.set(key, reducer);
     return reducer;
   }
 
+  /** Push `activeKeys` to the store's policy-retain set (which retains the
+   *  additions before releasing the removals, so a key present across a swap
+   *  never dips to zero retains). */
+  function pushRetention(): void {
+    store.setRetained(
+      [...activeKeys].map(key => {
+        const { dialogId, side } = identityFor(key);
+        return { dialogId, side };
+      }),
+    );
+  }
+
   function setActiveKeys(keys: readonly K[]): void {
-    const next = new Set<K>(keys);
-    // Retain the newcomers BEFORE releasing anyone: a key present in both the
-    // old and new set must never dip to zero retains in between.
-    for (const key of next) {
-      if (releaseByKey.has(key)) continue;
-      const { dialogId, side } = identityFor(key);
-      releaseByKey.set(key, store.retain(dialogId, side));
-    }
-    for (const [key, release] of [...releaseByKey]) {
-      if (next.has(key)) continue;
-      release();
-      releaseByKey.delete(key);
-    }
+    activeKeys.clear();
+    for (const key of keys) activeKeys.add(key);
+    pushRetention();
   }
 
   function sync(key: K): void {
@@ -350,14 +427,6 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     const { dialogId, side, defaults } = identityFor(key);
     const snap = store.getSnapshot(dialogId, side);
     if (lastSyncedSnapshot.get(key) === snap) return;
-    if (recreatedKeys.has(key)) {
-      // Post-eviction reducer that nothing has re-seeded yet: projecting its
-      // empty thread would blank the host's cached one. Wait for the host's
-      // hydration to land (it re-runs on selection); the resulting non-empty
-      // snapshot clears the flag and syncs normally.
-      if (snap.messages.length === 0) return;
-      recreatedKeys.delete(key);
-    }
     lastSyncedSnapshot.set(key, snap);
 
     const prevConverted = lastConvertedThread.get(key);
@@ -415,6 +484,12 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     return result;
   }
 
+  /**
+   * Read-modify-write on the app-shape thread. `op` returning its INPUT array
+   * unchanged is the no-op convention — every recipe below leans on it, which
+   * is the whole reason they live here rather than being re-derived (with
+   * drifting no-op handling) in each host store.
+   */
   function mutateThread(key: K, op: (messages: ChatMessage[]) => ChatMessage[]): void {
     const { defaults } = identityFor(key);
     mutate(key, reducer => {
@@ -422,6 +497,63 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
       const next = op(current);
       if (next === current) return;
       reducer.setMessages(next.map(m => toUnifiedMessage(m)));
+    });
+  }
+
+  function upsertMessage(key: K, message: ChatMessage): void {
+    mutateThread(key, current => {
+      const idx = current.findIndex(m => m.id === message.id);
+      if (idx === -1) return [...current, message];
+      const updated = [...current];
+      updated[idx] = message;
+      return updated;
+    });
+  }
+
+  function patchMessage(key: K, id: string, updates: Partial<ChatMessage>): void {
+    mutateThread(key, current => {
+      const idx = current.findIndex(m => m.id === id);
+      if (idx === -1) return current;
+      const updated = [...current];
+      updated[idx] = { ...updated[idx], ...updates };
+      return updated;
+    });
+  }
+
+  function removeMessage(key: K, id: string): void {
+    mutateThread(key, current => {
+      const filtered = current.filter(m => m.id !== id);
+      return filtered.length === current.length ? current : filtered;
+    });
+  }
+
+  function prependWithBoundaryMerge(
+    key: K,
+    newMessages: ChatMessage[],
+    boundaryMessageId?: string,
+    boundaryUpdates?: Partial<ChatMessage>,
+  ): void {
+    mutateThread(key, current => {
+      let messages = current;
+      if (boundaryMessageId && boundaryUpdates) {
+        const idx = messages.findIndex(m => m.id === boundaryMessageId);
+        if (idx !== -1) {
+          messages = [...messages];
+          messages[idx] = { ...messages[idx], ...boundaryUpdates };
+        }
+      }
+      return newMessages.length > 0 ? [...newMessages, ...messages] : messages;
+    });
+  }
+
+  /** The typing→phase rule, owned once. See `ReducerMirror.setTyping`. */
+  function setTyping(key: K, typing: boolean): void {
+    mutate(key, reducer => {
+      if (!typing) {
+        reducer.setPhase('idle');
+        return;
+      }
+      if (reducer.state.streamingPhase === 'idle') reducer.setPhase('thinking');
     });
   }
 
@@ -482,26 +614,31 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     const { dialogId, side } = identityFor(key);
     // Release BEFORE `remove`: a retained key is protected from eviction, and
     // leaving the retain behind would pin a reducer the mirror no longer knows.
-    releaseByKey.get(key)?.();
-    releaseByKey.delete(key);
+    if (activeKeys.delete(key)) pushRetention();
     store.remove(dialogId, side);
     lastSyncedSnapshot.delete(key);
     lastConvertedThread.delete(key);
     // A dropped key is intentionally gone — the next `getReducer` builds a
-    // fresh reducer that the host is expected to seed, so this is NOT the
-    // eviction case the recreation guard exists for.
-    reducerByKey.delete(key);
-    recreatedKeys.delete(key);
+    // fresh reducer that the host is expected to seed, so any thread parked
+    // by an earlier eviction must NOT be replayed into it.
+    reseedByKey.delete(key);
     knownKeys.delete(key);
   }
 
+  // `getReducer` / `sync` / `apply` stay module-private: no host calls them,
+  // and an EXTERNAL `getReducer` would silently mutate the recreation
+  // bookkeeping (arming the post-eviction suppression) without the `sync`
+  // that is supposed to follow it.
   return {
-    getReducer,
+    store,
     setActiveKeys,
-    sync,
-    apply,
     mutate,
     mutateThread,
+    upsertMessage,
+    patchMessage,
+    removeMessage,
+    prependWithBoundaryMerge,
+    setTyping,
     mergeApprovalStatuses,
     pushOptimisticSend,
     bind,
@@ -549,8 +686,8 @@ export function natsMirrorOptions<K extends string>(
   // Thunk, not a value: reducer options are read lazily at reducer-creation
   // time, so the flag must be sampled then rather than frozen at wiring time.
   batchApprovalsEnabled: () => boolean,
-  // Thunk for the same reason: the signed-in user is not known at module
-  // load. See the `selfUserId` note in the returned options.
+  // Thunk, and PASSED THROUGH as one (see the `selfUserId` note in the
+  // returned options) — the signed-in user is not known at module load.
   selfUserId: () => string | undefined = () => undefined,
 ): (key: K) => ChatStreamReducerOptions {
   return key => ({
@@ -568,7 +705,15 @@ export function natsMirrorOptions<K extends string>(
     // technician's identical message on the ticket ADMIN side (that message
     // would then never render). The lib also ages entries out after
     // `OWN_ECHO_TTL_MS`, so a dropped echo cannot poison the thread forever.
-    selfUserId: selfUserId(),
+    //
+    // The THUNK is handed to the reducer verbatim, NOT invoked here: reducer
+    // options are consulted once, at creation, and every reducer these hosts
+    // create is long-lived (mingo's active dialog and both ticket sides are
+    // retained for the store's lifetime). A reducer created before auth
+    // rehydration — or surviving a logout / login-as-a-different-user without
+    // a reload — would otherwise keep `undefined`/stale forever and silently
+    // disable the author guard. The lib resolves it at EVENT time.
+    selfUserId,
     callbacks: {
       onApprove: (id?: string) => handlersFor(key)?.onApprove?.(id),
       onReject: (id?: string) => handlersFor(key)?.onReject?.(id),

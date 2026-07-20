@@ -39,8 +39,11 @@ import { type BoundMirror, computeIncompleteTailState } from '@/lib/chat-stream-
 export type { ChatModelMetadata } from '@/lib/chat-stream-thread';
 
 export interface UseChatChunkProcessorOptions {
-  /** Pre-curried mirror handle for the bound dialog/side (`mirror.bind(key)`). */
-  mirror: BoundMirror;
+  /** Pre-curried handle for the bound dialog/side (`mirror.bind(key)`). Named
+   *  `boundMirror`, not `mirror`: the hosts' module-level `ReducerMirror` (the
+   *  whole multi-key registry) is also called `mirror`, and the two altitudes
+   *  must not read alike here. */
+  boundMirror: BoundMirror;
   /** Hydrated thread of the bound dialog/side (drives the seeding guard). */
   messages: readonly ChatMessage[] | undefined;
   /**
@@ -62,7 +65,7 @@ export interface UseChatChunkProcessorOptions {
 }
 
 export function useChatChunkProcessor({
-  mirror,
+  boundMirror,
   messages,
   seedKey,
   approvalStatuses,
@@ -75,19 +78,19 @@ export function useChatChunkProcessor({
   // in an effect) means the very first chunk after a prop change already sees
   // the new value; these are write-only mirrors of props, never read during
   // render, so they cannot desync the rendered output.
-  const mirrorRef = useRef(mirror);
-  mirrorRef.current = mirror;
+  const boundMirrorRef = useRef(boundMirror);
+  boundMirrorRef.current = boundMirror;
   const interceptEventRef = useRef(interceptEvent);
   interceptEventRef.current = interceptEvent;
 
   // Status lookup the reducer consults when an APPROVAL_REQUEST replays.
-  // `mirror` comes from `ReducerMirror.bind(key)`, which memoizes per key —
+  // `boundMirror` comes from `ReducerMirror.bind(key)`, which memoizes per key —
   // so this effect re-runs on a real key change, not on every host render.
   useEffect(() => {
     if (approvalStatuses && Object.keys(approvalStatuses).length > 0) {
-      mirror.mergeApprovalStatuses(approvalStatuses);
+      boundMirror.mergeApprovalStatuses(approvalStatuses);
     }
-  }, [approvalStatuses, mirror]);
+  }, [approvalStatuses, boundMirror]);
 
   // One-shot-PER-KEY incomplete-turn seed: once the hydrated thread shows an
   // unfinished trailing assistant run (pending approvals / executing tools),
@@ -100,8 +103,8 @@ export function useChatChunkProcessor({
     const extras = computeIncompleteTailState(messages);
     if (!extras) return;
     seededKeyRef.current = seedKey;
-    mirror.mutate((r: ChatStreamReducer) => r.initializeWithState(null, extras));
-  }, [seedKey, messages, mirror]);
+    boundMirror.mutate((r: ChatStreamReducer) => r.initializeWithState(null, extras));
+  }, [seedKey, messages, boundMirror]);
 
   return useCallback((chunk: unknown) => {
     const event = decodeNatsChunk(chunk);
@@ -109,6 +112,6 @@ export function useChatChunkProcessor({
 
     if (interceptEventRef.current?.(event)) return;
 
-    mirrorRef.current.apply(event);
+    boundMirrorRef.current.apply(event);
   }, []);
 }

@@ -86,7 +86,7 @@ export function useSideChunkProcessor(
   );
 
   return useChatChunkProcessor({
-    mirror: bindTicketSide(side),
+    boundMirror: bindTicketSide(side),
     messages,
     seedKey: `${ticketId}:${side}`,
     approvalStatuses,

@@ -28,8 +28,6 @@ export type ChatSide = 'client' | 'admin';
  */
 const TICKET_THREAD_KEY = 'ticket-details';
 
-export const ticketChatDialogStore = createChatDialogStore();
-
 const SIDE_IDENTITY: Record<ChatSide, { assistantName: string; assistantType: 'fae' | 'mingo' }> = {
   client: { assistantName: 'Fae', assistantType: 'fae' },
   admin: { assistantName: 'Mingo', assistantType: 'mingo' },
@@ -39,6 +37,14 @@ const handlersBySide = new Map<ChatSide, NatsMirrorHandlers>();
 
 const BOTH_SIDES: readonly ChatSide[] = ['client', 'admin'];
 
+/** Creation options for a side's reducer. Shared by the mirror (which
+ *  pre-creates with them) and the STORE-level default below. */
+const ticketReducerOptions = natsMirrorOptions<ChatSide>(
+  side => handlersBySide.get(side),
+  () => featureFlags.batchApproval.enabled(),
+  () => useAuthStore.getState().user?.id,
+);
+
 /** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
  *  detection, conversion cache, thread RMW, delta batching, approval-status
  *  merge, cross-side materialize + resync) lives in the shared
@@ -47,18 +53,27 @@ const BOTH_SIDES: readonly ChatSide[] = ['client', 'admin'];
  *  set and the zustand patch. Mirror key = the chat SIDE (the thread key is
  *  constant: only one ticket dialog is open at a time). */
 const mirror = createReducerMirror<ChatSide>({
-  store: ticketChatDialogStore,
+  // The mirror builds the store so it can wire its own `onEvict`; this host
+  // adds `defaultCreateOptions`, which closes the store-level hole: a reducer
+  // first materialized by a bare `apply()` / `mutate()` (no per-call options)
+  // would otherwise be built WITHOUT `ownEchoIncludesAdmin` / `selfUserId` and
+  // keep those semantics missing for its whole life — creation options are
+  // consulted once — so every message a technician sends would render twice.
+  // The mirror happens to always pre-create with options today; this makes the
+  // guarantee structural rather than incidental. Mirror key = the store's
+  // `side` (the thread key is constant), so the mapping back is the identity.
+  createStore: storeOptions =>
+    createChatDialogStore({
+      ...storeOptions,
+      defaultCreateOptions: (_dialogId: string, side: string) => ticketReducerOptions(side as ChatSide),
+    }),
   identityFor: side => ({ dialogId: TICKET_THREAD_KEY, side, defaults: SIDE_IDENTITY[side] }),
   // The dialog store's cross-side projections (approval resolution by
   // requestId, tool-execution merge by execId) land on the OTHER side's
   // reducer, so both sides must exist before an event lands and both must
   // re-sync after. The mirror owns that ordering.
   siblingKeys: () => BOTH_SIDES,
-  options: natsMirrorOptions<ChatSide>(
-    side => handlersBySide.get(side),
-    () => featureFlags.batchApproval.enabled(),
-    () => useAuthStore.getState().user?.id,
-  ),
+  options: ticketReducerOptions,
   onSnapshot: (side, { messages, phase, streamingId, state: snap }) => {
     useTicketDetailsStore.setState(state => {
       const nextSide: SideState = {
@@ -84,6 +99,9 @@ const mirror = createReducerMirror<ChatSide>({
   },
 });
 
+/** The dialog store behind this host's two side reducers (built by the mirror). */
+export const ticketChatDialogStore = mirror.store;
+
 /** Run reducer commands (non-wire mutations) against one side, then mirror. */
 export function mutateTicketSide<T>(side: ChatSide, fn: (reducer: ChatStreamReducer) => T): T {
   return mirror.mutate(side, fn);
@@ -95,24 +113,17 @@ export function mutateTicketSide<T>(side: ChatSide, fn: (reducer: ChatStreamRedu
  *  re-sync the other side itself. */
 export const bindTicketSide = mirror.bind;
 
-/** Read-modify-write on one side's app-shape thread. */
-function mutateThread(side: ChatSide, op: (messages: ChatMessage[]) => ChatMessage[]): void {
-  mirror.mutateThread(side, op);
-}
-
-/** Both sides of the OPEN ticket are displayed, so both are pinned against
- *  the reducer LRU. The thread key is constant and only one ticket is open at
- *  a time, so this set never changes — but it is re-asserted after a drop,
- *  which releases the pin along with the reducer. */
-function retainOpenTicketSides(): void {
-  mirror.setActiveKeys(BOTH_SIDES);
-}
-retainOpenTicketSides();
+/** NO retention here, deliberately. `setActiveKeys` declares what is
+ *  currently DISPLAYED, and at module-init time no ticket is open at all — the
+ *  old unconditional assertion contradicted that contract. It is also
+ *  unnecessary: `ticketChatDialogStore` is this host's OWN dialog store and
+ *  holds at most two reducers (one per side of the single open ticket) against
+ *  an LRU cap of ten, so eviction can never fire here. Mingo, which keys by
+ *  dialogId and really can exceed the cap, is the host that needs pinning. */
 
 function dropSideCaches(side: ChatSide): void {
   mirror.drop(side);
   handlersBySide.delete(side);
-  retainOpenTicketSides();
 }
 
 // ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
@@ -236,29 +247,11 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
   },
 
   prependWithBoundaryMerge: (side, newMessages, boundaryMessageId, boundaryUpdates) => {
-    mutateThread(side, current => {
-      let messages = current;
-      if (boundaryMessageId && boundaryUpdates) {
-        const idx = messages.findIndex(m => m.id === boundaryMessageId);
-        if (idx !== -1) {
-          messages = [...messages];
-          messages[idx] = { ...messages[idx], ...boundaryUpdates };
-        }
-      }
-      return newMessages.length > 0 ? [...newMessages, ...messages] : messages;
-    });
+    mirror.prependWithBoundaryMerge(side, newMessages, boundaryMessageId, boundaryUpdates);
   },
 
   addMessage: (side, message) => {
-    mutateThread(side, current => {
-      const existingIndex = current.findIndex(m => m.id === message.id);
-      if (existingIndex !== -1) {
-        const updated = [...current];
-        updated[existingIndex] = message;
-        return updated;
-      }
-      return [...current, message];
-    });
+    mirror.upsertMessage(side, message);
   },
 
   pushOptimisticSend: (side, message) => {
@@ -266,20 +259,11 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
   },
 
   updateMessage: (side, messageId, updates) => {
-    mutateThread(side, current => {
-      const idx = current.findIndex(m => m.id === messageId);
-      if (idx === -1) return current;
-      const updated = [...current];
-      updated[idx] = { ...updated[idx], ...updates };
-      return updated;
-    });
+    mirror.patchMessage(side, messageId, updates);
   },
 
   removeMessage: (side, messageId) => {
-    mutateThread(side, current => {
-      const filtered = current.filter(m => m.id !== messageId);
-      return filtered.length === current.length ? current : filtered;
-    });
+    mirror.removeMessage(side, messageId);
   },
 
   getMessages: side => get()[side].messages,
@@ -317,15 +301,7 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
   },
 
   setTypingIndicator: (side, typing) => {
-    mutateTicketSide(side, r => {
-      if (typing) {
-        // Only 'idle' upgrades to 'thinking' — an open stream keeps
-        // ownership of the phase (mirrors the reducer's agent-busy rule).
-        if (r.state.streamingPhase === 'idle') r.setPhase('thinking');
-      } else {
-        r.setPhase('idle');
-      }
-    });
+    mirror.setTyping(side, typing);
   },
 
   recordHighestStreamSeq: (side, seq) =>
