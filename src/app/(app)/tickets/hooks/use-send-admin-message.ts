@@ -5,6 +5,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { useAuthStore } from '@/stores';
 import { API_ENDPOINTS, CHAT_TYPE, DIALOG_MODE } from '../constants';
 import { ticketService } from '../services';
@@ -48,12 +49,11 @@ export function useSendAdminMessage({ ticketId, messageDialogId, onBeforeDialogC
         await queryClient.invalidateQueries({ queryKey: ticketsQueryKeys.detail(ticketId) });
       }
 
-      const displayName = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' ') || 'Admin';
       const optimistic: ChatMessage = {
-        id: `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        id: makeChatRowId('optimistic'),
         role: 'user',
         content: trimmedMessage,
-        name: displayName,
+        name: adminDisplayName(currentUser),
         authorType: 'admin',
         timestamp: new Date(),
       };

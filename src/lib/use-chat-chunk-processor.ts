@@ -85,7 +85,7 @@ export function useChatChunkProcessor({
   // so this effect re-runs on a real key change, not on every host render.
   useEffect(() => {
     if (approvalStatuses && Object.keys(approvalStatuses).length > 0) {
-      mirror.syncApprovalStatuses(approvalStatuses);
+      mirror.mergeApprovalStatuses(approvalStatuses);
     }
   }, [approvalStatuses, mirror]);
 

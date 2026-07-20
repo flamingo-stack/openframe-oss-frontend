@@ -1,15 +1,14 @@
 import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-core';
-import type { ChatStreamEvent } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { type ChatStreamReducer, createChatDialogStore } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
 import {
-  type BoundMirror,
   createReducerMirror,
   type NatsMirrorHandlers,
   natsMirrorOptions,
   toUnifiedMessage,
 } from '@/lib/chat-stream-thread';
 import { featureFlags } from '@/lib/feature-flags';
+import { useAuthStore } from '@/stores';
 
 export type ChatSide = 'client' | 'admin';
 
@@ -38,18 +37,27 @@ const SIDE_IDENTITY: Record<ChatSide, { assistantName: string; assistantType: 'f
 
 const handlersBySide = new Map<ChatSide, NatsMirrorHandlers>();
 
-/** All reducer-mirror scaffolding (create-or-get, snapshot change detection,
- *  conversion cache, thread RMW, delta batching, approval-status merge) lives
- *  in the shared `createReducerMirror` factory, and the NATS options block in
- *  `natsMirrorOptions` — this host supplies only the key mapping and the
- *  zustand patch. Mirror key = the chat SIDE (the thread key is constant:
- *  only one ticket dialog is open at a time). */
+const BOTH_SIDES: readonly ChatSide[] = ['client', 'admin'];
+
+/** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
+ *  detection, conversion cache, thread RMW, delta batching, approval-status
+ *  merge, cross-side materialize + resync) lives in the shared
+ *  `createReducerMirror` factory, and the NATS options block in
+ *  `natsMirrorOptions` — this host supplies only the key mapping, the sibling
+ *  set and the zustand patch. Mirror key = the chat SIDE (the thread key is
+ *  constant: only one ticket dialog is open at a time). */
 const mirror = createReducerMirror<ChatSide>({
   store: ticketChatDialogStore,
   identityFor: side => ({ dialogId: TICKET_THREAD_KEY, side, defaults: SIDE_IDENTITY[side] }),
+  // The dialog store's cross-side projections (approval resolution by
+  // requestId, tool-execution merge by execId) land on the OTHER side's
+  // reducer, so both sides must exist before an event lands and both must
+  // re-sync after. The mirror owns that ordering.
+  siblingKeys: () => BOTH_SIDES,
   options: natsMirrorOptions<ChatSide>(
     side => handlersBySide.get(side),
     () => featureFlags.batchApproval.enabled(),
+    () => useAuthStore.getState().user?.id,
   ),
   onSnapshot: (side, { messages, phase, streamingId, state: snap }) => {
     useTicketDetailsStore.setState(state => {
@@ -76,40 +84,16 @@ const mirror = createReducerMirror<ChatSide>({
   },
 });
 
-/** Apply one decoded stream event to a side. The dialog store fans the
- *  cross-side projections out to the other side, so both mirrors resync. */
-export function applyTicketChatEvent(side: ChatSide, event: ChatStreamEvent): void {
-  // Both reducers must exist before `apply` so the cross-side projections
-  // have a target even when the other side has never streamed.
-  mirror.getReducer('client');
-  mirror.getReducer('admin');
-  mirror.apply(side, event);
-  // Cross-side projections land on the OTHER side's reducer; re-sync both.
-  // No-ops when a side's snapshot is unchanged.
-  mirror.sync('client');
-  mirror.sync('admin');
-}
-
 /** Run reducer commands (non-wire mutations) against one side, then mirror. */
 export function mutateTicketSide<T>(side: ChatSide, fn: (reducer: ChatStreamReducer) => T): T {
   return mirror.mutate(side, fn);
 }
 
-/**
- * Pre-curried `{ apply, mutate, syncApprovalStatuses }` for one side, with a
- * stable identity per side. `mutate` / `syncApprovalStatuses` come straight
- * from the shared mirror binding; `apply` is overridden with this host's
- * both-sides variant (the cross-side projections land on the OTHER side's
- * reducer, so both mirrors must resync).
- */
-const boundSides = new Map<ChatSide, BoundMirror>();
-export function bindTicketSide(side: ChatSide): BoundMirror {
-  const existing = boundSides.get(side);
-  if (existing) return existing;
-  const bound: BoundMirror = { ...mirror.bind(side), apply: event => applyTicketChatEvent(side, event) };
-  boundSides.set(side, bound);
-  return bound;
-}
+/** Pre-curried `{ apply, mutate, mergeApprovalStatuses }` for one side.
+ *  Identity is stable per side (memoized inside the mirror); `apply` needs no
+ *  host wrapper — `siblingKeys` above tells the mirror to materialize and
+ *  re-sync the other side itself. */
+export const bindTicketSide = mirror.bind;
 
 /** Read-modify-write on one side's app-shape thread. */
 function mutateThread(side: ChatSide, op: (messages: ChatMessage[]) => ChatMessage[]): void {
@@ -119,7 +103,6 @@ function mutateThread(side: ChatSide, op: (messages: ChatMessage[]) => ChatMessa
 function dropSideCaches(side: ChatSide): void {
   mirror.drop(side);
   handlersBySide.delete(side);
-  boundSides.delete(side);
 }
 
 // ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
@@ -186,7 +169,14 @@ interface TicketDetailsStore {
     resolvedByName?: string | null,
   ) => void;
   setApprovalStatus: (requestId: string, status: ApprovalStatus) => void;
-  mergeApprovalStatuses: (entries: ApprovalStatusMap) => void;
+  /**
+   * Upsert PERSISTED resolutions into this store's status map — INCOMING
+   * WINS, which is the opposite of the reducer-side merge this map eventually
+   * feeds (`ReducerMirror.mergeApprovalStatuses` → the reducer's
+   * `mergeApprovalStatuses`, where stream-learned wins over persisted).
+   * Deliberately not called `merge*`: the two rules must not read as one.
+   */
+  upsertApprovalStatuses: (entries: ApprovalStatusMap) => void;
 
   /** Late-bound per-side handlers: approve/reject are stamped onto approval
    *  segments; `onMetadata` rides the reducer's own metadata effect. */
@@ -296,7 +286,7 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
         : { approvalStatuses: { ...state.approvalStatuses, [requestId]: status } },
     ),
 
-  mergeApprovalStatuses: entries =>
+  upsertApprovalStatuses: entries =>
     set(state => {
       let changed = false;
       const next: ApprovalStatusMap = { ...state.approvalStatuses };

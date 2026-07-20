@@ -16,6 +16,7 @@ import {
   toUnifiedMessage,
 } from '@/lib/chat-stream-thread';
 import { featureFlags } from '@/lib/feature-flags';
+import { useAuthStore } from '@/stores';
 import type { DialogNode, Message } from '../types';
 
 /**
@@ -37,17 +38,20 @@ const MINGO_IDENTITY = { assistantName: 'Mingo', assistantType: 'mingo' as const
 
 const handlersByDialog = new Map<string, NatsMirrorHandlers>();
 
-/** All reducer-mirror scaffolding (create-or-get, snapshot change detection,
- *  conversion cache, thread RMW, delta batching, approval-status merge) lives
- *  in the shared `createReducerMirror` factory, and the NATS options block in
- *  `natsMirrorOptions` — this host supplies only the key mapping and the
- *  zustand patch. Mirror key = dialogId (side is always 'main'). */
+/** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
+ *  detection, conversion cache, thread RMW, delta batching, approval-status
+ *  merge) lives in the shared `createReducerMirror` factory, and the NATS
+ *  options block in `natsMirrorOptions` — this host supplies only the key
+ *  mapping and the zustand patch. Mirror key = dialogId (side is always
+ *  'main'); no `siblingKeys` — mingo dialogs are independent, so nothing
+ *  projects across keys. */
 const mirror = createReducerMirror<string>({
   store: mingoChatDialogStore,
   identityFor: dialogId => ({ dialogId, side: DEFAULT_DIALOG_SIDE, defaults: MINGO_IDENTITY }),
   options: natsMirrorOptions<string>(
     dialogId => handlersByDialog.get(dialogId),
     () => featureFlags.batchApproval.enabled(),
+    () => useAuthStore.getState().user?.id,
   ),
   onSnapshot: (dialogId, { messages, phase, streamingId, state: snap }) => {
     const usage = snap.dialogTokenUsage ?? null;
@@ -83,7 +87,7 @@ export function setMingoChatHandlers(dialogId: string, handlers: NatsMirrorHandl
   handlersByDialog.set(dialogId, { ...handlersByDialog.get(dialogId), ...handlers });
 }
 
-/** Pre-curried `{ apply, mutate, syncApprovalStatuses }` for one dialog.
+/** Pre-curried `{ apply, mutate, mergeApprovalStatuses }` for one dialog.
  *  Identity is stable per dialogId (memoized inside the mirror). */
 export function bindMingoDialog(dialogId: string): BoundMirror {
   return mirror.bind(dialogId);

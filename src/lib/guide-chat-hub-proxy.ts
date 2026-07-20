@@ -57,6 +57,15 @@ function isPlausibleIpv4(value: string): boolean {
 /**
  * Normalize one candidate to a forwardable address, or null.
  *
+ * TODO(lib-export): replace this body with the shared
+ * `normalizeIpForBucketKey(value): string | null` from
+ * `@flamingo-stack/openframe-frontend-core/chat-protocol` once it lands (it is
+ * not exported from that subpath yet). The hub shape-checks the SAME
+ * `x-chat-ip` with different rules — it preserves the `%zone` this side strips
+ * — so one visitor can currently land in two rate-limit buckets. The rules
+ * below are the intended shared ones; keeping them here is a stopgap, not a
+ * second opinion.
+ *
  * Rejecting these forms is not a cosmetic nit: a false negative means NO
  * `x-chat-ip` is sent at all and every visitor silently collapses back into
  * this app's single egress bucket. Both routinely-seen non-canonical forms
@@ -65,12 +74,17 @@ function isPlausibleIpv4(value: string): boolean {
  *   - IPv4-mapped IPv6 (`::ffff:203.0.113.4`, which contains dots and so
  *     fails a naive hex/colon-only IPv6 shape) is unwrapped to its IPv4.
  */
+// `[::1]` / `[::1]:443` — bracketed IPv6, with or without a port suffix. A
+// naive "strip a trailing ]" misses the ported form (the `]` is not final),
+// which then fails IPV6_SHAPE and returns null — a false negative that
+// silently restores the shared-bucket regression this function exists to
+// prevent.
+const BRACKETED_SHAPE = /^\[([^\]]+)\](?::\d+)?$/;
+
 function normalizeIpCandidate(raw: string): string | null {
-  // Strip surrounding brackets (`[::1]:443` style) and any zone id.
-  const value = raw
-    .trim()
-    .replace(/^\[|\]$/g, '')
-    .split('%')[0];
+  const trimmed = raw.trim();
+  // Unwrap brackets (+ any `:port` suffix) first, then drop any zone id.
+  const value = (BRACKETED_SHAPE.exec(trimmed)?.[1] ?? trimmed).split('%')[0];
   if (!value) return null;
   if (isPlausibleIpv4(value)) return value;
   const mapped = IPV4_MAPPED_SHAPE.exec(value);
@@ -96,20 +110,31 @@ let warnedMissingVisitorIp = false;
  * forward the impersonation-grade `CHAT_PROXY_SECRET` here — this proxy
  * speaks for anonymous visitors and must not hold that power.
  *
- * HEADER PRECEDENCE IS A SECURITY BOUNDARY — do not reorder this list.
- * Because the hub trusts whatever we put in `x-chat-ip`, picking a
- * client-controllable hop hands the visitor their own rate-limit bucket:
- * rotating `curl -H 'X-Forwarded-For: <random>'` would defeat the guide
- * limit entirely. So:
- *   1. `x-vercel-forwarded-for` — set by the platform from the real TCP
- *      peer and overwritten on every request; not client-forgeable.
- *   2. `x-real-ip` — single-valued, set (overwritten) by the ingress.
- *   3. `x-forwarded-for` LAST hop — the entry APPENDED by the ingress
- *      closest to us. Ingresses that append rather than overwrite (nginx,
- *      most self-hosted/k8s, and the documented localhost dev path) leave
- *      the FIRST hop entirely client-supplied, so the first hop must never
- *      be used. This mirrors the hub's own `getClientIp`, which takes the
- *      same end of the same header for the same reason.
+ * HEADER PRECEDENCE IS A SECURITY BOUNDARY, AND TRUST IS EXPLICIT.
+ * Because the hub trusts whatever we put in `x-chat-ip`, reading a header
+ * that NOBODY on the request path overwrites hands the visitor their own
+ * rate-limit bucket: rotating `curl -H '<that header>: <random>'` defeats the
+ * guide limit entirely and attributes conversations to forged visitors. A
+ * header is only overwritten-by-the-ingress on deployments that actually run
+ * that ingress, so each vendor header is gated on an env that says so —
+ * assuming it in a comment is exactly how the bypass got relocated instead of
+ * closed:
+ *   1. `x-vercel-forwarded-for` — read ONLY when `VERCEL` is set (Vercel sets
+ *      it in its own runtime). Off-Vercel (nginx, self-hosted, k8s, localhost
+ *      dev) nobody strips it, so it arrives verbatim from the client.
+ *   2. `x-real-ip` — read ONLY when `TRUSTED_INGRESS_SETS_REAL_IP` is set.
+ *      nginx populates it only where explicitly configured
+ *      (`proxy_set_header X-Real-IP $remote_addr`); everywhere else it is
+ *      just another client-authored header.
+ *   3. `x-forwarded-for` LAST hop — the always-available fallback: the entry
+ *      APPENDED by the ingress closest to us. Ingresses that append rather
+ *      than overwrite leave the FIRST hop entirely client-supplied, so the
+ *      first hop must never be used. This mirrors the hub's own
+ *      `getClientIp`, which takes the same end of the same header for the
+ *      same reason. On a deployment with NO trusted ingress at all this is
+ *      still client-controllable — that is the floor of what a bare
+ *      pass-through can know, and it is why the vendor headers above must
+ *      not silently widen it.
  * Values are validated for IP shape before forwarding so a hostile header
  * can't inject CR/LF or extra header material into the upstream request.
  */
@@ -117,8 +142,10 @@ function visitorIpFrom(request: Request): string | null {
   const forwardedFor = request.headers.get('x-forwarded-for');
   const forwardedHops = forwardedFor ? forwardedFor.split(',') : [];
   const candidates = [
-    request.headers.get('x-vercel-forwarded-for') ?? '',
-    request.headers.get('x-real-ip') ?? '',
+    // Gated: see the precedence note above. `process.env` is read per call
+    // (not module-hoisted) so tests and edge runtimes see the live value.
+    process.env.VERCEL ? (request.headers.get('x-vercel-forwarded-for') ?? '') : '',
+    process.env.TRUSTED_INGRESS_SETS_REAL_IP ? (request.headers.get('x-real-ip') ?? '') : '',
     // LAST hop only — see the precedence note above.
     forwardedHops.length > 0 ? forwardedHops[forwardedHops.length - 1] : '',
   ];

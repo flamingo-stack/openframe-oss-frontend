@@ -110,6 +110,25 @@ export function computeIncompleteTailState(messages: readonly ChatMessage[]): In
   return extractIncompleteTailState(messages as unknown as readonly ProcessedMessage[]);
 }
 
+// ─── Optimistic-row helpers ─────────────────────────────────────────────────
+
+/**
+ * Id for a locally-authored chat row. Collision-resistant without a uuid dep
+ * (time prefix orders, random suffix disambiguates within the same ms) and,
+ * more importantly, ONE recipe: three call sites had grown their own copies
+ * with drifting prefixes, and the reducer's echo consumption keys off rows
+ * looking the way this send path makes them.
+ */
+export function makeChatRowId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+/** Display name for an operator-authored row. This app's operator IS the
+ *  admin, hence the fallback. */
+export function adminDisplayName(user?: { firstName?: string; lastName?: string } | null): string {
+  return [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Admin';
+}
+
 // ─── Reducer → store mirror factory ─────────────────────────────────────────
 
 /** One converted read-mirror snapshot of a reducer side. */
@@ -135,13 +154,26 @@ export interface ReducerMirrorConfig<K extends string> {
   options: (key: K) => ChatStreamReducerOptions;
   /** Host patch applied on every CHANGED snapshot (zustand setState, …). */
   onSnapshot: (key: K, snapshot: ReducerMirrorSnapshot) => void;
+  /**
+   * Keys whose reducers participate in the dialog store's CROSS-KEY
+   * projections (approval resolution by requestId, tool-execution merge by
+   * execId) — i.e. keys a non-delta event landing on `key` can also mutate.
+   * Tickets returns both sides; mingo omits this (dialogs are independent).
+   *
+   * The mirror materializes them before the event lands (a projection needs
+   * a target reducer even when that key has never streamed) and re-syncs
+   * them after. Deltas are exempt: cross-key projections only fire on
+   * non-delta frames, so batched text costs nothing extra.
+   */
+  siblingKeys?: (key: K) => readonly K[];
 }
 
 /** Pre-curried per-key handle — see `ReducerMirror.bind`. */
 export interface BoundMirror {
   apply: (event: ChatStreamEvent) => void;
   mutate: (fn: (reducer: ChatStreamReducer) => void) => void;
-  syncApprovalStatuses: (statuses: Record<string, string>) => void;
+  /** MERGE (stream-learned wins) — see `ReducerMirror.mergeApprovalStatuses`. */
+  mergeApprovalStatuses: (statuses: Record<string, string>) => void;
 }
 
 export interface ReducerMirror<K extends string> {
@@ -157,13 +189,12 @@ export interface ReducerMirror<K extends string> {
   mutateThread: (key: K, op: (messages: ChatMessage[]) => ChatMessage[]) => void;
   /**
    * Merge a host-held PERSISTED approval-status map into `key`'s reducer.
-   * Delegates to the reducer's canonical `mergeApprovalStatuses`, which bakes
-   * in stream-learned precedence — both hosts previously spread the host map
+   * Delegates to the reducer's `mergeApprovalStatuses`, which bakes in
+   * stream-learned precedence — both hosts previously spread the host map
    * LAST, which lets a stale persisted 'pending' downgrade an approval the
-   * stream had just resolved (and re-arm its buttons). Never call the
-   * reducer's `syncApprovalStatuses` from a host: it overwrites wholesale.
+   * stream had just resolved (and re-arm its buttons).
    */
-  syncApprovalStatuses: (key: K, statuses: Record<string, string>) => void;
+  mergeApprovalStatuses: (key: K, statuses: Record<string, string>) => void;
   /**
    * Land a host-authored optimistic user bubble THROUGH the reducer, so the
    * reducer records the pending echo text and consumes the backend's
@@ -171,7 +202,7 @@ export interface ReducerMirror<K extends string> {
    * blanket-dropping every echo bearing its own user id.
    */
   pushOptimisticSend: (key: K, message: ChatMessage) => void;
-  /** Pre-curried, per-key-stable `{ apply, mutate, syncApprovalStatuses }`.
+  /** Pre-curried, per-key-stable `{ apply, mutate, mergeApprovalStatuses }`.
    *  Memoized inside the mirror so React hosts need no `useCallback`. */
   bind: (key: K) => BoundMirror;
   /** Drop the reducer + conversion caches for `key`. Force-flushes first. */
@@ -193,6 +224,18 @@ export interface ReducerMirror<K extends string> {
  * the previously converted output array verbatim. Break either and every
  * inline approval/tool card remounts on each chunk.
  *
+ * RETENTION is the mirror's job, not the hosts'. The dialog store evicts
+ * least-recently-used reducers past its cap (10) unless a key is RETAINED;
+ * the React `useChatStreamReducer` hook retains for its lifetime, but this
+ * factory is the only NON-React host and serves BOTH mingo (one key per
+ * dialog) and tickets. Without retention, an idle-but-OPEN thread past the
+ * 10th touched key gets evicted, the next `sync` recreates an EMPTY reducer,
+ * and the changed (empty) snapshot patches the host store with
+ * `messages: []` — the visible thread blanks, and the one-shot seeding guard
+ * has already latched so it never re-hydrates. So: retain once per key at
+ * first materialization, release in `drop`. Retention then means exactly
+ * "the mirror still knows this key", which is the contract the store wants.
+ *
  * DELTA BATCHING is NOT reimplemented here: the lib's framework-free
  * `createDeltaBatcher` is the single implementation, shared with the React
  * wrapper (`useChatStreamReducer`). It coalesces consecutive same-type
@@ -204,12 +247,15 @@ export interface ReducerMirror<K extends string> {
  * completion / dialog switch / unmount can never strand buffered text.
  */
 export function createReducerMirror<K extends string>(config: ReducerMirrorConfig<K>): ReducerMirror<K> {
-  const { store, identityFor, options, onSnapshot } = config;
+  const { store, identityFor, options, onSnapshot, siblingKeys } = config;
 
   const knownKeys = new Set<K>();
   const lastSyncedSnapshot = new Map<K, ChatReducerState>();
   const lastConvertedThread = new Map<K, { source: readonly UnifiedChatMessage[]; out: ChatMessage[] }>();
   const boundByKey = new Map<K, BoundMirror>();
+  /** key → the store's release fn. Presence IS the retention — see the
+   *  RETENTION note above; `drop` is the only place it is called. */
+  const releaseByKey = new Map<K, () => void>();
 
   // The batcher applies against the key it FLUSHED, which on a key change is
   // the PREVIOUS key — never assume it is the key currently being handled.
@@ -240,6 +286,10 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
   function getReducer(key: K): ChatStreamReducer {
     knownKeys.add(key);
     const { dialogId, side } = identityFor(key);
+    // Retain BEFORE resolving: `getReducer` on an 11th key would otherwise be
+    // free to evict this one on its way in. Refcounted + idempotent in the
+    // store, but the map keeps it at exactly one retain per known key.
+    if (!releaseByKey.has(key)) releaseByKey.set(key, store.retain(dialogId, side));
     return store.getReducer(dialogId, side, () => options(key));
   }
 
@@ -278,9 +328,21 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     // flushes and applies it itself, so completion / approval / error frames
     // always land on fully-applied delta state.
     batcher.flush();
+    // Non-delta frames are the only ones the store projects across keys, so
+    // this is where (and the only place) siblings must exist and re-sync.
+    // Materializing them AFTER the flush keeps the documented
+    // flush-before-getReducer ordering intact for every key involved.
+    const siblings = siblingKeys?.(key) ?? [];
+    for (const sibling of siblings) {
+      if (sibling !== key) getReducer(sibling);
+    }
     const { dialogId, side } = identityFor(key);
     store.apply(dialogId, side, event);
     sync(key);
+    // No-ops when a sibling's snapshot is unchanged (identity short-circuit).
+    for (const sibling of siblings) {
+      if (sibling !== key) sync(sibling);
+    }
   }
 
   function mutate<T>(key: K, fn: (reducer: ChatStreamReducer) => T): T {
@@ -304,12 +366,12 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
   }
 
   /**
-   * Delegated to the reducer's canonical `mergeApprovalStatuses`, which fixes
-   * the precedence at `{ ...persisted, ...streamLearned }` so no host can get
-   * it backwards. NEVER call `syncApprovalStatuses` on the reducer from here:
-   * that one overwrites the map wholesale.
+   * Delegated to the reducer's `mergeApprovalStatuses`, which fixes the
+   * precedence at `{ ...persisted, ...streamLearned }` so no host can get it
+   * backwards. Same name as the reducer method, same semantics — the two
+   * used to differ, which is what made the old warnings necessary.
    */
-  function syncApprovalStatuses(key: K, statuses: Record<string, string>): void {
+  function mergeApprovalStatuses(key: K, statuses: Record<string, string>): void {
     mutate(key, reducer => {
       reducer.mergeApprovalStatuses(statuses as Record<string, ChatApprovalStatus>);
     });
@@ -345,7 +407,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
       mutate: fn => {
         mutate(key, fn);
       },
-      syncApprovalStatuses: statuses => syncApprovalStatuses(key, statuses),
+      mergeApprovalStatuses: statuses => mergeApprovalStatuses(key, statuses),
     };
     boundByKey.set(key, bound);
     return bound;
@@ -358,6 +420,10 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     // timer after `store.remove` has taken its reducer away.
     flushDeltas();
     const { dialogId, side } = identityFor(key);
+    // Release BEFORE `remove`: a retained key is protected from eviction, and
+    // leaving the retain behind would pin a reducer the mirror no longer knows.
+    releaseByKey.get(key)?.();
+    releaseByKey.delete(key);
     store.remove(dialogId, side);
     lastSyncedSnapshot.delete(key);
     lastConvertedThread.delete(key);
@@ -370,7 +436,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     apply,
     mutate,
     mutateThread,
-    syncApprovalStatuses,
+    mergeApprovalStatuses,
     pushOptimisticSend,
     bind,
     drop,
@@ -417,6 +483,9 @@ export function natsMirrorOptions<K extends string>(
   // Thunk, not a value: reducer options are read lazily at reducer-creation
   // time, so the flag must be sampled then rather than frozen at wiring time.
   batchApprovalsEnabled: () => boolean,
+  // Thunk for the same reason: the signed-in user is not known at module
+  // load. See the `selfUserId` note in the returned options.
+  selfUserId: () => string | undefined = () => undefined,
 ): (key: K) => ChatStreamReducerOptions {
   return key => ({
     transport: 'nats',
@@ -428,6 +497,16 @@ export function natsMirrorOptions<K extends string>(
     // for ADMIN rows (correct on hosts where an ADMIN row is a
     // technician's reply) and every message we send renders twice.
     ownEchoIncludesAdmin: true,
+    // TODO(lib-export): `selfUserId` is not yet an option on
+    // `ChatStreamReducerOptions` (a parallel lib change is adding it, along
+    // with a TTL on `pendingEchoTexts`). Wired here already because
+    // `ownEchoIncludesAdmin` above matches on RAW TEXT with no author check:
+    // if our own echo never lands, the stale pending text can consume a
+    // SECOND technician's identical message on the ticket ADMIN side and that
+    // message never renders. Spread (not a plain key) so the excess-property
+    // check stays quiet until the option exists; harmlessly ignored by a
+    // reducer that does not read it yet.
+    ...(selfUserId() ? { selfUserId: selfUserId() } : {}),
     callbacks: {
       onApprove: (id?: string) => handlersFor(key)?.onApprove?.(id),
       onReject: (id?: string) => handlersFor(key)?.onReject?.(id),

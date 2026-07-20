@@ -55,7 +55,7 @@ export function useHistoricalMessages({
   const streamingMessageId = useTicketDetailsStore(s => s[side].streamingId);
   const prependWithBoundaryMerge = useTicketDetailsStore(s => s.prependWithBoundaryMerge);
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
-  const mergeApprovalStatuses = useTicketDetailsStore(s => s.mergeApprovalStatuses);
+  const upsertApprovalStatuses = useTicketDetailsStore(s => s.upsertApprovalStatuses);
   const getHighestStreamSeq = useTicketDetailsStore(s => s.getHighestStreamSeq);
 
   const approvalStatusesRef = useRef(approvalStatuses);
@@ -103,7 +103,7 @@ export function useHistoricalMessages({
       }
     }
     if (Object.keys(historicalResolutions).length > 0) {
-      mergeApprovalStatuses(historicalResolutions);
+      upsertApprovalStatuses(historicalResolutions);
     }
 
     const { messages: processed } = processHistoricalMessagesWithErrors(historical, {
@@ -176,7 +176,7 @@ export function useHistoricalMessages({
     getMessages,
     setMessages,
     prependWithBoundaryMerge,
-    mergeApprovalStatuses,
+    upsertApprovalStatuses,
     getHighestStreamSeq,
   ]);
 }

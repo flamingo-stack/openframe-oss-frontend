@@ -2,7 +2,7 @@
 
 import type { ChatStreamEvent } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { useCallback, useEffect, useRef } from 'react';
-import type { ChatModelMetadata } from '@/lib/chat-stream-thread';
+import { type ChatModelMetadata, makeChatRowId } from '@/lib/chat-stream-thread';
 import { useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
 import { OWNER_TYPE } from '../constants';
 import { bindTicketSide, type ChatSide, mutateTicketSide, useTicketDetailsStore } from '../stores/ticket-details-store';
@@ -70,7 +70,7 @@ export function useSideChunkProcessor(
         event.ownerType !== OWNER_TYPE.ADMIN
       ) {
         addMessage(side, {
-          id: `direct-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          id: makeChatRowId('direct'),
           role: 'user',
           content: event.text,
           name: userDisplayNameRef.current ?? event.displayName,
