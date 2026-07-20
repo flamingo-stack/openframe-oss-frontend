@@ -20,7 +20,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { useClientView } from '@/app/(app)/settings/ai-settings/hooks/use-client-view';
-import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { featureFlags } from '@/lib/feature-flags';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -76,19 +75,15 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
 
   // The customer AI-assistant tab depends on the openframe-saas-ai-agent
   // service (/chat/graphql), so it's saas-tenant only. `customer-ai-configuration`
-  // switches the NEW full view vs the legacy appearance-only view; the latter
-  // still respects the original `customer-ai-assistant-settings` flag. The tab
-  // appears only when the customer actually overrides part of the AI setup.
+  // switches the NEW full view vs the legacy appearance-only view. The new view
+  // always shows (inherited defaults render with a banner, like guardrails); the
+  // legacy view still respects `customer-ai-assistant-settings` and only appears
+  // when a ClientView appearance override exists (else it would render empty).
   const isNewAiConfig = featureFlags.customerAiConfiguration.enabled();
-  const isCustomerAiEnabled = isNewAiConfig || featureFlags.customerAiAssistantSettings.enabled();
+  const isLegacyAppearance = !isNewAiConfig && featureFlags.customerAiAssistantSettings.enabled();
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
-  const aiTabQueriesEnabled = isCustomerAiEnabled && isSaasTenant && !!id;
-  const { view: clientView } = useClientView(id, { enabled: aiTabQueriesEnabled });
-  const { config: orgAiConfig } = useOrganizationClientAiConfig(id, { enabled: aiTabQueriesEnabled });
-  // New view surfaces both overrides; the legacy appearance view only renders a
-  // ClientView override, so gate it on that alone to avoid an empty tab.
-  const hasOverride = isNewAiConfig ? !!clientView || (!!orgAiConfig && !orgAiConfig.inheritDefault) : !!clientView;
-  const showCustomAiAssistant = isCustomerAiEnabled && isSaasTenant && hasOverride;
+  const { view: clientView } = useClientView(id, { enabled: isLegacyAppearance && isSaasTenant && !!id });
+  const showCustomAiAssistant = isSaasTenant && (isNewAiConfig || (isLegacyAppearance && !!clientView));
   // Effective per-org guardrails via /chat/graphql (saas-ai-agent), so
   // saas-tenant only; own release flag, independent of the appearance feature.
   const showGuardrails = featureFlags.customerGuardrails.enabled() && isSaasTenant;
