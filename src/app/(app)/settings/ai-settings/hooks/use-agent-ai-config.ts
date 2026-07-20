@@ -10,6 +10,7 @@ import {
   UPDATE_CLIENT_AI_CONFIG_MUTATION,
 } from '../queries/ai-settings-queries';
 import type { AgentAiConfig, AgentAiConfigInput, AgentType, AnswerStyle } from '../types/ai-settings';
+import type { GraphqlResponse } from './chat-graphql';
 
 export const agentAiConfigQueryKeys = {
   detail: (agentType: AgentType) => ['agent-ai-config', agentType] as const,
@@ -26,11 +27,6 @@ interface AgentAiConfigGql {
   quickActions: { id: string; name: string; instructions: string }[] | null;
   createdAt: string;
   updatedAt: string | null;
-}
-
-interface GraphqlResponse<T> {
-  data?: T;
-  errors?: { message: string }[];
 }
 
 function toAgentAiConfig(raw: AgentAiConfigGql): AgentAiConfig {
