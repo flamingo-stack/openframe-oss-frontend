@@ -1,7 +1,6 @@
 import type { TokenUsageData } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatStreamEvent } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
-  type ChatApprovalStatus,
   type ChatStreamReducer,
   createChatDialogStore,
   DEFAULT_DIALOG_SIDE,
@@ -9,7 +8,13 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { createReducerMirror, toUnifiedMessage } from '@/lib/chat-stream-thread';
+import {
+  type BoundMirror,
+  createReducerMirror,
+  type NatsMirrorHandlers,
+  natsMirrorOptions,
+  toUnifiedMessage,
+} from '@/lib/chat-stream-thread';
 import { featureFlags } from '@/lib/feature-flags';
 import type { DialogNode, Message } from '../types';
 
@@ -30,27 +35,20 @@ export const mingoChatDialogStore = createChatDialogStore();
 
 const MINGO_IDENTITY = { assistantName: 'Mingo', assistantType: 'mingo' as const };
 
-const approvalHandlersByDialog = new Map<
-  string,
-  { onApprove?: (requestId?: string) => void | Promise<void>; onReject?: (requestId?: string) => void | Promise<void> }
->();
+const handlersByDialog = new Map<string, NatsMirrorHandlers>();
 
 /** All reducer-mirror scaffolding (create-or-get, snapshot change detection,
- *  conversion cache, thread RMW, delta batching) lives in the shared
- *  `createReducerMirror` factory — this host supplies only the key mapping
- *  and the zustand patch. Mirror key = dialogId (side is always 'main'). */
+ *  conversion cache, thread RMW, delta batching, approval-status merge) lives
+ *  in the shared `createReducerMirror` factory, and the NATS options block in
+ *  `natsMirrorOptions` — this host supplies only the key mapping and the
+ *  zustand patch. Mirror key = dialogId (side is always 'main'). */
 const mirror = createReducerMirror<string>({
   store: mingoChatDialogStore,
   identityFor: dialogId => ({ dialogId, side: DEFAULT_DIALOG_SIDE, defaults: MINGO_IDENTITY }),
-  options: dialogId => ({
-    transport: 'nats',
-    displayApprovalTypes: ['CLIENT', 'ADMIN'],
-    batchApprovalsEnabled: featureFlags.batchApproval.enabled(),
-    callbacks: {
-      onApprove: id => approvalHandlersByDialog.get(dialogId)?.onApprove?.(id),
-      onReject: id => approvalHandlersByDialog.get(dialogId)?.onReject?.(id),
-    },
-  }),
+  options: natsMirrorOptions<string>(
+    dialogId => handlersByDialog.get(dialogId),
+    () => featureFlags.batchApproval.enabled(),
+  ),
   onSnapshot: (dialogId, { messages, phase, streamingId, state: snap }) => {
     const usage = snap.dialogTokenUsage ?? null;
     useMingoMessagesStore.setState(state => {
@@ -76,15 +74,19 @@ const mirror = createReducerMirror<string>({
   },
 });
 
-/** Late-bind approve/reject handlers (stamped onto approval segments). */
-export function setMingoApprovalHandlers(
-  dialogId: string,
-  handlers: {
-    onApprove?: (requestId?: string) => void | Promise<void>;
-    onReject?: (requestId?: string) => void | Promise<void>;
-  },
-): void {
-  approvalHandlersByDialog.set(dialogId, handlers);
+/** Late-bind approve/reject + model-badge handlers (approve/reject are
+ *  stamped onto approval segments; onMetadata rides the reducer effect). */
+export function setMingoChatHandlers(dialogId: string, handlers: NatsMirrorHandlers): void {
+  // MERGE, don't replace: approve/reject and `onMetadata` are registered by
+  // separate effects, so a wholesale set would let the later one clobber the
+  // earlier one.
+  handlersByDialog.set(dialogId, { ...handlersByDialog.get(dialogId), ...handlers });
+}
+
+/** Pre-curried `{ apply, mutate, syncApprovalStatuses }` for one dialog.
+ *  Identity is stable per dialogId (memoized inside the mirror). */
+export function bindMingoDialog(dialogId: string): BoundMirror {
+  return mirror.bind(dialogId);
 }
 
 /** Apply one decoded stream event to a dialog's reducer, then mirror. */
@@ -104,7 +106,7 @@ function mutateThread(dialogId: string, op: (messages: Message[]) => Message[]):
 
 function dropDialogCaches(dialogId: string): void {
   mirror.drop(dialogId);
-  approvalHandlersByDialog.delete(dialogId);
+  handlersByDialog.delete(dialogId);
 }
 
 // ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
@@ -154,6 +156,10 @@ interface MingoMessagesStore {
     boundaryUpdates?: Partial<Message>,
   ) => void;
   addMessage: (dialogId: string, message: Message) => void;
+  /** Optimistic local send. Routed through the reducer so IT owns own-echo
+   *  suppression (text-matched, one-shot) — a blanket "drop every echo with
+   *  my user id" would also hide this user's sends from other tabs. */
+  pushOptimisticSend: (dialogId: string, message: Message) => void;
   updateMessage: (dialogId: string, messageId: string, updates: Partial<Message>) => void;
   removeMessage: (dialogId: string, messageId: string) => void;
   /** Cross-message approval flip (reducer accumulator + projection). */
@@ -267,6 +273,10 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
           }
           return [...current, message];
         });
+      },
+
+      pushOptimisticSend: (dialogId, message) => {
+        mirror.pushOptimisticSend(dialogId, message);
       },
 
       updateMessage: (dialogId, messageId, updates) => {
@@ -456,15 +466,3 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
     },
   ),
 );
-
-/** Merge the app's approval-status map into a dialog reducer's lookup
- *  (used when replaying APPROVAL_REQUEST chunks). Merge — never replace —
- *  so statuses the reducer learned from realtime events survive. */
-export function syncMingoApprovalStatuses(dialogId: string, statuses: Record<string, string>): void {
-  mutateMingoDialog(dialogId, r =>
-    r.syncApprovalStatuses({
-      ...r.state.approvalStatuses,
-      ...(statuses as Record<string, ChatApprovalStatus>),
-    }),
-  );
-}

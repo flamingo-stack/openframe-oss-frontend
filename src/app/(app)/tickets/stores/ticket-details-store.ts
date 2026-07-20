@@ -1,12 +1,14 @@
 import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatStreamEvent } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import {
-  type ChatApprovalStatus,
-  type ChatStreamReducer,
-  createChatDialogStore,
-} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { type ChatStreamReducer, createChatDialogStore } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
-import { createReducerMirror, toUnifiedMessage } from '@/lib/chat-stream-thread';
+import {
+  type BoundMirror,
+  createReducerMirror,
+  type NatsMirrorHandlers,
+  natsMirrorOptions,
+  toUnifiedMessage,
+} from '@/lib/chat-stream-thread';
 import { featureFlags } from '@/lib/feature-flags';
 
 export type ChatSide = 'client' | 'admin';
@@ -34,28 +36,21 @@ const SIDE_IDENTITY: Record<ChatSide, { assistantName: string; assistantType: 'f
   admin: { assistantName: 'Mingo', assistantType: 'mingo' },
 };
 
-const approvalHandlersBySide = new Map<
-  ChatSide,
-  { onApprove?: (requestId?: string) => void | Promise<void>; onReject?: (requestId?: string) => void | Promise<void> }
->();
+const handlersBySide = new Map<ChatSide, NatsMirrorHandlers>();
 
 /** All reducer-mirror scaffolding (create-or-get, snapshot change detection,
- *  conversion cache, thread RMW, delta batching) lives in the shared
- *  `createReducerMirror` factory — this host supplies only the key mapping
- *  and the zustand patch. Mirror key = the chat SIDE (the thread key is
- *  constant: only one ticket dialog is open at a time). */
+ *  conversion cache, thread RMW, delta batching, approval-status merge) lives
+ *  in the shared `createReducerMirror` factory, and the NATS options block in
+ *  `natsMirrorOptions` — this host supplies only the key mapping and the
+ *  zustand patch. Mirror key = the chat SIDE (the thread key is constant:
+ *  only one ticket dialog is open at a time). */
 const mirror = createReducerMirror<ChatSide>({
   store: ticketChatDialogStore,
   identityFor: side => ({ dialogId: TICKET_THREAD_KEY, side, defaults: SIDE_IDENTITY[side] }),
-  options: side => ({
-    transport: 'nats',
-    displayApprovalTypes: ['CLIENT', 'ADMIN'],
-    batchApprovalsEnabled: featureFlags.batchApproval.enabled(),
-    callbacks: {
-      onApprove: id => approvalHandlersBySide.get(side)?.onApprove?.(id),
-      onReject: id => approvalHandlersBySide.get(side)?.onReject?.(id),
-    },
-  }),
+  options: natsMirrorOptions<ChatSide>(
+    side => handlersBySide.get(side),
+    () => featureFlags.batchApproval.enabled(),
+  ),
   onSnapshot: (side, { messages, phase, streamingId, state: snap }) => {
     useTicketDetailsStore.setState(state => {
       const nextSide: SideState = {
@@ -100,15 +95,20 @@ export function mutateTicketSide<T>(side: ChatSide, fn: (reducer: ChatStreamRedu
   return mirror.mutate(side, fn);
 }
 
-/** Merge the app's approval-status map into one side's reducer lookup.
- *  Merge — never replace — so stream-learned statuses survive. */
-export function syncTicketApprovalStatuses(side: ChatSide, statuses: Record<string, string>): void {
-  mutateTicketSide(side, r =>
-    r.syncApprovalStatuses({
-      ...r.state.approvalStatuses,
-      ...(statuses as Record<string, ChatApprovalStatus>),
-    }),
-  );
+/**
+ * Pre-curried `{ apply, mutate, syncApprovalStatuses }` for one side, with a
+ * stable identity per side. `mutate` / `syncApprovalStatuses` come straight
+ * from the shared mirror binding; `apply` is overridden with this host's
+ * both-sides variant (the cross-side projections land on the OTHER side's
+ * reducer, so both mirrors must resync).
+ */
+const boundSides = new Map<ChatSide, BoundMirror>();
+export function bindTicketSide(side: ChatSide): BoundMirror {
+  const existing = boundSides.get(side);
+  if (existing) return existing;
+  const bound: BoundMirror = { ...mirror.bind(side), apply: event => applyTicketChatEvent(side, event) };
+  boundSides.set(side, bound);
+  return bound;
 }
 
 /** Read-modify-write on one side's app-shape thread. */
@@ -118,7 +118,8 @@ function mutateThread(side: ChatSide, op: (messages: ChatMessage[]) => ChatMessa
 
 function dropSideCaches(side: ChatSide): void {
   mirror.drop(side);
-  approvalHandlersBySide.delete(side);
+  handlersBySide.delete(side);
+  boundSides.delete(side);
 }
 
 // ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
@@ -168,6 +169,10 @@ interface TicketDetailsStore {
     boundaryUpdates?: Partial<ChatMessage>,
   ) => void;
   addMessage: (side: ChatSide, message: ChatMessage) => void;
+  /** Optimistic local send. Routed through the reducer so IT owns own-echo
+   *  suppression (text-matched, one-shot) — a blanket "drop every echo with
+   *  my user id" would also hide this user's sends from other tabs. */
+  pushOptimisticSend: (side: ChatSide, message: ChatMessage) => void;
   updateMessage: (side: ChatSide, messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (side: ChatSide, messageId: string) => void;
   getMessages: (side: ChatSide) => ChatMessage[];
@@ -183,14 +188,9 @@ interface TicketDetailsStore {
   setApprovalStatus: (requestId: string, status: ApprovalStatus) => void;
   mergeApprovalStatuses: (entries: ApprovalStatusMap) => void;
 
-  // Approve/reject handlers stamped onto approval segments
-  setAccumulatorCallbacks: (
-    side: ChatSide,
-    callbacks: {
-      onApprove?: (requestId?: string) => void | Promise<void>;
-      onReject?: (requestId?: string) => void | Promise<void>;
-    },
-  ) => void;
+  /** Late-bound per-side handlers: approve/reject are stamped onto approval
+   *  segments; `onMetadata` rides the reducer's own metadata effect. */
+  setChatHandlers: (side: ChatSide, handlers: NatsMirrorHandlers) => void;
 
   // Typing (delegates to the reducer's phase machine)
   setTypingIndicator: (side: ChatSide, typing: boolean) => void;
@@ -261,6 +261,10 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
     });
   },
 
+  pushOptimisticSend: (side, message) => {
+    mirror.pushOptimisticSend(side, message);
+  },
+
   updateMessage: (side, messageId, updates) => {
     mutateThread(side, current => {
       const idx = current.findIndex(m => m.id === messageId);
@@ -305,8 +309,11 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
       return changed ? { approvalStatuses: next } : state;
     }),
 
-  setAccumulatorCallbacks: (side, callbacks) => {
-    approvalHandlersBySide.set(side, callbacks);
+  // MERGE, don't replace: approve/reject are registered by the ticket view
+  // while `onMetadata` is registered by the per-side chunk processor, so a
+  // wholesale set would let whichever ran last clobber the other.
+  setChatHandlers: (side, handlers) => {
+    handlersBySide.set(side, { ...handlersBySide.get(side), ...handlers });
   },
 
   setTypingIndicator: (side, typing) => {

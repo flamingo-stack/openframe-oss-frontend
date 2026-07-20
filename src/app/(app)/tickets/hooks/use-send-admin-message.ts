@@ -21,7 +21,7 @@ export function useSendAdminMessage({ ticketId, messageDialogId, onBeforeDialogC
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const currentUser = useAuthStore(state => state.user);
-  const addMessage = useTicketDetailsStore(state => state.addMessage);
+  const pushOptimisticSend = useTicketDetailsStore(state => state.pushOptimisticSend);
 
   const mutation = useMutation({
     mutationFn: async (message: string) => {
@@ -57,7 +57,9 @@ export function useSendAdminMessage({ ticketId, messageDialogId, onBeforeDialogC
         authorType: 'admin',
         timestamp: new Date(),
       };
-      addMessage('admin', optimistic);
+      // Through the reducer: it records the sent text and consumes the
+      // backend's MESSAGE_REQUEST echo itself (see `pushOptimisticSend`).
+      pushOptimisticSend('admin', optimistic);
 
       await ticketService.sendMessage(activeDialogId, trimmedMessage, CHAT_TYPE.ADMIN);
     },

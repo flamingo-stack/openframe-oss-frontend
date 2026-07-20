@@ -5,22 +5,14 @@ import {
   type NatsMessageType,
   useJetStreamDialogSubscription,
 } from '@flamingo-stack/openframe-frontend-core';
-import type { ChatStreamEvent } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import type { ChatStreamReducer } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { registerActiveDialogView } from '@/lib/active-dialog-views';
+import type { ChatModelMetadata } from '@/lib/chat-stream-thread';
 import { featureFlags } from '@/lib/feature-flags';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
-import { type ChatModelMetadata, useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
-import { useAuthStore } from '@/stores';
-import {
-  applyMingoChatEvent,
-  mutateMingoDialog,
-  setMingoApprovalHandlers,
-  syncMingoApprovalStatuses,
-  useMingoMessagesStore,
-} from '../stores/mingo-messages-store';
+import { useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
+import { bindMingoDialog, setMingoChatHandlers, useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogNode } from '../types/dialog.types';
 
 const MINGO_JETSTREAM_TOPIC: NatsMessageType = 'admin-message';
@@ -146,7 +138,8 @@ export function useMingoRealtimeSubscription(
 interface UseDialogChunkProcessorOptions {
   onApprove?: (requestId?: string) => void | Promise<void>;
   onReject?: (requestId?: string) => void | Promise<void>;
-  approvalStatuses?: Record<string, any>;
+  /** Persisted request-id → status seed the reducer consults on replay. */
+  approvalStatuses?: Record<string, string>;
   onMetadata?: (metadata: ChatModelMetadata) => void;
 }
 
@@ -156,45 +149,25 @@ interface UseDialogChunkProcessorOptions {
  * accumulation rule that used to live in the ~270-LOC callback glue here
  * (stream windows, segment routing, cross-message tool merges, approval
  * flips, participant dedup, typing phase); the store mirrors its snapshot.
- * The residual side concerns (own-echo suppression, the metadata
- * side-channel, approval-status sync, the keyed incomplete-turn seed) are
- * shared with the tickets processor via `useChatChunkProcessor`; only the
- * approval-handler binding is mingo-specific.
+ * The residual side concerns (own-echo suppression, approval-status sync,
+ * the keyed incomplete-turn seed) are shared with the tickets processor via
+ * `useChatChunkProcessor`, and the model badge rides the reducer's own
+ * `onMetadata` effect; only the handler binding is mingo-specific.
  */
 function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProcessorOptions = {}) {
   const { onApprove, onReject, approvalStatuses, onMetadata } = options;
 
-  const currentUserId = useAuthStore(state => state.user?.id);
-
   useEffect(() => {
-    if (onApprove || onReject) {
-      setMingoApprovalHandlers(dialogId, { onApprove, onReject });
-    }
-  }, [dialogId, onApprove, onReject]);
+    setMingoChatHandlers(dialogId, { onApprove, onReject, onMetadata });
+  }, [dialogId, onApprove, onReject, onMetadata]);
 
   const messages = useMingoMessagesStore(s => s.messagesByDialog.get(dialogId));
 
-  const apply = useCallback((event: ChatStreamEvent) => applyMingoChatEvent(dialogId, event), [dialogId]);
-  const mutate = useCallback(
-    (fn: (reducer: ChatStreamReducer) => void) => {
-      mutateMingoDialog(dialogId, fn);
-    },
-    [dialogId],
-  );
-  const syncApprovalStatuses = useCallback(
-    (statuses: Record<string, string>) => syncMingoApprovalStatuses(dialogId, statuses),
-    [dialogId],
-  );
-
   const processChunk = useChatChunkProcessor({
-    apply,
-    mutate,
+    mirror: bindMingoDialog(dialogId),
     messages,
     seedKey: dialogId,
-    currentUserId,
-    onMetadata,
     approvalStatuses,
-    syncApprovalStatuses,
   });
 
   return { processChunk };
@@ -205,14 +178,10 @@ interface DialogSubscriptionProps {
   isActive: boolean;
   onApprove?: (requestId?: string) => void;
   onReject?: (requestId?: string) => void;
-  approvalStatuses?: Record<string, any>;
+  /** Persisted request-id → status seed the reducer consults on replay. */
+  approvalStatuses?: Record<string, string>;
   onConnectionChange?: (dialogId: string, connected: boolean) => void;
-  onMetadata?: (metadata: {
-    modelDisplayName: string;
-    modelName: string;
-    providerName: string;
-    contextWindow: number;
-  }) => void;
+  onMetadata?: (metadata: ChatModelMetadata) => void;
   initialOptStartSeq: number | null;
   isInitialOptStartSeqReady: boolean;
 }

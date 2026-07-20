@@ -1,18 +1,13 @@
 'use client';
 
 import type { ChatStreamEvent } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import type { ChatStreamReducer } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useCallback, useEffect, useRef } from 'react';
-import { type ChatModelMetadata, useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
-import { useAuthStore } from '@/stores';
+import type { ChatModelMetadata } from '@/lib/chat-stream-thread';
+import { useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
 import { OWNER_TYPE } from '../constants';
-import {
-  applyTicketChatEvent,
-  type ChatSide,
-  mutateTicketSide,
-  syncTicketApprovalStatuses,
-  useTicketDetailsStore,
-} from '../stores/ticket-details-store';
+import { bindTicketSide, type ChatSide, mutateTicketSide, useTicketDetailsStore } from '../stores/ticket-details-store';
+
+export type { ChatModelMetadata };
 
 interface UseSideChunkProcessorOptions {
   /** Ticket currently open — half of the incomplete-turn seeding key. */
@@ -31,10 +26,11 @@ interface UseSideChunkProcessorOptions {
  * re-implement, and the dialog store's built-in cross-side projections
  * (approval resolution by requestId, tool-execution merge by execId)
  * replace the app's both-sides fan-out. The residual glue (own-echo
- * suppression, the metadata side-channel, approval-status sync, the
- * incomplete-turn seed) is shared with mingo via `useChatChunkProcessor`;
- * what remains here is genuinely tickets-only: the direct-mode flag sync
- * and the client-authored `direct-message` intercept.
+ * suppression, approval-status sync, the incomplete-turn seed) is shared
+ * with mingo via `useChatChunkProcessor`, and the model-badge side-channel
+ * rides the reducer's own `onMetadata` effect; what remains here is
+ * genuinely tickets-only: the direct-mode flag sync and the client-authored
+ * `direct-message` intercept.
  */
 export function useSideChunkProcessor(
   side: ChatSide,
@@ -43,8 +39,8 @@ export function useSideChunkProcessor(
   const messages = useTicketDetailsStore(s => s[side].messages);
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
   const addMessage = useTicketDetailsStore(s => s.addMessage);
+  const setChatHandlers = useTicketDetailsStore(s => s.setChatHandlers);
 
-  const currentUserId = useAuthStore(state => state.user?.id);
   const userDisplayNameRef = useRef(userDisplayName);
   userDisplayNameRef.current = userDisplayName;
 
@@ -54,17 +50,11 @@ export function useSideChunkProcessor(
     mutateTicketSide(side, r => r.setDirectMode(!!isDirectMode));
   }, [side, isDirectMode]);
 
-  const apply = useCallback((event: ChatStreamEvent) => applyTicketChatEvent(side, event), [side]);
-  const mutate = useCallback(
-    (fn: (reducer: ChatStreamReducer) => void) => {
-      mutateTicketSide(side, fn);
-    },
-    [side],
-  );
-  const syncApprovalStatuses = useCallback(
-    (statuses: Record<string, string>) => syncTicketApprovalStatuses(side, statuses),
-    [side],
-  );
+  // Model badge: the reducer emits the mapped metadata as an effect, so the
+  // host only late-binds the sink (merged with the view's approve/reject).
+  useEffect(() => {
+    setChatHandlers(side, { onMetadata });
+  }, [side, onMetadata, setChatHandlers]);
 
   // Client-authored DIRECT_MESSAGE: the lib reducer renders every direct
   // message as an admin-authored row (its home surface only sees technician
@@ -96,14 +86,10 @@ export function useSideChunkProcessor(
   );
 
   return useChatChunkProcessor({
-    apply,
-    mutate,
+    mirror: bindTicketSide(side),
     messages,
     seedKey: `${ticketId}:${side}`,
-    currentUserId,
-    onMetadata,
     approvalStatuses,
-    syncApprovalStatuses,
     interceptEvent,
   });
 }

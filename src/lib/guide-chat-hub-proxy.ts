@@ -23,7 +23,8 @@
  *     token IS the identity), and the token never reaches the browser (no
  *     NEXT_PUBLIC_ prefix).
  *   - The VISITOR's IP is forwarded as `x-chat-ip`. See
- *     `visitorIpFrom()` for why this is load-bearing, not optional.
+ *     `visitorIpFrom()` for why this is load-bearing, not optional — and
+ *     why the header precedence there is a security boundary.
  */
 
 import { NextResponse } from 'next/server';
@@ -43,13 +44,42 @@ let warnedMissingServiceToken = false;
 // the forwarded value. Anything that isn't recognisably an address is dropped.
 const IPV4_SHAPE = /^(\d{1,3}\.){3}\d{1,3}$/;
 const IPV6_SHAPE = /^[0-9a-fA-F:]{2,45}$/;
+// `::ffff:203.0.113.4` — what a dual-stack listener reports for an IPv4 peer
+// (nginx on an AF_INET6 socket, Node's `socket.remoteAddress`). Normalized to
+// the bare IPv4 so the rate-limit bucket matches the direct-connection case
+// rather than splitting into two buckets for the same visitor.
+const IPV4_MAPPED_SHAPE = /^::ffff:((?:\d{1,3}\.){3}\d{1,3})$/i;
 
-function isPlausibleIp(value: string): boolean {
-  if (IPV4_SHAPE.test(value)) {
-    return value.split('.').every(part => Number(part) <= 255);
-  }
-  return value.includes(':') && IPV6_SHAPE.test(value);
+function isPlausibleIpv4(value: string): boolean {
+  return IPV4_SHAPE.test(value) && value.split('.').every(part => Number(part) <= 255);
 }
+
+/**
+ * Normalize one candidate to a forwardable address, or null.
+ *
+ * Rejecting these forms is not a cosmetic nit: a false negative means NO
+ * `x-chat-ip` is sent at all and every visitor silently collapses back into
+ * this app's single egress bucket. Both routinely-seen non-canonical forms
+ * are therefore handled explicitly:
+ *   - `%zone` scope ids (`fe80::1%eth0`) are stripped before validation;
+ *   - IPv4-mapped IPv6 (`::ffff:203.0.113.4`, which contains dots and so
+ *     fails a naive hex/colon-only IPv6 shape) is unwrapped to its IPv4.
+ */
+function normalizeIpCandidate(raw: string): string | null {
+  // Strip surrounding brackets (`[::1]:443` style) and any zone id.
+  const value = raw
+    .trim()
+    .replace(/^\[|\]$/g, '')
+    .split('%')[0];
+  if (!value) return null;
+  if (isPlausibleIpv4(value)) return value;
+  const mapped = IPV4_MAPPED_SHAPE.exec(value);
+  if (mapped) return isPlausibleIpv4(mapped[1]) ? mapped[1] : null;
+  return value.includes(':') && IPV6_SHAPE.test(value) ? value : null;
+}
+
+/** Emitted once per process — a silently degraded bucket must be observable. */
+let warnedMissingVisitorIp = false;
 
 /**
  * Extract the end user's IP from the incoming request.
@@ -66,21 +96,42 @@ function isPlausibleIp(value: string): boolean {
  * forward the impersonation-grade `CHAT_PROXY_SECRET` here — this proxy
  * speaks for anonymous visitors and must not hold that power.
  *
- * `x-forwarded-for` FIRST hop is the client as seen by the edge; later hops
- * are proxies. Values are validated for IP shape before forwarding so a
- * hostile header can't inject anything into the upstream request.
+ * HEADER PRECEDENCE IS A SECURITY BOUNDARY — do not reorder this list.
+ * Because the hub trusts whatever we put in `x-chat-ip`, picking a
+ * client-controllable hop hands the visitor their own rate-limit bucket:
+ * rotating `curl -H 'X-Forwarded-For: <random>'` would defeat the guide
+ * limit entirely. So:
+ *   1. `x-vercel-forwarded-for` — set by the platform from the real TCP
+ *      peer and overwritten on every request; not client-forgeable.
+ *   2. `x-real-ip` — single-valued, set (overwritten) by the ingress.
+ *   3. `x-forwarded-for` LAST hop — the entry APPENDED by the ingress
+ *      closest to us. Ingresses that append rather than overwrite (nginx,
+ *      most self-hosted/k8s, and the documented localhost dev path) leave
+ *      the FIRST hop entirely client-supplied, so the first hop must never
+ *      be used. This mirrors the hub's own `getClientIp`, which takes the
+ *      same end of the same header for the same reason.
+ * Values are validated for IP shape before forwarding so a hostile header
+ * can't inject CR/LF or extra header material into the upstream request.
  */
 function visitorIpFrom(request: Request): string | null {
   const forwardedFor = request.headers.get('x-forwarded-for');
+  const forwardedHops = forwardedFor ? forwardedFor.split(',') : [];
   const candidates = [
-    ...(forwardedFor ? forwardedFor.split(',') : []),
-    request.headers.get('x-real-ip') ?? '',
-    // Vercel's connection IP (set by the platform, not client-controllable).
     request.headers.get('x-vercel-forwarded-for') ?? '',
+    request.headers.get('x-real-ip') ?? '',
+    // LAST hop only — see the precedence note above.
+    forwardedHops.length > 0 ? forwardedHops[forwardedHops.length - 1] : '',
   ];
   for (const raw of candidates) {
-    const candidate = raw.trim().replace(/^\[|\]$/g, '');
-    if (candidate && isPlausibleIp(candidate)) return candidate;
+    const candidate = normalizeIpCandidate(raw);
+    if (candidate) return candidate;
+  }
+  if (!warnedMissingVisitorIp) {
+    warnedMissingVisitorIp = true;
+    console.warn(
+      '[guide-chat-proxy] no platform-set visitor IP found — guide rate limiting ' +
+        'and conversation attribution will bucket every visitor together',
+    );
   }
   return null;
 }

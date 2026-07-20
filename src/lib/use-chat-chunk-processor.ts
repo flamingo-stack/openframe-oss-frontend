@@ -8,13 +8,22 @@
  * which left both hosts with the same residual side concerns — and two
  * verbatim copies of them. They live here now:
  *
- *   1. ref-mirrors for the current user id + the metadata callback, so the
- *      returned `processChunk` identity does not churn per render;
+ *   1. a ref-mirror for the host intercept, so the returned `processChunk`
+ *      identity does not churn per render;
  *   2. the approval-status sync effect (the lookup the reducer consults when
  *      an APPROVAL_REQUEST replays);
- *   3. the KEYED one-shot incomplete-turn seed after history hydration;
- *   4. the `metadata` side-channel for the model badge;
- *   5. own-echo suppression for the caller's own MESSAGE_REQUEST.
+ *   3. the KEYED one-shot incomplete-turn seed after history hydration.
+ *
+ * Two concerns that USED to live here have moved down to their real owner:
+ *   - own-echo suppression is the reducer's (`pushOptimisticSend` records the
+ *     sent text; the MESSAGE_REQUEST handler consumes exactly one match, with
+ *     a content-dedup window for seq-less rows). The blanket
+ *     `event.userId === currentUserId` drop this hook used to do ALSO
+ *     swallowed the same user's messages sent from a second tab or device,
+ *     which the reducer's text-matched consumption does not.
+ *   - the model-badge metadata mapping is the reducer's `onMetadata` EFFECT,
+ *     wired once in `natsMirrorOptions` instead of being re-derived from the
+ *     raw event by each host.
  *
  * Host-specific behaviour arrives via `interceptEvent` (tickets uses it for
  * client-authored DIRECT_MESSAGE rows, which the lib reducer would otherwise
@@ -25,20 +34,13 @@ import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-
 import { type ChatStreamEvent, decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import type { ChatStreamReducer } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useCallback, useEffect, useRef } from 'react';
-import { computeIncompleteTailState } from '@/lib/chat-stream-thread';
+import { type BoundMirror, computeIncompleteTailState } from '@/lib/chat-stream-thread';
 
-export interface ChatModelMetadata {
-  modelDisplayName: string;
-  modelName: string;
-  providerName: string;
-  contextWindow: number;
-}
+export type { ChatModelMetadata } from '@/lib/chat-stream-thread';
 
 export interface UseChatChunkProcessorOptions {
-  /** Apply one decoded event to the bound dialog/side (store mirror path). */
-  apply: (event: ChatStreamEvent) => void;
-  /** Run reducer commands against the bound dialog/side. */
-  mutate: (fn: (reducer: ChatStreamReducer) => void) => void;
+  /** Pre-curried mirror handle for the bound dialog/side (`mirror.bind(key)`). */
+  mirror: BoundMirror;
   /** Hydrated thread of the bound dialog/side (drives the seeding guard). */
   messages: readonly ChatMessage[] | undefined;
   /**
@@ -52,45 +54,40 @@ export interface UseChatChunkProcessorOptions {
    * resolves. Key on dialogId (mingo) / `${ticketId}:${side}` (tickets).
    */
   seedKey: string;
-  /** Signed-in user id — used to drop this client's own MESSAGE_REQUEST echo. */
-  currentUserId?: string;
-  /** Model-badge side-channel (kept outside the reducer). */
-  onMetadata?: (metadata: ChatModelMetadata) => void;
   /** Approval statuses the reducer consults when an APPROVAL_REQUEST replays. */
   approvalStatuses?: Record<string, string>;
-  /** Merge `approvalStatuses` into the bound reducer's lookup. */
-  syncApprovalStatuses?: (statuses: Record<string, string>) => void;
-  /** Host hook, run after metadata + own-echo handling. Return `true` to
-   *  claim the event (the shared path then skips `apply`). */
+  /** Host hook, run before the shared `apply`. Return `true` to claim the
+   *  event (the shared path then skips `apply`). */
   interceptEvent?: (event: ChatStreamEvent) => boolean;
 }
 
 export function useChatChunkProcessor({
-  apply,
-  mutate,
+  mirror,
   messages,
   seedKey,
-  currentUserId,
-  onMetadata,
   approvalStatuses,
-  syncApprovalStatuses,
   interceptEvent,
 }: UseChatChunkProcessorOptions): (chunk: unknown) => void {
-  const applyRef = useRef(apply);
-  applyRef.current = apply;
-  const currentUserIdRef = useRef(currentUserId);
-  currentUserIdRef.current = currentUserId;
-  const onMetadataRef = useRef(onMetadata);
-  onMetadataRef.current = onMetadata;
+  // LATEST-REF IDIOM (assigned in the render body, deliberately): the returned
+  // `processChunk` must have a STABLE identity — both hosts stash it in a ref
+  // and hand it to a long-lived JetStream subscription, so a new identity per
+  // render would churn the subscription. Writing the refs during render (vs.
+  // in an effect) means the very first chunk after a prop change already sees
+  // the new value; these are write-only mirrors of props, never read during
+  // render, so they cannot desync the rendered output.
+  const mirrorRef = useRef(mirror);
+  mirrorRef.current = mirror;
   const interceptEventRef = useRef(interceptEvent);
   interceptEventRef.current = interceptEvent;
 
   // Status lookup the reducer consults when an APPROVAL_REQUEST replays.
+  // `mirror` comes from `ReducerMirror.bind(key)`, which memoizes per key —
+  // so this effect re-runs on a real key change, not on every host render.
   useEffect(() => {
     if (approvalStatuses && Object.keys(approvalStatuses).length > 0) {
-      syncApprovalStatuses?.(approvalStatuses);
+      mirror.syncApprovalStatuses(approvalStatuses);
     }
-  }, [approvalStatuses, syncApprovalStatuses]);
+  }, [approvalStatuses, mirror]);
 
   // One-shot-PER-KEY incomplete-turn seed: once the hydrated thread shows an
   // unfinished trailing assistant run (pending approvals / executing tools),
@@ -103,36 +100,15 @@ export function useChatChunkProcessor({
     const extras = computeIncompleteTailState(messages);
     if (!extras) return;
     seededKeyRef.current = seedKey;
-    mutate(r => r.initializeWithState(null, extras));
-  }, [seedKey, messages, mutate]);
+    mirror.mutate((r: ChatStreamReducer) => r.initializeWithState(null, extras));
+  }, [seedKey, messages, mirror]);
 
   return useCallback((chunk: unknown) => {
     const event = decodeNatsChunk(chunk);
     if (!event) return;
 
-    // Side-channel: model badge refinement (kept outside the reducer).
-    if (event.type === 'metadata') {
-      onMetadataRef.current?.({
-        modelDisplayName: event.modelLabel ?? event.modelName ?? '',
-        modelName: event.modelName ?? '',
-        providerName: event.provider ?? '',
-        contextWindow: event.contextWindowMaxTokens ?? 0,
-      });
-    }
-
-    // Own MESSAGE_REQUEST echo — the optimistic send already rendered it
-    // (with the sender's name/avatar, which the wire echo doesn't carry).
-    if (
-      event.type === 'participant' &&
-      event.kind === 'message-request' &&
-      event.userId &&
-      event.userId === currentUserIdRef.current
-    ) {
-      return;
-    }
-
     if (interceptEventRef.current?.(event)) return;
 
-    applyRef.current(event);
+    mirrorRef.current.apply(event);
   }, []);
 }

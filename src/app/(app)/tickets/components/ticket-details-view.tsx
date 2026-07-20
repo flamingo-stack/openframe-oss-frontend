@@ -181,14 +181,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const { deviceDetails, isLoading: isDeviceLoading } = useDeviceDetails(machineId);
   const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
 
-  const {
-    client,
-    admin,
-    clearChatState,
-    setAccumulatorCallbacks,
-    updateApprovalStatusInMessages,
-    recordHighestStreamSeq,
-  } = useTicketDetailsStore();
+  const { client, admin, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
+    useTicketDetailsStore();
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
 
   const { messages: clientMessages, isTyping: isClientChatTyping } = client;
@@ -512,9 +506,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   );
 
   useEffect(() => {
-    setAccumulatorCallbacks('client', { onApprove: handleApprove, onReject: handleReject });
-    setAccumulatorCallbacks('admin', { onApprove: handleApprove, onReject: handleReject });
-  }, [handleApprove, handleReject, setAccumulatorCallbacks]);
+    setChatHandlers('client', { onApprove: handleApprove, onReject: handleReject });
+    setChatHandlers('admin', { onApprove: handleApprove, onReject: handleReject });
+  }, [handleApprove, handleReject, setChatHandlers]);
 
   useHistoricalMessages({
     side: 'client',

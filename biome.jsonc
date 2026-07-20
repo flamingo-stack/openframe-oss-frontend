@@ -128,6 +128,12 @@
       // Next.js MANDATES CONSTANT_CASE route-handler export names (GET/POST/…).
       // Only the `function` selector is widened for that — locals, params, types
       // and members in route files stay under the repo-wide convention.
+      //
+      // KEEP IN SYNC WITH THE ROOT LIST ABOVE: biome replaces `conventions`
+      // WHOLESALE rather than merging, so the other ten selectors below are a
+      // VERBATIM COPY of the root `useNamingConvention.options.conventions`.
+      // Any edit to a root selector must be mirrored here or route files
+      // silently drop that rule.
       "includes": ["**/src/app/**/route.ts"],
       "linter": {
         "rules": {

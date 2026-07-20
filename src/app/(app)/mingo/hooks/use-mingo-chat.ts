@@ -97,7 +97,7 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
 
   const {
     messagesByDialog,
-    addMessage,
+    pushOptimisticSend,
     phaseByDialog,
     setTyping,
     removeWelcomeMessages,
@@ -307,7 +307,9 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
           contextItems: context?.contextItems?.length ? context.contextItems : undefined,
         };
 
-        addMessage(effectiveDialogId, optimisticMessage);
+        // Through the reducer: it records the sent text and consumes the
+        // backend's MESSAGE_REQUEST echo itself (see `pushOptimisticSend`).
+        pushOptimisticSend(effectiveDialogId, optimisticMessage);
         await sendMessageMutation.mutateAsync({
           dialogId: effectiveDialogId,
           content: content.trim(),
@@ -339,7 +341,7 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
       isTyping,
       setTyping,
       removeWelcomeMessages,
-      addMessage,
+      pushOptimisticSend,
       messagesByDialog,
       updateApprovalStatusInMessages,
       sendMessageMutation,
