@@ -29,7 +29,7 @@
  *     is a security boundary, not an optimization.
  */
 
-import { normalizeIpForBucketKey } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import { envFlagEnabled, normalizeIpForBucketKey } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { NextResponse } from 'next/server';
 
 /** Resolve the hub origin, normalizing away any trailing slash. */
@@ -124,10 +124,16 @@ let warnedMissingVisitorIp = false;
  * can't inject CR/LF or extra header material into the upstream request.
  */
 function visitorIpFrom(request: Request): string | null {
-  // `process.env` is read per call (not module-hoisted) so tests and edge
-  // runtimes see the live value.
-  const onVercel = Boolean(process.env.VERCEL);
-  const trustedIngress = Boolean(process.env.TRUSTED_INGRESS_SETS_REAL_IP);
+  // Parsed by the LIB's `envFlagEnabled`, the same predicate the hub applies —
+  // not `Boolean(process.env.X)`, under which `=0` / `=false` / `=off` read as
+  // ENABLED. That divergence let an operator who typed `TRUSTED_INGRESS_SETS_REAL_IP=0`
+  // meaning "off" get this proxy reading attacker-writable `x-real-ip` /
+  // `x-forwarded-for` and forwarding the value as `x-chat-ip`, which the hub
+  // honors verbatim under the service token: a rate-limit-bucket spoof. The
+  // predicate reads `process.env` per call (not module-hoisted) so tests and
+  // edge runtimes see the live value.
+  const onVercel = envFlagEnabled('VERCEL');
+  const trustedIngress = envFlagEnabled('TRUSTED_INGRESS_SETS_REAL_IP');
 
   const candidates: string[] = [];
   if (onVercel) candidates.push(request.headers.get('x-vercel-forwarded-for') ?? '');
