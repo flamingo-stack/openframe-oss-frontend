@@ -22,12 +22,16 @@
  *
  * Guide mode (the SSE hub integration) is RESTORED as the second transport
  * (Phase 5 of the chat unification): `modes.guide` activates the lib's
- * unified SSE adapter, whose endpoints come from
- * `OpenframeChatRuntimeProvider` — the same-origin `/api/guide-chat/*`
- * proxy routes that forward server-side to the hub with the server-held
- * service token. Both modes existing makes the lib show the in-panel
- * guide↔mingo toggle; `defaultActiveMode="mingo"` keeps Mingo the landing
- * mode, and both transports share ONE reader (`createChatStreamReducer`).
+ * unified SSE adapter. Its endpoints were never removed — they still come
+ * from `OpenframeChatRuntimeProvider`'s `/content/`-prefixed paths, which
+ * the reverse proxy in front of this app forwards to the MPH origin,
+ * attaching the chat secret and act-as identity. This app ships as a
+ * static SPA (`output: 'export'`), so it has NO server of its own: the
+ * proxy is the only place that rewrite and those credentials can live.
+ * Re-enabling guide is therefore a one-line mode change, not new plumbing.
+ * Both modes existing makes the lib show the in-panel guide↔mingo toggle;
+ * `defaultActiveMode="mingo"` keeps Mingo the landing mode, and both
+ * transports share ONE reader (`createChatStreamReducer`).
  *
  * Coexists with the old `/mingo` page route during migration.
  */
@@ -164,7 +168,9 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         // `modes.mingo` — that keeps the lib's built-in NATS adapter idle.
         // `modes.guide` (re)enables Guide mode on the lib's unified SSE
         // adapter: endpoints come from `OpenframeChatRuntimeProvider`'s
-        // `/api/guide-chat/*` service-token proxy routes, and the adapter's
+        // existing `/content/`-prefixed paths (reverse-proxied to MPH by the
+        // layer in front of this app — this SPA has no server of its own),
+        // and the adapter's
         // baked-in `defaultTableIdForDocumentType` covers the hub's registered
         // document types, so no per-host config is required here. Guide +
         // Mingo both present → the lib renders the in-panel mode toggle;
