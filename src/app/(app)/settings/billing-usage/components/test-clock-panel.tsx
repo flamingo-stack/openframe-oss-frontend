@@ -145,7 +145,15 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
         <Button type="submit" variant="accent" loading={advance.isPending} disabled={!isDaysValid || isBusy}>
           Advance
         </Button>
-        <Button type="button" variant="outline" disabled={isBusy} onClick={() => setConfirmResetOpen(true)}>
+        {/* With no clock attached the backend has nothing to delete and answers 409
+            CONFLICT, so don't offer the action at all in that state. */}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isBusy || frozenTime === null}
+          title={frozenTime === null ? 'No test clock to reset' : undefined}
+          onClick={() => setConfirmResetOpen(true)}
+        >
           Reset
         </Button>
       </form>
