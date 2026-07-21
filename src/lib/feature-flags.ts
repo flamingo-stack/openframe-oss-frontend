@@ -126,15 +126,14 @@ export const featureFlags = {
     },
   },
   /**
-   * Dev/stage-only Stripe test-clock panel on Settings → Billing. Prefers the
-   * server flag (BE's `openframe.billing.test-clock.enabled`, surfaced via
-   * feFeatureFlags), so FE visibility tracks the same switch that shapes the schema
-   * and can't drift. Falls back to the `NEXT_PUBLIC_ENABLE_BILLING_TEST_CLOCK` env
-   * when the server doesn't return the flag.
+   * Dev/stage-only Stripe test-clock panel on Settings → Billing. Server-driven via
+   * `feFeatureFlags` (`test-clock`), which the BE keeps in sync with the same
+   * `openframe.billing.test-clock.enabled` switch that shapes the schema — so FE
+   * visibility can't drift from field availability. Defaults off when unset.
    */
   testClock: {
     enabled(): boolean {
-      return getFlagValue('test-clock', () => runtimeEnv.enableBillingTestClock());
+      return getFlagValue('test-clock', () => false);
     },
   },
 } as const;

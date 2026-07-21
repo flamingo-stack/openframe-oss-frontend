@@ -25,11 +25,10 @@ interface TestClockPanelProps {
  * Dev-only panel for driving the tenant's Stripe test clock (virtual billing time)
  * so trials, renewals and invoices can be exercised without waiting for real time.
  *
- * Hidden — and, critically, silent — unless the `test-clock` flag is on. The backend
- * gates the same feature behind `openframe.billing.test-clock.enabled` and strips these
- * fields from the schema when it is off, so an ungated render would fire requests that
- * fail GraphQL validation on prod. The FE flag prefers the server value (so it tracks
- * that BE switch) and falls back to `NEXT_PUBLIC_ENABLE_BILLING_TEST_CLOCK`.
+ * Hidden — and, critically, silent — unless the server-driven `test-clock` feature
+ * flag is on. The backend keeps that flag in sync with `openframe.billing.test-clock.enabled`,
+ * which strips these fields from the schema when off, so an ungated render would fire
+ * requests that fail GraphQL validation on prod.
  */
 export function TestClockPanel({ onClockChanged }: TestClockPanelProps) {
   if (!featureFlags.testClock.enabled()) return null;
