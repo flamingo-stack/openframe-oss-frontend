@@ -30,7 +30,11 @@ import type {
   ChatContextPickerConfig,
   MingoQuickAction,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { EmbeddableChat } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  EmbeddableChat,
+  getAgentAccent,
+  renderQuickActionIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useEffect, useMemo } from 'react';
 import { featureFlags } from '@/lib/feature-flags';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../(app)/mingo/context/context-sources';
@@ -111,6 +115,16 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         id: action.id,
         label: action.name,
         variant: 'outline',
+        // Product Hub defaults carry a glyph (iconName/iconUrl/iconProps);
+        // render it into the chip node. Tenant customs have none → undefined →
+        // no icon. `mingo` accent tints registry glyphs unless the hub icon
+        // sets its own color. The settings editor deliberately omits this.
+        icon: renderQuickActionIcon({
+          name: action.iconName ?? undefined,
+          url: action.iconUrl ?? undefined,
+          props: action.iconProps ?? undefined,
+          accent: getAgentAccent('mingo'),
+        }),
         // Hover/focus previews the full instruction (what's actually sent) as
         // ghost text in the composer; the chip `label` is just the short name.
         prompt: action.instructions,
