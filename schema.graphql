@@ -186,46 +186,6 @@ enum BillingPlanStatus {
   ARCHIVED
 }
 
-enum BillingProvisioningPendingReason {
-  """
-  No subscription document yet — waiting for registration or the gap-fill scheduler.
-  """
-  NO_SUBSCRIPTION
-
-  """Subscription exists but the tenant has no Stripe customer yet."""
-  NO_STRIPE_CUSTOMER
-
-  """
-  Stripe customer exists but the paused Stripe subscription has not been created yet.
-  """
-  NO_STRIPE_SUBSCRIPTION
-
-  """
-  Everything exists in Stripe, but pending actions have not been pushed yet.
-  """
-  STRIPE_SYNC_PENDING
-}
-
-enum BillingProvisioningState {
-  """
-  Subscription, Stripe customer and Stripe subscription all exist and are in sync.
-  """
-  READY
-
-  """Provisioning is still in progress; see reason."""
-  PENDING
-}
-
-type BillingProvisioningStatus {
-  state: BillingProvisioningState!
-
-  """Why provisioning is still pending. Null when state is READY."""
-  reason: BillingProvisioningPendingReason
-
-  """Human-readable explanation, safe to show as-is."""
-  message: String!
-}
-
 input CancelExecutionInput {
   machineId: String!
   executionId: ID!
@@ -1564,14 +1524,6 @@ type Query {
   """
   aiModelRates: [AiModelRate!]!
 
-  """
-  How far along the tenant's billing provisioning is. READY means subscription, Stripe customer and
-  Stripe subscription all exist and are in sync — the tenant is safe to test against. PENDING means the
-  schedulers are still rebuilding it (normal for the first minutes after registration, or after a
-  dev/stage test-clock reset).
-  """
-  billingProvisioningStatus: BillingProvisioningStatus!
-
   """Tenant-wide Initial Setup progress (shared across admins)."""
   tenantOnboardingProgress: TenantOnboardingProgress!
 
@@ -1699,11 +1651,6 @@ type Query {
   Unknown flags default to false.
   """
   feFeatureFlags(names: [String!]): [FeFeatureFlag!]!
-
-  """
-  Current virtual (frozen) time of this tenant's Stripe test clock, or null when no test clock is active (dev/stage only).
-  """
-  testClockTime: TestClockResult
   _service: _Service!
 }
 
