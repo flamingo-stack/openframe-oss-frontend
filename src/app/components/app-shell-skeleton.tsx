@@ -130,6 +130,58 @@ function NavigationSidebarSkeleton() {
 }
 
 /**
+ * OnboardingStepCard skeleton - matches OnboardingStepCard exactly
+ * Structure: bg-ods-card, rounded-[6px], h-[80px], flex row
+ */
+function OnboardingStepCardSkeleton() {
+  return (
+    <div className="bg-ods-card border border-ods-border rounded-[6px] min-h-[80px] md:h-[80px] flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 px-4 py-4 md:py-0">
+      {/* Left - title and description */}
+      <div className="flex-1 w-full md:w-auto min-w-0 flex flex-col justify-center gap-1">
+        <Skeleton className="h-6 w-40" /> {/* title - 18px/24px line height */}
+        <Skeleton className="h-5 w-64" /> {/* description - 14px/20px line height, h-[20px] explicit */}
+      </div>
+      {/* Right - buttons */}
+      <div className="flex items-center gap-2 w-full md:w-auto justify-start md:justify-end shrink-0">
+        <Skeleton className="h-14 w-full md:w-[100px] rounded-[6px]" />{' '}
+        {/* Skip button - h-14 matches Button default */}
+        <Skeleton className="h-14 w-full md:w-[160px] rounded-[6px]" />{' '}
+        {/* Action button - h-14 matches Button default */}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Onboarding skeleton - matches OnboardingWalkthrough exactly
+ * Structure: header row + vertical list of OnboardingStepCards.
+ *
+ * Kept in the shell fallback on purpose: the dashboard shows an onboarding block
+ * while its progress loads, and that progress needs extra round-trips (device/org/
+ * user/SSO counts for the legacy walkthrough, tenant step detection for Initial
+ * Setup) that take a noticeable moment — so we draw the skeleton in the meantime
+ * instead of a gap.
+ */
+function OnboardingSkeleton() {
+  return (
+    <div className="w-full space-y-4">
+      {/* Header - title + button */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
+        <Skeleton className="h-8 w-36" /> {/* "Get Started" title - 24px/32px line height */}
+        <Skeleton className="h-12 w-full md:w-[180px] rounded-[6px]" />{' '}
+        {/* "Skip Onboarding" button - w-full md:w-auto matches actual Button */}
+      </div>
+      {/* Step cards - 5 vertical cards */}
+      <div className="space-y-4">
+        {Array.from({ length: 5 }, (_, i) => (
+          <OnboardingStepCardSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Skeleton that mirrors the AppShell structure:
  * - NavigationSidebar (left): responsive width tracking the real sidebar's
  *   minimized/expanded + tablet states
@@ -196,9 +248,13 @@ export function AppShellSkeleton() {
             (`pb-14`, per `(app)/layout.tsx`); the dashboard supplies its own `px-l`
             via `PageLayout`. We render the SAME canonical section skeletons as the
             dashboard route `loading.tsx`, so the shell fallback → route skeleton →
-            data transition has no card-count/height/layout jump. No onboarding
-            skeleton: it's an optional, dismissible, dashboard-only surface. */}
+            data transition has no card-count/height/layout jump. The onboarding
+            skeleton sits OUTSIDE `PageLayout`, matching `DashboardContent`'s
+            `ONBOARDING_WRAPPER_CLASS` (px-l pt-l), while onboarding progress loads. */}
         <main className="flex-1 overflow-y-auto pb-14">
+          <div className="px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
+            <OnboardingSkeleton />
+          </div>
           <PageLayout className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
             <DevicesOverviewSkeleton />
             {showTickets && <TicketsOverviewSkeleton />}
