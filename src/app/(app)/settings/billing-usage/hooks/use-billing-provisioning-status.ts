@@ -43,13 +43,16 @@ export function useBillingProvisioningStatus() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let consecutiveErrors = 0;
+    // Retained so an in-flight request is actually disposed on cleanup/restart —
+    // the `cancelled` guard only stops state updates, it doesn't cancel the fetch.
+    let subscription: { unsubscribe: () => void } | null = null;
 
     const scheduleNext = () => {
       timer = setTimeout(poll, POLL_INTERVAL_MS);
     };
 
     const poll = () => {
-      fetchQuery<UseBillingProvisioningStatusQueryType>(
+      subscription = fetchQuery<UseBillingProvisioningStatusQueryType>(
         environment,
         billingProvisioningStatusQuery,
         {},
@@ -77,6 +80,7 @@ export function useBillingProvisioningStatus() {
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      subscription?.unsubscribe();
     };
   }, [environment, restartKey]);
 
