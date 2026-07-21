@@ -7,7 +7,7 @@ import type { useTestClockAdvanceMutation as UseTestClockAdvanceMutationType } f
 import type { useTestClockResetMutation as UseTestClockResetMutationType } from '@/__generated__/useTestClockResetMutation.graphql';
 
 /**
- * Stripe test-clock mutations (dev/stage only — see `runtimeEnv.enableBillingTestClock`).
+ * Stripe test-clock mutations (dev/stage only — gated by the `test-clock` feature flag).
  * Both invalidate the Relay store on success: advancing the clock re-runs the tenant's
  * billing jobs and resetting deletes the Stripe customer, so subscription status, period
  * dates and invoices all change server-side without those fields being part of the
