@@ -202,28 +202,31 @@ function InitialSetupCardContent() {
 
 /**
  * Loading placeholder for the card, rendered 1:1 from the same frame and `STEP_META`
- * as {@link InitialSetupCardContent}: identical section, header, and four accordion
- * rows via `OnboardingAccordionItem`'s `loading` mode (real icon/title/description,
- * only the trailing status control skeletoned). Header shows the static title/label
- * with just the unknown done-count skeletoned.
+ * as {@link InitialSetupCardContent}: identical section, header and four accordion rows.
+ * A FULL skeleton — the header title/subtitle and each row's title/description are all
+ * skeleton bars (via `OnboardingAccordionItem`'s `loading` mode), only the leading step
+ * icons stay real. Kept pixel-identical in height to the loaded card.
  *
  * Used as the `<Suspense>` fallback around the card (see dashboard-content): the card
  * body renders `DeviceSetupStep`, whose `useDeviceOrganizations` suspends, so reusing
  * this same skeleton keeps the loading → content transition seamless (no empty gap).
  */
 export function InitialSetupSkeleton() {
-  const total = TENANT_ONBOARDING_STEPS.length;
   return (
     <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
       <div className="flex flex-col gap-[var(--spacing-system-s)] md:flex-row md:items-center">
         <div className="flex min-w-0 flex-1 flex-col">
-          <h2 className="text-h2 text-ods-text-primary">Initial Setup</h2>
-          {/* Same text + classes as the real subtitle; only the unknown done-count is a
-              skeleton, inline (no flex/gap, no extra space) so it doesn't shift on swap. */}
-          <div className="text-h6 text-ods-text-secondary">
-            {total} steps to complete · <Skeleton className="inline-block h-3.5 w-4 rounded-sm align-middle" />/{total}{' '}
-            done
-          </div>
+          {/* Title + subtitle as skeleton bars, kept inside the real `text-h2`/`text-h6`
+              line boxes so the header height matches the loaded card exactly. */}
+          <h2 className="text-h2 text-ods-text-primary">
+            <span aria-hidden className="inline-block h-6 w-40 animate-pulse rounded-md bg-ods-border align-middle" />
+          </h2>
+          <p className="text-h6 text-ods-text-secondary">
+            <span
+              aria-hidden
+              className="inline-block h-3 w-52 max-w-full animate-pulse rounded-md bg-ods-border align-middle"
+            />
+          </p>
         </div>
         {/* "Complete Setup" button placeholder — matches the real button's box
             (`h-10 md:h-12`, `w-full md:w-auto`; fixed desktop width since a skeleton

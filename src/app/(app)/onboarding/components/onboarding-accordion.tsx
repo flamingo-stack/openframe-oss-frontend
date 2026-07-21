@@ -6,6 +6,20 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import React from 'react';
 
 /**
+ * Inline (phrasing-valid `<span>`) skeleton bar for the loading title/description.
+ * Lives INSIDE the real `<p>` so that element's line box sets the height — the loading
+ * row is pixel-identical to the loaded one, only the text is a bar instead of real text.
+ */
+function InlineTextSkeleton({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn('inline-block max-w-full animate-pulse rounded-md bg-ods-border align-middle', className)}
+    />
+  );
+}
+
+/**
  * Visual status of an onboarding step.
  * - `active`    — interactive step, can be expanded/collapsed (uses its own icon)
  * - `completed` — finished step, shows a green check + "Complete" tag, still expandable
@@ -34,11 +48,10 @@ export interface OnboardingAccordionItemProps {
   /** Ref to the row's root element — the scroll anchor for the auto-advance flow. */
   ref?: React.Ref<HTMLDivElement>;
   /**
-   * Loading state: the step's static content (icon, title, description) is known,
-   * but its completion status is not yet loaded. Renders the row exactly as an
-   * `active` step but with the trailing status control (Complete tag + chevron)
-   * replaced by a skeleton, and the body not mounted. Lets the page skeleton reuse
-   * this row verbatim instead of re-implementing it. @default false
+   * Loading state: renders the row frame exactly as an `active` step, but the title,
+   * description and trailing status control are all skeleton bars (only the leading
+   * icon stays real), and the body is not mounted. Kept pixel-identical in height to
+   * the loaded row so the page skeleton reuses it verbatim without a jump. @default false
    */
   loading?: boolean;
   /** Expanded body. Not implemented yet — the step body is wired up later. */
@@ -104,10 +117,15 @@ export function OnboardingAccordionItem({
           {isCompleted ? <CheckCircleIcon /> : icon}
         </div>
 
-        {/* Title + description */}
+        {/* Title + description — skeleton bars while loading (kept inside the real
+            `<p>` line boxes so the row height is identical to the loaded one). */}
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <p className={cn('text-h3', isDisabled ? 'text-ods-border' : 'text-ods-text-primary')}>{title}</p>
-          <p className={cn('text-h6', isDisabled ? 'text-ods-border' : 'text-ods-text-secondary')}>{description}</p>
+          <p className={cn('text-h3', isDisabled ? 'text-ods-border' : 'text-ods-text-primary')}>
+            {loading ? <InlineTextSkeleton className="h-4 w-40 md:h-5" /> : title}
+          </p>
+          <p className={cn('text-h6', isDisabled ? 'text-ods-border' : 'text-ods-text-secondary')}>
+            {loading ? <InlineTextSkeleton className="h-3 w-64 max-w-full" /> : description}
+          </p>
         </div>
 
         {/* Trailing: skeleton (loading) / requirement hint (disabled) / complete tag + chevron / chevron.
