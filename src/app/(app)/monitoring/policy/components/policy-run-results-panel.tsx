@@ -5,6 +5,7 @@ import {
   Button,
   type ColumnDef,
   DataTable,
+  exportToCSV,
   QueryReportTable,
   type Row,
   Tabs,
@@ -14,7 +15,8 @@ import {
   Tag,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core';
-import { Square, X } from 'lucide-react';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { Download, Square, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { formatTimeWithSeconds } from '@/lib/format-date';
 import type { CampaignEmptyResult, CampaignError, CampaignTotals } from '../../hooks/use-live-campaign';
@@ -180,6 +182,17 @@ export function PolicyRunResultsPanel({
     enableSorting: false,
   });
 
+  const { toast } = useToast();
+
+  const handleExportBreakdown = () => {
+    exportToCSV(
+      deviceRows.map(r => ({ device: r.host, result: OUTCOME_TAG[r.outcome].label, details: r.detail })),
+      ['device', 'result', 'details'],
+      'policy-run-devices',
+    );
+    toast({ title: 'Export started', description: 'Per-device results exported as CSV', variant: 'success' });
+  };
+
   return (
     <div className="flex flex-col gap-1">
       <h3 className="text-h5 text-ods-text-secondary">POLICY RUN</h3>
@@ -219,6 +232,18 @@ export function PolicyRunResultsPanel({
           </div>
 
           <div className="flex flex-[1_0_0] items-center gap-4 justify-end">
+            {!isRunning && (
+              <Button
+                variant="outline"
+                size="small-legacy"
+                className="h-11 md:h-12"
+                leftIcon={<Download size={14} />}
+                onClick={handleExportBreakdown}
+                disabled={deviceRows.length === 0}
+              >
+                Export
+              </Button>
+            )}
             {!isRunning && (
               <Button variant="outline" size="small-legacy" className="h-11 md:h-12" onClick={onRunAgain}>
                 Run Again
@@ -282,7 +307,7 @@ export function PolicyRunResultsPanel({
               emptyMessage={isRunning ? 'Waiting for results...' : 'No rows returned'}
               columnOrder={['host_display_name']}
               exportFilename="policy-run-results"
-              showExport={false}
+              showExport={!isRunning && results.length > 0}
               variant="default"
             />
           </TabsContent>
