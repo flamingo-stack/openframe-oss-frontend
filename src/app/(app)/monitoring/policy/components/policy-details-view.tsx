@@ -82,9 +82,15 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
   // Run the policy query as a regular live test query (same mechanism as the
   // Queries screen) against the policy's assigned hosts; with no assignment the
   // campaign falls back to all hosts.
-  const handleRunNow = () => {
-    setShowTestPanel(true);
-    campaign.startCampaign(policyDetails.query || '', policyDetails.hosts_include_any?.map(h => h.id) ?? []);
+  const handleRunNow = async () => {
+    const started = await campaign.startCampaign(
+      policyDetails.query || '',
+      policyDetails.hosts_include_any?.map(h => h.id) ?? [],
+    );
+    // Only surface the panel for an accepted campaign; failures already toast.
+    if (started) {
+      setShowTestPanel(true);
+    }
   };
 
   const handleCloseTestPanel = () => {
