@@ -13,11 +13,14 @@ import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.spec.MGF1ParameterSpec;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
@@ -72,7 +75,11 @@ final class SecureTokenStore {
     private static final String KEYSTORE_PROVIDER = "AndroidKeyStore";
 
     private static final String KEY_ALIAS = "ai.openframe.mobile.auth.master";
-    private static final String BIO_KEY_ALIAS = "ai.openframe.mobile.auth.bio";
+    // .v2: the pre-fix biometric keypair wrapped with OAEP but no explicit MGF1
+    // params and could not be unwrapped on devices where the public-key wrap ran
+    // in a software provider (MGF1-SHA256) while the Keystore unwrap used MGF1-SHA1.
+    // A new alias forces a fresh keypair with the corrected pinned params below.
+    private static final String BIO_KEY_ALIAS = "ai.openframe.mobile.auth.bio.v2";
 
     // Records whether tokens are currently stored biometric-gated. Read by
     // isBiometricLoginEnabled() and getTokens() (both MUST NOT prompt).
@@ -84,10 +91,16 @@ final class SecureTokenStore {
 
     private static final String AES_TRANSFORMATION =
         KeyProperties.KEY_ALGORITHM_AES + "/" + KeyProperties.BLOCK_MODE_GCM + "/" + KeyProperties.ENCRYPTION_PADDING_NONE;
-    // OAEP with SHA-256 + MGF1. AndroidKeyStore's RSA/OAEP quirk (MGF1 always uses
-    // SHA-1 internally regardless of the digest string) is irrelevant here because
-    // the same provider both wraps and unwraps.
+    // OAEP with a SHA-256 label + MGF1. AndroidKeyStore's Keystore provider uses
+    // MGF1-SHA1 in hardware regardless of the digest string, but the public-key
+    // WRAP can be handled by a software provider that defaults to MGF1-SHA256 —
+    // then the Keystore private-key UNWRAP throws BadPaddingException (this was
+    // the biometric-read failure). Pinning OAEP_PARAMS (MGF1 = SHA-1) on BOTH
+    // init calls makes wrap and unwrap agree across providers/devices; the bio
+    // keypair authorizes SHA-1 so MGF1-SHA1 is permitted.
     private static final String RSA_TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
+    private static final OAEPParameterSpec OAEP_PARAMS = new OAEPParameterSpec(
+        "SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT);
 
     private static final int GCM_TAG_BITS = 128;
     private static final int CONTENT_KEY_BITS = 256;
@@ -207,7 +220,7 @@ final class SecureTokenStore {
             byte[] ciphertext = aes.doFinal(value.getBytes(StandardCharsets.UTF_8));
 
             Cipher rsa = Cipher.getInstance(RSA_TRANSFORMATION);
-            rsa.init(Cipher.ENCRYPT_MODE, biometricPublicKey());
+            rsa.init(Cipher.ENCRYPT_MODE, biometricPublicKey(), OAEP_PARAMS);
             byte[] wrappedKey = rsa.doFinal(contentKeyBytes);
 
             java.util.Arrays.fill(contentKeyBytes, (byte) 0);
@@ -255,7 +268,7 @@ final class SecureTokenStore {
      */
     Cipher gatedUnwrapCipher() throws Exception {
         Cipher rsa = Cipher.getInstance(RSA_TRANSFORMATION);
-        rsa.init(Cipher.DECRYPT_MODE, biometricPrivateKey());
+        rsa.init(Cipher.DECRYPT_MODE, biometricPrivateKey(), OAEP_PARAMS);
         return rsa;
     }
 
@@ -358,7 +371,8 @@ final class SecureTokenStore {
             BIO_KEY_ALIAS,
             KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
             .setKeySize(2048)
-            .setDigests(KeyProperties.DIGEST_SHA256)
+            // Authorize SHA-1 as well so OAEP with MGF1-SHA1 (OAEP_PARAMS) is permitted.
+            .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA1)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
             .setUserAuthenticationRequired(true)
             // Drop the key when a new biometric is enrolled — prevents an attacker
