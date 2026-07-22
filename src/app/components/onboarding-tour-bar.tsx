@@ -41,7 +41,7 @@ export function OnboardingTourBar({
         <Button
           variant="outline"
           size="small"
-          leftIcon={<RouteIcon />}
+          leftIcon={<RouteIcon className="text-ods-text-secondary" />}
           onClick={onStart}
           aria-hidden={!showAction}
           className={cn(!showAction && 'invisible')}
