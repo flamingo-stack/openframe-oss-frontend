@@ -178,7 +178,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
     >
       {/* Policy Testing */}
       {showTestPanel && (
-        <div className="mb-6">
+        <div className="mb-[var(--spacing-system-lf)]">
           <LiveTestPanel
             mode="policy"
             isRunning={campaign.isRunning}
