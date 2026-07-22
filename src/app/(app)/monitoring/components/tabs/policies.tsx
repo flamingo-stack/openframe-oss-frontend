@@ -99,6 +99,10 @@ export function Policies() {
   const rowActions = useCallback(
     (policy: Policy) => [
       {
+        label: 'Run Policy',
+        onClick: () => router.push(routes.monitoring.policyRun(policy.id)),
+      },
+      {
         label: 'Policy Details',
         onClick: () => router.push(routes.monitoring.policy(policy.id)),
       },

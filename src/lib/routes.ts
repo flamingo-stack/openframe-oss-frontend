@@ -170,6 +170,7 @@ export const routes = {
     policy: (id: string | number) => withQuery('/monitoring/policy', { id }),
     policyNew: '/monitoring/policy/new',
     policyEdit: (id: string | number) => withQuery('/monitoring/policy/edit', { id }),
+    policyRun: (id: string | number) => withQuery('/monitoring/policy/run', { id }),
   },
 
   tickets: {

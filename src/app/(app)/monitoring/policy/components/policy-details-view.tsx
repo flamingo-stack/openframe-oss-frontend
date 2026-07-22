@@ -11,7 +11,7 @@ import {
   StackedRowsPanel,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
-import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PenEditIcon, PlayIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -80,6 +80,12 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
       icon: <PenEditIcon size={24} className="text-ods-text-secondary" />,
       variant: 'outline',
       onClick: handleEditPolicy,
+    },
+    {
+      label: 'Run Policy',
+      icon: <PlayIcon size={24} />,
+      variant: 'accent',
+      onClick: () => router.push(routes.monitoring.policyRun(policyId)),
     },
   ];
 
