@@ -8,9 +8,11 @@ import {
   UsersGroupIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
+import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useOnboardingAutoAdvance } from '../hooks/use-onboarding-auto-advance';
 import { useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
@@ -87,12 +89,14 @@ export function InitialSetupCard() {
 
 /**
  * The card body. Suspends (via {@link useTenantOnboardingAutoDetect}) until every step
- * count has loaded, then renders once in its fully-settled state — step statuses, the
- * "X/Y done" counter and the "Complete Setup" affordance driven by
- * `tenantOnboardingProgress` unioned with the live data. Sits on the darker page
- * background (`bg-ods-bg`, not `bg-ods-card`) so it doesn't read as a card.
+ * count has loaded, then renders once in its fully-settled state — step statuses and the
+ * "X/Y done" counter driven by `tenantOnboardingProgress` unioned with the live data.
+ * There is no manual finisher: once every step is done the card auto-completes Initial
+ * Setup and sends the user on to the `/onboarding` tour (see effect below). Sits on the
+ * darker page background (`bg-ods-bg`, not `bg-ods-card`) so it doesn't read as a card.
  */
 function InitialSetupCardContent() {
+  const router = useRouter();
   const tenant = useOnboardingStore(state => state.tenant);
   const { completeTenantStep, completeTenantStepInBackground, completeTenant, isMutating } = useOnboardingMutations();
 
@@ -128,6 +132,28 @@ function InitialSetupCardContent() {
   const total = TENANT_ONBOARDING_STEPS.length;
   const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
   const allDone = done >= total;
+
+  // No manual finisher on the happy path: the instant every step is satisfied,
+  // auto-complete Initial Setup (which unmounts this card via the parent's
+  // `tenant.completed` gate) and move the user on to the `/onboarding` tour. A small
+  // state machine both guards against a double-fire while the mutation round-trips
+  // (`allDone` stays true across the intermediate renders) AND recovers from failure:
+  // on error it drops to `failed`, which stops the auto-fire and surfaces a retry
+  // button below, so a network error can't strand the user on a finished-but-not-
+  // completed card with no way forward.
+  const [completion, setCompletion] = useState<'idle' | 'completing' | 'failed'>('idle');
+  const runCompletion = useCallback(() => {
+    setCompletion('completing');
+    completeTenant(
+      () => router.push(routes.onboarding),
+      () => setCompletion('failed'),
+    );
+  }, [completeTenant, router]);
+  useEffect(() => {
+    if (allDone && completion === 'idle') {
+      runCompletion();
+    }
+  }, [allDone, completion, runCompletion]);
 
   const statusOf = (step: TenantOnboardingStep): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
@@ -166,11 +192,14 @@ function InitialSetupCardContent() {
             {total} steps to complete · {done}/{total} done
           </p>
         </div>
-        {allDone && !tenant?.completed && (
+        {/* Error-recovery only: the happy path auto-completes and unmounts, so this
+            never shows then. It appears solely when auto-completion failed, giving the
+            user an explicit way to retry. */}
+        {completion === 'failed' && (
           <Button
             variant="accent"
             leftIcon={<CheckCircleIcon className="size-5" />}
-            onClick={() => completeTenant()}
+            onClick={runCompletion}
             disabled={isMutating}
             loading={isMutating}
             className="w-full md:w-auto"
@@ -214,24 +243,17 @@ function InitialSetupCardContent() {
 export function InitialSetupSkeleton() {
   return (
     <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
-      <div className="flex flex-col gap-[var(--spacing-system-s)] md:flex-row md:items-center">
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* Title + subtitle as skeleton bars, kept inside the real `text-h2`/`text-h6`
-              line boxes so the header height matches the loaded card exactly. */}
-          <h2 className="text-h2 text-ods-text-primary">
-            <span aria-hidden className="inline-block h-6 w-40 animate-pulse rounded-md bg-ods-border align-middle" />
-          </h2>
-          <p className="text-h6 text-ods-text-secondary">
-            <span
-              aria-hidden
-              className="inline-block h-3 w-52 max-w-full animate-pulse rounded-md bg-ods-border align-middle"
-            />
-          </p>
+      <div className="flex min-w-0 flex-col">
+        {/* Title + subtitle as core `Skeleton` bars, kept inside the real `text-h2`/
+            `text-h6` line boxes so the header height matches the loaded card exactly.
+            Decorative `div` wrappers (not `h2`/`p`) since `Skeleton` renders a `div`,
+            which is invalid inside `<p>`/`<h2>`; the type utilities carry the height. */}
+        <div className="text-h2 text-ods-text-primary">
+          <Skeleton className="inline-block h-6 w-40 align-middle" />
         </div>
-        {/* "Complete Setup" button placeholder — matches the real button's box
-            (`h-10 md:h-12`, `w-full md:w-auto`; fixed desktop width since a skeleton
-            has no content to size to). */}
-        <Skeleton className="h-10 w-full rounded-md md:h-12 md:w-[188px]" />
+        <div className="text-h6 text-ods-text-secondary">
+          <Skeleton className="inline-block h-3 w-52 max-w-full align-middle" />
+        </div>
       </div>
 
       <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">

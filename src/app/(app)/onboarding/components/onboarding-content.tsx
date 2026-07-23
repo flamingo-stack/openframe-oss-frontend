@@ -62,7 +62,7 @@ const STEP_BODY: Record<UserOnboardingStep, ComponentType<StepBodyProps>> = {
 
 /**
  * User "Get Started" onboarding. Step statuses, the header counter and the
- * Skip/Finish actions are driven by `userOnboardingProgress` (via the onboarding
+ * Skip action are driven by `userOnboardingProgress` (via the onboarding
  * store); each step's "Mark as Complete" commits `completeUserOnboardingStep`.
  *
  * Mount gate only: shows the skeleton until progress is loaded (and redirects if the
@@ -104,7 +104,7 @@ function LoadedOnboardingContent() {
   const { completeUserStep, completeUserStepInBackground, completeUser, skipUser, isMutating } =
     useOnboardingMutations();
 
-  const leaveOnboarding = () => router.push(routes.dashboard);
+  const leaveOnboarding = useCallback(() => router.push(routes.dashboard), [router]);
 
   const completedSteps = user?.completedSteps ?? [];
 
@@ -160,6 +160,28 @@ function LoadedOnboardingContent() {
   const done = countCompleted(USER_ONBOARDING_STEPS, completedSteps);
   const allDone = done >= total;
 
+  // No manual finisher on the happy path: the instant every step is done, auto-complete
+  // the tour (unless it was already completed — e.g. a deep link back here) and return to
+  // the dashboard. A small state machine both guards against a re-fire while the mutation
+  // round-trips (`allDone` stays true across the intermediate renders) AND recovers from
+  // failure: on error it drops to `failed`, stopping the auto-fire and surfacing a retry
+  // action, so a network error can't strand the user on a finished-but-not-completed tour.
+  const [completion, setCompletion] = useState<'idle' | 'completing' | 'failed'>('idle');
+  const runCompletion = useCallback(() => {
+    // Already completed (deep link back here) — nothing to commit, just leave.
+    if (user?.completed) {
+      leaveOnboarding();
+      return;
+    }
+    setCompletion('completing');
+    completeUser(leaveOnboarding, () => setCompletion('failed'));
+  }, [user?.completed, completeUser, leaveOnboarding]);
+  useEffect(() => {
+    if (allDone && completion === 'idle') {
+      runCompletion();
+    }
+  }, [allDone, completion, runCompletion]);
+
   const statusOf = (step: UserOnboardingStep): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
   const doneOf = (step: UserOnboardingStep) => isStepDone(step, completedSteps);
@@ -171,11 +193,13 @@ function LoadedOnboardingContent() {
   // Fire-and-forget completion for "open"/navigate primary actions — no loading anywhere.
   const completeBackgroundOf = (step: UserOnboardingStep) => () => completeUserStepInBackground(step);
 
-  // A single header action, per design: once every step is done it becomes the accent
-  // "Complete Onboarding" finisher; until then it's just "Skip Onboarding" (no Finish
-  // alongside it — one button only).
+  // Header action. Normally "Skip Onboarding", available until every step is done; once
+  // all steps complete the page auto-completes and leaves for the dashboard (see the
+  // effect above), so no action shows then. If that auto-completion FAILS we fall back
+  // to an accent "Complete Onboarding" retry — the only manual finisher, on the error
+  // path only — so a network error can't strand the user with no way forward.
   const actions =
-    allDone && !user?.completed
+    completion === 'failed'
       ? [
           {
             label: 'Complete Onboarding',
@@ -183,18 +207,20 @@ function LoadedOnboardingContent() {
             icon: <CheckCircleIcon className="size-5" />,
             disabled: isMutating,
             loading: isMutating,
-            onClick: () => completeUser(leaveOnboarding),
+            onClick: runCompletion,
           },
         ]
-      : [
-          {
-            label: 'Skip Onboarding',
-            variant: 'outline' as const,
-            icon: <FastForwardIcon className="size-5" />,
-            disabled: isMutating,
-            onClick: () => setSkipConfirmOpen(true),
-          },
-        ];
+      : allDone
+        ? []
+        : [
+            {
+              label: 'Skip Onboarding',
+              variant: 'outline' as const,
+              icon: <FastForwardIcon className="size-5" />,
+              disabled: isMutating,
+              onClick: () => setSkipConfirmOpen(true),
+            },
+          ];
 
   return (
     <PageLayout
