@@ -131,7 +131,7 @@ export function useOnboardingMutations() {
   );
 
   const completeTenant = useCallback(
-    (successMessage = 'Initial Setup complete') => {
+    (onDone?: () => void) => {
       begin();
       commitMutation<CompleteTenantType>(environment, {
         mutation: completeTenantOnboardingMutation,
@@ -139,7 +139,8 @@ export function useOnboardingMutations() {
         onCompleted: res => {
           finish();
           setTenant(toTenant(res.completeTenantOnboarding));
-          toast({ title: successMessage, variant: 'success' });
+          toast({ title: 'Initial Setup complete', variant: 'success' });
+          onDone?.();
         },
         onError: onError('Failed to complete setup'),
       });
