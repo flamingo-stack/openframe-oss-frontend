@@ -1,30 +1,140 @@
+import type { TokenUsageData } from '@flamingo-stack/openframe-frontend-core';
 import {
-  type ApprovalBatchExecutionState,
-  type ApprovalBatchSegment,
-  createMessageSegmentAccumulator,
-  type MessageSegment,
-  type MessageSegmentAccumulator,
-  type TokenUsageData,
-  type ToolExecutionSegment,
-} from '@flamingo-stack/openframe-frontend-core';
+  type ChatStreamReducer,
+  createChatDialogStore,
+  DEFAULT_DIALOG_SIDE,
+  type StreamingPhase,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import {
+  type BoundMirror,
+  createReducerMirror,
+  type NatsMirrorHandlers,
+  natsMirrorOptions,
+  toUnifiedMessage,
+} from '@/lib/chat-stream-thread';
+import { featureFlags } from '@/lib/feature-flags';
+import { useAuthStore } from '@/stores';
 import type { DialogNode, Message } from '../types';
 
+/**
+ * Phase 4 of the chat unification: message ACCUMULATION lives in the lib's
+ * `createChatDialogStore` reducers (one per dialogId, side 'main'). This
+ * zustand store survives as persistence/cache + identity only — dialog
+ * list, active id, unread counts, loading/pagination, per-dialog seq
+ * bookkeeping — plus a converted READ MIRROR of each reducer's snapshot
+ * (messages / streaming phase / streaming bubble id / token usage) so
+ * existing selectors keep working unchanged. Thread commands (history
+ * hydration, optimistic sends, welcome rows) delegate to the reducer.
+ */
+
+// ─── Lib reducer registry (module-level, outlives React) ────────────────────
+
+const MINGO_IDENTITY = { assistantName: 'Mingo', assistantType: 'mingo' as const };
+
+const handlersByDialog = new Map<string, NatsMirrorHandlers>();
+
+/** Creation options for a dialog's reducer. Shared by the mirror (which
+ *  pre-creates with them) and the STORE-level default below. */
+const mingoReducerOptions = natsMirrorOptions<string>(
+  dialogId => handlersByDialog.get(dialogId),
+  () => featureFlags.batchApproval.enabled(),
+  () => useAuthStore.getState().user?.id,
+);
+
+/** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
+ *  detection, conversion cache, thread RMW, delta batching, approval-status
+ *  merge) lives in the shared `createReducerMirror` factory, and the NATS
+ *  options block in `natsMirrorOptions` — this host supplies only the key
+ *  mapping and the zustand patch. Mirror key = dialogId (side is always
+ *  'main'); no `siblingKeys` — mingo dialogs are independent, so nothing
+ *  projects across keys. */
+const mirror = createReducerMirror<string>({
+  // The mirror builds the store so it can wire its own `onEvict`; this host
+  // adds `defaultCreateOptions`, which closes the store-level hole: a reducer
+  // first materialized by a bare `apply()` / `mutate()` (no per-call options)
+  // would otherwise be built WITHOUT `ownEchoIncludesAdmin` / `selfUserId` and
+  // keep those semantics missing for its whole life — creation options are
+  // consulted once — so every message this user sends would render twice. The
+  // mirror happens to always pre-create with options today; this makes the
+  // guarantee structural rather than incidental. Mirror key = dialogId = the
+  // store's `dialogId`, so the mapping back is the identity.
+  createStore: storeOptions => createChatDialogStore({ ...storeOptions, defaultCreateOptions: mingoReducerOptions }),
+  identityFor: dialogId => ({ dialogId, side: DEFAULT_DIALOG_SIDE, defaults: MINGO_IDENTITY }),
+  options: mingoReducerOptions,
+  onSnapshot: (dialogId, { messages, phase, streamingId, state: snap }) => {
+    const usage = snap.dialogTokenUsage ?? null;
+    useMingoMessagesStore.setState(state => {
+      const newMessagesMap = new Map(state.messagesByDialog);
+      newMessagesMap.set(dialogId, messages);
+      const newPhaseMap = new Map(state.phaseByDialog);
+      newPhaseMap.set(dialogId, phase);
+      const newStreamingMap = new Map(state.streamingIdByDialog);
+      newStreamingMap.set(dialogId, streamingId);
+
+      const patch: Partial<MingoMessagesStore> = {
+        messagesByDialog: newMessagesMap,
+        phaseByDialog: newPhaseMap,
+        streamingIdByDialog: newStreamingMap,
+      };
+      // ADDITIVE ON PURPOSE: a post-eviction re-seed restores `messages` only,
+      // so the replacement reducer's first snapshot carries no token usage. A
+      // blanking write here would drop counters the host still legitimately
+      // holds — an empty/absent `usage` must never clear `tokenUsageByDialog`.
+      if (usage && state.tokenUsageByDialog.get(dialogId) !== usage) {
+        const newUsageMap = new Map(state.tokenUsageByDialog);
+        newUsageMap.set(dialogId, usage as TokenUsageData);
+        patch.tokenUsageByDialog = newUsageMap;
+      }
+      return patch;
+    });
+  },
+});
+
+/** The dialog store behind this host's reducers (built by the mirror). */
+export const mingoChatDialogStore = mirror.store;
+
+/** Late-bind approve/reject + model-badge handlers (approve/reject are
+ *  stamped onto approval segments; onMetadata rides the reducer effect). */
+export function setMingoChatHandlers(dialogId: string, handlers: NatsMirrorHandlers): void {
+  // MERGE, don't replace: approve/reject and `onMetadata` are registered by
+  // separate effects, so a wholesale set would let the later one clobber the
+  // earlier one.
+  handlersByDialog.set(dialogId, { ...handlersByDialog.get(dialogId), ...handlers });
+}
+
+/** Pre-curried `{ apply, mutate, mergeApprovalStatuses }` for one dialog.
+ *  Identity is stable per dialogId (memoized inside the mirror). */
+export function bindMingoDialog(dialogId: string): BoundMirror {
+  return mirror.bind(dialogId);
+}
+
+/** Run reducer commands (non-wire mutations) against a dialog, then mirror. */
+export function mutateMingoDialog<T>(dialogId: string, fn: (reducer: ChatStreamReducer) => T): T {
+  return mirror.mutate(dialogId, fn);
+}
+
+function dropDialogCaches(dialogId: string): void {
+  mirror.drop(dialogId);
+  handlersByDialog.delete(dialogId);
+}
+
+// ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
+
 interface MingoMessagesStore {
-  // Unified message storage - key is dialogId
+  // Read mirror of the lib reducer state — key is dialogId
   messagesByDialog: Map<string, Message[]>;
+  phaseByDialog: Map<string, StreamingPhase>;
+  /** Id of the assistant bubble an open stream writes into (merge exemption). */
+  streamingIdByDialog: Map<string, string | null>;
+  tokenUsageByDialog: Map<string, TokenUsageData>;
 
   // Dialog state
   activeDialogId: string | null;
   dialogs: DialogNode[];
 
-  // Real-time state management
-  typingStates: Map<string, boolean>;
   unreadCounts: Map<string, number>;
-  streamingMessages: Map<string, Message | null>;
-  segmentAccumulators: Map<string, MessageSegmentAccumulator>;
-  tokenUsageByDialog: Map<string, TokenUsageData>;
   // Highest JetStream streamSeq observed per dialog. Persists across
   // DialogSubscription remounts.
   highestStreamSeqByDialog: Map<string, number>;
@@ -47,7 +157,7 @@ interface MingoMessagesStore {
   setActiveDialogId: (dialogId: string | null) => void;
   setDialogs: (dialogs: DialogNode[]) => void;
 
-  // Message Management
+  // Thread commands (delegate to the lib reducer)
   setMessages: (dialogId: string, messages: Message[]) => void;
   prependMessages: (dialogId: string, messages: Message[]) => void;
   prependWithBoundaryMerge: (
@@ -57,47 +167,31 @@ interface MingoMessagesStore {
     boundaryUpdates?: Partial<Message>,
   ) => void;
   addMessage: (dialogId: string, message: Message) => void;
+  /** Optimistic local send. Routed through the reducer so IT owns own-echo
+   *  suppression (text-matched, one-shot) — a blanket "drop every echo with
+   *  my user id" would also hide this user's sends from other tabs. */
+  pushOptimisticSend: (dialogId: string, message: Message) => void;
   updateMessage: (dialogId: string, messageId: string, updates: Partial<Message>) => void;
   removeMessage: (dialogId: string, messageId: string) => void;
+  /** Cross-message approval flip (reducer accumulator + projection). */
   updateApprovalStatusInMessages: (
     dialogId: string,
     requestId: string,
     status: 'approved' | 'rejected',
     resolvedByName?: string | null,
   ) => void;
-  /** Merge an EXECUTING/EXECUTED event into the matching tool segment or
-   *  batch `executions` slot. `executionRequestId` is optional — without it,
-   *  an EXECUTED chunk pairs with the newest EXECUTING of the same
-   *  (integratedToolType, toolFunction). Returns whether anything matched so
-   *  the caller can append a fresh segment instead of dropping the event. */
-  updateToolExecutionInMessages: (
-    dialogId: string,
-    executionRequestId: string | undefined,
-    executedData: ToolExecutionSegment['data'],
-  ) => boolean;
   getMessages: (dialogId: string) => Message[];
+  removeWelcomeMessages: (dialogId: string) => void;
 
-  // Real-time State Management
+  // Typing / phase (delegates to the reducer's phase machine)
   setTyping: (dialogId: string, typing: boolean) => void;
   getTyping: (dialogId: string) => boolean;
+  getStreamingId: (dialogId: string) => string | null;
+
+  // Unread
   incrementUnread: (dialogId: string) => void;
   resetUnread: (dialogId: string) => void;
   getUnread: (dialogId: string) => number;
-
-  // Streaming Messages
-  setStreamingMessage: (dialogId: string, message: Message | null) => void;
-  getStreamingMessage: (dialogId: string) => Message | null;
-  updateStreamingMessageSegments: (dialogId: string, segments: MessageSegment[], streamSeq?: number) => void;
-
-  appendSegmentsToLastAssistant: (dialogId: string, segments: MessageSegment[], streamSeq?: number) => void;
-
-  // Segment Accumulators
-  getOrCreateAccumulator: (
-    dialogId: string,
-    approvalHandlers?: { onApprove?: (requestId?: string) => void; onReject?: (requestId?: string) => void },
-  ) => MessageSegmentAccumulator;
-  resetAccumulator: (dialogId: string) => void;
-  updateAccumulatorApprovalStatus: (dialogId: string, requestId: string, status: 'approved' | 'rejected') => void;
 
   // Token Usage
   setTokenUsage: (dialogId: string, data: TokenUsageData) => void;
@@ -108,7 +202,6 @@ interface MingoMessagesStore {
   getHighestStreamSeq: (dialogId: string) => number;
 
   // Utility Actions
-  removeWelcomeMessages: (dialogId: string) => void;
   clearDialog: (dialogId: string) => void;
   resetAll: () => void;
 
@@ -130,13 +223,12 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
     (set, get) => ({
       // Initial state
       messagesByDialog: new Map(),
+      phaseByDialog: new Map(),
+      streamingIdByDialog: new Map(),
+      tokenUsageByDialog: new Map(),
       activeDialogId: null,
       dialogs: [],
-      typingStates: new Map(),
       unreadCounts: new Map(),
-      streamingMessages: new Map(),
-      segmentAccumulators: new Map(),
-      tokenUsageByDialog: new Map(),
       highestStreamSeqByDialog: new Map(),
 
       isLoadingDialog: false,
@@ -152,6 +244,13 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
 
       // Core Actions
       setActiveDialogId: (dialogId: string | null) => {
+        // The active dialog is the only DISPLAYED thread, so it is the only
+        // one pinned against the reducer LRU. Every other visited dialog
+        // falls back to protection-by-recency (plus the store's own
+        // mid-stream guard); if one is evicted, the store PUBLISHES that via
+        // `onEvict` and the mirror parks the key's last converted thread,
+        // re-seeding the replacement reducer with it on the next `getReducer`.
+        mirror.setActiveKeys(dialogId ? [dialogId] : []);
         set({ activeDialogId: dialogId });
       },
 
@@ -159,268 +258,61 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
         set({ dialogs });
       },
 
-      // Message Management
-      setMessages: (dialogId: string, messages: Message[]) => {
-        set(state => {
-          const newMap = new Map(state.messagesByDialog);
-          newMap.set(dialogId, messages);
-          return { messagesByDialog: newMap };
-        });
+      // Thread commands — the lib reducer owns the mutation semantics
+      setMessages: (dialogId, messages) => {
+        mutateMingoDialog(dialogId, r => r.setMessages(messages.map(m => toUnifiedMessage(m))));
       },
 
-      prependMessages: (dialogId: string, messages: Message[]) => {
-        set(state => {
-          const newMap = new Map(state.messagesByDialog);
-          const currentMessages = newMap.get(dialogId) || [];
-          newMap.set(dialogId, [...messages, ...currentMessages]);
-          return { messagesByDialog: newMap };
-        });
+      prependMessages: (dialogId, messages) => {
+        mutateMingoDialog(dialogId, r => r.prependMessages(messages.map(m => toUnifiedMessage(m))));
       },
 
       prependWithBoundaryMerge: (dialogId, newMessages, boundaryMessageId?, boundaryUpdates?) => {
-        set(state => {
-          const newMap = new Map(state.messagesByDialog);
-          const currentMessages = [...(newMap.get(dialogId) || [])];
-
-          if (boundaryMessageId && boundaryUpdates) {
-            const idx = currentMessages.findIndex(m => m.id === boundaryMessageId);
-            if (idx !== -1) {
-              currentMessages[idx] = { ...currentMessages[idx], ...boundaryUpdates };
-            }
-          }
-
-          if (newMessages.length > 0) {
-            newMap.set(dialogId, [...newMessages, ...currentMessages]);
-          } else {
-            newMap.set(dialogId, currentMessages);
-          }
-
-          return { messagesByDialog: newMap };
-        });
+        mirror.prependWithBoundaryMerge(dialogId, newMessages, boundaryMessageId, boundaryUpdates);
       },
 
-      addMessage: (dialogId: string, message: Message) => {
-        set(state => {
-          const newMap = new Map(state.messagesByDialog);
-          const currentMessages = newMap.get(dialogId) || [];
-
-          const existingIndex = currentMessages.findIndex(msg => msg.id === message.id);
-          if (existingIndex !== -1) {
-            const updatedMessages = [...currentMessages];
-            updatedMessages[existingIndex] = message;
-            newMap.set(dialogId, updatedMessages);
-          } else {
-            newMap.set(dialogId, [...currentMessages, message]);
-          }
-
-          return { messagesByDialog: newMap };
-        });
+      addMessage: (dialogId, message) => {
+        mirror.upsertMessage(dialogId, message);
       },
 
-      updateMessage: (dialogId: string, messageId: string, updates: Partial<Message>) => {
-        set(state => {
-          const newMap = new Map(state.messagesByDialog);
-          const currentMessages = newMap.get(dialogId) || [];
-
-          const messageIndex = currentMessages.findIndex(msg => msg.id === messageId);
-          if (messageIndex !== -1) {
-            const updatedMessages = [...currentMessages];
-            updatedMessages[messageIndex] = { ...updatedMessages[messageIndex], ...updates };
-            newMap.set(dialogId, updatedMessages);
-          }
-
-          return { messagesByDialog: newMap };
-        });
+      pushOptimisticSend: (dialogId, message) => {
+        mirror.pushOptimisticSend(dialogId, message);
       },
 
-      removeMessage: (dialogId: string, messageId: string) => {
-        set(state => {
-          const newMap = new Map(state.messagesByDialog);
-          const currentMessages = newMap.get(dialogId) || [];
-          const filteredMessages = currentMessages.filter(msg => msg.id !== messageId);
-          newMap.set(dialogId, filteredMessages);
-          return { messagesByDialog: newMap };
-        });
+      updateMessage: (dialogId, messageId, updates) => {
+        mirror.patchMessage(dialogId, messageId, updates);
       },
 
-      updateApprovalStatusInMessages: (
-        dialogId: string,
-        requestId: string,
-        status: 'approved' | 'rejected',
-        resolvedByName?: string | null,
-      ) => {
-        set(state => {
-          const currentMessages = state.messagesByDialog.get(dialogId) || [];
-          let matched = false;
-
-          const updatedMessages = currentMessages.map(message => {
-            if (message.role !== 'assistant' || !Array.isArray(message.content)) return message;
-            let changed = false;
-            const updatedContent = message.content.map(segment => {
-              if (segment.type === 'approval_request' && segment.data?.requestId === requestId) {
-                matched = true;
-                changed = true;
-                return { ...segment, status };
-              }
-              if (segment.type === 'approval_batch' && segment.data?.approvalRequestId === requestId) {
-                matched = true;
-                changed = true;
-                return {
-                  ...segment,
-                  status,
-                  resolvedByName: resolvedByName ?? segment.resolvedByName,
-                } as ApprovalBatchSegment;
-              }
-              return segment;
-            });
-            return changed ? { ...message, content: updatedContent } : message;
-          });
-
-          if (!matched) return state;
-
-          const newMap = new Map(state.messagesByDialog);
-          newMap.set(dialogId, updatedMessages);
-
-          const newStreamingMap = new Map(state.streamingMessages);
-          const streaming = newStreamingMap.get(dialogId);
-          if (streaming) {
-            const synced = updatedMessages.find(m => m.id === streaming.id);
-            if (synced) newStreamingMap.set(dialogId, synced);
-          }
-
-          return { messagesByDialog: newMap, streamingMessages: newStreamingMap };
-        });
+      removeMessage: (dialogId, messageId) => {
+        mirror.removeMessage(dialogId, messageId);
       },
 
-      updateToolExecutionInMessages: (
-        dialogId: string,
-        executionRequestId: string | undefined,
-        executedData: ToolExecutionSegment['data'],
-      ) => {
-        let matched = false;
-        set(state => {
-          const newMap = new Map(state.messagesByDialog);
-          const currentMessages = newMap.get(dialogId) || [];
-
-          // Scan NEWEST-first: an id-less EXECUTED must pair with the newest
-          // in-flight EXECUTING of the same tool (a stale interrupted card
-          // from an earlier turn must not swallow the current run); execId
-          // matches are unique so direction doesn't change them.
-          let msgIdx = -1;
-          let segIdx = -1;
-          for (let i = currentMessages.length - 1; i >= 0 && msgIdx === -1; i--) {
-            const message = currentMessages[i];
-            if (message.role !== 'assistant' || !Array.isArray(message.content)) continue;
-            const content = message.content as MessageSegment[];
-            for (let j = content.length - 1; j >= 0; j--) {
-              const segment = content[j];
-              if (segment.type === 'tool_execution') {
-                const idMatches = executionRequestId
-                  ? segment.data.toolExecutionRequestId === executionRequestId
-                  : segment.data.type === 'EXECUTING_TOOL' &&
-                    segment.data.integratedToolType === executedData.integratedToolType &&
-                    segment.data.toolFunction === executedData.toolFunction;
-                if (idMatches) {
-                  msgIdx = i;
-                  segIdx = j;
-                  break;
-                }
-              } else if (
-                executionRequestId &&
-                segment.type === 'approval_batch' &&
-                segment.data.toolCalls.some(c => c.toolExecutionRequestId === executionRequestId)
-              ) {
-                msgIdx = i;
-                segIdx = j;
-                break;
-              }
-            }
-          }
-
-          if (msgIdx === -1) return state;
-          matched = true;
-
-          const message = currentMessages[msgIdx];
-          const content = message.content as MessageSegment[];
-          const segment = content[segIdx];
-          let nextSegment: MessageSegment;
-
-          if (segment.type === 'tool_execution') {
-            // Never downgrade a completed run back to EXECUTING (JetStream
-            // redelivery of the EXECUTING chunk after EXECUTED landed).
-            // `matched` stays TRUE here on purpose: the run is already
-            // represented on screen, so the caller's append fallback must not
-            // fire — a `false` would duplicate the card.
-            if (executedData.type === 'EXECUTING_TOOL' && segment.data.type === 'EXECUTED_TOOL') {
-              return state;
-            }
-            nextSegment = {
-              type: 'tool_execution',
-              data: {
-                ...executedData,
-                toolTitle: executedData.toolTitle ?? segment.data.toolTitle,
-                parameters: executedData.parameters ?? segment.data.parameters,
-              },
-            } satisfies ToolExecutionSegment;
-          } else {
-            const batch = segment as ApprovalBatchSegment;
-            const prev: ApprovalBatchExecutionState | undefined = batch.data.executions?.[executionRequestId as string];
-            // Same no-downgrade rule for a batch slot: a redelivered EXECUTING
-            // must not flip a 'done' entry back (matched stays true → no append).
-            if (executedData.type === 'EXECUTING_TOOL' && prev?.status === 'done') {
-              return state;
-            }
-            const next: ApprovalBatchExecutionState =
-              executedData.type === 'EXECUTED_TOOL'
-                ? { status: 'done', result: executedData.result, success: executedData.success }
-                : { status: 'executing', result: prev?.result, success: prev?.success };
-            nextSegment = {
-              ...batch,
-              data: {
-                ...batch.data,
-                executions: { ...(batch.data.executions ?? {}), [executionRequestId as string]: next },
-              },
-            } as ApprovalBatchSegment;
-          }
-
-          const nextContent = [...content];
-          nextContent[segIdx] = nextSegment;
-          const updatedMessages = [...currentMessages];
-          updatedMessages[msgIdx] = { ...message, content: nextContent };
-
-          newMap.set(dialogId, updatedMessages);
-
-          const newStreamingMap = new Map(state.streamingMessages);
-          const streaming = newStreamingMap.get(dialogId);
-          if (streaming) {
-            const synced = updatedMessages.find(m => m.id === streaming.id);
-            if (synced) newStreamingMap.set(dialogId, synced);
-          }
-
-          return { messagesByDialog: newMap, streamingMessages: newStreamingMap };
-        });
-        return matched;
+      updateApprovalStatusInMessages: (dialogId, requestId, status, resolvedByName?) => {
+        mutateMingoDialog(dialogId, r => r.updateApprovalStatus(requestId, status, resolvedByName));
       },
 
       getMessages: (dialogId: string) => {
-        const state = get();
-        return state.messagesByDialog.get(dialogId) || [];
+        return get().messagesByDialog.get(dialogId) || [];
       },
 
-      setTyping: (dialogId: string, typing: boolean) => {
-        set(state => {
-          // Value no-op — skip the Map clone/notify. onAgentBusy re-asserts
-          // typing on every EXECUTING_TOOL chunk, so this runs per chunk.
-          if ((state.typingStates.get(dialogId) || false) === typing) return state;
-          const newMap = new Map(state.typingStates);
-          newMap.set(dialogId, typing);
-          return { typingStates: newMap };
+      removeWelcomeMessages: (dialogId: string) => {
+        mirror.mutateThread(dialogId, current => {
+          const filtered = current.filter(m => !m.id.startsWith('welcome-'));
+          return filtered.length === current.length ? current : filtered;
         });
       },
 
+      // Typing / phase
+      setTyping: (dialogId, typing) => {
+        mirror.setTyping(dialogId, typing);
+      },
+
       getTyping: (dialogId: string) => {
-        const state = get();
-        return state.typingStates.get(dialogId) || false;
+        return (get().phaseByDialog.get(dialogId) ?? 'idle') !== 'idle';
+      },
+
+      getStreamingId: (dialogId: string) => {
+        return get().streamingIdByDialog.get(dialogId) ?? null;
       },
 
       incrementUnread: (dialogId: string) => {
@@ -443,216 +335,18 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       getUnread: (dialogId: string) => {
-        const state = get();
-        return state.unreadCounts.get(dialogId) || 0;
+        return get().unreadCounts.get(dialogId) || 0;
       },
 
-      setStreamingMessage: (dialogId: string, message: Message | null) => {
-        set(state => {
-          const newMap = new Map(state.streamingMessages);
-          newMap.set(dialogId, message);
-          return { streamingMessages: newMap };
-        });
-      },
-
-      getStreamingMessage: (dialogId: string) => {
-        const state = get();
-        return state.streamingMessages.get(dialogId) || null;
-      },
-
-      updateStreamingMessageSegments: (dialogId: string, segments: MessageSegment[], streamSeq?: number) => {
-        set(state => {
-          const currentStreaming = state.streamingMessages.get(dialogId);
-          if (!currentStreaming) return state;
-
-          const accumulator = state.segmentAccumulators.get(dialogId);
-          if (!accumulator) {
-            console.warn('[MingoStore] No accumulator found for dialog:', dialogId);
-            return state;
-          }
-
-          const processedSegments = accumulator.replaySegments(segments);
-          const updatedMessage = {
-            ...currentStreaming,
-            content: processedSegments,
-            streamSeq:
-              streamSeq != null ? Math.max(currentStreaming.streamSeq ?? 0, streamSeq) : currentStreaming.streamSeq,
-          };
-
-          const newStreamingMap = new Map(state.streamingMessages);
-          newStreamingMap.set(dialogId, updatedMessage);
-
-          const newMessagesMap = new Map(state.messagesByDialog);
-          const currentMessages = newMessagesMap.get(dialogId) || [];
-          const existingIndex = currentMessages.findIndex(msg => msg.id === updatedMessage.id);
-
-          if (existingIndex !== -1) {
-            const updatedMessages = [...currentMessages];
-            updatedMessages[existingIndex] = updatedMessage;
-            newMessagesMap.set(dialogId, updatedMessages);
-          }
-
-          return {
-            streamingMessages: newStreamingMap,
-            messagesByDialog: newMessagesMap,
-          };
-        });
-      },
-
-      appendSegmentsToLastAssistant: (dialogId: string, segments: MessageSegment[], streamSeq?: number) => {
-        const incomingCompaction = [...segments]
-          .reverse()
-          .find((s): s is Extract<MessageSegment, { type: 'context_compaction' }> => s.type === 'context_compaction');
-
-        set(state => {
-          const newMap = new Map(state.messagesByDialog);
-          const currentMessages = newMap.get(dialogId) || [];
-
-          for (let i = currentMessages.length - 1; i >= 0; i--) {
-            if (currentMessages[i].role === 'assistant') {
-              const updatedMessages = [...currentMessages];
-              const existing = Array.isArray(updatedMessages[i].content)
-                ? (updatedMessages[i].content as MessageSegment[])
-                : [];
-
-              let nextContent: MessageSegment[];
-
-              if (incomingCompaction) {
-                // Mirror the lib's upsertTrailingCompaction: replace the LAST
-                // 'started' (earlier compactions in the bubble are already
-                // completed-in-place), else append. The previous first-match +
-                // any-compaction blanket silently dropped a second compaction
-                // landing in the same bubble.
-                let startedIdx = -1;
-                for (let k = existing.length - 1; k >= 0; k--) {
-                  const seg = existing[k];
-                  if (seg.type === 'context_compaction' && seg.status === 'started') {
-                    startedIdx = k;
-                    break;
-                  }
-                }
-
-                if (startedIdx !== -1) {
-                  nextContent = [...existing];
-                  nextContent[startedIdx] = incomingCompaction;
-                } else {
-                  nextContent = [...existing, incomingCompaction];
-                }
-              } else {
-                const accumulator = state.segmentAccumulators.get(dialogId);
-                nextContent = accumulator
-                  ? accumulator.replaySegments([...existing, ...segments])
-                  : [...existing, ...segments];
-              }
-
-              updatedMessages[i] = {
-                ...updatedMessages[i],
-                content: nextContent,
-                streamSeq:
-                  streamSeq != null
-                    ? Math.max(updatedMessages[i].streamSeq ?? 0, streamSeq)
-                    : updatedMessages[i].streamSeq,
-              };
-              newMap.set(dialogId, updatedMessages);
-              return { messagesByDialog: newMap };
-            }
-          }
-
-          // No assistant message anywhere (thread cleared / history not yet
-          // hydrated): open a fresh bubble instead of dropping the segments —
-          // mirrors the lib's appendToTrailingAssistant. Silently dropping the
-          // first post-MESSAGE_END tool chunk here is exactly the
-          // invisible-tool-run bug this pipeline was fixed for.
-          const fallback: Message = {
-            id: `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            role: 'assistant',
-            content: incomingCompaction ? [incomingCompaction] : [...segments],
-            timestamp: new Date(),
-            ...(streamSeq != null ? { streamSeq } : {}),
-          };
-          newMap.set(dialogId, [...currentMessages, fallback]);
-          return { messagesByDialog: newMap };
-        });
-      },
-
-      getOrCreateAccumulator: (
-        dialogId: string,
-        approvalHandlers?: { onApprove?: (requestId?: string) => void; onReject?: (requestId?: string) => void },
-      ) => {
-        const state = get();
-        const existing = state.segmentAccumulators.get(dialogId);
-
-        if (existing) {
-          if (approvalHandlers) {
-            existing.setCallbacks(approvalHandlers);
-          }
-          return existing;
-        }
-
-        const accumulator = createMessageSegmentAccumulator(approvalHandlers);
-
-        set(state => {
-          const newAccumulatorsMap = new Map(state.segmentAccumulators);
-          newAccumulatorsMap.set(dialogId, accumulator);
-          return { segmentAccumulators: newAccumulatorsMap };
-        });
-
-        return accumulator;
-      },
-
-      resetAccumulator: (dialogId: string) => {
-        const state = get();
-        const accumulator = state.segmentAccumulators.get(dialogId);
-        if (accumulator) {
-          accumulator.reset();
-        }
-      },
-
-      updateAccumulatorApprovalStatus: (dialogId: string, requestId: string, status: 'approved' | 'rejected') => {
-        const state = get();
-        const accumulator = state.segmentAccumulators.get(dialogId);
-
-        if (!accumulator) {
-          console.warn('[MingoStore] No accumulator found for approval status update:', dialogId);
-          return;
-        }
-
-        const updatedSegments = accumulator.updateApprovalStatus(requestId, status);
-        const currentStreaming = state.streamingMessages.get(dialogId);
-        if (currentStreaming && Array.isArray(currentStreaming.content)) {
-          const updatedMessage = {
-            ...currentStreaming,
-            content: updatedSegments,
-          };
-
-          set(state => {
-            const newStreamingMap = new Map(state.streamingMessages);
-            newStreamingMap.set(dialogId, updatedMessage);
-
-            const newMessagesMap = new Map(state.messagesByDialog);
-            const currentMessages = newMessagesMap.get(dialogId) || [];
-            const existingIndex = currentMessages.findIndex(msg => msg.id === updatedMessage.id);
-
-            if (existingIndex !== -1) {
-              const updatedMessages = [...currentMessages];
-              updatedMessages[existingIndex] = updatedMessage;
-              newMessagesMap.set(dialogId, updatedMessages);
-            }
-
-            return {
-              streamingMessages: newStreamingMap,
-              messagesByDialog: newMessagesMap,
-            };
-          });
-        }
-      },
-
+      // Routed through the REDUCER, not written straight into the mirror map:
+      // the reducer's `onTokenUsage` frames already own `dialogTokenUsage`, so
+      // a direct `set` here made two writers for one field with no stated
+      // precedence — a persisted seed landing after a live frame would silently
+      // roll the counters back. Going through the reducer means the same
+      // last-write-wins rule applies to both, and the mirror stays the only
+      // writer of `tokenUsageByDialog`.
       setTokenUsage: (dialogId: string, data: TokenUsageData) => {
-        set(state => {
-          const newMap = new Map(state.tokenUsageByDialog);
-          newMap.set(dialogId, data);
-          return { tokenUsageByDialog: newMap };
-        });
+        mutateMingoDialog(dialogId, r => r.setDialogTokenUsage(data));
       },
 
       getTokenUsage: (dialogId: string) => {
@@ -673,40 +367,28 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
         return get().highestStreamSeqByDialog.get(dialogId) ?? 0;
       },
 
-      removeWelcomeMessages: (dialogId: string) => {
-        set(state => {
-          const newMap = new Map(state.messagesByDialog);
-          const currentMessages = newMap.get(dialogId) || [];
-          const filteredMessages = currentMessages.filter(msg => !msg.id.startsWith('welcome-'));
-          newMap.set(dialogId, filteredMessages);
-          return { messagesByDialog: newMap };
-        });
-      },
-
       clearDialog: (dialogId: string) => {
+        dropDialogCaches(dialogId);
         set(state => {
           const newMessagesMap = new Map(state.messagesByDialog);
-          const newTypingMap = new Map(state.typingStates);
+          const newPhaseMap = new Map(state.phaseByDialog);
+          const newStreamingMap = new Map(state.streamingIdByDialog);
           const newUnreadMap = new Map(state.unreadCounts);
-          const newStreamingMap = new Map(state.streamingMessages);
-          const newAccumulatorsMap = new Map(state.segmentAccumulators);
           const newTokenUsageMap = new Map(state.tokenUsageByDialog);
           const newHighestSeqMap = new Map(state.highestStreamSeqByDialog);
 
           newMessagesMap.delete(dialogId);
-          newTypingMap.delete(dialogId);
-          newUnreadMap.delete(dialogId);
+          newPhaseMap.delete(dialogId);
           newStreamingMap.delete(dialogId);
-          newAccumulatorsMap.delete(dialogId);
+          newUnreadMap.delete(dialogId);
           newTokenUsageMap.delete(dialogId);
           newHighestSeqMap.delete(dialogId);
 
           return {
             messagesByDialog: newMessagesMap,
-            typingStates: newTypingMap,
+            phaseByDialog: newPhaseMap,
+            streamingIdByDialog: newStreamingMap,
             unreadCounts: newUnreadMap,
-            streamingMessages: newStreamingMap,
-            segmentAccumulators: newAccumulatorsMap,
             tokenUsageByDialog: newTokenUsageMap,
             highestStreamSeqByDialog: newHighestSeqMap,
           };
@@ -714,15 +396,17 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       resetAll: () => {
+        for (const dialogId of mirror.knownKeys()) dropDialogCaches(dialogId);
+        // Nothing is displayed after a reset — release any surviving pin.
+        mirror.setActiveKeys([]);
         set({
           messagesByDialog: new Map(),
+          phaseByDialog: new Map(),
+          streamingIdByDialog: new Map(),
+          tokenUsageByDialog: new Map(),
           activeDialogId: null,
           dialogs: [],
-          typingStates: new Map(),
           unreadCounts: new Map(),
-          streamingMessages: new Map(),
-          segmentAccumulators: new Map(),
-          tokenUsageByDialog: new Map(),
           highestStreamSeqByDialog: new Map(),
           isLoadingDialog: false,
           isLoadingMessages: false,

@@ -1,4 +1,36 @@
 // Dialog constants and enums
+//
+// Wire-protocol enums (MESSAGE_TYPE / CHAT_TYPE / OWNER_TYPE /
+// APPROVAL_STATUS) are re-exported from the lib SSOT
+// (@flamingo-stack/openframe-frontend-core) — value-identical on every key
+// this app used. Notes:
+//
+// - Lib MESSAGE_TYPE is an 18-key superset of the 10-key local const it
+//   replaces (adds THINKING, AI_METADATA, TOKEN_USAGE, compaction,
+//   DIRECT_MESSAGE, DIALOG_CLOSED, ...). Intentional — app switches
+//   tolerate unknown types.
+// - Lib APPROVAL_STATUS adds PENDING and CANCELLED. CANCELLED
+//   reconciliation: this app's NATS wire never carries a cancelled
+//   resolution — APPROVAL_RESULT chunks encode a boolean `approved`, and
+//   the lib's `decodeNatsChunk` maps it to 'approved' | 'rejected' only,
+//   exactly like the legacy `parseChunkToAction` did. So cancelled events
+//   were never received before and still cannot be produced on this wire;
+//   the widened type only matters for shared lib signatures
+//   (ChatApprovalStatus). No UI for it exists here by design.
+
+import type { ChatApprovalStatus } from '@flamingo-stack/openframe-frontend-core';
+
+export {
+  APPROVAL_STATUS,
+  CHAT_TYPE,
+  type ChatType,
+  MESSAGE_TYPE,
+  type MessageType,
+  OWNER_TYPE,
+  type OwnerType,
+} from '@flamingo-stack/openframe-frontend-core';
+
+export type ApprovalStatus = ChatApprovalStatus;
 
 export const DIALOG_STATUS = {
   ON_HOLD: 'ON_HOLD',
@@ -26,44 +58,6 @@ export const DIALOG_MODE = {
 } as const;
 
 export type DialogModeValue = (typeof DIALOG_MODE)[keyof typeof DIALOG_MODE];
-
-export const CHAT_TYPE = {
-  CLIENT: 'CLIENT_CHAT',
-  ADMIN: 'ADMIN_AI_CHAT',
-} as const;
-
-export type ChatType = (typeof CHAT_TYPE)[keyof typeof CHAT_TYPE];
-
-export const MESSAGE_TYPE = {
-  TEXT: 'TEXT',
-  EXECUTING_TOOL: 'EXECUTING_TOOL',
-  EXECUTED_TOOL: 'EXECUTED_TOOL',
-  APPROVAL_REQUEST: 'APPROVAL_REQUEST',
-  APPROVAL_RESULT: 'APPROVAL_RESULT',
-  ERROR: 'ERROR',
-  MESSAGE_START: 'MESSAGE_START',
-  MESSAGE_END: 'MESSAGE_END',
-  MESSAGE_REQUEST: 'MESSAGE_REQUEST',
-  SYSTEM: 'SYSTEM',
-} as const;
-
-export type MessageType = (typeof MESSAGE_TYPE)[keyof typeof MESSAGE_TYPE];
-
-export const OWNER_TYPE = {
-  CLIENT: 'CLIENT',
-  ADMIN: 'ADMIN',
-  ASSISTANT: 'ASSISTANT',
-} as const;
-
-export type OwnerType = (typeof OWNER_TYPE)[keyof typeof OWNER_TYPE];
-
-export const APPROVAL_STATUS = {
-  PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
-} as const;
-
-export type ApprovalStatus = (typeof APPROVAL_STATUS)[keyof typeof APPROVAL_STATUS];
 
 export const ASSISTANT_CONFIG = {
   FAE: {

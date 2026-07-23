@@ -1,45 +1,22 @@
 'use client';
 
 import {
-  type ChatApprovalStatus,
   type ChunkData,
-  extractIncompleteMessageState,
-  type MessageSegment,
   type NatsMessageType,
-  type SegmentsUpdateMetadata,
-  type TokenUsageData,
-  type ToolExecutionSegment,
   useJetStreamDialogSubscription,
-  useRealtimeChunkProcessor,
 } from '@flamingo-stack/openframe-frontend-core';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { registerActiveDialogView } from '@/lib/active-dialog-views';
+import type { ChatModelMetadata } from '@/lib/chat-stream-thread';
 import { featureFlags } from '@/lib/feature-flags';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
-import { useAuthStore } from '@/stores';
-import { useMingoMessagesStore } from '../stores/mingo-messages-store';
+import { useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
+import { bindMingoDialog, setMingoChatHandlers, useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogNode } from '../types/dialog.types';
-import type { CoreMessage } from '../types/message.types';
 
 const MINGO_JETSTREAM_TOPIC: NatsMessageType = 'admin-message';
 const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
-
-function isInProgress(segments: MessageSegment[]): boolean {
-  return segments.some(seg => {
-    if (seg.type === 'tool_execution' && seg.data.type === 'EXECUTING_TOOL') return true;
-    if (seg.type === 'approval_request') return true;
-    if (seg.type === 'approval_batch') {
-      // Treat batch as in-progress unless it was rejected OR every tool call
-      // has a `done` execution.
-      const allDone =
-        !!seg.data.executions &&
-        seg.data.toolCalls.every(c => seg.data.executions?.[c.toolExecutionRequestId]?.status === 'done');
-      return seg.status !== 'rejected' && !allDone;
-    }
-    return false;
-  });
-}
 
 interface UseMingoRealtimeSubscriptionOptions {
   onChunkReceived?: (dialogId: string, chunk: ChunkData, messageType: NatsMessageType) => void;
@@ -161,273 +138,39 @@ export function useMingoRealtimeSubscription(
 interface UseDialogChunkProcessorOptions {
   onApprove?: (requestId?: string) => void | Promise<void>;
   onReject?: (requestId?: string) => void | Promise<void>;
-  approvalStatuses?: Record<string, any>;
-  onMetadata?: (metadata: {
-    modelDisplayName: string;
-    modelName: string;
-    providerName: string;
-    contextWindow: number;
-  }) => void;
+  /** Persisted request-id → status seed the reducer consults on replay. */
+  approvalStatuses?: Record<string, string>;
+  onMetadata?: (metadata: ChatModelMetadata) => void;
 }
 
+/**
+ * Phase 4: chunks feed the lib's master stream reducer directly
+ * (`decodeNatsChunk` → `dialogStore.apply`). The reducer owns EVERY
+ * accumulation rule that used to live in the ~270-LOC callback glue here
+ * (stream windows, segment routing, cross-message tool merges, approval
+ * flips, participant dedup, typing phase); the store mirrors its snapshot.
+ * The residual side concerns (own-echo suppression, approval-status sync,
+ * the keyed incomplete-turn seed) are shared with the tickets processor via
+ * `useChatChunkProcessor`, and the model badge rides the reducer's own
+ * `onMetadata` effect; only the handler binding is mingo-specific.
+ */
 function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProcessorOptions = {}) {
   const { onApprove, onReject, approvalStatuses, onMetadata } = options;
-  const {
-    messagesByDialog,
-    streamingMessages,
-    getMessages,
-    addMessage,
-    updateMessage,
-    setTyping,
-    setStreamingMessage,
-    getStreamingMessage,
-    updateStreamingMessageSegments,
-    appendSegmentsToLastAssistant,
-    updateApprovalStatusInMessages,
-    updateToolExecutionInMessages,
-    getOrCreateAccumulator,
-    setTokenUsage,
-  } = useMingoMessagesStore();
-
-  const currentUserId = useAuthStore(state => state.user?.id);
 
   useEffect(() => {
-    if (onApprove || onReject) {
-      getOrCreateAccumulator(dialogId, { onApprove, onReject });
-    }
-  }, [dialogId, onApprove, onReject, getOrCreateAccumulator]);
+    setMingoChatHandlers(dialogId, { onApprove, onReject, onMetadata });
+  }, [dialogId, onApprove, onReject, onMetadata]);
 
-  const ensureAssistantMessage = useCallback(() => {
-    const currentStreaming = getStreamingMessage(dialogId);
-    if (currentStreaming) return;
+  const messages = useMingoMessagesStore(s => s.messagesByDialog.get(dialogId));
 
-    const current = getMessages(dialogId);
-    const last = current[current.length - 1];
-    if (last?.role === 'assistant' && Array.isArray(last.content) && isInProgress(last.content)) {
-      setStreamingMessage(dialogId, last);
-      return;
-    }
-
-    const assistantMessage: CoreMessage = {
-      id: `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      role: 'assistant',
-      content: [],
-      name: 'Mingo',
-      assistantType: 'mingo',
-      timestamp: new Date(),
-    };
-
-    setStreamingMessage(dialogId, assistantMessage);
-    addMessage(dialogId, assistantMessage);
-  }, [dialogId, getMessages, getStreamingMessage, setStreamingMessage, addMessage]);
-
-  const addErrorMessage = useCallback(
-    (errorText: string) => {
-      const errorMessage: CoreMessage = {
-        id: `error-${Date.now()}`,
-        role: 'error',
-        name: 'Mingo',
-        timestamp: new Date(),
-        content: errorText,
-      };
-
-      const currentMessages = getMessages(dialogId);
-      const lastMessage = currentMessages[currentMessages.length - 1];
-
-      if (
-        lastMessage?.role === 'assistant' &&
-        (lastMessage.content === '' || (Array.isArray(lastMessage.content) && lastMessage.content.length === 0))
-      ) {
-        updateMessage(dialogId, lastMessage.id, errorMessage);
-      } else {
-        addMessage(dialogId, errorMessage);
-      }
-    },
-    [dialogId, getMessages, updateMessage, addMessage],
-  );
-
-  const incompleteState = useMemo(() => {
-    const currentMessages = messagesByDialog.get(dialogId) || [];
-    const assistantSegments: MessageSegment[] = [];
-    let lastAssistantId = '';
-    let lastAssistantTimestamp = new Date();
-
-    for (let i = currentMessages.length - 1; i >= 0; i--) {
-      const msg = currentMessages[i];
-      if (msg.role === 'assistant') {
-        if (!lastAssistantId) {
-          lastAssistantId = msg.id;
-          lastAssistantTimestamp = msg.timestamp || new Date();
-        }
-
-        if (Array.isArray(msg.content)) {
-          assistantSegments.unshift(...msg.content);
-        } else if (typeof msg.content === 'string' && msg.content) {
-          assistantSegments.unshift({
-            type: 'text',
-            text: msg.content,
-            id: `${msg.id}-text`,
-          } as MessageSegment);
-        }
-      } else {
-        break;
-      }
-    }
-
-    if (assistantSegments.length > 0 && lastAssistantId) {
-      const completeAssistantMessage = {
-        id: lastAssistantId,
-        role: 'assistant' as const,
-        content: assistantSegments,
-        name: 'Mingo',
-        timestamp: lastAssistantTimestamp,
-      };
-
-      const libState = extractIncompleteMessageState(completeAssistantMessage);
-      if (libState) return libState;
-
-      if (streamingMessages.get(dialogId)) {
-        return { existingSegments: assistantSegments };
-      }
-    }
-
-    return undefined;
-  }, [dialogId, messagesByDialog, streamingMessages]);
-
-  const realtimeCallbacks = useMemo(
-    () => ({
-      onStreamStart: () => {
-        ensureAssistantMessage();
-        setTyping(dialogId, true);
-      },
-
-      onStreamEnd: () => {
-        setTyping(dialogId, false);
-        setStreamingMessage(dialogId, null);
-      },
-
-      onSegmentsUpdate: (segments: MessageSegment[], metadata?: SegmentsUpdateMetadata) => {
-        // Compaction emits (start AND end carry isCompacting) must not FORCE
-        // typing off: during the window the 'started' tail segment masks it
-        // via isCompacting, but the end-emit used to drop both flags at once,
-        // unlocking the composer until the continuation's first chunk. Leave
-        // typing as-is on compaction emits; set it on everything else.
-        if (!metadata?.isCompacting) setTyping(dialogId, true);
-        if (metadata?.append) {
-          appendSegmentsToLastAssistant(dialogId, segments, metadata?.streamSeq);
-        } else {
-          ensureAssistantMessage();
-          updateStreamingMessageSegments(dialogId, segments, metadata?.streamSeq);
-        }
-      },
-
-      onError: (error: string) => {
-        console.error('[DialogSubscription] Stream error:', error);
-        setTyping(dialogId, false);
-        setStreamingMessage(dialogId, null);
-        addErrorMessage(error);
-      },
-
-      // EXECUTING_TOOL / approved APPROVAL_RESULT chunks land OUTSIDE the
-      // message_start/end window (approved commands run between the approval
-      // bubble and the continuation stream), so onSegmentsUpdate never fires
-      // for them — without this the composer unlocks while commands execute.
-      // Also covers approvals resolved by another admin. Cleared by the
-      // continuation's onStreamEnd / onError / Stop.
-      onAgentBusy: () => {
-        setTyping(dialogId, true);
-      },
-
-      onTokenUsage: (data: TokenUsageData) => {
-        setTokenUsage(dialogId, data);
-      },
-
-      onApprovalResolved: (
-        requestId: string,
-        status: ChatApprovalStatus,
-        _approvalType: string,
-        resolvedByName?: string | null,
-      ) => {
-        if (status === 'approved' || status === 'rejected') {
-          updateApprovalStatusInMessages(dialogId, requestId, status, resolvedByName);
-        }
-      },
-
-      onToolExecuted: (segment: ToolExecutionSegment) => {
-        // Merge into an existing card first; when NOTHING matches — the
-        // common case for the FIRST post-MESSAGE_END EXECUTING chunk of an
-        // approved command, which has no prior segment to merge into —
-        // append the segment to the last assistant bubble instead of
-        // dropping it, or the whole tool run stays invisible.
-        const execId = segment.data.toolExecutionRequestId;
-        const matched = updateToolExecutionInMessages(dialogId, execId, segment.data);
-        if (!matched) {
-          appendSegmentsToLastAssistant(dialogId, [segment]);
-        }
-      },
-
-      onUserMessage: (
-        text: string,
-        meta?: {
-          ownerType?: string;
-          displayName?: string;
-          userId?: string;
-          streamSeq?: number;
-          contextItems?: Array<{ type: string; id: string }>;
-        },
-      ) => {
-        if (meta?.userId && meta.userId === currentUserId) return;
-        // The `MESSAGE_REQUEST` chunk carries only `{ type, id }` — no label.
-        // Fall back to the id as the chip text; the lib resolves the icon by
-        // `type` from `contextPicker.entityTypes`.
-        const contextItems = meta?.contextItems?.length
-          ? meta.contextItems.map(i => ({ type: i.type, id: i.id, label: i.id }))
-          : undefined;
-        addMessage(dialogId, {
-          id: `user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          role: 'user',
-          authorType: meta?.ownerType === 'ADMIN' ? 'admin' : 'user',
-          content: text,
-          name: meta?.displayName || (meta?.ownerType === 'ADMIN' ? 'Admin' : 'You'),
-          avatar: null,
-          timestamp: new Date(),
-          streamSeq: meta?.streamSeq,
-          contextItems,
-        });
-      },
-
-      onMetadata,
-      onApprove,
-      onReject,
-    }),
-    [
-      dialogId,
-      ensureAssistantMessage,
-      appendSegmentsToLastAssistant,
-      setTyping,
-      setStreamingMessage,
-      updateStreamingMessageSegments,
-      updateApprovalStatusInMessages,
-      updateToolExecutionInMessages,
-      addErrorMessage,
-      addMessage,
-      currentUserId,
-      setTokenUsage,
-      onMetadata,
-      onApprove,
-      onReject,
-    ],
-  );
-
-  const { processChunk: processorProcessChunk } = useRealtimeChunkProcessor({
-    callbacks: realtimeCallbacks,
-    displayApprovalTypes: ['CLIENT', 'ADMIN'],
-    approvalStatuses: approvalStatuses || {},
-    initialState: incompleteState,
-    batchApprovalsEnabled: featureFlags.batchApproval.enabled(),
+  const processChunk = useChatChunkProcessor({
+    boundMirror: bindMingoDialog(dialogId),
+    messages,
+    seedKey: dialogId,
+    approvalStatuses,
   });
 
-  return { processChunk: processorProcessChunk };
+  return { processChunk };
 }
 
 interface DialogSubscriptionProps {
@@ -435,14 +178,10 @@ interface DialogSubscriptionProps {
   isActive: boolean;
   onApprove?: (requestId?: string) => void;
   onReject?: (requestId?: string) => void;
-  approvalStatuses?: Record<string, any>;
+  /** Persisted request-id → status seed the reducer consults on replay. */
+  approvalStatuses?: Record<string, string>;
   onConnectionChange?: (dialogId: string, connected: boolean) => void;
-  onMetadata?: (metadata: {
-    modelDisplayName: string;
-    modelName: string;
-    providerName: string;
-    contextWindow: number;
-  }) => void;
+  onMetadata?: (metadata: ChatModelMetadata) => void;
   initialOptStartSeq: number | null;
   isInitialOptStartSeqReady: boolean;
 }

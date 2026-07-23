@@ -1,23 +1,146 @@
-import {
-  type ApprovalBatchExecutionState,
-  type ApprovalBatchSegment,
-  type Message as ChatMessage,
-  createMessageSegmentAccumulator,
-  type MessageSegment,
-  type MessageSegmentAccumulator,
-  type TokenUsageData,
-  type ToolExecutionSegment,
-} from '@flamingo-stack/openframe-frontend-core';
+import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-core';
+import { type ChatStreamReducer, createChatDialogStore } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
+import {
+  createReducerMirror,
+  type NatsMirrorHandlers,
+  natsMirrorOptions,
+  toUnifiedMessage,
+} from '@/lib/chat-stream-thread';
+import { featureFlags } from '@/lib/feature-flags';
+import { useAuthStore } from '@/stores';
 
 export type ChatSide = 'client' | 'admin';
 
+/**
+ * Phase 4 of the chat unification: each chat side is a lib
+ * `createChatStreamReducer` instance held in a `createChatDialogStore`
+ * keyed (dialog, side). The store's built-in cross-side projections
+ * (approval resolution by requestId, tool-execution merge by execId)
+ * replace the app's both-sides fan-out. This zustand store survives as
+ * persistence/cache + identity: per-side seq bookkeeping, approval-status
+ * map, and a converted READ MIRROR of each reducer snapshot so existing
+ * selectors keep working.
+ *
+ * Only one ticket dialog is open at a time (the view clears state on
+ * ticket switch/unmount), so the reducers use a constant thread key —
+ * the two SIDES are the real keys.
+ */
+const TICKET_THREAD_KEY = 'ticket-details';
+
+const SIDE_IDENTITY: Record<ChatSide, { assistantName: string; assistantType: 'fae' | 'mingo' }> = {
+  client: { assistantName: 'Fae', assistantType: 'fae' },
+  admin: { assistantName: 'Mingo', assistantType: 'mingo' },
+};
+
+const handlersBySide = new Map<ChatSide, NatsMirrorHandlers>();
+
+const BOTH_SIDES: readonly ChatSide[] = ['client', 'admin'];
+
+/** Creation options for a side's reducer. Shared by the mirror (which
+ *  pre-creates with them) and the STORE-level default below. */
+const ticketReducerOptions = natsMirrorOptions<ChatSide>(
+  side => handlersBySide.get(side),
+  () => featureFlags.batchApproval.enabled(),
+  () => useAuthStore.getState().user?.id,
+);
+
+/** All reducer-mirror scaffolding (create-or-get, retention, snapshot change
+ *  detection, conversion cache, thread RMW, delta batching, approval-status
+ *  merge, cross-side materialize + resync) lives in the shared
+ *  `createReducerMirror` factory, and the NATS options block in
+ *  `natsMirrorOptions` — this host supplies only the key mapping, the sibling
+ *  set and the zustand patch. Mirror key = the chat SIDE (the thread key is
+ *  constant: only one ticket dialog is open at a time). */
+const mirror = createReducerMirror<ChatSide>({
+  // The mirror builds the store so it can wire its own `onEvict`; this host
+  // adds `defaultCreateOptions`, which closes the store-level hole: a reducer
+  // first materialized by a bare `apply()` / `mutate()` (no per-call options)
+  // would otherwise be built WITHOUT `ownEchoIncludesAdmin` / `selfUserId` and
+  // keep those semantics missing for its whole life — creation options are
+  // consulted once — so every message a technician sends would render twice.
+  // The mirror happens to always pre-create with options today; this makes the
+  // guarantee structural rather than incidental. Mirror key = the store's
+  // `side` (the thread key is constant), so the mapping back is the identity.
+  createStore: storeOptions =>
+    createChatDialogStore({
+      ...storeOptions,
+      defaultCreateOptions: (_dialogId: string, side: string) => ticketReducerOptions(side as ChatSide),
+    }),
+  identityFor: side => ({ dialogId: TICKET_THREAD_KEY, side, defaults: SIDE_IDENTITY[side] }),
+  // The dialog store's cross-side projections (approval resolution by
+  // requestId, tool-execution merge by execId) land on the OTHER side's
+  // reducer, so both sides must exist before an event lands and both must
+  // re-sync after. The mirror owns that ordering.
+  siblingKeys: () => BOTH_SIDES,
+  options: ticketReducerOptions,
+  onSnapshot: (side, { messages, phase, streamingId, state: snap }) => {
+    useTicketDetailsStore.setState(state => {
+      const nextSide: SideState = {
+        ...state[side],
+        messages,
+        isTyping: phase !== 'idle',
+        streamingId,
+      };
+
+      // Approval resolutions the reducer learned from stream events flow
+      // back into the shared status map (history processing + pending-card
+      // extraction read it). ADDITIVE ON PURPOSE — only 'approved'/'rejected'
+      // are copied IN, nothing is ever removed. The mirror's post-eviction
+      // re-seed does restore the parked `approvalStatuses` onto the
+      // replacement reducer, so its first snapshot is no longer blank — but
+      // this map is still the WIDER record (it also carries statuses learned
+      // from history processing and from the other side), so a blanking write
+      // would re-arm buttons for approvals this host knows were resolved.
+      let approvalStatuses = state.approvalStatuses;
+      for (const [id, status] of Object.entries(snap.approvalStatuses)) {
+        if ((status === 'approved' || status === 'rejected') && approvalStatuses[id] !== status) {
+          if (approvalStatuses === state.approvalStatuses) approvalStatuses = { ...approvalStatuses };
+          approvalStatuses[id] = status;
+        }
+      }
+
+      return side === 'client' ? { client: nextSide, approvalStatuses } : { admin: nextSide, approvalStatuses };
+    });
+  },
+});
+
+/** The dialog store behind this host's two side reducers (built by the mirror). */
+export const ticketChatDialogStore = mirror.store;
+
+/** Run reducer commands (non-wire mutations) against one side, then mirror. */
+export function mutateTicketSide<T>(side: ChatSide, fn: (reducer: ChatStreamReducer) => T): T {
+  return mirror.mutate(side, fn);
+}
+
+/** Pre-curried `{ apply, mutate, mergeApprovalStatuses }` for one side.
+ *  Identity is stable per side (memoized inside the mirror); `apply` needs no
+ *  host wrapper — `siblingKeys` above tells the mirror to materialize and
+ *  re-sync the other side itself. */
+export const bindTicketSide = mirror.bind;
+
+/** NO retention here, deliberately. `setActiveKeys` declares what is
+ *  currently DISPLAYED, and at module-init time no ticket is open at all — the
+ *  old unconditional assertion contradicted that contract. It is also
+ *  unnecessary: `ticketChatDialogStore` is this host's OWN dialog store and
+ *  holds at most two reducers (one per side of the single open ticket) against
+ *  an LRU cap of ten, so eviction can never fire here. Mingo, which keys by
+ *  dialogId and really can exceed the cap, is the host that needs pinning. */
+
+function dropSideCaches(side: ChatSide): void {
+  mirror.drop(side);
+  handlersBySide.delete(side);
+}
+
+// ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
+
 interface SideState {
+  /** Read mirror of the side reducer's message thread (app shape). */
   messages: ChatMessage[];
-  streaming: ChatMessage | null;
-  accumulator: MessageSegmentAccumulator;
-  tokenUsage: TokenUsageData | null;
+  /** Read mirror: reducer streamingPhase !== 'idle'. */
   isTyping: boolean;
+  /** Id of the assistant bubble an open stream writes into (merge exemption). */
+  streamingId: string | null;
   // Highest chunk `streamSeq` this client has consumed for the side (live or replayed). Compared
   // against history's max persisted seq in mergeHistoryWithRealtime to drop replayed synthetics
   // whose turns are already in history.
@@ -27,10 +150,8 @@ interface SideState {
 function createSideState(): SideState {
   return {
     messages: [],
-    streaming: null,
-    accumulator: createMessageSegmentAccumulator(),
-    tokenUsage: null,
     isTyping: false,
+    streamingId: null,
     highestStreamSeq: 0,
   };
 }
@@ -48,7 +169,7 @@ interface TicketDetailsStore {
   // Reset all chat-side state (e.g. on ticket switch)
   clearChatState: () => void;
 
-  // Per-side message actions
+  // Per-side message actions (delegate to the lib reducer)
   setMessages: (side: ChatSide, messages: ChatMessage[]) => void;
   prependMessages: (side: ChatSide, messages: ChatMessage[]) => void;
   prependWithBoundaryMerge: (
@@ -58,51 +179,37 @@ interface TicketDetailsStore {
     boundaryUpdates?: Partial<ChatMessage>,
   ) => void;
   addMessage: (side: ChatSide, message: ChatMessage) => void;
+  /** Optimistic local send. Routed through the reducer so IT owns own-echo
+   *  suppression (text-matched, one-shot) — a blanket "drop every echo with
+   *  my user id" would also hide this user's sends from other tabs. */
+  pushOptimisticSend: (side: ChatSide, message: ChatMessage) => void;
   updateMessage: (side: ChatSide, messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (side: ChatSide, messageId: string) => void;
   getMessages: (side: ChatSide) => ChatMessage[];
 
-  // Streaming
-  setStreamingMessage: (side: ChatSide, message: ChatMessage | null) => void;
-  getStreamingMessage: (side: ChatSide) => ChatMessage | null;
-  updateStreamingMessageSegments: (side: ChatSide, segments: MessageSegment[], streamSeq?: number) => void;
-  appendSegmentsToLastAssistant: (side: ChatSide, segments: MessageSegment[], streamSeq?: number) => void;
-
   // Approvals
+  /** Cross-message approval flip on one side (reducer accumulator + projection). */
   updateApprovalStatusInMessages: (
     side: ChatSide,
     requestId: string,
     status: ApprovalStatus,
     resolvedByName?: string | null,
   ) => void;
-  /** Merge an EXECUTING/EXECUTED event into the matching tool segment or
-   *  batch `executions` slot. `executionRequestId` is optional — without it,
-   *  an EXECUTED chunk pairs with the newest EXECUTING of the same
-   *  (integratedToolType, toolFunction). Returns whether anything matched so
-   *  the caller can append a fresh segment instead of dropping the event. */
-  updateToolExecutionInMessages: (
-    side: ChatSide,
-    executionRequestId: string | undefined,
-    executedData: ToolExecutionSegment['data'],
-  ) => boolean;
   setApprovalStatus: (requestId: string, status: ApprovalStatus) => void;
-  mergeApprovalStatuses: (entries: ApprovalStatusMap) => void;
+  /**
+   * Upsert PERSISTED resolutions into this store's status map — INCOMING
+   * WINS, which is the opposite of the reducer-side merge this map eventually
+   * feeds (`ReducerMirror.mergeApprovalStatuses` → the reducer's
+   * `mergeApprovalStatuses`, where stream-learned wins over persisted).
+   * Deliberately not called `merge*`: the two rules must not read as one.
+   */
+  upsertApprovalStatuses: (entries: ApprovalStatusMap) => void;
 
-  // Accumulator
-  setAccumulatorCallbacks: (
-    side: ChatSide,
-    callbacks: {
-      onApprove?: (requestId?: string) => void | Promise<void>;
-      onReject?: (requestId?: string) => void | Promise<void>;
-    },
-  ) => void;
-  resetAccumulator: (side: ChatSide) => void;
+  /** Late-bound per-side handlers: approve/reject are stamped onto approval
+   *  segments; `onMetadata` rides the reducer's own metadata effect. */
+  setChatHandlers: (side: ChatSide, handlers: NatsMirrorHandlers) => void;
 
-  // Token usage
-  setTokenUsage: (side: ChatSide, data: TokenUsageData | null) => void;
-  getTokenUsage: (side: ChatSide) => TokenUsageData | null;
-
-  // Typing
+  // Typing (delegates to the reducer's phase machine)
   setTypingIndicator: (side: ChatSide, typing: boolean) => void;
 
   // Stream-seq coverage tracking (history/realtime dedupe)
@@ -127,305 +234,49 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
   admin: createSideState(),
   approvalStatuses: {},
 
-  clearChatState: () =>
+  clearChatState: () => {
+    dropSideCaches('client');
+    dropSideCaches('admin');
     set({
       client: createSideState(),
       admin: createSideState(),
       approvalStatuses: {},
-    }),
+    });
+  },
 
-  setMessages: (side, messages) => set(state => produceSide(state, side, s => ({ ...s, messages }))),
+  setMessages: (side, messages) => {
+    mutateTicketSide(side, r => r.setMessages(messages.map(m => toUnifiedMessage(m))));
+  },
 
-  prependMessages: (side, messages) =>
-    set(state =>
-      produceSide(state, side, s => ({
-        ...s,
-        messages: [...messages, ...s.messages],
-      })),
-    ),
+  prependMessages: (side, messages) => {
+    mutateTicketSide(side, r => r.prependMessages(messages.map(m => toUnifiedMessage(m))));
+  },
 
-  prependWithBoundaryMerge: (side, newMessages, boundaryMessageId, boundaryUpdates) =>
-    set(state =>
-      produceSide(state, side, s => {
-        let current = s.messages;
-        if (boundaryMessageId && boundaryUpdates) {
-          const idx = current.findIndex(m => m.id === boundaryMessageId);
-          if (idx !== -1) {
-            current = [...current];
-            current[idx] = { ...current[idx], ...boundaryUpdates };
-          }
-        }
-        const next = newMessages.length > 0 ? [...newMessages, ...current] : current;
-        return { ...s, messages: next };
-      }),
-    ),
+  prependWithBoundaryMerge: (side, newMessages, boundaryMessageId, boundaryUpdates) => {
+    mirror.prependWithBoundaryMerge(side, newMessages, boundaryMessageId, boundaryUpdates);
+  },
 
-  addMessage: (side, message) =>
-    set(state =>
-      produceSide(state, side, s => {
-        const existingIndex = s.messages.findIndex(m => m.id === message.id);
-        if (existingIndex !== -1) {
-          const updated = [...s.messages];
-          updated[existingIndex] = message;
-          return { ...s, messages: updated };
-        }
-        return { ...s, messages: [...s.messages, message] };
-      }),
-    ),
+  addMessage: (side, message) => {
+    mirror.upsertMessage(side, message);
+  },
 
-  updateMessage: (side, messageId, updates) =>
-    set(state =>
-      produceSide(state, side, s => {
-        const idx = s.messages.findIndex(m => m.id === messageId);
-        if (idx === -1) return s;
-        const updated = [...s.messages];
-        updated[idx] = { ...updated[idx], ...updates };
-        return { ...s, messages: updated };
-      }),
-    ),
+  pushOptimisticSend: (side, message) => {
+    mirror.pushOptimisticSend(side, message);
+  },
 
-  removeMessage: (side, messageId) =>
-    set(state =>
-      produceSide(state, side, s => ({
-        ...s,
-        messages: s.messages.filter(m => m.id !== messageId),
-      })),
-    ),
+  updateMessage: (side, messageId, updates) => {
+    mirror.patchMessage(side, messageId, updates);
+  },
+
+  removeMessage: (side, messageId) => {
+    mirror.removeMessage(side, messageId);
+  },
 
   getMessages: side => get()[side].messages,
 
-  setStreamingMessage: (side, message) => set(state => produceSide(state, side, s => ({ ...s, streaming: message }))),
-
-  getStreamingMessage: side => get()[side].streaming,
-
-  updateStreamingMessageSegments: (side, segments, streamSeq) =>
-    set(state =>
-      produceSide(state, side, s => {
-        if (!s.streaming) return s;
-        const processed = s.accumulator.replaySegments(segments);
-        const updatedMessage: ChatMessage = {
-          ...s.streaming,
-          content: processed,
-          streamSeq: streamSeq != null ? Math.max(s.streaming.streamSeq ?? 0, streamSeq) : s.streaming.streamSeq,
-        };
-        const idx = s.messages.findIndex(m => m.id === updatedMessage.id);
-        const nextMessages = idx !== -1 ? s.messages.map((m, i) => (i === idx ? updatedMessage : m)) : s.messages;
-        return { ...s, streaming: updatedMessage, messages: nextMessages };
-      }),
-    ),
-
-  appendSegmentsToLastAssistant: (side, segments, streamSeq) => {
-    const incomingCompaction = [...segments]
-      .reverse()
-      .find((seg): seg is Extract<MessageSegment, { type: 'context_compaction' }> => seg.type === 'context_compaction');
-
-    set(state =>
-      produceSide(state, side, s => {
-        for (let i = s.messages.length - 1; i >= 0; i--) {
-          if (s.messages[i].role !== 'assistant') continue;
-          const existing = Array.isArray(s.messages[i].content) ? (s.messages[i].content as MessageSegment[]) : [];
-
-          let nextContent: MessageSegment[];
-          if (incomingCompaction) {
-            // Mirror the lib's upsertTrailingCompaction: replace the LAST
-            // 'started' (earlier compactions in the bubble are already
-            // completed-in-place), else append. The previous first-match +
-            // any-compaction blanket silently dropped a second compaction
-            // landing in the same bubble.
-            let startedIdx = -1;
-            for (let k = existing.length - 1; k >= 0; k--) {
-              const seg = existing[k];
-              if (seg.type === 'context_compaction' && seg.status === 'started') {
-                startedIdx = k;
-                break;
-              }
-            }
-            if (startedIdx !== -1) {
-              nextContent = [...existing];
-              nextContent[startedIdx] = incomingCompaction;
-            } else {
-              nextContent = [...existing, incomingCompaction];
-            }
-          } else {
-            nextContent = s.accumulator.replaySegments([...existing, ...segments]);
-          }
-
-          const updated = [...s.messages];
-          updated[i] = {
-            ...updated[i],
-            content: nextContent,
-            streamSeq: streamSeq != null ? Math.max(updated[i].streamSeq ?? 0, streamSeq) : updated[i].streamSeq,
-          };
-          return { ...s, messages: updated };
-        }
-        // No assistant message anywhere (thread cleared / history not yet
-        // hydrated): open a fresh bubble instead of dropping the segments —
-        // mirrors the lib's appendToTrailingAssistant. Silently dropping the
-        // first post-MESSAGE_END tool chunk here is exactly the
-        // invisible-tool-run bug this pipeline was fixed for.
-        const fallback: ChatMessage = {
-          id: `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          role: 'assistant',
-          content: incomingCompaction ? [incomingCompaction] : [...segments],
-          timestamp: new Date(),
-          ...(streamSeq != null ? { streamSeq } : {}),
-        };
-        return { ...s, messages: [...s.messages, fallback] };
-      }),
-    );
-  },
-
-  updateApprovalStatusInMessages: (side, requestId, status, resolvedByName) =>
-    set(state => {
-      let matched = false;
-      const nextSides = produceSide(state, side, s => {
-        const updatedMessages = s.messages.map(message => {
-          if (message.role !== 'assistant' || !Array.isArray(message.content)) return message;
-          let changed = false;
-          const updatedContent = message.content.map(segment => {
-            if (segment.type === 'approval_request' && segment.data?.requestId === requestId) {
-              matched = true;
-              changed = true;
-              return { ...segment, status };
-            }
-            if (segment.type === 'approval_batch' && segment.data?.approvalRequestId === requestId) {
-              matched = true;
-              changed = true;
-              return {
-                ...segment,
-                status,
-                resolvedByName: resolvedByName ?? segment.resolvedByName,
-              } as ApprovalBatchSegment;
-            }
-            return segment;
-          });
-          return changed ? { ...message, content: updatedContent } : message;
-        });
-
-        const updatedSegments = s.accumulator.updateApprovalStatus(requestId, status, resolvedByName);
-        const updatedStreaming =
-          s.streaming && Array.isArray(s.streaming.content)
-            ? { ...s.streaming, content: updatedSegments }
-            : s.streaming;
-
-        return { ...s, messages: updatedMessages, streaming: updatedStreaming };
-      });
-      const approvalStatusChanged = state.approvalStatuses[requestId] !== status;
-      if (!matched && !approvalStatusChanged) return state;
-      return {
-        ...nextSides,
-        approvalStatuses: approvalStatusChanged
-          ? { ...state.approvalStatuses, [requestId]: status }
-          : state.approvalStatuses,
-      };
-    }),
-
-  updateToolExecutionInMessages: (side, executionRequestId, executedData) => {
-    let matched = false;
-    set(state => {
-      const nextSides = produceSide(state, side, s => {
-        // Scan NEWEST-first: an id-less EXECUTED must pair with the newest
-        // in-flight EXECUTING of the same tool (a stale interrupted card from
-        // an earlier turn must not swallow the current run); execId matches
-        // are unique so direction doesn't change them.
-        let msgIdx = -1;
-        let segIdx = -1;
-        for (let i = s.messages.length - 1; i >= 0 && msgIdx === -1; i--) {
-          const message = s.messages[i];
-          if (message.role !== 'assistant' || !Array.isArray(message.content)) continue;
-          const content = message.content as MessageSegment[];
-          for (let j = content.length - 1; j >= 0; j--) {
-            const segment = content[j];
-            if (segment.type === 'tool_execution') {
-              const idMatches = executionRequestId
-                ? segment.data.toolExecutionRequestId === executionRequestId
-                : segment.data.type === 'EXECUTING_TOOL' &&
-                  segment.data.integratedToolType === executedData.integratedToolType &&
-                  segment.data.toolFunction === executedData.toolFunction;
-              if (idMatches) {
-                msgIdx = i;
-                segIdx = j;
-                break;
-              }
-            } else if (
-              executionRequestId &&
-              segment.type === 'approval_batch' &&
-              segment.data.toolCalls.some(c => c.toolExecutionRequestId === executionRequestId)
-            ) {
-              msgIdx = i;
-              segIdx = j;
-              break;
-            }
-          }
-        }
-
-        if (msgIdx === -1) return s;
-        matched = true;
-
-        const message = s.messages[msgIdx];
-        const content = message.content as MessageSegment[];
-        const segment = content[segIdx];
-        let nextSegment: MessageSegment;
-
-        if (segment.type === 'tool_execution') {
-          // Never downgrade a completed run back to EXECUTING (JetStream
-          // redelivery of the EXECUTING chunk after EXECUTED landed).
-          // `matched` stays TRUE here on purpose: the run is already
-          // represented on screen, so the caller's append fallback must not
-          // fire — a `false` would duplicate the card.
-          if (executedData.type === 'EXECUTING_TOOL' && segment.data.type === 'EXECUTED_TOOL') {
-            return s;
-          }
-          nextSegment = {
-            type: 'tool_execution',
-            data: {
-              ...executedData,
-              toolTitle: executedData.toolTitle ?? segment.data.toolTitle,
-              parameters: executedData.parameters ?? segment.data.parameters,
-            },
-          } satisfies ToolExecutionSegment;
-        } else {
-          const batch = segment as ApprovalBatchSegment;
-          const prev: ApprovalBatchExecutionState | undefined = batch.data.executions?.[executionRequestId as string];
-          // Same no-downgrade rule for a batch slot: a redelivered EXECUTING
-          // must not flip a 'done' entry back (matched stays true → no append).
-          if (executedData.type === 'EXECUTING_TOOL' && prev?.status === 'done') {
-            return s;
-          }
-          const next: ApprovalBatchExecutionState =
-            executedData.type === 'EXECUTED_TOOL'
-              ? { status: 'done', result: executedData.result, success: executedData.success }
-              : { status: 'executing', result: prev?.result, success: prev?.success };
-          nextSegment = {
-            ...batch,
-            data: {
-              ...batch.data,
-              executions: { ...(batch.data.executions ?? {}), [executionRequestId as string]: next },
-            },
-          } as ApprovalBatchSegment;
-        }
-
-        const nextContent = [...content];
-        nextContent[segIdx] = nextSegment;
-        const updatedMessages = [...s.messages];
-        updatedMessages[msgIdx] = { ...message, content: nextContent };
-
-        const updatedStreaming = s.streaming
-          ? (updatedMessages.find(m => m.id === s.streaming?.id) ?? s.streaming)
-          : s.streaming;
-        return {
-          ...s,
-          messages: updatedMessages,
-          streaming: updatedStreaming,
-        };
-      });
-      // Outer short-circuit: produceSide always builds a new {client, admin}
-      // wrapper even when its updater returned `s` unchanged, so without
-      // this guard zustand notifies every subscriber on every no-match.
-      if (!matched) return state;
-      return nextSides;
-    });
-    return matched;
+  updateApprovalStatusInMessages: (side, requestId, status, resolvedByName) => {
+    mutateTicketSide(side, r => r.updateApprovalStatus(requestId, status, resolvedByName));
+    get().setApprovalStatus(requestId, status);
   },
 
   setApprovalStatus: (requestId, status) =>
@@ -435,7 +286,7 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
         : { approvalStatuses: { ...state.approvalStatuses, [requestId]: status } },
     ),
 
-  mergeApprovalStatuses: entries =>
+  upsertApprovalStatuses: entries =>
     set(state => {
       let changed = false;
       const next: ApprovalStatusMap = { ...state.approvalStatuses };
@@ -448,19 +299,16 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
       return changed ? { approvalStatuses: next } : state;
     }),
 
-  setAccumulatorCallbacks: (side, callbacks) => {
-    get()[side].accumulator.setCallbacks(callbacks);
+  // MERGE, don't replace: approve/reject are registered by the ticket view
+  // while `onMetadata` is registered by the per-side chunk processor, so a
+  // wholesale set would let whichever ran last clobber the other.
+  setChatHandlers: (side, handlers) => {
+    handlersBySide.set(side, { ...handlersBySide.get(side), ...handlers });
   },
 
-  resetAccumulator: side => {
-    get()[side].accumulator.reset();
+  setTypingIndicator: (side, typing) => {
+    mirror.setTyping(side, typing);
   },
-
-  setTokenUsage: (side, data) => set(state => produceSide(state, side, s => ({ ...s, tokenUsage: data }))),
-
-  getTokenUsage: side => get()[side].tokenUsage,
-
-  setTypingIndicator: (side, typing) => set(state => produceSide(state, side, s => ({ ...s, isTyping: typing }))),
 
   recordHighestStreamSeq: (side, seq) =>
     set(state =>
@@ -469,5 +317,8 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
 
   getHighestStreamSeq: side => get()[side].highestStreamSeq,
 
-  clearSide: side => set(state => produceSide(state, side, _s => createSideState())),
+  clearSide: side => {
+    dropSideCaches(side);
+    set(state => produceSide(state, side, _s => createSideState()));
+  },
 }));
