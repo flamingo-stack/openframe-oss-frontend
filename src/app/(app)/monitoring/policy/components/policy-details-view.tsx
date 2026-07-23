@@ -101,6 +101,16 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
     setShowTestPanel(false);
   };
 
+  // First applicable disable reason doubles as the button tooltip, so every
+  // disabled state explains itself.
+  const runNowDisabledReason = !policyDetails.query?.trim()
+    ? 'This policy has no query to run'
+    : campaign.isRunning
+      ? 'A run is already in progress'
+      : !hasAssignedDevices
+        ? 'Assign at least one device to this policy to run it'
+        : undefined;
+
   const actions: PageActionButton[] = [
     {
       label: 'Edit',
@@ -113,8 +123,8 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
       icon: <PlayIcon size={24} />,
       variant: 'accent',
       onClick: handleRunNow,
-      disabled: !policyDetails.query?.trim() || campaign.isRunning || !hasAssignedDevices,
-      tooltip: hasAssignedDevices ? undefined : 'Assign at least one device to this policy to run it',
+      disabled: Boolean(runNowDisabledReason),
+      tooltip: runNowDisabledReason,
     },
   ];
 
