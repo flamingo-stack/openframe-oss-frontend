@@ -43,15 +43,17 @@ export async function performLogout() {
   if (isNativeShell()) {
     // An external navigation would bounce to the system browser. Reload the
     // SPA root instead — with tokens cleared it boots to the sign-in screen.
-    window.location.href = '/';
+    // replace, not assign: drop the just-authed pages from history so back after
+    // a later re-login can't return to a stale logged-out dashboard.
+    window.location.replace('/');
     return;
   }
 
   // After an explicit Log Out the user goes straight to the Login tab.
   const sharedHostUrl = runtimeEnv.sharedHostUrl();
   if (sharedHostUrl) {
-    window.location.href = `${sharedHostUrl}/auth/login`;
+    window.location.replace(`${sharedHostUrl}/auth/login`);
   } else {
-    window.location.href = '/auth/login';
+    window.location.replace('/auth/login');
   }
 }

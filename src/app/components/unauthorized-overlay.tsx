@@ -17,7 +17,9 @@ export function UnauthorizedOverlay({ onRetry }: UnauthorizedOverlayProps) {
     if (isNativeShell()) {
       // Auth pages are enabled in the native shell — full sign-in flow
       // (email → tenant discovery → provider selection → system-browser OAuth).
-      router.push('/auth');
+      // replace, not push: don't stack the auth screens on top of the app route,
+      // so back after login lands on real content, never the login page.
+      router.replace('/auth');
       return;
     }
     if (loginUrl) {

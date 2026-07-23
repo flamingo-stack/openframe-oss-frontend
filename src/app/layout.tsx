@@ -17,8 +17,10 @@ import { AppShellSkeleton } from './components/app-shell-skeleton';
 import { DeploymentInitializer } from './components/deployment-initializer';
 import { EmbedShimRegistration } from './components/embed-shim-registration';
 import { GoogleTagManager } from './components/google-tag-manager';
+import { BiometricLockBoundary } from './components/biometric-lock-boundary';
 import { NativeShellInitializer } from './components/native-shell-initializer';
 import { NotificationsDataProvider } from './components/notifications/notifications-data-provider';
+import { OfflineBanner } from './components/offline-banner';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://openframe.ai'),
@@ -125,18 +127,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Suspense>
             )}
             <NatsAppProvider>
-              <FeatureFlagsGate>
-                <NotificationsDataProvider>
-                  <RouteGuard>
-                    <div className="relative flex min-h-screen flex-col">
-                      <Suspense fallback={<AppShellSkeleton />}>{children}</Suspense>
-                    </div>
-                  </RouteGuard>
-                </NotificationsDataProvider>
-              </FeatureFlagsGate>
+              <BiometricLockBoundary>
+                <FeatureFlagsGate>
+                  <NotificationsDataProvider>
+                    <RouteGuard>
+                      <div className="relative flex min-h-screen flex-col">
+                        <Suspense fallback={<AppShellSkeleton />}>{children}</Suspense>
+                      </div>
+                    </RouteGuard>
+                  </NotificationsDataProvider>
+                </FeatureFlagsGate>
+              </BiometricLockBoundary>
             </NatsAppProvider>
           </QueryClientProvider>
         </RelayProvider>
+        <OfflineBanner />
         <Toaster />
       </body>
     </html>
