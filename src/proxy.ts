@@ -43,6 +43,10 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!isAllowed(pathname)) {
+    // clone() carries the query string over and only `pathname` is reassigned — deliberately.
+    // Ad traffic lands here as `/something?fbclid=…&utm_source=…`; building a fresh URL, or
+    // redirecting to a bare string, would strip those and the Meta pixel would never write
+    // the `_fbc` cookie for that visit. See src/lib/registration-attribution.ts.
     const url = request.nextUrl.clone();
     url.pathname = defaultRedirect();
     return NextResponse.redirect(url);
