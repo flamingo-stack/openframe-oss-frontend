@@ -1,10 +1,10 @@
 'use client';
 
-import { FastForwardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CheckCircleIcon, FastForwardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { navigateSamePageHash } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
+import { type ComponentType, useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { UserOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
@@ -160,22 +160,27 @@ function LoadedOnboardingContent() {
   const done = countCompleted(USER_ONBOARDING_STEPS, completedSteps);
   const allDone = done >= total;
 
-  // No manual finisher: the instant every step is done, auto-complete the tour (unless
-  // it was already completed — e.g. a deep link back here) and return to the dashboard.
-  // The ref guards against a re-fire while the mutation round-trips (`allDone` stays true
-  // across the intermediate renders).
-  const autoCompletedRef = useRef(false);
-  useEffect(() => {
-    if (!allDone || autoCompletedRef.current) {
-      return;
-    }
-    autoCompletedRef.current = true;
+  // No manual finisher on the happy path: the instant every step is done, auto-complete
+  // the tour (unless it was already completed — e.g. a deep link back here) and return to
+  // the dashboard. A small state machine both guards against a re-fire while the mutation
+  // round-trips (`allDone` stays true across the intermediate renders) AND recovers from
+  // failure: on error it drops to `failed`, stopping the auto-fire and surfacing a retry
+  // action, so a network error can't strand the user on a finished-but-not-completed tour.
+  const [completion, setCompletion] = useState<'idle' | 'completing' | 'failed'>('idle');
+  const runCompletion = useCallback(() => {
+    // Already completed (deep link back here) — nothing to commit, just leave.
     if (user?.completed) {
       leaveOnboarding();
-    } else {
-      completeUser(leaveOnboarding);
+      return;
     }
-  }, [allDone, user?.completed, completeUser, leaveOnboarding]);
+    setCompletion('completing');
+    completeUser(leaveOnboarding, () => setCompletion('failed'));
+  }, [user?.completed, completeUser, leaveOnboarding]);
+  useEffect(() => {
+    if (allDone && completion === 'idle') {
+      runCompletion();
+    }
+  }, [allDone, completion, runCompletion]);
 
   const statusOf = (step: UserOnboardingStep): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
@@ -188,20 +193,34 @@ function LoadedOnboardingContent() {
   // Fire-and-forget completion for "open"/navigate primary actions — no loading anywhere.
   const completeBackgroundOf = (step: UserOnboardingStep) => () => completeUserStepInBackground(step);
 
-  // A single header action: "Skip Onboarding", available until every step is done.
-  // There is no manual finisher — once all steps complete the page auto-completes the
-  // tour and leaves for the dashboard (see the effect above), so no action shows then.
-  const actions = allDone
-    ? []
-    : [
-        {
-          label: 'Skip Onboarding',
-          variant: 'outline' as const,
-          icon: <FastForwardIcon className="size-5" />,
-          disabled: isMutating,
-          onClick: () => setSkipConfirmOpen(true),
-        },
-      ];
+  // Header action. Normally "Skip Onboarding", available until every step is done; once
+  // all steps complete the page auto-completes and leaves for the dashboard (see the
+  // effect above), so no action shows then. If that auto-completion FAILS we fall back
+  // to an accent "Complete Onboarding" retry — the only manual finisher, on the error
+  // path only — so a network error can't strand the user with no way forward.
+  const actions =
+    completion === 'failed'
+      ? [
+          {
+            label: 'Complete Onboarding',
+            variant: 'accent' as const,
+            icon: <CheckCircleIcon className="size-5" />,
+            disabled: isMutating,
+            loading: isMutating,
+            onClick: runCompletion,
+          },
+        ]
+      : allDone
+        ? []
+        : [
+            {
+              label: 'Skip Onboarding',
+              variant: 'outline' as const,
+              icon: <FastForwardIcon className="size-5" />,
+              disabled: isMutating,
+              onClick: () => setSkipConfirmOpen(true),
+            },
+          ];
 
   return (
     <PageLayout

@@ -2,12 +2,14 @@
 
 import {
   BuildingsIcon,
+  CheckCircleIcon,
   IdCardIcon,
   MonitorIcon,
   UsersGroupIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { routes } from '@/lib/routes';
@@ -96,7 +98,7 @@ export function InitialSetupCard() {
 function InitialSetupCardContent() {
   const router = useRouter();
   const tenant = useOnboardingStore(state => state.tenant);
-  const { completeTenantStep, completeTenantStepInBackground, completeTenant } = useOnboardingMutations();
+  const { completeTenantStep, completeTenantStepInBackground, completeTenant, isMutating } = useOnboardingMutations();
 
   // Auto-close steps whose underlying data already exists (MSP profile filled,
   // customer/device/teammate added) — see the hook for criteria. Suspends until the
@@ -131,18 +133,27 @@ function InitialSetupCardContent() {
   const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
   const allDone = done >= total;
 
-  // No manual finisher: the instant every step is satisfied, auto-complete Initial
-  // Setup (which unmounts this card via the parent's `tenant.completed` gate) and move
-  // the user on to the `/onboarding` tour. The ref guards against a double-fire while
-  // the mutation round-trips (`allDone` stays true across the intermediate renders).
-  const autoCompletedRef = useRef(false);
+  // No manual finisher on the happy path: the instant every step is satisfied,
+  // auto-complete Initial Setup (which unmounts this card via the parent's
+  // `tenant.completed` gate) and move the user on to the `/onboarding` tour. A small
+  // state machine both guards against a double-fire while the mutation round-trips
+  // (`allDone` stays true across the intermediate renders) AND recovers from failure:
+  // on error it drops to `failed`, which stops the auto-fire and surfaces a retry
+  // button below, so a network error can't strand the user on a finished-but-not-
+  // completed card with no way forward.
+  const [completion, setCompletion] = useState<'idle' | 'completing' | 'failed'>('idle');
+  const runCompletion = useCallback(() => {
+    setCompletion('completing');
+    completeTenant(
+      () => router.push(routes.onboarding),
+      () => setCompletion('failed'),
+    );
+  }, [completeTenant, router]);
   useEffect(() => {
-    if (!allDone || autoCompletedRef.current) {
-      return;
+    if (allDone && completion === 'idle') {
+      runCompletion();
     }
-    autoCompletedRef.current = true;
-    completeTenant(() => router.push(routes.onboarding));
-  }, [allDone, completeTenant, router]);
+  }, [allDone, completion, runCompletion]);
 
   const statusOf = (step: TenantOnboardingStep): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
@@ -174,11 +185,28 @@ function InitialSetupCardContent() {
 
   return (
     <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
-      <div className="flex min-w-0 flex-col">
-        <h2 className="text-h2 text-ods-text-primary">Initial Setup</h2>
-        <p className="text-h6 text-ods-text-secondary">
-          {total} steps to complete · {done}/{total} done
-        </p>
+      <div className="flex flex-col gap-[var(--spacing-system-s)] md:flex-row md:items-center">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <h2 className="text-h2 text-ods-text-primary">Initial Setup</h2>
+          <p className="text-h6 text-ods-text-secondary">
+            {total} steps to complete · {done}/{total} done
+          </p>
+        </div>
+        {/* Error-recovery only: the happy path auto-completes and unmounts, so this
+            never shows then. It appears solely when auto-completion failed, giving the
+            user an explicit way to retry. */}
+        {completion === 'failed' && (
+          <Button
+            variant="accent"
+            leftIcon={<CheckCircleIcon className="size-5" />}
+            onClick={runCompletion}
+            disabled={isMutating}
+            loading={isMutating}
+            className="w-full md:w-auto"
+          >
+            Complete Setup
+          </Button>
+        )}
       </div>
 
       <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
@@ -216,17 +244,16 @@ export function InitialSetupSkeleton() {
   return (
     <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
       <div className="flex min-w-0 flex-col">
-        {/* Title + subtitle as skeleton bars, kept inside the real `text-h2`/`text-h6`
-            line boxes so the header height matches the loaded card exactly. */}
-        <h2 className="text-h2 text-ods-text-primary">
-          <span aria-hidden className="inline-block h-6 w-40 animate-pulse rounded-md bg-ods-border align-middle" />
-        </h2>
-        <p className="text-h6 text-ods-text-secondary">
-          <span
-            aria-hidden
-            className="inline-block h-3 w-52 max-w-full animate-pulse rounded-md bg-ods-border align-middle"
-          />
-        </p>
+        {/* Title + subtitle as core `Skeleton` bars, kept inside the real `text-h2`/
+            `text-h6` line boxes so the header height matches the loaded card exactly.
+            Decorative `div` wrappers (not `h2`/`p`) since `Skeleton` renders a `div`,
+            which is invalid inside `<p>`/`<h2>`; the type utilities carry the height. */}
+        <div className="text-h2 text-ods-text-primary">
+          <Skeleton className="inline-block h-6 w-40 align-middle" />
+        </div>
+        <div className="text-h6 text-ods-text-secondary">
+          <Skeleton className="inline-block h-3 w-52 max-w-full align-middle" />
+        </div>
       </div>
 
       <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
