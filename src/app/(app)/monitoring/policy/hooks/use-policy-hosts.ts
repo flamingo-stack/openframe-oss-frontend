@@ -74,6 +74,7 @@ export function useReplacePolicyHosts() {
       // statuses - refetch it after (re)assignment so the table doesn't serve
       // a stale pre-assignment snapshot from the cache.
       queryClient.invalidateQueries({ queryKey: policyResponseHostsQueryKeys.all });
+      toast({ title: 'Devices updated', description: 'Policy device assignment saved', variant: 'success' });
     },
     onError: error => {
       handleApiError(error, toast, 'Failed to assign devices to policy');
