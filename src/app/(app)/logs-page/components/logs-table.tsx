@@ -576,14 +576,10 @@ function LogsTableContent({
   const hasQuery = Boolean(debouncedSearch) || hasActiveFilters || Boolean(dateRange);
   const noRows = !isPending && transformedLogs.length === 0;
 
-  // Standalone (unscoped) Logs page: the rich onboarding EmptyState replaces the
-  // whole table when there is genuinely no data (no scope, no query).
-  const showEmptyState = !deviceId && !organizationLocked && !hasQuery && noRows;
-
-  // Device Overview tab: genuinely no logs (no search/filters/date range) → the same
-  // rich onboarding EmptyState instead of the compact table empty state. An empty
-  // result under an active query keeps the table chrome below.
-  const showDeviceEmptyState = Boolean(deviceId) && !hasQuery && noRows;
+  // Standalone Logs page and the device Overview tab share the same rich onboarding
+  // EmptyState when there is genuinely no data (no query). An empty result under an
+  // active query keeps the table chrome below.
+  const showEmptyState = !organizationLocked && !hasQuery && noRows;
 
   // Embedded (device/customer-scoped) tabs: mirror the other detail-page tabs —
   // when the table is empty, hide the column header and render the unified
@@ -610,22 +606,6 @@ function LogsTableContent({
         actions={[
           { icon: <EyeAltIcon />, label: 'Track who did what, when, and on which device' },
           { icon: <Filter01ListIcon />, label: 'Filter by user, action type, Customer, or date range' },
-          { icon: <SearchIcon />, label: 'Investigate incidents and audit security events' },
-        ]}
-        {...onboardingGuideButton('logs', 'Learn more about Logs')}
-      />
-    );
-  }
-
-  if (showDeviceEmptyState) {
-    return (
-      <EmptyState
-        icon={<ClipboardListIcon />}
-        title="No logs found"
-        description="Logs for this device will appear here."
-        actions={[
-          { icon: <EyeAltIcon />, label: 'Track who did what and when on this device' },
-          { icon: <Filter01ListIcon />, label: 'Filter by user, action type, or date range' },
           { icon: <SearchIcon />, label: 'Investigate incidents and audit security events' },
         ]}
         {...onboardingGuideButton('logs', 'Learn more about Logs')}

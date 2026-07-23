@@ -20,6 +20,10 @@ interface PoliciesTabProps {
   device: Device | null;
 }
 
+// TODO: temporary preview of the empty state for design review — remove (forces the
+// empty state even when the device has policies).
+const FORCE_EMPTY_STATE_PREVIEW = true;
+
 /** Per-device pass/fail mapped onto the same status look the monitoring table uses. */
 function toStatus(response: DevicePolicy['response']): PolicyTableRow['status'] {
   if (response === 'pass') return { label: 'Compliant', variant: 'success' };
@@ -75,18 +79,19 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
   }
 
   // Genuinely no policies (no data before any search/filter manipulation) → the rich
-  // onboarding EmptyState replaces the whole table. A search with zero matches keeps
-  // the table chrome and its compact empty state below.
-  if (policies.length === 0) {
+  // onboarding EmptyState replaces the whole table, with the same content as the
+  // Monitoring page's Policies tab. A search with zero matches keeps the table
+  // chrome and its compact empty state below.
+  if (FORCE_EMPTY_STATE_PREVIEW || policies.length === 0) {
     return (
       <EmptyState
         icon={<FolderShieldIcon />}
-        title="No policies applied"
-        description="Compliance policies for this device will appear here."
+        title="No policies yet"
+        description="Rules that automatically enforce settings, configurations, and security standards across devices will be displayed here."
         actions={[
-          { icon: <Hierarchy02Icon />, label: 'See every compliance rule enforced on this device' },
-          { icon: <RadarIcon />, label: 'Check pass/fail status for each policy' },
-          { icon: <BellCheckIcon />, label: 'Get alerts when the device falls out of compliance' },
+          { icon: <Hierarchy02Icon />, label: 'Apply settings to many devices at once' },
+          { icon: <RadarIcon />, label: 'Target devices by Customer, OS, or tag' },
+          { icon: <BellCheckIcon />, label: 'Get alerts when devices fall out of compliance' },
         ]}
         {...onboardingGuideButton('policies', 'Learn more about Policies')}
       />

@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  ArcheryTargetIcon,
-  ClipboardListIcon,
-  TagIcon,
-  UserPlusIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
   DataTable,
@@ -15,7 +10,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
-import { EmptyState, onboardingGuideButton } from '@/app/components/shared';
+import { EmptyState } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import {
   getTicketOpenColumn,
@@ -132,21 +127,15 @@ export function TicketsTab({ device }: TicketsTabProps) {
   const isEmpty = deviceTickets.length === 0;
   const showChrome = isLoading || !isEmpty || hasSearch;
 
-  // Genuinely no tickets (no data before any search manipulation) → the rich onboarding
-  // EmptyState replaces the whole table. A search with zero matches keeps the table
-  // chrome and its compact empty state below.
+  // Genuinely no tickets (no data before any search manipulation) → the default
+  // EmptyState replaces the whole table, with the same content as the Tickets page.
+  // A search with zero matches keeps the table chrome and its compact empty state below.
   if (!isLoading && isEmpty && !hasSearch) {
     return (
       <EmptyState
         icon={<TagIcon />}
-        title="No tickets found"
-        description="Tickets linked to this device will appear here."
-        actions={[
-          { icon: <ArcheryTargetIcon />, label: 'Track issues from report to resolution' },
-          { icon: <UserPlusIcon />, label: 'Assign, prioritize, and reply in one place' },
-          { icon: <ClipboardListIcon />, label: 'See the full ticket history for this device' },
-        ]}
-        {...onboardingGuideButton('tickets', 'Learn more about Tickets')}
+        title="Ticket history empty"
+        description="Tickets will appear here when available"
       />
     );
   }
