@@ -1,28 +1,19 @@
 'use client';
 
-import {
-  BellCheckIcon,
-  FolderShieldIcon,
-  Hierarchy02Icon,
-  RadarIcon,
-  SearchIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { FolderShieldIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { EmptyState, onboardingGuideButton, PoliciesTable, type PolicyTableRow } from '@/app/components/shared';
+import { PoliciesTable, type PolicyTableRow } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
+import { PoliciesEmptyState } from '../../../monitoring/components/policies-empty-state';
 import type { Device, DevicePolicy } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
 
 interface PoliciesTabProps {
   device: Device | null;
 }
-
-// TODO: temporary preview of the empty state for design review — remove (forces the
-// empty state even when the device has policies).
-const FORCE_EMPTY_STATE_PREVIEW = true;
 
 /** Per-device pass/fail mapped onto the same status look the monitoring table uses. */
 function toStatus(response: DevicePolicy['response']): PolicyTableRow['status'] {
@@ -79,23 +70,11 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
   }
 
   // Genuinely no policies (no data before any search/filter manipulation) → the rich
-  // onboarding EmptyState replaces the whole table, with the same content as the
+  // onboarding EmptyState replaces the whole table, shared verbatim with the
   // Monitoring page's Policies tab. A search with zero matches keeps the table
   // chrome and its compact empty state below.
-  if (FORCE_EMPTY_STATE_PREVIEW || policies.length === 0) {
-    return (
-      <EmptyState
-        icon={<FolderShieldIcon />}
-        title="No policies yet"
-        description="Rules that automatically enforce settings, configurations, and security standards across devices will be displayed here."
-        actions={[
-          { icon: <Hierarchy02Icon />, label: 'Apply settings to many devices at once' },
-          { icon: <RadarIcon />, label: 'Target devices by Customer, OS, or tag' },
-          { icon: <BellCheckIcon />, label: 'Get alerts when devices fall out of compliance' },
-        ]}
-        {...onboardingGuideButton('policies', 'Learn more about Policies')}
-      />
-    );
+  if (policies.length === 0) {
+    return <PoliciesEmptyState />;
   }
 
   // Hide the search on a truly empty table (no rows, no active search) so the tab shows only
