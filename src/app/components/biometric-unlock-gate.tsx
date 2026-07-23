@@ -65,11 +65,11 @@ export function BiometricUnlockGate({ onUnlocked, onUseAnotherLogin }: Biometric
       <div className="max-w-md w-full space-y-6 text-center">
         <h1 className="text-h2 text-ods-text-primary">Unlock OpenFrame</h1>
         <p className="text-ods-text-secondary">Use {label} to unlock your account.</p>
-        <div className="flex flex-col items-center gap-3">
-          <Button onClick={handleRetry} disabled={isUnlocking || isLeaving}>
+        <div className="mx-auto flex w-full max-w-xs flex-col gap-3">
+          <Button className="w-full" onClick={handleRetry} disabled={isUnlocking || isLeaving}>
             {isUnlocking ? 'Unlocking…' : `Unlock with ${label}`}
           </Button>
-          <Button variant="outline" onClick={handleUseAnotherLogin} disabled={isUnlocking || isLeaving}>
+          <Button className="w-full" variant="outline" onClick={handleUseAnotherLogin} disabled={isUnlocking || isLeaving}>
             {isLeaving ? 'Loading…' : 'Log in another way'}
           </Button>
         </div>
