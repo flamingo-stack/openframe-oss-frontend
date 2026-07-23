@@ -297,39 +297,43 @@ export function TicketsBoard({
         className="h-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         contentClassName="flex flex-col min-h-0"
       >
-        <div className="flex flex-col gap-[var(--spacing-system-l)]">
-          <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <TicketTagFilter
-              search={search}
-              onSearchChange={onSearchChange}
-              labelIds={labelIds ?? []}
-              onLabelIdsChange={ids => onLabelIdsChange?.(ids)}
-              filterButton={
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="md:hidden"
-                  onClick={() => setMobileFiltersOpen(true)}
-                  aria-label="Open filters"
-                  leftIcon={<Filter02Icon />}
-                />
-              }
-            />
+        {/* Default rich empty state (no data, no query): search + filters are hidden per the
+            Figma data-placeholder-onboarding pattern — only the title bar chrome stays. */}
+        {!showEmptyState && (
+          <div className="flex flex-col gap-[var(--spacing-system-l)]">
+            <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+              <TicketTagFilter
+                search={search}
+                onSearchChange={onSearchChange}
+                labelIds={labelIds ?? []}
+                onLabelIdsChange={ids => onLabelIdsChange?.(ids)}
+                filterButton={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="md:hidden"
+                    onClick={() => setMobileFiltersOpen(true)}
+                    aria-label="Open filters"
+                    leftIcon={<Filter02Icon />}
+                  />
+                }
+              />
+            </div>
+            {/* Mobile keeps these filters in the modal next to the search input. */}
+            <div className="hidden md:grid grid-cols-4 gap-[var(--spacing-system-l)]">
+              <OrganizationFilter
+                value={organizationIds ?? []}
+                onChange={ids => onOrganizationIdsChange?.(ids)}
+                className="col-span-1"
+              />
+              <AssigneeFilter
+                value={assigneeIds ?? []}
+                onChange={ids => onAssigneeIdsChange?.(ids)}
+                className="col-span-1"
+              />
+            </div>
           </div>
-          {/* Mobile keeps these filters in the modal next to the search input. */}
-          <div className="hidden md:grid grid-cols-4 gap-[var(--spacing-system-l)]">
-            <OrganizationFilter
-              value={organizationIds ?? []}
-              onChange={ids => onOrganizationIdsChange?.(ids)}
-              className="col-span-1"
-            />
-            <AssigneeFilter
-              value={assigneeIds ?? []}
-              onChange={ids => onAssigneeIdsChange?.(ids)}
-              className="col-span-1"
-            />
-          </div>
-        </div>
+        )}
 
         <TicketsFilterModal
           isOpen={mobileFiltersOpen}

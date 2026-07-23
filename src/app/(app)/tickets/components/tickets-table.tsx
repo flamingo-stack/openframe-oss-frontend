@@ -172,29 +172,33 @@ export function TicketsTable({
         contentClassName="flex flex-col"
       >
         <div style={containerStyle}>
-          <div
-            ref={toolbarRef}
-            className="sticky top-0 z-20 flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg -mx-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]"
-          >
-            <TicketTagFilter
-              search={search}
-              onSearchChange={onSearchChange}
-              labelIds={labelIds}
-              onLabelIdsChange={onLabelIdsChange}
-              filterButton={
-                hasMobileFilter ? (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="md:hidden"
-                    onClick={() => setMobileFilterOpen(true)}
-                    aria-label="Open filters"
-                    leftIcon={<Filter02Icon />}
-                  />
-                ) : undefined
-              }
-            />
-          </div>
+          {/* Default rich empty state (no data, no query): search + filters are hidden per the
+              Figma data-placeholder-onboarding pattern — only the title bar chrome stays. */}
+          {!showEmptyState && (
+            <div
+              ref={toolbarRef}
+              className="sticky top-0 z-20 flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg -mx-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]"
+            >
+              <TicketTagFilter
+                search={search}
+                onSearchChange={onSearchChange}
+                labelIds={labelIds}
+                onLabelIdsChange={onLabelIdsChange}
+                filterButton={
+                  hasMobileFilter ? (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="md:hidden"
+                      onClick={() => setMobileFilterOpen(true)}
+                      aria-label="Open filters"
+                      leftIcon={<Filter02Icon />}
+                    />
+                  ) : undefined
+                }
+              />
+            </div>
+          )}
 
           {hasMobileFilter && (
             <FilterModal
