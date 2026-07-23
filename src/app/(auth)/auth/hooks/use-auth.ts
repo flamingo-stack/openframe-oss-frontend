@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { authApiClient } from '@/lib/auth-api-client';
+import { collectRegistrationAttribution } from '@/lib/registration-attribution';
 import { nativeLogin } from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
 import { isNativeShell } from '@/lib/native-shell';
@@ -140,6 +141,8 @@ export function useAuth() {
     setIsLoading(true);
 
     try {
+      const attribution = collectRegistrationAttribution();
+
       const response = await authApiClient.registerOrganization({
         email: data.email,
         firstName: data.firstName,
@@ -148,6 +151,7 @@ export function useAuth() {
         tenantName: data.tenantName,
         tenantDomain: data.tenantDomain || 'localhost',
         ...(data.prNumber !== undefined ? { prNumber: data.prNumber } : {}),
+        ...(attribution ? { attribution } : {}),
       });
 
       if (!response.ok) {

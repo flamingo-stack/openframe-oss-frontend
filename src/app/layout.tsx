@@ -21,6 +21,7 @@ import { BiometricLockBoundary } from './components/biometric-lock-boundary';
 import { NativeShellInitializer } from './components/native-shell-initializer';
 import { NotificationsDataProvider } from './components/notifications/notifications-data-provider';
 import { OfflineBanner } from './components/offline-banner';
+import { RegistrationAttributionCapture } from './components/registration-attribution-capture';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://openframe.ai'),
@@ -116,6 +117,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body suppressHydrationWarning className="min-h-screen antialiased font-body" data-app-type="openframe">
         <GoogleTagManager />
+        <RegistrationAttributionCapture />
         <EmbedShimRegistration />
         <DeploymentInitializer />
         <NativeShellInitializer />
