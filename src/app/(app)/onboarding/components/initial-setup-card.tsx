@@ -2,15 +2,16 @@
 
 import {
   BuildingsIcon,
-  CheckCircleIcon,
   IdCardIcon,
   MonitorIcon,
   UsersGroupIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useState } from 'react';
+import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useRouter } from 'next/navigation';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
+import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useOnboardingAutoAdvance } from '../hooks/use-onboarding-auto-advance';
 import { useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
@@ -20,6 +21,7 @@ import { CustomerSetupStep } from './customer-setup-step';
 import { DeviceSetupStep } from './device-setup-step';
 import { MspSetupStep } from './msp-setup-step';
 import { OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
+import { OnboardingCompleteBanner } from './onboarding-complete-banner';
 
 interface StepMeta {
   step: TenantOnboardingStep;
@@ -74,11 +76,27 @@ export function InitialSetupCard() {
   const isLoaded = useOnboardingStore(state => state.isLoaded);
   const tenant = useOnboardingStore(state => state.tenant);
 
-  // Render only when progress is loaded AND we actually have a tenant record that
-  // isn't complete. Guarding on `!tenant` matters: `refreshOnboardingProgress` marks
-  // the store loaded even on a failed/empty fetch (tenant stays null), and the content
-  // fires its data queries the instant it mounts — we must not mount it on null.
-  if (!isLoaded || !tenant || tenant.completed) {
+  // Latch: the completed "victory" view commits Initial Setup in the background the
+  // instant it shows (see {@link InitialSetupCardContent}). That flips `tenant.completed`,
+  // which would otherwise hide this card mid-view. Once we've shown it in this mount we
+  // keep it up so the user actually sees the completed state and its "Take the Product
+  // Tour" CTA. A real exit (reload, navigating away and back) remounts against
+  // `completed: true` and the card is correctly gone. Writing the ref during render is a
+  // deliberate idempotent false→true latch — it only ever gates THIS component.
+  const shownRef = useRef(false);
+  if (isLoaded && tenant && !tenant.completed) {
+    shownRef.current = true;
+  }
+
+  // Render only when progress is loaded AND we actually have a tenant record. Guarding on
+  // `!tenant` matters: `refreshOnboardingProgress` marks the store loaded even on a
+  // failed/empty fetch (tenant stays null), and the content fires its data queries the
+  // instant it mounts — we must not mount it on null. Hide once complete UNLESS we're
+  // latched into showing the just-completed view.
+  if (!isLoaded || !tenant) {
+    return null;
+  }
+  if (tenant.completed && !shownRef.current) {
     return null;
   }
 
@@ -87,14 +105,17 @@ export function InitialSetupCard() {
 
 /**
  * The card body. Suspends (via {@link useTenantOnboardingAutoDetect}) until every step
- * count has loaded, then renders once in its fully-settled state — step statuses, the
- * "X/Y done" counter and the "Complete Setup" affordance driven by
- * `tenantOnboardingProgress` unioned with the live data. Sits on the darker page
+ * count has loaded, then renders once in its fully-settled state — step statuses and the
+ * "X/Y done" counter driven by `tenantOnboardingProgress` unioned with the live data.
+ * There is no manual finisher: once every step is done the header flips to "All steps
+ * complete", a "Setup Complete" banner appears, and Initial Setup auto-commits in the
+ * background (see the effect below) so any exit finalizes it. Sits on the darker page
  * background (`bg-ods-bg`, not `bg-ods-card`) so it doesn't read as a card.
  */
 function InitialSetupCardContent() {
+  const router = useRouter();
   const tenant = useOnboardingStore(state => state.tenant);
-  const { completeTenantStep, completeTenantStepInBackground, completeTenant, isMutating } = useOnboardingMutations();
+  const { completeTenantStep, completeTenantStepInBackground, completeTenantInBackground } = useOnboardingMutations();
 
   // Auto-close steps whose underlying data already exists (MSP profile filled,
   // customer/device/teammate added) — see the hook for criteria. Suspends until the
@@ -120,14 +141,31 @@ function InitialSetupCardContent() {
 
   // Guided flow: the first incomplete step opens automatically and, as steps
   // complete, the finished one folds while the next opens and scrolls into view.
-  // No mount anchor — this card is already the dashboard's first section. Runs
-  // after the auto-detect suspend, so the initial expanded step is picked from the
-  // settled union above, not a pre-load snapshot.
-  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAutoAdvance(TENANT_ONBOARDING_STEPS, completedSteps);
+  // `scrollOnMount` anchors that first open step on entry too — same as the /onboarding
+  // page — so the user lands on the actionable step even when the earlier ones are done
+  // and it sits below the card header. Runs after the auto-detect suspend, so the initial
+  // expanded step is picked from the settled union above, not a pre-load snapshot.
+  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAutoAdvance(TENANT_ONBOARDING_STEPS, completedSteps, {
+    scrollOnMount: true,
+  });
 
   const total = TENANT_ONBOARDING_STEPS.length;
   const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
   const allDone = done >= total;
+
+  // The instant every step is done, commit Initial Setup in the background exactly once.
+  // No manual click required: committing here is what makes ANY action on the completed
+  // view finalize it — a page reload or a navigation away both remount against
+  // `tenant.completed === true` (so the card is gone), and "Take the Product Tour" just
+  // navigates. The ref guards against a re-fire across the re-renders that follow (the
+  // parent latches this card mounted while `completed` flips — see {@link InitialSetupCard}).
+  const committedRef = useRef(false);
+  useEffect(() => {
+    if (allDone && !committedRef.current) {
+      committedRef.current = true;
+      completeTenantInBackground();
+    }
+  }, [allDone, completeTenantInBackground]);
 
   const statusOf = (step: TenantOnboardingStep): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
@@ -159,25 +197,11 @@ function InitialSetupCardContent() {
 
   return (
     <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
-      <div className="flex flex-col gap-[var(--spacing-system-s)] md:flex-row md:items-center">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <h2 className="text-h2 text-ods-text-primary">Initial Setup</h2>
-          <p className="text-h6 text-ods-text-secondary">
-            {total} steps to complete · {done}/{total} done
-          </p>
-        </div>
-        {allDone && !tenant?.completed && (
-          <Button
-            variant="accent"
-            leftIcon={<CheckCircleIcon className="size-5" />}
-            onClick={() => completeTenant()}
-            disabled={isMutating}
-            loading={isMutating}
-            className="w-full md:w-auto"
-          >
-            Complete Setup
-          </Button>
-        )}
+      <div className="flex min-w-0 flex-col">
+        <h2 className="text-h2 text-ods-text-primary">Initial Setup</h2>
+        <p className="text-h6 text-ods-text-secondary">
+          {allDone ? 'All steps complete' : `${total} steps to complete · ${done}/${total} done`}
+        </p>
       </div>
 
       <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
@@ -196,6 +220,17 @@ function InitialSetupCardContent() {
           </OnboardingAccordionItem>
         ))}
       </div>
+
+      {allDone && (
+        <OnboardingCompleteBanner
+          className="bg-ods-bg"
+          emoji="🎉"
+          title="Setup Complete"
+          description="Full onboarding is available from the menu if you need to revisit a step or set up something new."
+          actionLabel="Take the Product Tour"
+          onAction={() => router.push(routes.onboarding)}
+        />
+      )}
     </section>
   );
 }
@@ -214,24 +249,17 @@ function InitialSetupCardContent() {
 export function InitialSetupSkeleton() {
   return (
     <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
-      <div className="flex flex-col gap-[var(--spacing-system-s)] md:flex-row md:items-center">
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* Title + subtitle as skeleton bars, kept inside the real `text-h2`/`text-h6`
-              line boxes so the header height matches the loaded card exactly. */}
-          <h2 className="text-h2 text-ods-text-primary">
-            <span aria-hidden className="inline-block h-6 w-40 animate-pulse rounded-md bg-ods-border align-middle" />
-          </h2>
-          <p className="text-h6 text-ods-text-secondary">
-            <span
-              aria-hidden
-              className="inline-block h-3 w-52 max-w-full animate-pulse rounded-md bg-ods-border align-middle"
-            />
-          </p>
+      <div className="flex min-w-0 flex-col">
+        {/* Title + subtitle as core `Skeleton` bars, kept inside the real `text-h2`/
+            `text-h6` line boxes so the header height matches the loaded card exactly.
+            Decorative `div` wrappers (not `h2`/`p`) since `Skeleton` renders a `div`,
+            which is invalid inside `<p>`/`<h2>`; the type utilities carry the height. */}
+        <div className="text-h2 text-ods-text-primary">
+          <Skeleton className="inline-block h-6 w-40 align-middle" />
         </div>
-        {/* "Complete Setup" button placeholder — matches the real button's box
-            (`h-10 md:h-12`, `w-full md:w-auto`; fixed desktop width since a skeleton
-            has no content to size to). */}
-        <Skeleton className="h-10 w-full rounded-md md:h-12 md:w-[188px]" />
+        <div className="text-h6 text-ods-text-secondary">
+          <Skeleton className="inline-block h-3 w-52 max-w-full align-middle" />
+        </div>
       </div>
 
       <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">

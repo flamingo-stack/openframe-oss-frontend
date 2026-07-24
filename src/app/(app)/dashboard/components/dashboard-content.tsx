@@ -4,9 +4,9 @@ import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense } from 'react';
 import { InitialSetupCard, InitialSetupSkeleton } from '@/app/(app)/onboarding/components/initial-setup-card';
+import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { featureFlags } from '@/lib/feature-flags';
-import { useOnboardingStore } from '@/stores/onboarding-store';
 import { CustomersOverviewSection } from './customers-overview';
 import { DevicesOverviewSection } from './devices-overview';
 import { OnboardingSection } from './onboarding-section';
@@ -29,14 +29,11 @@ export default function DashboardContent() {
   const newOnboardingEnabled = featureFlags.newOnboarding.enabled();
   const showLegacyOnboarding = !newOnboardingEnabled;
 
-  // Dim (and disable) the rest of the dashboard ONLY while the tenant Initial Setup
-  // is still incomplete — that's when the setup card is the surface to focus on
-  // ("finish setup first"). Once setup is complete — or before onboarding progress
-  // has loaded — the dashboard is fully lit. Backed by the same onboarding store as
-  // the setup card, so it flips the instant setup is marked complete.
-  const onboardingLoaded = useOnboardingStore(state => state.isLoaded);
-  const initialSetupComplete = useOnboardingStore(state => state.tenant?.completed ?? false);
-  const dimDashboard = newOnboardingEnabled && onboardingLoaded && !initialSetupComplete;
+  // Dim (and disable) the rest of the dashboard ONLY while the tenant Initial Setup is
+  // active — the exact same predicate that shows the setup card and the top bar, so the
+  // dimming can never appear without the card (see {@link useInitialSetupActive}). Fully
+  // lit once setup is complete, before progress loads, or when there's no tenant record.
+  const dimDashboard = useInitialSetupActive();
 
   return (
     <>

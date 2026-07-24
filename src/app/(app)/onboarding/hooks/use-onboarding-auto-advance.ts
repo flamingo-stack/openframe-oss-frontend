@@ -32,10 +32,10 @@ const STEP_BODY_SELECTOR = '[data-onboarding-step-body]';
 
 interface AutoAdvanceOptions<T extends string> {
   /**
-   * Also anchor the initially open step on mount — for surfaces the user
-   * deep-links or returns to (the /onboarding page), where that step may sit
-   * below the fold. Off for the dashboard Initial Setup card, which is already
-   * the first section.
+   * Also anchor the initially open step on mount, so the user lands on the
+   * actionable step even when it sits below the fold (earlier steps done, or a
+   * surface reached via deep link / return visit). On for both onboarding
+   * surfaces — the /onboarding page and the dashboard Initial Setup card.
    * @default false
    */
   scrollOnMount?: boolean;
