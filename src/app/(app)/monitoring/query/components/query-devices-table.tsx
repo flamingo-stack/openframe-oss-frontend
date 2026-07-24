@@ -219,7 +219,7 @@ export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
     : {
         icon: <MonitorIcon />,
         title: 'No devices assigned',
-        description: 'Add devices to this query to start collecting results',
+        description: 'Assign devices to this query to start tracking them',
       };
   // Per the design, the empty state replaces the whole table - headers hidden.
   const showHeader = isLoading || filteredRows.length > 0;
