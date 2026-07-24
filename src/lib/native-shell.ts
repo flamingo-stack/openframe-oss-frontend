@@ -260,6 +260,10 @@ export async function initNativeStatusBar(): Promise<void> {
   }
 }
 
+// The insets change on rotation; register the refresh listener once however
+// many times initNativeChrome is invoked (React strict-mode / remounts).
+let safeAreaRefreshHooked = false;
+
 /**
  * Native launch chrome, run once on shell startup: set the status bar to overlay
  * with light content, THEN publish the safe-area insets (on Android the top inset
@@ -268,4 +272,14 @@ export async function initNativeStatusBar(): Promise<void> {
 export async function initNativeChrome(): Promise<void> {
   await initNativeStatusBar();
   await applyNativeSafeAreas();
+  if (!safeAreaRefreshHooked) {
+    safeAreaRefreshHooked = true;
+    // Rotation resizes the WebView and swaps which edges carry insets. iOS can
+    // still report the pre-rotation safeAreaInsets in the same frame as the
+    // resize event, so take a trailing read once the transition settles.
+    window.addEventListener('resize', () => {
+      void applyNativeSafeAreas();
+      window.setTimeout(() => void applyNativeSafeAreas(), 350);
+    });
+  }
 }

@@ -34,7 +34,7 @@ export function OnboardingTourBar({
 }) {
   return (
     <AnnouncementBarView
-      className="shrink-0 bg-ods-accent text-ods-text-on-accent"
+      className="app-top-bar shrink-0 bg-ods-accent text-ods-text-on-accent"
       startAdornment={<CompassIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
       title="Learn the basics with a quick guided tour."
       actionBlock={

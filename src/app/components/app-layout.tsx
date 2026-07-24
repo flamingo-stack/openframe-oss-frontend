@@ -339,6 +339,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       )}
       <TimeTrackerHostProvider enabled={timeTrackerEnabled}>
         <CoreAppLayout
+          // Hook for the native-shell safe-area CSS in globals.css: the layout
+          // root owns the top inset (see `.app-shell-root`). Inert on the web.
+          className="app-shell-root"
           mainClassName={mainClassName ?? 'pb-20 md:pb-20'}
           sidebarConfig={sidebarConfig}
           loadingFallback={null}
