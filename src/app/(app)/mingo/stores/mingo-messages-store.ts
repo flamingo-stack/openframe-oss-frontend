@@ -359,6 +359,7 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
               data: {
                 ...executedData,
                 toolTitle: executedData.toolTitle ?? segment.data.toolTitle,
+                toolExplanation: executedData.toolExplanation ?? segment.data.toolExplanation,
                 parameters: executedData.parameters ?? segment.data.parameters,
               },
             } satisfies ToolExecutionSegment;

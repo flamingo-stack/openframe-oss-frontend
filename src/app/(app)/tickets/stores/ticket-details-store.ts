@@ -381,6 +381,7 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
             data: {
               ...executedData,
               toolTitle: executedData.toolTitle ?? segment.data.toolTitle,
+              toolExplanation: executedData.toolExplanation ?? segment.data.toolExplanation,
               parameters: executedData.parameters ?? segment.data.parameters,
             },
           } satisfies ToolExecutionSegment;
