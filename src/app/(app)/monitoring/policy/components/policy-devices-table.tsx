@@ -2,7 +2,7 @@
 
 import { type DeviceType, getDeviceTypeIcon, type QueryResultRow } from '@flamingo-stack/openframe-frontend-core';
 import { OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { ArrowRightUpIcon, PlayIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { ArrowRightUpIcon, MonitorIcon, PlayIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnDef,
@@ -304,13 +304,20 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
     [expandedIds, campaign.isRunning, activeHostId, runsByHost, canRun, handleRunOnDevice],
   );
 
+  // Per the design, the empty state replaces the whole table - headers hidden.
+  const showHeader = isLoading || rows.length > 0;
+
   return (
     <DataTable table={table}>
-      <DataTable.Header rightSlot={<DataTable.RowCount />} />
+      {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
       <DataTable.Body
         loading={isLoading}
         skeletonRows={5}
-        emptyMessage="No devices found for this policy"
+        emptyState={{
+          icon: <MonitorIcon />,
+          title: 'No devices assigned',
+          description: 'Add devices to this policy to start enforcing it',
+        }}
         rowHref={policyDeviceRowHref}
         renderSubRow={renderSubRow}
       />
