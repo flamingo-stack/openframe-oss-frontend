@@ -27,15 +27,19 @@ export function FeatureFlagsGate({ children }: FeatureFlagsGateProps) {
 
   useFeatureFlagsQuery({ enabled: !saasShared && isReady && isAuthenticated });
 
+  // saas-shared never fetches flags (auth-only surface) — mark them terminally
+  // loaded so isLoaded consumers don't wait forever. Signed-out sessions are
+  // deliberately NOT marked: the render below never blocks unauthenticated
+  // users on flags anyway, and a loaded-with-empty-flags marker set while
+  // signed out survives into the post-login render — the gate then skips its
+  // block and the app paints with env-fallback flags (missing header icons,
+  // disabled drawer actions) before the real flags arrive, invisible to the
+  // non-reactive featureFlags.*.enabled() reads.
   useEffect(() => {
     if (saasShared && !isLoaded) {
       setLoaded();
-      return;
     }
-    if (isReady && !isAuthenticated && !isLoaded) {
-      setLoaded();
-    }
-  }, [saasShared, isReady, isAuthenticated, isLoaded, setLoaded]);
+  }, [saasShared, isLoaded, setLoaded]);
 
   if (saasShared) {
     return <>{children}</>;
