@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuthedImageSrc } from '@flamingo-stack/openframe-frontend-core/hooks';
 import Image from 'next/image';
 import { useState } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -12,7 +13,10 @@ interface OrgAvatarProps {
 
 export function OrgAvatar({ imageUrl, hash, name }: OrgAvatarProps) {
   const initials = name.substring(0, 2).toUpperCase() || '??';
-  const fullUrl = getFullImageUrl(imageUrl, hash);
+  // In bearer-mode native shells the hook swaps the gateway URL for an
+  // authed blob URL (plain <img> loads can't carry Authorization);
+  // elsewhere it passes the URL through untouched.
+  const fullUrl = useAuthedImageSrc(getFullImageUrl(imageUrl, hash));
   const [failedUrl, setFailedUrl] = useState<string | undefined>(undefined);
 
   const showImage = Boolean(fullUrl) && failedUrl !== fullUrl;
