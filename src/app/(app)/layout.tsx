@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { AppLayout } from '../components/app-layout';
+import { APP_MAIN_CLASS_NAME } from '../components/app-shell-skeleton';
 import { OpenframeChatRuntimeProvider } from '../components/openframe-chat-runtime-provider';
 
 function getMainClassNameOverride(pathname: string | null): string | undefined {
@@ -27,7 +28,7 @@ export default function AppGroupLayout({ children }: { children: React.ReactNode
   // during the migration — both surfaces coexist until validation is done.
   return (
     <OpenframeChatRuntimeProvider>
-      <AppLayout mainClassName={mainClassNameOverride || 'pb-14'}>{children}</AppLayout>
+      <AppLayout mainClassName={mainClassNameOverride || APP_MAIN_CLASS_NAME}>{children}</AppLayout>
     </OpenframeChatRuntimeProvider>
   );
 }

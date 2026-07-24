@@ -75,14 +75,6 @@ export function useAuth() {
     setIsInitialized(true);
   }, []);
 
-  /**
-   * Trigger a recheck of auth session via React Query invalidation.
-   * Call this after successful login/registration to update auth state.
-   */
-  const triggerAuthRecheck = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
-  }, [queryClient]);
-
   const discoverTenants = async (userEmail: string): Promise<TenantDiscoveryResponse | null> => {
     setIsLoading(true);
 
@@ -230,7 +222,11 @@ export function useAuth() {
             window.location.replace(routes.dashboard);
             return;
           }
-          triggerAuthRecheck();
+          // Refetch /me BEFORE leaving the auth screen (its spinner covers the
+          // round trip). A fire-and-forget invalidation left the stale
+          // signed-out session in cache, so the dashboard mounted into a brief
+          // "Sign in required" overlay until the refetch resolved.
+          await queryClient.refetchQueries({ queryKey: authSessionQueryKey });
           router.replace(routes.dashboard);
           setIsLoading(false);
           return;
@@ -337,6 +333,5 @@ export function useAuth() {
     loginWithSso,
     logout,
     reset,
-    triggerAuthRecheck,
   };
 }

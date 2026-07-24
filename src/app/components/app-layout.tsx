@@ -31,7 +31,7 @@ import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems } from '../../lib/navigation-config';
-import { AppShellSkeleton } from './app-shell-skeleton';
+import { APP_MAIN_CLASS_NAME, AppShellSkeleton } from './app-shell-skeleton';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { InitialSetupBar } from './initial-setup-bar';
@@ -342,7 +342,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           // Hook for the native-shell safe-area CSS in globals.css: the layout
           // root owns the top inset (see `.app-shell-root`). Inert on the web.
           className="app-shell-root"
-          mainClassName={mainClassName ?? 'pb-20 md:pb-20'}
+          mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
           sidebarConfig={sidebarConfig}
           loadingFallback={null}
           mobileBurgerMenuProps={mobileBurgerMenuProps}
