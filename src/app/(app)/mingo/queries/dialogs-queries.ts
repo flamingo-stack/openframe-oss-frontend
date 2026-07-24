@@ -150,6 +150,7 @@ export function getMingoDialogMessagesQuery() {
               integratedToolType
               toolFunction
               title
+              toolExplanation
               parameters
               requiresApproval
               approvalStatus
