@@ -1,6 +1,10 @@
 'use client';
 
-import { PlusCircleIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  TicketStatusConfigList as SortableList,
+  type SortableRowRenderArgs,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { DraggerIcon, PlusCircleIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   CheckboxWithDescription,
@@ -69,7 +73,10 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
   // The generic constraint guarantees the form has compatible quick-action
   // fields; the cast narrows Control to that shape for type-safe field names.
   const quickActionsControl = control as unknown as Control<QuickActionsFormValues>;
-  const { fields, append, remove, replace } = useFieldArray({ control: quickActionsControl, name: 'quickActions' });
+  const { fields, append, remove, replace, move } = useFieldArray({
+    control: quickActionsControl,
+    name: 'quickActions',
+  });
   const isDefault = useWatch({ control: quickActionsControl, name: 'quickActionsIsDefault' });
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -162,16 +169,27 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
             </Button>
           )}
 
-          <div className="flex flex-col gap-[var(--spacing-system-l)]">
-            {fields.map((field, index) => (
-              <QuickActionCard
-                key={field.id}
-                index={index}
-                control={quickActionsControl}
-                onRemove={() => remove(index)}
-              />
-            ))}
-          </div>
+          {/* Sortable list (drag-to-reorder). The reordered form-array order is
+              exactly what the existing save mutation submits, so persisting the
+              order needs no extra wiring. `field.id` is RHF's stable per-row key,
+              so it doubles as the sortable id; the index is resolved by id because
+              `renderRow` receives only the item. */}
+          <SortableList
+            items={fields}
+            onReorder={move}
+            className="gap-[var(--spacing-system-l)]"
+            renderRow={(field, dragArgs) => {
+              const index = fields.findIndex(f => f.id === field.id);
+              return (
+                <QuickActionCard
+                  index={index}
+                  control={quickActionsControl}
+                  onRemove={() => remove(index)}
+                  drag={dragArgs}
+                />
+              );
+            }}
+          />
 
           <Button
             type="button"
@@ -192,39 +210,63 @@ interface QuickActionCardProps {
   index: number;
   control: Control<QuickActionsFormValues>;
   onRemove: () => void;
+  drag: SortableRowRenderArgs;
 }
 
-function QuickActionCard({ index, control, onRemove }: QuickActionCardProps) {
+function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProps) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-m)] bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-l)]">
-      <div className="flex items-end gap-[var(--spacing-system-l)]">
-        <div className="flex-1 min-w-0">
-          <Controller
-            name={`quickActions.${index}.name`}
-            control={control}
-            render={({ field, fieldState }) => (
-              <Input {...field} label="Action Name" error={fieldState.error?.message} />
-            )}
-          />
-        </div>
-        <Button
+    <div
+      className={cn(
+        'flex gap-[var(--spacing-system-m)] bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-l)]',
+        drag.isDragging && 'opacity-70 shadow-lg',
+      )}
+    >
+      {/* Left drag rail, per the mock: the fields column is indented right of it.
+          The rail height mirrors the lib Input (h-11 md:h-12) and the top margin
+          skips the field label (h4 line + its mb-1) so the icon centers on the
+          Action Name input. */}
+      <div className="mt-[calc(var(--font-line-space-h4-body)+0.25rem)] flex h-11 w-6 shrink-0 items-center justify-center md:h-12">
+        <button
           type="button"
-          variant="outline"
-          size="icon"
-          onClick={onRemove}
-          aria-label="Remove quick action"
-          leftIcon={<TrashIcon className="w-5 h-5" />}
-          className="[&_svg]:!text-ods-error"
-        />
+          aria-label="Drag to reorder"
+          className="flex size-6 cursor-grab touch-none items-center justify-center rounded-sm text-ods-text-secondary outline-none hover:text-ods-text-primary focus-visible:ring-2 focus-visible:ring-ods-focus active:cursor-grabbing"
+          {...drag.dragHandleAttributes}
+          {...drag.dragHandleProps}
+        >
+          <DraggerIcon size={24} />
+        </button>
       </div>
 
-      <Controller
-        name={`quickActions.${index}.instructions`}
-        control={control}
-        render={({ field, fieldState }) => (
-          <Textarea {...field} label="Action Instructions" error={fieldState.error?.message} rows={4} />
-        )}
-      />
+      <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-m)]">
+        <div className="flex items-end gap-[var(--spacing-system-l)]">
+          <div className="flex-1 min-w-0">
+            <Controller
+              name={`quickActions.${index}.name`}
+              control={control}
+              render={({ field, fieldState }) => (
+                <Input {...field} label="Action Name" error={fieldState.error?.message} />
+              )}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={onRemove}
+            aria-label="Remove quick action"
+            leftIcon={<TrashIcon className="w-5 h-5" />}
+            className="[&_svg]:!text-ods-error"
+          />
+        </div>
+
+        <Controller
+          name={`quickActions.${index}.instructions`}
+          control={control}
+          render={({ field, fieldState }) => (
+            <Textarea {...field} label="Action Instructions" error={fieldState.error?.message} rows={4} />
+          )}
+        />
+      </div>
     </div>
   );
 }
