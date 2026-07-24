@@ -141,10 +141,13 @@ function InitialSetupCardContent() {
 
   // Guided flow: the first incomplete step opens automatically and, as steps
   // complete, the finished one folds while the next opens and scrolls into view.
-  // No mount anchor — this card is already the dashboard's first section. Runs
-  // after the auto-detect suspend, so the initial expanded step is picked from the
-  // settled union above, not a pre-load snapshot.
-  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAutoAdvance(TENANT_ONBOARDING_STEPS, completedSteps);
+  // `scrollOnMount` anchors that first open step on entry too — same as the /onboarding
+  // page — so the user lands on the actionable step even when the earlier ones are done
+  // and it sits below the card header. Runs after the auto-detect suspend, so the initial
+  // expanded step is picked from the settled union above, not a pre-load snapshot.
+  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAutoAdvance(TENANT_ONBOARDING_STEPS, completedSteps, {
+    scrollOnMount: true,
+  });
 
   const total = TENANT_ONBOARDING_STEPS.length;
   const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
