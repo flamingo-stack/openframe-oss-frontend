@@ -159,7 +159,10 @@ export function AppShellSkeleton() {
   // `app-shell-root`: same native-shell top-inset hook as the live layout
   // (globals.css) — without it the skeleton draws under the status bar.
   return (
-    <output className="app-shell-root flex h-screen bg-ods-bg" aria-label="Loading application">
+    // Plain div, not <output>: the wrapped DashboardLoading already announces
+    // itself (role="status" aria-label="Loading dashboard"), and a second
+    // nested live region here would double-announce to assistive tech.
+    <div className="app-shell-root flex h-screen bg-ods-bg">
       <NavigationSidebarSkeleton />
 
       {/* Main Content Area */}
@@ -205,6 +208,6 @@ export function AppShellSkeleton() {
           <DashboardLoading />
         </main>
       </div>
-    </output>
+    </div>
   );
 }

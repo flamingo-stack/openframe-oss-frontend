@@ -11,6 +11,7 @@ import {
   getBiometricLockState,
   subscribeToBiometricLock,
 } from '@/lib/token-store';
+import { AppShellSkeleton } from './app-shell-skeleton';
 import { BiometricUnlockGate } from './biometric-unlock-gate';
 
 /**
@@ -62,6 +63,16 @@ export function BiometricLockBoundary({ children }: { children: React.ReactNode 
     dismissBiometricLock();
     await signOutToLogin(queryClient, router);
   }, [queryClient, router]);
+
+  // Invalidated hand-off in flight: hold the tree with a neutral skeleton —
+  // rendering children would flash the signed-out app (tokens already cleared,
+  // session seeded null) before router.replace lands, and the unlock gate's
+  // copy would promise an unlock that can't happen. The lock state itself is
+  // never reset, so release on the pathname: once /auth is current, render
+  // normally (the auth flow lives below this boundary).
+  if (lock === 'invalidated' && !pathname?.startsWith(routes.auth.root)) {
+    return <AppShellSkeleton />;
+  }
 
   // Prompt canceled/failed at cold start: the tokens are still in the Keychain,
   // so this is NOT logged-out — hold the whole app behind the unlock gate and
