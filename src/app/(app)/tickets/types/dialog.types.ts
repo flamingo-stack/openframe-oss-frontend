@@ -171,6 +171,7 @@ export interface ExecutingToolData extends MessageData {
   integratedToolType: string;
   toolFunction: string;
   title?: string;
+  toolExplanation?: string;
   parameters?: Record<string, any>;
   requiresApproval?: boolean;
   approvalStatus?: string;

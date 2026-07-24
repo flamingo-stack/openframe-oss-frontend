@@ -31,14 +31,6 @@ export function biometricErrorCode(error: unknown): BiometricErrorCode | null {
   return typeof code === 'string' ? (code as BiometricErrorCode) : null;
 }
 
-export function isBiometricCanceled(error: unknown): boolean {
-  return biometricErrorCode(error) === BIOMETRIC_ERROR.CANCELED;
-}
-
-export function isBiometricInvalidated(error: unknown): boolean {
-  return biometricErrorCode(error) === BIOMETRIC_ERROR.INVALIDATED;
-}
-
 /**
  * Whether the device can do biometric auth. Resolves `{ available: false }` off
  * the native shell or on shells without the method, so callers can gate UI on it
@@ -78,7 +70,12 @@ export async function enableBiometricLogin(): Promise<void> {
   await plugin.enableBiometricLogin();
 }
 
-/** Turn biometric login off. May reject with BIOMETRIC_CANCELED (propagated). */
+/**
+ * Turn biometric login off. May reject (propagated) with BIOMETRIC_CANCELED, or
+ * with BIOMETRIC_INVALIDATED when a biometric enrollment change already killed
+ * the gated tokens — the native side then resets itself to a clean ungated
+ * state, and the caller must force a fresh login.
+ */
 export async function disableBiometricLogin(): Promise<void> {
   const plugin = nativeAuthPlugin();
   if (!plugin?.disableBiometricLogin) return;

@@ -88,8 +88,11 @@ input[type="number"] {
  * Native shell (Capacitor) safe areas — activated via the data attribute that
  * NativeShellInitializer sets; browsers never get it, so the web layout is
  * untouched. The shell draws edge-to-edge (viewport-fit=cover, no native
- * content insets): paint an opaque band over the status-bar inset so scrolled
- * content passes under it, and start the sticky app header below that band.
+ * content insets): paint an opaque band over the status-bar inset and lay the
+ * app chrome out below it. Exactly ONE element owns each inset edge — the
+ * layout root owns the top, and each chrome strip (header, topBar banner,
+ * main, bottom action bar) clears its own side/bottom insets. Inner components
+ * must position against layout flow, never against viewport constants.
  */
 html[data-native-shell] body::before {
   content: "";
@@ -104,15 +107,31 @@ html[data-native-shell] body::before {
   z-index: 60;
 }
 
-/* The header keeps sticking at the viewport top but grows by the inset so
-   its own ods-card background fills the status-bar area — seamless with the
-   band and no double offset. (h-12 = 3rem at phone widths.) The horizontal
-   insets keep its contents clear of the notch/rounded corners in landscape. */
-html[data-native-shell] header.sticky {
+/* Full-screen view roots: `app-shell-root` (core AppLayout root +
+   AppShellSkeleton root) and `of-auth-shell` (core AuthShell — the auth
+   pages render outside AppLayout). The top inset lives HERE, not on the
+   header: with the inset on the header, a `topBar` banner rendered above it
+   started at y=0 under the status bar (clipped by the band), the header
+   double-padded, and the burger menu's below-header offset (top: 48px = the
+   header's natural height) no longer matched the inflated header. */
+html[data-native-shell] .app-shell-root,
+html[data-native-shell] .of-auth-shell {
   padding-top: var(--native-safe-top, env(safe-area-inset-top));
+}
+
+/* Header contents clear the notch/rounded corners in landscape. No top
+   padding — the top inset is owned by .app-shell-root above. */
+html[data-native-shell] header.sticky {
   padding-left: var(--native-safe-left, env(safe-area-inset-left));
   padding-right: var(--native-safe-right, env(safe-area-inset-right));
-  height: calc(3rem + var(--native-safe-top, env(safe-area-inset-top)));
+}
+
+/* topBar banners in the AppLayout `topBar` slot (announcement bars): clear
+   the notch in landscape; max() keeps the bar's own design padding when the
+   inset is smaller (portrait / web). */
+html[data-native-shell] .app-top-bar {
+  padding-left: max(var(--native-safe-left, env(safe-area-inset-left)), var(--spacing-system-l));
+  padding-right: max(var(--native-safe-right, env(safe-area-inset-right)), var(--spacing-system-l));
 }
 
 /* Scroll container (core AppLayout <main>): clear the notch/rounded-corner

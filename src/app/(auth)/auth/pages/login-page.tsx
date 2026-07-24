@@ -41,6 +41,13 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, router]);
 
+  // Warm the Sign Up tab's chunk so switching tabs (a router.replace, which unlike
+  // <Link> isn't auto-prefetched) swaps the form instantly instead of flashing
+  // the route loading skeleton.
+  useEffect(() => {
+    router.prefetch(routes.auth.root);
+  }, [router]);
+
   // Single-screen flow: the email field runs debounced discovery; provider
   // buttons are always visible and unlock for the discovered tenant.
   const handleDiscover = async (email: string): Promise<LoginDiscoveryResult | null> => {

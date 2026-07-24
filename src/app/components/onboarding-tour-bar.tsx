@@ -19,9 +19,13 @@ import { AnnouncementBarView, Button } from '@flamingo-stack/openframe-frontend-
  * `variant="outline" size="small"` (dark card surface, uppercase `text-h5`
  * label) with a leading route glyph.
  *
- * `showAction` (default true) — when false the CTA is not rendered at all and
- * the bar collapses to its content height (per the updated mockup), as on
- * `/onboarding` itself.
+ * Below `md` the view CSS-hides the CTA and the whole content row becomes the
+ * tap target (`onContentClick` → the same `onStart` the button fires) — the
+ * hub announcement bar's touch-first behavior.
+ *
+ * `showAction` (default true) — when false the CTA is not rendered at all,
+ * the row tap target is disabled (the bar is inert on `/onboarding` itself),
+ * and the bar collapses to its content height.
  */
 export function OnboardingTourBar({
   onStart,
@@ -34,7 +38,9 @@ export function OnboardingTourBar({
 }) {
   return (
     <AnnouncementBarView
-      className="shrink-0 bg-ods-accent text-ods-text-on-accent"
+      className="app-top-bar shrink-0 bg-ods-accent text-ods-text-on-accent"
+      contentClassName={showAction ? 'cursor-pointer md:cursor-default' : undefined}
+      onContentClick={showAction ? onStart : undefined}
       startAdornment={<CompassIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
       title="Learn the basics with a quick guided tour."
       actionBlock={

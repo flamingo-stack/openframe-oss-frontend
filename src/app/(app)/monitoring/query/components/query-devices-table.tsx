@@ -5,6 +5,7 @@ import { OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/
 import {
   ArrowRightUpIcon,
   Filter02Icon,
+  MonitorIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -213,7 +214,15 @@ export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
 
   const tagsActive = selectedTags.length > 0;
   const hasActiveFilters = search.trim().length > 0 || tagsActive || table.getState().columnFilters.length > 0;
-  const emptyMessage = hasActiveFilters ? 'No devices match the current filters' : 'No devices assigned to this query';
+  const emptyState = hasActiveFilters
+    ? { icon: <MonitorIcon />, title: 'No devices match the current filters' }
+    : {
+        icon: <MonitorIcon />,
+        title: 'No devices assigned',
+        description: 'Assign devices to this query to start tracking them',
+      };
+  // Per the design, the empty state replaces the whole table - headers hidden.
+  const showHeader = isLoading || filteredRows.length > 0;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
@@ -247,8 +256,8 @@ export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
       </div>
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} />
-        <DataTable.Body loading={isLoading} skeletonRows={5} emptyState={{ title: emptyMessage }} rowHref={rowHref} />
+        {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
+        <DataTable.Body loading={isLoading} skeletonRows={5} emptyState={emptyState} rowHref={rowHref} />
       </DataTable>
 
       <FilterModal

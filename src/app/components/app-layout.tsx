@@ -12,6 +12,7 @@ import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
 import {
   countCompleted,
   TENANT_ONBOARDING_STEPS,
@@ -30,7 +31,7 @@ import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems } from '../../lib/navigation-config';
-import { AppShellSkeleton } from './app-shell-skeleton';
+import { APP_MAIN_CLASS_NAME, AppShellSkeleton } from './app-shell-skeleton';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { InitialSetupBar } from './initial-setup-bar';
@@ -172,6 +173,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const userInProgress = !!userProgress && !userProgress.completed && !userProgress.skipped;
   // Tenant phase ends when an admin clicks the explicit "Complete Setup".
   const initialSetupComplete = tenantProgress?.completed ?? false;
+  // Shared predicate for the tenant Initial Setup surfaces — the SAME one that gates the
+  // dashboard card + dimming, so the yellow bar can never show without the card. Requires a
+  // real (non-null) tenant record, unlike `!initialSetupComplete` which treated a failed/empty
+  // progress fetch (tenant === null) as "incomplete" and lit the bar with no card behind it.
+  const initialSetupActive = useInitialSetupActive();
   const showOnboardingChrome = newOnboardingEnabled && onboardingLoaded;
 
   // The personal "Get Started" tour (sidebar tab + badge) only appears once the
@@ -211,7 +217,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const isDashboardPage = pathname === '/' || (pathname?.startsWith('/dashboard') ?? false);
   let topBar: React.ReactNode;
   if (showOnboardingChrome) {
-    if (!initialSetupComplete) {
+    if (initialSetupActive) {
       topBar = (
         <InitialSetupBar
           onStart={() => router.push(routes.dashboard)}
@@ -219,7 +225,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           showAction={!isDashboardPage}
         />
       );
-    } else if (userInProgress) {
+    } else if (initialSetupComplete && userInProgress) {
       topBar = (
         <OnboardingTourBar
           onStart={() => router.push('/onboarding')}
@@ -333,7 +339,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       )}
       <TimeTrackerHostProvider enabled={timeTrackerEnabled}>
         <CoreAppLayout
-          mainClassName={mainClassName ?? 'pb-20 md:pb-20'}
+          // Hook for the native-shell safe-area CSS in globals.css: the layout
+          // root owns the top inset (see `.app-shell-root`). Inert on the web.
+          className="app-shell-root"
+          mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
           sidebarConfig={sidebarConfig}
           loadingFallback={null}
           mobileBurgerMenuProps={mobileBurgerMenuProps}

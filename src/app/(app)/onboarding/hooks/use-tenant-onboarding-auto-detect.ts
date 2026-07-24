@@ -7,6 +7,7 @@ import type { FetchPolicy } from 'relay-runtime';
 import type { tenantOnboardingAutoDetectRelayQuery as AutoDetectQuery } from '@/__generated__/tenantOnboardingAutoDetectRelayQuery.graphql';
 import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
 import { TENANT_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
+import { UserStatus } from '@/app/(app)/settings/hooks/use-users';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { tenantOnboardingAutoDetectRelayQuery } from '@/graphql/onboarding/tenant-onboarding-auto-detect-relay';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
@@ -57,8 +58,9 @@ const AUTO_DETECT_OPTIONS = { fetchPolicy: 'store-and-network' as FetchPolicy };
  *     count) come from ONE Relay query (`store-and-network`: fetched fresh on every
  *     mount, store-served on re-render), not four separate suspense reads — no request
  *     waterfall, no raw-POST GraphQL.
- *   - The user count is REST (`api/users` `totalElements`, which matches Settings →
- *     Employees; the GraphQL `users` count did not).
+ *   - The user count is REST: it counts ACTIVE `api/users` `items`, NOT `totalElements`
+ *     (which counts non-active/soft-deleted rows too and over-reports — a lone active owner
+ *     can already read as 2-3). The GraphQL `users` count didn't match Employees either.
  *
  * MUST be called only from a component mounted while onboarding is active (both reads
  * suspend and have no `enabled`/mount gate of their own) and wrapped in a Suspense
@@ -68,7 +70,7 @@ const AUTO_DETECT_OPTIONS = { fetchPolicy: 'store-and-network' as FetchPolicy };
  *   - MSP_SETUP:         name + website + logo all filled
  *   - CUSTOMERS_SETUP:   more than one organization (at least one real customer)
  *   - DEVICE_MANAGEMENT: at least one ONLINE/OFFLINE device
- *   - COMPANY_TEAM:      2 or more users (the owner plus at least one teammate)
+ *   - COMPANY_TEAM:      2 or more ACTIVE users (the owner plus at least one teammate)
  */
 export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
   const tenant = useOnboardingStore(state => state.tenant);
@@ -85,15 +87,21 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
   const orgCount = data.organizations?.filteredCount ?? 0;
   const deviceCount = data.deviceFilters?.filteredCount ?? 0;
 
-  // User count stays REST. `useSuspenseQuery` under the same Suspense boundary; note
+  // Active-user count stays REST. `useSuspenseQuery` under the same Suspense boundary; note
   // TanStack clamps suspense staleTime/gcTime to a 1s minimum, so this is effectively
   // "fresh on mount" (refetchOnMount:'always') rather than truly uncached.
+  //
+  // Count ACTIVE `items`, NOT `totalElements`: `api/users` counts non-active records too
+  // (soft-deleted / removed users), so `totalElements` over-reports — a lone active owner can
+  // already read as 2-3 and wrongly auto-complete COMPANY_TEAM. A page of 100 is ample: a tenant
+  // is well past onboarding before its active roster overflows a single page.
   const { data: usersCount = 0 } = useSuspenseQuery({
-    queryKey: ['onboarding-auto-detect', 'users-count'],
+    queryKey: ['onboarding-auto-detect', 'active-users-count'],
     queryFn: async () => {
       try {
-        const res = await apiClient.get<{ totalElements?: number }>('api/users?page=0&size=1');
-        return res.ok ? (res.data?.totalElements ?? 0) : 0;
+        const res = await apiClient.get<{ items?: Array<{ status?: string }> }>('api/users?page=0&size=100');
+        if (!res.ok) return 0;
+        return (res.data?.items ?? []).filter(user => user.status === UserStatus.Active).length;
       } catch {
         return 0;
       }
@@ -132,6 +140,19 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
   // sibling's just-written step.
   useEffect(() => {
     if (!tenant) {
+      return;
+    }
+    // Once every step is done (backend-persisted ∪ satisfied by live data), the Initial
+    // Setup card commits the WHOLE onboarding in the background (`completeTenantInBackground`
+    // → `completed: true`). Firing per-step writes here too races it: each
+    // `completeTenantOnboardingStep` response carries `completed: false` and, landing AFTER
+    // the whole-onboarding write, clobbers the store back to `false` (last-write-wins) — so
+    // the onboarding chrome only clears on a reload, never on navigation. Defer to that single
+    // completion write; per-step persistence is redundant the moment all steps are done.
+    const allDone = TENANT_ONBOARDING_STEPS.every(
+      step => tenant.completedSteps.includes(step) || completedByData.has(step),
+    );
+    if (allDone) {
       return;
     }
     const next = TENANT_ONBOARDING_STEPS.find(
