@@ -296,8 +296,10 @@ export function AppShellSkeleton() {
   const timeTrackerEnabled = featureFlags.timeTracker.enabled();
   const mingoEnabled = featureFlags.mingoSidebar.enabled();
 
+  // `app-shell-root`: same native-shell top-inset hook as the live layout
+  // (globals.css) — without it the skeleton draws under the status bar.
   return (
-    <output className="flex h-screen bg-ods-bg" aria-label="Loading application">
+    <output className="app-shell-root flex h-screen bg-ods-bg" aria-label="Loading application">
       <NavigationSidebarSkeleton />
 
       {/* Main Content Area */}

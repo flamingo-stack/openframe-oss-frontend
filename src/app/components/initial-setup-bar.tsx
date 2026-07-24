@@ -33,7 +33,7 @@ export function InitialSetupBar({
 }) {
   return (
     <AnnouncementBarView
-      className="shrink-0 bg-ods-accent text-ods-text-on-accent"
+      className="app-top-bar shrink-0 bg-ods-accent text-ods-text-on-accent"
       startAdornment={<ListCheckIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
       title="Complete your Initial Setup to start using OpenFrame."
       actionBlock={
