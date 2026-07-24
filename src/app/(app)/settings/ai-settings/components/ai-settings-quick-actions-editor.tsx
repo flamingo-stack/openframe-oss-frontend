@@ -177,11 +177,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
           <SortableList
             items={fields}
             onReorder={move}
-            // The lib's sortable row wrapper doesn't manage z-index, so a row
-            // dragged DOWN slides under later (higher-in-DOM-order) siblings.
-            // Raise the wrapper that contains the actively dragged card (marked
-            // via data-dragging) above its siblings.
-            className="gap-[var(--spacing-system-xs)] [&>div:has([data-dragging])]:z-10"
+            className="gap-[var(--spacing-system-xs)]"
             renderRow={(field, dragArgs) => {
               const index = fields.findIndex(f => f.id === field.id);
               return (
@@ -231,7 +227,6 @@ const LABEL_OFFSET_CLASS = 'pt-[calc(var(--font-line-space-h4-body)+0.25rem)]';
 function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProps) {
   return (
     <div
-      data-dragging={drag.isDragging ? '' : undefined}
       className={cn(
         'grid grid-cols-[auto_minmax(0,1fr)_auto] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto]',
         'gap-x-[var(--spacing-system-xs)] gap-y-[var(--spacing-system-m)] items-start',
