@@ -1,13 +1,1 @@
-'use client';
-
-import nextDynamic from 'next/dynamic';
-import AuthLoading from './loading';
-
-const AuthPage = nextDynamic(() => import('@/app/(auth)/auth/pages/auth-page'), {
-  ssr: false,
-  loading: () => <AuthLoading />,
-});
-
-export default function Auth() {
-  return <AuthPage />;
-}
+export { default } from '@/app/(auth)/auth/pages/auth-page';

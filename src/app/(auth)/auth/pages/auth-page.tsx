@@ -26,6 +26,13 @@ export default function AuthPage() {
     }
   }, [isAuthenticated, router]);
 
+  // Warm the Login tab's chunk so switching tabs (a router.replace, which unlike
+  // <Link> isn't auto-prefetched) swaps the form instantly instead of flashing
+  // the route loading skeleton.
+  useEffect(() => {
+    router.prefetch(routes.auth.login);
+  }, [router]);
+
   const handleCreateOrganization = (orgName: string, domain: string, email: string) => {
     // Store org details and navigate to signup screen
     sessionStorage.setItem('auth:org_name', orgName);

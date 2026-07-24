@@ -2,7 +2,10 @@
 
 import { Switch } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { useEffect, useId, useState } from 'react';
+import { signOutToLogin } from '@/app/(auth)/auth/hooks/use-auth-session';
 import {
   BIOMETRIC_ERROR,
   biometricErrorCode,
@@ -23,6 +26,8 @@ import { isNativeShell } from '@/lib/native-shell';
  */
 export function BiometricLoginCard() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const router = useRouter();
   const switchId = useId();
   const [available, setAvailable] = useState(false);
   const [label, setLabel] = useState('Biometrics');
@@ -68,8 +73,16 @@ export function BiometricLoginCard() {
       }
     } catch (error) {
       setEnabled(!next);
+      const code = biometricErrorCode(error);
       // A user-canceled prompt is not an error worth a destructive toast.
-      if (biometricErrorCode(error) === BIOMETRIC_ERROR.CANCELED) return;
+      if (code === BIOMETRIC_ERROR.CANCELED) return;
+      // Enrollment changed while enabled: the gated tokens are unrecoverable
+      // and the native side has already reset to a clean ungated state — the
+      // only way forward is the shared hard sign-out to the sign-in flow.
+      if (code === BIOMETRIC_ERROR.INVALIDATED) {
+        await signOutToLogin(queryClient, router);
+        return;
+      }
       toast({
         title: next ? `Couldn't enable ${label}` : `Couldn't disable ${label}`,
         description: next ? 'Please try again.' : undefined,

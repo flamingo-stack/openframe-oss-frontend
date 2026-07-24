@@ -16,5 +16,9 @@ export default function Home() {
     }
   }, [router, isAuthenticated]);
 
-  return <AppShellSkeleton />;
+  // Only pre-render the app-shell skeleton when we're heading into the app.
+  // An unauthenticated boot redirects to /auth, so show a bare app-background
+  // screen instead — matching the native splash so its handoff to the sign-in
+  // page doesn't flash the dashboard chrome.
+  return isAuthenticated ? <AppShellSkeleton /> : <div className="min-h-screen bg-ods-bg" />;
 }
