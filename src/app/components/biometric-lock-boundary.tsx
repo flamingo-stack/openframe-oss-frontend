@@ -3,8 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { authSessionQueryKey, invalidateAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
-import { forceLogout } from '@/lib/force-logout';
+import { invalidateAuthSession, signOutToLogin } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { routes } from '@/lib/routes';
 import {
   type BiometricLockState,
@@ -37,12 +36,13 @@ export function BiometricLockBoundary({ children }: { children: React.ReactNode 
   }, []);
 
   // Biometric enrollment changed → the Keychain key is gone, tokens are
-  // unrecoverable. Force a fresh login through the normal path.
+  // unrecoverable. Same hard sign-out as the card's INVALIDATED path — lands
+  // directly on the sign-in flow instead of the "Sign in required" overlay.
   useEffect(() => {
     if (lock === 'invalidated') {
-      void forceLogout();
+      void signOutToLogin(queryClient, router);
     }
-  }, [lock]);
+  }, [lock, queryClient, router]);
 
   // "Log in another way" hand-off: keep rendering the gate until the sign-in
   // route is actually current — releasing on dismiss alone would flash the
@@ -56,14 +56,11 @@ export function BiometricLockBoundary({ children }: { children: React.ReactNode 
   const handleUseAnotherLogin = useCallback(async () => {
     setLeavingToLogin(true);
     // Deliberately abandons the locked session: lift the lock first (forceLogout
-    // skips cleanup while 'locked'), then run the normal logout — wipes the
-    // stale gated tokens and the auth store — and land on the sign-in flow.
-    // Seeding the session query with null marks it ready+signed-out so the
-    // skeleton gates below don't hang on the errored query.
+    // skips cleanup while 'locked'), then run the shared hard sign-out — wipes
+    // the stale gated tokens and the auth store, seeds the session query
+    // signed-out, and lands on the sign-in flow.
     dismissBiometricLock();
-    await forceLogout({ shouldRedirect: false });
-    queryClient.setQueryData(authSessionQueryKey, null);
-    router.replace(routes.auth.root);
+    await signOutToLogin(queryClient, router);
   }, [queryClient, router]);
 
   // Prompt canceled/failed at cold start: the tokens are still in the Keychain,

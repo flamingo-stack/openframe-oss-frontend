@@ -1,11 +1,14 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { forceLogout } from '@/lib/force-logout';
 import { isNativeShell } from '@/lib/native-shell';
+import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { getBiometricLockState, initTokenStore } from '@/lib/token-store';
+import { getBiometricLockState, hasTokensSync, initTokenStore } from '@/lib/token-store';
 import { useAuthStore } from '../stores/auth-store';
 
 export const authSessionQueryKey = ['auth', 'session'] as const;
@@ -59,6 +62,15 @@ export function useAuthSession() {
         // the tokens still sit unread in the Keychain.
         if (getBiometricLockState() === 'locked') {
           throw new Error('Biometric unlock pending');
+        }
+        // No stored tokens ⇒ signed out, no gateway question to ask: the shell
+        // is bearer-only (cookies can't cross the capacitor://localhost
+        // origin), so a token-less /me is a guaranteed 401. Resolving here
+        // skips that round trip — which is what held the cold-start dashboard
+        // skeleton on screen before signed-out users were routed to /auth
+        // (the splash only covers Keychain hydration, not the /me call).
+        if (!hasTokensSync()) {
+          return null;
         }
       }
       const response = await apiClient.me<MeResponse>();
@@ -153,4 +165,22 @@ export function useAuthSession() {
  */
 export function invalidateAuthSession(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
+}
+
+/**
+ * Hard sign-out that lands on the sign-in flow — for native-shell paths that
+ * can't rely on forceLogout's mode-dependent redirect (it skips redirecting in
+ * saas-tenant mode) or wait out the warm session cache: clears tokens + auth
+ * store, seeds the session query signed-out so the skeleton gates below don't
+ * hang on a stale result, then replaces to /auth. Shared by the cold-start
+ * unlock gate's "log in another way" and the settings biometric card's
+ * enrollment-invalidated path.
+ */
+export async function signOutToLogin(
+  queryClient: ReturnType<typeof useQueryClient>,
+  router: ReturnType<typeof useRouter>,
+): Promise<void> {
+  await forceLogout({ shouldRedirect: false });
+  queryClient.setQueryData(authSessionQueryKey, null);
+  router.replace(routes.auth.root);
 }
