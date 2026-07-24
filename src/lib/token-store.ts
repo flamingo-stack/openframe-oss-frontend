@@ -7,6 +7,7 @@
  * and mirror them in module memory because many callers (fetch interceptors,
  * WebSocket URL builders) need synchronous reads.
  */
+import { clearAuthedImageCache } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { BIOMETRIC_ERROR, biometricErrorCode, isBiometricLoginEnabled } from './native-biometrics';
 import { isNativeShell, nativeAuthPlugin, onNativeTokenUpdate } from './native-shell';
 import { runtimeEnv } from './runtime-config';
@@ -222,6 +223,9 @@ export async function setTokens(tokens: { accessToken?: string | null; refreshTo
 export async function clearTokens(): Promise<void> {
   cachedAccessToken = null;
   cachedRefreshToken = null;
+  // Session end — drop blob object-URLs fetched under this identity's
+  // bearer so a follow-on login as a different user can't be served them.
+  clearAuthedImageCache();
   if (isNativeShell()) {
     try {
       await nativeAuthPlugin()?.clearTokens();
