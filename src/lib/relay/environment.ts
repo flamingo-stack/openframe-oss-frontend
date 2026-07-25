@@ -5,8 +5,8 @@ import { Environment, Network, RecordSource, Store } from 'relay-runtime';
 import { forceLogout } from '../force-logout';
 import { runtimeEnv } from '../runtime-config';
 import { detectTrialExpiredFromGraphqlErrors } from '../subscription-lock-signal';
-import { isTokenRefreshing, refreshAccessToken } from '../token-refresh-manager';
-import { getAccessTokenSync, isBearerAuthMode } from '../token-store';
+import { refreshAccessToken } from '../token-refresh-manager';
+import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '../token-store';
 
 function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -50,8 +50,10 @@ async function executeFetch(
  * Mirrors apiClient auth logic: cookie-based auth + 401 token refresh + force logout.
  */
 const fetchRelay: FetchFunction = async (request, variables) => {
-  const headers = getAuthHeaders();
-  let response = await executeFetch(request, variables, headers);
+  // Captured BEFORE the request goes out: a 401 that comes back after the
+  // credential has already rotated needs a retry, not another rotation.
+  const sentAtEpoch = getTokenEpoch();
+  let response = await executeFetch(request, variables, getAuthHeaders());
 
   // --- 401 handling: token refresh, then retry once ---
   if (response.status === 401) {
@@ -60,24 +62,15 @@ const fetchRelay: FetchFunction = async (request, variables) => {
       throw new Error('Unauthorized');
     }
 
-    // If another refresh is in-flight, wait for it
-    if (isTokenRefreshing()) {
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        response = await executeFetch(request, variables, getAuthHeaders());
-      } else {
-        await forceLogout({ reason: 'Relay - token refresh failed' });
-        throw new Error('Authentication failed');
-      }
-    } else {
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        response = await executeFetch(request, variables, getAuthHeaders());
-      } else {
-        await forceLogout({ reason: 'Relay - token refresh failed' });
-        throw new Error('Authentication failed');
-      }
+    // `refreshAccessToken` both deduplicates against an in-flight refresh and
+    // short-circuits when `sentAtEpoch` is already stale, so the two arms of
+    // the old `isTokenRefreshing()` branch collapse into one call.
+    const refreshed = await refreshAccessToken(sentAtEpoch);
+    if (!refreshed) {
+      await forceLogout({ reason: 'Relay - token refresh failed' });
+      throw new Error('Authentication failed');
     }
+    response = await executeFetch(request, variables, getAuthHeaders());
   }
 
   if (!response.ok) {
@@ -95,24 +88,36 @@ const fetchRelay: FetchFunction = async (request, variables) => {
 };
 
 /**
- * Custom record-id resolution for normalization.
+ * Types whose `id` is a VALUE, not an identity — opted out of Relay's global
+ * record normalization.
  *
- * `SubscriptionOptionDetail.id` is documented as a "stable unique identifier for
- * Relay normalization" but the backend can emit several options that share the
- * same composite id (its slot disambiguation is buggy — e.g. an EXPIRED, an
- * ACTIVE and a PENDING_ACTIVATION option all collapse to `...:<date>#1`). Relay
- * would normalize those into a single record (last-write-wins), silently
- * dropping the ACTIVE option so the current-plan view falls back to PAYG.
+ * Relay keys every record with an `id` into one global store entry, so two
+ * results carrying the same `id` merge (last write wins). That is correct for
+ * entities but wrong for these, whose `id` the backend can legitimately repeat:
  *
- * Returning `undefined` for this type opts it out of global normalization: Relay
- * stores each list entry under a parent-scoped client id (by field + index)
- * instead, so colliding backend ids no longer merge. Safe because these options
- * are never fetched via `node(id:)` and are only read inline through their
- * parent subscription/product. Everything else keeps the default id-based
- * normalization.
+ * - `SubscriptionOptionDetail` — documented as a "stable unique identifier for
+ *   Relay normalization", but its slot disambiguation is buggy: an EXPIRED, an
+ *   ACTIVE and a PENDING_ACTIVATION option all collapse to `...:<date>#1`, and
+ *   the merge silently dropped the ACTIVE option so the current-plan view fell
+ *   back to PAYG.
+ * - `OrganizationFilterOption` — the `id` is the organizationId used as a
+ *   filter value (`LogFilters.organizations`), and the backend emits the same
+ *   one for differently-named organizations. Merging them made the logs
+ *   organization filter show one name for both entries (and RelayResponse-
+ *   Normalizer warn about the conflicting `name`), after which
+ *   `deduplicateFilterOptions` collapsed them to a single, possibly wrong,
+ *   option.
+ *
+ * Returning `undefined` stores each list entry under a parent-scoped client id
+ * (by field + index) instead, so colliding backend ids no longer merge. Safe
+ * for both: neither is a `Node`, neither is fetched via `node(id:)`, and both
+ * are only read inline through their parent. Everything else keeps the default
+ * id-based normalization.
  */
+const UNNORMALIZED_TYPES = new Set(['SubscriptionOptionDetail', 'OrganizationFilterOption']);
+
 function resolveDataId(value: { readonly id?: unknown }, typeName: string): string | undefined {
-  if (typeName === 'SubscriptionOptionDetail') return undefined;
+  if (UNNORMALIZED_TYPES.has(typeName)) return undefined;
   return typeof value.id === 'string' ? value.id : undefined;
 }
 

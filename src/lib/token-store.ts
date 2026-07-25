@@ -20,6 +20,43 @@ let cachedRefreshToken: string | null = null;
 let hydration: Promise<void> | null = null;
 let tokenUpdateListenerRegistered = false;
 
+let tokenEpoch = 0;
+
+/**
+ * Monotonic counter of credentials INSTALLED in this tab — advanced only once a
+ * newer, usable credential is readable, never on a clear (see `clearTokens`).
+ *
+ * Callers capture it immediately before issuing a request and hand it back to
+ * `refreshAccessToken()`. A 401 from a request SENT under an older epoch is
+ * stale news: it went out with the previous token, the current one is already
+ * newer, so it only needs a retry. Without this, every in-flight request that
+ * 401s just after a rotation kicks off ANOTHER refresh — and with rotating
+ * refresh tokens each extra rotation invalidates the credential just obtained,
+ * ending in a forced logout.
+ *
+ * A counter rather than the more usual "compare the token you sent against the
+ * current one" because cookie mode has no client-readable credential to
+ * compare: the rotation happens entirely in the HttpOnly cookie jar. The
+ * counter is the one signal that works in both auth modes.
+ *
+ * Scope is this JS realm. A rotation performed by ANOTHER tab writes shared
+ * localStorage but does not advance this counter, so cross-tab bursts still
+ * double-refresh — the same limitation the single-flight refresh manager has
+ * always had. Fixing that needs the `storage` event, not a bigger counter.
+ */
+export function getTokenEpoch(): number {
+  return tokenEpoch;
+}
+
+/**
+ * Record a credential install that didn't go through `setTokens` — i.e. a
+ * successful cookie-mode refresh, where the new credential lands in the cookie
+ * jar and this module stores nothing.
+ */
+export function markTokenRotation(): void {
+  tokenEpoch += 1;
+}
+
 /**
  * Cold-start outcome of the biometric-gated Keychain read (native only).
  * - `null`     — biometric login off, or the read succeeded (or nothing to read).
@@ -122,8 +159,16 @@ export function initTokenStore(): Promise<void> {
       if (!tokenUpdateListenerRegistered) {
         tokenUpdateListenerRegistered = true;
         onNativeTokenUpdate(tokens => {
-          cachedAccessToken = tokens.accessToken || null;
+          const nextAccess = tokens.accessToken || null;
+          // Compared BEFORE the overwrite, and only a genuinely different token
+          // counts: an empty payload is the session ending (same reasoning as
+          // `clearTokens`), and a shell that re-emits the SAME tokens on resume
+          // would otherwise advance the epoch with no new credential, making
+          // every in-flight 401 short-circuit to a retry with the dead token.
+          const rotated = !!nextAccess && nextAccess !== cachedAccessToken;
+          cachedAccessToken = nextAccess;
           cachedRefreshToken = tokens.refreshToken || null;
+          if (rotated) markTokenRotation();
           emitTokenChange();
         });
       }
@@ -197,6 +242,12 @@ export async function setTokens(tokens: { accessToken?: string | null; refreshTo
     await initTokenStore();
     if (accessToken) cachedAccessToken = accessToken;
     if (refreshToken) cachedRefreshToken = refreshToken;
+    // AFTER the cache write, never before: the epoch advertises "a newer
+    // credential is readable", so bumping it while `getAccessTokenSync()` still
+    // returns the old value would make a 401 in that window short-circuit to a
+    // retry that re-sends the stale token — the exact failure it exists to stop.
+    // (The Keychain write below may fail; the in-memory cache is what reads hit.)
+    if (accessToken) markTokenRotation();
     try {
       // Native stores both tokens as ONE item, so send the full current pair —
       // a partial write would drop whichever token isn't included. The cache
@@ -213,7 +264,16 @@ export async function setTokens(tokens: { accessToken?: string | null; refreshTo
   }
   if (typeof window === 'undefined') return;
   try {
-    if (accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    if (accessToken) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+      // Bump as soon as the access token is readable, and BEFORE the
+      // refresh-token write below — that write can throw on its own (quota),
+      // and skipping the bump would leave the epoch reporting the previous
+      // generation for a credential that is already live, so a stale 401 would
+      // rotate again instead of just retrying. A throw from the line above
+      // skips the bump, which is correct: nothing was stored.
+      markTokenRotation();
+    }
     if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   } catch (error) {
     console.error('[Token Store] Failed to store tokens:', error);
@@ -223,6 +283,11 @@ export async function setTokens(tokens: { accessToken?: string | null; refreshTo
 export async function clearTokens(): Promise<void> {
   cachedAccessToken = null;
   cachedRefreshToken = null;
+  // Deliberately NOT a rotation: the epoch counts credentials INSTALLED, not
+  // credentials changed. Bumping here would tell a 401 that arrived mid-logout
+  // "someone already refreshed, just retry" — sending it out with no credential
+  // at all. Leaving the epoch put lets that 401 take the refresh path, fail,
+  // and settle as the sign-out it actually is.
   // Session end — drop blob object-URLs fetched under this identity's
   // bearer so a follow-on login as a different user can't be served them.
   clearAuthedImageCache();

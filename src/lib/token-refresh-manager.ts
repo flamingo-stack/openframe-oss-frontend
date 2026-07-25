@@ -6,9 +6,9 @@
  */
 
 import { clearStoredTokens } from './force-logout';
-import { nativeAuthPlugin } from './native-shell';
+import { isNativeShell, nativeAuthPlugin } from './native-shell';
 import { runtimeEnv } from './runtime-config';
-import { getRefreshToken, isBearerAuthMode, setTokens } from './token-store';
+import { getRefreshToken, getTokenEpoch, isBearerAuthMode, markTokenRotation, setTokens } from './token-store';
 
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
@@ -50,16 +50,29 @@ async function executeRefresh(tenantId?: string): Promise<boolean> {
     'Content-Type': 'application/json',
   };
 
+  // Whether this refresh is authenticated by a stored bearer refresh token. If
+  // it isn't, the rotation rides the refresh COOKIE instead, and there is no
+  // new bearer to store afterwards.
+  let usingStoredRefreshToken = false;
+
   if (bearerMode) {
     const refreshToken = await getRefreshToken();
-    if (!refreshToken) {
-      // No credential — the POST can only 401, and that 401 would clear stored
-      // tokens below. Fatal during the biometric cold-start lock: the tokens
-      // exist in the Keychain but were never read, so a racing credential-less
+    if (refreshToken) {
+      headers['Refresh-Token'] = refreshToken;
+      usingStoredRefreshToken = true;
+    } else if (isNativeShell()) {
+      // Native has no cookie jar, so no stored token means no credential at
+      // all: the POST could only 401, and that 401 clears the stored tokens
+      // below. Fatal during the biometric cold-start lock, where the tokens
+      // exist in the Keychain but were never read — a racing credential-less
       // refresh would wipe them out from under the unlock gate.
       return false;
     }
-    headers['Refresh-Token'] = refreshToken;
+    // Web dev-ticket mode with no stored token: the session was established by
+    // cookie (only a `?devTicket=` exchange ever writes localStorage tokens),
+    // so `credentials: 'include'` carries the refresh cookie. Bailing here made
+    // EVERY 401 in that configuration terminal — no refresh was even attempted,
+    // and the caller went straight to forceLogout.
   }
 
   try {
@@ -91,7 +104,25 @@ async function executeRefresh(tenantId?: string): Promise<boolean> {
       const newAccessToken = headerAccessToken || data?.access_token || data?.accessToken || null;
       const newRefreshToken = headerRefreshToken || data?.refresh_token || data?.refreshToken || null;
 
-      await setTokens({ accessToken: newAccessToken, refreshToken: newRefreshToken });
+      if (newAccessToken) {
+        await setTokens({ accessToken: newAccessToken, refreshToken: newRefreshToken });
+      } else if (usingStoredRefreshToken) {
+        // We authenticated with a stored bearer, so a rotation MUST hand one
+        // back. Without it `setTokens` writes nothing (it skips falsy values)
+        // and the expired bearer stays in place — reporting success made every
+        // caller retry with the token that had just 401'd, and each of those
+        // 401s started another rotation. Fail loudly instead.
+        console.error('[Token Refresh] Rotation responded OK but carried no access token');
+        return false;
+      } else {
+        // Cookie-authenticated session in dev-ticket mode: nothing to store,
+        // the rotated cookie is the credential.
+        markTokenRotation();
+      }
+    } else {
+      // Cookie mode stores nothing client-side, so `setTokens` never runs and
+      // never advances the epoch — record the rotation explicitly.
+      markTokenRotation();
     }
 
     return true;
@@ -101,10 +132,31 @@ async function executeRefresh(tenantId?: string): Promise<boolean> {
 }
 
 /**
- * Refresh the access token. Deduplicates concurrent calls —
- * if a refresh is already in progress, returns the existing promise.
+ * Refresh the access token. Deduplicates concurrent calls — if a refresh is
+ * already in progress, returns the existing promise.
+ *
+ * `observedEpoch` is the {@link getTokenEpoch} value captured just before the
+ * request that hit the 401 was sent. When it no longer matches, that request
+ * went out under a credential the app has since replaced: its 401 is stale
+ * news and the caller only needs to retry with the current token. Refreshing
+ * again would rotate a perfectly good credential — and with rotating refresh
+ * tokens, a burst of concurrent 401s (every in-flight request when an access
+ * token expires) rotated once per request until the backend rejected the reuse
+ * and the app logged itself out. Callers that don't track an epoch omit it and
+ * keep the previous always-refresh behavior.
  */
-export async function refreshAccessToken(): Promise<boolean> {
+export async function refreshAccessToken(observedEpoch?: number): Promise<boolean> {
+  // Checked BEFORE the in-flight join below, deliberately: a stale-epoch caller
+  // already holds a newer credential, so it must NOT inherit a concurrent
+  // rotation's result. That rotation can fail transiently (5xx / network blip on
+  // `/oauth/refresh` — neither clears tokens), and `false` sends every HTTP
+  // caller straight to `forceLogout()`. Retrying with the credential this caller
+  // already has costs at most one failed request; a retry that 401s is not
+  // terminal, it just fails that request.
+  if (observedEpoch !== undefined && observedEpoch !== getTokenEpoch()) {
+    return true;
+  }
+
   if (isRefreshing && refreshPromise) {
     return refreshPromise;
   }

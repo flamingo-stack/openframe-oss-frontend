@@ -55,6 +55,7 @@ import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import type { LogFilterInput } from '../types/log.types';
 import { LogCopyButton } from './log-copy-button';
+import { LogsTableSkeleton } from './logs-table-skeleton';
 
 // ----------------------------------------------------------------
 // GraphQL definitions
@@ -687,82 +688,6 @@ function LogsTableContent({
         }
       />
     </>
-  );
-}
-
-// ----------------------------------------------------------------
-// Loading fallback — DataTable skeleton with base columns
-// ----------------------------------------------------------------
-
-const EMPTY_LOG_ENTRIES: UiLogEntry[] = [];
-
-export function LogsTableSkeleton() {
-  const columns = useMemo<ColumnDef<UiLogEntry>[]>(
-    () => [
-      {
-        accessorKey: 'logId',
-        header: 'Log ID',
-        enableSorting: false,
-        meta: { width: 'w-[200px]', alwaysShowHeader: true },
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px]', filter: { options: [] } },
-      },
-      {
-        accessorKey: 'tool',
-        header: 'Tool',
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[150px]', hideAt: 'md', filter: { options: [] } },
-      },
-      {
-        accessorKey: 'source',
-        header: 'SOURCE',
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px]', hideAt: 'md', filter: { options: [] } },
-      },
-      {
-        accessorKey: 'description',
-        header: 'Log Details',
-        enableSorting: false,
-        meta: { width: 'flex-1', hideAt: 'lg' },
-      },
-      {
-        id: 'copy',
-        enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none ml-auto', align: 'right' },
-      },
-      {
-        id: 'quickView',
-        enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
-      },
-      {
-        id: 'open',
-        enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
-      },
-    ],
-    [],
-  );
-
-  const table = useDataTable<UiLogEntry>({
-    data: EMPTY_LOG_ENTRIES,
-    columns,
-    getRowId: (row: UiLogEntry) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset="top-[96px]" />
-      <DataTable.Body loading={true} skeletonRows={10} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
   );
 }
 

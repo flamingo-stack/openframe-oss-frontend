@@ -635,7 +635,7 @@ function ScriptsTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: stri
         meta: { width: 'w-[80px]', hideAt: 'lg' },
       },
       {
-        accessorKey: 'authorName',
+        accessorKey: 'authorId',
         header: 'Added by',
         enableSorting: false,
         meta: { width: 'w-[250px]', hideAt: 'lg' },
@@ -643,7 +643,7 @@ function ScriptsTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: stri
       // Mirror the real table's trailing action columns (row actions menu + open
       // button) so the loading header reserves the same width and stays aligned.
       { id: 'actions', enableSorting: false, meta: { width: 'w-12 shrink-0 flex-none', align: 'right' } },
-      { id: 'open', enableSorting: false, meta: { width: 'w-12 shrink-0 flex-none', align: 'right' } },
+      { id: 'open', enableSorting: false, meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' } },
     ],
     [],
   );

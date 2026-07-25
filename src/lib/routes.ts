@@ -72,6 +72,9 @@ export type SettingsTab = (typeof TAB_IDS.settings)[number];
 export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
 export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
 
+/** Legal documents the Help Center `[docType]` route prerenders. */
+export type HelpCenterLegalDoc = 'privacy' | 'terms';
+
 // --------------------------------------------------------------------------
 // Query-string helper
 // --------------------------------------------------------------------------
@@ -103,9 +106,19 @@ export const routes = {
   onboarding: '/onboarding',
   helpCenter: {
     root: '/help-center',
+    onboardingGuides: '/help-center/onboarding-guides',
     // Help Center hosts the hub's content on real slugged segments ([slug] route),
     // not the app-wide `?id=` convention — see help-center-content-href.ts.
     onboardingGuide: (slug: string) => `/help-center/onboarding-guides/${encodeURIComponent(slug)}`,
+    roadmap: '/help-center/roadmap',
+    releases: '/help-center/releases',
+    bugFixesAndEnhancements: '/help-center/bug-fixes-and-enhancements',
+    tickets: '/help-center/tickets',
+    faqs: '/help-center/faqs',
+    knowledgeBase: '/help-center/knowledge-base',
+    // `[docType]` is enumerable (see the route's `generateStaticParams`), so the
+    // literal union is the typed guard ROUTES.md asks for over a bare `string`.
+    legal: (docType: HelpCenterLegalDoc) => `/help-center/legal/${docType}`,
   },
   worktime: '/worktime',
 

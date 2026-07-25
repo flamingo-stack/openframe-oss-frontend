@@ -11,7 +11,7 @@ import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components
 import { Button, PageError, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
@@ -20,12 +20,17 @@ import { useTicketStatusTransitionRules } from '../hooks/use-ticket-status-trans
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
 import type { TicketsPage } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
-import { mapDefinitionToSystem, usesCanonicalStatusStyle } from '../statuses/types/ticket-statuses.types';
+import {
+  mapDefinitionToSystem,
+  type TicketStatusDefinition,
+  usesCanonicalStatusStyle,
+} from '../statuses/types/ticket-statuses.types';
 import type { Dialog } from '../types/dialog.types';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
+import { buildPlaceholderBoardColumns, type CachedBoardColumn, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
 import { TicketTagFilter } from './ticket-label-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
@@ -35,6 +40,26 @@ import { TicketsFilterModal } from './tickets-filter-modal';
 // unread counts on the ticket entity itself. Matching unread notifications to tickets by id is a
 // temporary workaround — disabled for now; flip this flag to restore it.
 const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
+
+/**
+ * The layout-defining half of a lane — everything the column header renders
+ * from, with no ticket data. Used both for the columns the board renders and
+ * for the set written to the skeleton's cache, so a change to how a lane is
+ * styled can't leave the cached lanes looking different from the live ones.
+ *
+ * AI_ASSISTANCE/RESOLVED style their header from the canonical status key
+ * (icon/variant); TECH_REQUIRED and custom statuses render from the backend
+ * `color`. `id` stays the statusId regardless.
+ */
+function toLaneDefinition(status: TicketStatusDefinition): CachedBoardColumn {
+  return {
+    id: status.id,
+    statusKey: usesCanonicalStatusStyle(status.kind) ? mapDefinitionToSystem(status).statusKey : undefined,
+    label: status.name,
+    color: status.color,
+    system: status.isSystem,
+  };
+}
 
 interface TicketsBoardProps {
   selector?: ReactNode;
@@ -203,41 +228,55 @@ export function TicketsBoard({
   const isLoading = statusesLoading || statuses.some(s => columnUpdates[s.id]?.isLoading ?? true);
   const columnError = statuses.map(s => columnUpdates[s.id]?.error).find(Boolean) ?? null;
 
-  const boardColumns = useMemo<BoardColumnDef[]>(
-    () =>
-      statuses.map(status => {
-        const state = columnUpdates[status.id]?.state;
-        // AI_ASSISTANCE/RESOLVED style their header from the canonical status key
-        // (icon/variant). TECH_REQUIRED and custom statuses render from the backend
-        // `color`. `id` stays the statusId regardless.
-        const useCanonicalStyle = usesCanonicalStatusStyle(status.kind);
-        return {
-          id: status.id,
-          statusKey: useCanonicalStyle ? mapDefinitionToSystem(status).statusKey : undefined,
-          label: status.name,
-          color: status.color,
-          tickets: (state?.tickets ?? []).map(ticket =>
-            dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id)),
-          ),
-          total: state?.total,
-          hasMore: state?.hasMore,
-          isLoading,
-          isLoadingMore: state?.isLoadingMore,
-          system: status.isSystem,
-          allowedFromColumns: transitionRules ? (allowedFromByStatusId[status.id] ?? []) : undefined,
-          archivable: status.kind === 'RESOLVED' && canArchiveResolved,
-        };
-      }),
-    [
-      statuses,
-      columnUpdates,
-      transitionRules,
-      allowedFromByStatusId,
-      isLoading,
-      canArchiveResolved,
-      ticketIdsWithUnread,
-    ],
-  );
+  // Lanes to show until the statuses query resolves. Read once per mount so the
+  // set can't shift underneath the board mid-load.
+  const [placeholderColumns] = useState(buildPlaceholderBoardColumns);
+
+  const boardColumns = useMemo<BoardColumnDef[]>(() => {
+    // No statuses yet means no lanes to map, and an empty `Board` is a blank
+    // strip — which is what flashed between the route skeleton and the loaded
+    // board. Stand in with the same placeholders the skeleton renders, so the
+    // handoff (and a plain client-side navigation into /tickets, where no shell
+    // skeleton is involved at all) has nothing to redraw.
+    if (statusesLoading && statuses.length === 0) return placeholderColumns;
+
+    return statuses.map(status => {
+      const state = columnUpdates[status.id]?.state;
+      return {
+        ...toLaneDefinition(status),
+        tickets: (state?.tickets ?? []).map(ticket => dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id))),
+        total: state?.total,
+        hasMore: state?.hasMore,
+        isLoading,
+        isLoadingMore: state?.isLoadingMore,
+        allowedFromColumns: transitionRules ? (allowedFromByStatusId[status.id] ?? []) : undefined,
+        archivable: status.kind === 'RESOLVED' && canArchiveResolved,
+      };
+    });
+  }, [
+    statuses,
+    statusesLoading,
+    placeholderColumns,
+    columnUpdates,
+    transitionRules,
+    allowedFromByStatusId,
+    isLoading,
+    canArchiveResolved,
+    ticketIdsWithUnread,
+  ]);
+
+  // Remember the lane set so the route skeleton can lay out the same board on
+  // the next cold start (see `board-columns-cache`). Only the layout-defining
+  // fields; ticket data is deliberately not cached.
+  useEffect(() => {
+    // Never cache the placeholder set back over itself.
+    if (statusesLoading || statuses.length === 0) return;
+    // Built from `statuses`, not `boardColumns`: the latter's memo identity
+    // changes on every NATS column tick, so depending on it re-ran a
+    // JSON.stringify + synchronous localStorage read per update just to learn
+    // nothing had changed. Lane definitions only move when the query data does.
+    writeCachedBoardColumns(statuses.map(toLaneDefinition));
+  }, [statuses, statusesLoading]);
 
   const getTicketHref = useCallback((id: string) => routes.tickets.dialog(id), []);
 

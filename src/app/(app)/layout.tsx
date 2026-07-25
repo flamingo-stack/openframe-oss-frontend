@@ -2,17 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 import { AppLayout } from '../components/app-layout';
-import { APP_MAIN_CLASS_NAME } from '../components/app-shell-skeleton';
+import { APP_MAIN_CLASS_NAME, getMainClassNameOverride } from '../components/app-shell-skeleton';
 import { OpenframeChatRuntimeProvider } from '../components/openframe-chat-runtime-provider';
-
-function getMainClassNameOverride(pathname: string | null): string | undefined {
-  if (!pathname) return undefined;
-  if (pathname.startsWith('/mingo')) return 'p-0 md:p-0';
-  if (pathname.startsWith('/devices/details/file-manager')) return 'pb-0 md:pb-0';
-  if (pathname.startsWith('/tickets')) return 'pb-0 md:pb-0';
-  if (pathname.startsWith('/settings')) return 'pb-0 md:pb-0';
-  return undefined;
-}
 
 export default function AppGroupLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

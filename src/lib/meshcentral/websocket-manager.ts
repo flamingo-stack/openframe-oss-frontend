@@ -1,4 +1,5 @@
 import { isTokenRefreshing, refreshAccessToken, waitForRefresh } from '../token-refresh-manager';
+import { getTokenEpoch } from '../token-store';
 
 export type WebSocketState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
@@ -32,6 +33,8 @@ export class WebSocketManager {
   private isConnecting = false;
   private lastConnectTime = 0;
   private lastRefreshAttempt = 0;
+  /** Token epoch at the time `getUrl()` last baked a credential into the socket URL. */
+  private urlEpoch = 0;
   private browserListenersAttached = false;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private heartbeatTimeoutTimer: NodeJS.Timeout | null = null;
@@ -94,13 +97,22 @@ export class WebSocketManager {
       }
 
       this.lastRefreshAttempt = Date.now();
-      return await refreshAccessToken();
+      // Unlike the HTTP clients this is a PROACTIVE refresh before reconnecting,
+      // not a reaction to a 401 — but the epoch answers the same question. If
+      // the credential has already rotated since the URL we last connected with
+      // was built, there is nothing to refresh and reconnecting with the current
+      // token is enough; rotating again would burn a perfectly good credential.
+      return await refreshAccessToken(this.urlEpoch);
     } catch (_error) {
       return false;
     }
   }
 
   private getUrl(): string {
+    // Captured here, not at refresh time: this is the moment the current token
+    // is baked into the socket URL (the `url` thunk reads it synchronously), so
+    // it is what "the credential this connection used" means.
+    this.urlEpoch = getTokenEpoch();
     const url = typeof this.options.url === 'function' ? this.options.url() : this.options.url;
     return url;
   }
