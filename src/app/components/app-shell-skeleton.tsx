@@ -3,15 +3,18 @@
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLgUp, useLocalStorage, useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useEffect } from 'react';
-import DashboardLoading from '@/app/(app)/dashboard/loading';
-import { featureFlags } from '@/lib/feature-flags';
+import { usePathname } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { featureFlags, skeletonFlagEnabled } from '@/lib/feature-flags';
 import {
   SIDEBAR_EXPANDED_WIDTH,
   SIDEBAR_MINIMIZED_STORAGE_KEY,
   SIDEBAR_MINIMIZED_WIDTH,
   SIDEBAR_WIDTH_CSS_VAR,
 } from '@/lib/navigation-sidebar-state';
+import { runtimeEnv } from '@/lib/runtime-config';
+import { CachedOnboardingTopBar, readCachedOnboardingTopBar } from './onboarding-top-bar-cache';
+import { RouteContentSkeleton } from './route-content-skeleton';
 
 /**
  * AppHeader action-button cell skeleton — mirrors `HeaderButton`
@@ -33,6 +36,25 @@ function HeaderButtonCellSkeleton() {
  * its loading fallback) and the constant must be shared without a cycle.
  */
 export const APP_MAIN_CLASS_NAME = 'pb-14';
+
+/**
+ * Per-route `<main>` padding overrides. Lives here, beside
+ * `APP_MAIN_CLASS_NAME` and for the same reason: the (app) group layout imports
+ * this file, so the constants must be shared without a cycle.
+ *
+ * Both the live layout AND this skeleton apply it. They MUST agree — a route
+ * whose real `<main>` drops the 56px bottom padding but whose skeleton keeps it
+ * gives the skeleton a shorter content box, so full-height pages (the tickets
+ * board) visibly resize on the handoff.
+ */
+export function getMainClassNameOverride(pathname: string | null): string | undefined {
+  if (!pathname) return undefined;
+  if (pathname.startsWith('/mingo')) return 'p-0 md:p-0';
+  if (pathname.startsWith('/devices/details/file-manager')) return 'pb-0 md:pb-0';
+  if (pathname.startsWith('/tickets')) return 'pb-0 md:pb-0';
+  if (pathname.startsWith('/settings')) return 'pb-0 md:pb-0';
+  return undefined;
+}
 
 // Stable keys for the static row lists — mirrors the SAAS nav (7 primary, 2
 // secondary). Used as React keys only; nothing here is rendered.
@@ -131,6 +153,30 @@ function NavigationSidebarSkeleton() {
   );
 }
 
+const noop = () => {};
+
+/**
+ * The onboarding banner the live layout will render in its `topBar` slot,
+ * replayed from cache so the shell reserves the band up front instead of
+ * letting it drop in late and push the whole app down.
+ *
+ * Inert while loading: `onStart` is a no-op and pointer events are off, so a
+ * click on a placeholder CTA can't navigate before the app is ready.
+ */
+function useOnboardingTopBarPlaceholder(pathname: string | null): React.ReactNode {
+  const [cached] = useState(readCachedOnboardingTopBar);
+
+  // Same gate as the live chrome, but via `skeletonFlagEnabled` (not
+  // `featureFlags`) — the flags query hasn't resolved while this skeleton is up.
+  if (!skeletonFlagEnabled('new-onboarding', runtimeEnv.newOnboardingFlag())) return null;
+
+  return (
+    <div className="contents pointer-events-none">
+      <CachedOnboardingTopBar cached={cached} pathname={pathname} onStart={noop} />
+    </div>
+  );
+}
+
 /**
  * Skeleton that mirrors the AppShell structure:
  * - NavigationSidebar (left): responsive width tracking the real sidebar's
@@ -140,8 +186,9 @@ function NavigationSidebarSkeleton() {
  * - Content area: the real `<main>` classes (APP_MAIN_CLASS_NAME, no own
  *   padding — the native-shell CSS overrides `main.overflow-y-auto`'s inline
  *   padding, so any horizontal padding must live INSIDE, like the live page)
- *   wrapping the dashboard route's own loading state, so this shell is
- *   pixel-identical to the /dashboard skeleton it hands off to.
+ *   wrapping the CURRENT ROUTE's own loading state via `RouteContentSkeleton`,
+ *   so this shell is pixel-identical to the page skeleton it hands off to —
+ *   whichever page that is.
  *
  * Used for:
  * - "Checking session" loading state
@@ -156,57 +203,75 @@ export function AppShellSkeleton() {
   const timeTrackerEnabled = featureFlags.timeTracker.enabled();
   const mingoEnabled = featureFlags.mingoSidebar.enabled();
 
+  // The live `<main>` takes a per-route padding override; apply the same one
+  // here or full-height pages get a different content box in the skeleton.
+  const pathname = usePathname();
+  const mainClassName = getMainClassNameOverride(pathname) || APP_MAIN_CLASS_NAME;
+  const topBar = useOnboardingTopBarPlaceholder(pathname);
+
   // `app-shell-root`: same native-shell top-inset hook as the live layout
   // (globals.css) — without it the skeleton draws under the status bar.
   return (
-    // Plain div, not <output>: the wrapped DashboardLoading already announces
-    // itself (role="status" aria-label="Loading dashboard"), and a second
-    // nested live region here would double-announce to assistive tech.
-    <div className="app-shell-root flex h-screen bg-ods-bg">
-      <NavigationSidebarSkeleton />
+    // Plain div, not <output>: the route skeletons announce themselves where it
+    // matters (e.g. DashboardLoading's role="status"), and a second nested live
+    // region here would double-announce to assistive tech.
+    //
+    // Structure mirrors core `AppLayout`: a column whose optional full-width
+    // topBar sits ABOVE the sidebar + header row. The row must be its own
+    // element (not the root) so the banner spans the sidebar too.
+    <div className="app-shell-root flex flex-col h-screen bg-ods-bg">
+      {topBar}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* AppHeader skeleton - mirrors the real header: h-12 md:h-14, empty
+      <div className="flex flex-1 min-h-0 relative">
+        <NavigationSidebarSkeleton />
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* AppHeader skeleton - mirrors the real header: h-12 md:h-14, empty
             left spacer, full-height divided action cells on the right. */}
-        <header className="flex items-center w-full bg-ods-card border-b border-ods-border h-12 md:h-14">
-          {/* Mobile: burger menu cell */}
-          <div className="flex md:hidden items-center justify-center shrink-0 w-12 h-full">
-            <Skeleton className="h-4 w-4 rounded" />
-          </div>
-          {/* Mobile: logo cell */}
-          <div className="flex md:hidden items-center gap-2 px-3 h-full flex-1 border-l border-ods-border">
-            <Skeleton className="h-6 w-6 rounded shrink-0" />
-            <Skeleton className="h-4 w-24" />
-          </div>
-          {/* Desktop: search/spacer slot (empty — this app passes no search) */}
-          <div className="hidden md:flex w-full" />
-
-          {timeTrackerEnabled && <HeaderButtonCellSkeleton />}
-          {notificationsEnabled && <HeaderButtonCellSkeleton />}
-
-          {/* User avatar — desktop only, like the real header */}
-          <div className="hidden md:flex items-center justify-center shrink-0 w-12 md:w-14 h-full border-l border-ods-border">
-            <Skeleton className="h-8 w-8 md:h-10 md:w-10 rounded-full" />
-          </div>
-
-          {/* Mingo AI — content-width, icon + wordmark (wordmark desktop only) */}
-          {mingoEnabled && (
-            <div className="flex items-center shrink-0 gap-2 px-4 h-full border-l border-ods-border">
-              <Skeleton className="h-4 w-4 md:h-6 md:w-6 rounded" />
-              <Skeleton className="hidden md:block h-5 w-16" />
+          <header className="flex items-center w-full bg-ods-card border-b border-ods-border h-12 md:h-14">
+            {/* Mobile: burger menu cell */}
+            <div className="flex md:hidden items-center justify-center shrink-0 w-12 h-full">
+              <Skeleton className="h-4 w-4 rounded" />
             </div>
-          )}
-        </header>
+            {/* Mobile: logo cell */}
+            <div className="flex md:hidden items-center gap-2 px-3 h-full flex-1 border-l border-ods-border">
+              <Skeleton className="h-6 w-6 rounded shrink-0" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            {/* Desktop: search/spacer slot (empty — this app passes no search) */}
+            <div className="hidden md:flex w-full" />
 
-        {/* Main content — same classes as the live layout's <main> (core
+            {timeTrackerEnabled && <HeaderButtonCellSkeleton />}
+            {notificationsEnabled && <HeaderButtonCellSkeleton />}
+
+            {/* User avatar — desktop only, like the real header */}
+            <div className="hidden md:flex items-center justify-center shrink-0 w-12 md:w-14 h-full border-l border-ods-border">
+              <Skeleton className="h-8 w-8 md:h-10 md:w-10 rounded-full" />
+            </div>
+
+            {/* Mingo AI — content-width, icon + wordmark (wordmark desktop only) */}
+            {mingoEnabled && (
+              <div className="flex items-center shrink-0 gap-2 px-4 h-full border-l border-ods-border">
+                <Skeleton className="h-4 w-4 md:h-6 md:w-6 rounded" />
+                <Skeleton className="hidden md:block h-5 w-16" />
+              </div>
+            )}
+          </header>
+
+          {/* Main content — same classes as the live layout's <main> (core
             AppLayout base + the mainClassName the (app) layout passes). The
-            dashboard route's own loading state supplies the padded PageLayout
-            chrome and the shared section skeletons, so there is no drift
-            between this shell and the route skeleton it transitions into. */}
-        <main className={cn('flex-1 overflow-y-auto', APP_MAIN_CLASS_NAME)}>
-          <DashboardLoading />
-        </main>
+            CURRENT ROUTE's own loading state supplies the padded PageLayout
+            chrome and its section/table skeletons, so there is no drift
+            between this shell and the route skeleton it transitions into.
+            The Suspense boundary is required: RouteContentSkeleton reads
+            `useSearchParams`, and it also covers the lazy skeleton chunk. */}
+          <main className={cn('flex-1 overflow-y-auto', mainClassName)}>
+            <Suspense fallback={null}>
+              <RouteContentSkeleton />
+            </Suspense>
+          </main>
+        </div>
       </div>
     </div>
   );

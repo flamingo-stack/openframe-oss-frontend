@@ -30,7 +30,7 @@ import { ScriptPageChrome } from './script-page-chrome';
 import { ScriptSummaryCard, ScriptSummaryCardSkeleton } from './script-summary-card';
 
 // Two tabs only — Schedules is intentionally omitted from the v2 details page.
-const DETAIL_TABS: TabItem[] = [
+export const DETAIL_TABS: TabItem[] = [
   { id: 'details', label: 'Script Details', icon: BracketCurlyIcon },
   { id: 'executions', label: 'Execution History', icon: ClockHistoryIcon },
 ];
@@ -95,7 +95,7 @@ function ScriptHeaderSection({ scriptId }: ScriptDetailsViewProps) {
 /** Row of clickable tag chips under the title (mirrors the `Tag` outline chips). */
 const TAG_CHIP_WIDTHS = ['w-28', 'w-24', 'w-40', 'w-32'];
 
-function ScriptHeaderSkeleton() {
+export function ScriptHeaderSkeleton() {
   return (
     <>
       <div className="flex flex-wrap items-start gap-[var(--spacing-system-xs)]">
@@ -171,7 +171,7 @@ function EditorSkeleton() {
   );
 }
 
-function ScriptDetailsTabSkeleton() {
+export function ScriptDetailsTabSkeleton() {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-lf)]">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)]">

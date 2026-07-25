@@ -18,10 +18,18 @@ interface ApiResponse<T = any> {
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
 import { isTokenRefreshing, refreshAccessToken } from './token-refresh-manager';
-import { getAccessTokenSync, isBearerAuthMode } from './token-store';
+import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from './token-store';
+
+/** A request parked while a refresh is in flight. */
+interface QueuedRequest {
+  /** Re-issue the request with the freshly rotated credential. */
+  retry: () => void;
+  /** Settle the caller without re-issuing — the refresh failed. */
+  abandon: () => void;
+}
 
 class ApiClient {
-  private requestQueue: Array<() => Promise<any>> = [];
+  private requestQueue: QueuedRequest[] = [];
 
   /**
    * Get authentication headers based on current configuration
@@ -66,13 +74,19 @@ class ApiClient {
   }
 
   /**
-   * Drain the request queue after refresh completes
+   * Release the requests parked during a refresh.
+   *
+   * On failure they are abandoned rather than retried: nothing was rotated, so
+   * re-issuing them only re-sends the token that already 401'd. They used to be
+   * drained unconditionally, which fired a burst of doomed stale-token requests
+   * alongside the forced logout.
    */
-  private drainQueue(): void {
+  private releaseQueue(refreshSucceeded: boolean): void {
     const queue = [...this.requestQueue];
     this.requestQueue = [];
-    for (const retryRequest of queue) {
-      retryRequest();
+    for (const queued of queue) {
+      if (refreshSucceeded) queued.retry();
+      else queued.abandon();
     }
   }
 
@@ -101,6 +115,10 @@ class ApiClient {
     // Build full URL
     const url = this.buildUrl(path);
 
+    // Captured BEFORE the request goes out: a 401 that comes back after the
+    // credential has already rotated needs a retry, not another rotation.
+    const sentAtEpoch = getTokenEpoch();
+
     try {
       const response = await fetch(url, {
         ...fetchOptions,
@@ -125,16 +143,20 @@ class ApiClient {
 
         if (isTokenRefreshing()) {
           return new Promise<ApiResponse<T>>(resolve => {
-            this.requestQueue.push(async () => {
-              const result = await this.request<T>(path, options, true);
-              resolve(result);
+            this.requestQueue.push({
+              retry: () => {
+                this.request<T>(path, options, true).then(resolve);
+              },
+              abandon: () => {
+                resolve({ error: 'Authentication failed - please login again', status: 401, ok: false });
+              },
             });
           });
         }
 
-        const refreshSuccess = await refreshAccessToken();
+        const refreshSuccess = await refreshAccessToken(sentAtEpoch);
 
-        this.drainQueue();
+        this.releaseQueue(refreshSuccess);
 
         if (refreshSuccess) {
           return this.request<T>(path, options, true);

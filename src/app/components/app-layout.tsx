@@ -39,6 +39,11 @@ import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
 import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
+import {
+  CachedOnboardingTopBar,
+  readCachedOnboardingTopBar,
+  writeCachedOnboardingTopBar,
+} from './onboarding-top-bar-cache';
 import { OnboardingTourBar } from './onboarding-tour-bar';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { SubscriptionGuard } from './subscription-lock/subscription-guard';
@@ -215,6 +220,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // "Continue …". Driven by the backend onboarding progress in the store.
   const isOnboardingPage = pathname?.startsWith('/onboarding') ?? false;
   const isDashboardPage = pathname === '/' || (pathname?.startsWith('/dashboard') ?? false);
+  // Read once per mount so the reserved band can't change under the layout
+  // between the pre-load render and the real one.
+  const [cachedTopBar] = useState(readCachedOnboardingTopBar);
   let topBar: React.ReactNode;
   if (showOnboardingChrome) {
     if (initialSetupActive) {
@@ -234,7 +242,43 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         />
       );
     }
+  } else if (newOnboardingEnabled) {
+    // Progress hasn't loaded yet. Rendering nothing here just moves the jump
+    // from the skeleton to this side of the handoff — the shell reserves the
+    // band, then the live layout drops it and the app snaps up until the query
+    // lands. Replay the same cached decision until we know better.
+    topBar = (
+      <CachedOnboardingTopBar
+        cached={cachedTopBar}
+        pathname={pathname}
+        onStart={() => router.push(cachedTopBar?.kind === 'tour' ? '/onboarding' : routes.dashboard)}
+      />
+    );
   }
+
+  // Remember which banner (if any) this slot resolved to, so the shell skeleton
+  // can reserve the same band on the next cold start instead of letting the bar
+  // drop in late and push the whole app down. Only once progress has actually
+  // loaded — before that `topBar` is undefined because we don't know yet, which
+  // is not the same answer as "no bar".
+  useEffect(() => {
+    if (!newOnboardingEnabled || !onboardingLoaded) return;
+    if (initialSetupActive) {
+      writeCachedOnboardingTopBar({ kind: 'initial-setup', started: tenantDone > 0 });
+    } else if (initialSetupComplete && userInProgress) {
+      writeCachedOnboardingTopBar({ kind: 'tour', started: userDone > 0 });
+    } else {
+      writeCachedOnboardingTopBar({ kind: 'none', started: false });
+    }
+  }, [
+    newOnboardingEnabled,
+    onboardingLoaded,
+    initialSetupActive,
+    initialSetupComplete,
+    userInProgress,
+    tenantDone,
+    userDone,
+  ]);
 
   const displayName = useMemo(
     () => `${userFirstName || ''} ${userLastName || ''}`.trim(),

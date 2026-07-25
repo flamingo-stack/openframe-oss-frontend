@@ -8,7 +8,7 @@ import { isSaasSharedMode } from './app-mode';
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
 import { refreshAccessToken } from './token-refresh-manager';
-import { getAccessTokenSync, getRefreshToken, isBearerAuthMode } from './token-store';
+import { getAccessTokenSync, getRefreshToken, getTokenEpoch, isBearerAuthMode } from './token-store';
 
 function getDomainSuffix(): string {
   const sharedUrl = runtimeEnv.sharedHostUrl();
@@ -48,10 +48,17 @@ function buildAuthUrl(path: string): string {
 }
 
 class AuthApiClient {
+  /**
+   * `sentAtEpoch` is the {@link getTokenEpoch} value captured before the request
+   * went out; passing it lets a 401 raised under an already-replaced credential
+   * retry instead of starting a second rotation. Omitted by callers outside
+   * `request()`, which keeps the previous always-refresh behavior.
+   */
   async handleUnauthorized<T>(
     url: string,
     headers: Record<string, string>,
     init: RequestInit,
+    sentAtEpoch?: number,
   ): Promise<AuthApiResponse<T> | null> {
     // Mirror api-client: on the auth pages a 401 just means "not signed in
     // yet" — never refresh-or-force-logout from here. A stale 401 chain that
@@ -61,7 +68,7 @@ class AuthApiClient {
       return null;
     }
 
-    const refreshSuccess = await refreshAccessToken();
+    const refreshSuccess = await refreshAccessToken(sentAtEpoch);
 
     if (refreshSuccess) {
       if (isBearerAuthMode()) {
@@ -368,6 +375,9 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<A
       headers.Authorization = `Bearer ${token}`;
     }
   }
+  // Captured BEFORE the request goes out: a 401 that comes back after the
+  // credential has already rotated needs a retry, not another rotation.
+  const sentAtEpoch = getTokenEpoch();
   try {
     const res = await fetch(url, {
       credentials: 'include',
@@ -376,7 +386,7 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<A
     });
 
     if (res.status === 401) {
-      const retryResult = await authApiClient.handleUnauthorized<T>(url, headers, init);
+      const retryResult = await authApiClient.handleUnauthorized<T>(url, headers, init, sentAtEpoch);
       if (retryResult) {
         return retryResult;
       }

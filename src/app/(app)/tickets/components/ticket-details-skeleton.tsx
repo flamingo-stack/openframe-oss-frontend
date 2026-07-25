@@ -1,7 +1,14 @@
 'use client';
 
 import { ChatMessageListSkeleton } from '@flamingo-stack/openframe-frontend-core';
-import { PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  type ActionsMenuGroup,
+  type PageActionButton,
+  PageLayout,
+  Skeleton,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { skeletonFlagEnabled } from '@/lib/feature-flags';
 
 interface TicketDetailsSkeletonProps {
   onBack: () => void;
@@ -9,20 +16,71 @@ interface TicketDetailsSkeletonProps {
    * Classic two-chat layout (flag off) vs the new sidebar layout (flag on).
    * `showTechnicianChat` is `isTechnicianChatEnabled`, which is exactly the
    * inverse of the sidebar layout, so it doubles as the layout discriminator.
+   *
+   * Defaults to the same flag the page reads, via `skeletonFlagEnabled` — a
+   * plain `featureFlags` read returns the ENV default here, because the route
+   * skeleton renders before `FeatureFlagsGate` has the server's answer.
    */
-  showTechnicianChat: boolean;
+  showTechnicianChat?: boolean;
 }
+
+/**
+ * Header actions for the sidebar layout. "Track Time" is omitted on purpose —
+ * it depends on the ticket's status, which is exactly what's still loading.
+ */
+const SIDEBAR_ACTIONS: PageActionButton[] = [
+  {
+    label: 'Edit Ticket',
+    ariaLabel: 'Edit Ticket',
+    variant: 'outline',
+    disabled: true,
+    icon: <PenEditIcon className="text-ods-text-secondary" />,
+    iconOnlyOnDesktop: true,
+  },
+];
+
+/**
+ * The classic layout puts everything behind the "…" menu. Only "Edit Ticket" is
+ * unconditional; the device entries appear once the ticket resolves a machine.
+ * Its presence is what matters here — the button's width is fixed.
+ */
+const CLASSIC_MENU_ACTIONS: ActionsMenuGroup[] = [
+  {
+    items: [
+      {
+        id: 'edit-ticket',
+        label: 'Edit Ticket',
+        icon: <PenEditIcon className="text-ods-text-secondary" />,
+        disabled: true,
+      },
+    ],
+  },
+];
+
+/** Archive/Unarchive are status-dependent, so the loading header shows neither. */
+const CLASSIC_ACTIONS: PageActionButton[] = [];
 
 /**
  * Loading skeleton shaped like the real ticket details page. Reusing the message
  * list's own `ChatMessageListSkeleton` keeps the transition seamless once the
  * dialog resolves but messages are still loading.
+ *
+ * `loading` on the `PageLayout` is what draws the title bar: the real header
+ * always renders `dialog.title`, so omitting it left the `h1` line out entirely
+ * and the whole page shifted up by one line while loading.
  */
-export function TicketDetailsSkeleton({ onBack, showTechnicianChat }: TicketDetailsSkeletonProps) {
+export function TicketDetailsSkeleton({
+  onBack,
+  showTechnicianChat = !skeletonFlagEnabled('mingo-sidebar-context'),
+}: TicketDetailsSkeletonProps) {
   return (
     <PageLayout
+      loading
       backButton={{ label: 'Back', onClick: onBack }}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] h-[calc(100%)]"
+      actions={showTechnicianChat ? CLASSIC_ACTIONS : SIDEBAR_ACTIONS}
+      actionsVariant={showTechnicianChat ? 'menu-primary' : 'icon-buttons'}
+      menuActions={showTechnicianChat ? CLASSIC_MENU_ACTIONS : undefined}
       contentClassName="flex flex-col min-h-0"
     >
       {showTechnicianChat ? <ClassicChatSkeleton /> : <SidebarLayoutSkeleton />}
