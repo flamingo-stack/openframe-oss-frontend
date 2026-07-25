@@ -3,8 +3,7 @@
 import { BoxArchiveIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ListPageSkeleton, type TableSkeletonColumn } from '@/app/components/shared';
-import { featureFlags } from '@/lib/feature-flags';
-import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
+import { skeletonFlagEnabled } from '@/lib/feature-flags';
 
 /**
  * Route-level skeleton for `/scripts-v2` and `/scripts-v2/schedules` — the
@@ -49,9 +48,9 @@ const SCRIPT_COLUMNS: readonly TableSkeletonColumn[] = [
   { id: 'name', header: 'Name', width: 'flex-1 min-w-0' },
   { id: 'shellType', header: 'Shell Type', width: 'w-[100px] md:w-[160px]' },
   { id: 'supportedPlatforms', header: 'OS', width: 'w-[80px]', hideAt: 'lg' },
-  { id: 'authorName', header: 'Added by', width: 'w-[250px]', hideAt: 'lg' },
+  { id: 'authorId', header: 'Added by', width: 'w-[250px]', hideAt: 'lg' },
   { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
-  { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
+  { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
 ];
 
 const SCHEDULE_COLUMNS: readonly TableSkeletonColumn[] = [
@@ -69,9 +68,11 @@ export function ScriptsPageSkeleton({ view = 'list' }: { view?: 'list' | 'schedu
 
   // Same gate as `ScriptsV2TabNavigation`: with Schedules off the switcher has a
   // single view and renders nothing, so the skeleton must not draw a tab bar the
-  // loaded page won't have. Resolved store value, env fallback before flags land.
-  const serverValue = useFeatureFlagsStore(s => (s.isLoaded ? s.flags['script-schedules'] : undefined));
-  const schedulesEnabled = serverValue ?? featureFlags.scriptSchedules.enabled();
+  // loaded page won't have. `skeletonFlagEnabled` (not a raw store read) so the
+  // last cached server answer is consulted — before the flags query resolves a
+  // raw read is always false, which drew the wrong bar on every cold start for a
+  // tenant that has the flag on.
+  const schedulesEnabled = skeletonFlagEnabled('script-schedules');
 
   return (
     <ListPageSkeleton

@@ -11,8 +11,8 @@ import {
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
+import { EntityTagPickerFallback } from '@/app/components/shared/tags';
 import { routes } from '@/lib/routes';
-import { EntityTagPickerFallback } from '../../../../components/shared/tags';
 import { DETAIL_TABS, ScriptDetailsTabSkeleton, ScriptHeaderSkeleton } from './script-details-view';
 import { ScriptExecutionsSkeleton } from './script-executions-tab';
 import { ScriptPageChrome } from './script-page-chrome';
@@ -60,10 +60,19 @@ export function ScriptDetailsPageSkeleton({ tab }: { tab?: string }) {
       actions={DETAILS_ACTIONS}
       actionsVariant="menu-primary"
     >
-      <div className="flex flex-col gap-[var(--spacing-system-lf)]">
+      {/* `inert` on THIS element, not a wrapper around `TabNavigation`: that
+          component returns a fragment whose tab bar and tab body are siblings,
+          so wrapping it would collapse two flex items into one and drop the gap
+          between them. `inert` also does what `pointer-events-none` alone could
+          not — the tab triggers are real `<button>`s, so they stayed keyboard-
+          focusable and screen-reader-reachable while doing nothing. It removes
+          the whole placeholder subtree from the a11y tree and the tab order;
+          the header's Back button sits outside it and stays usable. */}
+      <div className="flex flex-col gap-[var(--spacing-system-lf)]" inert>
         <ScriptHeaderSkeleton />
-        {/* The REAL tab bar (not a copy), inert while loading — `urlSync` is off
-            so rendering the skeleton can't rewrite the URL. */}
+        {/* The REAL tab bar (not a copy) — `urlSync` is off so rendering the
+            skeleton can't rewrite the URL. `pointer-events-none` is kept as a
+            mouse-only fallback for browsers without `inert`. */}
         <TabNavigation tabs={DETAIL_TABS} activeTab={activeTab} onTabChange={noop} className="pointer-events-none">
           {() => (activeTab === 'executions' ? <ScriptExecutionsSkeleton /> : <ScriptDetailsTabSkeleton />)}
         </TabNavigation>
@@ -162,30 +171,30 @@ export function EditScriptPageSkeleton({ mode = 'edit' }: { mode?: 'edit' | 'new
     >
       <div>
         <Label className="text-h4 text-ods-text-primary">Supported Platform</Label>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-1">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-mf)] mt-[var(--spacing-system-xxs)]">
           {PLATFORM_CARD_KEYS.map(key => (
-            <Skeleton key={key} className="h-11 md:h-16 rounded-[6px]" />
+            <Skeleton key={key} className="h-11 md:h-16 rounded-md" />
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-lf)]">
         {FIELD_KEYS.map(key => (
-          <div key={key} className="space-y-1">
+          <div key={key} className="space-y-[var(--spacing-system-xxs)]">
             <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-12 w-full rounded-[6px]" />
+            <Skeleton className="h-12 w-full rounded-md" />
           </div>
         ))}
       </div>
 
       <div>
         <Label className="text-h4 text-ods-text-primary">Description</Label>
-        <Skeleton className="h-24 w-full rounded-[6px]" />
+        <Skeleton className="h-24 w-full rounded-md" />
       </div>
 
       <EntityTagPickerFallback />
 
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col lg:flex-row gap-[var(--spacing-system-lf)]">
         <ScriptArguments
           arguments={EMPTY_ARGUMENTS}
           onArgumentsChange={noop}
@@ -210,7 +219,7 @@ export function EditScriptPageSkeleton({ mode = 'edit' }: { mode?: 'edit' | 'new
 
       <div>
         <Label className="text-h4 text-ods-text-primary">Syntax</Label>
-        <Skeleton className="h-[300px] lg:h-[600px] w-full rounded-[6px]" />
+        <Skeleton className="h-[300px] lg:h-[600px] w-full rounded-md" />
       </div>
     </ScriptPageChrome>
   );

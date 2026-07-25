@@ -91,8 +91,12 @@ const mobileFilterButton = (
 );
 
 export function TicketsPageSkeleton({ viewMode }: { viewMode?: string }) {
-  // `TicketsView` defaults to the board; only an explicit `?viewMode=table` switches.
-  const isTable = viewMode === 'table';
+  // Mirrors how `TicketsView` resolves the mode: `useApiParams` declares
+  // `viewMode` with `default: 'board'` and falls back to that default for any
+  // FALSY raw value, then treats everything else that isn't `board` as the
+  // table. So an absent param and an empty `?viewMode=` are both the board,
+  // while a stray `?viewMode=grid` is the table on both sides.
+  const isTable = !!viewMode && viewMode !== 'board';
   // Read once, on mount: the lane set must not shift while the skeleton is up.
   const [boardColumns] = useState(buildPlaceholderBoardColumns);
 

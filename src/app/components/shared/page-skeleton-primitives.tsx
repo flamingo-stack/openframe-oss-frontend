@@ -125,6 +125,13 @@ interface TableSkeletonProps {
 /**
  * Empty `DataTable` in its loading state, shaped by `columns`. Pass the same
  * headers/widths the real table declares so the header row is pixel-identical.
+ *
+ * The `aria-busy` wrapper is the only element added over a bare `DataTable`:
+ * `DataTableSkeleton` renders purely visual `animate-pulse` rows with no
+ * `aria-busy`/`aria-live`/`role`, so without it a screen reader is given no
+ * signal that the region is loading. `DataTable` takes only
+ * `table`/`children`/`className`, so the attribute needs its own element. It
+ * wraps a single child, so the flex-item count of the parent is unchanged.
  */
 export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
   const columnDefs = useMemo<ColumnDef<unknown>[]>(
@@ -146,10 +153,12 @@ export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header />
-      <DataTable.Body loading skeletonRows={rows} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
+    <div aria-busy>
+      <DataTable table={table}>
+        <DataTable.Header />
+        <DataTable.Body loading skeletonRows={rows} emptyMessage="" rowClassName="mb-1" />
+      </DataTable>
+    </div>
   );
 }
 
@@ -176,7 +185,7 @@ export function TabBarSkeleton({ widths, className }: { widths: readonly string[
 
 /** The search/filter toolbar row list pages render above their table. */
 export function SearchBarSkeleton() {
-  return <Skeleton className="h-12 w-full rounded-[6px]" />;
+  return <Skeleton className="h-12 w-full rounded-md" />;
 }
 
 export interface ListPageSkeletonProps {
@@ -184,14 +193,9 @@ export interface ListPageSkeletonProps {
   title: string;
   /** Real header buttons, rendered disabled so the header is pixel-identical. */
   actions?: PageActionButton[];
-  actionsVariant?: 'icon-buttons' | 'primary-buttons' | 'menu-primary';
   /** Tab cell widths when the page renders a tab bar above its header. */
   tabWidths?: readonly string[];
-  /** Blocks between the header and the search bar (e.g. summary cards). */
-  children?: ReactNode;
-  showSearch?: boolean;
-  /** Omit to render `children` only (pages whose body isn't a table). */
-  columns?: readonly TableSkeletonColumn[];
+  columns: readonly TableSkeletonColumn[];
   rows?: number;
 }
 
@@ -200,16 +204,7 @@ export interface ListPageSkeletonProps {
  * `PageLayout` header (title + disabled actions), a search toolbar and a table
  * in its loading state.
  */
-export function ListPageSkeleton({
-  title,
-  actions,
-  actionsVariant = 'icon-buttons',
-  tabWidths,
-  children,
-  showSearch = true,
-  columns,
-  rows,
-}: ListPageSkeletonProps) {
+export function ListPageSkeleton({ title, actions, tabWidths, columns, rows }: ListPageSkeletonProps) {
   return (
     <div className="flex flex-col w-full">
       {tabWidths && (
@@ -220,13 +215,12 @@ export function ListPageSkeleton({
       <PageLayout
         title={title}
         actions={actions}
-        actionsVariant={actionsVariant}
+        actionsVariant="icon-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         contentClassName="flex flex-col"
       >
-        {children}
-        {showSearch && <SearchBarSkeleton />}
-        {columns && <TableSkeleton columns={columns} rows={rows} />}
+        <SearchBarSkeleton />
+        <TableSkeleton columns={columns} rows={rows} />
       </PageLayout>
     </div>
   );

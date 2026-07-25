@@ -3,6 +3,8 @@
 import { BoxArchiveIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SearchBarSkeleton } from '@/app/components/shared';
+import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { routes } from '@/lib/routes';
 import { DevicesTableBody } from './devices-table-columns';
 
 /**
@@ -31,13 +33,16 @@ const LIST_ACTIONS: PageActionButton[] = [
   },
 ];
 
-const noop = () => {};
-
 export function DevicesPageSkeleton({ archived = false }: { archived?: boolean }) {
+  // The real archive page's own handler — the Back button stays usable while
+  // loading instead of being a dead control. Removing it isn't an option: the
+  // button occupies a row above the title, so the header would shift on load.
+  const handleBack = useSafeBack(routes.devices.list);
+
   return (
     <PageLayout
       title={archived ? 'Archived Devices' : 'Devices'}
-      backButton={archived ? { label: 'Back', onClick: noop } : undefined}
+      backButton={archived ? { label: 'Back', onClick: handleBack } : undefined}
       actions={archived ? undefined : LIST_ACTIONS}
       actionsVariant="icon-buttons"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"

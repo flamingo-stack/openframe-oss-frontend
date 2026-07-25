@@ -146,6 +146,13 @@ async function executeRefresh(tenantId?: string): Promise<boolean> {
  * keep the previous always-refresh behavior.
  */
 export async function refreshAccessToken(observedEpoch?: number): Promise<boolean> {
+  // Checked BEFORE the in-flight join below, deliberately: a stale-epoch caller
+  // already holds a newer credential, so it must NOT inherit a concurrent
+  // rotation's result. That rotation can fail transiently (5xx / network blip on
+  // `/oauth/refresh` — neither clears tokens), and `false` sends every HTTP
+  // caller straight to `forceLogout()`. Retrying with the credential this caller
+  // already has costs at most one failed request; a retry that 401s is not
+  // terminal, it just fails that request.
   if (observedEpoch !== undefined && observedEpoch !== getTokenEpoch()) {
     return true;
   }

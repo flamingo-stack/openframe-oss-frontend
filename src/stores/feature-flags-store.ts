@@ -29,7 +29,13 @@ export function readCachedFeatureFlags(): Record<string, boolean> | null {
     const raw = window.localStorage.getItem(FLAGS_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    // localStorage is user-writable: keep only real booleans so callers that
+    // declare a `boolean` return type aren't handed arbitrary JSON.
+    return Object.fromEntries(Object.entries(parsed).filter(([, v]) => typeof v === 'boolean')) as Record<
+      string,
+      boolean
+    >;
   } catch {
     return null;
   }
@@ -38,7 +44,9 @@ export function readCachedFeatureFlags(): Record<string, boolean> | null {
 function writeCachedFeatureFlags(flags: Record<string, boolean>): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(FLAGS_CACHE_KEY, JSON.stringify(flags));
+    const serialized = JSON.stringify(flags);
+    if (window.localStorage.getItem(FLAGS_CACHE_KEY) === serialized) return;
+    window.localStorage.setItem(FLAGS_CACHE_KEY, serialized);
   } catch {
     // Private mode / quota — skeletons fall back to the env defaults.
   }
@@ -58,15 +66,19 @@ export const useFeatureFlagsStore = create<FeatureFlagsState>()(
       flags: {},
       isLoaded: false,
 
-      setFlags: flags =>
+      setFlags: flags => {
+        const next: Record<string, boolean> = {};
+        for (const flag of flags) {
+          next[flag.name] = flag.enabled;
+        }
         set(state => {
-          state.flags = {};
-          for (const flag of flags) {
-            state.flags[flag.name] = flag.enabled;
-          }
+          state.flags = next;
           state.isLoaded = true;
-          writeCachedFeatureFlags(state.flags);
-        }),
+        });
+        // Outside the recipe: immer producers must be side-effect free, and
+        // `state.flags` inside one is a draft proxy, not the finalized map.
+        writeCachedFeatureFlags(next);
+      },
 
       setLoaded: () =>
         set(state => {

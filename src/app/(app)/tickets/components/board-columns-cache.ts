@@ -36,7 +36,31 @@ export function readCachedBoardColumns(): CachedBoardColumn[] | null {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return null;
     // Written by us, but a stale/hand-edited entry must not crash the skeleton.
-    return parsed.every(c => c && typeof c.id === 'string' && typeof c.label === 'string') ? parsed : null;
+    // `color` and `statusKey` are both load-bearing and both reach a core
+    // `.replace()` that throws on a non-string: `color` goes to the board's
+    // `tintOnDark()`, `statusKey` to `TicketStatusTag` -> `getTicketStatusConfig`.
+    // Either one would take down the route skeleton AND `TicketsBoard`.
+    const valid = parsed.every(
+      c =>
+        c &&
+        typeof c.id === 'string' &&
+        typeof c.label === 'string' &&
+        typeof c.color === 'string' &&
+        (c.statusKey === undefined || typeof c.statusKey === 'string'),
+    );
+    // Picked field by field, not spread: a stale blob's extra keys would ride
+    // `...c` straight into `BoardColumnDef` (`total`, `hasMore`, `archivable`,
+    // `allowedFromColumns` are all real props the board reads), which is the
+    // crash this validator exists to prevent.
+    return valid
+      ? parsed.map(c => ({
+          id: c.id,
+          statusKey: c.statusKey,
+          label: c.label,
+          color: c.color,
+          system: !!c.system,
+        }))
+      : null;
   } catch {
     return null;
   }

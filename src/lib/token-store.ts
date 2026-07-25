@@ -159,11 +159,16 @@ export function initTokenStore(): Promise<void> {
       if (!tokenUpdateListenerRegistered) {
         tokenUpdateListenerRegistered = true;
         onNativeTokenUpdate(tokens => {
-          cachedAccessToken = tokens.accessToken || null;
+          const nextAccess = tokens.accessToken || null;
+          // Compared BEFORE the overwrite, and only a genuinely different token
+          // counts: an empty payload is the session ending (same reasoning as
+          // `clearTokens`), and a shell that re-emits the SAME tokens on resume
+          // would otherwise advance the epoch with no new credential, making
+          // every in-flight 401 short-circuit to a retry with the dead token.
+          const rotated = !!nextAccess && nextAccess !== cachedAccessToken;
+          cachedAccessToken = nextAccess;
           cachedRefreshToken = tokens.refreshToken || null;
-          // An empty payload is the session ending, not a new credential — same
-          // reasoning as `clearTokens`, so it must not advance the epoch.
-          if (cachedAccessToken) markTokenRotation();
+          if (rotated) markTokenRotation();
           emitTokenChange();
         });
       }
@@ -259,11 +264,17 @@ export async function setTokens(tokens: { accessToken?: string | null; refreshTo
   }
   if (typeof window === 'undefined') return;
   try {
-    if (accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    if (accessToken) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+      // Bump as soon as the access token is readable, and BEFORE the
+      // refresh-token write below — that write can throw on its own (quota),
+      // and skipping the bump would leave the epoch reporting the previous
+      // generation for a credential that is already live, so a stale 401 would
+      // rotate again instead of just retrying. A throw from the line above
+      // skips the bump, which is correct: nothing was stored.
+      markTokenRotation();
+    }
     if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-    // Only after the write lands — a throwing `setItem` (quota, private mode)
-    // must NOT leave the epoch claiming a credential that was never stored.
-    if (accessToken) markTokenRotation();
   } catch (error) {
     console.error('[Token Store] Failed to store tokens:', error);
   }

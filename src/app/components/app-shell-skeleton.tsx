@@ -13,7 +13,11 @@ import {
   SIDEBAR_WIDTH_CSS_VAR,
 } from '@/lib/navigation-sidebar-state';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { CachedOnboardingTopBar, readCachedOnboardingTopBar } from './onboarding-top-bar-cache';
+import {
+  CachedOnboardingTopBar,
+  type CachedOnboardingTopBar as CachedOnboardingTopBarData,
+  readCachedOnboardingTopBar,
+} from './onboarding-top-bar-cache';
 import { RouteContentSkeleton } from './route-content-skeleton';
 
 /**
@@ -112,7 +116,13 @@ function NavigationSidebarSkeleton() {
       <aside
         className={cn(
           'flex-col hidden md:flex shrink-0 bg-ods-card border-r border-ods-border',
-          isTablet ? 'fixed top-0 left-0 h-screen z-[45]' : 'relative h-full',
+          // Tablet: float over the content, anchored to the layout ROW
+          // (`absolute` inside the shell's `relative` row) — NOT the viewport.
+          // Viewport-`fixed` here started the sidebar at y=0 and covered the
+          // onboarding announcement bar that sits above the row. Matches the
+          // real `NavigationSidebar`, which uses these exact classes for the
+          // same reason.
+          isTablet ? 'absolute inset-y-0 left-0 z-[45]' : 'relative h-full',
         )}
         style={{ width: `var(${SIDEBAR_WIDTH_CSS_VAR}, ${SIDEBAR_EXPANDED_WIDTH}px)` }}
         aria-hidden
@@ -155,6 +165,25 @@ function NavigationSidebarSkeleton() {
 
 const noop = () => {};
 
+function readOnboardingTopBarPlaceholder(): CachedOnboardingTopBarData | null {
+  // Same gate as the live chrome. `skeletonFlagEnabled` (not `featureFlags`)
+  // so the cached server answer wins over the env default.
+  if (!skeletonFlagEnabled('new-onboarding', runtimeEnv.newOnboardingFlag())) return null;
+  return readCachedOnboardingTopBar();
+}
+
+/**
+ * Set by the first mount's effect. The read above is localStorage-derived and
+ * therefore unavailable on the server, so the FIRST client render must return
+ * null to match the SSR'd HTML — anything else is a hydration mismatch that
+ * re-renders the whole tree. That constraint applies only once: this skeleton
+ * remounts on every later client-side gate (feature flags, subscription,
+ * biometric lock, session checks, Suspense), where there is no server HTML to
+ * agree with and deferring would just reintroduce the one-frame bandless render
+ * this cache exists to prevent.
+ */
+let hasHydrated = false;
+
 /**
  * The onboarding banner the live layout will render in its `topBar` slot,
  * replayed from cache so the shell reserves the band up front instead of
@@ -164,11 +193,22 @@ const noop = () => {};
  * click on a placeholder CTA can't navigate before the app is ready.
  */
 function useOnboardingTopBarPlaceholder(pathname: string | null): React.ReactNode {
-  const [cached] = useState(readCachedOnboardingTopBar);
+  const [cached, setCached] = useState<CachedOnboardingTopBarData | null>(() =>
+    hasHydrated ? readOnboardingTopBarPlaceholder() : null,
+  );
+  useEffect(() => {
+    // Unconditional and idempotent rather than `if (hasHydrated) return`: the
+    // flag is module-scope but the state it guards is per-instance, so an early
+    // return would strand any instance that initialized while the flag was
+    // false and mounted after another instance had flipped it — that one would
+    // never read the cache at all. `prev ?? …` keeps the remount path free (the
+    // initializer already read, so this is a same-reference no-op React bails
+    // out of) without depending on which instance got here first.
+    hasHydrated = true;
+    setCached(prev => prev ?? readOnboardingTopBarPlaceholder());
+  }, []);
 
-  // Same gate as the live chrome, but via `skeletonFlagEnabled` (not
-  // `featureFlags`) — the flags query hasn't resolved while this skeleton is up.
-  if (!skeletonFlagEnabled('new-onboarding', runtimeEnv.newOnboardingFlag())) return null;
+  if (!cached) return null;
 
   return (
     <div className="contents pointer-events-none">

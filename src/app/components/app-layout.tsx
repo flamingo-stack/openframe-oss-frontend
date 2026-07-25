@@ -236,7 +236,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     } else if (initialSetupComplete && userInProgress) {
       topBar = (
         <OnboardingTourBar
-          onStart={() => router.push('/onboarding')}
+          onStart={() => router.push(routes.onboarding)}
           started={userDone > 0}
           showAction={!isOnboardingPage}
         />
@@ -251,7 +251,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       <CachedOnboardingTopBar
         cached={cachedTopBar}
         pathname={pathname}
-        onStart={() => router.push(cachedTopBar?.kind === 'tour' ? '/onboarding' : routes.dashboard)}
+        onStart={() => router.push(cachedTopBar?.kind === 'tour' ? routes.onboarding : routes.dashboard)}
       />
     );
   }

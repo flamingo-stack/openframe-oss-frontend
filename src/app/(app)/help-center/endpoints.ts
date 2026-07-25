@@ -29,6 +29,7 @@
  */
 import type { EndpointsRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { isNativeShell } from '@/lib/native-shell';
+import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 /** `''` on the web (relative, same-origin); the tenant gateway origin in the
@@ -51,13 +52,13 @@ const CONTENT = `${CONTENT_BASE}/api`;
  * purpose: they are accurate for this fixed destination. Switching to a lone
  * "Back" would imply history-back that these buttons don't actually perform.
  */
-export const HELP_CENTER_BASE = '/help-center';
+export const HELP_CENTER_BASE = routes.helpCenter.root;
 
 /** Route the knowledge-base docs hub (`<DocsHubPage>`) is mounted under — base
  *  page + its `[...path]` deep-link route. Lives here (a dep-light module) so
  *  both the page and the chat's doc-chip `baseRoute` share one SSOT without
  *  pulling the client `DocsHubPage` module into the chat bundle. */
-export const KNOWLEDGE_BASE_ROUTE = `${HELP_CENTER_BASE}/knowledge-base`;
+export const KNOWLEDGE_BASE_ROUTE = routes.helpCenter.knowledgeBase;
 
 /** Base the `<FaqSection>` appends `/api/faqs?…` to. */
 export const CONTENT_API_BASE = CONTENT_BASE;

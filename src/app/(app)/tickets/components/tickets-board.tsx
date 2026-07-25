@@ -20,13 +20,17 @@ import { useTicketStatusTransitionRules } from '../hooks/use-ticket-status-trans
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
 import type { TicketsPage } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
-import { mapDefinitionToSystem, usesCanonicalStatusStyle } from '../statuses/types/ticket-statuses.types';
+import {
+  mapDefinitionToSystem,
+  type TicketStatusDefinition,
+  usesCanonicalStatusStyle,
+} from '../statuses/types/ticket-statuses.types';
 import type { Dialog } from '../types/dialog.types';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
-import { buildPlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
+import { buildPlaceholderBoardColumns, type CachedBoardColumn, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
 import { TicketTagFilter } from './ticket-label-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
@@ -36,6 +40,26 @@ import { TicketsFilterModal } from './tickets-filter-modal';
 // unread counts on the ticket entity itself. Matching unread notifications to tickets by id is a
 // temporary workaround — disabled for now; flip this flag to restore it.
 const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
+
+/**
+ * The layout-defining half of a lane — everything the column header renders
+ * from, with no ticket data. Used both for the columns the board renders and
+ * for the set written to the skeleton's cache, so a change to how a lane is
+ * styled can't leave the cached lanes looking different from the live ones.
+ *
+ * AI_ASSISTANCE/RESOLVED style their header from the canonical status key
+ * (icon/variant); TECH_REQUIRED and custom statuses render from the backend
+ * `color`. `id` stays the statusId regardless.
+ */
+function toLaneDefinition(status: TicketStatusDefinition): CachedBoardColumn {
+  return {
+    id: status.id,
+    statusKey: usesCanonicalStatusStyle(status.kind) ? mapDefinitionToSystem(status).statusKey : undefined,
+    label: status.name,
+    color: status.color,
+    system: status.isSystem,
+  };
+}
 
 interface TicketsBoardProps {
   selector?: ReactNode;
@@ -218,21 +242,13 @@ export function TicketsBoard({
 
     return statuses.map(status => {
       const state = columnUpdates[status.id]?.state;
-      // AI_ASSISTANCE/RESOLVED style their header from the canonical status key
-      // (icon/variant). TECH_REQUIRED and custom statuses render from the backend
-      // `color`. `id` stays the statusId regardless.
-      const useCanonicalStyle = usesCanonicalStatusStyle(status.kind);
       return {
-        id: status.id,
-        statusKey: useCanonicalStyle ? mapDefinitionToSystem(status).statusKey : undefined,
-        label: status.name,
-        color: status.color,
+        ...toLaneDefinition(status),
         tickets: (state?.tickets ?? []).map(ticket => dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id))),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
         isLoadingMore: state?.isLoadingMore,
-        system: status.isSystem,
         allowedFromColumns: transitionRules ? (allowedFromByStatusId[status.id] ?? []) : undefined,
         archivable: status.kind === 'RESOLVED' && canArchiveResolved,
       };
@@ -255,16 +271,12 @@ export function TicketsBoard({
   useEffect(() => {
     // Never cache the placeholder set back over itself.
     if (statusesLoading || statuses.length === 0) return;
-    writeCachedBoardColumns(
-      boardColumns.map(column => ({
-        id: column.id,
-        statusKey: column.statusKey,
-        label: column.label,
-        color: column.color,
-        system: !!column.system,
-      })),
-    );
-  }, [boardColumns, statuses.length, statusesLoading]);
+    // Built from `statuses`, not `boardColumns`: the latter's memo identity
+    // changes on every NATS column tick, so depending on it re-ran a
+    // JSON.stringify + synchronous localStorage read per update just to learn
+    // nothing had changed. Lane definitions only move when the query data does.
+    writeCachedBoardColumns(statuses.map(toLaneDefinition));
+  }, [statuses, statusesLoading]);
 
   const getTicketHref = useCallback((id: string) => routes.tickets.dialog(id), []);
 
