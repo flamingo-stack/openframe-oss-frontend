@@ -1,0 +1,6 @@
+flowchart TD
+    TicketsUI["Tickets UI"] --> TicketService
+    TicketService --> ApiClient
+    ApiClient --> Gateway["Gateway Service"]
+    Gateway --> ApiService["API Service Core"]
+    ApiService --> DataLayer["Data & Persistence"]

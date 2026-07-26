@@ -1,0 +1,8 @@
+flowchart LR
+    UserInput["User Input"] --> ContactForm["Contact Form Component"]
+    ContactForm --> ZodSchema["ContactSchema (Zod)"]
+    ZodSchema -->|"safeParse()"| ValidatedData["Validated & Sanitized Data"]
+    ValidatedData --> ApiClient["API Client"]
+    ApiClient --> Backend["Backend /api/contact"]
+    Backend --> ApiResponse["ContactApiResponse"]
+    ApiResponse --> UIState["UI Success/Error State"]

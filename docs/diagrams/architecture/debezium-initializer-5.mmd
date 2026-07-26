@@ -1,0 +1,5 @@
+flowchart LR
+    Mongo["MongoDB IntegratedTool Specs"] --> Initializer["Debezium Initializer"]
+    Initializer --> Kafka["Kafka Connect + Debezium"]
+    Kafka --> StreamService["Stream Service Core"]
+    StreamService --> Downstream["Cassandra / Pinot / Mongo Projections"]

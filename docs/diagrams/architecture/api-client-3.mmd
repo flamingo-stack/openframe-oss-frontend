@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant UI
+    participant AuthClient
+    participant Backend
+
+    UI->>AuthClient: Authenticated request
+    AuthClient->>Backend: HTTP request
+    Backend-->>AuthClient: 401 Unauthorized
+    AuthClient->>AuthClient: refreshAccessToken()
+    AuthClient->>Backend: Retry with new token
+    Backend-->>AuthClient: 200 OK

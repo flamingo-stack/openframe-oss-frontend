@@ -1,0 +1,5 @@
+flowchart LR
+    Click["Row Click"] --> SetParam["Set ?ticket=<external_id>"]
+    DeepLink["Direct URL"] --> SetParam
+    SetParam --> DerivedState["expandedTicketId derived from URL"]
+    DerivedState --> Drawer["TicketDetailDrawer visible"]

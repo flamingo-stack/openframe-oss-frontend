@@ -1,0 +1,4 @@
+flowchart TD
+    Incoming["Request with X-Tenant-Ns"] --> NamespaceFilter["NamespaceRewriteGatewayFilter"]
+    NamespaceFilter --> Rewrite["Rewrite svc.cluster.local Host"]
+    Rewrite --> Upstream["Tenant-Specific Service"]

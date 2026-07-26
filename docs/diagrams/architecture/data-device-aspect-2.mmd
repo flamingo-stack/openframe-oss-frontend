@@ -1,0 +1,5 @@
+flowchart TD
+    SaveOp["Repository.save()"] --> AfterReturning["@AfterReturning Advice"]
+    DeleteOp["Repository.delete()"] --> AroundAdvice["@Around Advice"]
+    AfterReturning --> ServiceCall["MachineTagEventService"]
+    AroundAdvice --> ServiceCall

@@ -1,0 +1,6 @@
+flowchart LR
+    Service["OpenFrame Service"] -->|"HTTP Request"| FleetClient["FleetMdmClient"]
+    FleetClient -->|"Uses Models"| Sdk["Sdk Fleetmdm"]
+    FleetClient -->|"REST API"| FleetServer["Fleet MDM Server"]
+    FleetServer -->|"JSON Response"| Sdk
+    Sdk --> Service

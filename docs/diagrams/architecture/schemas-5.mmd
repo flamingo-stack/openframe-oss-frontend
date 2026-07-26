@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant User
+    participant Form
+    participant Schema
+    participant ApiClient
+    participant Backend
+
+    User->>Form: Enter contact data
+    Form->>Schema: safeParse(formData)
+    Schema-->>Form: Success or validation errors
+    Form->>ApiClient: POST validated data
+    ApiClient->>Backend: /api/contact
+    Backend-->>ApiClient: ContactApiResponse
+    ApiClient-->>Form: success / error

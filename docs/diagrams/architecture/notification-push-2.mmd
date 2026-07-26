@@ -1,0 +1,11 @@
+flowchart TD
+    Start["Application Startup"] --> CheckInstance["FirebaseApp.getInstance()"]
+    CheckInstance -->|"Exists"| UseExisting["Reuse Existing FirebaseApp"]
+    CheckInstance -->|"Not Initialized"| InitApp["Initialize FirebaseApp"]
+
+    InitApp --> Creds["GoogleCredentials.getApplicationDefault()"]
+    InitApp --> Options["Set Project ID and Timeouts"]
+    Options --> Register["Register FirebaseApp"]
+
+    UseExisting --> GetMessaging["FirebaseMessaging.getInstance()"]
+    Register --> GetMessaging

@@ -1,0 +1,7 @@
+flowchart TD
+    AppStart["Application Ready Event"] --> Initializer["PinotConfigInitializer"]
+    Initializer --> LoadResources["Load Schema and Table JSON"]
+    LoadResources --> ResolvePlaceholders["Resolve Spring Placeholders"]
+    ResolvePlaceholders --> DeploySchema["Deploy Schema via REST"]
+    DeploySchema --> DeployTable["Deploy Table Config via REST"]
+    DeployTable --> PinotController["Pinot Controller API"]

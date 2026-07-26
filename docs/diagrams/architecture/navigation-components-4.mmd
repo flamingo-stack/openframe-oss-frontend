@@ -1,0 +1,6 @@
+flowchart LR
+    Viewport["Viewport Width"] --> CheckLg{{"lg+?"}}
+    CheckLg -->|Yes| Desktop["Persistent Sidebar"]
+    CheckLg -->|No| CheckMd{{"md?"}}
+    CheckMd -->|Yes| Tablet["Overlay Sidebar"]
+    CheckMd -->|No| Hidden["Hidden (Mobile)"]

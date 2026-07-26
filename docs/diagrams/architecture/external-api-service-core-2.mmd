@@ -1,0 +1,8 @@
+flowchart TD
+    A["GET /api/v1/devices"] --> B["Build DeviceFilterCriteria"]
+    B --> C["DeviceService.queryDevices"]
+    C --> D{{"includeTags?"}}
+    D -->|"Yes"| E["TagService.getTagsForMachines"]
+    D -->|"No"| F["Map without tags"]
+    E --> G["DeviceMapper.toDevicesResponseWithDeviceTags"]
+    F --> H["DeviceMapper.toDevicesResponse"]

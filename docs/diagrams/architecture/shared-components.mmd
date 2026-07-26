@@ -1,0 +1,21 @@
+flowchart TD
+    HostApp["Host Application"] --> DevSectionView["DevSectionView"]
+    HostApp --> ReleaseDetailPage["ReleaseDetailPage"]
+    HostApp --> RoadmapView["RoadmapView"]
+
+    DevSectionView --> RoadmapView
+    DevSectionView --> ProductReleasesView
+    DevSectionView --> DeliveryLists
+
+    RoadmapView --> RoadmapGrid
+    RoadmapGrid --> RoadmapCard["RoadmapCard"]
+
+    ProductReleasesView --> ReleaseRow["ReleaseRow"]
+    ReleaseRow --> ProductReleaseCard["ProductReleaseCard"]
+
+    ReleaseDetailPage --> MarkdownRenderer["MarkdownRenderer"]
+    ReleaseDetailPage --> VideoDisplaySection["VideoDisplaySection"]
+    ReleaseDetailPage --> ReleaseChangelogSection["ReleaseChangelogSection"]
+
+    DeliveryLists --> DeliveryTable["DeliveryTable"]
+    DeliveryTable --> DeliveryRow

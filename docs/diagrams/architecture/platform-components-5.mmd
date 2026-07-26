@@ -1,0 +1,8 @@
+flowchart TD
+    Name["Software Name"] --> Display["Primary Text"]
+    Version["Version (optional)"] --> Badge["Version Badge"]
+    Vendor["Vendor (optional)"] --> Subtext["Secondary Text"]
+
+    Display --> Container["SoftwareInfo"]
+    Badge --> Container
+    Subtext --> Container

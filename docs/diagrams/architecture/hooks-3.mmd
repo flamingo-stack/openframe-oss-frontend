@@ -1,0 +1,17 @@
+flowchart TD
+    Input["imageUrl + refreshKey"] --> ResolveURL["Construct Full URL"]
+
+    ResolveURL --> CacheCheck{"Cached?"}
+
+    CacheCheck -->|Yes| UseCache["Increment refCount"]
+    CacheCheck -->|No| PendingCheck{"Pending Request?"}
+
+    PendingCheck -->|Yes| AwaitPending["Reuse Promise"]
+    PendingCheck -->|No| FetchImage["Fetch with credentials"]
+
+    FetchImage --> CreateBlob["Create Object URL"]
+    CreateBlob --> StoreCache["Store in Global Cache"]
+
+    UseCache --> ReturnState["Return imageUrl"]
+    AwaitPending --> ReturnState
+    StoreCache --> ReturnState

@@ -1,0 +1,7 @@
+flowchart TD
+    Schedule["Script Schedule"] --> Header["ScheduleScriptExecution"]
+    Header --> Execution["ScriptExecution (per machine)"]
+    Execution --> Agent
+    Agent --> Result
+    Result --> Execution
+    Execution --> Header

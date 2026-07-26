@@ -1,0 +1,19 @@
+flowchart TD
+    Client["Frontend / External Clients"] --> Gateway["Gateway Service"]
+    Gateway --> Api["Api Service Core"]
+
+    subgraph api_layers["Api Service Core Layers"]
+        Controllers["REST Controllers"]
+        GraphQL["GraphQL DataFetchers"]
+        DataLoaders["DGS DataLoaders"]
+        Services["Domain Services"]
+        Security["Security & JWT"]
+    end
+
+    Api --> Controllers
+    Api --> GraphQL
+    GraphQL --> DataLoaders
+    Controllers --> Services
+    GraphQL --> Services
+    Services --> Repos["Repositories & Data Modules"]
+    Api --> Security

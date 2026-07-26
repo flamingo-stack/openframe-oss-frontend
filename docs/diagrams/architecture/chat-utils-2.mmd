@@ -1,0 +1,11 @@
+flowchart TD
+    Synthetic["Synthetic Message"] --> HasSeq{"Has streamSeq?"}
+
+    HasSeq -->|Yes| RoleCoverage["Check per-role max persisted seq"]
+    HasSeq -->|No| GlobalCheck["Check global historyMaxStreamSeq"]
+
+    RoleCoverage --> Covered{"Persisted seq >= message seq?"}
+    GlobalCheck --> Covered
+
+    Covered -->|Yes| Drop["Drop synthetic"]
+    Covered -->|No| Keep["Keep synthetic"]

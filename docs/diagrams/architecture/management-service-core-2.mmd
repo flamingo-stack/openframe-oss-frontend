@@ -1,0 +1,7 @@
+flowchart TD
+    Request["POST /v1/tools/{key}"] --> LoadExisting["Find existing by key"]
+    LoadExisting --> SetTenant["Apply tenantId + key"]
+    SetTenant --> Save["Save via IntegratedToolService"]
+    Save --> Debezium["Create/Update Debezium Connector"]
+    Debezium --> Hooks["Run Post-Save Hooks"]
+    Hooks --> Response["Return success"]

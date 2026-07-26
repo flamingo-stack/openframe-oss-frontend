@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant Browser
+    participant Filter as TenantContextFilter
+    participant Context as TenantContext
+    participant Controller
+
+    Browser->>Filter: Request /acme/oauth2/authorize
+    Filter->>Context: setTenantId("acme")
+    Filter->>Controller: continue filter chain
+    Controller-->>Filter: response
+    Filter->>Context: clear()

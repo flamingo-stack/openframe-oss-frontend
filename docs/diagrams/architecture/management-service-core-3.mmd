@@ -1,0 +1,5 @@
+flowchart TD
+    Start["Application Boot"] --> Mongock["Mongock Runner"]
+    Mongock --> TenantScope["Resolve tenantId"]
+    TenantScope --> ChangeUnit["Execute ChangeUnit"]
+    ChangeUnit --> Mongo[("MongoDB")]

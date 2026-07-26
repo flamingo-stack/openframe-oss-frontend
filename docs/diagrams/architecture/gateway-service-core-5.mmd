@@ -1,0 +1,9 @@
+flowchart TD
+    Req["External API Request"] --> CheckPath{"/external-api/?"}
+    CheckPath -->|No| Continue["Pass Through"]
+    CheckPath -->|Yes| RequireKey["Require X-API-Key"]
+    RequireKey --> Validate["Validate API Key"]
+    Validate --> RateLimit["Check Rate Limit"]
+    RateLimit -->|Exceeded| Reject["429 Too Many Requests"]
+    RateLimit -->|Allowed| AddHeaders["Add User + Rate Headers"]
+    AddHeaders --> Forward["Forward to External API"]

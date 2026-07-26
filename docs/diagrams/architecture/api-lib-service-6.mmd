@@ -1,0 +1,19 @@
+flowchart TD
+    subgraph ApiLayer["API Layer"]
+        Controllers["REST Controllers"]
+        DataFetchers["GraphQL DataFetchers"]
+    end
+
+    subgraph ServiceLayer["Shared Services"]
+        ApiLib["Api Lib Service"]
+    end
+
+    subgraph DataLayer["Data Layer"]
+        MongoRepos["Mongo Repositories"]
+        Documents["Domain Documents"]
+    end
+
+    Controllers --> ApiLib
+    DataFetchers --> ApiLib
+    ApiLib --> MongoRepos
+    MongoRepos --> Documents

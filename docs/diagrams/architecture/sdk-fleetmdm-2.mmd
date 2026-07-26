@@ -1,0 +1,6 @@
+flowchart TD
+    Start["Application Startup"] --> Check{{"Multi Tenancy Enabled?"}}
+    Check -->|"No"| Pass["Return Tenant Id As Is"]
+    Check -->|"Yes"| Validate{{"Tenant Id Blank?"}}
+    Validate -->|"Yes"| Error["Throw IllegalStateException"]
+    Validate -->|"No"| Pass

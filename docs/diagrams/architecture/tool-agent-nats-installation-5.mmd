@@ -1,0 +1,9 @@
+sequenceDiagram
+    participant Installer as Agent Installer
+    participant Retriever as Tool Agent Nats Installation
+    participant Fleet as Fleet MDM API
+
+    Installer->>Retriever: Request Enroll Secret
+    Retriever->>Fleet: getEnrollSecret()
+    Fleet-->>Retriever: Enroll Secret
+    Retriever-->>Installer: Enroll Secret

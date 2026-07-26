@@ -1,0 +1,4 @@
+flowchart TD
+    Request["RunLiveQueryRequest"] --> FleetRun["POST /queries/run"]
+    FleetRun --> Campaign["LiveQueryCampaign"]
+    Campaign --> Stream["WebSocket Results Stream"]

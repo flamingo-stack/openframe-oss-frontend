@@ -1,0 +1,4 @@
+flowchart TD
+    Developer["Developer Code"] --> TSCompiler["TypeScript Compiler"]
+    TSCompiler -->|"Validates import.meta.env"| TypedEnv["ImportMetaEnv Interface"]
+    TypedEnv --> BuildSuccess["Safe Build"]

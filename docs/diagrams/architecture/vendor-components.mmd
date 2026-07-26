@@ -1,0 +1,9 @@
+flowchart TD
+    UIViews["Frontend Views"] --> VendorIcon["VendorIcon Component"]
+    UIViews --> VendorTag["VendorTag Component"]
+
+    VendorIcon --> VendorMediaUtils["Vendor Media Utilities"]
+    VendorIcon --> ImageProxy["Image Proxy Utility"]
+
+    VendorTag --> IconSet["Icon Libraries"]
+    VendorTag --> DesignTokens["ODS Design System Classes"]

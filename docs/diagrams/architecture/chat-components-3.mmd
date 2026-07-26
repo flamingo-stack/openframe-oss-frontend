@@ -1,0 +1,5 @@
+flowchart TD
+    Message["Message Content"] --> Marker["card://type:id"]
+    Marker --> Loader["ChatCardLoader"]
+    Loader --> Registry["CHAT_CARD_REGISTRY"]
+    Registry --> SpecificCard["Blog / Program / Release / etc."]

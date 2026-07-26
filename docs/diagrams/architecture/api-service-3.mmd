@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant UI as Composer
+    participant Hook as useSendMessageMutation
+    participant Client as Api Client
+    participant API as Chat Backend
+    UI->>Hook: send(dialogId, content, context)
+    Hook->>Client: POST /chat/api/v1/messages
+    Client->>API: HTTP Request
+    API-->>Client: SendMessageResponse
+    Client-->>Hook: ApiResponse
+    Hook-->>UI: messageId

@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant User
+    participant API
+    participant NATS
+    participant Processor
+    participant UI
+
+    User->>API: POST ChatAPIRequest
+    API-->>User: ChatAPIResponse
+    API->>NATS: Publish chunks
+    NATS-->>Processor: ChunkData
+    Processor->>UI: MessageSegment updates
+    UI-->>User: Streamed assistant message

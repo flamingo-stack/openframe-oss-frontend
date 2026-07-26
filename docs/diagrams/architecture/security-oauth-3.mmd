@@ -1,0 +1,5 @@
+flowchart LR
+    Tokens["TokenResponse"] -->|"createTicket()"| TicketStore["InMemoryOAuthDevTicketStore"]
+    TicketStore -->|"ticketId"| Client
+    Client -->|"consumeTicket(ticketId)"| TicketStore
+    TicketStore -->|"TokenResponse"| Client

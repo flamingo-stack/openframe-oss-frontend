@@ -1,0 +1,6 @@
+flowchart LR
+    DataFetcher["FeFeatureFlagDataFetcher"] -->|"getEffectiveFlags()"| Service["FeFeatureFlagService"]
+    Service --> Static["Static Configuration"]
+    Service --> Tenant["Tenant Overrides"]
+    Service --> Env["Environment Variables"]
+    Service --> Experiments["A/B or Rollout Logic"]

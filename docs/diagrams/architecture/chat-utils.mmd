@@ -1,0 +1,11 @@
+flowchart LR
+    Backend["Backend GraphQL History"] --> HistoryProcessor["processHistoricalMessages*"]
+    Stream["Realtime Chunk Stream"] --> ChunkProcessor["Chunk Processor / Accumulator"]
+
+    HistoryProcessor --> Merge["mergeHistoryWithRealtime()"]
+    ChunkProcessor --> Merge
+
+    Merge --> Store["Host Store (Mingo / Tickets)"]
+
+    AdminAPI["Slash Command API"] --> Resolver["resolveIcon()"]
+    Resolver --> ChatUI["Chat Chips / Autocomplete"]
