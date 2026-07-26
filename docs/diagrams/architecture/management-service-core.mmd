@@ -1,0 +1,22 @@
+flowchart TD
+    Startup["Application Startup"] --> Initializers["Initializers"]
+    Startup --> Migrations["Mongo Migrations (Mongock)"]
+    Startup --> Config["Management Configuration"]
+
+    Initializers --> AgentConfig["Integrated Tool Agent Initialization"]
+    Initializers --> ClientConfig["Client Configuration Initialization"]
+    Initializers --> NatsInit["NATS Stream Initialization"]
+    Initializers --> SecretInit["Agent Registration Secret Initialization"]
+
+    Controllers["Management REST Controllers"] --> ToolService["Integrated Tool Service"]
+    Controllers --> MachineRepo["Machine Repository"]
+    Controllers --> Debezium["Debezium Service"]
+
+    Schedulers["Schedulers (ShedLock)"] --> Redis[("Redis")]
+    Schedulers --> Mongo[("MongoDB")]
+    Schedulers --> Nats[("NATS")]
+
+    Migrations --> Mongo
+    AgentConfig --> Mongo
+    ClientConfig --> Mongo
+    NatsInit --> Nats

@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant Kafka as Inbound Kafka
+    participant Listener as JsonKafkaListener
+    participant Deser as Deserializer
+    participant Enrich as Enrichment Service
+    participant Mapper as EventTypeMapper
+    participant Handler as Message Handlers
+    participant Storage as Cassandra/Mongo
+
+    Kafka->>Listener: Debezium Message
+    Listener->>Deser: Route by MessageType
+    Deser->>Enrich: Structured Event
+    Enrich->>Mapper: Add UnifiedEventType
+    Mapper->>Handler: Enriched Event
+    Handler->>Storage: Persist / Publish

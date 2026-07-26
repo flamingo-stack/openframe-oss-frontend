@@ -1,0 +1,5 @@
+flowchart TD
+    SrcChange["src changes"] --> ResetLoaded["setIsLoaded(false)"]
+    ResetLoaded --> Remount["iframe key changes"]
+    Remount --> Cleanup["previous iframe src = about:blank"]
+    Cleanup --> ReleaseDoc["Embedded document released"]

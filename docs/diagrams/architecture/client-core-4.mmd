@@ -1,0 +1,9 @@
+flowchart LR
+    Agent["Agent"] --> Auth["Authentication"]
+    Agent --> Register["Registration"]
+    Agent --> Events["Heartbeat / Results"]
+
+    Events --> ClientCore["Client Core"]
+    ClientCore --> Kafka["Kafka"]
+    ClientCore --> Mongo["MongoDB"]
+    ClientCore --> Redis["Redis (Locks)"]

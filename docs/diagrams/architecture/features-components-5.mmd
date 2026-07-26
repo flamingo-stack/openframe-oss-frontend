@@ -1,0 +1,10 @@
+sequenceDiagram
+    participant User
+    participant Header
+    participant Panel
+
+    User->>Header: Click Time Tracker
+    Header->>Panel: Open Popover
+    User->>Panel: Start Tracking
+    Panel->>Panel: Update Elapsed Time
+    User->>Panel: Submit Entry

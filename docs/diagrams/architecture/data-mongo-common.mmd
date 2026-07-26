@@ -1,0 +1,8 @@
+flowchart TD
+    ApiService["API Service Core"] --> MongoCommon["Data Mongo Common"]
+    AuthService["Authorization Service Core"] --> MongoCommon
+    MgmtService["Management Service Core"] --> MongoCommon
+    StreamService["Stream Service Core"] --> MongoCommon
+    Reactive["Data Mongo Reactive"] --> MongoCommon
+    Sync["Data Mongo Sync"] --> MongoCommon
+    MongoCommon --> MongoDB[("MongoDB")]

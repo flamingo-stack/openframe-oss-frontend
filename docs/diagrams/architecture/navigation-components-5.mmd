@@ -1,0 +1,7 @@
+flowchart TD
+    Hamburger["Header Toggle"] --> Open["isOpen = true"]
+    Open --> LockScroll["Prevent Body Scroll"]
+    Open --> FocusTrap["Activate Focus Trap"]
+    Open --> RenderPanel["Render Dialog + Backdrop"]
+    BackdropClick["Backdrop Click"] --> Close["onClose()"]
+    EscapeKey["Escape Key"] --> Close

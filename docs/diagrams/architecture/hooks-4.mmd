@@ -1,0 +1,16 @@
+flowchart TD
+    NewRequest["New Image Request"] --> Cached{"In Cache?"}
+
+    Cached -->|Yes| IncRef["Increment refCount"]
+    Cached -->|No| Fetch["Fetch Image"]
+
+    Fetch --> Store["Store blobUrl + refCount=1"]
+
+    IncRef --> Use
+    Store --> Use
+
+    Use --> Unmount["Component Unmount"]
+    Unmount --> DecRef["Decrement refCount"]
+
+    DecRef --> Expire{"Expired and refCount=0?"}
+    Expire -->|Yes| Revoke["URL.revokeObjectURL"]

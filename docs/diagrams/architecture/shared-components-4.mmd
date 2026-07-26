@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant User
+    participant RoadmapCard
+    participant RoadmapGrid
+    participant API
+
+    User->>RoadmapCard: Click vote
+    RoadmapCard->>RoadmapGrid: onVote(taskId)
+    RoadmapGrid->>API: POST vote
+    API-->>RoadmapGrid: success
+    RoadmapGrid->>API: GET /api/roadmap/{id}
+    API-->>RoadmapGrid: updated item
+    RoadmapGrid->>RoadmapView: onItemUpdate

@@ -1,0 +1,7 @@
+flowchart TD
+    InputChange["User Types in Search"] --> LocalState["Local Search State"]
+    LocalState --> Debounce["useDebounce 500ms"]
+    Debounce --> OnSearch["onSearch Callback"]
+
+    FilterButton["Mobile Filter Button"] --> ModalOpen["FilterModal Open"]
+    ModalOpen --> FilterChange["onMobileFilterChange"]

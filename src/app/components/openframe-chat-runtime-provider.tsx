@@ -50,7 +50,7 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeChatContentUrl } from '@/app/(app)/help-center/help-center-content-href';
-import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
+import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
 
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
@@ -73,6 +73,22 @@ import { refreshAccessToken } from '@/lib/token-refresh-manager';
 const CHAT_SOURCE = 'openframe' as const;
 
 /**
+ * Token epoch observed the last time this adapter attached credentials to an
+ * outgoing chat request. Read back in `refresh()` so a 401 raised under a
+ * credential that has ALREADY been replaced retries instead of rotating again.
+ *
+ * The adapter is a module singleton and core calls `getHeaders()` from more
+ * than the send path (`needsBearerAssetFetch` probes authed images with it), so
+ * this is really the last HEADER BUILD rather than the send that produced the
+ * 401 — the correlation is deliberately loose. It is
+ * still safe: the stored value can only lag the current epoch, and lagging
+ * means a rotation happened after that send, which is exactly when a retry is
+ * the right answer. The failure mode is a missed short-circuit (one extra
+ * refresh, today's behavior), never a retry with a genuinely dead token.
+ */
+let lastChatSendEpoch = 0;
+
+/**
  * Auth adapter the lib's `embedAuthedFetch` consults on every embedded-chat
  * request. Defined at module scope (not rebuilt per render) so it can be
  * registered SYNCHRONOUSLY on first render — before the child chat effects
@@ -81,6 +97,10 @@ const CHAT_SOURCE = 'openframe' as const;
  */
 const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   getHeaders: () => {
+    // Recorded for BOTH auth modes: cookie-mode rotations advance the epoch too
+    // (`markTokenRotation` in the refresh manager), and the chat rides cookies
+    // there via `credentials: 'include'`.
+    lastChatSendEpoch = getTokenEpoch();
     // Mirror `apiClient.getAuthHeaders()` EXACTLY: only attach a stored Bearer
     // in bearer mode (dev-ticket web or native shell). In normal cookie mode
     // the access token lives in an http-only cookie that `oauth/refresh`
@@ -99,8 +119,12 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   credentials: 'include',
   // `refreshAccessToken` already dedups concurrent refreshes internally, and
   // `embedAuthedFetch` dedups 401-triggered retries on top — so a stampede of
-  // simultaneously-expiring chat requests refreshes once.
-  refresh: () => refreshAccessToken(),
+  // simultaneously-expiring chat requests refreshes once. Passing the send-time
+  // epoch closes the remaining gap: a 401 that lands AFTER that refresh
+  // finished is stale news and resolves to a retry rather than a second
+  // rotation (which, with rotating refresh tokens, invalidates the credential
+  // just obtained).
+  refresh: () => refreshAccessToken(lastChatSendEpoch),
   // Native shell only: the page origin (`capacitor://localhost`) has no server
   // behind it, so every `/content` call goes ABSOLUTE to the tenant gateway
   // (see `help-center/endpoints.ts`) — sanction exactly that origin for

@@ -1,0 +1,11 @@
+flowchart TD
+    Input["iconName"] --> Variant{"Variant?"}
+
+    Variant -->|brand| BrandResolver["getIconComponent()"]
+    Variant -->|design| AliasCheck["ICON_ALIASES"]
+
+    AliasCheck -->|Found| ReturnAlias["Return mapped component"]
+    AliasCheck -->|Not found| LibraryCheck["resolveFromLibrary()"]
+
+    LibraryCheck -->|Found| ReturnLibrary["Return generated icon"]
+    LibraryCheck -->|Not found| Fallback["FileIcon"]

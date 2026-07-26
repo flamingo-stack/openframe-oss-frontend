@@ -1,0 +1,4 @@
+flowchart TD
+    Init["FleetApiClient Constructor"] --> TenantHost["tenantHostUrl()"]
+    TenantHost --> BaseUrl["/tools/fleetmdm-server"]
+    TenantHost --> WsBaseUrl["/ws/tools/fleetmdm-server"]

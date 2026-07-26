@@ -1,0 +1,5 @@
+flowchart LR
+    WSClient["WebSocket Client"] --> Route["RouteLocator"]
+    Route --> Filter["Proxy URL Filter"]
+    Filter --> Resolver["ToolUpstreamResolver"]
+    Resolver --> Upstream["Tool WebSocket Endpoint"]

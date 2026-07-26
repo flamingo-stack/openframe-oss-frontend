@@ -1,0 +1,5 @@
+flowchart TD
+    EnvVars["Environment Variables"] --> PublicVars["VITE_* Variables"]
+    EnvVars --> PrivateVars["Non-VITE Variables"]
+    PublicVars --> Frontend["Exposed to Browser"]
+    PrivateVars --> BuildOnly["Server / Build Context Only"]

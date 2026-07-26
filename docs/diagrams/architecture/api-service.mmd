@@ -1,0 +1,7 @@
+flowchart LR
+    UI["Chat UI Components"] --> Hooks["Api Service Hooks"]
+    Hooks --> ApiClient["Api Client"]
+    ApiClient --> Backend["Chat Backend API"]
+    Backend --> ApiClient
+    ApiClient --> Hooks
+    Hooks --> UI

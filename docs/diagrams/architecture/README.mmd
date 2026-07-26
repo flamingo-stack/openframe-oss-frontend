@@ -1,0 +1,11 @@
+flowchart LR
+    Browser["User Browser"] --> Frontend["OpenFrame OSS Frontend (Next.js)"]
+
+    Frontend -->|GraphQL /api/graphql| ApiService["API Service Core"]
+    Frontend -->|REST /chat/api| ChatService["Chat / AI Service"]
+    Frontend -->|OAuth| AuthService["Authorization Service"]
+    Frontend -->|/tools/fleetmdm-server| Fleet["Fleet MDM"]
+    Frontend -->|/tools/meshcentral| Mesh["MeshCentral"]
+
+    ApiService --> DataLayer["Mongo / Cassandra / Pinot"]
+    ChatService --> StreamLayer["Kafka / NATS"]

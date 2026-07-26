@@ -1,0 +1,6 @@
+flowchart TD
+    DrawerRoot["AppLayoutDrawer Root"] --> Portal["Portal to Layout Container"]
+    Portal --> Overlay["Custom Overlay Div"]
+    Portal --> Content["Dialog Content"]
+    Content --> ResizeHandle["Optional Resize Handle"]
+    Content --> Panel["Drawer Panel"]

@@ -23,7 +23,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
-import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table';
+import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
 import { DEVICE_TABS } from './tabs/device-tabs';
 
 const noop = () => {};

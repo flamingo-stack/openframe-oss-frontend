@@ -1,0 +1,13 @@
+flowchart TD
+    App["Service Application"] --> Config["Mongo Configuration"]
+    Config --> Infra["MongoInfraConfig"]
+    Config --> Conversions["MongoCustomConversionsConfig"]
+    Config --> Indexes["MongoIndexConfig"]
+
+    App --> Repos["Spring Data Repositories"]
+    Repos --> CustomImpl["Custom Repository Implementations"]
+
+    CustomImpl --> Template["MongoTemplate / TenantAwareMongoTemplate"]
+    Template --> Mongo[("MongoDB")]
+
+    Repos --> Docs["Mongo Documents (data-mongo-common)"]

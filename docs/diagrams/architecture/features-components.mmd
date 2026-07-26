@@ -1,0 +1,11 @@
+flowchart TD
+    App["Application Pages"] --> Features["Features Components"]
+    Features --> UI["UI Components"]
+    Features --> Hooks["Feature Hooks"]
+    Features --> Media["Video & Media Layer"]
+    Features --> External["External Services"]
+
+    Media --> Video["Video Player"]
+    External --> Figma["Figma Embed"]
+    External --> Youtube["YouTube"]
+    External --> Upload["File Upload APIs"]

@@ -1,0 +1,18 @@
+flowchart LR
+    Service["Application Service"] --> Producer["OssTenantKafkaProducer"]
+    Producer --> Template["KafkaTemplate<String,Object>"]
+    Template --> Broker["Kafka Cluster"]
+
+    Broker --> ListenerFactory["KafkaListenerContainerFactory"]
+    ListenerFactory --> Consumer["@KafkaListener Consumers"]
+
+    subgraph config_layer["Configuration Layer"]
+        Props["OssTenantKafkaProperties"]
+        Topics["KafkaTopicProperties"]
+        AutoConfig["OssTenantKafkaAutoConfiguration"]
+    end
+
+    Props --> AutoConfig
+    Topics --> AutoConfig
+    AutoConfig --> Producer
+    AutoConfig --> ListenerFactory

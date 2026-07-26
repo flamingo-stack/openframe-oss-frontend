@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant Producer as Notification Producer
+    participant Channel as FCM Notification Channel
+    participant Repo as PushDevice Repository
+    participant Firebase as FirebaseMessaging
+    participant FCM as Google FCM
+    participant Device as Mobile Device
+
+    Producer->>Channel: Publish Notification
+    Channel->>Repo: Fetch device tokens
+    Repo-->>Channel: Token list
+    Channel->>Firebase: Send message
+    Firebase->>FCM: HTTPS request
+    FCM-->>Device: Push delivery

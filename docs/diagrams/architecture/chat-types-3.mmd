@@ -1,0 +1,6 @@
+flowchart TD
+    Chunk["ChunkData"] --> Parser["ChunkProcessor"]
+    Parser --> Action["ParsedChunkAction"]
+    Action --> Acc["AccumulatorState"]
+    Acc --> Segments["MessageSegment[]"]
+    Segments --> UI["Rendered Message"]

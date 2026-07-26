@@ -1,0 +1,6 @@
+flowchart TD
+    NatsMessage["NATS Result Message"] --> Listener["Result Listener"]
+    Listener --> Parser["RmmResultParser"]
+    Parser --> Service["RmmResultService"]
+    Service --> Publisher["EventLogsPublisher"]
+    Publisher --> Kafka["OSS Tenant Kafka Topic"]

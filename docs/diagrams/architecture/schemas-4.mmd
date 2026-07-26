@@ -1,0 +1,8 @@
+flowchart LR
+    Options["Allowed Options (as const)"] --> UISelect["UI Select Component"]
+    Options --> ZodRefine["Zod refine() Validator"]
+    UISelect --> UserChoice["User Selection"]
+    UserChoice --> ZodRefine
+    ZodRefine --> Decision{"Included in Options?"}
+    Decision -->|"Yes"| Valid
+    Decision -->|"No"| ValidationError

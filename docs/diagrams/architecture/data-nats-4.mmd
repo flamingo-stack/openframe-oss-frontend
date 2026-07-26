@@ -1,0 +1,4 @@
+flowchart TD
+    Schedule["Schedule Trigger"] --> PerMachine["One Message Per Machine"]
+    PerMachine --> Agent["Agent Executes N Scripts"]
+    Agent --> Results["Individual Script Results"]

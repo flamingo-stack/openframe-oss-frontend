@@ -1,0 +1,13 @@
+flowchart TD
+    Start["useTablePagination Called"] --> NullCheck{"Config Exists?"}
+
+    NullCheck -->|No| ReturnUndefined["Return undefined"]
+    NullCheck -->|Yes| TypeCheck{"Client or Server?"}
+
+    TypeCheck -->|Client| ClientFlow["Compute page-based state"]
+    TypeCheck -->|Server| ServerFlow["Map cursor-based state"]
+
+    ClientFlow --> Normalize["Return CursorPaginationProps"]
+    ServerFlow --> Normalize
+
+    Normalize --> End["Memoized Result"]

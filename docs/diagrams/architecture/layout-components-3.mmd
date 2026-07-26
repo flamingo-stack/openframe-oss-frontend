@@ -1,0 +1,9 @@
+flowchart LR
+    LeftColumn["Title Column"] --> Title["Title (h1 or h2)"]
+    LeftColumn --> Subtitle["Subtitle"]
+    LeftColumn --> Image["Entity Image"]
+
+    RightColumn["Actions Column"] --> PageActions["PageActions"]
+
+    TitleBlockRoot["TitleBlock Root"] --> LeftColumn
+    TitleBlockRoot --> RightColumn

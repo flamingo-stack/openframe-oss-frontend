@@ -1,0 +1,4 @@
+flowchart LR
+    Service["@Cacheable Service"] --> CacheManager["RedisCacheManager"]
+    CacheManager --> Prefix["Tenant-Aware Prefix"]
+    Prefix --> Redis[("Redis")]

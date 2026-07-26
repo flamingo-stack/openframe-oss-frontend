@@ -1,0 +1,17 @@
+flowchart TD
+    AppReady["Application Ready Event"] --> Initializer["DebeziumConnectorInitializer"]
+    Scheduler["DebeziumHealthCheckScheduler"] --> RecoveryManager["ConnectorRecoveryManager"]
+
+    Initializer --> DebeziumService["DebeziumService"]
+    Scheduler --> DebeziumService
+
+    DebeziumService --> KafkaConnect["Kafka Connect"]
+    DebeziumService --> MongoTools["IntegratedToolService"]
+
+    RecoveryManager --> Tracker["RecreationTracker"]
+    Tracker --> MongoTracker["MongoRecreationTracker"]
+    Tracker --> InMemoryTracker["InMemoryRecreationTracker"]
+
+    DebeziumService --> NameStrategy["ConnectorNameStrategy"]
+    NameStrategy --> IdentityStrategy["IdentityConnectorNameStrategy"]
+    NameStrategy --> VersionedStrategy["VersionedConnectorNameStrategy"]

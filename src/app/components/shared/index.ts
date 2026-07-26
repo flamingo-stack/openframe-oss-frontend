@@ -8,6 +8,17 @@ export { EmptyState, type EmptyStateProps } from './empty-state';
 export { LogDrawer, type LogDrawerInfoField } from './log-drawer';
 export { type OnboardingGuideSource, onboardingGuideButton } from './onboarding-guide-button';
 export { OrgAvatar } from './org-avatar';
+export {
+  InfoCardSkeleton,
+  type InfoCardSkeletonProps,
+  InlineSkeleton,
+  ListPageSkeleton,
+  type ListPageSkeletonProps,
+  SearchBarSkeleton,
+  TabBarSkeleton,
+  TableSkeleton,
+  type TableSkeletonColumn,
+} from './page-skeleton-primitives';
 export { PoliciesTable, type PoliciesTableProps } from './policies-table/policies-table';
 export type {
   PolicyStatusVariant,

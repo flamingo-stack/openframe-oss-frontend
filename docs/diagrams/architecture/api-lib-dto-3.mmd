@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant Client
+    participant API
+    participant Service
+    participant Agent
+
+    Client->>API: RunCommandInput
+    API->>Service: Validate + dispatch
+    Service->>Agent: Publish over NATS
+    Service-->>API: executionId
+    API-->>Client: DispatchResponse

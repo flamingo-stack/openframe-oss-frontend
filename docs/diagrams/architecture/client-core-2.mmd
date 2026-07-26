@@ -1,0 +1,5 @@
+flowchart TD
+    Request["Agent Registration Request"] --> Controller["AgentController"]
+    Controller --> Service["AgentRegistrationService"]
+    Service --> Processor["AgentRegistrationProcessor"]
+    Processor --> Machine["Machine Document"]

@@ -1,0 +1,6 @@
+flowchart TD
+    CascadeAspect["TimeEntryCascadeAspect"] --> TicketRepo["TicketRepository"]
+    CascadeAspect --> CascadeService["TimeEntryCascadeService"]
+    CascadeService --> TimeEntryRepo["TimeEntryRepository"]
+    TimeEntryRepo --> Database["MongoDB"]
+    TicketRepo --> Database

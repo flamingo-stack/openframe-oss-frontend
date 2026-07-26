@@ -17,12 +17,10 @@ interface ApiResponse<T = any> {
 
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
-import { isTokenRefreshing, refreshAccessToken } from './token-refresh-manager';
-import { getAccessTokenSync, isBearerAuthMode } from './token-store';
+import { refreshAccessToken } from './token-refresh-manager';
+import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from './token-store';
 
 class ApiClient {
-  private requestQueue: Array<() => Promise<any>> = [];
-
   /**
    * Get authentication headers based on current configuration
    */
@@ -66,17 +64,6 @@ class ApiClient {
   }
 
   /**
-   * Drain the request queue after refresh completes
-   */
-  private drainQueue(): void {
-    const queue = [...this.requestQueue];
-    this.requestQueue = [];
-    for (const retryRequest of queue) {
-      retryRequest();
-    }
-  }
-
-  /**
    * Make an authenticated API request
    */
   async request<T = any>(
@@ -101,6 +88,10 @@ class ApiClient {
     // Build full URL
     const url = this.buildUrl(path);
 
+    // Captured BEFORE the request goes out: a 401 that comes back after the
+    // credential has already rotated needs a retry, not another rotation.
+    const sentAtEpoch = getTokenEpoch();
+
     try {
       const response = await fetch(url, {
         ...fetchOptions,
@@ -123,18 +114,15 @@ class ApiClient {
           };
         }
 
-        if (isTokenRefreshing()) {
-          return new Promise<ApiResponse<T>>(resolve => {
-            this.requestQueue.push(async () => {
-              const result = await this.request<T>(path, options, true);
-              resolve(result);
-            });
-          });
-        }
-
-        const refreshSuccess = await refreshAccessToken();
-
-        this.drainQueue();
+        // No local queue: `refreshAccessToken` is already single-flight, so a
+        // concurrent 401 joins the in-flight rotation instead of starting one,
+        // and a 401 that lands after it finished short-circuits on `sentAtEpoch`
+        // to a plain retry. Parking these in an ApiClient-owned queue meant only
+        // an ApiClient-driven refresh could release them — when the rotation was
+        // started by Relay, the chat adapter, auth-api-client or the MeshCentral
+        // socket (all sharing this same flag), nothing drained the queue and the
+        // caller's promise never settled, hanging its react-query `queryFn`.
+        const refreshSuccess = await refreshAccessToken(sentAtEpoch);
 
         if (refreshSuccess) {
           return this.request<T>(path, options, true);

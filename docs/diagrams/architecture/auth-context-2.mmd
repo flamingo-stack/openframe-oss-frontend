@@ -1,0 +1,9 @@
+flowchart TD
+    Start["useAuth() Called"] --> HasHook{"Real Hook Registered?"}
+    HasHook -->|"Yes"| TryHook["Invoke Real Hook"]
+    HasHook -->|"No"| MockReturn["Return Mock User"]
+    TryHook --> HasUser{"User Exists?"}
+    HasUser -->|"Yes"| ReturnReal["Return Real Auth"]
+    HasUser -->|"No"| MockReturn
+    ReturnReal --> End["End"]
+    MockReturn --> End

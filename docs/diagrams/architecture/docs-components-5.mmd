@@ -1,0 +1,9 @@
+sequenceDiagram
+    participant Renderer
+    participant DocViewer
+    participant ResolveAPI
+
+    Renderer->>DocViewer: onResolveLink(link)
+    DocViewer->>ResolveAPI: POST /api/docs/resolve-link
+    ResolveAPI-->>DocViewer: Resolved path
+    DocViewer->>DocViewer: navigateToDoc(resolvedPath)

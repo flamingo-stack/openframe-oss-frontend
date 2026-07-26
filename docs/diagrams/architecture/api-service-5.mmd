@@ -1,0 +1,5 @@
+flowchart TD
+    Call["apiClient.post"] --> Check{"response.ok?"}
+    Check -->|"Yes"| Return["Return data"]
+    Check -->|"No"| Throw["Throw Error"]
+    Throw --> ReactQuery["React Query Error State"]

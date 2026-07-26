@@ -1,0 +1,9 @@
+sequenceDiagram
+    participant UI
+    participant Service as Ticket Service
+    participant API as GraphQL API
+
+    UI->>Service: reorderTicket(params)
+    Service->>API: REORDER_TICKET_MUTATION
+    API-->>Service: Updated ticket status
+    Service-->>UI: DialogStatus

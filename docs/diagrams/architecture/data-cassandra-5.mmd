@@ -1,0 +1,4 @@
+flowchart LR
+    Stream["Stream Processing"] --> Cassandra["Data Cassandra"]
+    Api["API Services"] --> Cassandra
+    Cassandra --> Ops["Operational Monitoring"]

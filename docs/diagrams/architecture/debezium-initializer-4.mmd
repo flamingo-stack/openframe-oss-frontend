@@ -1,0 +1,6 @@
+flowchart TD
+    Status["ConnectorStatus"] --> CheckConnector{"Connector FAILED?"}
+    Status --> CheckTasks{"Any Task FAILED?"}
+    CheckConnector --> Result
+    CheckTasks --> Result
+    Result["hasFailures()"]

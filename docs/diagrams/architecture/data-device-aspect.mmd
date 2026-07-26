@@ -1,0 +1,7 @@
+flowchart LR
+    Repo["Mongo Repositories"] --> Aspect["MachineTagEventAspect"]
+    Aspect --> Service["MachineTagEventServiceImpl"]
+    Service --> Enrichment["Device + Tag Enrichment"]
+    Enrichment --> Producer["OssTenantRetryingKafkaProducer"]
+    Producer --> Kafka["Kafka Topic"]
+    Kafka --> Pinot["Pinot / Analytics"]

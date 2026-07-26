@@ -1,0 +1,6 @@
+flowchart TD
+    ValidateURL["Validate URL"] -->|Invalid| PlainLink["Render simple link"]
+    ValidateURL -->|Valid| FetchOG["Fetch OG metadata"]
+    FetchOG -->|Success| ResolveImage["Resolve best image"]
+    FetchOG -->|Failure| FallbackData["Use fallback title/description"]
+    ResolveImage --> RenderCard["Render preview card"]

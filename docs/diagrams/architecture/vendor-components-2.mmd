@@ -1,0 +1,11 @@
+flowchart TD
+    Start["Render VendorIcon"] --> ResolveLogo["Resolve Logo URL"]
+    ResolveLogo --> HasLogo{"Logo Available?"}
+
+    HasLogo -->|Yes| Proxy["Apply Image Proxy"]
+    Proxy --> RenderImage["Render Image Component"]
+
+    HasLogo -->|No| RenderFallback["Render Vendor Initials"]
+
+    RenderImage --> End["Display Icon"]
+    RenderFallback --> End

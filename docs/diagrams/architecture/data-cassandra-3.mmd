@@ -1,0 +1,6 @@
+flowchart TD
+    Service["Application Service"] --> Template["TenantScopedCassandraTemplate"]
+    Template --> Guard["requireTenantId()"]
+    Guard --> TenantProvider["TenantIdProvider"]
+    Guard -->|"missing"| Error["CassandraTenantException"]
+    Guard -->|"present"| Delegate["CassandraOperations"]

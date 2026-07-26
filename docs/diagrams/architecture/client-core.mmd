@@ -1,0 +1,25 @@
+flowchart TD
+    Agent["Agent (Machine)"] -->|"HTTP /api/agents"| AgentController["AgentController"]
+    Agent -->|"HTTP /oauth/token"| AgentAuthController["AgentAuthController"]
+
+    Agent -->|"NATS: machine.*.heartbeat"| HeartbeatListener["MachineHeartbeatListener"]
+    Agent -->|"NATS: machine.*.command-execution.result"| CommandResultListener["CommandResultListener"]
+    Agent -->|"NATS: machine.*.script-execution.result"| ScriptResultListener["ScriptResultListener"]
+    Agent -->|"NATS JetStream: installed-agent"| InstalledAgentListener["InstalledAgentListener"]
+    Agent -->|"NATS JetStream: tool-connection"| ToolConnectionListener["ToolConnectionListener"]
+
+    HeartbeatListener --> MachineStatusService["MachineStatusService"]
+    CommandResultListener --> RmmResultService["RmmResultService"]
+    ScriptResultListener --> RmmResultService
+    InstalledAgentListener --> InstalledAgentService["InstalledAgentService"]
+    ToolConnectionListener --> ToolConnectionService["ToolConnectionService"]
+
+    RmmResultService --> EventPublisher["EventLogsPublisher"]
+    EventPublisher --> Kafka["Kafka (OSS Tenant)"]
+
+    Scheduler["ScriptScheduleScheduler"] --> ScheduleService["ScriptScheduleExecutionService"]
+    Watchdog["ScriptExecutionWatchdogScheduler"] --> WatchdogService["ScriptExecutionWatchdogService"]
+
+    Redis["Redis"] --> ShedLock["ShedLockConfig"]
+    ShedLock --> Scheduler
+    ShedLock --> Watchdog

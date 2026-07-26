@@ -1,0 +1,16 @@
+flowchart TD
+    App["Application Layout"] --> Header["Header"]
+    App --> Sidebar["Navigation Sidebar"]
+    App --> MobileNav["Mobile Nav Panel"]
+    App --> SlidingSidebar["Sliding Sidebar"]
+    App --> Drawer["App Layout Drawer"]
+
+    Header --> GlobalSearch["Header Global Search"]
+    Header --> OrgFilter["Header Organization Filter"]
+    Header --> MingoButton["Mingo AI Button"]
+
+    Sidebar --> SidebarItem["Navigation Sidebar Item Button"]
+
+    Drawer --> DrawerContent["App Layout Drawer Content"]
+
+    App --> StickyNav["Sticky Section Nav"]

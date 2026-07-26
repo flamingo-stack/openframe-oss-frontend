@@ -1,0 +1,15 @@
+flowchart TD
+    User["User"] --> HelpCenterList["HelpCenterList"]
+    HelpCenterList --> UseTicketsList["useTicketsList"]
+    HelpCenterList --> UseTicketActions["useTicketActions"]
+
+    HelpCenterList --> HelpCenterCard["HelpCenterCard"]
+    HelpCenterCard --> TicketDetailDrawer["TicketDetailDrawer"]
+    TicketDetailDrawer --> UseTicketEngagements["useTicketEngagements"]
+    TicketDetailDrawer --> TicketReplyComposer["TicketReplyComposer"]
+
+    TicketReplyComposer --> UseChatAttachments["useChatAttachments"]
+
+    UseTicketsList --> ServerAPI["Ticket APIs"]
+    UseTicketActions --> ServerAPI
+    UseTicketEngagements --> ServerAPI
