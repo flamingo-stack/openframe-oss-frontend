@@ -1,0 +1,5 @@
+flowchart TD
+    Start["Application Startup"] --> PropertyCheck{"Cascade Enabled?"}
+    PropertyCheck -->|"Yes"| RegisterService["Register TimeEntryCascadeService"]
+    PropertyCheck -->|"Yes"| RegisterAspect["Register TimeEntryCascadeAspect"]
+    PropertyCheck -->|"No"| Skip["No Cascade Beans Registered"]

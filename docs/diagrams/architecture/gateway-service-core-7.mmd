@@ -1,0 +1,5 @@
+flowchart LR
+    Request --> Registry["ToolUpstreamResolverRegistry"]
+    Registry --> FleetResolver
+    Registry --> MeshResolver
+    Registry --> DefaultResolver

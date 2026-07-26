@@ -1,0 +1,4 @@
+flowchart LR
+    FleetApiClient --> BuildFleetUrl["Build Fleet URL"]
+    BuildFleetUrl --> BaseApiClient["apiClient.request()"]
+    BaseApiClient --> Gateway

@@ -1,0 +1,12 @@
+flowchart TD
+    User["User Interaction"] --> EditKey["Edit Key"]
+    User --> EditValue["Edit Value"]
+    User --> AddArg["Add Argument"]
+    User --> DeleteArg["Delete Argument"]
+
+    EditKey --> EmitChange["onArgumentsChange(updated)"]
+    EditValue --> EmitChange
+    AddArg --> EmitChange
+    DeleteArg --> EmitChange
+
+    EmitChange --> Parent["Parent State Update"]

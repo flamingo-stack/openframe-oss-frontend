@@ -1,0 +1,7 @@
+flowchart TD
+    API["API Service Core"] --> Repo["Data Mongo Sync"]
+    Repo --> Common["Data Mongo Common (Documents)"]
+    Repo --> Mongo[("MongoDB")]
+
+    Management["Management Service Core"] --> Repo
+    Auth["Authorization Service Core"] --> Repo

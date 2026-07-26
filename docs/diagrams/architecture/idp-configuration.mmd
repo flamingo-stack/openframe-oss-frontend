@@ -1,0 +1,8 @@
+flowchart TD
+    AppStartup["Application Startup"] --> Scheduler["IdpConfigurationScheduler"]
+    Scheduler --> RepoCheck["RegisteredClientMongoRepository"]
+    RepoCheck -->|"Client Exists"| Exit["Exit Without Changes"]
+    RepoCheck -->|"Client Missing"| BuildClient["Build MongoRegisteredClient"]
+    BuildClient --> EncodeSecret["PasswordEncoder"]
+    EncodeSecret --> SaveClient["Save Registered Client"]
+    SaveClient --> MongoDB["MongoDB"]

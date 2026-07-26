@@ -1,0 +1,8 @@
+flowchart TD
+    APIService["API Services"] --> SharedComponents
+    SharedComponents --> HostApp
+    HostApp --> EndUser
+
+    SharedComponents --> EmbedShims
+    SharedComponents --> UIPrimitives["UI Components"]
+    SharedComponents --> Hooks["Shared Hooks"]

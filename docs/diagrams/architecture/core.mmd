@@ -1,0 +1,12 @@
+flowchart TD
+    Core["Core Module"]
+
+    ApiService["API Service Core"]
+    AuthService["Authorization Service Core"]
+    GatewayService["Gateway Service Core"]
+    ManagementService["Management Service Core"]
+
+    ApiService --> Core
+    AuthService --> Core
+    GatewayService --> Core
+    ManagementService --> Core

@@ -1,0 +1,5 @@
+flowchart TD
+    LogsUI["LogsTable"] --> RelayQuery["logsTableRelayQuery"]
+    RelayQuery --> Backend["logs + filters"]
+    Backend --> RelayQuery
+    RelayQuery --> LogsUI

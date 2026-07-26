@@ -1,0 +1,7 @@
+flowchart TD
+    AppContext["Spring Application Context"] --> AutoConfig["TimeEntryCascadeAutoConfiguration"]
+    AutoConfig --> CascadeService["TimeEntryCascadeService"]
+    AutoConfig --> CascadeAspect["TimeEntryCascadeAspect"]
+    CascadeAspect --> TicketRepo["TicketRepository"]
+    CascadeAspect --> CascadeService
+    CascadeService --> TimeEntryRepo["TimeEntryRepository"]

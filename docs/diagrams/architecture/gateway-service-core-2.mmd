@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant Client
+    participant Gateway
+    participant IntegrationService
+    participant RestProxyService
+    participant Tool
+
+    Client->>Gateway: REST /tools/{toolId}/... 
+    Gateway->>IntegrationService: Validate tool
+    Gateway->>RestProxyService: Proxy request
+    RestProxyService->>Tool: Forward request
+    Tool-->>RestProxyService: Response
+    RestProxyService-->>Gateway: Response
+    Gateway-->>Client: Response

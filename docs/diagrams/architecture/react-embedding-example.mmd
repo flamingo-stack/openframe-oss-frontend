@@ -1,0 +1,5 @@
+flowchart TD
+    DevEnv[".env File"] --> ViteBuild["Vite Build Process"]
+    ViteBuild --> ImportMeta["import.meta.env"]
+    ImportMeta --> ReactApp["React Application"]
+    ReactApp --> EmbedLogic["Embed Mode Logic"]

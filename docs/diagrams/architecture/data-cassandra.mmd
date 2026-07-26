@@ -1,0 +1,13 @@
+flowchart TD
+    App["Spring Boot Application"] --> Config["CassandraConfig"]
+    Config --> Session["CqlSession"]
+    Config --> KeyspaceInit["ensureKeyspaceExists()"]
+
+    App --> Template["TenantScopedCassandraTemplate"]
+    Template --> Ops["CassandraOperations"]
+    Template --> TenantProvider["TenantIdProvider"]
+
+    App --> Health["CassandraHealthIndicator"]
+    Health --> Ops
+
+    KeyspaceInit --> Table["command_results Table<br/>TTL Enabled"]

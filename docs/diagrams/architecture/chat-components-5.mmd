@@ -1,0 +1,4 @@
+flowchart TD
+    Memory["Context Memory"] --> Composer
+    Assigned["Assigned Context Items"] --> Composer
+    Composer --> Outgoing["sendMessage(text, contextItems)"]

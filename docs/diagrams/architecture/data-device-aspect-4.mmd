@@ -1,0 +1,7 @@
+flowchart TD
+    DeleteCall["deleteByEntityIdAndTagId"] --> AroundAdvice["@Around Advice"]
+    AroundAdvice --> FetchMachine["Fetch Machine"]
+    FetchMachine --> FetchAssignments["Fetch Current Assignments"]
+    FetchAssignments --> ExcludeTag["Exclude Deleted Tag"]
+    ExcludeTag --> BuildMessage["Build MachinePinotMessage"]
+    BuildMessage --> Publish["Publish to Kafka"]

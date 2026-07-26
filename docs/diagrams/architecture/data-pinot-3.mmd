@@ -1,0 +1,6 @@
+flowchart LR
+    Repo["Pinot Repository"] --> Builder["PinotQueryBuilder"]
+    Builder --> SQL["Generated SQL"]
+    SQL --> Broker["Pinot Broker"]
+    Broker --> ResultSet["ResultSet"]
+    ResultSet --> Mapper["Projection Mapper"]

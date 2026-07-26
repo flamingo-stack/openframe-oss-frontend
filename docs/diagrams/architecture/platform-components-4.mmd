@@ -1,0 +1,6 @@
+flowchart TD
+    ShellType["ShellType Enum"] --> IconMap["shellIconMap"]
+    IconMap --> IconComponent["Icon Component"]
+    ShellType --> Label["getShellLabel()"]
+    IconComponent --> Badge["ShellTypeBadge"]
+    Label --> Badge

@@ -1,0 +1,4 @@
+flowchart LR
+    TicketOperation["Ticket Operation"] --> AspectIntercept["TimeEntryCascadeAspect"]
+    AspectIntercept --> CascadeLogic["TimeEntryCascadeService"]
+    CascadeLogic --> TimeEntryRepo["TimeEntryRepository"]

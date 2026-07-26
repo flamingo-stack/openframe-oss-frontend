@@ -1,0 +1,5 @@
+flowchart TD
+    ApiLayer["API Service Layer"] --> TicketMutation["Ticket Mutation"]
+    TicketMutation --> CascadeAspect["TimeEntryCascadeAspect"]
+    CascadeAspect --> DataLayer["Data Mongo Sync Layer"]
+    DataLayer --> MongoDB["MongoDB"]

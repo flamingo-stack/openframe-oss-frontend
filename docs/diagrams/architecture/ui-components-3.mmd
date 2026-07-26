@@ -1,0 +1,7 @@
+flowchart TD
+    Markdown["Markdown Source"] --> Preprocess["Preprocess + Escape Unknown Tags"]
+    Preprocess --> ReactMarkdown["react-markdown"]
+    ReactMarkdown --> RehypeRaw["rehype-raw"]
+    RehypeRaw --> Sanitize["rehypeStripUnsafe"]
+    Sanitize --> Highlight["rehype-highlight"]
+    Highlight --> Render["React Elements"]

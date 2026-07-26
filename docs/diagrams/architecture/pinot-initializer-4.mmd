@@ -1,0 +1,9 @@
+flowchart TD
+    LoadTable["Load Table Config JSON"] --> ParseTable["Extract tableName and tableType"]
+    ParseTable --> TryUpdate["PUT /tables/{tableName}"]
+    TryUpdate --> UpdateStatus{"HTTP 200?"}
+    UpdateStatus -->|Yes| Updated["Table Updated"]
+    UpdateStatus -->|No| CheckNotFound{"404 Not Found?"}
+    CheckNotFound -->|Yes| CreateTable["POST /tables"]
+    CheckNotFound -->|No| Fail["Deployment Error"]
+    CreateTable --> Created["Table Created"]

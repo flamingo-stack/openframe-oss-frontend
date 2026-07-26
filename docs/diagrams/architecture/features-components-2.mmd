@@ -1,0 +1,6 @@
+flowchart LR
+    User["User"] --> Click["AI Enrich Button"]
+    Click --> Loading["Loading State"]
+    Loading --> Result{"Success?"}
+    Result -->|Yes| Success["Confidence & Results"]
+    Result -->|No| Error["Error State"]

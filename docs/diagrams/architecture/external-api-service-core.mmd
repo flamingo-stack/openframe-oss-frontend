@@ -1,0 +1,29 @@
+flowchart LR
+    Client["External Client"] -->|"X-API-Key"| Gateway["Gateway Service Core"]
+    Gateway --> ExternalApi["External Api Service Core"]
+
+    subgraph controllers["REST Controllers"]
+        DeviceCtrl["DeviceController"]
+        EventCtrl["EventController"]
+        LogCtrl["LogController"]
+        OrgCtrl["OrganizationController"]
+        ToolCtrl["ToolController"]
+        IntegrationCtrl["IntegrationController"]
+    end
+
+    subgraph services["Core Services"]
+        DeviceService["DeviceService"]
+        EventService["EventService"]
+        LogService["LogService"]
+        OrgService["OrganizationService"]
+        ToolService["ToolService"]
+    end
+
+    subgraph data["Data & Storage"]
+        Mongo["MongoDB"]
+        Pinot["Apache Pinot"]
+    end
+
+    ExternalApi --> controllers
+    controllers --> services
+    services --> data

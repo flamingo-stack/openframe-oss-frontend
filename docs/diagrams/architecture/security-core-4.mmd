@@ -1,0 +1,8 @@
+flowchart TD
+    SecurityCore["Security Core"] --> ApiLayer["API Services"]
+    SecurityCore --> GatewayLayer["Gateway Services"]
+    SecurityCore --> AuthLayer["Authorization Services"]
+
+    ApiLayer --> BusinessLogic["Business Logic"]
+    GatewayLayer --> Routing["Request Routing"]
+    AuthLayer --> Identity["Identity Providers"]

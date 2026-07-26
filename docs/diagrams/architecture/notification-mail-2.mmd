@@ -1,0 +1,5 @@
+flowchart TD
+    Caller["Service Layer"] --> SMTP["SmtpEmailService"]
+    SMTP --> BuildMessage["SimpleMailMessage"]
+    BuildMessage --> MailSender["JavaMailSender"]
+    MailSender --> SMTPServer["SMTP Server"]

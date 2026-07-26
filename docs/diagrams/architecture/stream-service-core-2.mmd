@@ -1,0 +1,7 @@
+flowchart TD
+    Config["KafkaStreamsConfig"] --> SerdeActivity["ActivityMessage Serde"]
+    Config --> SerdeHost["HostActivityMessage Serde"]
+    Config --> StreamsProps["StreamsConfig Properties"]
+    StreamsProps --> AppId["application.id (tenant-aware)"]
+    StreamsProps --> Bootstrap["Bootstrap Servers"]
+    StreamsProps --> StateDir["State Store Directory"]

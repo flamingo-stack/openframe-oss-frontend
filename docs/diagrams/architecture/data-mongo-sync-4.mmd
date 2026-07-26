@@ -1,0 +1,4 @@
+flowchart LR
+    A["spring.data.mongodb.enabled"] --> B{{"openframe.tenant-isolation.enabled?"}}
+    B -->|false| Sync["MongoSyncConfig"]
+    B -->|true| TenantSync["TenantAwareSyncConfig"]

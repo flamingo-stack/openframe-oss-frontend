@@ -1,0 +1,7 @@
+flowchart TD
+    OidcLogin["OIDC Login"] --> ResolveTenant
+    ResolveTenant --> LoadSSOConfig
+    LoadSSOConfig --> DomainCheck
+    DomainCheck -->|Allowed| Provision
+    Provision --> UpdateProfile
+    UpdateProfile --> ContinueLogin

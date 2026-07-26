@@ -1,0 +1,4 @@
+flowchart LR
+    Service["MachineTagEventServiceImpl"] --> TenantProvider["TenantIdProvider"]
+    Service --> Producer["Tenant Kafka Producer"]
+    TenantProvider --> Producer

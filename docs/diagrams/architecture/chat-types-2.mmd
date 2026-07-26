@@ -1,0 +1,7 @@
+flowchart LR
+    Start["Chunk Received"] --> Type{"Chunk Type"}
+    Type -->|"TEXT"| Text["Text Segment"]
+    Type -->|"EXECUTING_TOOL"| Exec["Tool Execution Segment"]
+    Type -->|"APPROVAL_REQUEST"| Approval["Approval Segment"]
+    Type -->|"ERROR"| Error["Error Segment"]
+    Type -->|"AI_METADATA"| Meta["Metadata Update"]

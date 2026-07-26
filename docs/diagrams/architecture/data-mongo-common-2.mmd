@@ -1,0 +1,5 @@
+flowchart LR
+    Request["Incoming Request"] --> TenantResolver["TenantIdProvider"]
+    TenantResolver --> Repository
+    Repository -->|"tenantId injected"| MongoQuery
+    MongoQuery --> MongoDB

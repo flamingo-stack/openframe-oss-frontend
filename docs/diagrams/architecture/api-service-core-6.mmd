@@ -1,0 +1,6 @@
+flowchart TD
+    Jwt["JWT from Gateway"] --> ResourceServer["OAuth2 Resource Server"]
+    ResourceServer --> SecurityContext["SecurityContextHolder"]
+    SecurityContext --> AuthPrincipal["AuthPrincipal"]
+    AuthPrincipal --> Controller["REST Controller"]
+    AuthPrincipal --> DataFetcher["GraphQL DataFetcher"]

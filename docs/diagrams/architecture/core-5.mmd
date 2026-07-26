@@ -1,0 +1,5 @@
+flowchart TD
+    Repository["Repository Query"] --> PageObj["Spring Page<T>"]
+    PageObj --> Mapper["Mapping Layer"]
+    Mapper --> Response["PageResponse<T>"]
+    Response --> Client["API Consumer"]

@@ -1,0 +1,7 @@
+flowchart TD
+    Client["Client Application"] --> ApiCore["API Service Core"]
+    ApiCore --> ApiLib["Api Lib Service"]
+    ApiLib --> Repos["Mongo Repositories"]
+    Repos --> MongoDB[("MongoDB")]
+
+    ApiLib --> Events["Spring Data Mongo Events"]

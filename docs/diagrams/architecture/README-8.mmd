@@ -1,0 +1,7 @@
+flowchart TD
+    TenantDefault["Tenant Default Config"]
+    OrgOverride["Organization Override"]
+    Effective["Effective Runtime Config"]
+
+    TenantDefault --> Effective
+    OrgOverride --> Effective

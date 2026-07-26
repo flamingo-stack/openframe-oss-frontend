@@ -1,0 +1,4 @@
+flowchart LR
+    AuthModule["Authorization Service Core"] --> NotificationMail["Notification Mail"]
+    ApiModule["API Service Core"] --> NotificationMail
+    NotificationMail --> Provider["SMTP or HubSpot"]
