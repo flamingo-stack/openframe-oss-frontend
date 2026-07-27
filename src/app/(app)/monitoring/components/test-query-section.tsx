@@ -2,7 +2,9 @@
 
 import {
   Button,
+  NoData,
   QueryReportTable,
+  type QueryResultRow,
   Select,
   SelectContent,
   SelectItem,
@@ -10,7 +12,11 @@ import {
   SelectValue,
 } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
-import { FlaskVialIcon, XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  FlaskVialIcon,
+  SearchIcon,
+  XmarkCircleIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatTime } from '@/lib/format-date';
@@ -45,6 +51,10 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
   const campaign = useLiveCampaign();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedHostId, setSelectedHostId] = useState<string>('');
+  // Sticky "a run has been started" flag: campaignStatus resets to '' for a
+  // moment when a new run starts, which would flash "Run Test" between
+  // "Test Again" clicks without it.
+  const [hasRun, setHasRun] = useState(false);
 
   // Only Fleet-connected devices can run a live query.
   const selectableDevices = useMemo(
@@ -76,6 +86,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
       campaign.stopCampaign();
       setSelectedHostId('');
       setDurationMs(0);
+      setHasRun(false);
       setIsOpen(false);
     } else {
       setIsOpen(true);
@@ -85,14 +96,30 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
   const handleRun = useCallback(() => {
     const hostId = Number(selectedHostId);
     if (!Number.isFinite(hostId) || hostId <= 0) return;
+    setHasRun(true);
     campaign.startCampaign(getQuery(), [hostId]);
   }, [campaign, getQuery, selectedHostId]);
 
   const isFinished = campaign.campaignStatus === 'finished';
-  const showResults = campaign.isRunning || isFinished;
+  const showResults = campaign.isRunning || (hasRun && isFinished);
   const canRun = hasQuery && selectedHostId !== '' && !campaign.isRunning;
 
   const firstError = isFinished && campaign.errors.length > 0 ? campaign.errors[0].error : null;
+
+  // The panel tests a single device, so the host column the campaign hook
+  // prepends to every row is noise here — drop it, and humanize the raw
+  // osquery keys for the headers (snake_case -> spaced words).
+  const displayRows = useMemo<QueryResultRow[]>(
+    () =>
+      campaign.results.map(row =>
+        Object.fromEntries(
+          Object.entries(row)
+            .filter(([key]) => key !== 'host_display_name')
+            .map(([key, value]) => [key.replace(/_/g, ' '), value]),
+        ),
+      ),
+    [campaign.results],
+  );
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
@@ -103,7 +130,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
           variant="outline"
           onClick={handleToggle}
           leftIcon={isOpen ? <XmarkCircleIcon className="w-4 h-4" /> : <FlaskVialIcon className="w-4 h-4" />}
-          className="h-8 !px-[var(--spacing-system-xs)] !py-0 text-h5"
+          className="!h-8 !px-[var(--spacing-system-xs)] !py-0 text-h5"
         >
           {isOpen ? 'Cancel Test' : 'Test Query'}
         </Button>
@@ -168,7 +195,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                 >
                   Stop Test
                 </Button>
-              ) : isFinished ? (
+              ) : hasRun ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -201,15 +228,21 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                   {firstError}
                 </p>
               )}
-              <QueryReportTable
-                title=""
-                data={campaign.results}
-                loading={campaign.isRunning && campaign.results.length === 0}
-                skeletonRows={1}
-                emptyMessage={campaign.isRunning ? 'Waiting for results...' : 'No results returned'}
-                showExport={false}
-                variant="default"
-              />
+              {!campaign.isRunning && displayRows.length === 0 ? (
+                // Fixed-height empty state matching the 1-row skeleton/result
+                // height (48px header + 8px gap + 80px row) so the panel does
+                // not jump between the loading, result, and empty transitions.
+                <NoData icon={<SearchIcon />} title="No results returned" className="h-[136px] justify-center !py-0" />
+              ) : (
+                <QueryReportTable
+                  title=""
+                  data={displayRows}
+                  loading={campaign.isRunning && displayRows.length === 0}
+                  skeletonRows={1}
+                  showExport={false}
+                  variant="default"
+                />
+              )}
             </div>
           )}
         </div>
