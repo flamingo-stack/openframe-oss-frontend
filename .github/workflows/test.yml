@@ -10,7 +10,7 @@ on:
     branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.action == 'closed' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
@@ -61,7 +61,7 @@ jobs:
             type=raw,value=pr-${{ github.event.pull_request.number }}
             type=raw,value=pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
 
-      - name: Build and Push image pr-${{ github.event.pull_request.number }}
+      - name: Build and Push pr-${{ github.event.pull_request.number }}
         id: docker_build
         uses: nick-fields/retry@v4
         env:
