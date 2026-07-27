@@ -247,11 +247,14 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
               />
             )}
           />
+          {/* 8px gap under the editor, matching the section's internal gap
+              (the parent's space-y-1 would give 4px). */}
           <TestQuerySection
             getQuery={getQuery}
             hasQuery={hasQuery}
             devices={policyDevices}
             isLoadingDevices={isLoadingDevices}
+            className="!mt-[var(--spacing-system-xsf)]"
           />
         </div>
 

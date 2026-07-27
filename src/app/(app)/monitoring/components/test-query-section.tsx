@@ -17,6 +17,7 @@ import {
   SearchIcon,
   XmarkCircleIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatTime } from '@/lib/format-date';
@@ -30,6 +31,7 @@ export interface TestQuerySectionProps {
   hasQuery: boolean;
   devices: Device[];
   isLoadingDevices: boolean;
+  className?: string;
 }
 
 function formatDuration(ms: number): string {
@@ -47,7 +49,7 @@ function formatDuration(ms: number): string {
  * and the live result table. Lets the user test a query before it is saved or
  * assigned to any device.
  */
-export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices }: TestQuerySectionProps) {
+export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices, className }: TestQuerySectionProps) {
   const campaign = useLiveCampaign();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedHostId, setSelectedHostId] = useState<string>('');
@@ -97,6 +99,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
     const hostId = Number(selectedHostId);
     if (!Number.isFinite(hostId) || hostId <= 0) return;
     setHasRun(true);
+    setDurationMs(0);
     campaign.startCampaign(getQuery(), [hostId]);
   }, [campaign, getQuery, selectedHostId]);
 
@@ -106,29 +109,30 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
 
   const firstError = isFinished && campaign.errors.length > 0 ? campaign.errors[0].error : null;
 
-  // The panel tests a single device, so the host column the campaign hook
-  // prepends to every row is noise here — drop it, and humanize the raw
-  // osquery keys for the headers (snake_case -> spaced words).
+  // Started/Duration show zeros until the current run's timing is real:
+  // hasRun=false after Cancel Test, and campaignStatus resets while the next
+  // Test Again run is being created, so stale values never linger on screen.
+  const showTiming = hasRun && campaign.startedAt !== null && (campaign.isRunning || isFinished);
+
+  // Humanize the raw osquery keys for the table headers (snake_case -> spaced
+  // words); the row data itself is shown exactly as returned by the query.
   const displayRows = useMemo<QueryResultRow[]>(
     () =>
       campaign.results.map(row =>
-        Object.fromEntries(
-          Object.entries(row)
-            .filter(([key]) => key !== 'host_display_name')
-            .map(([key, value]) => [key.replace(/_/g, ' '), value]),
-        ),
+        Object.fromEntries(Object.entries(row).map(([key, value]) => [key.replace(/_/g, ' '), value])),
       ),
     [campaign.results],
   );
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
+    <div className={cn('flex flex-col gap-[var(--spacing-system-xsf)]', className)}>
       {/* Toggle + docs link row */}
       <div className="flex items-center justify-between gap-[var(--spacing-system-m)]">
         <Button
           type="button"
           variant="outline"
           onClick={handleToggle}
+          disabled={!isOpen && !hasQuery}
           leftIcon={isOpen ? <XmarkCircleIcon className="w-4 h-4" /> : <FlaskVialIcon className="w-4 h-4" />}
           className="!h-8 !px-[var(--spacing-system-xs)] !py-0 text-h5"
         >
@@ -172,14 +176,16 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
             {/* Started */}
             <div className="flex flex-col justify-center min-w-0 order-3 lg:order-2">
               <span className="text-h4 text-ods-text-secondary truncate">
-                {campaign.startedAt ? formatTime(campaign.startedAt) : '00:00 PM'}
+                {showTiming && campaign.startedAt ? formatTime(campaign.startedAt) : '00:00 PM'}
               </span>
               <span className="text-h6 text-ods-text-secondary truncate">Started</span>
             </div>
 
             {/* Duration */}
             <div className="flex flex-col justify-center min-w-0 order-4 lg:order-3">
-              <span className="text-h4 text-ods-text-secondary truncate">{formatDuration(durationMs)}</span>
+              <span className="text-h4 text-ods-text-secondary truncate">
+                {showTiming ? formatDuration(durationMs) : '00:00:00'}
+              </span>
               <span className="text-h6 text-ods-text-secondary truncate">Duration</span>
             </div>
 
