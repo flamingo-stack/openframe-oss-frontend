@@ -9,7 +9,6 @@ import {
   PageLayout,
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core';
-import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -22,8 +21,7 @@ import { routes } from '@/lib/routes';
 import type { Device } from '../../../devices/types/device.types';
 import { getFleetHostId } from '../../../devices/utils/device-action-utils';
 import { ScriptEditor } from '../../../scripts/components/script/script-editor';
-import { LiveTestPanel } from '../../components/live-test-panel';
-import { useLiveCampaign } from '../../hooks/use-live-campaign';
+import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
 import { usePolicyDetails } from '../hooks/use-policy-details';
 import { usePolicyDevices } from '../hooks/use-policy-devices';
@@ -92,9 +90,6 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
   }, []);
 
   const isSaving = isCreating || isUpdating || replacePolicyHostsMutation.isPending;
-
-  const campaign = useLiveCampaign();
-  const [showTestPanel, setShowTestPanel] = useState(false);
 
   const {
     register,
@@ -181,57 +176,19 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
     [toast],
   );
 
-  const handleTestPolicy = useCallback(() => {
-    setShowTestPanel(true);
-    campaign.startCampaign(getValues('query'), Array.from(selectedFleetHostIds));
-  }, [campaign, getValues, selectedFleetHostIds]);
+  const getQuery = useCallback(() => getValues('query'), [getValues]);
 
-  const handleTestAgain = useCallback(() => {
-    campaign.startCampaign(getValues('query'), Array.from(selectedFleetHostIds));
-  }, [campaign, getValues, selectedFleetHostIds]);
-
-  const handleCloseTestPanel = useCallback(() => {
-    campaign.stopCampaign();
-    setShowTestPanel(false);
-  }, [campaign]);
-
-  const actions = useMemo(() => {
-    // First applicable disable reason doubles as the button tooltip, so every
-    // disabled state explains itself.
-    const testPolicyDisabledReason = !hasQuery
-      ? 'Enter a query to test this policy'
-      : campaign.isRunning
-        ? 'A test is already in progress'
-        : selectedFleetHostIds.size === 0
-          ? 'Select at least one device to test this policy'
-          : undefined;
-
-    const items = [];
-    items.push({
-      label: 'Test Policy',
-      onClick: handleTestPolicy,
-      variant: 'outline' as const,
-      disabled: Boolean(testPolicyDisabledReason),
-      tooltip: testPolicyDisabledReason,
-    });
-    items.push({
-      label: 'Save Policy',
-      onClick: handleSubmit(onSubmit, onFormError),
-      variant: 'accent' as const,
-      disabled: isSaving || !hasName,
-    });
-    return items;
-  }, [
-    handleSubmit,
-    onSubmit,
-    onFormError,
-    isSaving,
-    hasName,
-    handleTestPolicy,
-    hasQuery,
-    campaign.isRunning,
-    selectedFleetHostIds,
-  ]);
+  const actions = useMemo(
+    () => [
+      {
+        label: 'Save Policy',
+        onClick: handleSubmit(onSubmit, onFormError),
+        variant: 'accent' as const,
+        disabled: isSaving || !hasName,
+      },
+    ],
+    [handleSubmit, onSubmit, onFormError, isSaving, hasName],
+  );
 
   if (isLoadingPolicy && isExistingPolicy) {
     return <CardLoader items={4} />;
@@ -257,25 +214,6 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="space-y-6 md:space-y-8">
-        {/* Test Policy Panel */}
-        {showTestPanel && (
-          <LiveTestPanel
-            mode="policy"
-            isRunning={campaign.isRunning}
-            startedAt={campaign.startedAt}
-            results={campaign.results}
-            errors={campaign.errors}
-            emptyResults={campaign.emptyResults}
-            totals={campaign.totals}
-            hostsResponded={campaign.hostsResponded}
-            hostsFailed={campaign.hostsFailed}
-            campaignStatus={campaign.campaignStatus}
-            onTestAgain={handleTestAgain}
-            onStop={campaign.stopCampaign}
-            onClose={handleCloseTestPanel}
-          />
-        )}
-
         {/* Name */}
         <div className="md:max-w-[280px]">
           <Input
@@ -291,7 +229,7 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
         {/* Description */}
         <Textarea {...register('description')} label="Description" rows={3} placeholder="Enter Policy Description" />
 
-        {/* Query */}
+        {/* Query + inline test block */}
         <div className="space-y-1">
           <Label className="!mb-0">Query</Label>
           <Controller
@@ -309,15 +247,15 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
               />
             )}
           />
-          <a
-            href="https://osquery.io/schema"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-h6 text-ods-text-secondary hover:text-ods-text-primary transition-colors"
-          >
-            <InfoCircleIcon size={16} />
-            Osquery Documentation
-          </a>
+          {/* 8px gap under the editor, matching the section's internal gap
+              (the parent's space-y-1 would give 4px). */}
+          <TestQuerySection
+            getQuery={getQuery}
+            hasQuery={hasQuery}
+            devices={policyDevices}
+            isLoadingDevices={isLoadingDevices}
+            className="!mt-[var(--spacing-system-xsf)]"
+          />
         </div>
 
         {/* Devices */}
