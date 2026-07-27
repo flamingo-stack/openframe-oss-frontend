@@ -7,6 +7,7 @@ import {
   NoData,
   type QueryResultRow,
   type Row,
+  ScrollShadow,
   Select,
   SelectContent,
   SelectItem,
@@ -55,8 +56,10 @@ const SKELETON_COLUMNS = 6;
     would be invisible on the row. */
 function TestResultsSkeleton() {
   return (
-    <div className="overflow-x-auto">
-      <div className="flex w-max min-w-full flex-col gap-[var(--spacing-system-xsf)]">
+    <ScrollShadow axis="horizontal">
+      {/* No gap between the header bars and the row card, matching the mock
+          and the real table (header and body sit flush). */}
+      <div className="flex w-max min-w-full flex-col">
         <div className="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]">
           {Array.from({ length: SKELETON_COLUMNS }).map((_, i) => (
             <div key={`skeleton-header-${i}`} className="flex h-12 w-[160px] shrink-0 items-center">
@@ -65,8 +68,9 @@ function TestResultsSkeleton() {
           ))}
         </div>
         <div className="rounded-[6px] border border-ods-border bg-ods-card overflow-hidden animate-pulse">
-          {/* Same row heights as the core DataTable: 68px mobile, 80px md+. */}
-          <div className="flex h-[68px] md:h-20 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]">
+          {/* Same INNER row heights as the core DataTable (66/78px + the 1px
+              card border on each side = 68/80px total, per design). */}
+          <div className="flex h-[66px] md:h-[78px] items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]">
             {Array.from({ length: SKELETON_COLUMNS }).map((_, i) => (
               <div key={`skeleton-cell-${i}`} className="w-[160px] shrink-0">
                 <div className="h-5 w-3/4 rounded-sm bg-ods-bg-surface" />
@@ -75,7 +79,7 @@ function TestResultsSkeleton() {
           </div>
         </div>
       </div>
-    </div>
+    </ScrollShadow>
   );
 }
 
@@ -97,14 +101,19 @@ function TestResultsTable({ rows, loading }: { rows: QueryResultRow[]; loading: 
       cell: ({ row }: { row: Row<QueryResultRow> }) => {
         const value = row.original[key];
         return (
-          <div className="flex h-[68px] md:h-20 items-center">
-            <span className="text-h4 text-ods-text-primary truncate">
-              {value === null || value === undefined ? '-' : String(value)}
-            </span>
-          </div>
+          <span className="text-h4 text-ods-text-primary truncate">
+            {value === null || value === undefined ? '-' : String(value)}
+          </span>
         );
       },
-      meta: { width: 'flex-1 min-w-[176px]' },
+      meta: {
+        width: 'flex-1 min-w-[176px]',
+        // This block shows table headers on every breakpoint (unlike the
+        // default tables); headerClassName sizes the cells below lg where
+        // meta.width is not applied.
+        alwaysShowHeader: true,
+        headerClassName: 'flex-1 min-w-[176px]',
+      },
     }));
   }, [columnKeys]);
 
@@ -120,14 +129,16 @@ function TestResultsTable({ rows, loading }: { rows: QueryResultRow[]; loading: 
   }
 
   return (
-    <div className="overflow-x-auto">
+    <ScrollShadow axis="horizontal">
       <div style={{ minWidth: Math.max(1, columnKeys.length) * RESULT_COLUMN_MIN_WIDTH }}>
         <DataTable table={table}>
-          <DataTable.Header />
+          {/* "flex" overrides the header's default "hidden md:flex" — this
+              block shows headers on mobile too, per design. */}
+          <DataTable.Header className="flex flex-col" />
           <DataTable.Body loading={false} />
         </DataTable>
       </div>
-    </div>
+    </ScrollShadow>
   );
 }
 
@@ -341,10 +352,10 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                 // With zero rows the error line alone explains the outcome; a
                 // "No results returned" empty state next to it would mislead.
                 // Otherwise: fixed-height empty state matching the 1-row
-                // skeleton/result height (48px header + 8px gap + 80px row) so
+                // skeleton/result height (48px header + 80px row, no gap) so
                 // the block does not jump between loading/result/empty.
                 !firstError && (
-                  <NoData icon={<SearchIcon />} title="No results returned" className="h-[136px] justify-center !py-0" />
+                  <NoData icon={<SearchIcon />} title="No results returned" className="h-[128px] justify-center !py-0" />
                 )
               ) : (
                 <TestResultsTable rows={displayRows} loading={isActive && displayRows.length === 0} />
