@@ -57,7 +57,7 @@ function TestResultsSkeleton() {
   return (
     <div className="overflow-x-auto">
       <div className="flex w-max min-w-full flex-col gap-[var(--spacing-system-xsf)]">
-        <div className="flex items-center gap-4 px-4">
+        <div className="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]">
           {Array.from({ length: SKELETON_COLUMNS }).map((_, i) => (
             <div key={`skeleton-header-${i}`} className="flex h-12 w-[160px] shrink-0 items-center">
               <div className="h-4 w-3/4 rounded-sm bg-ods-bg-surface animate-pulse" />
@@ -66,7 +66,7 @@ function TestResultsSkeleton() {
         </div>
         <div className="rounded-[6px] border border-ods-border bg-ods-card overflow-hidden animate-pulse">
           {/* Same row heights as the core DataTable: 68px mobile, 80px md+. */}
-          <div className="flex h-[68px] md:h-20 items-center gap-4 px-4">
+          <div className="flex h-[68px] md:h-20 items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)]">
             {Array.from({ length: SKELETON_COLUMNS }).map((_, i) => (
               <div key={`skeleton-cell-${i}`} className="w-[160px] shrink-0">
                 <div className="h-5 w-3/4 rounded-sm bg-ods-bg-surface" />
@@ -338,10 +338,14 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                 </p>
               )}
               {!isActive && displayRows.length === 0 ? (
-                // Fixed-height empty state matching the 1-row skeleton/result
-                // height (48px header + 8px gap + 80px row) so the block does
-                // not jump between the loading, result, and empty transitions.
-                <NoData icon={<SearchIcon />} title="No results returned" className="h-[136px] justify-center !py-0" />
+                // With zero rows the error line alone explains the outcome; a
+                // "No results returned" empty state next to it would mislead.
+                // Otherwise: fixed-height empty state matching the 1-row
+                // skeleton/result height (48px header + 8px gap + 80px row) so
+                // the block does not jump between loading/result/empty.
+                !firstError && (
+                  <NoData icon={<SearchIcon />} title="No results returned" className="h-[136px] justify-center !py-0" />
+                )
               ) : (
                 <TestResultsTable rows={displayRows} loading={isActive && displayRows.length === 0} />
               )}
