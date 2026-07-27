@@ -1,10 +1,18 @@
 'use client';
 
 import { CheckCircle2 } from 'lucide-react';
+import { notFound } from 'next/navigation';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
 import { CheckoutResultCard } from '../components/checkout-result-card';
 
 export default function CheckoutSuccessPage() {
+  // Stripe Checkout can't be started from a build with the payment UI hidden, so
+  // its result page must not exist there either (see `billing-visibility.ts`).
+  if (isBillingHidden()) {
+    notFound();
+  }
+
   return (
     <CheckoutResultCard
       icon={CheckCircle2}

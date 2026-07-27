@@ -74,6 +74,19 @@ export const runtimeEnv = {
     return getEnvVar('NEXT_PUBLIC_MOBILE_TENANT_ID') || '';
   },
   /**
+   * Marks a bundle shipping inside the mobile app shells (App Store / Google
+   * Play). Injected by the shell into `window.__ENV`
+   * (openframe-saas-mobile `scripts/inject-env.mjs`); absent on the web and in
+   * the desktop shell. Read it through `isMobileApp()` in `mobile-app.ts`,
+   * which adds the platform fallback — this is the raw env read.
+   *
+   * Drives store-compliance behavior: today the payment UI kill-switch in
+   * `billing-visibility.ts`.
+   */
+  isMobileApp(): boolean {
+    return getEnvVar('NEXT_PUBLIC_IS_MOBILE_APP') === 'true';
+  },
+  /**
    * `new-onboarding` flag fallback when the backend doesn't return it. Controls
    * whether the onboarding chrome (Initial Setup card + Get Started tour, both backed
    * by `tenant/userOnboardingProgress`) is shown: defaults ON in development, OFF in

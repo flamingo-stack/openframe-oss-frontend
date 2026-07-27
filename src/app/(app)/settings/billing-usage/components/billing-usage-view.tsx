@@ -13,6 +13,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingUsageViewQuery as BillingUsageViewQueryType } from '@/__generated__/billingUsageViewQuery.graphql';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { featureFlags } from '@/lib/feature-flags';
 import { routes } from '@/lib/routes';
 import { useBillingSummary } from '../hooks/use-billing-summary';
@@ -27,6 +28,7 @@ import { type CancelReason, CancelSubscriptionModal } from './cancel-subscriptio
 import { InvoicesHistory } from './invoices-history';
 import { SubscriptionCancelledModal } from './subscription-cancelled-modal';
 import { TestClockPanel } from './test-clock-panel';
+import { UsageView } from './usage-view';
 
 export function BillingUsageView() {
   return (
@@ -54,8 +56,16 @@ function BillingUsageContent() {
   const [cancelReason, setCancelReason] = useState<CancelReason | null>(null);
   const [cancelComment, setCancelComment] = useState<string>('');
 
-  const { status, flags, device, ai, ui, billing, updatedPlan } = useBillingSummary(data.subscription);
+  const summary = useBillingSummary(data.subscription);
+  const { status, flags, device, ai, ui, billing, updatedPlan } = summary;
   const { impact, isLoading: isImpactLoading } = useCancellationImpact({ enabled: cancelStep === 'reason' });
+
+  // Payment UI hidden for this build (mobile store bundle — see
+  // `billing-visibility.ts`): the page degrades to usage counters only. Placed
+  // after every hook so the hook order stays identical in both modes.
+  if (isBillingHidden()) {
+    return <UsageView summary={summary} onBack={handleBack} />;
+  }
 
   // `Next Payment` comes straight from the backend's server-computed
   // `subscription.nextPayment` (projected next-invoice total). The row is

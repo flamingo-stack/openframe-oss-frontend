@@ -68,7 +68,37 @@ NEXT_PUBLIC_GTM_CONTAINER_ID=GTM-XXXXXXX                # Google Tag Manager
 NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER=true   # Dev ticket auth mode (Bearer tokens instead of cookies)
 ```
 
+**Mobile app bundle (App Store / Google Play):**
+```bash
+NEXT_PUBLIC_IS_MOBILE_APP=true   # published by the mobile shell into window.__ENV
+```
+
 Feature flags are **not** env vars — they are server-loaded via GraphQL (see Feature Flags below). Native-shell env split is documented in `.env.export.example`.
+
+### Mobile App Build Class & Payment UI (store compliance)
+
+`src/lib/mobile-app.ts` — `isMobileApp()` marks a bundle shipping through the app stores:
+`NEXT_PUBLIC_IS_MOBILE_APP=true` (published by the mobile shell into `window.__ENV`), with
+`nativePlatform() !== null` as the fallback so an un-updated shell still reads as mobile. The
+desktop (Tauri) shell is deliberately not "mobile". **Use it for anything that differs because the
+app ships through a store.**
+
+`src/lib/billing-visibility.ts` is the single switch for every payment surface, and it is exactly
+`isMobileApp()`. Billing runs through Stripe on the web; App Store Guideline 3.1.1 forbids showing
+plans, prices, invoices, or any CTA leading to a non-IAP purchase, and Google Play treats an in-app
+Stripe Checkout for a digital subscription as bypassing Play Billing — so **both mobile bundles**
+ship with all of it hidden, while web and desktop keep the full billing UI.
+
+- `isBillingHidden()` — payments not allowed on this build
+- `isPaymentUiEnabled()` — `billings` server flag **and** payments allowed on this build
+
+When hidden: Settings shows a **Usage** card (`billing-usage/components/usage-view.tsx` — device/AI
+counters only, no plan/price/invoice/CTA), `/settings/billing-usage/subscription` and `/checkout/*`
+404 and are blocked in `isRouteAllowedInCurrentMode()`, and the subscription lock screen renders
+`WorkspaceInactiveScreen` instead of the plan picker.
+
+**Any new payment-adjacent UI (price, plan, invoice, upgrade/pay CTA) must be gated on
+`isPaymentUiEnabled()` / `isBillingHidden()`.**
 
 ## Architecture & Structure
 
