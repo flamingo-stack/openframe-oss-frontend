@@ -11,21 +11,21 @@ import {
   StackedRowsPanel,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
-import { PenEditIcon, PlayIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/components/script/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
-import { LiveTestPanel } from '../../components/live-test-panel';
-import { useLiveCampaign } from '../../hooks/use-live-campaign';
+import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
 import type { Policy } from '../../types/policies.types';
 import { getPolicyStatus, POLICY_STATUS_CONFIG } from '../../utils/compute-policy-summary';
 import { usePolicyDetails } from '../hooks/use-policy-details';
+import { usePolicyDevices } from '../hooks/use-policy-devices';
 import { PolicyDevicesTable } from './policy-devices-table';
 
 function PolicyStatusTag({ policy }: { policy: Policy }) {
@@ -44,10 +44,12 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
 
   const { policyDetails, isLoading, error } = usePolicyDetails(isValidId ? numericId : null);
   const { deletePolicy, isDeleting } = usePolicies();
+  const { devices: policyDevices, isLoading: isLoadingDevices } = usePolicyDevices();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const campaign = useLiveCampaign();
-  const [showTestPanel, setShowTestPanel] = useState(false);
+  // Stable reference for TestQuerySection (query is read-only on this page).
+  const policyQuery = policyDetails?.query || '';
+  const getQuery = useCallback(() => policyQuery, [policyQuery]);
 
   // Register this policy as the Mingo "open view" (passive context) so the agent
   // gets the user's working context on the next message; cleared → recent views.
@@ -79,52 +81,12 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
     return <NotFoundError message="Policy not found" />;
   }
 
-  // Run the policy query as a regular live test query (same mechanism as the
-  // Queries screen) against the policy's assigned hosts. Without assigned
-  // devices the action is disabled, so the hook's all-hosts fallback is
-  // intentionally unreachable from here.
-  const hasAssignedDevices = (policyDetails?.hosts_include_any?.length ?? 0) > 0;
-
-  const handleRunNow = async () => {
-    const started = await campaign.startCampaign(
-      policyDetails.query || '',
-      policyDetails.hosts_include_any?.map(h => h.id) ?? [],
-    );
-    // Only surface the panel for an accepted campaign; failures already toast.
-    if (started) {
-      setShowTestPanel(true);
-    }
-  };
-
-  const handleCloseTestPanel = () => {
-    campaign.stopCampaign();
-    setShowTestPanel(false);
-  };
-
-  // First applicable disable reason doubles as the button tooltip, so every
-  // disabled state explains itself.
-  const runNowDisabledReason = !policyDetails.query?.trim()
-    ? 'This policy has no query to run'
-    : campaign.isRunning
-      ? 'A run is already in progress'
-      : !hasAssignedDevices
-        ? 'Assign at least one device to this policy to run it'
-        : undefined;
-
   const actions: PageActionButton[] = [
     {
       label: 'Edit',
       icon: <PenEditIcon size={24} className="text-ods-text-secondary" />,
       variant: 'outline',
       onClick: handleEditPolicy,
-    },
-    {
-      label: 'Run Now',
-      icon: <PlayIcon size={24} />,
-      variant: 'accent',
-      onClick: handleRunNow,
-      disabled: Boolean(runNowDisabledReason),
-      tooltip: runNowDisabledReason,
     },
   ];
 
@@ -190,37 +152,23 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
       actionsVariant="menu-primary"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      {/* Policy Testing */}
-      {showTestPanel && (
-        <div className="mb-[var(--spacing-system-lf)]">
-          <LiveTestPanel
-            mode="policy"
-            isRunning={campaign.isRunning}
-            startedAt={campaign.startedAt}
-            results={campaign.results}
-            errors={campaign.errors}
-            emptyResults={campaign.emptyResults}
-            totals={campaign.totals}
-            hostsResponded={campaign.hostsResponded}
-            hostsFailed={campaign.hostsFailed}
-            campaignStatus={campaign.campaignStatus}
-            onTestAgain={handleRunNow}
-            onStop={campaign.stopCampaign}
-            onClose={handleCloseTestPanel}
-          />
-        </div>
-      )}
-
       {/* Policy Info */}
       <StackedRowsPanel rows={policyInfoRows} />
 
-      {/* Query */}
+      {/* Query + inline test block */}
       {policyDetails.query && (
-        <div className="mt-6">
-          <div className="">
-            <h3 className="text-h5 text-ods-text-secondary">QUERY</h3>
-          </div>
+        <div className="mt-6 space-y-1">
+          <h3 className="text-h5 text-ods-text-secondary">QUERY</h3>
           <ScriptEditor value={policyDetails.query} shell="sql" readOnly height="300px" />
+          {/* 8px gap under the editor, matching the section's internal gap
+              (the parent's space-y-1 would give 4px). */}
+          <TestQuerySection
+            getQuery={getQuery}
+            hasQuery={Boolean(policyQuery.trim())}
+            devices={policyDevices}
+            isLoadingDevices={isLoadingDevices}
+            className="!mt-[var(--spacing-system-xsf)]"
+          />
         </div>
       )}
 
