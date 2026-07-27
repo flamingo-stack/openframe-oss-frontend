@@ -2,14 +2,17 @@
 
 import {
   Button,
+  type ColumnDef,
+  DataTable,
   NoData,
-  QueryReportTable,
   type QueryResultRow,
+  type Row,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  useDataTable,
 } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
@@ -40,6 +43,92 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+const RESULT_COLUMN_MIN_WIDTH = 176;
+const SKELETON_COLUMNS = 6;
+
+/** Column-bar skeleton (header cells + one card row), matching the design:
+    fixed 160px columns on every breakpoint, scrolling horizontally when they
+    do not fit. Bars use bg-ods-bg-surface like the Devices table skeleton —
+    the bg-ods-skeleton token is the same color as the card background and
+    would be invisible on the row. */
+function TestResultsSkeleton() {
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex w-max min-w-full flex-col gap-[var(--spacing-system-xsf)]">
+        <div className="flex items-center gap-4 px-4">
+          {Array.from({ length: SKELETON_COLUMNS }).map((_, i) => (
+            <div key={`skeleton-header-${i}`} className="flex h-12 w-[160px] shrink-0 items-center">
+              <div className="h-4 w-3/4 rounded-sm bg-ods-bg-surface animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="rounded-[6px] border border-ods-border bg-ods-card overflow-hidden animate-pulse">
+          {/* Same row heights as the core DataTable: 68px mobile, 80px md+. */}
+          <div className="flex h-[68px] md:h-20 items-center gap-4 px-4">
+            {Array.from({ length: SKELETON_COLUMNS }).map((_, i) => (
+              <div key={`skeleton-cell-${i}`} className="w-[160px] shrink-0">
+                <div className="h-5 w-3/4 rounded-sm bg-ods-bg-surface" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Live test results rendered with the same core DataTable used by the Devices
+ * tables on this page (identical header, skeleton, and card-row styling).
+ * Columns are derived from the keys of the returned rows; wide result sets
+ * scroll horizontally.
+ */
+function TestResultsTable({ rows, loading }: { rows: QueryResultRow[]; loading: boolean }) {
+  const columnKeys = useMemo(() => (rows.length > 0 ? Object.keys(rows[0]) : []), [rows]);
+
+  const columns = useMemo<ColumnDef<QueryResultRow>[]>(() => {
+    return columnKeys.map(key => ({
+      id: key,
+      accessorFn: (row: QueryResultRow) => row[key],
+      header: key,
+      enableSorting: false,
+      cell: ({ row }: { row: Row<QueryResultRow> }) => {
+        const value = row.original[key];
+        return (
+          <div className="flex h-[68px] md:h-20 items-center">
+            <span className="text-h4 text-ods-text-primary truncate">
+              {value === null || value === undefined ? '-' : String(value)}
+            </span>
+          </div>
+        );
+      },
+      meta: { width: 'flex-1 min-w-[176px]' },
+    }));
+  }, [columnKeys]);
+
+  const table = useDataTable<QueryResultRow>({
+    data: rows,
+    columns,
+    getRowId: (_row: QueryResultRow, index: number) => String(index),
+    enableSorting: false,
+  });
+
+  if (loading) {
+    return <TestResultsSkeleton />;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <div style={{ minWidth: Math.max(1, columnKeys.length) * RESULT_COLUMN_MIN_WIDTH }}>
+        <DataTable table={table}>
+          <DataTable.Header />
+          <DataTable.Body loading={false} />
+        </DataTable>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -95,17 +184,28 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
     }
   }, [isOpen, campaign]);
 
-  const handleRun = useCallback(() => {
+  // True while startCampaign is creating the campaign (before isRunning
+  // flips) — without it the button would flash "Test Again" right after a
+  // Run/Test Again click.
+  const [isStarting, setIsStarting] = useState(false);
+
+  const handleRun = useCallback(async () => {
     const hostId = Number(selectedHostId);
     if (!Number.isFinite(hostId) || hostId <= 0) return;
     setHasRun(true);
     setDurationMs(0);
-    campaign.startCampaign(getQuery(), [hostId]);
+    setIsStarting(true);
+    try {
+      await campaign.startCampaign(getQuery(), [hostId]);
+    } finally {
+      setIsStarting(false);
+    }
   }, [campaign, getQuery, selectedHostId]);
 
+  const isActive = campaign.isRunning || isStarting;
   const isFinished = campaign.campaignStatus === 'finished';
-  const showResults = campaign.isRunning || (hasRun && isFinished);
-  const canRun = hasQuery && selectedHostId !== '' && !campaign.isRunning;
+  const showResults = isActive || (hasRun && isFinished);
+  const canRun = hasQuery && selectedHostId !== '' && !isActive;
 
   const firstError = isFinished && campaign.errors.length > 0 ? campaign.errors[0].error : null;
 
@@ -149,14 +249,15 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
         </a>
       </div>
 
-      {/* Test panel */}
+      {/* Test panel — one bordered box holding the controls row and, below
+          it, the results (skeleton / table / empty state), per design. */}
       {isOpen && (
-        <div className="rounded-[6px] border border-ods-border overflow-clip">
-          <div className="grid grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-[var(--spacing-system-m)] items-end px-[var(--spacing-system-m)] py-[var(--spacing-system-s)]">
+        <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-[6px] border border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-s)]">
+          <div className="grid grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-[var(--spacing-system-m)] items-end">
             {/* Device */}
             <div className="flex flex-col gap-[var(--spacing-system-xxs)] min-w-0 order-1">
               <span className="text-h4 text-ods-text-primary">Device</span>
-              <Select value={selectedHostId} onValueChange={setSelectedHostId} disabled={campaign.isRunning}>
+              <Select value={selectedHostId} onValueChange={setSelectedHostId} disabled={isActive}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={isLoadingDevices ? 'Loading devices...' : 'Select Device'} />
                 </SelectTrigger>
@@ -193,7 +294,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                 fills it (and matches the SelectTrigger height), so swapping
                 Run Test / Stop Test / Test Again never shifts the layout. */}
             <div className="flex items-end justify-end order-2 lg:order-4 lg:w-[150px]">
-              {campaign.isRunning ? (
+              {isActive ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -230,26 +331,15 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
 
           {/* Results */}
           {showResults && (
-            <div className="border-t border-ods-border">
-              {firstError && (
-                <p className="px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] text-h6 text-ods-error">
-                  {firstError}
-                </p>
-              )}
-              {!campaign.isRunning && displayRows.length === 0 ? (
+            <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
+              {firstError && <p className="text-h6 text-ods-error">{firstError}</p>}
+              {!isActive && displayRows.length === 0 ? (
                 // Fixed-height empty state matching the 1-row skeleton/result
-                // height (48px header + 8px gap + 80px row) so the panel does
+                // height (48px header + 8px gap + 80px row) so the block does
                 // not jump between the loading, result, and empty transitions.
                 <NoData icon={<SearchIcon />} title="No results returned" className="h-[136px] justify-center !py-0" />
               ) : (
-                <QueryReportTable
-                  title=""
-                  data={displayRows}
-                  loading={campaign.isRunning && displayRows.length === 0}
-                  skeletonRows={1}
-                  showExport={false}
-                  variant="default"
-                />
+                <TestResultsTable rows={displayRows} loading={isActive && displayRows.length === 0} />
               )}
             </div>
           )}
