@@ -242,7 +242,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
           href="https://osquery.io/schema"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-h6 text-ods-text-secondary hover:text-ods-text-primary transition-colors"
+          className="inline-flex items-center gap-[var(--spacing-system-xxs)] text-h6 text-ods-text-secondary hover:text-ods-text-primary transition-colors"
         >
           <InfoCircleIcon size={16} />
           Osquery Documentation
@@ -332,7 +332,11 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
           {/* Results */}
           {showResults && (
             <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
-              {firstError && <p className="text-h6 text-ods-error">{firstError}</p>}
+              {firstError && (
+                <p role="alert" className="text-h6 text-ods-error">
+                  {firstError}
+                </p>
+              )}
               {!isActive && displayRows.length === 0 ? (
                 // Fixed-height empty state matching the 1-row skeleton/result
                 // height (48px header + 8px gap + 80px row) so the block does
