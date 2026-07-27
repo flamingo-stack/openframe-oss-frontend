@@ -189,15 +189,17 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
               <span className="text-h6 text-ods-text-secondary truncate">Duration</span>
             </div>
 
-            {/* Action */}
-            <div className="flex items-end justify-end order-2 lg:order-4">
+            {/* Action. The column is fixed-width on desktop and every button
+                fills it (and matches the SelectTrigger height), so swapping
+                Run Test / Stop Test / Test Again never shifts the layout. */}
+            <div className="flex items-end justify-end order-2 lg:order-4 lg:w-[150px]">
               {campaign.isRunning ? (
                 <Button
                   type="button"
                   variant="outline"
                   onClick={campaign.stopCampaign}
                   leftIcon={<Square size={16} />}
-                  className="w-full lg:w-auto"
+                  className="w-full h-11 md:h-12"
                 >
                   Stop Test
                 </Button>
@@ -208,7 +210,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                   onClick={handleRun}
                   disabled={!canRun}
                   leftIcon={<RotateCcw size={16} />}
-                  className="w-full lg:w-auto"
+                  className="w-full h-11 md:h-12"
                 >
                   Test Again
                 </Button>
@@ -218,7 +220,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                   variant="accent"
                   onClick={handleRun}
                   disabled={!canRun}
-                  className="w-full lg:w-auto"
+                  className="w-full h-11 md:h-12"
                 >
                   Run Test
                 </Button>
