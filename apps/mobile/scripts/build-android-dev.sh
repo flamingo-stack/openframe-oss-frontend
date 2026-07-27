@@ -39,6 +39,8 @@ fi
 if [ "${SKIP_WEB:-0}" != "1" ]; then
   : "${NEXT_PUBLIC_SHARED_HOST_URL:?set NEXT_PUBLIC_SHARED_HOST_URL to the dev shared auth host}"
   export NEXT_PUBLIC_APP_MODE="${NEXT_PUBLIC_APP_MODE:-saas-tenant}"
+  # Dev is the one lane that opts into the dev-ticket observer (default is off).
+  export NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER="${NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER:-true}"
   # Scheme stays the shared default (com.openframe.app) — all Android flavors
   # share the custom_url_scheme intent-filter until the gateway accepts per-env
   # schemes, so a login with prod/stage installed alongside shows an app

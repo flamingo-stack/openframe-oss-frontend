@@ -20,7 +20,9 @@ const env = {
   // and the OAuth callback origin is persisted for cold starts. With it the
   // bundle boots against that tenant directly (dev/self-hosted builds).
   NEXT_PUBLIC_TENANT_HOST_URL: process.env.NEXT_PUBLIC_TENANT_HOST_URL || '',
-  NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER: process.env.NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER || 'true',
+  // Off unless a lane opts in — a shippable bundle must never default a dev
+  // affordance on. (The frontend component also self-disables under isNativeShell.)
+  NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER: process.env.NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER || 'false',
   NEXT_PUBLIC_APP_MODE: process.env.NEXT_PUBLIC_APP_MODE || 'oss-tenant',
   // OAuth callback scheme — MUST match the native registration of the build
   // this bundle ships in (iOS OPENFRAME_URL_SCHEME build setting): prod

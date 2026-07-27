@@ -38,6 +38,8 @@ if [ "${SKIP_WEB:-0}" != "1" ]; then
   # gateway is known to accept this scheme in redirectTo.
   export NEXT_PUBLIC_APP_MODE="${NEXT_PUBLIC_APP_MODE:-saas-tenant}"
   export NEXT_PUBLIC_MOBILE_APP_SCHEME="com.openframe.app"
+  # Dev is the one lane that opts into the dev-ticket observer (default is off).
+  export NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER="${NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER:-true}"
   "$HERE/scripts/build-web.sh"
 fi
 

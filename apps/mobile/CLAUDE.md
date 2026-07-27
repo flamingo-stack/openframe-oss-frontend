@@ -152,10 +152,23 @@ build configurations.
   need not match `OPENFRAME_URL_SCHEME`. On **Android it MUST match** the intent-filter scheme.
   The frontend reads the baked value via `runtimeEnv.mobileAppScheme()`.
 - Shared schemes `App` / `App Stage` / `App Dev` are committed — CLI and CI builds need them.
-- Release lanes: `scripts/build-{ios,android}-{stage,dev}.sh` (TestFlight / Firebase App
-  Distribution). See `docs/release-ios-stage.md` and `docs/release-android-stage.md` for the
-  one-time ASC/APNs/App-Distribution setup. `ITSAppUsesNonExemptEncryption` is set in
-  Info.plist so uploads skip the per-build export-compliance prompt.
+- Release lanes: `scripts/build-{ios,android}-{prod,stage,dev}.sh`. Stage/dev go to
+  TestFlight / Firebase App Distribution; see `docs/release-{ios,android}-stage.md` for the
+  one-time ASC/APNs/App-Distribution setup and `docs/release-{ios,android}-prod.md` for the
+  store-submission checklists.
+  `ITSAppUsesNonExemptEncryption` is set in Info.plist so uploads skip the per-build
+  export-compliance prompt.
+- **Store lanes differ from the others.** `build-android-prod.sh` emits a **signed AAB**
+  (`bundleProdRelease`) — Play rejects APKs and unsigned bundles, so it hard-fails when the
+  `OF_UPLOAD_*` keystore vars are absent rather than letting Gradle log-and-continue. Bump
+  per upload with `VERSION_CODE=`/`VERSION_NAME=` (wired to `-PofVersionCode`/`-PofVersionName`).
+  `build-ios-prod.sh` takes `BUILD_NUMBER=` and asserts the archive's `aps-environment` is
+  `production` before exporting.
+- `aps-environment` comes from the per-configuration **`APS_ENVIRONMENT` build setting**
+  (`development` in Debug\*, `production` in Release\*), which `App.entitlements` references.
+  Don't hardcode it back — a `development` value ships a binary whose push silently dies.
+- **iPhone-only**: `TARGETED_DEVICE_FAMILY = 1`. The console layout has never been validated
+  at iPad width, and claiming iPad means Apple reviews it there.
 
 **Firebase config files are all gitignored** — supplied out-of-band, see
 `android/app/src/README.md`:
@@ -195,6 +208,11 @@ swapped.
   ASWebAuthenticationSession "'X' Wants to Use … to Sign In" alert reads `CFBundleName`; it's
   pinned to `OpenFrame` in Info.plist (was `$(PRODUCT_NAME)` = "App"). Don't change
   `PRODUCT_NAME`/`TARGET_NAME` — that renames the `.app`, executable, and scheme.
+- **Android backup must stay off.** `SecureTokenStore` keeps its blob in a plain
+  SharedPreferences file wrapped by a device-bound Keystore key, so any copy that lands on
+  another device is permanently undecryptable — a restored user gets a broken auth state,
+  not a clean logout. `allowBackup="false"` alone is not enough: on Android 12+ it does
+  **not** stop device-to-device transfer, hence `res/xml/data_extraction_rules.xml`.
 - **Android biometric OAEP** (`SecureTokenStore`): the gated-storage RSA wrap/unwrap must pin
   `OAEPParameterSpec` with **MGF1 = SHA-1 on BOTH sides**. A software-provider public-key
   wrap defaults to MGF1-SHA256 while the AndroidKeyStore private-key unwrap uses SHA-1, so
@@ -233,6 +251,7 @@ rebuild instead. WebView inspector: Safari → Develop.
 
 `docs/project-structure.md` (pipeline, committed-vs-generated) · `docs/using-native-apis.md`
 (plugin pattern) · `docs/run-on-iphone.md` (device/simulator/signing/live-reload/env) ·
+`docs/release-ios-prod.md` · `docs/release-android-prod.md` (store submission checklists) ·
 `docs/release-ios-stage.md` · `docs/release-android-stage.md`.
 
 **After structural changes** (new plugin, auth change, pipeline change, new platform), update

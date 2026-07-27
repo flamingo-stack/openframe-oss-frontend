@@ -7,8 +7,11 @@ android {
         applicationId "ai.openframe.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Overridable per build so the release lane can bump without a commit
+        // (Play requires versionCode to increase on every upload):
+        //   ./gradlew bundleProdRelease -PofVersionCode=7 -PofVersionName=1.0.1
+        versionCode ((findProperty('ofVersionCode') ?: 1) as Integer)
+        versionName (findProperty('ofVersionName') ?: "1.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
