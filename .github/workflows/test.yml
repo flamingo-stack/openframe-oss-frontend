@@ -13,8 +13,13 @@ on:
     branches: [main]
 
 concurrency:
-  group: pr-${{ github.head_ref || github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: "ghcr.io"
+  ORGANISATION: ${{ github.repository_owner }}
+  REPOSITORY: ${{ github.event.repository.name }}
 
 # =============================================================================
 # JOBS
