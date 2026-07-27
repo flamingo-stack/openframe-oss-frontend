@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>OpenFrame</string>
+	<string>$(OPENFRAME_DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -24,15 +24,17 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.openframe.app</string>
+			<string>$(OPENFRAME_URL_SCHEME)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.openframe.app</string>
+				<string>$(OPENFRAME_URL_SCHEME)</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSFaceIDUsageDescription</key>

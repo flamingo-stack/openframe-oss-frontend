@@ -22,6 +22,11 @@ const env = {
   NEXT_PUBLIC_TENANT_HOST_URL: process.env.NEXT_PUBLIC_TENANT_HOST_URL || '',
   NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER: process.env.NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER || 'true',
   NEXT_PUBLIC_APP_MODE: process.env.NEXT_PUBLIC_APP_MODE || 'oss-tenant',
+  // OAuth callback scheme — MUST match the native registration of the build
+  // this bundle ships in (iOS OPENFRAME_URL_SCHEME build setting): prod
+  // com.openframe.app, stage .stage, dev .dev. Per-env schemes keep
+  // side-by-side installs from fighting over one scheme.
+  NEXT_PUBLIC_MOBILE_APP_SCHEME: process.env.NEXT_PUBLIC_MOBILE_APP_SCHEME || 'com.openframe.app',
 };
 
 if (!env.NEXT_PUBLIC_SHARED_HOST_URL) {

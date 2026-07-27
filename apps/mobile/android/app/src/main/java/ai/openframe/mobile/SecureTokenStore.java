@@ -259,6 +259,23 @@ final class SecureTokenStore {
     }
 
     /**
+     * Deletes the biometric RSA keypair so the next writeGated generates a fresh
+     * one bound to the CURRENT enrollment. Must run on every enable: a keypair
+     * invalidated by an enrollment change is not removed from the Keystore — its
+     * PUBLIC key still wraps silently while the private half throws
+     * KeyPermanentlyInvalidatedException forever. Without this reset, re-enabling
+     * after an enrollment change would gate the tokens behind a key that can
+     * never decrypt again (an endless BIOMETRIC_INVALIDATED → re-login loop).
+     */
+    synchronized void resetBiometricKey() throws Exception {
+        KeyStore keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER);
+        keyStore.load(null);
+        if (keyStore.containsAlias(BIO_KEY_ALIAS)) {
+            keyStore.deleteEntry(BIO_KEY_ALIAS);
+        }
+    }
+
+    /**
      * An RSA/OAEP DECRYPT Cipher initialized with the biometric-gated private
      * key, ready to be wrapped in a BiometricPrompt.CryptoObject. Using it before
      * a successful prompt throws — that is the whole point.

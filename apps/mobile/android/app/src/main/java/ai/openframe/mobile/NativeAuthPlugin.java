@@ -22,8 +22,10 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 import javax.crypto.Cipher;
 
@@ -211,7 +213,10 @@ public class NativeAuthPlugin extends Plugin {
 
     private SecureTokenStore store;
 
-    private SecureTokenStore store() {
+    // Synchronized so the lazy init can't race: the returned instance is also
+    // the MONITOR for the compound setTokens/enable/disable swaps, and two
+    // threads observing different instances would defeat that mutual exclusion.
+    private synchronized SecureTokenStore store() {
         if (store == null) {
             store = new SecureTokenStore(getContext());
         }
@@ -246,10 +251,77 @@ public class NativeAuthPlugin extends Plugin {
         return result;
     }
 
+    // One shared executor for every BiometricPrompt's callbacks — a per-prompt
+    // newSingleThreadExecutor() leaks its never-shut-down thread.
+    private final Executor bioExecutor = Executors.newSingleThreadExecutor();
+
+    /**
+     * Shared BiometricPrompt plumbing for the three gated flows (read / enable /
+     * disable). Presents ONE BIOMETRIC_STRONG prompt wired to {@code unwrapCipher}
+     * on the UI thread (BiometricPrompt needs a FragmentActivity; BridgeActivity
+     * is one). On success the authenticated cipher goes to {@code onAuthenticated},
+     * which owns its own error handling and call resolution. Every non-success
+     * terminal — prompt error (cancel, timeout, lockout: all collapse to
+     * BIOMETRIC_CANCELED for the JS side, mirroring iOS), a missing CryptoObject
+     * cipher, or a failure to present — runs {@code onErrorCleanup} (nullable)
+     * before rejecting, so flows with staged state (enable's gated copy) can
+     * roll back in one place.
+     */
+    private void promptBiometric(PluginCall call, Cipher unwrapCipher, String title, String subtitle,
+                                 Runnable onErrorCleanup, Consumer<Cipher> onAuthenticated) {
+        getActivity().runOnUiThread(() -> {
+            FragmentActivity activity = getActivity();
+            BiometricPrompt prompt = new BiometricPrompt(
+                activity,
+                bioExecutor,
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationError(int errorCode, CharSequence errString) {
+                        if (onErrorCleanup != null) {
+                            onErrorCleanup.run();
+                        }
+                        call.reject(errString != null ? errString.toString() : "Biometric canceled", "BIOMETRIC_CANCELED");
+                    }
+
+                    @Override
+                    public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult authResult) {
+                        Cipher authenticated = authResult.getCryptoObject() != null
+                            ? authResult.getCryptoObject().getCipher() : null;
+                        if (authenticated == null) {
+                            if (onErrorCleanup != null) {
+                                onErrorCleanup.run();
+                            }
+                            call.reject("Biometric result missing cipher", "BIOMETRIC_CANCELED");
+                            return;
+                        }
+                        onAuthenticated.accept(authenticated);
+                    }
+
+                    // onAuthenticationFailed (a single non-matching sample) is not
+                    // terminal — the prompt stays up; no call resolution here.
+                });
+
+            BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setSubtitle(subtitle)
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .setNegativeButtonText("Cancel")
+                .build();
+
+            try {
+                prompt.authenticate(info, new BiometricPrompt.CryptoObject(unwrapCipher));
+            } catch (Exception e) {
+                if (onErrorCleanup != null) {
+                    onErrorCleanup.run();
+                }
+                call.reject("Could not present biometric prompt: " + e.getMessage(), "BIOMETRIC_UNAVAILABLE");
+            }
+        });
+    }
+
     // A single BiometricPrompt authenticates the RSA-decrypt Cipher; after
     // success the ONE gated content key unwraps under it and the combined blob
-    // is parsed into both tokens. The prompt must run on the main thread with a
-    // FragmentActivity (BridgeActivity is one).
+    // is parsed into both tokens.
     private void authenticateAndReadGated(PluginCall call) {
         final Cipher unwrapCipher;
         try {
@@ -262,52 +334,16 @@ public class NativeAuthPlugin extends Plugin {
             return;
         }
 
-        getActivity().runOnUiThread(() -> {
-            FragmentActivity activity = getActivity();
-            BiometricPrompt prompt = new BiometricPrompt(
-                activity,
-                java.util.concurrent.Executors.newSingleThreadExecutor(),
-                new BiometricPrompt.AuthenticationCallback() {
-                    @Override
-                    public void onAuthenticationError(int errorCode, CharSequence errString) {
-                        // Cancel, timeout, lockout, user-dismiss all collapse to
-                        // BIOMETRIC_CANCELED for the JS side (mirrors iOS).
-                        call.reject(errString != null ? errString.toString() : "Biometric canceled", "BIOMETRIC_CANCELED");
-                    }
-
-                    @Override
-                    public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult authResult) {
-                        Cipher authenticated = authResult.getCryptoObject() != null
-                            ? authResult.getCryptoObject().getCipher() : null;
-                        if (authenticated == null) {
-                            call.reject("Biometric result missing cipher", "BIOMETRIC_CANCELED");
-                            return;
-                        }
-                        try {
-                            String blob = store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
-                            call.resolve(pairResult(blob));
-                        } catch (KeyPermanentlyInvalidatedException e) {
-                            call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
-                        } catch (Exception e) {
-                            call.reject("Gated token read failed: " + e.getMessage(), "BIOMETRIC_CANCELED");
-                        }
-                    }
-
-                    // onAuthenticationFailed (a single non-matching sample) is not
-                    // terminal — the prompt stays up; no call resolution here.
-                });
-
-            BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Unlock OpenFrame")
-                .setSubtitle("Authenticate to access your account")
-                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                .setNegativeButtonText("Cancel")
-                .build();
-
+        promptBiometric(call, unwrapCipher, "Unlock OpenFrame", "Authenticate to access your account", null, authenticated -> {
             try {
-                prompt.authenticate(info, new BiometricPrompt.CryptoObject(unwrapCipher));
+                String blob = store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
+                call.resolve(pairResult(blob));
+            } catch (KeyPermanentlyInvalidatedException e) {
+                // No state reset here: the frontend reacts with forceLogout →
+                // clearTokens, which wipes both copies and the marker.
+                call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
             } catch (Exception e) {
-                call.reject("Could not present biometric prompt: " + e.getMessage(), "BIOMETRIC_UNAVAILABLE");
+                call.reject("Gated token read failed: " + e.getMessage(), "BIOMETRIC_CANCELED");
             }
         });
     }
@@ -320,19 +356,26 @@ public class NativeAuthPlugin extends Plugin {
         String accessToken = call.getData().has("accessToken") ? call.getString("accessToken") : null;
         String refreshToken = call.getData().has("refreshToken") ? call.getString("refreshToken") : null;
         try {
-            if (accessToken == null && refreshToken == null) {
-                // Nothing to store — clear the combined item in the active mode.
-                if (store().isBiometricEnabled()) {
-                    store().deleteGated(SecureTokenStore.COMBINED);
+            // The marker check + write must be one unit: enable's success
+            // callback flips the marker and swaps copies under the same lock,
+            // so a rotation landing mid-enable can't write into the mode that
+            // was just retired (store methods are individually synchronized;
+            // this compound isn't without the explicit block).
+            synchronized (store()) {
+                if (accessToken == null && refreshToken == null) {
+                    // Nothing to store — clear the combined item in the active mode.
+                    if (store().isBiometricEnabled()) {
+                        store().deleteGated(SecureTokenStore.COMBINED);
+                    } else {
+                        store().delete(SecureTokenStore.COMBINED);
+                    }
                 } else {
-                    store().delete(SecureTokenStore.COMBINED);
-                }
-            } else {
-                String blob = SecureTokenStore.encodePair(accessToken, refreshToken);
-                if (store().isBiometricEnabled()) {
-                    store().writeGated(SecureTokenStore.COMBINED, blob);
-                } else {
-                    store().write(SecureTokenStore.COMBINED, blob);
+                    String blob = SecureTokenStore.encodePair(accessToken, refreshToken);
+                    if (store().isBiometricEnabled()) {
+                        store().writeGated(SecureTokenStore.COMBINED, blob);
+                    } else {
+                        store().write(SecureTokenStore.COMBINED, blob);
+                    }
                 }
             }
             // Drop any leftover legacy two-item entries from older installs.
@@ -383,24 +426,64 @@ public class NativeAuthPlugin extends Plugin {
             call.reject("Biometric authentication is not available", "BIOMETRIC_UNAVAILABLE");
             return;
         }
-        // Read the current ungated combined blob (silent) and re-store it gated.
-        // No prompt: the gated WRITE (public-key wrap) is silent by design.
-        String blob = store().read(SecureTokenStore.COMBINED);
+        final String blob = store().read(SecureTokenStore.COMBINED);
         if (blob == null) {
             call.reject("No tokens to protect", "NO_TOKENS");
             return;
         }
+        // Write the gated copy (silent — public-key wrap), then make the user's
+        // opt-in prompt VERIFY it: the single BiometricPrompt both confirms the
+        // user right when they enable and exercises the full wrap→unwrap round
+        // trip, so a crypto/provider mismatch fails here — not at the next cold
+        // start after the ungated copy is already gone.
+        // Not enabled on any failure: drop the gated copy, keep the ungated one.
+        Runnable dropGated = () -> store().deleteGated(SecureTokenStore.COMBINED);
+        final Cipher unwrapCipher;
         try {
+            // Fresh enable = fresh keypair bound to the current enrollment; an
+            // invalidated leftover keypair still wraps silently but can never
+            // decrypt again (see SecureTokenStore.resetBiometricKey).
+            store().resetBiometricKey();
             store().writeGated(SecureTokenStore.COMBINED, blob);
-            store().setBiometricEnabled(true);
-            store().delete(SecureTokenStore.COMBINED);
-            call.resolve();
+            unwrapCipher = store().gatedUnwrapCipher();
         } catch (Exception e) {
-            // Roll back so we never end up with the marker on but no gated blob.
-            store().deleteGated(SecureTokenStore.COMBINED);
-            store().setBiometricEnabled(false);
+            dropGated.run();
             call.reject("Could not enable biometric login: " + e.getMessage(), "BIOMETRIC_UNAVAILABLE");
+            return;
         }
+
+        promptBiometric(call, unwrapCipher, "Enable biometric login", "Confirm it's you", dropGated, authenticated -> {
+            try {
+                String verified = store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
+                if (verified == null) {
+                    throw new IllegalStateException("gated blob missing after write");
+                }
+                // The pair may have rotated (or been cleared) while the prompt
+                // was up — re-wrap the latest blob (silent) so gating never
+                // winds the session back, and never gate a session that ended
+                // mid-prompt. The whole read→re-wrap→marker→delete swap holds
+                // the store lock so a concurrent setTokens rotation lands
+                // either fully before (fresh read sees it) or fully after
+                // (marker on → it writes gated).
+                synchronized (store()) {
+                    String fresh = store().read(SecureTokenStore.COMBINED);
+                    if (fresh == null) {
+                        dropGated.run();
+                        call.reject("No tokens to protect", "NO_TOKENS");
+                        return;
+                    }
+                    if (!fresh.equals(blob)) {
+                        store().writeGated(SecureTokenStore.COMBINED, fresh);
+                    }
+                    store().setBiometricEnabled(true);
+                    store().delete(SecureTokenStore.COMBINED);
+                }
+                call.resolve();
+            } catch (Exception e) {
+                dropGated.run();
+                call.reject("Could not enable biometric login: " + e.getMessage(), "BIOMETRIC_UNAVAILABLE");
+            }
+        });
     }
 
     @PluginMethod
@@ -414,6 +497,12 @@ public class NativeAuthPlugin extends Plugin {
         try {
             unwrapCipher = store().gatedUnwrapCipher();
         } catch (KeyPermanentlyInvalidatedException e) {
+            // Enrollment change killed the key — the tokens are unrecoverable
+            // either way, so return to a clean ungated state instead of leaving
+            // the marker pointing at an undecryptable blob; the frontend reacts
+            // to INVALIDATED with a forced re-login.
+            store().deleteGated(SecureTokenStore.COMBINED);
+            store().setBiometricEnabled(false);
             call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
             return;
         } catch (Exception e) {
@@ -421,52 +510,27 @@ public class NativeAuthPlugin extends Plugin {
             return;
         }
 
-        getActivity().runOnUiThread(() -> {
-            FragmentActivity activity = getActivity();
-            BiometricPrompt prompt = new BiometricPrompt(
-                activity,
-                java.util.concurrent.Executors.newSingleThreadExecutor(),
-                new BiometricPrompt.AuthenticationCallback() {
-                    @Override
-                    public void onAuthenticationError(int errorCode, CharSequence errString) {
-                        call.reject(errString != null ? errString.toString() : "Biometric canceled", "BIOMETRIC_CANCELED");
-                    }
-
-                    @Override
-                    public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult authResult) {
-                        Cipher authenticated = authResult.getCryptoObject() != null
-                            ? authResult.getCryptoObject().getCipher() : null;
-                        if (authenticated == null) {
-                            call.reject("Biometric result missing cipher", "BIOMETRIC_CANCELED");
-                            return;
-                        }
-                        try {
-                            String blob = store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
-                            if (blob != null) {
-                                store().write(SecureTokenStore.COMBINED, blob);
-                            }
-                            store().setBiometricEnabled(false);
-                            store().deleteGated(SecureTokenStore.COMBINED);
-                            call.resolve();
-                        } catch (KeyPermanentlyInvalidatedException e) {
-                            call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
-                        } catch (Exception e) {
-                            call.reject("Could not disable biometric login: " + e.getMessage(), "BIOMETRIC_CANCELED");
-                        }
-                    }
-                });
-
-            BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Disable biometric login")
-                .setSubtitle("Authenticate to continue")
-                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                .setNegativeButtonText("Cancel")
-                .build();
-
+        promptBiometric(call, unwrapCipher, "Disable biometric login", "Authenticate to continue", null, authenticated -> {
             try {
-                prompt.authenticate(info, new BiometricPrompt.CryptoObject(unwrapCipher));
+                // Same lock as enable's swap, and the gated read is INSIDE it:
+                // a rotation landing after the read but before the marker flip
+                // would write gated and then be destroyed by deleteGated,
+                // winding the session back to the pre-rotation blob.
+                synchronized (store()) {
+                    String blob = store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
+                    if (blob != null) {
+                        store().write(SecureTokenStore.COMBINED, blob);
+                    }
+                    store().setBiometricEnabled(false);
+                    store().deleteGated(SecureTokenStore.COMBINED);
+                }
+                call.resolve();
+            } catch (KeyPermanentlyInvalidatedException e) {
+                store().deleteGated(SecureTokenStore.COMBINED);
+                store().setBiometricEnabled(false);
+                call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
             } catch (Exception e) {
-                call.reject("Could not present biometric prompt: " + e.getMessage(), "BIOMETRIC_UNAVAILABLE");
+                call.reject("Could not disable biometric login: " + e.getMessage(), "BIOMETRIC_CANCELED");
             }
         });
     }

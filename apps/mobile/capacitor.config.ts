@@ -12,6 +12,13 @@ const config: CapacitorConfig = {
   // ODS background (--ods-system-greys-background).
   backgroundColor: '#161616',
   plugins: {
+    // iOS-only: suppress foreground push banners (plugin default is
+    // badge+sound+alert). Matches Android, where FCM never auto-displays
+    // notification-messages while the app is foregrounded. The plugin still
+    // emits notificationReceived in the foreground for in-app handling.
+    FirebaseMessaging: {
+      presentationOptions: [],
+    },
     // launchAutoHide:false keeps the splash up until the frontend calls
     // SplashScreen.hide() (NativeShellInitializer, after token hydration
     // settles — so it also covers a biometric unlock prompt). backgroundColor

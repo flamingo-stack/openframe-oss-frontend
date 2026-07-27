@@ -135,6 +135,11 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     // Both tokens live in ONE Keychain item (a JSON blob) so a gated read shows
     // a single biometric prompt, not one per token.
     private static let tokensAccount = "tokens"
+    // Serializes compound Keychain mutations that can race: a token rotation
+    // (setTokens) landing while the enable completion re-gates the item must
+    // land either fully before (the enable re-read sees it) or fully after
+    // (the marker is on, so the rotation writes gated).
+    private static let storeQueue = DispatchQueue(label: "ai.openframe.mobile.auth.store")
     // Pre-2026-07-22 builds stored access/refresh as two separate items; delete
     // them on write/clear so old gated orphans don't linger.
     private static let legacyAccessTokenAccount = "accessToken"
@@ -169,7 +174,10 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
             access: call.getString("accessToken"),
             refresh: call.getString("refreshToken")
         )
-        let status = Self.keychainWrite(account: Self.tokensAccount, value: blob, gated: Self.biometricGated)
+        // Marker read + write as one unit on storeQueue — see its comment.
+        let status = Self.storeQueue.sync {
+            Self.keychainWrite(account: Self.tokensAccount, value: blob, gated: Self.biometricGated)
+        }
         Self.deleteLegacyTokenItems()
         guard status == errSecSuccess else {
             call.reject("Keychain write failed: OSStatus \(status)")
@@ -179,11 +187,16 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func clearTokens(_ call: CAPPluginCall) {
-        Self.keychainDelete(account: Self.tokensAccount)
+        // On storeQueue: a logout landing inside the enable completion's
+        // read→gated-rewrite window would otherwise be resurrected — the
+        // enable block re-creating the just-deleted item, marker re-set.
+        Self.storeQueue.sync {
+            Self.keychainDelete(account: Self.tokensAccount)
+            // Logout resets to a clean ungated state: the next login writes
+            // fresh ungated tokens and the user re-opts into biometric.
+            Self.setBiometricGated(false)
+        }
         Self.deleteLegacyTokenItems()
-        // Logout resets to a clean ungated state: the next login writes fresh
-        // ungated tokens and the user re-opts into biometric if they want it.
-        Self.setBiometricGated(false)
         call.resolve()
     }
 
@@ -207,28 +220,60 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve(["enabled": Self.biometricGated])
     }
 
-    /// Re-stores the currently-present (ungated) tokens biometric-gated and
-    /// flips the marker. Adding a .biometryCurrentSet item does not prompt, so
-    /// this is silent. Rejects if biometrics are unavailable or no tokens exist.
+    /// Verifies the user with the OS biometric prompt, then re-stores the
+    /// currently-present (ungated) tokens biometric-gated and flips the marker.
+    /// Adding a .biometryCurrentSet item never prompts, so without an explicit
+    /// evaluatePolicy the enable would be silent and the user would meet both
+    /// the one-time Face ID permission alert AND the first scan at the next
+    /// cold start — the prompt belongs at opt-in, and a device that cannot
+    /// actually evaluate must fail here, not wedge the next launch.
+    /// Rejects BIOMETRIC_UNAVAILABLE / NO_TOKENS / BIOMETRIC_CANCELED.
     @objc func enableBiometricLogin(_ call: CAPPluginCall) {
         let context = LAContext()
+        // Biometrics-only policy — there is no passcode path here, so hide the
+        // fallback button that would appear after a failed attempt.
+        context.localizedFallbackTitle = ""
         var laError: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &laError) else {
             call.reject("BIOMETRIC_UNAVAILABLE", "BIOMETRIC_UNAVAILABLE")
             return
         }
-        // Reading here is safe: the item is still ungated at this point.
-        guard let blob = Self.keychainRead(account: Self.tokensAccount) else {
+        // Fail fast before prompting; the item is still ungated at this point.
+        guard Self.keychainRead(account: Self.tokensAccount) != nil else {
             call.reject("NO_TOKENS", "NO_TOKENS")
             return
         }
-        let status = Self.keychainWrite(account: Self.tokensAccount, value: blob, gated: true)
-        guard status == errSecSuccess else {
-            call.reject("Keychain write failed: OSStatus \(status)")
-            return
+        context.evaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            localizedReason: "Enable biometric login"
+        ) { success, error in
+            guard success else {
+                let code = Self.laRejectCode(for: error)
+                call.reject(code, code)
+                return
+            }
+            // Re-read AFTER the prompt: a token refresh may have rotated the
+            // pair while the sheet was up; gating the pre-prompt snapshot
+            // would wind the session back to dropped tokens. The whole
+            // read→gated-rewrite→marker flip runs on storeQueue so a rotation
+            // can't interleave (see the queue's comment).
+            let failure: (message: String, code: String?)? = Self.storeQueue.sync {
+                guard let blob = Self.keychainRead(account: Self.tokensAccount) else {
+                    return ("NO_TOKENS", "NO_TOKENS")
+                }
+                let status = Self.keychainWrite(account: Self.tokensAccount, value: blob, gated: true)
+                guard status == errSecSuccess else {
+                    return ("Keychain write failed: OSStatus \(status)", nil)
+                }
+                Self.setBiometricGated(true)
+                return nil
+            }
+            if let failure {
+                call.reject(failure.message, failure.code)
+                return
+            }
+            call.resolve()
         }
-        Self.setBiometricGated(true)
-        call.resolve()
     }
 
     /// Reads the gated tokens (this prompts) and re-stores them ungated, then
@@ -243,6 +288,14 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.global(qos: .userInitiated).async {
             let (blob, status) = Self.keychainReadStatus(account: Self.tokensAccount)
             if let code = Self.biometricRejectCode(for: status) {
+                if code == "BIOMETRIC_INVALIDATED" {
+                    // Enrollment change dropped the item — the tokens are gone
+                    // either way, so return to a clean ungated state instead of
+                    // leaving the marker pointing at nothing; the frontend
+                    // reacts to INVALIDATED with a forced re-login.
+                    Self.keychainDelete(account: Self.tokensAccount)
+                    Self.setBiometricGated(false)
+                }
                 call.reject(code, code)
                 return
             }
@@ -273,13 +326,50 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
             return nil
         case errSecUserCanceled:
             return "BIOMETRIC_CANCELED"
-        case errSecItemNotFound, errSecAuthFailed:
-            // Enrollment change with .biometryCurrentSet invalidates the ACL:
-            // iOS surfaces this either as the item being gone (not-found) or as
-            // auth-failed, depending on version.
+        case errSecItemNotFound:
+            // Enrollment change with .biometryCurrentSet drops the item.
             return "BIOMETRIC_INVALIDATED"
+        case errSecAuthFailed:
+            // Ambiguous: a terminal no-match, a biometry lockout, and (on some
+            // iOS versions) an enrollment-change invalidation all surface as
+            // auth-failed. Consumers of INVALIDATED destroy state, so report it
+            // only when the item is provably gone; a still-present item is a
+            // retryable failure.
+            return gatedTokensItemExists() ? "BIOMETRIC_CANCELED" : "BIOMETRIC_INVALIDATED"
         default:
             return "BIOMETRIC_CANCELED"
+        }
+    }
+
+    /// Whether the gated tokens item still exists, WITHOUT prompting: an
+    /// interaction-disallowed LAContext makes SecItemCopyMatching return
+    /// errSecInteractionNotAllowed — instead of driving the biometric prompt —
+    /// when the item is present but auth-gated. (The old spelling of this,
+    /// kSecUseAuthenticationUIFail, is deprecated since iOS 14.)
+    private static func gatedTokensItemExists() -> Bool {
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        var query = baseQuery(account: tokensAccount)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        query[kSecUseAuthenticationContext as String] = context
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        return status == errSecSuccess || status == errSecInteractionNotAllowed
+    }
+
+    /// Maps an LAContext evaluatePolicy failure to a JS reject code. Cancels
+    /// (user / system / app / fallback button) are retryable; everything else
+    /// means biometrics cannot be evaluated on this device right now.
+    private static func laRejectCode(for error: Error?) -> String {
+        switch (error as? LAError)?.code {
+        case .userCancel, .systemCancel, .appCancel, .userFallback:
+            return "BIOMETRIC_CANCELED"
+        case .authenticationFailed:
+            // Terminal no-match (the user exhausted attempts) — retryable.
+            return "BIOMETRIC_CANCELED"
+        default:
+            return "BIOMETRIC_UNAVAILABLE"
         }
     }
 
