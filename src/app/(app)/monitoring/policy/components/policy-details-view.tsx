@@ -157,7 +157,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
 
       {/* Query + inline test block */}
       {policyDetails.query && (
-        <div className="mt-6 space-y-1">
+        <div className="mt-[var(--spacing-system-l)] space-y-[var(--spacing-system-xxs)]">
           <h3 className="text-h5 text-ods-text-secondary">QUERY</h3>
           <ScriptEditor value={policyDetails.query} shell="sql" readOnly height="300px" />
           {/* 8px gap under the editor, matching the section's internal gap

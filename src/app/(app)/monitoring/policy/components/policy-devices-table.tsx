@@ -153,6 +153,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
                   isOpen ? <XmarkCircleIcon className="w-5 h-5" /> : <BracketCurlyEllipsisVrIcon className="w-5 h-5" />
                 }
                 aria-label={isOpen ? 'Close quick query' : 'Open quick query'}
+                aria-expanded={isOpen}
                 className="bg-ods-card w-full"
               >
                 {/* Icon-only on mobile, per design. */}

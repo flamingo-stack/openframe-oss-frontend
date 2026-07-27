@@ -207,8 +207,17 @@ export function useQueryTestRun() {
     [campaign],
   );
 
+  // Stop/reset also drop isStarting so the Stop button doesn't stay "active"
+  // for the moment between the user's click and the pending startCampaign
+  // promise settling (its finally clears the flag again — harmless).
+  const stop = useCallback(() => {
+    setIsStarting(false);
+    campaign.stopCampaign();
+  }, [campaign]);
+
   /** Stop anything in flight and clear the run state (panel close/cancel). */
   const reset = useCallback(() => {
+    setIsStarting(false);
     campaign.stopCampaign();
     setDurationMs(0);
     setHasRun(false);
@@ -248,7 +257,7 @@ export function useQueryTestRun() {
     durationLabel,
     displayRows,
     run,
-    stop: campaign.stopCampaign,
+    stop,
     reset,
   };
 }
