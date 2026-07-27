@@ -2,14 +2,15 @@
 
 import { CheckCircle2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { isBillingHidden } from '@/lib/billing-visibility';
+import { isPaymentUiEnabled } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
 import { CheckoutResultCard } from '../components/checkout-result-card';
 
 export default function CheckoutSuccessPage() {
-  // Stripe Checkout can't be started from a build with the payment UI hidden, so
-  // its result page must not exist there either (see `billing-visibility.ts`).
-  if (isBillingHidden()) {
+  // Stripe Checkout can't be started unless the payment UI is available, so its
+  // result page must not exist otherwise either — that means the `billings` flag
+  // AND a build allowed to show payments (see `billing-visibility.ts`).
+  if (!isPaymentUiEnabled()) {
     notFound();
   }
 
