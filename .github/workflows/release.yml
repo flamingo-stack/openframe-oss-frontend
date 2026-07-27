@@ -102,12 +102,11 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ steps.version.outputs.NEW_VERSION }},enable=${{ steps.version.outputs.NEW_VERSION != '' }}
 
-      - name: Build and push image ${{ steps.version.outputs.NEW_VERSION }}
+      - name: Build and Push image ${{ steps.version.outputs.NEW_VERSION }}
         id: docker_build
         uses: nick-fields/retry@v4
         env:
           META_TAGS: ${{ steps.meta.outputs.tags }}
-          META_LABELS: ${{ steps.meta.outputs.labels }}
         with:
           max_attempts: 3
           retry_wait_seconds: 5
