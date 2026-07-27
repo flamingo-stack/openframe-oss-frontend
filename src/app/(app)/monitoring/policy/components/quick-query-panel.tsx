@@ -1,10 +1,10 @@
 'use client';
 
-import { Button } from '@flamingo-stack/openframe-frontend-core';
+import { Button, TestRunResults, TimingStat } from '@flamingo-stack/openframe-frontend-core';
 import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { ScriptEditor } from '../../../scripts/components/script/script-editor';
-import { TestRunResults, TimingStat, useQueryTestRun } from '../../components/query-test-run';
+import { useQueryTestRun } from '../../components/query-test-run';
 
 export interface QuickQueryPanelProps {
   fleetHostId: number;

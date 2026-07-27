@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  Button,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@flamingo-stack/openframe-frontend-core';
+import { Button, SearchableSelect, TestRunResults, TimingStat } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { FlaskVialIcon, XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -15,7 +8,7 @@ import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { Device } from '../../devices/types/device.types';
 import { getFleetHostId } from '../../devices/utils/device-action-utils';
-import { TestRunResults, TimingStat, useQueryTestRun } from './query-test-run';
+import { useQueryTestRun } from './query-test-run';
 
 export interface TestQuerySectionProps {
   /** Returns the current osquery SQL from the form. */
@@ -39,11 +32,12 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
   const [selectedHostId, setSelectedHostId] = useState<string>('');
 
   // Only Fleet-connected devices can run a live query.
-  const selectableDevices = useMemo(
+  const deviceOptions = useMemo(
     () =>
       devices
         .filter(d => getFleetHostId(d) !== undefined)
-        .sort((a, b) => (a.displayName || a.hostname || '').localeCompare(b.displayName || b.hostname || '')),
+        .sort((a, b) => (a.displayName || a.hostname || '').localeCompare(b.displayName || b.hostname || ''))
+        .map(d => ({ value: String(getFleetHostId(d)), label: d.displayName || d.hostname || '' })),
     [devices],
   );
 
@@ -96,24 +90,20 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
       {isOpen && (
         <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-[6px] border border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-s)]">
           <div className="grid grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-[var(--spacing-system-m)] items-end">
-            {/* Device */}
+            {/* Device — searchable select (search field is the first dropdown
+                item), same pattern as the ticket assignee picker. */}
             <div className="flex flex-col gap-[var(--spacing-system-xxs)] min-w-0 order-1">
               <span className="text-h4 text-ods-text-primary">Device</span>
-              <Select value={selectedHostId} onValueChange={setSelectedHostId} disabled={test.isActive}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={isLoadingDevices ? 'Loading devices...' : 'Select Device'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {selectableDevices.map(device => {
-                    const fleetId = getFleetHostId(device);
-                    return (
-                      <SelectItem key={fleetId} value={String(fleetId)}>
-                        {device.displayName || device.hostname}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={selectedHostId || null}
+                onValueChange={setSelectedHostId}
+                options={deviceOptions}
+                placeholder={isLoadingDevices ? 'Loading devices...' : 'Select Device'}
+                searchPlaceholder="Search for Device"
+                emptyText="No devices found"
+                isLoading={isLoadingDevices}
+                disabled={test.isActive}
+              />
             </div>
 
             <TimingStat value={test.startedLabel} label="Started" className="order-3 lg:order-2" />

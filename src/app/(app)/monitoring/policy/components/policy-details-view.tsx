@@ -83,7 +83,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
 
   const actions: PageActionButton[] = [
     {
-      label: 'Edit',
+      label: 'Edit Policy',
       icon: <PenEditIcon size={24} className="text-ods-text-secondary" />,
       variant: 'outline',
       onClick: handleEditPolicy,
