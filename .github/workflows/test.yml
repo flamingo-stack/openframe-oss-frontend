@@ -4,17 +4,19 @@ name: Openframe Test
 # WORKFLOW CONFIGURATION
 # =============================================================================
 
-permissions:
-  contents: read
-
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
     branches: [main]
 
 concurrency:
-  group: pr-${{ github.head_ref || github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: "ghcr.io"
+  ORGANISATION: ${{ github.repository_owner }}
+  REPOSITORY: ${{ github.event.repository.name }}
 
 # =============================================================================
 # JOBS
@@ -24,11 +26,23 @@ jobs:
   build_image:
     name: "Build Frontend"
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
+    if: github.event.pull_request.state == 'open' && !github.event.pull_request.draft
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -38,26 +52,60 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build image
+      - name: Generate metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.ORGANISATION }}/${{ env.REPOSITORY }}/${{ env.REPOSITORY }}
+          tags: |
+            type=raw,value=pr-${{ github.event.pull_request.number }}
+            type=raw,value=pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+
+      - name: Build and Push pr-${{ github.event.pull_request.number }}
         id: docker_build
         uses: nick-fields/retry@v4
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
         with:
           max_attempts: 3
           retry_wait_seconds: 5
           timeout_minutes: 30
           shell: bash
           command: |
-            docker buildx build \
-              --platform linux/amd64,linux/arm64 \
-              --provenance=false \
-              -f ./Dockerfile .
+            args=(--platform linux/amd64,linux/arm64 --push --provenance=false
+                  --build-arg GITHUB_ACTOR=${{ github.actor }}
+                  -f ./Dockerfile)
+            while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
+            docker buildx build "${args[@]}" .
+
+
+  cleanup:
+    name: "Delete Branch Tags"
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.state != 'open'
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Delete pr-${{ github.event.pull_request.number }} images
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          packages: ${{ env.REPOSITORY }}/${{ env.REPOSITORY }}
+          delete-tags: pr-${{ github.event.pull_request.number }},pr-${{ github.event.pull_request.number }}-*
+          delete-ghost-images: true
 
 
   all-checks:
     name: "All Checks"
     needs: [build_image]
     runs-on: ubuntu-latest
-    if: always()
+    if: |
+      always() &&
+      (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || !contains(needs.*.result, 'skipped'))
     steps:
       - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
