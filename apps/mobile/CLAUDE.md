@@ -2,132 +2,238 @@
 
 Capacitor 8 **iOS + Android shell** for OpenFrame. **No UI code lives here** — it bundles
 the `openframe-frontend` static export (separate repo: `~/flamingo/openframe-frontend`,
-built with `OPENFRAME_BUILD_TARGET=export`). iOS: SPM, **no CocoaPods**. Android: builds
-via Android Studio's bundled JBR — no system Java, so from the CLI use
-`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew assembleDevDebug`
-in `android/` (per-env flavors: `assemble{Prod,Stage,Dev}Debug`; plain `assembleDebug`
-builds all three). Per-env Firebase config (`google-services.json` /
-`GoogleService-Info.plist`) is **gitignored** — supply it out-of-band (see
-`android/app/src/README.md`); push also needs the APNs `.p8` + Push capability.
+built with `OPENFRAME_BUILD_TARGET=export`). iOS uses SPM, **no CocoaPods**.
 
 Architecture context: the OpenFrame knowledge graph at
 `~/Documents/Obsidian Vault/OpenFrame/` — start at `OpenFrame Map.md`, then `openframe-mobile.md`.
-Strategy docs: `~/flamingo/openframe-desktop/docs/mobile-app-plan.md` + `native-apps-strategy.md`.
+Strategy: `~/flamingo/openframe-desktop/docs/mobile-app-plan.md` + `native-apps-strategy.md`.
 
 ## Commands
 
-- `npm run build:web` — build frontend export → `www/` → inject `window.__ENV` → `cap sync`. Env vars: `NEXT_PUBLIC_SHARED_HOST_URL` (the one required var — discovery + login + dev-exchange), `NEXT_PUBLIC_APP_MODE` (`saas-tenant` for SaaS builds), `NEXT_PUBLIC_TENANT_HOST_URL` (optional single-tenant pin; without it the shell learns the tenant host at login from discovery `domain` + callback origin), `NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER`, `FRONTEND_DIR`. **Baked at build time** — re-run when they change.
+- `npm run build:web` — frontend export → `www/` → inject `window.__ENV` → `cap sync`
 - `npm run web:placeholder` — dev stub bundle (no frontend build needed)
 - `npx cap sync ios` — copy `www/` → `ios/App/App/public/`, regen configs + `Package.swift`
-- `npm run push:demo` — `simctl push` the sample payload (`dev/push-sample.apns`) to a booted simulator
 - `npx cap run ios` / `npx cap open ios`
+- `npm run push:demo` — `simctl push` `dev/push-sample.apns` to a booted simulator
+- Android CLI build — no system Java; use Android Studio's bundled JBR:
+  ```sh
+  cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+    ./gradlew assembleDevDebug     # flavors: assemble{Prod,Stage,Dev}Debug
+  ```
+
+`build:web` env vars — **baked at build time, so re-run when any changes**:
+
+| var | notes |
+|---|---|
+| `NEXT_PUBLIC_SHARED_HOST_URL` | **required** — discovery + login + dev-exchange |
+| `NEXT_PUBLIC_APP_MODE` | `saas-tenant` for SaaS builds |
+| `NEXT_PUBLIC_TENANT_HOST_URL` | optional single-tenant pin; without it the shell learns the tenant host at login (discovery `domain` + callback origin) |
+| `NEXT_PUBLIC_MOBILE_APP_SCHEME` | OAuth callback scheme baked into the bundle |
+| `NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER` | dev-ticket observer toggle |
+| `FRONTEND_DIR` | frontend checkout override (default `~/flamingo/openframe-frontend`) |
 
 `www/` and `ios/App/App/public/` are git-ignored artifacts — a fresh clone must stage a
 bundle (`web:placeholder` or `build:web`) + `cap sync` before Xcode can build.
 
 ## Native code (all of it)
 
-- `ios/App/App/NativeAuthPlugin.swift` — the local `NativeAuth` plugin, **mirrored on Android** by `android/app/src/main/java/ai/openframe/mobile/NativeAuthPlugin.java` (same jsName + method surface), backing frontend `src/lib/native-shell.ts`: ASWebAuthenticationSession (iOS) / Chrome Custom Tabs (Android) login on the custom scheme `com.openframe.app` (`start`; scheme in Info.plist `CFBundleURLTypes` / Android `strings.xml` + manifest intent-filter), native dev-ticket exchange reading `Access-Token`/`Refresh-Token` headers (`exchangeTicket`), token storage (`get/set/clearTokens`), `getSafeAreaInsets` (WKWebView/`WindowInsets` report env() insets as 0), and **biometric login** (`isBiometricAvailable`/`isBiometricLoginEnabled`/`enableBiometricLogin`/`disableBiometricLogin`). Both tokens are stored as **one item** (a single JSON/combined blob — iOS Keychain service `ai.openframe.mobile.auth` account `tokens`, `WhenUnlockedThisDeviceOnly`; Android one RSA-wrapped Keystore blob, device-bound). With biometric login on, that item is access-control-bound (iOS `.biometryCurrentSet`; Android `BiometricPrompt`+`CryptoObject` on an auth-required RSA key) so a gated read shows **one** Face ID / fingerprint prompt; writes stay silent; `NSFaceIDUsageDescription` in Info.plist. **Enable verifies with an OS prompt** (2026-07-24): iOS `evaluatePolicy` (also surfaces the one-time Face ID permission alert at opt-in instead of at the next cold start), Android one `BiometricPrompt`+`CryptoObject` that round-trips the freshly gated blob (a crypto/provider mismatch fails at enable, not after the ungated copy is gone); Android enable also **regenerates the bio keypair** — an enrollment-invalidated keypair still wraps silently but can never decrypt, so without the reset re-enable looped `BIOMETRIC_INVALIDATED` forever. Frontend settings toggle + cold-start unlock gate live in `openframe-frontend` (`native-biometrics.ts`, `token-store.ts`). Detail: vault `Authentication/Mobile Auth - Token Storage, Biometrics, Passkeys`.
-- `ios/App/App/MainViewController.swift` — registers local plugins with the bridge and enables the WKWebView **edge-swipe back** (`allowsBackForwardNavigationGestures` → WebKit history incl. `pushState` → SPA `popstate`).
-- `ios/App/App/AppDelegate.swift` — stock + the three APNs forwarding methods `@capacitor-firebase/messaging` requires (NotificationCenter posts; Firebase auto-configures in the plugin's `load()`). Permission is requested by the frontend after login (`src/lib/native-push.ts`), not at launch — so `push:demo` banners show only after that in-app grant.
-- Push wiring (2026-07-21): **all push via Firebase/FCM** — `@capacitor-firebase/messaging` (Firebase iOS SDK pulled via SPM; the `experimental.ios.spm…symlink:true` block in `capacitor.config.ts` avoids a package-identity collision). `@capacitor/push-notifications` was removed (FCM brokers APNs). `UIBackgroundModes: remote-notification` in Info.plist. `App/App.entitlements` (aps-environment) is **re-hooked** into both App-target configs (paid Apple team). Per-env Firebase config files are in place (refreshed 2026-07-23 from the `firebase/` drop zone — gitignored staging dir for source exports): `android/app/src/{prod,stage,dev}/google-services.json` (build-validated — the `processGoogleServices` tasks match each to its flavor's applicationId) and iOS `ios/App/App/GoogleService-Info.plist` (prod; stage/dev staged under `ios/App/App/GoogleServices/`) — **all Firebase config files are gitignored** (supplied out-of-band, not committed). Current mapping (2026-07-23 export **swapped prod↔stage project roles** vs the 2026-07-22 install; app ids changed, so devices mint fresh FCM tokens on next run): prod=`firebase-94qh`/`ai.openframe.mobile`, stage=`firebase-6lif`/`.stage`, dev=`firebase-nwp3`/`.dev` — always verify by BUNDLE_ID/package_name, not folder name. Still required before push delivers: add the iOS plist to the App target's **Copy Bundle Resources** (Xcode target membership), the APNs `.p8` auth key uploaded to Firebase, and Push capability on the App ID. FCM token lifecycle + notification settings live in the frontend `src/lib/native-push.ts` (push contract: `registerPushDevice`/`unregisterPushDevice`, `notificationSettings`).
-- Native chrome + navigation (2026-07-22): `@capacitor/splash-screen` + `@capacitor/status-bar` + `@capacitor/app`, all driven from `openframe-frontend`. **Splash** — `launchAutoHide:false` in `capacitor.config.ts`, `#161616` bg; `hideSplashScreen()` fires after token hydration settles (so it covers a cold-start biometric prompt). **Status bar** — overlays the WebView with light content on the `#161616` safe-area band (`initNativeChrome()` in `native-shell.ts`). **Back** — iOS uses the WKWebView edge-swipe (above); Android routes the hardware/gesture back through `@capacitor/app` → `native-back.ts` (close topmost overlay → SPA `history.back()` → `App.exitApp()`). **App icon + splash art** are generated by `@capacitor/assets` from vector sources in `assets/` (`openframe-symbol.svg` → icon; `splash-logo.svg` → splash) — see the `@capacitor/assets` gotcha.
+New native features: npm plugin → `cap sync` → Xcode capability → call from TS. See
+`docs/using-native-apis.md` (worked push example) — **don't write Swift unless no plugin
+exists.**
 
-New native features: npm plugin → `cap sync` → Xcode capability → call from TS.
-See `docs/using-native-apis.md` for the pattern (worked push example) — don't write Swift
-unless no plugin exists.
+- **`NativeAuthPlugin`** — `ios/App/App/NativeAuthPlugin.swift`, mirrored on Android by
+  `android/app/src/main/java/ai/openframe/mobile/NativeAuthPlugin.java` (same jsName +
+  method surface). Backs frontend `src/lib/native-shell.ts`. Methods: `start` (system-browser
+  login), `exchangeTicket` (dev-ticket → tokens, reads `Access-Token`/`Refresh-Token`
+  headers), `get`/`set`/`clearTokens`, `getSafeAreaInsets` (WKWebView/`WindowInsets` report
+  `env()` insets as 0), and `isBiometricAvailable` / `isBiometricLoginEnabled` /
+  `enableBiometricLogin` / `disableBiometricLogin`. The callback scheme is registered in
+  **Info.plist `CFBundleURLTypes`** (iOS) and **`strings.xml` + the manifest intent-filter**
+  (Android).
+- **`MainViewController.swift`** — registers local plugins with the bridge; enables WKWebView
+  **edge-swipe back** (`allowsBackForwardNavigationGestures` → WebKit history incl.
+  `pushState` → SPA `popstate`).
+- **`AppDelegate.swift`** — stock + the three APNs forwarding methods
+  `@capacitor-firebase/messaging` requires (NotificationCenter posts; Firebase
+  auto-configures in the plugin's `load()`).
+
+### Token storage & biometrics
+
+Both tokens live in **one item** — iOS Keychain service `ai.openframe.mobile.auth`
+account `tokens`, `WhenUnlockedThisDeviceOnly`; Android one RSA-wrapped Keystore blob,
+device-bound. With biometric login on, that item is access-control-bound (iOS
+`.biometryCurrentSet`; Android `BiometricPrompt`+`CryptoObject` on an auth-required RSA
+key), so a gated read shows **one** prompt and writes stay silent.
+`NSFaceIDUsageDescription` is in Info.plist.
+
+- **Enable verifies with an OS prompt.** iOS `evaluatePolicy` — this also surfaces the
+  one-time Face ID permission alert at opt-in rather than at the next cold start. Android
+  runs one `BiometricPrompt`+`CryptoObject` round-trip of the freshly gated blob, so a
+  crypto/provider mismatch fails at enable, not after the ungated copy is gone.
+- **Android enable regenerates the bio keypair.** An enrollment-invalidated keypair still
+  wraps silently but can never decrypt — without the reset, re-enable loops
+  `BIOMETRIC_INVALIDATED` forever.
+- Frontend settings toggle + cold-start unlock gate: `native-biometrics.ts`,
+  `token-store.ts` in `openframe-frontend`.
+- Detail: vault `Authentication/Mobile Auth - Token Storage, Biometrics, Passkeys`.
+
+### Push (all FCM)
+
+`@capacitor-firebase/messaging` only — **don't add `@capacitor/push-notifications`**; FCM
+brokers APNs. The Firebase iOS SDK comes via SPM (the `experimental.ios.spm…symlink:true`
+block in `capacitor.config.ts` avoids a package-identity collision).
+
+- Foreground banners are suppressed on both platforms (`presentationOptions: []`; Android
+  FCM never auto-displays while foregrounded). `notificationReceived` still fires for
+  in-app handling.
+- `UIBackgroundModes: remote-notification` in Info.plist; `App/App.entitlements`
+  (aps-environment) is hooked into both App-target configs (needs a paid Apple team).
+- Permission is requested by the frontend **after login** (`src/lib/native-push.ts`), not
+  at launch — so `push:demo` banners only show after that in-app grant. Token lifecycle +
+  settings live there too (`registerPushDevice`/`unregisterPushDevice`,
+  `notificationSettings`).
+- **Before push delivers**, three manual steps: iOS plist in the App target's **Copy Bundle
+  Resources**, APNs `.p8` uploaded to Firebase, Push capability on the App ID.
+
+### Native chrome + navigation
+
+`@capacitor/splash-screen` + `@capacitor/status-bar` + `@capacitor/app`, all driven from
+`openframe-frontend`.
+
+- **Splash** — `launchAutoHide:false`, `#161616` bg; `hideSplashScreen()` fires after token
+  hydration settles, so it covers a cold-start biometric prompt.
+- **Status bar** — overlays the WebView, light content on the `#161616` safe-area band
+  (`initNativeChrome()` in `native-shell.ts`).
+- **Back** — iOS uses the WKWebView edge-swipe (above); Android routes hardware/gesture back
+  through `@capacitor/app` → `native-back.ts` (close topmost overlay → SPA `history.back()`
+  → `App.exitApp()`).
+- **Icon + splash art** — generated by `@capacitor/assets` from `assets/` vector sources.
+  See the naming gotcha below.
 
 ## Auth flow (prototype — dev-ticket path)
 
-ASWebAuthenticationSession (system browser — Google blocks embedded-webview OAuth with
-403 disallowed_useragent; the earlier WKWebView sheet was replaced 2026-07-17) opens
-`{SHARED_HOST}/oauth/login?tenantId=…&authMobile=true&redirectTo=com.openframe.app://auth`
-→ BFF handles the code exchange server-side → gateway 302s the ticket straight to
-`com.openframe.app://auth?devTicket=…` → session completes → native GET
-`/oauth/dev-exchange` → tokens → Keychain → WebView calls send `Authorization: Bearer`;
-refresh via `/oauth/refresh` with `Refresh-Token` header. The scheme callback carries no
-host — the tenant gateway host comes from discovery `domain` (backend guarantees the
-exact canonical tenant host; format `test-dev.openframe.build`). Custom scheme, not
-`Callback.https`: claimed-https requires an Associated Domains entitlement + AASA the
-infra doesn't have (and a paid team). Hardening backlog (PKCE, POST exchange, rotation):
-vault note `Authentication/Mobile Auth - Client Follow-ups After Backend Hardening.md`.
+Login runs in the **system browser** (ASWebAuthenticationSession / Chrome Custom Tabs), not
+a WebView: Google blocks embedded-webview OAuth with `403 disallowed_useragent`.
+
+```
+{SHARED_HOST}/oauth/login?tenantId=…&authMobile=true&redirectTo=com.openframe.app://auth
+  → BFF exchanges the code server-side
+  → gateway 302s the ticket to com.openframe.app://auth?devTicket=…
+  → native GET /oauth/dev-exchange → tokens → Keychain/Keystore
+  → WebView calls send Authorization: Bearer; refresh via /oauth/refresh (Refresh-Token header)
+```
+
+The scheme callback carries no host — the tenant gateway host comes from discovery `domain`
+(backend guarantees the exact canonical host; format `test-dev.openframe.build`). Custom
+scheme rather than `Callback.https` because claimed-https needs an Associated Domains
+entitlement + AASA the infra doesn't have. Hardening backlog (PKCE, POST exchange,
+rotation): vault `Authentication/Mobile Auth - Client Follow-ups After Backend Hardening.md`.
+
+## Per-env builds (prod / stage / dev)
+
+Three identities install side by side. Android uses product flavors; iOS mirrors them with
+build configurations.
+
+| | prod | stage | dev |
+|---|---|---|---|
+| bundle id / applicationId | `ai.openframe.mobile` | `….stage` | `….dev` |
+| display / launcher name | OpenFrame | OF Stage | OF Dev |
+| iOS scheme + configs | `App`, Debug/Release | `App Stage`, `Debug-stage`/`Release-stage` | `App Dev`, `Debug-dev`/`Release-dev` |
+| OAuth scheme (iOS native) | `com.openframe.app` | `….stage` | `….dev` |
+| Firebase project | `firebase-94qh` | `firebase-6lif` | `firebase-nwp3` |
+
+- iOS identity is driven by the **`OPENFRAME_DISPLAY_NAME` / `OPENFRAME_URL_SCHEME` build
+  settings** that Info.plist references — the prod configs must define them too.
+- A **"Select Firebase config" build phase** swaps in
+  `App/GoogleServices/{stage,dev}/GoogleService-Info.plist`, keyed off the `*-stage`/`*-dev`
+  config-name suffix.
+- **On iOS every lane bakes plain `com.openframe.app`** into the bundle even for stage/dev —
+  ASWebAuthenticationSession intercepts the callback session-internally, so the baked scheme
+  need not match `OPENFRAME_URL_SCHEME`. On **Android it MUST match** the intent-filter scheme.
+  The frontend reads the baked value via `runtimeEnv.mobileAppScheme()`.
+- Shared schemes `App` / `App Stage` / `App Dev` are committed — CLI and CI builds need them.
+- Release lanes: `scripts/build-{ios,android}-{stage,dev}.sh` (TestFlight / Firebase App
+  Distribution). See `docs/release-ios-stage.md` and `docs/release-android-stage.md` for the
+  one-time ASC/APNs/App-Distribution setup. `ITSAppUsesNonExemptEncryption` is set in
+  Info.plist so uploads skip the per-build export-compliance prompt.
+
+**Firebase config files are all gitignored** — supplied out-of-band, see
+`android/app/src/README.md`:
+
+```
+android/app/src/{prod,stage,dev}/google-services.json   # Gradle processGoogleServices
+                                                        # validates each against its flavor
+ios/App/App/GoogleService-Info.plist                    # prod
+ios/App/App/GoogleServices/{stage,dev}/…                # swapped in by the build phase
+```
+
+`firebase/` is a gitignored staging dir for source exports. **Always map a config to its env
+by BUNDLE_ID/package_name, never by folder name** — exports have arrived with prod↔stage
+swapped.
 
 ## Gotchas (hard-won)
 
 - **Simulator builds must be signed**: `CODE_SIGN_IDENTITY="-"`. Never
-  `CODE_SIGNING_ALLOWED=NO` — unsigned sim apps fail `SecItemAdd` **silently**, so
-  Keychain tokens don't persist across restarts.
-- **Biometric login stores both tokens as ONE item** — reading two separately-gated
-  Keychain/Keystore items triggered **two** Face ID prompts on device; one combined
-  blob ⇒ one prompt. So the frontend `token-store` always sends the full token pair (a
-  partial write would drop the other token). Enrollment change invalidates the item
-  (`.biometryCurrentSet` / `setInvalidatedByBiometricEnrollment`) → `BIOMETRIC_INVALIDATED`
-  → the frontend force-relogins. All biometric flows are **device-only** to verify (the
-  Simulator can enroll Face ID but won't exercise the gated Keychain/Keystore path fully).
-- The WebView origin is `capacitor://localhost` — the tenant gateway **CORS must allow
-  it** (incl. exposing `Access-Token`/`Refresh-Token` headers) or the shell renders but
-  every data call 401s. Cookies don't work cross-origin; bearer mode is mandatory.
-  Configured on test-dev **and prod gateways (2026-07-06)**; still required on any
-  new/self-hosted gateway. **`/content/*` routes too (2026-07-17):** in the shell the
-  frontend absolutizes Help Center + chat content calls to `{tenantHost}/content/*`
-  (no Next server to proxy them), so those gateway routes must send the same CORS.
-- Live-reload `server.url` in `capacitor.config.ts` must be **removed before any
-  shippable build**.
-- `capacitor.config.json`, `config.xml`, `CapApp-SPM/Package.swift` are generated —
-  edit `capacitor.config.ts` instead; never hand-edit `Package.swift` (CLI-managed).
+  `CODE_SIGNING_ALLOWED=NO` — unsigned sim apps fail `SecItemAdd` **silently**, so Keychain
+  tokens don't persist across restarts.
+- **Both tokens must be written together.** Reading two separately-gated items triggered
+  **two** Face ID prompts on device; one combined blob ⇒ one prompt. So the frontend
+  `token-store` always sends the full pair — a partial write would drop the other token.
+  Enrollment change invalidates the item (`.biometryCurrentSet` /
+  `setInvalidatedByBiometricEnrollment`) → `BIOMETRIC_INVALIDATED` → frontend force-relogins.
+- **Biometric flows are device-only to verify.** The Simulator can enroll Face ID but won't
+  exercise the gated Keychain/Keystore path fully.
+- **The WebView origin is `capacitor://localhost`** — the tenant gateway CORS must allow it
+  (incl. **exposing** `Access-Token`/`Refresh-Token`) or the shell renders but every data
+  call 401s. Cookies don't work cross-origin; bearer mode is mandatory. Configured on
+  test-dev and prod; still required on any new/self-hosted gateway. **`/content/*` too** —
+  the shell absolutizes Help Center + chat content calls to `{tenantHost}/content/*` (no
+  Next server to proxy them).
+- **Live-reload `server.url` must be removed before any shippable build.** The release lanes
+  hard-fail if one is present.
 - **SSO consent prompt name = `CFBundleName`**, not `CFBundleDisplayName`. The
-  `ASWebAuthenticationSession` "'X' Wants to Use … to Sign In" alert reads `CFBundleName`;
-  it was `$(PRODUCT_NAME)` = "App", now pinned to `OpenFrame` in Info.plist. Don't change
+  ASWebAuthenticationSession "'X' Wants to Use … to Sign In" alert reads `CFBundleName`; it's
+  pinned to `OpenFrame` in Info.plist (was `$(PRODUCT_NAME)` = "App"). Don't change
   `PRODUCT_NAME`/`TARGET_NAME` — that renames the `.app`, executable, and scheme.
-- **Android biometric OAEP** (`SecureTokenStore`): the gated-storage RSA wrap/unwrap must
-  pin `OAEPParameterSpec` with **MGF1 = SHA-1** on BOTH sides — a software-provider
-  public-key wrap defaults to MGF1-SHA256 while the AndroidKeyStore private-key unwrap uses
-  SHA-1, so `doFinal` throws `BadPaddingException` **after** the fingerprint prompt (gated
-  read silently fails → user bounced to login, enabled-marker cleared). The bio key alias
-  is versioned (`.bio.v2`); a device that already enabled biometrics needs a clean reinstall.
-- **`@capacitor/assets` source naming**: the splash logo lives as `assets/splash-logo.svg`
-  / `openframe-symbol.svg` — NOT `logo.*` or `icon-*` (those are treated as **app-icon**
-  sources and would regenerate the home-screen icon). Icon sources: `assets/icon-only.png`
-  (opaque tile — **no alpha**; iOS rejects alpha in icons) + `icon-foreground/background.png`
+- **Android biometric OAEP** (`SecureTokenStore`): the gated-storage RSA wrap/unwrap must pin
+  `OAEPParameterSpec` with **MGF1 = SHA-1 on BOTH sides**. A software-provider public-key
+  wrap defaults to MGF1-SHA256 while the AndroidKeyStore private-key unwrap uses SHA-1, so
+  `doFinal` throws `BadPaddingException` **after** the fingerprint prompt (gated read
+  silently fails → user bounced to login, enabled-marker cleared). The bio key alias is
+  versioned (`.bio.v2`); a device that enabled biometrics on an older build needs a clean
+  reinstall.
+- **`@capacitor/assets` source naming**: the splash logo is `assets/splash-logo.svg` /
+  `openframe-symbol.svg` — NOT `logo.*` or `icon-*`, which are treated as **app-icon** sources
+  and would regenerate the home-screen icon. Icon sources: `assets/icon-only.png` (opaque
+  tile, **no alpha** — iOS rejects alpha in icons) + `icon-foreground/background.png`
   (Android adaptive).
-- **Android Studio "redirect.txt" / stale variant**: after flavors were added there is no
-  plain `debug` variant — only `devDebug`/`stageDebug`/`prodDebug`. Gradle Sync, then pick a
-  flavored variant in Build Variants; the CLI (`assembleDevDebug`) is unaffected.
+- **Android launcher label is `title_activity_main`, not `app_name`** — the launcher shows the
+  *activity* label, so per-flavor `android/app/src/{stage,dev}/res/values/strings.xml` must
+  override both or the icon still reads "OpenFrame".
+- **Android Studio stale variant**: with flavors there is no plain `debug` variant, only
+  `devDebug`/`stageDebug`/`prodDebug`. Gradle Sync, then pick a flavored variant in Build
+  Variants. The CLI (`assembleDevDebug`) is unaffected.
+- **Generated files** — `capacitor.config.json`, `config.xml`, `CapApp-SPM/Package.swift`.
+  Edit `capacitor.config.ts` instead; never hand-edit `Package.swift` (CLI-managed).
 
 ## Debugging on the simulator (autonomous loop)
 
-Build: `xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -destination 'platform=iOS Simulator,name=<booted>' CODE_SIGN_IDENTITY="-" build`
-→ `simctl install booted <.app>` → `simctl launch --console-pty booted ai.openframe.mobile`
-(captures JS console + every JS→native plugin call). Screenshots: `xcrun simctl io booted
-screenshot f.png`. Synthetic taps are impossible — inject JS probes into
-`ios/App/App/public/index.html` and rebuild instead. WebView inspector: Safari → Develop.
+```sh
+xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,name=<booted>' CODE_SIGN_IDENTITY="-" build
+xcrun simctl install booted <.app>
+xcrun simctl launch --console-pty booted ai.openframe.mobile   # JS console + every JS→native call
+xcrun simctl io booted screenshot f.png
+```
 
-## Per-env iOS identity (2026-07-23)
-
-iOS mirrors the Android flavors via build configurations: `Debug-stage`/`Release-stage`
-(scheme **App Stage**) build `ai.openframe.mobile.stage`, display name "OF Stage", OAuth
-scheme `com.openframe.app.stage`; `Debug-dev`/`Release-dev` (scheme **App Dev**) likewise
-build `ai.openframe.mobile.dev` / "OF Dev" / `com.openframe.app.dev`. A **"Select Firebase
-config" build phase** swaps in `App/GoogleServices/{stage,dev}/GoogleService-Info.plist`
-(keys off the `*-stage`/`*-dev` config-name suffix). Identity is driven by the
-`OPENFRAME_DISPLAY_NAME` / `OPENFRAME_URL_SCHEME` build settings — Info.plist references
-them, so the prod configs define them too. The web bundle bakes
-`NEXT_PUBLIC_MOBILE_APP_SCHEME` (inject-env → `window.__ENV` → frontend
-`runtimeEnv.mobileAppScheme()`); on iOS both lanes bake plain `com.openframe.app` even for
-stage/dev — `ASWebAuthenticationSession` intercepts the callback session-internally, so it
-need not match `OPENFRAME_URL_SCHEME` (it MUST match the intent-filter scheme on Android).
-TestFlight lanes: `scripts/build-ios-stage.sh` / `scripts/build-ios-dev.sh` (see
-`docs/release-ios-stage.md` incl. one-time ASC/APNs setup; dev mirrors it with the
-`ai.openframe.mobile.dev` app record + APNs key in Firebase `firebase-nwp3`). Shared
-schemes `App` + `App Stage` + `App Dev` are committed (CLI/CI builds need them).
+Synthetic taps are impossible — inject JS probes into `ios/App/App/public/index.html` and
+rebuild instead. WebView inspector: Safari → Develop.
 
 ## Docs
 
-`docs/project-structure.md` (pipeline, committed-vs-generated), `docs/using-native-apis.md`
-(plugin pattern), `docs/run-on-iphone.md` (device/simulator/signing/live-reload/env),
-`docs/release-ios-stage.md` (stage TestFlight lane + one-time setup),
-`docs/release-android-stage.md` (stage Firebase App Distribution lane; per-flavor
-launcher names live in `android/app/src/{stage,dev}/res/values/strings.xml` —
-`title_activity_main` is what the launcher shows, not just `app_name`).
-Keep the Obsidian note `OpenFrame/openframe-mobile.md` updated after structural changes
-(new plugin, auth change, Android platform, pipeline change) — bump its `updated` field.
+`docs/project-structure.md` (pipeline, committed-vs-generated) · `docs/using-native-apis.md`
+(plugin pattern) · `docs/run-on-iphone.md` (device/simulator/signing/live-reload/env) ·
+`docs/release-ios-stage.md` · `docs/release-android-stage.md`.
+
+**After structural changes** (new plugin, auth change, pipeline change, new platform), update
+the Obsidian note `OpenFrame/openframe-mobile.md` and bump its `updated` field.
