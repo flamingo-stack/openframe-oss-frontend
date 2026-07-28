@@ -23,9 +23,14 @@ import { AnnouncementBarView, Button } from '@flamingo-stack/openframe-frontend-
  * tap target (`onContentClick` → the same `onStart` the button fires) — the
  * hub announcement bar's touch-first behavior.
  *
- * `showAction` (default true) — when false the CTA is not rendered at all,
- * the row tap target is disabled (the bar is inert on `/onboarding` itself),
- * and the bar collapses to its content height.
+ * `showAction` (default true) — when false the CTA is not rendered at all and
+ * the row tap target is disabled (the bar is inert on `/onboarding` itself).
+ *
+ * Height is STABLE per breakpoint regardless of `showAction`: on `md`+ the
+ * bar reserves 48px (`md:min-h-12` — what the view's 44px strip stretches to
+ * with the 32px `size="small"` CTA inside its 8px row paddings), so toggling
+ * the button never resizes the bar; below `md` the CTA is CSS-hidden either
+ * way and the strip stays 44px.
  */
 export function OnboardingTourBar({
   onStart,
@@ -38,7 +43,7 @@ export function OnboardingTourBar({
 }) {
   return (
     <AnnouncementBarView
-      className="app-top-bar shrink-0 bg-ods-accent text-ods-text-on-accent"
+      className="app-top-bar shrink-0 bg-ods-accent text-ods-text-on-accent md:min-h-12"
       contentClassName={showAction ? 'cursor-pointer md:cursor-default' : undefined}
       onContentClick={showAction ? onStart : undefined}
       startAdornment={<CompassIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
