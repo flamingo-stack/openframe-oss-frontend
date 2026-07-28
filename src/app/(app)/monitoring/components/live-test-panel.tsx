@@ -202,7 +202,6 @@ export function LiveTestPanel({
         {/* Results table */}
         <div className="flex-1 overflow-auto">
           <QueryReportTable
-            title=""
             data={results}
             loading={isRunning && results.length === 0}
             skeletonRows={4}
