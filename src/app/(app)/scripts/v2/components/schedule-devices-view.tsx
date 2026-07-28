@@ -30,7 +30,7 @@ import type {
 } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
-import { DeviceSelector } from '@/app/components/shared/device-selector';
+import { DeviceSelectionModeRadio, DeviceSelector } from '@/app/components/shared/device-selector';
 import type {
   DeviceSelectionMode,
   DeviceSelectorNarrowing,
@@ -146,13 +146,13 @@ interface ScheduleDevicesContentProps {
   schedule: ScheduleDetailData | undefined;
 }
 
-/** The mode radio, wired the same way by both halves of the editor. */
-interface SelectionModeProps {
-  selectionMode: DeviceSelectionMode;
-  onSelectionModeChange: (mode: DeviceSelectionMode) => void;
-}
-
-interface SchedulePickerListsProps extends ScheduleDevicesContentProps, SelectionModeProps {
+/**
+ * The info bar and the mode radio are rendered by the PAGE, above the subtree
+ * that swaps — so neither half of the editor draws them, and neither carries
+ * `headerContent`.
+ */
+interface SchedulePickerListsProps {
+  scheduleId: string;
   activeTab: SubTab;
   onTabChange: (tab: SubTab) => void;
   search: string;
@@ -183,9 +183,6 @@ interface SchedulePickerListsProps extends ScheduleDevicesContentProps, Selectio
  */
 function SchedulePickerLists({
   scheduleId,
-  schedule,
-  selectionMode,
-  onSelectionModeChange,
   activeTab,
   onTabChange,
   search,
@@ -253,15 +250,12 @@ function SchedulePickerLists({
   // what page one happens to contain.
   const { data: filterOptions } = useDeviceFilters(filter);
 
-  const { date, time } = formatScheduleStartAt(schedule?.startAt);
-
   return (
     <DeviceSelector
       devices={rows}
       loading={false}
       disabled={busy}
-      selectionMode={selectionMode}
-      onSelectionModeChange={onSelectionModeChange}
+      showSelectionModeRadio={false}
       infiniteScroll={{
         hasNextPage: hasNext,
         isFetchingNextPage: isLoadingNext,
@@ -288,26 +282,12 @@ function SchedulePickerLists({
         onAddAll,
         onRemoveAll,
       }}
-      headerContent={
-        schedule ? (
-          <ScheduleInfoBarFromData
-            name={schedule.name}
-            note={schedule.description ?? ''}
-            date={date}
-            time={time}
-            repeat={repeatToLabel(schedule.repeat)}
-            platforms={platformsToIds(schedule.supportedPlatforms)}
-            trigger={schedule.trigger}
-          />
-        ) : (
-          <ScheduleInfoBarSkeleton />
-        )
-      }
     />
   );
 }
 
-interface ScheduleCriteriaPickerProps extends ScheduleDevicesContentProps, SelectionModeProps {
+interface ScheduleCriteriaPickerProps {
+  scheduleId: string;
   criteria: ScheduleCriteria;
   onCriteriaChange: (next: ScheduleCriteria) => void;
   busy: boolean;
@@ -335,15 +315,7 @@ interface ScheduleCriteriaPickerProps extends ScheduleDevicesContentProps, Selec
  * whole, and applying it re-points the schedule at a live set, so it goes
  * behind the page's explicit Save.
  */
-function ScheduleCriteriaPicker({
-  scheduleId,
-  schedule,
-  selectionMode,
-  onSelectionModeChange,
-  criteria,
-  onCriteriaChange,
-  busy,
-}: ScheduleCriteriaPickerProps) {
+function ScheduleCriteriaPicker({ scheduleId, criteria, onCriteriaChange, busy }: ScheduleCriteriaPickerProps) {
   const filter = useMemo(() => criteriaToFilter(criteria), [criteria]);
   // Editing the rule changes the preview's query variables. Deferring them
   // re-reads inside a transition, so the previous matches stay on screen
@@ -369,15 +341,15 @@ function ScheduleCriteriaPicker({
 
   const { data: filterOptions } = useDeviceFilters(UNFILTERED);
 
-  const { date, time } = formatScheduleStartAt(schedule?.startAt);
-
   return (
     <DeviceSelector
       devices={rows}
       loading={false}
       disabled={busy}
-      selectionMode={selectionMode}
-      onSelectionModeChange={onSelectionModeChange}
+      // The radio lives on the page; this only tells the picker to render as the
+      // criteria surface — no card, no toolbar, no row actions.
+      selectionMode="criteria"
+      showSelectionModeRadio={false}
       totalCount={connection?.filteredCount ?? undefined}
       infiniteScroll={{
         hasNextPage: preview.hasNext,
@@ -393,48 +365,28 @@ function ScheduleCriteriaPicker({
           disabled={busy}
         />
       }
-      headerContent={
-        schedule ? (
-          <ScheduleInfoBarFromData
-            name={schedule.name}
-            note={schedule.description ?? ''}
-            date={date}
-            time={time}
-            repeat={repeatToLabel(schedule.repeat)}
-            platforms={platformsToIds(schedule.supportedPlatforms)}
-            trigger={schedule.trigger}
-          />
-        ) : (
-          <ScheduleInfoBarSkeleton />
-        )
-      }
     />
   );
 }
 
 /** The real picker in its loading state, so there is no separate skeleton to drift. */
-function SchedulePickerSkeleton({ schedule }: { schedule: ScheduleDetailData | undefined }) {
+function SchedulePickerSkeleton() {
+  return <DeviceSelector devices={[]} loading readOnly />;
+}
+
+/** The schedule's own row above the editor — page-level, so mode switches never redraw it. */
+function SchedulePickerHeader({ schedule }: { schedule: ScheduleDetailData | undefined }) {
   const { date, time } = formatScheduleStartAt(schedule?.startAt);
+  if (!schedule) return <ScheduleInfoBarSkeleton />;
   return (
-    <DeviceSelector
-      devices={[]}
-      loading
-      readOnly
-      headerContent={
-        schedule ? (
-          <ScheduleInfoBarFromData
-            name={schedule.name}
-            note={schedule.description ?? ''}
-            date={date}
-            time={time}
-            repeat={repeatToLabel(schedule.repeat)}
-            platforms={platformsToIds(schedule.supportedPlatforms)}
-            trigger={schedule.trigger}
-          />
-        ) : (
-          <ScheduleInfoBarSkeleton />
-        )
-      }
+    <ScheduleInfoBarFromData
+      name={schedule.name}
+      note={schedule.description ?? ''}
+      date={date}
+      time={time}
+      repeat={repeatToLabel(schedule.repeat)}
+      platforms={platformsToIds(schedule.supportedPlatforms)}
+      trigger={schedule.trigger}
     />
   );
 }
@@ -628,49 +580,62 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
       showMobileCancel
       actions={actions}
     >
-      {/* Which half to render is the schedule's own answer, so nothing is
-          rendered until it arrives: mounting the specific picker on a guess
-          would fire its two queries and then throw them away the moment a
-          CRITERIA schedule landed. On the path users actually take — in from
-          the details page — the store is warm and the gate seeds before the
-          first paint, so this branch costs nothing. */}
-      <Suspense fallback={<SchedulePickerSkeleton schedule={schedule} />}>
-        {!schedule ? (
-          <SchedulePickerSkeleton schedule={undefined} />
-        ) : selectionMode === 'criteria' ? (
-          <ScheduleCriteriaPicker
-            scheduleId={scheduleId}
-            schedule={schedule}
-            selectionMode={selectionMode}
-            onSelectionModeChange={handleModeChange}
-            criteria={criteria}
-            onCriteriaChange={setCriteriaDraft}
-            busy={busy}
-          />
-        ) : (
-          <SchedulePickerLists
-            scheduleId={scheduleId}
-            schedule={schedule}
-            selectionMode={selectionMode}
-            onSelectionModeChange={handleModeChange}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            search={search}
-            onSearchChange={setSearch}
-            narrowing={narrowing}
-            onNarrowingChange={setNarrowing}
-            filter={filter}
-            deferredFilter={deferredFilter}
-            deferredSearch={deferredSearch}
-            busy={busy}
-            onAdd={handleAdd}
-            onRemove={handleRemove}
-            onAddAll={handleAddAll}
-            onRemoveAll={handleRemoveAll}
-            refetchSignal={refetchSignal}
-          />
-        )}
-      </Suspense>
+      {/* The info bar and the radio are rendered HERE, not inside the halves.
+          Each mode is its own data island, so switching unmounts one subtree and
+          mounts the other; anything drawn inside goes with it, and a remounted
+          radio restarts its own transitions — the control you just clicked
+          blinks. Above the swap, it simply stays put. */}
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <SchedulePickerHeader schedule={schedule} />
+
+        <DeviceSelectionModeRadio value={selectionMode} onChange={handleModeChange} disabled={busy} />
+
+        {/* Which half to render is the schedule's own answer, so nothing is
+            rendered until it arrives: mounting the specific picker on a guess
+            would fire its two queries and then throw them away the moment a
+            CRITERIA schedule landed. On the path users actually take — in from
+            the details page — the store is warm and the gate seeds before the
+            first paint, so this branch costs nothing. */}
+        <Suspense fallback={<SchedulePickerSkeleton />}>
+          {/* Keyed on the mode so the wrapper itself remounts and replays the
+              fade; the switch runs in a transition, so the previous half stays
+              on screen until the new one has its data and the fade is the only
+              thing the user sees happen. The boundary stays OUTSIDE the key —
+              remounting it would bring back the fallback the transition exists
+              to avoid. */}
+          <div key={selectionMode} className="animate-in fade-in duration-300 motion-reduce:animate-none">
+            {!schedule ? (
+              <SchedulePickerSkeleton />
+            ) : selectionMode === 'criteria' ? (
+              <ScheduleCriteriaPicker
+                scheduleId={scheduleId}
+                criteria={criteria}
+                onCriteriaChange={setCriteriaDraft}
+                busy={busy}
+              />
+            ) : (
+              <SchedulePickerLists
+                scheduleId={scheduleId}
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                search={search}
+                onSearchChange={setSearch}
+                narrowing={narrowing}
+                onNarrowingChange={setNarrowing}
+                filter={filter}
+                deferredFilter={deferredFilter}
+                deferredSearch={deferredSearch}
+                busy={busy}
+                onAdd={handleAdd}
+                onRemove={handleRemove}
+                onAddAll={handleAddAll}
+                onRemoveAll={handleRemoveAll}
+                refetchSignal={refetchSignal}
+              />
+            )}
+          </div>
+        </Suspense>
+      </div>
     </ScriptPageChrome>
   );
 }

@@ -33,50 +33,9 @@ import { DevicesFilterToolbar } from '@/app/components/shared';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { deduplicateFilterOptions } from '@/lib/filter-utils';
 import { getFullImageUrl } from '@/lib/image-url';
+import { DeviceSelectionModeRadio } from './device-selection-mode-radio';
 import type { DeviceSelectorProps, SubTab } from './device-selector.types';
 import { useDeviceSelector } from './use-device-selector';
-
-/**
- * The two assignment modes (design 460:71430).
- *
- * The copy stays generic ("this selection") rather than the design's "this script
- * schedule": this block also renders on the monitoring query and policy pages,
- * where naming a schedule would simply be wrong.
- *
- * "By criteria" is only offered where a consumer can actually store a rule —
- * i.e. where `selectionMode` / `onSelectionModeChange` are wired up. Everywhere
- * else it keeps the design's "Coming Soon" treatment: a tag rather than a dimmed
- * row is how the design says so, and `disabled` is what actually keeps it
- * unselectable and out of the tab order.
- */
-const SPECIFIC_MODE_OPTION: RadioGroupBlockOption = {
-  value: 'specific',
-  label: 'Select Specific Devices',
-  description: 'Choose individual devices to include in this selection',
-};
-
-const CRITERIA_MODE_DESCRIPTION =
-  'Automatically include all devices (current and future) that match your defined criteria';
-
-const SELECTION_MODE_OPTIONS: RadioGroupBlockOption[] = [
-  SPECIFIC_MODE_OPTION,
-  {
-    value: 'criteria',
-    label: 'Select Devices by Criteria',
-    description: CRITERIA_MODE_DESCRIPTION,
-    disabled: true,
-    trailing: <Tag label="Coming Soon" variant="grey" />,
-  },
-];
-
-const SELECTION_MODE_OPTIONS_ENABLED: RadioGroupBlockOption[] = [
-  SPECIFIC_MODE_OPTION,
-  {
-    value: 'criteria',
-    label: 'Select Devices by Criteria',
-    description: CRITERIA_MODE_DESCRIPTION,
-  },
-];
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const NOOP = () => {};
@@ -772,21 +731,7 @@ export function DeviceSelector({
       {headerContent}
 
       {showSelectionModeRadio && (
-        <RadioGroupBlock
-          name="selectionMode"
-          variant="grouped"
-          // Controlled only when the consumer can store the answer; otherwise
-          // the radio keeps its old decorative behaviour.
-          {...(selectionMode
-            ? { value: selectionMode, onValueChange: onSelectionModeChange }
-            : { defaultValue: 'specific' })}
-          disabled={disabled}
-          options={selectionMode ? SELECTION_MODE_OPTIONS_ENABLED : SELECTION_MODE_OPTIONS}
-          // Design 460:71430 rows are 68px — a 24px title over a 20px description
-          // with 12px above and below. The grouped variant pads `py-xs` (8px on
-          // desktop) by default, which would come out 8px short.
-          itemClassName="py-[var(--spacing-system-sf)]"
-        />
+        <DeviceSelectionModeRadio value={selectionMode} onChange={onSelectionModeChange} disabled={disabled} />
       )}
 
       {/* Criteria mode (design 460:85294) has no card at all: the rule's fields
