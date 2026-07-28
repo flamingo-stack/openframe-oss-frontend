@@ -7,8 +7,8 @@ import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-s
 
 /**
  * Lock screen shown in place of the app when the workspace is inactive AND the
- * payment UI is hidden for this build (`isBillingHidden()` — see
- * `billing-visibility.ts`).
+ * payment UI is hidden for this build — the native app builds (`isBillingHidden()`,
+ * see `billing-visibility.ts`).
  *
  * Deliberately carries NO plans, prices, "choose a plan"/"pay" CTA, or link to
  * an external purchase flow: App Store Review Guideline 3.1.1 treats any of
