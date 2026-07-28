@@ -1,6 +1,6 @@
 'use client';
 
-import type { SubscriptionLockCopy } from './subscription-status';
+import type { SubscriptionLockCopy } from './subscription-lock-copy';
 
 interface TrialEndedBannerProps {
   lockCopy: SubscriptionLockCopy;

@@ -2,12 +2,14 @@
 
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import { featureFlags } from '@/lib/feature-flags';
+import { isPaymentUiEnabled } from '@/lib/billing-visibility';
 import { SubscriptionSettingsSkeleton } from './components/subscription-settings-skeleton';
 import { SubscriptionSettingsView } from './components/subscription-settings-view';
 
 export default function SubscriptionSettingsPage() {
-  if (!featureFlags.subscription.enabled()) {
+  // Plan picker + Stripe Checkout entry point: gone entirely on builds where the
+  // payment UI is hidden (see `billing-visibility.ts`), not just unlinked.
+  if (!isPaymentUiEnabled()) {
     notFound();
   }
 
