@@ -13,6 +13,7 @@ export const FEATURE_FLAG_NAMES = [
   'debug-nats-chunks',
   'mingo-sidebar',
   'mingo-sidebar-context',
+  'guide-chunks',
   'mingo-ai-chat-settings',
   'customer-ai-assistant-settings',
   'customer-ai-configuration',
@@ -102,6 +103,11 @@ export const featureFlags = {
   mingoSidebarContext: {
     enabled(): boolean {
       return getFlagValue('mingo-sidebar-context', () => false);
+    },
+  },
+  guideChunks: {
+    enabled(): boolean {
+      return getFlagValue('guide-chunks', () => false);
     },
   },
   mingoAiChatSettings: {
