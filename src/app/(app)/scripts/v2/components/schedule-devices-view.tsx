@@ -3,7 +3,7 @@
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { Suspense, startTransition, useCallback, useMemo, useRef, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type {
   addAllDevicesToScheduleMutation as AddAllDevicesMutationType,
@@ -24,12 +24,21 @@ import type { scheduleDevicePickerRelayAssignedPaginationQuery as AssignedPagina
 import type { scheduleDevicePickerRelayAssignedQuery as AssignedQueryType } from '@/__generated__/scheduleDevicePickerRelayAssignedQuery.graphql';
 import type { scheduleDevicePickerRelayPaginationQuery as AvailablePaginationQueryType } from '@/__generated__/scheduleDevicePickerRelayPaginationQuery.graphql';
 import type { scheduleDevicePickerRelayQuery as AvailableQueryType } from '@/__generated__/scheduleDevicePickerRelayQuery.graphql';
+import type {
+  ScheduleDeviceCriteriaInput,
+  setScheduleDeviceCriteriaMutation as SetCriteriaMutationType,
+} from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
-import type { DeviceSelectorNarrowing, SubTab } from '@/app/components/shared/device-selector/device-selector.types';
+import type {
+  DeviceSelectionMode,
+  DeviceSelectorNarrowing,
+  SubTab,
+} from '@/app/components/shared/device-selector/device-selector.types';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
+import { ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
 import { addAllDevicesToScheduleMutation } from '@/graphql/scripts/add-all-devices-to-schedule-mutation';
 import { addDevicesToScheduleMutation } from '@/graphql/scripts/add-devices-to-schedule-mutation';
 import { removeAllDevicesFromScheduleMutation } from '@/graphql/scripts/remove-all-devices-from-schedule-mutation';
@@ -40,12 +49,21 @@ import {
   scheduleDevicePickerRelayFragment,
   scheduleDevicePickerRelayQuery,
 } from '@/graphql/scripts/schedule-device-picker-relay';
+import { setScheduleDeviceCriteriaMutation } from '@/graphql/scripts/set-schedule-device-criteria-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { ScheduleInfoBarFromData } from '../../components/schedule/schedule-info-bar';
 import { machineToDevice } from '../utils/machine-to-device';
+import {
+  criteriaEqual,
+  criteriaFromStored,
+  criteriaToFilter,
+  criteriaToInput,
+  type ScheduleCriteria,
+} from '../utils/schedule-criteria';
 import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { platformsToIds } from '../utils/script-mappers';
+import { ScheduleCriteriaCard } from './schedule-criteria-card';
 import { type ScheduleDetailData, ScheduleDetailGate } from './schedule-detail-gate';
 import { ScheduleInfoBarSkeleton } from './schedule-details-view';
 import { ScriptPageChrome } from './script-page-chrome';
@@ -53,6 +71,13 @@ import { ScriptPageChrome } from './script-page-chrome';
 const PAGE_SIZE = 20;
 
 const EMPTY_NARROWING: DeviceSelectorNarrowing = { columnFilters: [], tags: [] };
+
+/**
+ * The criteria dropdowns must offer the whole fleet's dimensions, never just
+ * what the rule being written already matches — otherwise picking one customer
+ * makes the second unpickable. Module-level so the query key stays stable.
+ */
+const UNFILTERED: DeviceFilterInput = {};
 
 /**
  * Turns the picker's narrowing vocabulary into the backend's.
@@ -104,13 +129,30 @@ function toRelayFilter(filter: DeviceFilterInput): RelayDeviceFilterInput {
   return filter as RelayDeviceFilterInput;
 }
 
+/**
+ * The same story one level up: the editor holds `deviceTypes` as strings, the
+ * generated input wants the `DeviceType` union. The values are taken from the
+ * `DeviceType` enum in `@/generated/schema-enums` (see `ScheduleCriteriaCard`),
+ * so they are members of it — relay-compiler just emits its own copy of the
+ * union per operation.
+ */
+function toRelayCriteria(criteria: ScheduleCriteria): ScheduleDeviceCriteriaInput {
+  return criteriaToInput(criteria) as ScheduleDeviceCriteriaInput;
+}
+
 interface ScheduleDevicesContentProps {
   scheduleId: string;
   /** `undefined` while the gated schedule query is in flight. */
   schedule: ScheduleDetailData | undefined;
 }
 
-interface SchedulePickerListsProps extends ScheduleDevicesContentProps {
+/** The mode radio, wired the same way by both halves of the editor. */
+interface SelectionModeProps {
+  selectionMode: DeviceSelectionMode;
+  onSelectionModeChange: (mode: DeviceSelectionMode) => void;
+}
+
+interface SchedulePickerListsProps extends ScheduleDevicesContentProps, SelectionModeProps {
   activeTab: SubTab;
   onTabChange: (tab: SubTab) => void;
   search: string;
@@ -142,6 +184,8 @@ interface SchedulePickerListsProps extends ScheduleDevicesContentProps {
 function SchedulePickerLists({
   scheduleId,
   schedule,
+  selectionMode,
+  onSelectionModeChange,
   activeTab,
   onTabChange,
   search,
@@ -216,6 +260,8 @@ function SchedulePickerLists({
       devices={rows}
       loading={false}
       disabled={busy}
+      selectionMode={selectionMode}
+      onSelectionModeChange={onSelectionModeChange}
       infiniteScroll={{
         hasNextPage: hasNext,
         isFetchingNextPage: isLoadingNext,
@@ -242,6 +288,111 @@ function SchedulePickerLists({
         onAddAll,
         onRemoveAll,
       }}
+      headerContent={
+        schedule ? (
+          <ScheduleInfoBarFromData
+            name={schedule.name}
+            note={schedule.description ?? ''}
+            date={date}
+            time={time}
+            repeat={repeatToLabel(schedule.repeat)}
+            platforms={platformsToIds(schedule.supportedPlatforms)}
+            trigger={schedule.trigger}
+          />
+        ) : (
+          <ScheduleInfoBarSkeleton />
+        )
+      }
+    />
+  );
+}
+
+interface ScheduleCriteriaPickerProps extends ScheduleDevicesContentProps, SelectionModeProps {
+  criteria: ScheduleCriteria;
+  onCriteriaChange: (next: ScheduleCriteria) => void;
+  busy: boolean;
+}
+
+/**
+ * The "Select Devices by Criteria" half — the rule editor over a live preview
+ * of what it matches.
+ *
+ * The preview runs the rule through `availableDevicesForSchedule`, the same
+ * connection the Available list uses, with the criteria as its `filter`. That
+ * is not a convenience: `ScheduleDeviceCriteriaInput` is a strict subset of
+ * `DeviceFilterInput`, so the server answers "which devices does this rule
+ * select?" itself — already scoped to the schedule's `supportedPlatforms`,
+ * exactly as the stored rule will be. Nothing here re-implements the matching.
+ *
+ * Caveat carried over from that field's open question (see
+ * docs/script-schedules-v2-graphql-gaps.md §6): if it turns out to EXCLUDE
+ * already-assigned devices, this preview reads "devices the rule would add"
+ * rather than "devices the rule targets", and re-editing an existing rule
+ * under-reports. It is still the closest match available — the top-level
+ * `devices` query is not platform-scoped, so it would over-report instead.
+ *
+ * Nothing commits as you type. A rule is a single value the server replaces
+ * whole, and applying it re-points the schedule at a live set, so it goes
+ * behind the page's explicit Save.
+ */
+function ScheduleCriteriaPicker({
+  scheduleId,
+  schedule,
+  selectionMode,
+  onSelectionModeChange,
+  criteria,
+  onCriteriaChange,
+  busy,
+}: ScheduleCriteriaPickerProps) {
+  const filter = useMemo(() => criteriaToFilter(criteria), [criteria]);
+  // Editing the rule changes the preview's query variables. Deferring them
+  // re-reads inside a transition, so the previous matches stay on screen
+  // instead of the card dropping to its Suspense fallback on every click.
+  const { deferredFilters: deferredFilter } = useDeferredQuery(filter, '');
+
+  const data = useLazyLoadQuery<AvailableQueryType>(
+    scheduleDevicePickerRelayQuery,
+    { scheduleId, filter: toRelayFilter(deferredFilter), search: null, first: PAGE_SIZE, after: null },
+    { fetchPolicy: 'store-and-network' },
+  );
+
+  const preview = usePaginationFragment<AvailablePaginationQueryType, AvailableFragmentKey>(
+    scheduleDevicePickerRelayFragment,
+    data,
+  );
+  const connection = (preview.data as AvailableFragmentData | null)?.availableDevicesForSchedule;
+  const rows = useMemo(() => toDevices(connection?.edges), [connection?.edges]);
+
+  const loadMore = useCallback(() => {
+    if (preview.hasNext && !preview.isLoadingNext) preview.loadNext(PAGE_SIZE);
+  }, [preview]);
+
+  const { data: filterOptions } = useDeviceFilters(UNFILTERED);
+
+  const { date, time } = formatScheduleStartAt(schedule?.startAt);
+
+  return (
+    <DeviceSelector
+      devices={rows}
+      loading={false}
+      disabled={busy}
+      selectionMode={selectionMode}
+      onSelectionModeChange={onSelectionModeChange}
+      totalCount={connection?.filteredCount ?? undefined}
+      infiniteScroll={{
+        hasNextPage: preview.hasNext,
+        isFetchingNextPage: preview.isLoadingNext,
+        onLoadMore: loadMore,
+        skeletonRows: 2,
+      }}
+      criteriaContent={
+        <ScheduleCriteriaCard
+          criteria={criteria}
+          onChange={onCriteriaChange}
+          deviceFilters={filterOptions}
+          disabled={busy}
+        />
+      }
       headerContent={
         schedule ? (
           <ScheduleInfoBarFromData
@@ -297,6 +448,18 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
   const [narrowing, setNarrowing] = useState<DeviceSelectorNarrowing>(EMPTY_NARROWING);
   const [refetchSignal, setRefetchSignal] = useState(0);
 
+  // Mode and rule are DERIVED from the schedule until the user touches them, so
+  // the page renders the stored answer the moment the gate delivers it — no
+  // seeding effect, and no flash of the specific picker on a criteria schedule.
+  const [modeOverride, setModeOverride] = useState<DeviceSelectionMode | null>(null);
+  const [criteriaDraft, setCriteriaDraft] = useState<ScheduleCriteria | null>(null);
+
+  const storedMode: DeviceSelectionMode =
+    schedule?.selectionMode === ScheduleDeviceSelectionMode.CRITERIA ? 'criteria' : 'specific';
+  const storedCriteria = useMemo(() => criteriaFromStored(schedule?.deviceCriteria), [schedule?.deviceCriteria]);
+  const selectionMode = modeOverride ?? storedMode;
+  const criteria = criteriaDraft ?? storedCriteria;
+
   const debouncedSearch = useDebounce(search, 300);
   const filter = useMemo(() => narrowingToFilter(narrowing), [narrowing]);
   const { deferredFilters: deferredFilter, deferredSearch } = useDeferredQuery(filter, debouncedSearch);
@@ -307,7 +470,8 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
   const [commitRemoveAll, isRemovingAll] = useMutation<RemoveAllDevicesMutationType>(
     removeAllDevicesFromScheduleMutation,
   );
-  const busy = isAdding || isRemoving || isAddingAll || isRemovingAll;
+  const [commitSetCriteria, isSavingCriteria] = useMutation<SetCriteriaMutationType>(setScheduleDeviceCriteriaMutation);
+  const busy = isAdding || isRemoving || isAddingAll || isRemovingAll || isSavingCriteria;
 
   // The bulk actions must send the narrowing as it is AT CLICK TIME; a ref keeps
   // the handlers reference-stable so the memoized rows don't re-render on every
@@ -400,19 +564,61 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
     setNarrowing(EMPTY_NARROWING);
   }, []);
 
-  // Every change is committed as it is made, so the only thing left for the
-  // primary action is to leave — "Done", not "Save Devices".
-  const actions = useMemo<PageActionButton[]>(
-    () => [
-      {
-        label: 'Done',
-        onClick: () => safeBackOrReplace(router, routes.scriptsV2.schedules.details(scheduleId, { tab: 'devices' })),
-        variant: 'accent' as const,
-        disabled: busy,
-      },
-    ],
-    [router, scheduleId, busy],
+  // Both halves read their own query, so switching modes suspends. In a
+  // transition React keeps the current half on screen until the other is ready
+  // — without it the radio the user just clicked would vanish into a fallback.
+  const handleModeChange = useCallback((mode: DeviceSelectionMode) => {
+    startTransition(() => setModeOverride(mode));
+  }, []);
+
+  const goBackToSchedule = useCallback(
+    () => safeBackOrReplace(router, routes.scriptsV2.schedules.details(scheduleId, { tab: 'devices' })),
+    [router, scheduleId],
   );
+
+  const handleSaveCriteria = useCallback(() => {
+    commitSetCriteria({
+      variables: { scheduleId, criteria: toRelayCriteria(criteria) },
+      onCompleted: () => {
+        toast({
+          title: 'Criteria saved',
+          description: 'This schedule now targets every device matching the criteria, including future ones.',
+          variant: 'success',
+        });
+        goBackToSchedule();
+      },
+      onError: errorHandler('Failed to save device criteria'),
+    });
+  }, [commitSetCriteria, scheduleId, criteria, toast, goBackToSchedule, errorHandler]);
+
+  // The two modes genuinely differ in what "finish" means. Specific commits each
+  // +/- as it happens, so there is nothing left to save and the action just
+  // leaves. A rule is one value replaced wholesale — and applying it re-points
+  // the schedule at a live set — so it needs a deliberate Save, and stays
+  // enabled even when unchanged: on a schedule that is still SPECIFIC, saving an
+  // untouched rule IS the change.
+  const actions = useMemo<PageActionButton[]>(() => {
+    if (selectionMode === 'criteria') {
+      return [
+        {
+          label: isSavingCriteria ? 'Saving...' : 'Save Criteria',
+          onClick: handleSaveCriteria,
+          variant: 'accent' as const,
+          disabled: busy || (storedMode === 'criteria' && criteriaEqual(criteria, storedCriteria)),
+        },
+      ];
+    }
+    return [{ label: 'Done', onClick: goBackToSchedule, variant: 'accent' as const, disabled: busy }];
+  }, [
+    selectionMode,
+    isSavingCriteria,
+    handleSaveCriteria,
+    busy,
+    storedMode,
+    criteria,
+    storedCriteria,
+    goBackToSchedule,
+  ]);
 
   return (
     <ScriptPageChrome
@@ -422,26 +628,48 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
       showMobileCancel
       actions={actions}
     >
+      {/* Which half to render is the schedule's own answer, so nothing is
+          rendered until it arrives: mounting the specific picker on a guess
+          would fire its two queries and then throw them away the moment a
+          CRITERIA schedule landed. On the path users actually take — in from
+          the details page — the store is warm and the gate seeds before the
+          first paint, so this branch costs nothing. */}
       <Suspense fallback={<SchedulePickerSkeleton schedule={schedule} />}>
-        <SchedulePickerLists
-          scheduleId={scheduleId}
-          schedule={schedule}
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          search={search}
-          onSearchChange={setSearch}
-          narrowing={narrowing}
-          onNarrowingChange={setNarrowing}
-          filter={filter}
-          deferredFilter={deferredFilter}
-          deferredSearch={deferredSearch}
-          busy={busy}
-          onAdd={handleAdd}
-          onRemove={handleRemove}
-          onAddAll={handleAddAll}
-          onRemoveAll={handleRemoveAll}
-          refetchSignal={refetchSignal}
-        />
+        {!schedule ? (
+          <SchedulePickerSkeleton schedule={undefined} />
+        ) : selectionMode === 'criteria' ? (
+          <ScheduleCriteriaPicker
+            scheduleId={scheduleId}
+            schedule={schedule}
+            selectionMode={selectionMode}
+            onSelectionModeChange={handleModeChange}
+            criteria={criteria}
+            onCriteriaChange={setCriteriaDraft}
+            busy={busy}
+          />
+        ) : (
+          <SchedulePickerLists
+            scheduleId={scheduleId}
+            schedule={schedule}
+            selectionMode={selectionMode}
+            onSelectionModeChange={handleModeChange}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            search={search}
+            onSearchChange={setSearch}
+            narrowing={narrowing}
+            onNarrowingChange={setNarrowing}
+            filter={filter}
+            deferredFilter={deferredFilter}
+            deferredSearch={deferredSearch}
+            busy={busy}
+            onAdd={handleAdd}
+            onRemove={handleRemove}
+            onAddAll={handleAddAll}
+            onRemoveAll={handleRemoveAll}
+            refetchSignal={refetchSignal}
+          />
+        )}
       </Suspense>
     </ScriptPageChrome>
   );
@@ -454,7 +682,15 @@ interface ScheduleDevicesViewProps {
 /**
  * "Edit Devices" for a schedule (v2, Relay).
  *
- * Every +/− commits the moment it is clicked, through the incremental
+ * Two ways to target devices, chosen by the mode radio and backed by different
+ * write models:
+ *
+ * - **Specific** — an explicit machine set, edited incrementally (below).
+ * - **By criteria** — a stored rule (customer / type / OS) the server resolves
+ *   live, so devices registered later that match are targeted without anyone
+ *   editing the schedule. One value, committed behind an explicit Save.
+ *
+ * In specific mode, every +/− commits the moment it is clicked, through the incremental
  * `addDevicesToSchedule` / `removeDevicesFromSchedule` pair and their bulk
  * counterparts — which is why the page exits via Done rather than Save. That is
  * not a style choice. The previous `setScriptScheduleDevices` took the WHOLE

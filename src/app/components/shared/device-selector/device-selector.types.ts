@@ -4,6 +4,9 @@ import type { Device, DeviceFilters } from '@/app/(app)/devices/types/device.typ
 
 export type SubTab = 'available' | 'selected';
 
+/** The two ways a consumer can target devices — the picker's top-level radio. */
+export type DeviceSelectionMode = 'specific' | 'criteria';
+
 /** The narrowing the picker is showing, in the component's own vocabulary. */
 export interface DeviceSelectorNarrowing {
   /** Column funnels (status / customer / os), TanStack-shaped. */
@@ -83,6 +86,24 @@ export interface DeviceSelectorProps {
   disabled?: boolean;
   /** Show selection mode radio group. Default: true. */
   showSelectionModeRadio?: boolean;
+  /**
+   * Controls the selection-mode radio. Passing it is what ENABLES the "by
+   * criteria" option — a consumer that leaves it out gets the uncontrolled
+   * radio with criteria disabled and tagged "Coming Soon", which is what the
+   * monitoring and run-script pages still want.
+   */
+  selectionMode?: DeviceSelectionMode;
+  onSelectionModeChange?: (mode: DeviceSelectionMode) => void;
+  /**
+   * The rule editor, rendered at the top of the picker card in place of the
+   * Available/Selected tab strip while `selectionMode` is `'criteria'`.
+   *
+   * The table below it then shows what the rule currently resolves to: no row
+   * actions, no search box, no column funnels — the rule IS the narrowing, and a
+   * second one layered on top would make the row count answer a different
+   * question than the one the user is editing.
+   */
+  criteriaContent?: ReactNode;
   /** Extra content rendered above the selection radio / tabs (e.g. ScheduleInfoBar). */
   headerContent?: ReactNode;
   /** Table rowKey. Default: "id". */
@@ -95,6 +116,12 @@ export interface DeviceSelectorProps {
   isDeviceDisabled?: (device: Device) => string | undefined;
   /** Column ids to drop from the table (e.g. `['organization', 'status']` to leave only device + os). */
   hideColumns?: string[];
+  /**
+   * Server-side size of the list on screen, for the header's row count. Only
+   * needed when the rows are paged but `server` is not in play (the criteria
+   * preview); `server.totalCount` covers the server-driven picker.
+   */
+  totalCount?: number;
   /**
    * Switches the picker to server-driven mode — see {@link DeviceSelectorServer}.
    * Omit for the client-side behaviour every other consumer uses.

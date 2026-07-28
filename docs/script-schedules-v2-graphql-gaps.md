@@ -95,19 +95,46 @@ Frontend: `schedule-devices-view.tsx` + `DeviceSelector`'s `server` contract.
 Undocumented in the schema and worth confirming: **does
 `availableDevicesForSchedule` exclude already-assigned devices?** The picker is
 written not to care (every row offers add; the mutation is idempotent), but the
-answer decides whether the Available tab should hide what is already assigned.
+answer decides two things: whether the Available tab should hide what is already
+assigned, and — since §7's criteria preview reads the same field — whether that
+preview shows "devices the rule targets" or only "devices the rule would add".
+The second matters more: on a schedule that is ALREADY on a criteria rule, an
+excluding resolver would make the preview read empty while re-editing it.
 
-## 7. Criteria targeting — **DELIVERED (backend only)**
+## 7. Criteria targeting — **DELIVERED**
 
 `ScriptSchedule.selectionMode` (`SPECIFIC` | `CRITERIA`),
 `ScriptSchedule.deviceCriteria` and `setScheduleDeviceCriteria(scheduleId, criteria)`
 with `ScheduleDeviceCriteriaInput { organizationIds, deviceTypes, osTypes }`.
-Membership resolves live, so devices registered later that match are included
-automatically.
+Each list is a whitelist — empty means "no constraint on this dimension", and a
+device matches when it satisfies every non-empty one. Membership resolves live,
+so devices registered later that match are included automatically.
 
-**Not built in the UI yet** — the "Select Devices by Criteria" option in the
-picker's mode block is still rendered disabled with a "Coming Soon" tag
-(`device-selector.tsx`). This is now a frontend task, not a backend gap.
+Frontend: the mode radio in `device-selector.tsx` is now controllable
+(`selectionMode` / `onSelectionModeChange`), and `criteriaContent` swaps the
+Available/Selected tab strip for the rule editor. `schedule-criteria-card.tsx`
+is that editor plus its read-only echo on the details page; the rule model and
+its mappers are `utils/schedule-criteria.ts`; the picker page branches on mode.
+
+Three notes on how it is wired, each a consequence of the schema:
+
+- **The preview is the server's own answer.** `ScheduleDeviceCriteriaInput` is a
+  strict subset of `DeviceFilterInput`, so the draft rule goes to
+  `availableDevicesForSchedule` as its `filter` and the matching devices come
+  back already scoped to `supportedPlatforms`. Nothing client-side re-implements
+  the matching. (Subject to §6's open question, above.)
+- **Device types come from the schema, customers and OS from facets.** A rule is
+  forward-looking, so offering only the device types some machine currently has
+  would make "all servers" unwritable before the first server is enrolled; the
+  `DeviceType` enum is enumerable, so it is used directly. `osType` is a
+  free-form string and customers are entities, so both still come from
+  `deviceFilters` — meaning a customer with no devices yet cannot be
+  pre-targeted.
+- **Saving is explicit.** Unlike the §6 deltas, the rule is one value the server
+  replaces wholesale, and applying it re-points the schedule at a live set — so
+  the page's primary action becomes Save Criteria instead of Done.
+
+Still open, and the reason the mode is one-way in the UI: see §10.
 
 ## 8. Sorting & search (minor) — **PARTLY DELIVERED**
 
@@ -155,3 +182,31 @@ selected NOWHERE. Every site carries a comment pointing here.
 
 Restoring it is a matter of putting `deviceCount` back in those selections and
 undoing the two substitutions above.
+
+## 10. No way back from CRITERIA to SPECIFIC — **OPEN**
+
+`setScheduleDeviceCriteria` switches a schedule to `CRITERIA` and stores its
+rule. Nothing in the schema switches it back: there is no
+`setScheduleDeviceSelectionMode`, no `selectionMode` field on
+`UpdateScriptScheduleInput`, and neither `addDevicesToSchedule` nor
+`setScriptScheduleDevices` documents any effect on the mode.
+
+So the direction is one-way as far as the contract is concerned, and two
+questions have no documented answer:
+
+1. Does assigning specific devices to a CRITERIA schedule flip it back to
+   SPECIFIC, or does it write into an assignment the criteria resolver then
+   ignores?
+2. What does `assignedDevices` return for a CRITERIA schedule — the resolved
+   rule (which `setScheduleDeviceCriteria`'s own description implies, "resolved
+   live at dispatch and display time") or a stored list that is no longer what
+   fires?
+
+The UI does not guess at either. The mode radio switches the EDITOR, which is
+local state; the specific half then behaves exactly as it does on a SPECIFIC
+schedule, and no copy claims what that does to the stored mode. Neither could be
+verified against QA — the token supplied for the schema refresh has expired.
+
+The clean fix is a `setScheduleDeviceSelectionMode(scheduleId, mode)` mutation
+(or `selectionMode` on the update input), after which the picker can commit the
+switch the way it commits everything else.

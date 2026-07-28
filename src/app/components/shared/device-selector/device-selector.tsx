@@ -37,26 +37,44 @@ import type { DeviceSelectorProps, SubTab } from './device-selector.types';
 import { useDeviceSelector } from './use-device-selector';
 
 /**
- * The two assignment modes (design 460:71430). "By criteria" is drawn but not
- * built — the tag, not a dimmed row, is what the design uses to say so; the
- * `disabled` flag is what actually keeps it unselectable and out of the tab order.
+ * The two assignment modes (design 460:71430).
  *
  * The copy stays generic ("this selection") rather than the design's "this script
  * schedule": this block also renders on the monitoring query and policy pages,
  * where naming a schedule would simply be wrong.
+ *
+ * "By criteria" is only offered where a consumer can actually store a rule —
+ * i.e. where `selectionMode` / `onSelectionModeChange` are wired up. Everywhere
+ * else it keeps the design's "Coming Soon" treatment: a tag rather than a dimmed
+ * row is how the design says so, and `disabled` is what actually keeps it
+ * unselectable and out of the tab order.
  */
+const SPECIFIC_MODE_OPTION: RadioGroupBlockOption = {
+  value: 'specific',
+  label: 'Select Specific Devices',
+  description: 'Choose individual devices to include in this selection',
+};
+
+const CRITERIA_MODE_DESCRIPTION =
+  'Automatically include all devices (current and future) that match your defined criteria';
+
 const SELECTION_MODE_OPTIONS: RadioGroupBlockOption[] = [
-  {
-    value: 'specific',
-    label: 'Select Specific Devices',
-    description: 'Choose individual devices to include in this selection',
-  },
+  SPECIFIC_MODE_OPTION,
   {
     value: 'criteria',
     label: 'Select Devices by Criteria',
-    description: 'Automatically include all devices (current and future) that match your defined criteria',
+    description: CRITERIA_MODE_DESCRIPTION,
     disabled: true,
     trailing: <Tag label="Coming Soon" variant="grey" />,
+  },
+];
+
+const SELECTION_MODE_OPTIONS_ENABLED: RadioGroupBlockOption[] = [
+  SPECIFIC_MODE_OPTION,
+  {
+    value: 'criteria',
+    label: 'Select Devices by Criteria',
+    description: CRITERIA_MODE_DESCRIPTION,
   },
 ];
 
@@ -88,6 +106,15 @@ const DEFAULT_GET_DEVICE_KEY = (d: Device): string | undefined => d.machineId ||
  *
  * For a server-driven listing with URL state, GraphQL pagination and filter
  * counts coming from the backend, use `DevicesPanel` instead.
+ *
+ * Two opt-in modes change the picture above:
+ *
+ * - **`server`** hands search, filtering, paging and the bulk actions to the
+ *   parent's backend — see {@link DeviceSelectorServer}.
+ * - **`selectionMode` + `criteriaContent`** turn the card into the rule editor
+ *   for "Select Devices by Criteria": `criteriaContent` replaces the tab strip,
+ *   the search toolbar and row actions go away, and the table becomes a live
+ *   preview of what the rule matches.
  */
 export function DeviceSelector({
   devices,
@@ -103,8 +130,12 @@ export function DeviceSelector({
   singleSelect: singleSelectProp = false,
   isDeviceDisabled,
   hideColumns,
+  totalCount,
   readOnly = false,
   server,
+  selectionMode,
+  onSelectionModeChange,
+  criteriaContent,
 }: DeviceSelectorProps) {
   // In readOnly mode, force-disable interactions and hide the selection UI.
   const selectedIds = (selectedIdsProp ?? EMPTY_SET) as Set<string>;
@@ -113,6 +144,10 @@ export function DeviceSelector({
   const disabled = readOnly || disabledProp;
   const showSelectionModeRadio = readOnly ? false : showSelectionModeRadioProp;
   const singleSelect = readOnly ? true : singleSelectProp;
+  // Criteria mode replaces the whole picker: the rule editor takes the tab
+  // strip's place and the table below it becomes a read-only preview of what
+  // that rule resolves to.
+  const isCriteria = selectionMode === 'criteria';
   // Called unconditionally (hooks rule); in server mode its results are simply
   // not the ones used — the parent's query already answered those questions.
   const client = useDeviceSelector({ devices, selectedIds, getDeviceKey });
@@ -275,9 +310,12 @@ export function DeviceSelector({
   // singleSelect mode skips the tab split and shows all matching devices.
   // In server mode there is nothing to apply: `devices` is already the answer
   // to this tab, this search and these filters.
-  const baseDevices = server ? devices : singleSelect ? client.filteredDevices : client.displayDevices;
+  // Criteria mode is the same deal as server mode: `devices` is already the
+  // answer — here, the set the rule resolves to.
+  const passThrough = !!server || isCriteria;
+  const baseDevices = passThrough ? devices : singleSelect ? client.filteredDevices : client.displayDevices;
   const devicesForTable = useMemo(() => {
-    if (server || (columnFilters.length === 0 && selectedTagValues.length === 0)) return baseDevices;
+    if (passThrough || (columnFilters.length === 0 && selectedTagValues.length === 0)) return baseDevices;
     return baseDevices.filter(d => {
       for (const f of columnFilters) {
         const values = f.value as string[];
@@ -298,7 +336,7 @@ export function DeviceSelector({
       }
       return true;
     });
-  }, [server, baseDevices, columnFilters, selectedTagValues]);
+  }, [passThrough, baseDevices, columnFilters, selectedTagValues]);
 
   // Client-side `DeviceFilters`-shaped object — built from the prop list so
   // `useTagFilterModal` and `getDeviceFilterColumns` can drive the FilterModal
@@ -607,10 +645,12 @@ export function DeviceSelector({
   );
 
   const visibleColumns = useMemo(() => {
-    if (!hideColumns?.length) return columns;
-    const hidden = new Set(hideColumns);
+    // Nothing on a criteria row is actionable — membership follows the rule, so
+    // an add/remove button there would promise an edit the mode cannot make.
+    const hidden = new Set([...(hideColumns ?? []), ...(isCriteria ? ['actions'] : [])]);
+    if (hidden.size === 0) return columns;
     return columns.filter(c => !c.id || !hidden.has(c.id));
-  }, [columns, hideColumns]);
+  }, [columns, hideColumns, isCriteria]);
 
   const table = useDataTable<Device>({
     data: devicesForTable,
@@ -667,28 +707,31 @@ export function DeviceSelector({
   // row count — the right end of the column header — instead of on a line of its
   // own above the table. Null in single-select mode, and on the Selected tab
   // until there is something to remove; the row count takes the slot back then.
-  const bulkAction = singleSelect ? null : activeSubTab === 'available' ? (
-    <button
-      type="button"
-      onClick={addAllDevices}
-      disabled={disabled}
-      className="text-h6 underline text-ods-accent hover:text-ods-accent-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      Add All Devices
-    </button>
-  ) : selectedCount > 0 ? (
-    <button
-      type="button"
-      onClick={removeAllSelected}
-      disabled={disabled}
-      className="text-h6 underline text-ods-error hover:text-ods-error-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      Remove {server ? (server.totalCount ?? devicesForTable.length) : selectedIds.size} Devices
-    </button>
-  ) : null;
+  const bulkAction =
+    singleSelect || isCriteria ? null : activeSubTab === 'available' ? (
+      <button
+        type="button"
+        onClick={addAllDevices}
+        disabled={disabled}
+        className="text-h6 underline text-ods-accent hover:text-ods-accent-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Add All Devices
+      </button>
+    ) : selectedCount > 0 ? (
+      <button
+        type="button"
+        onClick={removeAllSelected}
+        disabled={disabled}
+        className="text-h6 underline text-ods-error hover:text-ods-error-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Remove {server ? (server.totalCount ?? devicesForTable.length) : selectedIds.size} Devices
+      </button>
+    ) : null;
 
   const hasActiveFilter = columnFilters.length > 0 || selectedTags.length > 0 || searchTerm.trim().length > 0;
-  const showHeader = loading || devicesForTable.length > 0 || hasActiveFilter;
+  // In criteria mode the header's row count is the readout of the rule ("42
+  // devices"), so it stays even at zero — that IS the answer the user is after.
+  const showHeader = isCriteria || loading || devicesForTable.length > 0 || hasActiveFilter;
 
   return (
     // The page-level stack (info bar → mode picker → the picker card) uses
@@ -701,9 +744,13 @@ export function DeviceSelector({
         <RadioGroupBlock
           name="selectionMode"
           variant="grouped"
-          defaultValue="specific"
+          // Controlled only when the consumer can store the answer; otherwise
+          // the radio keeps its old decorative behaviour.
+          {...(selectionMode
+            ? { value: selectionMode, onValueChange: onSelectionModeChange }
+            : { defaultValue: 'specific' })}
           disabled={disabled}
-          options={SELECTION_MODE_OPTIONS}
+          options={selectionMode ? SELECTION_MODE_OPTIONS_ENABLED : SELECTION_MODE_OPTIONS}
           // Design 460:71430 rows are 68px — a 24px title over a 20px description
           // with 12px above and below. The grouped variant pads `py-xs` (8px on
           // desktop) by default, which would come out 8px short.
@@ -720,46 +767,61 @@ export function DeviceSelector({
           it would cut them off whenever the table is short. The tab strip clips
           its own corners instead — it is the only child that reaches the radius. */}
       <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-bg">
-        {!singleSelect && (
-          <TabNavigation
-            tabs={assignTabs}
-            activeTab={activeSubTab}
-            onTabChange={handleTabChange}
-            className="rounded-t-[6px] overflow-clip"
-          />
-        )}
+        {isCriteria
+          ? criteriaContent
+          : !singleSelect && (
+              <TabNavigation
+                tabs={assignTabs}
+                activeTab={activeSubTab}
+                onTabChange={handleTabChange}
+                className="rounded-t-[6px] overflow-clip"
+              />
+            )}
 
         <div className="flex flex-col gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]">
-          <DevicesFilterToolbar
-            sticky={false}
-            searchValue={searchTerm}
-            onSearchChange={setSearchTerm}
-            tags={tagOptions}
-            onTagRemove={handleTagRemove}
-            onClearAll={handleClearAll}
-            onSubmit={handleTagSubmit}
-            isMdUp={isMdUp}
-            onOpenFilterModal={openTagsModal}
-            isFilterModalOpen={tagsModalOpen}
-            onCloseFilterModal={closeTagsModal}
-            filterGroups={filterGroups}
-            onFilterChange={handleModalFilterChange}
-            currentFilters={!isMdUp ? tableFilters : undefined}
-            tagFilterKeys={tagFilterKeys}
-            selectedTags={selectedTags}
-            onTagsChange={handleModalTagsChange}
-          />
+          {/* Searching a criteria preview would make the row count report a
+              subset of what the rule targets — the one number the mode exists
+              to show. The rule is the only narrowing here. */}
+          {!isCriteria && (
+            <DevicesFilterToolbar
+              sticky={false}
+              searchValue={searchTerm}
+              onSearchChange={setSearchTerm}
+              tags={tagOptions}
+              onTagRemove={handleTagRemove}
+              onClearAll={handleClearAll}
+              onSubmit={handleTagSubmit}
+              isMdUp={isMdUp}
+              onOpenFilterModal={openTagsModal}
+              isFilterModalOpen={tagsModalOpen}
+              onCloseFilterModal={closeTagsModal}
+              filterGroups={filterGroups}
+              onFilterChange={handleModalFilterChange}
+              currentFilters={!isMdUp ? tableFilters : undefined}
+              tagFilterKeys={tagFilterKeys}
+              selectedTags={selectedTags}
+              onTagsChange={handleModalTagsChange}
+            />
+          )}
 
           <DataTable table={table}>
             {showHeader && (
               <DataTable.Header
-                rightSlot={bulkAction ?? <DataTable.RowCount itemName="device" totalCount={server?.totalCount} />}
+                rightSlot={
+                  bulkAction ?? <DataTable.RowCount itemName="device" totalCount={totalCount ?? server?.totalCount} />
+                }
               />
             )}
             <DataTable.Body
               loading={loading}
               skeletonRows={8}
-              emptyMessage={activeSubTab === 'selected' ? 'No devices selected' : 'No devices found'}
+              emptyMessage={
+                isCriteria
+                  ? 'No devices match these criteria'
+                  : activeSubTab === 'selected'
+                    ? 'No devices selected'
+                    : 'No devices found'
+              }
               rowClassName={rowClassName}
             />
             {availableInfiniteScroll && (

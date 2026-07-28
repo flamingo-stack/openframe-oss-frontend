@@ -33,8 +33,9 @@ import type {
 import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPaginationQueryType } from '@/__generated__/scriptScheduleDevicesRelayPaginationQuery.graphql';
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
-import type { Device } from '@/app/(app)/devices/types/device.types';
-import { ScriptStatus } from '@/generated/schema-enums';
+import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
+import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import { ScheduleDeviceSelectionMode, ScriptStatus } from '@/generated/schema-enums';
 import { archiveScriptScheduleMutation } from '@/graphql/scripts/archive-script-schedule-mutation';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
 import {
@@ -54,10 +55,12 @@ import {
 } from '../../components/script/script-param-rows';
 import { initiatorName } from '../utils/execution-helpers';
 import { machineToDevice } from '../utils/machine-to-device';
+import { criteriaFromStored } from '../utils/schedule-criteria';
 import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { envVarsToPairs, platformsToIds, shellToId } from '../utils/script-mappers';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { NotFoundSignal } from './not-found-boundary';
+import { ScheduleCriteriaSummary } from './schedule-criteria-card';
 import { type ScheduleDetailData, ScheduleDetailGate } from './schedule-detail-gate';
 import { ScheduleDevicesTable } from './schedule-devices-table';
 import { ScheduleExecutionsTab } from './schedule-executions-tab';
@@ -66,6 +69,13 @@ import { ScriptPageChrome } from './script-page-chrome';
 
 /** How many assigned devices load per page in the Assigned Devices tab. */
 const DEVICES_PAGE_SIZE = 20;
+
+/**
+ * Facets over the whole fleet — the criteria summary needs them only to turn
+ * stored organization ids into customer names. Module-level to keep the
+ * react-query key stable.
+ */
+const UNFILTERED: DeviceFilterInput = {};
 
 // "Runs" is the aggregate (one row per fire of the schedule); "Execution
 // History" is the flat per-script-per-device history under those fires.
@@ -480,7 +490,22 @@ function ScheduleScriptsTabSkeleton() {
 
 export type AssignedMachine = ScheduleDevicesFragmentData['assignedDevices']['edges'][number]['node'];
 
-function ScheduleDevicesTabSection({ scheduleId }: ScheduleDetailsViewProps) {
+/**
+ * The stored rule, above the list it produces. Its own component so the facets
+ * query (needed only to name customers) is mounted with it — a SPECIFIC
+ * schedule never issues it.
+ */
+function ScheduleCriteriaSummarySection({ schedule }: { schedule: ScheduleDetailData }) {
+  const { data: filterOptions } = useDeviceFilters(UNFILTERED);
+  return (
+    <ScheduleCriteriaSummary criteria={criteriaFromStored(schedule.deviceCriteria)} deviceFilters={filterOptions} />
+  );
+}
+
+function ScheduleDevicesTabSection({
+  scheduleId,
+  schedule,
+}: ScheduleDetailsViewProps & { schedule: ScheduleDetailData | undefined }) {
   // Dedicated query — the heavy machine resolution loads only when this tab
   // mounts, never with the page itself.
   const queryData = useLazyLoadQuery<ScheduleDevicesQueryType>(
@@ -505,22 +530,27 @@ function ScheduleDevicesTabSection({ scheduleId }: ScheduleDetailsViewProps) {
     if (hasNext && !isLoadingNext) loadNext(DEVICES_PAGE_SIZE);
   }, [hasNext, isLoadingNext, loadNext]);
 
+  const isCriteria = schedule?.selectionMode === ScheduleDeviceSelectionMode.CRITERIA;
+
   // Not-found is escalated (full-page) by the header island; render nothing here.
   if (!queryData.scriptSchedule) {
     return null;
   }
 
   return (
-    <ScheduleDevicesTable
-      devices={rows}
-      totalCount={data?.assignedDevices?.filteredCount ?? undefined}
-      infiniteScroll={{
-        hasNextPage: hasNext,
-        isFetchingNextPage: isLoadingNext,
-        onLoadMore: fetchNextPage,
-        skeletonRows: 2,
-      }}
-    />
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      {isCriteria && schedule && <ScheduleCriteriaSummarySection schedule={schedule} />}
+      <ScheduleDevicesTable
+        devices={rows}
+        totalCount={data?.assignedDevices?.filteredCount ?? undefined}
+        infiniteScroll={{
+          hasNextPage: hasNext,
+          isFetchingNextPage: isLoadingNext,
+          onLoadMore: fetchNextPage,
+          skeletonRows: 2,
+        }}
+      />
+    </div>
   );
 }
 
@@ -663,7 +693,7 @@ function ScheduleDetailsChrome({
               if (activeTab === 'devices') {
                 return (
                   <Suspense fallback={<ScheduleDevicesTabSkeleton />}>
-                    <ScheduleDevicesTabSection scheduleId={scheduleId} />
+                    <ScheduleDevicesTabSection scheduleId={scheduleId} schedule={schedule} />
                   </Suspense>
                 );
               }

@@ -25,6 +25,15 @@ export const scriptScheduleDetailRelayQuery = graphql`
         email
       }
       # deviceCount omitted — see docs/script-schedules-v2-graphql-gaps.md §9.
+      # How the schedule targets devices. SPECIFIC reads the assignment as a
+      # stored list; CRITERIA resolves it live from this rule, so devices
+      # registered later that match are picked up without anyone editing it.
+      selectionMode
+      deviceCriteria {
+        organizationIds
+        deviceTypes
+        osTypes
+      }
       trigger
       startAt
       repeat
