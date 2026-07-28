@@ -24,7 +24,7 @@ export const scriptScheduleDetailRelayQuery = graphql`
         lastName
         email
       }
-      deviceCount
+      # deviceCount omitted — see docs/script-schedules-v2-graphql-gaps.md §9.
       trigger
       startAt
       repeat

@@ -9,13 +9,13 @@ import { graphql } from 'react-relay';
  * so a client-assembled set would quietly mean "add all the ones I happen to
  * have scrolled past". Pass the same `filter`/`search` the list is showing.
  *
- * See `add-devices-to-schedule-mutation.ts` for the `deviceCount` contract.
+ * See `add-devices-to-schedule-mutation.ts` for why the payload reads back
+ * nothing but `id`.
  */
 export const addAllDevicesToScheduleMutation = graphql`
   mutation addAllDevicesToScheduleMutation($scheduleId: ID!, $filter: DeviceFilterInput, $search: String) {
     addAllDevicesToSchedule(scheduleId: $scheduleId, filter: $filter, search: $search) {
       id
-      deviceCount
     }
   }
 `;

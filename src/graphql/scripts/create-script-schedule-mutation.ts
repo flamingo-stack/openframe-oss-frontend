@@ -13,7 +13,7 @@ export const createScriptScheduleMutation = graphql`
       description
       supportedPlatforms
       status
-      deviceCount
+      # deviceCount omitted — see docs/script-schedules-v2-graphql-gaps.md §9.
       trigger
       startAt
       repeat

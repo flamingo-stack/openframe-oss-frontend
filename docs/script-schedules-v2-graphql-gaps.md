@@ -118,3 +118,40 @@ picker's mode block is still rendered disabled with a "Coming Soon" tag
   first".
 - `search` is a name-only substring match; the list also shows `description`,
   which is not searched.
+
+## 9. `deviceCount` returns null for a non-null field — **BROKEN, frontend worked around**
+
+`ScriptSchedule.deviceCount` is declared `Int!` and its resolver returns `null`.
+GraphQL then nulls the parent, and because `node`, `edges` and the connection
+are all non-null too, the violation bubbles until the entire payload is null:
+
+```
+No data returned for operation `scriptSchedulesTableRelayQuery`
+The field at path '/scriptSchedules/edges[0]/node/deviceCount' was declared as a
+non null type, but the code involved in retrieving data has wrongly returned a
+null value. The non-nullable type is 'Int' within parent type 'ScriptSchedule'
+```
+
+One bad count therefore empties the whole schedules list — and would do the same
+to the details page, the assigned-devices tab, the device picker and every
+assignment mutation, all of which selected the field. Nothing on the client can
+salvage it: the response arrives with `data: null`, so there is no partial
+result for Relay to read (`@catch` included).
+
+The contract did not change (`Int!` before and after the QA schema refresh), so
+this is the resolver regressing. Prime suspect, unverified: the release that
+added `selectionMode` / `deviceCriteria` — a CRITERIA schedule's count has to be
+resolved by evaluating the rule, and legacy rows read as SPECIFIC.
+
+**Frontend workaround, to be reverted when the resolver is fixed:** the field is
+selected NOWHERE. Every site carries a comment pointing here.
+
+| Consumer | Now reads |
+|---|---|
+| Schedules list, DEVICES column | nothing — renders `—` |
+| Picker, "Selected Devices (N)" | `assignedDevices.filteredCount` (same number when nothing is narrowed) |
+| Assignment mutations | `id` only; the picker re-reads the list after each commit |
+| Detail / assigned-devices queries | dropped (nothing read it) |
+
+Restoring it is a matter of putting `deviceCount` back in those selections and
+undoing the two substitutions above.

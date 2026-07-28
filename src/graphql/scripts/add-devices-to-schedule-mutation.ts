@@ -12,19 +12,21 @@ import { graphql } from 'react-relay';
  * guarantee it could not make once an assignment outgrew a single page. A delta
  * states only what changed, so nothing has to be read in full to write safely.
  *
- * Every payload selects `deviceCount`: it is the number the picker's tab label
- * and the schedule's DEVICES column show, so returning it lets Relay update
- * both from the response instead of refetching the assignment.
+ * The payloads deliberately select nothing but `id`. `deviceCount` would be the
+ * natural thing to read back — it is the number the picker's tab label and the
+ * schedule's DEVICES column show — but its resolver returns null for a field
+ * the schema declares `Int!`, which nulls the whole response (see
+ * docs/script-schedules-v2-graphql-gaps.md §9). Select it again once that is
+ * fixed; until then the picker re-reads the assignment after every commit.
  *
- * The connections are NOT patched by an updater. Membership of either list
- * depends on filters and search the server evaluates, not the client, so the
- * honest refresh is to re-read the affected connection.
+ * The connections are NOT patched by an updater either. Membership of either
+ * list depends on filters and search the server evaluates, not the client, so
+ * the honest refresh is to re-read the affected connection.
  */
 export const addDevicesToScheduleMutation = graphql`
   mutation addDevicesToScheduleMutation($scheduleId: ID!, $machineIds: [ID!]!) {
     addDevicesToSchedule(scheduleId: $scheduleId, machineIds: $machineIds) {
       id
-      deviceCount
     }
   }
 `;

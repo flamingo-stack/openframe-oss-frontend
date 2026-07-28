@@ -230,7 +230,12 @@ function SchedulePickerLists({
         narrowing,
         onNarrowingChange,
         filterOptions,
-        selectedCount: assignedData.scriptSchedule?.deviceCount ?? 0,
+        // `deviceCount` would say this directly, but it is unusable
+        // (docs/script-schedules-v2-graphql-gaps.md §9). `filteredCount` is the
+        // same number whenever nothing is narrowed — and while a filter IS on,
+        // a label reading fewer than the assignment is the lesser wrong than
+        // one that takes the whole page down.
+        selectedCount: assignedConnection?.filteredCount ?? 0,
         totalCount: totalCount ?? undefined,
         onAdd,
         onRemove,
@@ -359,10 +364,10 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
     const { filter: f, search: s } = narrowingRef.current;
     commitAddAll({
       variables: { scheduleId, filter: toRelayFilter(f), search: s || null },
-      onCompleted: response => {
+      onCompleted: () => {
         toast({
           title: 'Devices assigned',
-          description: `This schedule now runs on ${response.addAllDevicesToSchedule.deviceCount} device(s).`,
+          description: 'Every device matching the current filters was added to this schedule.',
           variant: 'success',
         });
         refresh();
@@ -375,10 +380,10 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
     const { filter: f, search: s } = narrowingRef.current;
     commitRemoveAll({
       variables: { scheduleId, filter: toRelayFilter(f), search: s || null },
-      onCompleted: response => {
+      onCompleted: () => {
         toast({
           title: 'Devices unassigned',
-          description: `This schedule now runs on ${response.removeAllDevicesFromSchedule.deviceCount} device(s).`,
+          description: 'Every device matching the current filters was removed from this schedule.',
           variant: 'success',
         });
         refresh();
