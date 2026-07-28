@@ -63,7 +63,7 @@ import {
 } from '../utils/schedule-criteria';
 import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { platformsToIds } from '../utils/script-mappers';
-import { ScheduleCriteriaCard } from './schedule-criteria-card';
+import { ScheduleCriteriaFields } from './schedule-criteria-fields';
 import { type ScheduleDetailData, ScheduleDetailGate } from './schedule-detail-gate';
 import { ScheduleInfoBarSkeleton } from './schedule-details-view';
 import { ScriptPageChrome } from './script-page-chrome';
@@ -386,7 +386,7 @@ function ScheduleCriteriaPicker({
         skeletonRows: 2,
       }}
       criteriaContent={
-        <ScheduleCriteriaCard
+        <ScheduleCriteriaFields
           criteria={criteria}
           onChange={onCriteriaChange}
           deviceFilters={filterOptions}
@@ -594,14 +594,14 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
   // The two modes genuinely differ in what "finish" means. Specific commits each
   // +/- as it happens, so there is nothing left to save and the action just
   // leaves. A rule is one value replaced wholesale — and applying it re-points
-  // the schedule at a live set — so it needs a deliberate Save, and stays
-  // enabled even when unchanged: on a schedule that is still SPECIFIC, saving an
-  // untouched rule IS the change.
+  // the schedule at a live set — so it needs a deliberate Save (labelled as the
+  // design has it, 460:85294), and stays enabled even when unchanged: on a
+  // schedule that is still SPECIFIC, saving an untouched rule IS the change.
   const actions = useMemo<PageActionButton[]>(() => {
     if (selectionMode === 'criteria') {
       return [
         {
-          label: isSavingCriteria ? 'Saving...' : 'Save Criteria',
+          label: isSavingCriteria ? 'Saving...' : 'Save Devices',
           onClick: handleSaveCriteria,
           variant: 'accent' as const,
           disabled: busy || (storedMode === 'criteria' && criteriaEqual(criteria, storedCriteria)),

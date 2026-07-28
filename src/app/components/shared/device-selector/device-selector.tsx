@@ -111,10 +111,10 @@ const DEFAULT_GET_DEVICE_KEY = (d: Device): string | undefined => d.machineId ||
  *
  * - **`server`** hands search, filtering, paging and the bulk actions to the
  *   parent's backend — see {@link DeviceSelectorServer}.
- * - **`selectionMode` + `criteriaContent`** turn the card into the rule editor
- *   for "Select Devices by Criteria": `criteriaContent` replaces the tab strip,
- *   the search toolbar and row actions go away, and the table becomes a live
- *   preview of what the rule matches.
+ * - **`selectionMode` + `criteriaContent`** swap the picker for the rule editor
+ *   of "Select Devices by Criteria": `criteriaContent` replaces the card
+ *   entirely, the search toolbar and row actions go away, and the table becomes
+ *   a live preview of what the rule matches.
  */
 export function DeviceSelector({
   devices,
@@ -144,9 +144,8 @@ export function DeviceSelector({
   const disabled = readOnly || disabledProp;
   const showSelectionModeRadio = readOnly ? false : showSelectionModeRadioProp;
   const singleSelect = readOnly ? true : singleSelectProp;
-  // Criteria mode replaces the whole picker: the rule editor takes the tab
-  // strip's place and the table below it becomes a read-only preview of what
-  // that rule resolves to.
+  // Criteria mode replaces the whole picker — card, tabs and search row — with
+  // the rule editor over a read-only preview of what that rule resolves to.
   const isCriteria = selectionMode === 'criteria';
   // Called unconditionally (hooks rule); in server mode its results are simply
   // not the ones used — the parent's query already answered those questions.
@@ -733,6 +732,38 @@ export function DeviceSelector({
   // devices"), so it stays even at zero — that IS the answer the user is after.
   const showHeader = isCriteria || loading || devicesForTable.length > 0 || hasActiveFilter;
 
+  const deviceTable = (
+    <DataTable table={table}>
+      {showHeader && (
+        <DataTable.Header
+          rightSlot={
+            bulkAction ?? <DataTable.RowCount itemName="device" totalCount={totalCount ?? server?.totalCount} />
+          }
+        />
+      )}
+      <DataTable.Body
+        loading={loading}
+        skeletonRows={8}
+        emptyMessage={
+          isCriteria
+            ? 'No devices match these criteria'
+            : activeSubTab === 'selected'
+              ? 'No devices selected'
+              : 'No devices found'
+        }
+        rowClassName={rowClassName}
+      />
+      {availableInfiniteScroll && (
+        <DataTable.InfiniteFooter
+          hasNextPage={availableInfiniteScroll.hasNextPage}
+          isFetchingNextPage={availableInfiniteScroll.isFetchingNextPage}
+          onLoadMore={availableInfiniteScroll.onLoadMore}
+          skeletonRows={availableInfiniteScroll.skeletonRows}
+        />
+      )}
+    </DataTable>
+  );
+
   return (
     // The page-level stack (info bar → mode picker → the picker card) uses
     // `--spacing-system-l`, the token every other stacked page surface in the app
@@ -758,31 +789,35 @@ export function DeviceSelector({
         />
       )}
 
-      {/* Design 460:71435 frames the picker as ONE bordered card: the tab strip
-          sits flush against the top edge with its own underline doubling as the
-          divider, and the search row and table are inset below it.
-          Deliberately NOT `overflow-clip` (which the Figma export puts here to
-          round the tab strip's corners): the column-filter dropdowns are
-          absolutely positioned INSIDE this box rather than portaled, so clipping
-          it would cut them off whenever the table is short. The tab strip clips
-          its own corners instead — it is the only child that reaches the radius. */}
-      <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-bg">
-        {isCriteria
-          ? criteriaContent
-          : !singleSelect && (
-              <TabNavigation
-                tabs={assignTabs}
-                activeTab={activeSubTab}
-                onTabChange={handleTabChange}
-                className="rounded-t-[6px] overflow-clip"
-              />
-            )}
+      {/* Criteria mode (design 460:85294) has no card at all: the rule's fields
+          and the table it previews sit straight on the page, in the same 24px
+          stack as everything above them. There is nothing to frame — no tab
+          strip to seat, and no search row to inset with it. */}
+      {isCriteria ? (
+        <>
+          {criteriaContent}
+          {deviceTable}
+        </>
+      ) : (
+        /* Design 460:71435 frames the picker as ONE bordered card: the tab strip
+           sits flush against the top edge with its own underline doubling as the
+           divider, and the search row and table are inset below it.
+           Deliberately NOT `overflow-clip` (which the Figma export puts here to
+           round the tab strip's corners): the column-filter dropdowns are
+           absolutely positioned INSIDE this box rather than portaled, so clipping
+           it would cut them off whenever the table is short. The tab strip clips
+           its own corners instead — it is the only child that reaches the radius. */
+        <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-bg">
+          {!singleSelect && (
+            <TabNavigation
+              tabs={assignTabs}
+              activeTab={activeSubTab}
+              onTabChange={handleTabChange}
+              className="rounded-t-[6px] overflow-clip"
+            />
+          )}
 
-        <div className="flex flex-col gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]">
-          {/* Searching a criteria preview would make the row count report a
-              subset of what the rule targets — the one number the mode exists
-              to show. The rule is the only narrowing here. */}
-          {!isCriteria && (
+          <div className="flex flex-col gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]">
             <DevicesFilterToolbar
               sticky={false}
               searchValue={searchTerm}
@@ -802,39 +837,11 @@ export function DeviceSelector({
               selectedTags={selectedTags}
               onTagsChange={handleModalTagsChange}
             />
-          )}
 
-          <DataTable table={table}>
-            {showHeader && (
-              <DataTable.Header
-                rightSlot={
-                  bulkAction ?? <DataTable.RowCount itemName="device" totalCount={totalCount ?? server?.totalCount} />
-                }
-              />
-            )}
-            <DataTable.Body
-              loading={loading}
-              skeletonRows={8}
-              emptyMessage={
-                isCriteria
-                  ? 'No devices match these criteria'
-                  : activeSubTab === 'selected'
-                    ? 'No devices selected'
-                    : 'No devices found'
-              }
-              rowClassName={rowClassName}
-            />
-            {availableInfiniteScroll && (
-              <DataTable.InfiniteFooter
-                hasNextPage={availableInfiniteScroll.hasNextPage}
-                isFetchingNextPage={availableInfiniteScroll.isFetchingNextPage}
-                onLoadMore={availableInfiniteScroll.onLoadMore}
-                skeletonRows={availableInfiniteScroll.skeletonRows}
-              />
-            )}
-          </DataTable>
+            {deviceTable}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

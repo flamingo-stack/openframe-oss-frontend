@@ -60,7 +60,7 @@ import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { envVarsToPairs, platformsToIds, shellToId } from '../utils/script-mappers';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { NotFoundSignal } from './not-found-boundary';
-import { ScheduleCriteriaSummary } from './schedule-criteria-card';
+import { ScheduleCriteriaSummary } from './schedule-criteria-fields';
 import { type ScheduleDetailData, ScheduleDetailGate } from './schedule-detail-gate';
 import { ScheduleDevicesTable } from './schedule-devices-table';
 import { ScheduleExecutionsTab } from './schedule-executions-tab';

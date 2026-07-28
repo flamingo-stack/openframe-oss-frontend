@@ -95,8 +95,9 @@ export interface DeviceSelectorProps {
   selectionMode?: DeviceSelectionMode;
   onSelectionModeChange?: (mode: DeviceSelectionMode) => void;
   /**
-   * The rule editor, rendered at the top of the picker card in place of the
-   * Available/Selected tab strip while `selectionMode` is `'criteria'`.
+   * The rule editor, rendered in place of the whole picker card while
+   * `selectionMode` is `'criteria'` (design 460:85294 drops the card frame
+   * there — fields and table sit straight on the page).
    *
    * The table below it then shows what the rule currently resolves to: no row
    * actions, no search box, no column funnels — the rule IS the narrowing, and a

@@ -110,13 +110,25 @@ Each list is a whitelist — empty means "no constraint on this dimension", and 
 device matches when it satisfies every non-empty one. Membership resolves live,
 so devices registered later that match are included automatically.
 
-Frontend: the mode radio in `device-selector.tsx` is now controllable
-(`selectionMode` / `onSelectionModeChange`), and `criteriaContent` swaps the
-Available/Selected tab strip for the rule editor. `schedule-criteria-card.tsx`
-is that editor plus its read-only echo on the details page; the rule model and
-its mappers are `utils/schedule-criteria.ts`; the picker page branches on mode.
+Frontend (design 460:85294): the mode radio in `device-selector.tsx` is now
+controllable (`selectionMode` / `onSelectionModeChange`), and `criteriaContent`
+replaces the whole bordered picker card — criteria mode has no card, the fields
+and the table it previews sit straight on the page.
+`schedule-criteria-fields.tsx` is that editor plus its read-only echo on the
+details page; the rule model and its mappers are `utils/schedule-criteria.ts`;
+the picker page branches on mode.
 
-Three notes on how it is wired, each a consequence of the schema:
+**"Custom Criteria" cannot be built.** The design puts a fourth, full-width
+chip input under the three selects ("Press enter after each criteria"), and
+`ScheduleDeviceCriteriaInput` has nowhere to put what it collects — the input is
+closed at `{ organizationIds, deviceTypes, osTypes }`, with no tag or free-form
+dimension. The field is rendered disabled and tagged "Coming Soon" rather than
+dropped, so the gap stays visible. Unblocking it means adding
+`tagKeys`/`tagValues` (the shape `DeviceFilterInput` already uses, which would
+also let the preview keep answering the rule unchanged) or an explicit
+free-term field.
+
+Three notes on how the rest is wired, each a consequence of the schema:
 
 - **The preview is the server's own answer.** `ScheduleDeviceCriteriaInput` is a
   strict subset of `DeviceFilterInput`, so the draft rule goes to
@@ -132,7 +144,7 @@ Three notes on how it is wired, each a consequence of the schema:
   pre-targeted.
 - **Saving is explicit.** Unlike the §6 deltas, the rule is one value the server
   replaces wholesale, and applying it re-points the schedule at a live set — so
-  the page's primary action becomes Save Criteria instead of Done.
+  the page's primary action becomes Save Devices instead of Done.
 
 Still open, and the reason the mode is one-way in the UI: see §10.
 
