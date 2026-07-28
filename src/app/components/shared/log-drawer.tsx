@@ -23,7 +23,7 @@ export interface LogDrawerInfoField {
 interface LogDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  description: string;
+  description: React.ReactNode;
   statusTag?: {
     label: string;
     variant?: 'success' | 'warning' | 'error' | 'grey' | 'critical';
