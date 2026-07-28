@@ -15,7 +15,8 @@ import {
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useCallback, useMemo } from 'react';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { memo, Suspense, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
@@ -305,15 +306,20 @@ function ScriptDetailsChrome({ scriptId, script }: ScriptDetailsViewProps & { sc
           </Suspense>
 
           <TabNavigation tabs={DETAIL_TABS} urlSync defaultTab="details">
-            {activeTab =>
-              activeTab === 'executions' ? (
-                <ScriptExecutionsTab scriptId={scriptId} />
-              ) : (
+            {/* One boundary at a fixed position for both tabs, plus the stale
+                dimming — same reasoning as the schedule details page, written
+                out on `ScheduleDetailsChrome`. */}
+            {(activeTab, { isStale }) => (
+              <div className={cn('transition-opacity duration-200', isStale && 'opacity-60')}>
                 <Suspense fallback={<ScriptDetailsTabSkeleton />}>
-                  <ScriptDetailsTabSection scriptId={scriptId} />
+                  {activeTab === 'executions' ? (
+                    <ScriptExecutionsTab scriptId={scriptId} />
+                  ) : (
+                    <ScriptDetailsTabSection scriptId={scriptId} />
+                  )}
                 </Suspense>
-              )
-            }
+              </div>
+            )}
           </TabNavigation>
         </div>
       </ScriptPageChrome>
@@ -326,10 +332,10 @@ function ScriptDetailsChrome({ scriptId, script }: ScriptDetailsViewProps & { sc
  * is archived (and owns the not-found boundary) without making the page wait for
  * it — see {@link ScriptDetailsChrome}.
  */
-export function ScriptDetailsView({ scriptId }: ScriptDetailsViewProps) {
+export const ScriptDetailsView = memo(function ScriptDetailsView({ scriptId }: ScriptDetailsViewProps) {
   return (
     <ScriptDetailGate scriptId={scriptId}>
       {script => <ScriptDetailsChrome scriptId={scriptId} script={script} />}
     </ScriptDetailGate>
   );
-}
+});

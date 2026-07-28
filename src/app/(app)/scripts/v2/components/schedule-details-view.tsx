@@ -22,7 +22,7 @@ import {
 import { useMdUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, Suspense, useCallback, useMemo, useState } from 'react';
+import { memo, type ReactNode, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { archiveScriptScheduleMutation as ArchiveScheduleMutationType } from '@/__generated__/archiveScriptScheduleMutation.graphql';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
@@ -689,26 +689,36 @@ function ScheduleDetailsChrome({
           </Suspense>
 
           <TabNavigation tabs={SCHEDULE_DETAIL_TABS} urlSync defaultTab="scripts">
-            {activeTab => {
-              if (activeTab === 'devices') {
-                return (
-                  <Suspense fallback={<ScheduleDevicesTabSkeleton />}>
+            {/* ONE boundary for all four tabs, at a fixed position in the tree,
+                rather than one per branch. `TabNavigation` hands the body a
+                DEFERRED tab id, so a switch renders in a transition — and a
+                transition can only hold the previous content on a boundary that
+                already has some. A branch that mounted its own boundary gave the
+                transition nothing to hold and dropped straight to a skeleton.
+                (Runs and Execution History still show theirs: each owns an inner
+                boundary so filter changes don't blank its toolbar, and the inner
+                one catches the suspension first.)
+
+                `isStale` is the switch's only other feedback — the bar has
+                already moved but the body has not, and without dimming that
+                reads as a tab that did nothing. */}
+            {(activeTab, { isStale }) => (
+              <div className={cn('transition-opacity duration-200', isStale && 'opacity-60')}>
+                <Suspense
+                  fallback={activeTab === 'devices' ? <ScheduleDevicesTabSkeleton /> : <ScheduleScriptsTabSkeleton />}
+                >
+                  {activeTab === 'devices' ? (
                     <ScheduleDevicesTabSection scheduleId={scheduleId} schedule={schedule} />
-                  </Suspense>
-                );
-              }
-              if (activeTab === 'runs') {
-                return <ScheduleRunsTab scheduleId={scheduleId} />;
-              }
-              if (activeTab === 'executions') {
-                return <ScheduleExecutionsTab scheduleId={scheduleId} />;
-              }
-              return (
-                <Suspense fallback={<ScheduleScriptsTabSkeleton />}>
-                  <ScheduleScriptsTabSection scheduleId={scheduleId} />
+                  ) : activeTab === 'runs' ? (
+                    <ScheduleRunsTab scheduleId={scheduleId} />
+                  ) : activeTab === 'executions' ? (
+                    <ScheduleExecutionsTab scheduleId={scheduleId} />
+                  ) : (
+                    <ScheduleScriptsTabSection scheduleId={scheduleId} />
+                  )}
                 </Suspense>
-              );
-            }}
+              </div>
+            )}
           </TabNavigation>
         </div>
       </ScriptPageChrome>
@@ -727,11 +737,22 @@ function ScheduleDetailsChrome({
  * Schedule details page. The gate supplies the record the chrome's Archive
  * action needs (and owns the not-found boundary) without making the page wait
  * for it — see {@link ScheduleDetailsChrome}.
+ *
+ * **Memoized on purpose.** The route component reads `?id=` through
+ * `useSearchParams()`, which re-renders on ANY query change — including the
+ * `?tab=` this page writes on every tab click. Without the bail-out, clicking a
+ * tab re-renders the whole details tree (chrome, info bar, the tab body itself)
+ * before `TabNavigation` has even applied its own state change, so every switch
+ * costs two full passes over the page for one changed underline. `scheduleId`
+ * is the only thing that actually flows in, and it does not change.
+ *
+ * Nothing that must react to `?tab=` is cut off: `TabNavigation` reads the param
+ * itself, so browser back/forward still moves the tab.
  */
-export function ScheduleDetailsView({ scheduleId }: ScheduleDetailsViewProps) {
+export const ScheduleDetailsView = memo(function ScheduleDetailsView({ scheduleId }: ScheduleDetailsViewProps) {
   return (
     <ScheduleDetailGate scheduleId={scheduleId}>
       {schedule => <ScheduleDetailsChrome scheduleId={scheduleId} schedule={schedule} />}
     </ScheduleDetailGate>
   );
-}
+});
