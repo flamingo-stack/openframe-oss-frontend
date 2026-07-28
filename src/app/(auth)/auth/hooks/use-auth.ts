@@ -164,17 +164,11 @@ export function useAuth() {
 
       toast({
         title: 'Success!',
-        description: 'Organization created successfully. You can now sign in.',
+        description: 'Organization created successfully. Check your email to verify your account.',
         variant: 'success',
       });
 
-      const discoveryResult = await discoverTenants(data.email);
-
-      if (discoveryResult && discoveryResult.has_existing_accounts) {
-        window.location.href = '/auth/login';
-      } else {
-        window.location.href = '/auth';
-      }
+      window.location.href = routes.auth.checkEmail;
     } catch (error: any) {
       toast({
         title: 'Registration Failed',
