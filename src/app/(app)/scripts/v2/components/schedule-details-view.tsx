@@ -53,6 +53,7 @@ import {
   ScriptParamRows,
 } from '../../components/script/script-param-rows';
 import { initiatorName } from '../utils/execution-helpers';
+import { machineToDevice } from '../utils/machine-to-device';
 import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { envVarsToPairs, platformsToIds, shellToId } from '../utils/script-mappers';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
@@ -478,38 +479,6 @@ function ScheduleScriptsTabSkeleton() {
 // ----------------------------------------------------------------
 
 export type AssignedMachine = ScheduleDevicesFragmentData['assignedDevices']['edges'][number]['node'];
-
-/**
- * Adapts a Machine node to the `Device` the shared devices table renders.
- *
- * Only the fields that table actually reads are populated — this is a list row,
- * not the full multi-source device record `createDevice()` assembles from
- * GraphQL + Fleet + MeshCentral. `local_ips` is required by the type and
- * unavailable here, hence the empty array.
- */
-export function machineToDevice(machine: AssignedMachine): Device {
-  return {
-    id: machine.id,
-    machineId: machine.machineId,
-    hostname: machine.hostname ?? '',
-    displayName: machine.displayName ?? machine.hostname ?? '',
-    status: machine.status ?? '',
-    local_ips: [],
-    last_seen: machine.lastSeen ?? undefined,
-    lastSeen: machine.lastSeen ?? undefined,
-    type: machine.type ?? undefined,
-    osType: machine.osType ?? undefined,
-    organizationId: machine.organization?.organizationId ?? undefined,
-    organization: machine.organization?.name ?? undefined,
-    organizationImageUrl: machine.organization?.image?.imageUrl ?? null,
-    organizationImageHash: machine.organization?.image?.hash ?? null,
-    // Relay hands back readonly arrays; `DeviceTag` is mutable, so copy rather
-    // than cast.
-    tags: (machine.tags ?? []).flatMap(tag =>
-      tag ? [{ tagId: tag.id, key: tag.key, values: [...(tag.values ?? [])] }] : [],
-    ),
-  };
-}
 
 function ScheduleDevicesTabSection({ scheduleId }: ScheduleDetailsViewProps) {
   // Dedicated query — the heavy machine resolution loads only when this tab

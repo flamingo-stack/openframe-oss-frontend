@@ -13,6 +13,7 @@ import {
   type ColumnFiltersState,
   DataTable,
   EntityImage,
+  type OnChangeFn,
   RadioGroupBlock,
   type RadioGroupBlockOption,
   type Row,
@@ -32,7 +33,7 @@ import { DevicesFilterToolbar } from '@/app/components/shared';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { deduplicateFilterOptions } from '@/lib/filter-utils';
 import { getFullImageUrl } from '@/lib/image-url';
-import type { DeviceSelectorProps } from './device-selector.types';
+import type { DeviceSelectorProps, SubTab } from './device-selector.types';
 import { useDeviceSelector } from './use-device-selector';
 
 /**
@@ -103,6 +104,7 @@ export function DeviceSelector({
   isDeviceDisabled,
   hideColumns,
   readOnly = false,
+  server,
 }: DeviceSelectorProps) {
   // In readOnly mode, force-disable interactions and hide the selection UI.
   const selectedIds = (selectedIdsProp ?? EMPTY_SET) as Set<string>;
@@ -111,8 +113,17 @@ export function DeviceSelector({
   const disabled = readOnly || disabledProp;
   const showSelectionModeRadio = readOnly ? false : showSelectionModeRadioProp;
   const singleSelect = readOnly ? true : singleSelectProp;
-  const { searchTerm, setSearchTerm, activeSubTab, handleTabChange, filteredDevices, displayDevices } =
-    useDeviceSelector({ devices, selectedIds, getDeviceKey });
+  // Called unconditionally (hooks rule); in server mode its results are simply
+  // not the ones used — the parent's query already answered those questions.
+  const client = useDeviceSelector({ devices, selectedIds, getDeviceKey });
+
+  const searchTerm = server ? server.search : client.searchTerm;
+  const setSearchTerm = server ? server.onSearchChange : client.setSearchTerm;
+  const activeSubTab = server ? server.activeTab : client.activeSubTab;
+  const handleTabChange = useMemo(
+    () => (server ? (tabId: string) => server.onTabChange(tabId as SubTab) : client.handleTabChange),
+    [server, client.handleTabChange],
+  );
 
   // Read latest selectedIds via ref so toggleDevice can stay reference-stable.
   // The DataTable rows are React.memo'd; rows that don't re-render keep an old
@@ -121,10 +132,38 @@ export function DeviceSelector({
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
 
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [clientColumnFilters, setClientColumnFilters] = useState<ColumnFiltersState>([]);
+  const [clientTags, setClientTags] = useState<string[]>([]);
 
-  const toggleDevice = useCallback(
+  const columnFilters = server ? server.narrowing.columnFilters : clientColumnFilters;
+  const selectedTags = server ? server.narrowing.tags : clientTags;
+
+  const setColumnFilters = useCallback(
+    (next: ColumnFiltersState) => {
+      if (server) server.onNarrowingChange({ columnFilters: next, tags: server.narrowing.tags });
+      else setClientColumnFilters(next);
+    },
+    [server],
+  );
+
+  // TanStack hands either a value or an updater fn; resolve it against what is
+  // on screen before it reaches the (possibly lifted) setter above.
+  const handleTableColumnFiltersChange = useCallback<OnChangeFn<ColumnFiltersState>>(
+    updaterOrValue => {
+      setColumnFilters(typeof updaterOrValue === 'function' ? updaterOrValue(columnFilters) : updaterOrValue);
+    },
+    [columnFilters, setColumnFilters],
+  );
+
+  const setSelectedTags = useCallback(
+    (next: string[]) => {
+      if (server) server.onNarrowingChange({ columnFilters: server.narrowing.columnFilters, tags: next });
+      else setClientTags(next);
+    },
+    [server],
+  );
+
+  const clientToggleDevice = useCallback(
     (device: Device) => {
       if (disabled) return;
       if (isDeviceDisabled?.(device)) return;
@@ -148,10 +187,27 @@ export function DeviceSelector({
     [disabled, isDeviceDisabled, getDeviceKey, onSelectionChange, singleSelect],
   );
 
+  // Server mode has no selection set to flip — the row action states what to DO
+  // (add here, remove there), and the tab decides which.
+  const toggleDevice = useCallback(
+    (device: Device) => {
+      if (!server) return clientToggleDevice(device);
+      if (disabled) return;
+      if (isDeviceDisabled?.(device)) return;
+      if (server.activeTab === 'selected') server.onRemove(device);
+      else server.onAdd(device);
+    },
+    [server, clientToggleDevice, disabled, isDeviceDisabled],
+  );
+
   const addAllDevices = useCallback(() => {
     if (disabled) return;
+    if (server) {
+      server.onAddAll();
+      return;
+    }
     const base = addAllBehavior === 'replace' ? new Set<string>() : new Set(selectedIds);
-    for (const d of filteredDevices) {
+    for (const d of client.filteredDevices) {
       if (isDeviceDisabled?.(d)) continue;
       const key = getDeviceKey(d);
       if (key !== undefined) {
@@ -159,12 +215,25 @@ export function DeviceSelector({
       }
     }
     onSelectionChange(base);
-  }, [disabled, isDeviceDisabled, addAllBehavior, selectedIds, filteredDevices, getDeviceKey, onSelectionChange]);
+  }, [
+    disabled,
+    server,
+    isDeviceDisabled,
+    addAllBehavior,
+    selectedIds,
+    client.filteredDevices,
+    getDeviceKey,
+    onSelectionChange,
+  ]);
 
   const removeAllSelected = useCallback(() => {
     if (disabled) return;
+    if (server) {
+      server.onRemoveAll();
+      return;
+    }
     onSelectionChange(new Set());
-  }, [disabled, onSelectionChange]);
+  }, [disabled, server, onSelectionChange]);
 
   // Filter options are derived client-side from the `devices` prop. We don't
   // hit the backend here — DeviceSelector is given a pre-fetched list, so the
@@ -204,9 +273,11 @@ export function DeviceSelector({
 
   // Apply column filters + tag filters client-side on top of the search/tab-filtered list.
   // singleSelect mode skips the tab split and shows all matching devices.
-  const baseDevices = singleSelect ? filteredDevices : displayDevices;
+  // In server mode there is nothing to apply: `devices` is already the answer
+  // to this tab, this search and these filters.
+  const baseDevices = server ? devices : singleSelect ? client.filteredDevices : client.displayDevices;
   const devicesForTable = useMemo(() => {
-    if (columnFilters.length === 0 && selectedTagValues.length === 0) return baseDevices;
+    if (server || (columnFilters.length === 0 && selectedTagValues.length === 0)) return baseDevices;
     return baseDevices.filter(d => {
       for (const f of columnFilters) {
         const values = f.value as string[];
@@ -227,7 +298,7 @@ export function DeviceSelector({
       }
       return true;
     });
-  }, [baseDevices, columnFilters, selectedTagValues]);
+  }, [server, baseDevices, columnFilters, selectedTagValues]);
 
   // Client-side `DeviceFilters`-shaped object — built from the prop list so
   // `useTagFilterModal` and `getDeviceFilterColumns` can drive the FilterModal
@@ -269,18 +340,25 @@ export function DeviceSelector({
     };
   }, [devices]);
 
-  const filterColumns = useMemo(() => getDeviceFilterColumns(clientDeviceFilters), [clientDeviceFilters]);
+  // Counting the rows on screen only describes the page the client happens to
+  // hold; when the server is paging, it supplies the real facets instead.
+  const deviceFilters = server?.filterOptions ?? clientDeviceFilters;
+
+  const filterColumns = useMemo(() => getDeviceFilterColumns(deviceFilters), [deviceFilters]);
 
   // Adapter: useTagFilterModal expects a single `setParams({ statuses, osTypes, organizationIds, tags })`
   // call. We split it back into our local state.
-  const handleSetParams = useCallback((params: Record<string, any>) => {
-    setColumnFilters([
-      ...(params.statuses?.length ? [{ id: 'status', value: params.statuses }] : []),
-      ...(params.osTypes?.length ? [{ id: 'os', value: params.osTypes }] : []),
-      ...(params.organizationIds?.length ? [{ id: 'organization', value: params.organizationIds }] : []),
-    ]);
-    setSelectedTags(params.tags ?? []);
-  }, []);
+  const handleSetParams = useCallback(
+    (params: Record<string, any>) => {
+      setColumnFilters([
+        ...(params.statuses?.length ? [{ id: 'status', value: params.statuses }] : []),
+        ...(params.osTypes?.length ? [{ id: 'os', value: params.osTypes }] : []),
+        ...(params.organizationIds?.length ? [{ id: 'organization', value: params.organizationIds }] : []),
+      ]);
+      setSelectedTags(params.tags ?? []);
+    },
+    [setColumnFilters, setSelectedTags],
+  );
 
   const {
     isOpen: tagsModalOpen,
@@ -293,7 +371,7 @@ export function DeviceSelector({
     handleTagsChange: handleModalTagsChange,
   } = useTagFilterModal({
     tags: selectedTags,
-    deviceFilters: clientDeviceFilters,
+    deviceFilters,
     columns: filterColumns,
     setParams: handleSetParams,
   });
@@ -310,23 +388,26 @@ export function DeviceSelector({
     [columnFilters],
   );
 
-  const handleTagRemove = useCallback((value: string) => {
-    setSelectedTags(prev => prev.filter(t => t !== value));
-  }, []);
+  const handleTagRemove = useCallback(
+    (value: string) => {
+      setSelectedTags(selectedTags.filter(t => t !== value));
+    },
+    [selectedTags, setSelectedTags],
+  );
 
   const handleClearAll = useCallback(() => {
     setSearchTerm('');
     setSelectedTags([]);
-  }, [setSearchTerm]);
+  }, [setSearchTerm, setSelectedTags]);
 
   const handleTagSubmit = useCallback(
     (value: string) => {
       const trimmed = value.trim();
       if (!trimmed) return;
-      setSelectedTags(prev => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+      if (!selectedTags.includes(trimmed)) setSelectedTags([...selectedTags, trimmed]);
       setSearchTerm('');
     },
-    [setSearchTerm],
+    [selectedTags, setSelectedTags, setSearchTerm],
   );
 
   const columns = useMemo<ColumnDef<Device>[]>(
@@ -466,7 +547,10 @@ export function DeviceSelector({
 
           const key = getDeviceKey(device);
           if (key === undefined) return null;
-          const isSelected = selectedIds.has(key);
+          // Server mode holds a page of the assignment, not the assignment, so
+          // "already in?" is not a question this row can answer — it offers the
+          // action its tab implies and lets the idempotent mutation settle it.
+          const isSelected = !server && selectedIds.has(key);
 
           if (activeSubTab === 'selected') {
             return (
@@ -518,6 +602,7 @@ export function DeviceSelector({
       activeSubTab,
       toggleDevice,
       disabled,
+      server,
     ],
   );
 
@@ -533,8 +618,10 @@ export function DeviceSelector({
     getRowId: row => String(getDeviceKey(row) ?? row.id),
     enableSorting: false,
     state: { columnFilters },
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: handleTableColumnFiltersChange,
   });
+
+  const selectedCount = server ? server.selectedCount : selectedIds.size;
 
   // Per-row className whose value differs by selection state. DataTableRow is
   // React.memo'd on `className`, so only rows whose selection actually flipped
@@ -560,12 +647,13 @@ export function DeviceSelector({
       },
       {
         id: 'selected',
-        label: singleSelect ? `Selected Device (${selectedIds.size})` : `Selected Devices (${selectedIds.size})`,
+        // Server mode counts the whole assignment, not the page in hand.
+        label: singleSelect ? `Selected Device (${selectedCount})` : `Selected Devices (${selectedCount})`,
         icon: CheckCircleIcon,
         component: () => null,
       },
     ],
-    [selectedIds.size, singleSelect],
+    [selectedCount, singleSelect],
   );
 
   const availableInfiniteScroll = activeSubTab === 'available' ? infiniteScroll : undefined;
@@ -588,14 +676,14 @@ export function DeviceSelector({
     >
       Add All Devices
     </button>
-  ) : selectedIds.size > 0 ? (
+  ) : selectedCount > 0 ? (
     <button
       type="button"
       onClick={removeAllSelected}
       disabled={disabled}
       className="text-h6 underline text-ods-error hover:text-ods-error-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      Remove {selectedIds.size} Devices
+      Remove {server ? (server.totalCount ?? devicesForTable.length) : selectedIds.size} Devices
     </button>
   ) : null;
 
@@ -663,7 +751,11 @@ export function DeviceSelector({
           />
 
           <DataTable table={table}>
-            {showHeader && <DataTable.Header rightSlot={bulkAction ?? <DataTable.RowCount itemName="device" />} />}
+            {showHeader && (
+              <DataTable.Header
+                rightSlot={bulkAction ?? <DataTable.RowCount itemName="device" totalCount={server?.totalCount} />}
+              />
+            )}
             <DataTable.Body
               loading={loading}
               skeletonRows={8}
