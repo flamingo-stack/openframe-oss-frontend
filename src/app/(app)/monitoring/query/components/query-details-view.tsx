@@ -17,7 +17,6 @@ import {
   TrashIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -57,7 +56,6 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
   const numericId = parseInt(queryId, 10);
   const isValidId = !isNaN(numericId);
 
-  const { toast } = useToast();
   const { queryDetails, isLoading, error } = useQueryDetails(isValidId ? numericId : null);
   const { rows, isLoading: isReportLoading } = useQueryReport(isValidId ? numericId : null);
   const { deleteQuery, isDeleting } = useQueries();
@@ -177,19 +175,11 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
                 <QueryDevicesTable queryId={numericId} />
               ) : (
                 <QueryReportTable
-                  title="Query Results"
                   data={rows}
                   loading={isReportLoading}
                   emptyMessage="No report results available"
                   columnOrder={['host_name', 'last_fetched']}
-                  exportFilename={`query-${queryDetails.name}-report`}
-                  onExport={() => {
-                    toast({
-                      title: 'Report Exported',
-                      description: 'Query report exported as CSV',
-                      variant: 'success',
-                    });
-                  }}
+                  showExport={false}
                 />
               )}
             </div>

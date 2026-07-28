@@ -73,7 +73,7 @@ export function buildNotificationColumns({
             {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
             <div className="flex min-w-0 flex-col md:hidden">
               <span className={cn('truncate text-h4', titleColor)}>{row.original.title}</span>
-              <span className="truncate text-h6 text-ods-text-secondary">
+              <span className="line-clamp-3 break-words text-h6 text-ods-text-secondary">
                 {row.original.description || relativeTime}
               </span>
             </div>
