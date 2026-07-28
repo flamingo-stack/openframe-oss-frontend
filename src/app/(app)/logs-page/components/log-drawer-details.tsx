@@ -1,8 +1,10 @@
 'use client';
 
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Component, type ReactNode, Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { logDrawerDetailsQuery as LogDrawerDetailsQueryType } from '@/__generated__/logDrawerDetailsQuery.graphql';
+import { getErrorMessage } from '@/lib/handle-api-error';
 import { formatLogDetailsForCopy } from '../utils/format-log-details';
 
 const logDrawerDetailsQuery = graphql`
@@ -65,11 +67,18 @@ function LogDrawerDetailsContent({ fallback, ...variables }: LogDrawerDetailsPro
   );
 }
 
-class LogDrawerDetailsErrorBoundary extends Component<{ fallback: string; children: ReactNode }, { failed: boolean }> {
+class LogDrawerDetailsErrorBoundary extends Component<
+  { fallback: string; onError: (error: unknown) => void; children: ReactNode },
+  { failed: boolean }
+> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
     return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    this.props.onError(error);
   }
 
   render() {
@@ -94,8 +103,16 @@ function LogDrawerDetailsSkeleton() {
  * "Copy Log Details" affordances put on the clipboard, fetched on drawer open.
  */
 export function LogDrawerDetails(props: LogDrawerDetailsProps) {
+  const { toast } = useToast();
+
   return (
-    <LogDrawerDetailsErrorBoundary fallback={props.fallback}>
+    // Keyed by the composite log identity so a failed boundary resets when
+    // another log is selected while the drawer stays mounted.
+    <LogDrawerDetailsErrorBoundary
+      key={`${props.toolEventId}:${props.timestamp}`}
+      fallback={props.fallback}
+      onError={error => toast({ title: 'Error', description: getErrorMessage(error), variant: 'destructive' })}
+    >
       <Suspense fallback={<LogDrawerDetailsSkeleton />}>
         <LogDrawerDetailsContent {...props} />
       </Suspense>
