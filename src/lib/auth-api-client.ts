@@ -6,6 +6,7 @@
 
 import { isSaasSharedMode } from './app-mode';
 import { forceLogout } from './force-logout';
+import { collectRegistrationAttribution, type RegistrationAttribution } from './registration-attribution';
 import { runtimeEnv } from './runtime-config';
 import { refreshAccessToken } from './token-refresh-manager';
 import { getAccessTokenSync, getRefreshToken, getTokenEpoch, isBearerAuthMode } from './token-store';
@@ -156,6 +157,8 @@ class AuthApiClient {
     tenantName: string;
     tenantDomain: string;
     prNumber?: number;
+    /** Marketing-attribution signals (click ids, campaign labels, tracking cookies, event id). */
+    attribution?: RegistrationAttribution;
   }) {
     return request<T>('/sas/oauth/register', {
       method: 'POST',
@@ -169,6 +172,8 @@ class AuthApiClient {
     email: string;
     provider: 'google' | 'microsoft';
     redirectTo?: string;
+    /** Defaults to whatever is capturable right now; pass explicitly to reuse an existing set. */
+    attribution?: RegistrationAttribution;
   }) {
     const params = new URLSearchParams({
       tenantName: payload.tenantName,
@@ -179,6 +184,17 @@ class AuthApiClient {
 
     if (payload.redirectTo) {
       params.append('redirectTo', payload.redirectTo);
+    }
+
+    // The IdP callback is a fresh request from Google/Microsoft — the landing URL's click ids
+    // and this browser's tracking cookies are unreachable by then. Send them now; the backend
+    // stashes them in the SSO state cookie and replays them when the callback builds the
+    // registration. Nested `attribution.*` keys are what Spring's @ModelAttribute binds.
+    const attribution = payload.attribution ?? collectRegistrationAttribution();
+    if (attribution) {
+      for (const [field, value] of Object.entries(attribution)) {
+        if (value) params.append(`attribution.${field}`, value);
+      }
     }
 
     const url = buildAuthUrl(`/sas/oauth/register/sso?${params.toString()}`);

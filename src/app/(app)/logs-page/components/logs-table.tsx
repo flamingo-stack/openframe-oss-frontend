@@ -55,6 +55,7 @@ import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import type { LogFilterInput } from '../types/log.types';
 import { LogCopyButton } from './log-copy-button';
+import { LogDrawerDetails } from './log-drawer-details';
 import { LogsTableSkeleton } from './logs-table-skeleton';
 
 // ----------------------------------------------------------------
@@ -670,7 +671,20 @@ function LogsTableContent({
       <LogDrawer
         isOpen={Boolean(selectedLog)}
         onClose={handleCloseModal}
-        description={selectedLog?.description.title || ''}
+        description={
+          selectedLog ? (
+            <LogDrawerDetails
+              ingestDay={selectedLog.originalLogEntry?.ingestDay}
+              toolType={selectedLog.originalLogEntry?.toolType}
+              eventType={selectedLog.originalLogEntry?.eventType}
+              timestamp={selectedLog.originalLogEntry?.timestamp}
+              toolEventId={selectedLog.logId}
+              fallback={selectedLog.description.title}
+            />
+          ) : (
+            ''
+          )
+        }
         statusTag={selectedLog?.status}
         timestamp={selectedLog?.timestamp}
         deviceId={selectedLog?.originalLogEntry?.deviceId}

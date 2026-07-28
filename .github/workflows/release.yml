@@ -101,18 +101,12 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ steps.version.outputs.NEW_VERSION }},enable=${{ steps.version.outputs.NEW_VERSION != '' }}
-          labels: |
-            org.opencontainers.image.vendor=${{ env.ORGANISATION }}
-            org.opencontainers.image.description=OpenFrame is a platform for building and deploying AI agents.
-            org.opencontainers.image.licenses=Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
-      - name: Build and push image ${{ steps.version.outputs.NEW_VERSION }}
+      - name: Build and Push image ${{ steps.version.outputs.NEW_VERSION }}
         id: docker_build
         uses: nick-fields/retry@v4
         env:
           META_TAGS: ${{ steps.meta.outputs.tags }}
-          META_LABELS: ${{ steps.meta.outputs.labels }}
         with:
           max_attempts: 3
           retry_wait_seconds: 5
@@ -123,5 +117,4 @@ jobs:
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
                   -f ./Dockerfile)
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
-            while IFS= read -r l; do [ -n "$l" ] && args+=(--label "$l"); done <<< "$META_LABELS"
             docker buildx build "${args[@]}" .

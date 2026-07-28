@@ -8,6 +8,7 @@ import { authApiClient } from '@/lib/auth-api-client';
 import { nativeLogin } from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
 import { isNativeShell } from '@/lib/native-shell';
+import { collectRegistrationAttribution } from '@/lib/registration-attribution';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { isBearerAuthMode } from '@/lib/token-store';
@@ -132,6 +133,8 @@ export function useAuth() {
     setIsLoading(true);
 
     try {
+      const attribution = collectRegistrationAttribution();
+
       const response = await authApiClient.registerOrganization({
         email: data.email,
         firstName: data.firstName,
@@ -140,6 +143,7 @@ export function useAuth() {
         tenantName: data.tenantName,
         tenantDomain: data.tenantDomain || 'localhost',
         ...(data.prNumber !== undefined ? { prNumber: data.prNumber } : {}),
+        ...(attribution ? { attribution } : {}),
       });
 
       if (!response.ok) {
@@ -164,17 +168,13 @@ export function useAuth() {
 
       toast({
         title: 'Success!',
-        description: 'Organization created successfully. You can now sign in.',
+        description: 'Organization created successfully. Check your email to verify your account.',
         variant: 'success',
       });
 
-      const discoveryResult = await discoverTenants(data.email);
-
-      if (discoveryResult && discoveryResult.has_existing_accounts) {
-        window.location.href = '/auth/login';
-      } else {
-        window.location.href = '/auth';
-      }
+      // Client-side replace (not window.location.href) so the success toast
+      // survives the transition; replace keeps signup out of the back stack.
+      router.replace(routes.auth.checkEmail);
     } catch (error: any) {
       toast({
         title: 'Registration Failed',

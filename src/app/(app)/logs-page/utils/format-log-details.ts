@@ -1,11 +1,19 @@
 import type { LogEntry } from '../types/log.types';
 
+/** The subset of a log actually rendered into the copy payload. */
+export type CopyableLogDetails = Pick<
+  LogEntry,
+  'toolEventId' | 'timestamp' | 'toolType' | 'eventType' | 'message' | 'details'
+> & {
+  severity: string;
+};
+
 /**
  * Canonical plain-text representation of a log used by every "Copy Log Details"
- * affordance (the log-details page action and the logs table row button), so the
- * copied payload stays identical wherever it is triggered.
+ * affordance (the log-details page action, the logs table row button and the
+ * "Log Details" drawer), so the payload stays identical wherever it appears.
  */
-export function formatLogDetailsForCopy(log: LogEntry): string {
+export function formatLogDetailsForCopy(log: CopyableLogDetails): string {
   return [
     `Log ID: ${log.toolEventId}`,
     `Status: ${log.severity}`,
