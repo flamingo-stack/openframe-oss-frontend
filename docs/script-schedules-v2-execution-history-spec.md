@@ -11,7 +11,7 @@
 > `schedule-executions-tab.tsx` (the table itself is shared with the per-script
 > tab in `executions-table.tsx`). Current status of every schedule gap lives in
 > `script-schedules-v2-graphql-gaps.md`.
-
+>
 > **Scope.** The one query the schedule **Execution History** tab needs. The tab
 > is already wired into the schedule detail page as a stub
 > (`src/app/(app)/scripts/v2/components/schedule-executions-tab.tsx`) rendering a

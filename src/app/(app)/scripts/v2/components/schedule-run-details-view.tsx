@@ -237,10 +237,21 @@ function ScheduleRunDetailsContent({ runId }: ScheduleRunDetailsViewProps) {
         <RunInfoBar run={run} />
         {/* `scopeSearch` pins the list to this fire: every execution of a run
             carries the run's executionId, and search is the only argument that
-            narrows on it. */}
-        <ExecutionsTabShell scopeSearch={executionId}>
-          {state => <RunExecutionsContent scheduleId={scheduleId} state={state} />}
-        </ExecutionsTabShell>
+            narrows on it.
+
+            `scheduleExecutions` is keyed by schedule, so without one there is
+            nothing to scope — firing the query with an empty `ID!` would throw
+            inside the Suspense boundary and take the run summary above down
+            with it, rather than leaving the page readable. */}
+        {scheduleId ? (
+          <ExecutionsTabShell scopeSearch={executionId}>
+            {state => <RunExecutionsContent scheduleId={scheduleId} state={state} />}
+          </ExecutionsTabShell>
+        ) : (
+          <p className="text-h6 text-ods-text-secondary">
+            This run is not linked to a schedule, so its executions can't be listed.
+          </p>
+        )}
       </div>
     </ScriptPageChrome>
   );

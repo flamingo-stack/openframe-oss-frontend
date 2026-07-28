@@ -1,13 +1,32 @@
 # Assigned Devices — GraphQL spec (Script Schedules v2)
 
+> **⚠️ HISTORICAL PROPOSAL — do not build from sections 3 and 6 as written.** The
+> backend delivered the listing half under different names and a different shape:
+> **`ScriptSchedule.assignedDevices(filter, first, after, last, before, search,
+> sort): DeviceConnection!`** — *not* the `assignedDevicesConnection(...):
+> MachineConnection!` proposed below, and over `Machine` nodes reached through the
+> shared `DeviceConnection`. Read those sections as the reasoning that led there,
+> not as an API to implement; taking them literally would ask for a duplicate,
+> incompatible field.
+>
+> What is genuinely still missing (criteria mode, delta mutations,
+> immediate-commit) is tracked in `docs/script-schedules-v2-graphql-gaps.md`,
+> which is the live status document.
+>
+> Delivered frontend: `src/graphql/scripts/script-schedule-devices-relay.ts`
+> (paginated tab + one-page id read) and `schedule-devices-table.tsx` /
+> `schedule-devices-view.tsx`. Assignment is still **replace-all** via
+> `setScriptScheduleDevices` behind a Save button, not the delta/immediate-commit
+> model decision 4 below argues for.
+
 > **Scope.** GraphQL queries/mutations needed to implement the two "Assigned Devices"
 > views (screens: **Select Specific Devices** and **Select Devices by Criteria**)
 > the way we settled on in the best-practice discussion.
 >
 > **Schema source.** Pulled from `https://test-dev.openframe.build/api/graphql` via
-> `npm run fetch-schema` — the backend schema is **identical** to the committed
-> `schema.graphql`. Everything marked **PROPOSED** below does **not exist yet** and
-> is a backend ask.
+> `npm run fetch-schema` at the time of writing. Everything marked **PROPOSED**
+> below was a backend ask then; see the delivery note above for what actually
+> shipped.
 
 ---
 

@@ -222,13 +222,15 @@ export function ScheduleScriptPickerCard({
               control={control}
               render={({ field, fieldState }) => (
                 // Locked until a script is picked: the timeout belongs to the
-                // script, so it reads 0 until there is one. Picking a script
-                // writes its own timeout in.
+                // script, so the field stays EMPTY until there is one — the
+                // sentinel is a "nothing here yet" marker, and rendering it as
+                // a literal 0 would read as a real (and invalid) timeout.
+                // Picking a script writes its own timeout in.
                 <Input
                   type="number"
                   min={1}
                   className="w-full"
-                  value={String(field.value ?? UNSET_TIMEOUT)}
+                  value={field.value ? String(field.value) : ''}
                   onChange={e => field.onChange(e.target.value ? Number(e.target.value) : UNSET_TIMEOUT)}
                   disabled={runParamsLocked}
                   endAdornment={<span className="text-h6 text-ods-text-secondary">Seconds</span>}

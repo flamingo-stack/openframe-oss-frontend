@@ -68,8 +68,36 @@ export function secondsToRepeatParts(seconds: number): { interval: number; unit:
     const size = UNIT_SECONDS[unit];
     if (seconds % size === 0) return { interval: seconds / size, unit };
   }
-  // A sub-hour value (only reachable if authored outside this UI) rounds up to hours.
+  // A sub-hour value (only reachable if authored outside this UI) has no exact
+  // form representation — the unit dropdown starts at Hour — so it is SHOWN
+  // rounded. Saving it back unchanged is `resolveRepeatSeconds`'s job.
   return { interval: Math.max(1, Math.round(seconds / UNIT_SECONDS.hour)), unit: 'hour' };
+}
+
+/**
+ * The `repeat` seconds to persist for a form currently showing `{ interval, unit }`.
+ *
+ * Round-tripping through the form is lossy for any stored value the unit
+ * dropdown cannot express: 30 minutes and 90 minutes both display as "1 Hour"
+ * and "2 Hours". Writing that display back would change the cadence of a
+ * schedule on an edit that never touched recurrence — a rename would silently
+ * halve how often the thing runs.
+ *
+ * So the stored value wins for as long as the form still shows exactly what it
+ * rounds to. The moment the user moves the interval or the unit off that
+ * reading, their choice wins — including the case where they re-pick the same
+ * reading deliberately, which is indistinguishable from never having touched it
+ * and is treated as "leave it alone".
+ */
+export function resolveRepeatSeconds(
+  interval: number,
+  unit: RepeatUnit,
+  storedSeconds: number | null | undefined,
+): number {
+  const fromForm = repeatPartsToSeconds(interval, unit);
+  if (!storedSeconds || storedSeconds <= 0) return fromForm;
+  const shown = secondsToRepeatParts(storedSeconds);
+  return shown.interval === interval && shown.unit === unit ? storedSeconds : fromForm;
 }
 
 /** Human label for the REPEAT column / info bar ("Once", "1 Week", "3 Days"). */

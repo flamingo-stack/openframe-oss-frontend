@@ -25,10 +25,19 @@ import { ScriptPageChrome } from './script-page-chrome';
 /** The ids of one currently assigned machine — all the selection seeding needs. */
 type AssignedMachineIds = { readonly id: string; readonly machineId: string };
 
+/** The current assignment as the page sees it, plus whether it arrived whole. */
+interface AssignedDevices {
+  machines: readonly AssignedMachineIds[];
+  /** True when the assignment is larger than one page — Save must not run. */
+  truncated: boolean;
+}
+
 /**
- * How many assigned machines the seeder reads. The whole assignment must land
- * in one page — a partial read would let Save drop the unseen tail — and this
- * matches the candidate list, itself capped at 100 (`use-run-devices`).
+ * How many assigned machines the seeder reads. Save REPLACES the assignment, so
+ * the whole of it must land in one page — a partial read would drop the unseen
+ * tail. Comfortably above the candidate list's own cap of 100
+ * (`use-run-devices`), and the query reports `hasNextPage` so an assignment
+ * that still overflows blocks Save instead of truncating quietly.
  */
 const ASSIGNED_PAGE_SIZE = 200;
 
@@ -43,7 +52,7 @@ function AssignedDevicesSeeder({
   onData,
 }: {
   scheduleId: string;
-  onData: (machines: readonly AssignedMachineIds[]) => void;
+  onData: (assigned: AssignedDevices) => void;
 }) {
   const data = useLazyLoadQuery<ScheduleDeviceIdsQueryType>(
     scriptScheduleDevicesRelayIdsQuery,
@@ -54,7 +63,10 @@ function AssignedDevicesSeeder({
 
   useLayoutEffect(() => {
     if (!schedule) return;
-    onData(schedule.assignedDevices.edges.flatMap(edge => (edge?.node ? [edge.node] : [])));
+    onData({
+      machines: schedule.assignedDevices.edges.flatMap(edge => (edge?.node ? [edge.node] : [])),
+      truncated: schedule.assignedDevices.pageInfo.hasNextPage,
+    });
   }, [schedule, onData]);
 
   return null;
@@ -74,7 +86,7 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // undefined = current assignment still loading; the selection seeds (and Save
   // unlocks) only once it arrives, so a save can never wipe an unseen assignment.
-  const [assigned, setAssigned] = useState<readonly AssignedMachineIds[] | undefined>(undefined);
+  const [assigned, setAssigned] = useState<AssignedDevices | undefined>(undefined);
 
   const supportedPlatforms = useMemo(() => platformsToIds(schedule?.supportedPlatforms), [schedule]);
   const scheduleStart = useMemo(() => formatScheduleStartAt(schedule?.startAt), [schedule?.startAt]);
@@ -93,19 +105,31 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
   useEffect(() => {
     if (assigned && !seededRef.current) {
       seededRef.current = true;
-      setSelectedIds(new Set(assigned.map(m => m.machineId).filter(Boolean)));
+      setSelectedIds(new Set(assigned.machines.map(m => m.machineId).filter(Boolean)));
     }
   }, [assigned]);
 
   const handleSave = useCallback(() => {
     if (!schedule || !assigned) return;
 
+    // The mutation REPLACES the assignment, so saving a selection seeded from a
+    // truncated read would silently unassign every device past the first page.
+    // Refuse rather than destroy: the fix is a paged seeder, not a bigger page.
+    if (assigned.truncated) {
+      toast({
+        title: 'Too many devices to edit',
+        description: `This schedule has more than ${ASSIGNED_PAGE_SIZE} devices assigned, which this page can't load in full. Saving would drop the ones it hasn't read.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Selection keys are `machineId` strings (see `getDevicePrimaryId`), but the
     // mutation takes Machine GLOBAL ids — resolve keys through both the fetched
     // candidates and the current assignment (an assigned device may be absent
     // from the candidate page, e.g. beyond the fetch limit).
     const keyToGlobalId = new Map<string, string>();
-    for (const machine of assigned) {
+    for (const machine of assigned.machines) {
       if (machine.machineId) keyToGlobalId.set(machine.machineId, machine.id);
     }
     for (const device of allDevices) {

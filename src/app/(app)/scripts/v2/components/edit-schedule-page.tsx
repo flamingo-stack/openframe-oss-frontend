@@ -55,7 +55,7 @@ import {
   fromScheduleInstant,
   isEventTrigger,
   REPEAT_UNIT_OPTIONS,
-  repeatPartsToSeconds,
+  resolveRepeatSeconds,
   secondsToRepeatParts,
   TIME_SLOT_OPTIONS,
   toScheduleInstant,
@@ -126,6 +126,15 @@ const editScheduleFormSchema = z
     repeatEnabled: z.boolean(),
     repeatInterval: z.number().int().min(1, 'Interval must be at least 1'),
     repeatUnit: z.enum(['hour', 'day', 'week', 'month']),
+    /**
+     * The `repeat` seconds this form was seeded with, carried along with no
+     * control of its own. The interval/unit pair cannot express a sub-hour
+     * cadence, so a schedule authored elsewhere displays rounded — and this is
+     * what lets Save write the original back untouched (`resolveRepeatSeconds`)
+     * instead of rewriting the cadence on an unrelated edit. `null` when
+     * creating, or when the schedule has no recurrence.
+     */
+    repeatSecondsStored: z.number().nullable(),
     supportedPlatforms: z.array(z.string()).min(1, 'Please select at least one platform'),
     scripts: z
       .array(
@@ -216,6 +225,7 @@ const DEFAULT_VALUES: EditScheduleFormData = {
   repeatEnabled: false,
   repeatInterval: 1,
   repeatUnit: 'day',
+  repeatSecondsStored: null,
   supportedPlatforms: ['windows'],
   scripts: [EMPTY_SCRIPT_ROW],
 };
@@ -233,6 +243,7 @@ function scheduleToFormValues(schedule: ScheduleDetailData): EditScheduleFormDat
     repeatEnabled: Boolean(schedule.repeat),
     repeatInterval: repeatParts?.interval ?? 1,
     repeatUnit: repeatParts?.unit ?? 'day',
+    repeatSecondsStored: schedule.repeat ?? null,
     supportedPlatforms: platformsToIds(schedule.supportedPlatforms),
     scripts:
       schedule.scripts.length > 0
@@ -385,7 +396,14 @@ function EditScheduleForm({ scheduleId, initialValues, loading = false }: EditSc
         // PUT semantics: null clears the timing / recurrence. `repeat` needs a
         // start to anchor it, which a DATE_TIME schedule always has by now.
         startAt,
-        repeat: startAt && data.repeatEnabled ? repeatPartsToSeconds(data.repeatInterval, data.repeatUnit) : null,
+        // `resolveRepeatSeconds`, not the raw parts: a stored cadence the unit
+        // dropdown can't express is displayed rounded, and writing that display
+        // back would change how often the schedule runs on an edit that never
+        // touched recurrence.
+        repeat:
+          startAt && data.repeatEnabled
+            ? resolveRepeatSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
+            : null,
       };
 
       if (isEditMode && scheduleId) {

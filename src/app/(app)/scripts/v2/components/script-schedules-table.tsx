@@ -68,6 +68,15 @@ import { RestoreScheduleModal } from './restore-schedule-modal';
 
 const PAGE_SIZE = 20;
 
+/**
+ * Columns whose header offers a sort toggle — and therefore the only values
+ * allowed to reach `SortInput.field`. Each id doubles as the backend sort field.
+ * `scriptSchedules(sort:)` also accepts `deviceCount`, `name`, `createdAt` and
+ * `updatedAt`; they are not offered here, so they are not accepted from the URL
+ * either (see `docs/script-schedules-v2-graphql-gaps.md` §7).
+ */
+const SORTABLE_COLUMN_IDS = ['repeat'] as const;
+
 interface UiScheduleEntry {
   id: string;
   name: string;
@@ -655,16 +664,23 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
     };
   }, [archived, params.supportedPlatforms]);
 
+  // `sortBy` arrives from the URL, so it is user input: a hand-edited or stale
+  // link (`?sortBy=deviceCount` from before DEVICES lost its toggle) would
+  // otherwise travel straight into `SortInput.field` and surface as a GraphQL
+  // error inside the Suspense boundary, with no way back from the page itself.
+  // Anything outside SORTABLE_COLUMN_IDS falls back to the backend's own order.
+  const sortBy = (SORTABLE_COLUMN_IDS as readonly string[]).includes(params.sortBy) ? params.sortBy : '';
+
   // Backend SortInput for the query; null = no sort (backend default order).
   const sortInput = useMemo<SortInput | null>(
-    () => (params.sortBy ? { field: params.sortBy, direction: params.sortDir === 'asc' ? 'ASC' : 'DESC' } : null),
-    [params.sortBy, params.sortDir],
+    () => (sortBy ? { field: sortBy, direction: params.sortDir === 'asc' ? 'ASC' : 'DESC' } : null),
+    [sortBy, params.sortDir],
   );
 
   // Live descriptor the header renders its indicator from (flips instantly on click).
   const sortState = useMemo<DataTableSortState | null>(
-    () => (params.sortBy ? { id: params.sortBy, desc: params.sortDir !== 'asc' } : null),
-    [params.sortBy, params.sortDir],
+    () => (sortBy ? { id: sortBy, desc: params.sortDir !== 'asc' } : null),
+    [sortBy, params.sortDir],
   );
 
   // Filter + sort travel together as one deferred object so the query lags in
@@ -692,9 +708,11 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
   // never compares against the schema default. Writing `'desc'` would leave a
   // stale `?sortDir=desc` behind on an unsorted list. Reading it back still
   // yields `'desc'` (the schema default), so the state is identical.
+  // Cycles against the CLAMPED value, so a bogus `?sortBy` in the URL behaves
+  // like no sort at all rather than as an invisible first state to click past.
   const handleSortChange = useCallback(
     (columnId: string) => {
-      if (params.sortBy !== columnId) {
+      if (sortBy !== columnId) {
         setParams({ sortBy: columnId, sortDir: '' });
       } else if (params.sortDir === 'desc') {
         setParams({ sortDir: 'asc' });
@@ -703,7 +721,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
       }
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [params.sortBy, params.sortDir, setParams],
+    [sortBy, params.sortDir, setParams],
   );
 
   const handleOpenArchive = useCallback(() => {

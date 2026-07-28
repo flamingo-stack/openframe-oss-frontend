@@ -316,6 +316,10 @@ function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
       <div
         className="hidden md:grid transition-[grid-template-rows] duration-300 ease-in-out"
         style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
+        // `0fr` + `overflow-hidden` only clips: the editor keeps its focusable
+        // content, so without this a desktop user tabs from the chevron into an
+        // invisible Monaco while `aria-expanded` says collapsed.
+        inert={!isExpanded}
       >
         <div className="overflow-hidden min-h-0">
           {hasExpanded && isMdUp && (
@@ -341,6 +345,12 @@ function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
       <div
         className="grid md:!grid-rows-[1fr] transition-[grid-template-rows] duration-300 ease-in-out"
         style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
+        // Only on a phone, where this region actually collapses — on desktop it
+        // is pinned open and its contents must stay reachable. `isMdUp` is
+        // `undefined` until the media query resolves; inerting for that first
+        // frame is harmless, since the only focusable thing inside is the
+        // `md:hidden` button, which desktop does not render anyway.
+        inert={!isExpanded && !isMdUp}
       >
         <div className="overflow-hidden min-h-0">
           {/* Two equal panels split by a single rule (it becomes a horizontal

@@ -80,10 +80,11 @@ export const scriptScheduleDevicesRelayFragment = graphql`
 /**
  * The same assignment, flattened to the two id fields "Edit Devices" needs to
  * seed its selection (`machineId` key → Machine global id for the mutation).
- * Deliberately NOT the paginated fragment: a partially loaded selection would
- * let Save drop the unseen tail, so this reads the whole assignment in one
- * page — matching the candidate list, which is itself capped at 100 devices
- * (`use-run-devices`).
+ *
+ * Deliberately NOT the paginated fragment: the mutation replaces the whole
+ * assignment, so a partially loaded selection would let Save drop the unseen
+ * tail. This reads it in one page instead — and selects `pageInfo` so the page
+ * can TELL when one page wasn't enough, rather than truncating silently.
  */
 export const scriptScheduleDevicesRelayIdsQuery = graphql`
   query scriptScheduleDevicesRelayIdsQuery($id: ID!, $first: Int!) {
@@ -91,6 +92,9 @@ export const scriptScheduleDevicesRelayIdsQuery = graphql`
       id
       deviceCount
       assignedDevices(first: $first) {
+        pageInfo {
+          hasNextPage
+        }
         edges {
           node {
             id
