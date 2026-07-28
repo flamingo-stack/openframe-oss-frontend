@@ -13,6 +13,8 @@ import {
   type ColumnFiltersState,
   DataTable,
   EntityImage,
+  RadioGroupBlock,
+  type RadioGroupBlockOption,
   type Row,
   type TabItem,
   TabNavigation,
@@ -32,6 +34,30 @@ import { deduplicateFilterOptions } from '@/lib/filter-utils';
 import { getFullImageUrl } from '@/lib/image-url';
 import type { DeviceSelectorProps } from './device-selector.types';
 import { useDeviceSelector } from './use-device-selector';
+
+/**
+ * The two assignment modes (design 460:71430). "By criteria" is drawn but not
+ * built — the tag, not a dimmed row, is what the design uses to say so; the
+ * `disabled` flag is what actually keeps it unselectable and out of the tab order.
+ *
+ * The copy stays generic ("this selection") rather than the design's "this script
+ * schedule": this block also renders on the monitoring query and policy pages,
+ * where naming a schedule would simply be wrong.
+ */
+const SELECTION_MODE_OPTIONS: RadioGroupBlockOption[] = [
+  {
+    value: 'specific',
+    label: 'Select Specific Devices',
+    description: 'Choose individual devices to include in this selection',
+  },
+  {
+    value: 'criteria',
+    label: 'Select Devices by Criteria',
+    description: 'Automatically include all devices (current and future) that match your defined criteria',
+    disabled: true,
+    trailing: <Tag label="Coming Soon" variant="grey" />,
+  },
+];
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const NOOP = () => {};
@@ -315,8 +341,8 @@ export function DeviceSelector({
           return (
             <div className="flex items-center gap-3 h-20">
               <div className="flex h-8 w-8 items-center justify-center shrink-0 rounded-[6px] border border-ods-border">
-                {renderDeviceTypeIcon(device.type, 'w-5 h-5 text-ods-text-secondary') ?? (
-                  <MonitorIcon className="w-5 h-5 text-ods-text-secondary" />
+                {renderDeviceTypeIcon(device.type, 'w-4 h-4 text-ods-text-secondary') ?? (
+                  <MonitorIcon className="w-4 h-4 text-ods-text-secondary" />
                 )}
               </div>
               <div className="flex flex-col truncate">
@@ -343,17 +369,28 @@ export function DeviceSelector({
           const device = row.original;
           const fullImageUrl = getFullImageUrl(device.organizationImageUrl, device.organizationImageHash);
           return (
-            <div className="flex items-center gap-3">
-              <EntityImage src={fullImageUrl} alt={device.organization || 'Customer'} className="size-12 md:size-12" />
-              <span className="text-h4 text-ods-text-primary truncate" title={device.organization || ''}>
-                {device.organization || ''}
-              </span>
+            <div className="flex items-center gap-3 min-w-0">
+              <EntityImage
+                src={fullImageUrl}
+                alt={device.organization || 'Customer'}
+                className="size-10 md:size-10 shrink-0"
+              />
+              <div className="flex min-w-0 flex-col justify-center">
+                <span className="text-h4 text-ods-text-primary truncate" title={device.organization || ''}>
+                  {device.organization || ''}
+                </span>
+                {device.organizationEmail && (
+                  <span className="text-h6 text-ods-text-secondary truncate" title={device.organizationEmail}>
+                    {device.organizationEmail}
+                  </span>
+                )}
+              </div>
             </div>
           );
         },
         enableSorting: false,
         meta: {
-          width: 'w-1/4',
+          width: 'w-[320px]',
           hideAt: 'lg',
           filter: orgFilterOptions.length > 0 ? { options: orgFilterOptions, placement: 'bottom-end' } : undefined,
         },
@@ -361,13 +398,32 @@ export function DeviceSelector({
       {
         id: 'os',
         accessorKey: 'os',
-        header: 'OS',
-        cell: ({ row }: { row: Row<Device> }) => (
-          <OSTypeBadge osType={row.original.osType} iconSize="w-4 h-4 md:w-6 md:h-6" />
-        ),
+        header: 'DETAILS',
+        cell: ({ row }: { row: Row<Device> }) => {
+          const device = row.original;
+          // "Dell, Latitude 5420" in the design; either half can be missing on a
+          // device, and joining blindly would leave a dangling comma.
+          const hardware = [device.manufacturer, device.model].filter(Boolean).join(', ');
+          const serial = device.serialNumber || device.serial_number;
+          return (
+            <div className="flex min-w-0 flex-col justify-center">
+              <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+                <OSTypeBadge osType={device.osType} iconOnly iconSize="w-4 h-4 md:w-6 md:h-6" />
+                <span className="text-h4 text-ods-text-primary truncate" title={hardware || undefined}>
+                  {hardware || '—'}
+                </span>
+              </div>
+              {serial && (
+                <span className="text-h6 text-ods-text-secondary truncate" title={serial}>
+                  {serial}
+                </span>
+              )}
+            </div>
+          );
+        },
         enableSorting: false,
         meta: {
-          width: 'w-[200px] md:w-1/6',
+          width: 'w-[240px]',
           hideAt: 'md',
         },
       },
@@ -381,7 +437,7 @@ export function DeviceSelector({
         },
         enableSorting: false,
         meta: {
-          width: 'w-[90px]',
+          width: 'w-[160px]',
           filter: statusFilterOptions.length > 0 ? { options: statusFilterOptions } : undefined,
         },
       },
@@ -434,9 +490,14 @@ export function DeviceSelector({
                 size="icon"
                 onClick={() => toggleDevice(device)}
                 leftIcon={isSelected ? <CheckCircleIcon size={24} /> : <PlusCircleIcon size={24} />}
+                // Selected is a STATE, not an affordance: the yellow fill already
+                // says "this one is in", so it holds still under the cursor. The
+                // hover repeats on both bg and border because `variant="outline"`
+                // ships its own `hover:bg-ods-bg-hover` / `hover:border-ods-border-hover`
+                // — restating them at the same value is what neutralizes them.
                 className={
                   isSelected
-                    ? 'text-ods-accent border-ods-accent bg-ods-open-yellow-secondary hover:bg-[var(--ods-open-yellow-secondary-hover)]'
+                    ? 'text-ods-accent border-ods-accent hover:border-ods-accent bg-ods-open-yellow-secondary hover:bg-ods-open-yellow-secondary'
                     : 'text-ods-text-secondary hover:text-ods-text-primary'
                 }
                 disabled={disabled}
@@ -509,106 +570,117 @@ export function DeviceSelector({
 
   const availableInfiniteScroll = activeSubTab === 'available' ? infiniteScroll : undefined;
 
+  // Column headers over nothing are just noise — drop them when the list is
+  // empty. Except when the emptiness is the RESULT of narrowing (search, tag
+  // chips, column funnels): the funnels live in that header, so tearing it down
+  // would strip the only way to undo the filter that emptied the table. While
+  // loading, the skeleton rows are the content the header belongs to.
+  // The design (460:71435) puts the bulk action where a table normally shows its
+  // row count — the right end of the column header — instead of on a line of its
+  // own above the table. Null in single-select mode, and on the Selected tab
+  // until there is something to remove; the row count takes the slot back then.
+  const bulkAction = singleSelect ? null : activeSubTab === 'available' ? (
+    <button
+      type="button"
+      onClick={addAllDevices}
+      disabled={disabled}
+      className="text-h6 underline text-ods-accent hover:text-ods-accent-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      Add All Devices
+    </button>
+  ) : selectedIds.size > 0 ? (
+    <button
+      type="button"
+      onClick={removeAllSelected}
+      disabled={disabled}
+      className="text-h6 underline text-ods-error hover:text-ods-error-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      Remove {selectedIds.size} Devices
+    </button>
+  ) : null;
+
+  const hasActiveFilter = columnFilters.length > 0 || selectedTags.length > 0 || searchTerm.trim().length > 0;
+  const showHeader = loading || devicesForTable.length > 0 || hasActiveFilter;
+
   return (
-    <div className="flex flex-col gap-4">
+    // The page-level stack (info bar → mode picker → the picker card) uses
+    // `--spacing-system-l`, the token every other stacked page surface in the app
+    // separates its blocks with (16px mobile / 24px desktop).
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
       {headerContent}
 
       {showSelectionModeRadio && (
-        <div className="flex flex-col gap-3">
-          <label className="flex items-start gap-3 p-4 bg-ods-card border border-ods-accent rounded-[6px] cursor-pointer">
-            <input
-              type="radio"
-              name="selectionMode"
-              value="specific"
-              defaultChecked
-              disabled={disabled}
-              className="mt-1 accent-ods-accent"
-            />
-            <div className="flex flex-col">
-              <span className="text-h4 text-ods-text-primary">Select Specific Devices</span>
-              <span className="text-h6 text-ods-text-secondary">
-                Choose individual devices to include in this selection
-              </span>
-            </div>
-          </label>
-          <label className="flex items-start gap-3 p-4 bg-ods-card border border-ods-border rounded-[6px] opacity-50 cursor-not-allowed">
-            <input type="radio" name="selectionMode" value="criteria" disabled className="mt-1" />
-            <div className="flex flex-col flex-1">
-              <span className="text-h4 text-ods-text-primary">Select Devices by Criteria</span>
-              <span className="text-h6 text-ods-text-secondary">
-                Automatically include all devices (current and future) that match your defined criteria
-              </span>
-            </div>
-            <span className="text-h5 px-3 py-1 bg-ods-card border border-ods-border rounded-[4px] text-ods-text-secondary">
-              Coming Soon
-            </span>
-          </label>
-        </div>
-      )}
-
-      {!singleSelect && <TabNavigation tabs={assignTabs} activeTab={activeSubTab} onTabChange={handleTabChange} />}
-
-      <DevicesFilterToolbar
-        sticky={false}
-        searchValue={searchTerm}
-        onSearchChange={setSearchTerm}
-        tags={tagOptions}
-        onTagRemove={handleTagRemove}
-        onClearAll={handleClearAll}
-        onSubmit={handleTagSubmit}
-        isMdUp={isMdUp}
-        onOpenFilterModal={openTagsModal}
-        isFilterModalOpen={tagsModalOpen}
-        onCloseFilterModal={closeTagsModal}
-        filterGroups={filterGroups}
-        onFilterChange={handleModalFilterChange}
-        currentFilters={!isMdUp ? tableFilters : undefined}
-        tagFilterKeys={tagFilterKeys}
-        selectedTags={selectedTags}
-        onTagsChange={handleModalTagsChange}
-      />
-
-      {!singleSelect && (
-        <div className="flex justify-end -mb-2">
-          {activeSubTab === 'available' ? (
-            <button
-              type="button"
-              onClick={addAllDevices}
-              disabled={disabled}
-              className="text-h6 underline text-ods-accent hover:text-ods-accent-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Add All Devices
-            </button>
-          ) : selectedIds.size > 0 ? (
-            <button
-              type="button"
-              onClick={removeAllSelected}
-              disabled={disabled}
-              className="text-h6 underline text-ods-error hover:text-ods-error-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Remove {selectedIds.size} Devices
-            </button>
-          ) : null}
-        </div>
-      )}
-
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="device" />} />
-        <DataTable.Body
-          loading={loading}
-          skeletonRows={8}
-          emptyMessage={activeSubTab === 'selected' ? 'No devices selected' : 'No devices found'}
-          rowClassName={rowClassName}
+        <RadioGroupBlock
+          name="selectionMode"
+          variant="grouped"
+          defaultValue="specific"
+          disabled={disabled}
+          options={SELECTION_MODE_OPTIONS}
+          // Design 460:71430 rows are 68px — a 24px title over a 20px description
+          // with 12px above and below. The grouped variant pads `py-xs` (8px on
+          // desktop) by default, which would come out 8px short.
+          itemClassName="py-[var(--spacing-system-sf)]"
         />
-        {availableInfiniteScroll && (
-          <DataTable.InfiniteFooter
-            hasNextPage={availableInfiniteScroll.hasNextPage}
-            isFetchingNextPage={availableInfiniteScroll.isFetchingNextPage}
-            onLoadMore={availableInfiniteScroll.onLoadMore}
-            skeletonRows={availableInfiniteScroll.skeletonRows}
+      )}
+
+      {/* Design 460:71435 frames the picker as ONE bordered card: the tab strip
+          sits flush against the top edge with its own underline doubling as the
+          divider, and the search row and table are inset below it.
+          Deliberately NOT `overflow-clip` (which the Figma export puts here to
+          round the tab strip's corners): the column-filter dropdowns are
+          absolutely positioned INSIDE this box rather than portaled, so clipping
+          it would cut them off whenever the table is short. The tab strip clips
+          its own corners instead — it is the only child that reaches the radius. */}
+      <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-bg">
+        {!singleSelect && (
+          <TabNavigation
+            tabs={assignTabs}
+            activeTab={activeSubTab}
+            onTabChange={handleTabChange}
+            className="rounded-t-[6px] overflow-clip"
           />
         )}
-      </DataTable>
+
+        <div className="flex flex-col gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]">
+          <DevicesFilterToolbar
+            sticky={false}
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            tags={tagOptions}
+            onTagRemove={handleTagRemove}
+            onClearAll={handleClearAll}
+            onSubmit={handleTagSubmit}
+            isMdUp={isMdUp}
+            onOpenFilterModal={openTagsModal}
+            isFilterModalOpen={tagsModalOpen}
+            onCloseFilterModal={closeTagsModal}
+            filterGroups={filterGroups}
+            onFilterChange={handleModalFilterChange}
+            currentFilters={!isMdUp ? tableFilters : undefined}
+            tagFilterKeys={tagFilterKeys}
+            selectedTags={selectedTags}
+            onTagsChange={handleModalTagsChange}
+          />
+
+          <DataTable table={table}>
+            {showHeader && <DataTable.Header rightSlot={bulkAction ?? <DataTable.RowCount itemName="device" />} />}
+            <DataTable.Body
+              loading={loading}
+              skeletonRows={8}
+              emptyMessage={activeSubTab === 'selected' ? 'No devices selected' : 'No devices found'}
+              rowClassName={rowClassName}
+            />
+            {availableInfiniteScroll && (
+              <DataTable.InfiniteFooter
+                hasNextPage={availableInfiniteScroll.hasNextPage}
+                isFetchingNextPage={availableInfiniteScroll.isFetchingNextPage}
+                onLoadMore={availableInfiniteScroll.onLoadMore}
+                skeletonRows={availableInfiniteScroll.skeletonRows}
+              />
+            )}
+          </DataTable>
+        </div>
+      </div>
     </div>
   );
 }

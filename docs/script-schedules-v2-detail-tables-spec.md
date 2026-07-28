@@ -1,5 +1,24 @@
 # Script Schedules v2 — Detail-page tables (GraphQL backend spec)
 
+> **✅ DELIVERED, with deltas — kept for the rationale; the ask is closed.** All
+> three tables have a read surface now, but the backend chose a different shape
+> than proposed here:
+>
+> - **Placement:** Runs and Executions are **top-level queries keyed by
+>   `scheduleId`** (`scheduleRuns`, `scheduleExecutions`,
+>   `scheduleExecutionFilters`), not node fields on `ScriptSchedule`; §1's
+>   "facets live where their connection lives" argument was not adopted.
+> - **Assigned Devices:** the existing `assignedDevices` field was upgraded in
+>   place to `DeviceConnection!` (no separate `assignedDevicesConnection`), and
+>   **no `assignedDeviceFilters`** shipped.
+> - **Runs:** no `trigger`, no `ScheduleRunFilters`, no `sort`, no per-outcome
+>   counts, and `status` reuses `ScriptExecutionStatus` (no `PARTIAL`). The
+>   `executionIds` drill-down filter of §4 did not ship either.
+>
+> Each delta and what it costs the UI is tracked in
+> `script-schedules-v2-graphql-gaps.md` (§2, §4, §6). Everything below is the
+> original ask.
+>
 > **Scope.** The read surface for the three server-driven tables on the schedule
 > detail page — **Assigned Devices**, **Runs**, **Executions**. All three follow
 > **one** pattern; this doc is the consolidated backend ask so the work lands in a

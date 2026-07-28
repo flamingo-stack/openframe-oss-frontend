@@ -55,6 +55,7 @@ export const scriptSchedulesTableRelayFragment = graphql`
           description
           supportedPlatforms
           deviceCount
+          trigger
           startAt
           repeat
         }

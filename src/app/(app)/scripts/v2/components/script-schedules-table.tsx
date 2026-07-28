@@ -6,6 +6,7 @@ import {
   BoxArchiveIcon,
   Filter02Icon,
   HourglassClockIcon,
+  InboxArrowUpIcon,
   LaptopIcon,
   ListBulletIcon,
   PenEditIcon,
@@ -57,9 +58,10 @@ import {
   scriptSchedulesTableRelayQuery,
 } from '@/graphql/scripts/script-schedules-table-relay';
 import { unarchiveScriptScheduleMutation } from '@/graphql/scripts/unarchive-script-schedule-mutation';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
+import { formatScheduleStartAt, isEventTrigger, repeatToLabel } from '../utils/schedule-timing';
 import { platformsToEnums, platformsToIds } from '../utils/script-mappers';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { RestoreScheduleModal } from './restore-schedule-modal';
@@ -72,6 +74,8 @@ interface UiScheduleEntry {
   description: string;
   supportedPlatforms: string[];
   deviceCount: number;
+  /** `DEVICE_ONLINE` schedules have no startAt/repeat at all — see `isEventTrigger`. */
+  trigger: string;
   startAt: string | null;
   repeat: number | null;
 }
@@ -165,6 +169,7 @@ function SchedulesTableContent({
           description: node.description ?? '',
           supportedPlatforms: platformsToIds(node.supportedPlatforms),
           deviceCount: node.deviceCount,
+          trigger: node.trigger,
           startAt: node.startAt ?? null,
           repeat: node.repeat ?? null,
         },
@@ -198,8 +203,24 @@ function SchedulesTableContent({
       const newTabIcon = <ArrowRightUpIcon className="w-5 h-5 text-ods-text-secondary" />;
       const mutating = isArchiving || isUnarchiving;
 
-      // Archive (active list) ↔ Unarchive (archived list). The action only opens
-      // a confirmation modal; the mutation runs on confirm.
+      // An archived schedule has exactly one thing that can be done to it, so it
+      // gets a button rather than a menu — editing belongs to schedules that still
+      // run, and a dropdown holding a single item is a click of pure ceremony.
+      if (archived) {
+        return (
+          <Button
+            onClick={() => setConfirmTarget(schedule)}
+            variant="outline"
+            size="icon"
+            leftIcon={<InboxArrowUpIcon className="w-5 h-5" />}
+            aria-label="Unarchive Schedule"
+            disabled={mutating}
+            className="bg-ods-card"
+          />
+        );
+      }
+
+      // Opens the confirmation modal only; the mutation runs on confirm.
       const groups: ActionsMenuGroup[] = [
         {
           items: [
@@ -228,8 +249,8 @@ function SchedulesTableContent({
               },
             },
             {
-              id: archived ? 'unarchive-schedule' : 'archive-schedule',
-              label: archived ? 'Unarchive Schedule' : 'Archive Schedule',
+              id: 'archive-schedule',
+              label: 'Archive Schedule',
               icon: <BoxArchiveIcon className="w-6 h-6 text-ods-text-secondary" />,
               disabled: mutating,
               onClick: () => setConfirmTarget(schedule),
@@ -289,7 +310,7 @@ function SchedulesTableContent({
       onError: error => {
         toast({
           title: 'Error',
-          description: error.message || `Failed to ${archived ? 'unarchive' : 'archive'} schedule`,
+          description: getRelayErrorMessage(error, `Failed to ${archived ? 'unarchive' : 'archive'} schedule`),
           variant: 'destructive',
         });
         setConfirmTarget(null);
@@ -333,6 +354,11 @@ function SchedulesTableContent({
         id: 'dateTime',
         header: 'Date & Time',
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => {
+          // Event-driven schedules have no date/time — name the trigger instead
+          // of showing an em dash that reads as "not configured yet".
+          if (isEventTrigger(row.original.trigger)) {
+            return <TruncateText tone="secondary">Device Online</TruncateText>;
+          }
           const { date, time } = formatScheduleStartAt(row.original.startAt);
           if (!row.original.startAt) {
             return <span className="text-h4 text-ods-text-secondary">—</span>;
@@ -352,9 +378,12 @@ function SchedulesTableContent({
       {
         id: 'repeat',
         header: 'Repeat',
-        cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <span className="text-h4 text-ods-text-primary">{repeatToLabel(row.original.repeat)}</span>
-        ),
+        cell: ({ row }: { row: Row<UiScheduleEntry> }) =>
+          isEventTrigger(row.original.trigger) ? (
+            <span className="text-h4 text-ods-text-secondary">—</span>
+          ) : (
+            <span className="text-h4 text-ods-text-primary">{repeatToLabel(row.original.repeat)}</span>
+          ),
         enableSorting: false,
         meta: { width: 'w-[120px]', hideAt: 'md', sortable: true },
       },
@@ -365,7 +394,7 @@ function SchedulesTableContent({
           <span className="text-h4 text-ods-text-primary">{row.original.deviceCount}</span>
         ),
         enableSorting: false,
-        meta: { width: 'w-[100px] md:w-[140px]', hideAt: 'lg', sortable: true },
+        meta: { width: 'w-[100px] md:w-[140px]', hideAt: 'lg' },
       },
       {
         id: 'actions',
@@ -597,8 +626,9 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
     supportedPlatforms: { type: 'array', default: [] },
-    // Server-side sort: column id (backend sort field: 'repeat' | 'deviceCount')
-    // + direction. Empty sortBy = backend default order (newest-first by _id).
+    // Server-side sort: column id (backend sort field — 'repeat' is the only
+    // sortable column) + direction. Empty sortBy = backend default order
+    // (newest-first by _id).
     sortBy: { type: 'string', default: '' },
     sortDir: { type: 'string', default: 'desc' },
   });
@@ -655,15 +685,21 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
 
   // 3-state toggle owned by the consumer (per DataTable.Header contract):
   // unsorted → desc → asc → unsorted. `columnId` is the column's id, which
-  // equals the backend sort field ('repeat' | 'deviceCount').
+  // equals the backend sort field ('repeat').
+  //
+  // `sortDir: ''` — NOT `'desc'` — whenever the direction is the default one:
+  // `useApiParams` drops a param from the URL only when the value is empty, it
+  // never compares against the schema default. Writing `'desc'` would leave a
+  // stale `?sortDir=desc` behind on an unsorted list. Reading it back still
+  // yields `'desc'` (the schema default), so the state is identical.
   const handleSortChange = useCallback(
     (columnId: string) => {
       if (params.sortBy !== columnId) {
-        setParams({ sortBy: columnId, sortDir: 'desc' });
+        setParams({ sortBy: columnId, sortDir: '' });
       } else if (params.sortDir === 'desc') {
         setParams({ sortDir: 'asc' });
       } else {
-        setParams({ sortBy: '', sortDir: 'desc' });
+        setParams({ sortBy: '', sortDir: '' });
       }
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },

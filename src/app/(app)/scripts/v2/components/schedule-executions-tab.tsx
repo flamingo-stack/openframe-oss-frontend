@@ -1,30 +1,80 @@
 'use client';
 
-import { ListBulletIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { EmptyState } from '@/app/components/shared';
+import { useCallback, useMemo } from 'react';
+import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
+import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
+import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
+import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
+import {
+  scheduleExecutionsRelayFragment,
+  scheduleExecutionsRelayQuery,
+} from '@/graphql/scripts/schedule-executions-relay';
+import {
+  EXECUTIONS_PAGE_SIZE,
+  ExecutionsTable,
+  ExecutionsTabShell,
+  type ExecutionsTabState,
+  toUiExecution,
+  type UiExecution,
+  useExecutionFacetOptions,
+} from './executions-table';
 
 interface ScheduleExecutionsTabProps {
   scheduleId: string;
 }
 
-/**
- * Execution History for a schedule — **stub**.
- *
- * The backend can't answer "runs of this schedule" yet: there is no
- * `scriptScheduleExecutions(scheduleId)` query and `ScriptExecutionFilterInput`
- * has no `scheduleId`, even though `ScriptExecution.scheduleId` is already
- * stamped at dispatch. Once the backend exposes the query
- * (see docs/script-schedules-v2-execution-history-spec.md), swap this
- * placeholder for a table that mirrors `ScriptExecutionsTab` — the row/filter
- * shape is identical, only the connection field and its `scheduleId` argument
- * differ.
- */
-export function ScheduleExecutionsTab(_props: ScheduleExecutionsTabProps) {
+function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; state: ExecutionsTabState }) {
+  const { backendFilters, debouncedSearch, ...tableState } = state;
+
+  // One round-trip per interaction: the facets (`scheduleExecutionFilters`)
+  // ride the list operation — see the query docstring for the facet semantics.
+  const queryData = useLazyLoadQuery<ScheduleExecutionsQueryType>(
+    scheduleExecutionsRelayQuery,
+    { scheduleId, filter: backendFilters, search: debouncedSearch || null, first: EXECUTIONS_PAGE_SIZE, after: null },
+    { fetchPolicy: 'store-and-network' },
+  );
+
+  const facetOptions = useExecutionFacetOptions(queryData.scheduleExecutionFilters);
+
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    ScheduleExecutionsPaginationQueryType,
+    ScheduleExecutionsFragmentKey
+  >(scheduleExecutionsRelayFragment, queryData);
+
+  const executions: UiExecution[] = useMemo(() => {
+    const edges = data.scheduleExecutions?.edges ?? [];
+    // Defensive null-node guard: skip any dangling edge instead of crashing the
+    // tab on a store-evicted record.
+    return edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
+  }, [data.scheduleExecutions?.edges]);
+
+  const fetchNextPage = useCallback(() => {
+    if (hasNext && !isLoadingNext) loadNext(EXECUTIONS_PAGE_SIZE);
+  }, [hasNext, isLoadingNext, loadNext]);
+
   return (
-    <EmptyState
-      icon={<ListBulletIcon />}
-      title="Execution history isn't available yet"
-      description="Once this schedule starts firing, each run — device, status, exit code and output — will be listed here."
+    <ExecutionsTable
+      executions={executions}
+      facetOptions={facetOptions}
+      search={debouncedSearch}
+      emptyHint="No executions yet. Once this schedule fires, every device it ran on shows up here."
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadMore={fetchNextPage}
+      {...tableState}
     />
+  );
+}
+
+/**
+ * Execution History for a schedule — the flat per-device history across all of
+ * its runs (`scheduleExecutions(scheduleId:)`). Same rows, columns and filters
+ * as the per-script tab; the Runs tab is the aggregate view above it.
+ */
+export function ScheduleExecutionsTab({ scheduleId }: ScheduleExecutionsTabProps) {
+  return (
+    <ExecutionsTabShell>
+      {state => <ScheduleExecutionsContent scheduleId={scheduleId} state={state} />}
+    </ExecutionsTabShell>
   );
 }

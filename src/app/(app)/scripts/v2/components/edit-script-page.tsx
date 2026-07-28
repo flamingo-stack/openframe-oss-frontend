@@ -9,6 +9,7 @@ import type { runCommandMutation as RunCommandMutationType } from '@/__generated
 import { EntityTagPicker, EntityTagPickerFallback } from '@/app/components/shared/tags';
 import { TagEntityType } from '@/generated/schema-enums';
 import { runCommandMutation } from '@/graphql/scripts/run-command-mutation';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { ExecutionStartedModal } from '../../components/script/execution-started-modal';
 import { ScriptFormFields } from '../../components/script/script-form-fields';
@@ -43,8 +44,9 @@ function EditScriptForm({ scriptId, initialValues, initialTags, loading = false 
 
   const { form, isSubmitting, handleSave } = useEditScriptForm({ scriptId, initialValues, isEditMode });
 
-  // Both actions reveal inline errors; each decides WHICH fields carry one via
-  // its own `form.trigger` scope (Save → full schema, Test → runnable prereqs).
+  // ONLY Save reveals inline errors. The form validates on every change, but
+  // painting a half-filled form red before the user has claimed to be done is
+  // premature — Test reports its own missing prerequisites in a toast instead.
   const [showErrors, setShowErrors] = useState(false);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [testDispatched, setTestDispatched] = useState(false);
@@ -97,7 +99,9 @@ function EditScriptForm({ scriptId, initialValues, initialTags, loading = false 
   }, [form, toast]);
 
   const handleOpenTest = useCallback(async () => {
-    setShowErrors(true);
+    // Deliberately does NOT flip `showErrors`: Test is not a save attempt, and
+    // its own toast already names what is missing. The `trigger` calls inside
+    // still run — they keep RHF's error state current for the eventual Save.
     if (await validateTestPrereqs()) {
       setIsTestModalOpen(true);
     }
@@ -127,7 +131,7 @@ function EditScriptForm({ scriptId, initialValues, initialTags, loading = false 
         onError: err => {
           toast({
             title: 'Test failed',
-            description: err instanceof Error ? err.message : 'Failed to dispatch test',
+            description: getRelayErrorMessage(err, 'Failed to dispatch test'),
             variant: 'destructive',
           });
         },
@@ -170,6 +174,10 @@ function EditScriptForm({ scriptId, initialValues, initialTags, loading = false 
         title={isEditMode ? 'Edit Script' : 'New Script'}
         backFallback={isEditMode && scriptId ? routes.scriptsV2.details(scriptId) : routes.scriptsV2.list}
         actions={actions}
+        // Form page: on mobile the actions belong in the fixed bottom bar, in
+        // reach of the thumb — not folded into the header's "..." menu. Test +
+        // Save already fill that bar, so no separate Cancel.
+        actionsVariant="primary-buttons"
       >
         <ScriptFormFields
           form={form}

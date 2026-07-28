@@ -1,11 +1,16 @@
 # Script Schedules — Execution History (GraphQL backend ask)
 
-> **⚠ Superseded by `script-schedules-v2-detail-tables-spec.md`** for the field
-> *placement*: that doc consolidates all three detail-page tables (Assigned
-> Devices, Runs, Executions) as connection + facets fields **on the
-> `ScriptSchedule` node** (no `scheduleId` arg), instead of the top-level
-> `scriptScheduleExecutions(scheduleId:)` proposed below. The query *shape* here
-> still holds; read the consolidated doc first.
+> **✅ DELIVERED — kept for the rationale; the ask itself is closed.** The backend
+> shipped **Option A** below (top-level, keyed by `scheduleId`) with the field
+> names `scheduleExecutions` / `scheduleExecutionFilters` — *not* the
+> `scriptSchedule*` names proposed here, and *not* the node-field placement of
+> `script-schedules-v2-detail-tables-spec.md`. `ScriptExecutionFilterInput` also
+> gained `dispatchedAtFrom` / `dispatchedAtTo`.
+>
+> Frontend: `src/graphql/scripts/schedule-executions-relay.ts` +
+> `schedule-executions-tab.tsx` (the table itself is shared with the per-script
+> tab in `executions-table.tsx`). Current status of every schedule gap lives in
+> `script-schedules-v2-graphql-gaps.md`.
 
 > **Scope.** The one query the schedule **Execution History** tab needs. The tab
 > is already wired into the schedule detail page as a stub

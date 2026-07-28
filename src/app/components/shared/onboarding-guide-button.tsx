@@ -18,7 +18,8 @@ export type OnboardingGuideSource =
 /**
  * Help Center onboarding-guide slug per section. The button renders only for
  * sections that have a slug configured here — an unset entry hides the button
- * entirely.
+ * entirely. Entries are slugs, never content ids — the guide endpoint
+ * (`EP.onboardingBySlug`) resolves by slug only and 404s on an id.
  */
 const ONBOARDING_GUIDE_SLUGS: Partial<Record<OnboardingGuideSource, string>> = {
   customers: 'set-up-your-customer-organizations',
@@ -28,7 +29,7 @@ const ONBOARDING_GUIDE_SLUGS: Partial<Record<OnboardingGuideSource, string>> = {
   policies: 'what-is-a-monitoring-policy',
   queries: 'what-is-a-monitoring-policy',
   logs: 'audit-activity-logs',
-  tickets: 'tickets-overview',
+  tickets: 'how-tickets-begin-with-fae',
 };
 
 type OnboardingGuideButtonProps = Pick<EmptyStateProps, 'buttonLabel' | 'buttonIcon' | 'buttonProps'>;

@@ -5,21 +5,32 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
-import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
+import type { scriptScheduleDevicesRelayIdsQuery as ScheduleDeviceIdsQueryType } from '@/__generated__/scriptScheduleDevicesRelayIdsQuery.graphql';
 import type { setScriptScheduleDevicesMutation as SetDevicesMutationType } from '@/__generated__/setScriptScheduleDevicesMutation.graphql';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
 import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
-import { scriptScheduleDevicesRelayQuery } from '@/graphql/scripts/script-schedule-devices-relay';
+import { scriptScheduleDevicesRelayIdsQuery } from '@/graphql/scripts/script-schedule-devices-relay';
 import { setScriptScheduleDevicesMutation } from '@/graphql/scripts/set-script-schedule-devices-mutation';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { ScheduleInfoBarFromData } from '../../components/schedule/schedule-info-bar';
 import { getDevicePrimaryId } from '../../utils/device-helpers';
 import { useRunDevices } from '../hooks/use-run-devices';
+import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { platformsToIds } from '../utils/script-mappers';
 import { type ScheduleDetailData, ScheduleDetailGate } from './schedule-detail-gate';
-import type { AssignedMachine } from './schedule-details-view';
 import { ScheduleInfoBarSkeleton } from './schedule-details-view';
 import { ScriptPageChrome } from './script-page-chrome';
+
+/** The ids of one currently assigned machine — all the selection seeding needs. */
+type AssignedMachineIds = { readonly id: string; readonly machineId: string };
+
+/**
+ * How many assigned machines the seeder reads. The whole assignment must land
+ * in one page — a partial read would let Save drop the unseen tail — and this
+ * matches the candidate list, itself capped at 100 (`use-run-devices`).
+ */
+const ASSIGNED_PAGE_SIZE = 200;
 
 /**
  * Invisible island for the schedule's CURRENT device assignment. It rides the
@@ -32,17 +43,18 @@ function AssignedDevicesSeeder({
   onData,
 }: {
   scheduleId: string;
-  onData: (machines: readonly AssignedMachine[]) => void;
+  onData: (machines: readonly AssignedMachineIds[]) => void;
 }) {
-  const data = useLazyLoadQuery<ScheduleDevicesQueryType>(
-    scriptScheduleDevicesRelayQuery,
-    { id: scheduleId },
+  const data = useLazyLoadQuery<ScheduleDeviceIdsQueryType>(
+    scriptScheduleDevicesRelayIdsQuery,
+    { id: scheduleId, first: ASSIGNED_PAGE_SIZE },
     { fetchPolicy: 'store-and-network' },
   );
   const schedule = data.scriptSchedule;
 
   useLayoutEffect(() => {
-    if (schedule) onData(schedule.assignedDevices);
+    if (!schedule) return;
+    onData(schedule.assignedDevices.edges.flatMap(edge => (edge?.node ? [edge.node] : [])));
   }, [schedule, onData]);
 
   return null;
@@ -62,9 +74,10 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // undefined = current assignment still loading; the selection seeds (and Save
   // unlocks) only once it arrives, so a save can never wipe an unseen assignment.
-  const [assigned, setAssigned] = useState<readonly AssignedMachine[] | undefined>(undefined);
+  const [assigned, setAssigned] = useState<readonly AssignedMachineIds[] | undefined>(undefined);
 
   const supportedPlatforms = useMemo(() => platformsToIds(schedule?.supportedPlatforms), [schedule]);
+  const scheduleStart = useMemo(() => formatScheduleStartAt(schedule?.startAt), [schedule?.startAt]);
 
   // Candidate devices, narrowed to the schedule's platforms (same GraphQL
   // devices fetch the v2 run-script page uses).
@@ -114,7 +127,7 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
       onError: error => {
         toast({
           title: 'Save failed',
-          description: error.message || 'Failed to save devices',
+          description: getRelayErrorMessage(error, 'Failed to save devices'),
           variant: 'destructive',
         });
       },
@@ -138,6 +151,8 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
     <ScriptPageChrome
       title="Schedule Devices"
       backFallback={routes.scriptsV2.schedules.details(scheduleId)}
+      actionsVariant="primary-buttons"
+      showMobileCancel
       actions={actions}
     >
       <Suspense fallback={null}>
@@ -154,15 +169,14 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
         addAllBehavior="replace"
         headerContent={
           schedule ? (
-            // TODO(backend): Date / Time / Repeat are placeholders — no timing
-            // fields on ScriptSchedule yet.
             <ScheduleInfoBarFromData
               name={schedule.name}
               note={schedule.description ?? ''}
-              date="—"
-              time="—"
-              repeat="—"
+              date={scheduleStart.date}
+              time={scheduleStart.time}
+              repeat={repeatToLabel(schedule.repeat)}
               platforms={supportedPlatforms}
+              trigger={schedule.trigger}
             />
           ) : (
             <ScheduleInfoBarSkeleton />

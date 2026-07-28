@@ -11,7 +11,10 @@ export interface PickerScript {
   id: string;
   name: string;
   supportedPlatforms: string[];
+  /** Run parameters the script carries itself — seed the schedule card on pick. */
   defaultTimeoutSeconds: number | null;
+  defaultArgs: string[];
+  envVars: { name: string; value: string }[];
 }
 
 /**
@@ -58,6 +61,8 @@ export function useScheduleScriptsAutocomplete(supportedPlatforms: string[]) {
             name: node.name,
             supportedPlatforms: node.supportedPlatforms ? [...node.supportedPlatforms] : [],
             defaultTimeoutSeconds: node.defaultTimeoutSeconds ?? null,
+            defaultArgs: node.defaultArgs ? [...node.defaultArgs] : [],
+            envVars: node.envVars ? node.envVars.map(env => ({ name: env.name, value: env.value ?? '' })) : [],
           })),
         );
         setIsLoading(false);

@@ -14,6 +14,7 @@ import { createScriptMutation } from '@/graphql/scripts/create-script-mutation';
 import { updateScriptMutation } from '@/graphql/scripts/update-script-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
+import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
 import { EDIT_SCRIPT_DEFAULT_VALUES, type EditScriptFormData, editScriptSchema } from '../../types/edit-script.types';
 import { formToWriteInput } from '../utils/script-mappers';
 
@@ -120,6 +121,8 @@ export function useEditScriptForm({ scriptId, initialValues, isEditMode }: UseEd
         description: messages.length > 0 ? messages.join(', ') : 'Please fill in all required fields.',
         variant: 'destructive',
       });
+      // The offending field is usually scrolled off-screen by now — take the user to it.
+      scrollToFirstInvalidField();
     })();
   }, [handleSubmit, onSubmit, toast]);
 

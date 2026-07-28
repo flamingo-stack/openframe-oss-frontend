@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { ScriptScheduleTrigger } from '@/generated/schema-enums';
 
 /**
  * Timing model helpers for Script Schedules v2.
@@ -15,6 +16,20 @@ import { format } from 'date-fns';
  * backend's 30-minute grid. (The backend also accepts a bare 30-minute repeat;
  * the UI simply doesn't surface a sub-hour unit.)
  */
+
+/**
+ * What fires a schedule. `DATE_TIME` is the timing model above; `DEVICE_ONLINE`
+ * is event-driven — it carries no `startAt` / `repeat` at all (the backend keeps
+ * both null), so every timing control and column is meaningless for it.
+ */
+export function triggerToLabel(trigger: ScriptScheduleTrigger | string | null | undefined): string {
+  return trigger === ScriptScheduleTrigger.DEVICE_ONLINE ? 'Device Online' : 'Date & Time';
+}
+
+/** True when the schedule is event-driven and has no date/time/repeat. */
+export function isEventTrigger(trigger: ScriptScheduleTrigger | string | null | undefined): boolean {
+  return trigger === ScriptScheduleTrigger.DEVICE_ONLINE;
+}
 
 const UNIT_SECONDS = {
   hour: 3600,
@@ -69,6 +84,41 @@ export function repeatToLabel(repeat: number | null | undefined): string {
   }
   const mins = Math.round(repeat / 60);
   return mins === 1 ? '1 Minute' : `${mins} Minutes`;
+}
+
+/**
+ * The Time dropdown's options — one per 30-minute slot of the day, which is
+ * exactly the grid `startAt` must land on. `value` is 24h `HH:mm` (what the
+ * form stores); `label` is the 12h form the design shows ("02:00 AM").
+ */
+export const TIME_SLOT_OPTIONS: { value: string; label: string }[] = Array.from({ length: 48 }, (_, slot) => {
+  const hours = Math.floor(slot / 2);
+  const minutes = slot % 2 === 0 ? 0 : 30;
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  const mm = String(minutes).padStart(2, '0');
+  return {
+    value: `${String(hours).padStart(2, '0')}:${mm}`,
+    label: `${String(hour12).padStart(2, '0')}:${mm} ${period}`,
+  };
+});
+
+/** A picked date → the `HH:mm` slot it sits on (empty when no date yet). */
+export function dateToTimeSlot(date: Date | null | undefined): string {
+  if (!date) return '';
+  const minutes = date.getMinutes() < 30 ? 0 : 30;
+  return `${String(date.getHours()).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+/**
+ * Applies an `HH:mm` slot to the picked date. Choosing a time before a date
+ * anchors it to today — the same fallback the core date-time picker uses.
+ */
+export function applyTimeSlot(date: Date | null | undefined, slot: string): Date {
+  const [hours, minutes] = slot.split(':').map(Number);
+  const next = date ? new Date(date) : new Date();
+  next.setHours(hours, minutes, 0, 0);
+  return next;
 }
 
 /**

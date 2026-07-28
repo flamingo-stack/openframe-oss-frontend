@@ -14,6 +14,7 @@ export const createScriptScheduleMutation = graphql`
       supportedPlatforms
       status
       deviceCount
+      trigger
       startAt
       repeat
       nextRunAt
