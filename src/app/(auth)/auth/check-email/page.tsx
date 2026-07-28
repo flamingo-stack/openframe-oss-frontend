@@ -74,7 +74,7 @@ export default function CheckEmailPage() {
       </div>
 
       {/* Content */}
-      <div className="flex flex-col items-center gap-[var(--spacing-system-xl)] max-w-[600px] text-center">
+      <main className="flex flex-col items-center gap-[var(--spacing-system-xl)] max-w-[600px] text-center">
         <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
           <h1 className="text-h2 text-ods-text-primary">Check your Email</h1>
           <p className="text-h4 text-ods-text-secondary">
@@ -96,19 +96,21 @@ export default function CheckEmailPage() {
         <p className="text-h6 text-ods-text-secondary">
           Didn&apos;t get it? Check your spam folder. The link expires in 24 hours.
         </p>
-      </div>
+      </main>
 
       {/* Footer */}
-      <a
-        href="https://flamingo.run"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-mf)] text-ods-text-secondary rounded-md bg-transparent hover:bg-ods-bg-hover transition-colors"
-      >
-        <span className="text-h6">Powered by</span>
-        <FlamingoLogo className="h-5 w-5" fill="currentColor" />
-        <span className="text-code font-semibold">Flamingo</span>
-      </a>
+      <footer>
+        <a
+          href="https://flamingo.run"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-mf)] text-ods-text-secondary rounded-md bg-transparent hover:bg-ods-bg-hover transition-colors"
+        >
+          <span className="text-h6">Powered by</span>
+          <FlamingoLogo className="h-5 w-5" fill="currentColor" />
+          <span className="text-code font-semibold">Flamingo</span>
+        </a>
+      </footer>
     </div>
   );
 }

@@ -168,7 +168,9 @@ export function useAuth() {
         variant: 'success',
       });
 
-      window.location.href = routes.auth.checkEmail;
+      // Client-side replace (not window.location.href) so the success toast
+      // survives the transition; replace keeps signup out of the back stack.
+      router.replace(routes.auth.checkEmail);
     } catch (error: any) {
       toast({
         title: 'Registration Failed',
