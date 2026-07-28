@@ -3,6 +3,7 @@
 import { ExternalLinkIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input, PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
 import { BillingRow, SectionBlock, TestModeBanner } from './billing-section';
 
@@ -60,6 +61,35 @@ function InvoicesTableSkeleton() {
 
 export function BillingUsageSkeleton() {
   const handleBack = useSafeBack(routes.settings.root());
+
+  // Mirror the usage-only page (see `usage-view.tsx`) when the payment UI is
+  // hidden — otherwise the loading state would flash a "Billing & Usage" title,
+  // a Next Payment row, and an invoices table the real page never renders.
+  if (isBillingHidden()) {
+    return (
+      <PageLayout
+        title="Usage"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        backButton={{ label: 'Back', onClick: handleBack }}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-m)]">
+          <InfoCardSkeleton title="Device Usage" />
+          <InfoCardSkeleton title="AI Usage" withProgress={false} />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-l)] items-stretch">
+          <SectionBlock title="Usage Overview">
+            <BillingRow label="Active devices" value={<Value width="w-8" />} />
+            <BillingRow label="Inactive devices" value={<Value width="w-8" />} />
+          </SectionBlock>
+          <SectionBlock title="Workspace Limits">
+            <BillingRow label="Devices included" value={<Value width="w-8" />} />
+            <BillingRow label="AI tokens included" value={<Value width="w-16" />} />
+          </SectionBlock>
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout

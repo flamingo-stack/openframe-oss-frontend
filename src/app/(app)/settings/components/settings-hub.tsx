@@ -2,6 +2,7 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import {
+  ChartDonutIcon,
   CreditCardIcon,
   Hierarchy02Icon,
   Logout01Icon,
@@ -19,6 +20,7 @@ import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-s
 import { apiClient } from '@/lib/api-client';
 import { isOssTenantMode } from '@/lib/app-mode';
 import { authApiClient } from '@/lib/auth-api-client';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { featureFlags } from '@/lib/feature-flags';
 import { handleApiError } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
@@ -68,8 +70,21 @@ const SETTINGS_NAV_ITEMS = [
   },
 ] as const;
 
+/**
+ * Replaces the Billing & Usage card on builds where the payment UI is hidden
+ * (see `billing-visibility.ts`). The destination page is the same one, degraded
+ * to usage counters (`usage-view.tsx`), so the card keeps its place in the hub
+ * with none of the billing wording.
+ */
+const USAGE_MENU_ITEM = {
+  icon: ChartDonutIcon,
+  title: 'Usage',
+  description: 'Device and AI usage across your workspace',
+} as const;
+
 export function SettingsHub() {
   const { toast } = useToast();
+  const billingHidden = isBillingHidden();
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
   const user = useAuthStore(state => state.user);
   const updateUser = useAuthStore(state => state.updateUser);
@@ -166,15 +181,22 @@ export function SettingsHub() {
           item => item.href !== routes.settings.billingUsage || featureFlags.subscription.enabled(),
         )
           .filter(item => item.href !== routes.settings.architecture || isOssTenantMode())
-          .map(item => (
-            <SettingMenuItem
-              key={item.href}
-              href={item.href}
-              icon={<item.icon size={24} />}
-              title={item.title}
-              description={item.description}
-            />
-          ))}
+          .map(item => {
+            const {
+              icon: Icon,
+              title,
+              description,
+            } = item.href === routes.settings.billingUsage && billingHidden ? USAGE_MENU_ITEM : item;
+            return (
+              <SettingMenuItem
+                key={item.href}
+                href={item.href}
+                icon={<Icon size={24} />}
+                title={title}
+                description={description}
+              />
+            );
+          })}
       </div>
 
       {/* Log Out — pinned to the bottom-left of the page */}

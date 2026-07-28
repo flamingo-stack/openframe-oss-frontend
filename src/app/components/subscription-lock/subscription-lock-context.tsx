@@ -1,11 +1,10 @@
 'use client';
 
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
-import { getLockCopy, type SubscriptionLockCopy, type SubscriptionStatus } from './subscription-status';
+import { isLockingStatus, type SubscriptionStatus } from './subscription-status';
 
 interface SubscriptionLockState {
   status: SubscriptionStatus;
-  lockCopy: SubscriptionLockCopy | null;
   isLocked: boolean;
 }
 
@@ -17,10 +16,10 @@ interface SubscriptionLockProviderProps {
 }
 
 export function SubscriptionLockProvider({ status, children }: SubscriptionLockProviderProps) {
-  const value = useMemo<SubscriptionLockState>(() => {
-    const lockCopy = getLockCopy(status);
-    return { status, lockCopy, isLocked: lockCopy !== null };
-  }, [status]);
+  // Status + whether it locks, nothing more: the lock's wording is resolved by
+  // whichever lock screen actually renders (`subscription-lock-content.tsx`), so
+  // the plan-picker copy stays out of this app-wide provider's import graph.
+  const value = useMemo<SubscriptionLockState>(() => ({ status, isLocked: isLockingStatus(status) }), [status]);
 
   return <SubscriptionLockContext.Provider value={value}>{children}</SubscriptionLockContext.Provider>;
 }
@@ -28,7 +27,7 @@ export function SubscriptionLockProvider({ status, children }: SubscriptionLockP
 export function useSubscriptionLock(): SubscriptionLockState {
   const ctx = useContext(SubscriptionLockContext);
   if (!ctx) {
-    return { status: 'ACTIVE', lockCopy: null, isLocked: false };
+    return { status: 'ACTIVE', isLocked: false };
   }
   return ctx;
 }

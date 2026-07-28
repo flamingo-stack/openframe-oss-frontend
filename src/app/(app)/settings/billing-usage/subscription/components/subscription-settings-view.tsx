@@ -5,6 +5,7 @@ import { Fragment, type ReactNode, Suspense, useCallback, useState } from 'react
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
 import { useSubscriptionLock } from '@/app/components/subscription-lock/subscription-lock-context';
+import { getLockCopy } from '@/app/components/subscription-lock/subscription-lock-copy';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { TrialEndedBanner } from '@/app/components/subscription-lock/trial-ended-banner';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -90,7 +91,10 @@ export function SubscriptionSettingsView() {
 
 function SubscriptionSettingsContent() {
   const handleBack = useSafeBack(routes.settings.billingUsage);
-  const { status, isLocked, lockCopy } = useSubscriptionLock();
+  const { status, isLocked } = useSubscriptionLock();
+  // Resolved here rather than carried on the context, so the plan-lock wording
+  // lives only in the modules that render plans (see subscription-lock-copy.ts).
+  const lockCopy = isLocked ? getLockCopy(status) : null;
   const data = useLazyLoadQuery<SubscriptionSettingsViewQueryType>(
     subscriptionSettingsViewQuery,
     {},
