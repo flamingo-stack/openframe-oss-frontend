@@ -1,7 +1,7 @@
 'use client';
 
-import { EditProfileIcon, GoogleLogo, MicrosoftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
-import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { GoogleLogo, MicrosoftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { PenEditIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   Card,
@@ -165,13 +165,15 @@ export function SsoConfigurationTab() {
     loadDomainData();
   }, [loadData, loadDomainData]);
 
-  const columns = useMemo<ColumnDef<UiProviderRow>[]>(() => {
-    const baseColumns: ColumnDef<UiProviderRow>[] = [
+  // Mobile keeps only the provider, status and the edit action; configuration folds
+  // in at tablet and the allowed-domains list at desktop.
+  const columns = useMemo<ColumnDef<UiProviderRow>[]>(
+    () => [
       {
         accessorKey: 'provider',
-        header: 'OAUTH PROVIDER',
+        header: 'OAuth Provider',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-[var(--spacing-system-sf)] min-w-0">
             {getProviderIcon(row.original.provider)}
             <div className="flex flex-col justify-center min-w-0">
               <TruncateText>{row.original.displayName}</TruncateText>
@@ -181,73 +183,80 @@ export function SsoConfigurationTab() {
             </div>
           </div>
         ),
-        meta: { width: 'flex-[2] min-w-0' },
+        meta: { width: 'flex-1 min-w-0' },
       },
       {
         accessorKey: 'status',
-        header: 'STATUS',
+        header: 'Status',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <div className="w-fit">
-            <Tag label={row.original.status.label} variant={row.original.status.variant} />
-          </div>
+          <Tag className="self-start" label={row.original.status.label} variant={row.original.status.variant} />
         ),
-        meta: { width: 'flex-1 min-w-0' },
+        meta: { width: 'w-auto shrink-0 md:w-[120px]' },
       },
-    ];
+      {
+        accessorKey: 'allowedDomains',
+        header: 'Allowed Domains',
+        cell: ({ row }: { row: Row<UiProviderRow> }) => (
+          <TruncateText variant="h6" tone="secondary">
+            {row.original.allowedDomains.length > 0 ? row.original.allowedDomains.join(', ') : 'None'}
+          </TruncateText>
+        ),
+        meta: { width: 'w-[220px] shrink-0', hideAt: 'lg' },
+      },
+      {
+        accessorKey: 'hasConfig',
+        header: 'Configuration',
+        cell: ({ row }: { row: Row<UiProviderRow> }) => (
+          <TruncateText variant="h6" tone="secondary">
+            {row.original.hasConfig ? 'Configured' : 'Not configured'}
+          </TruncateText>
+        ),
+        meta: { width: 'w-[140px] shrink-0', hideAt: 'md' },
+      },
+      {
+        id: 'actions',
+        cell: ({ row }: { row: Row<UiProviderRow> }) => {
+          const openEditModal = () =>
+            setModalState({
+              open: true,
+              providerKey: row.original.provider,
+              displayName: row.original.displayName,
+              isEnabled: row.original.status.label === 'ACTIVE',
+              clientId: row.original.original?.config?.clientId,
+              clientSecret: row.original.original?.config?.clientSecret,
+              msTenantId: row.original.original?.config?.msTenantId,
+              autoProvisionUsers: row.original.autoProvisionUsers,
+              allowedDomains: row.original.allowedDomains,
+            });
 
-    baseColumns.push({
-      accessorKey: 'allowedDomains',
-      header: 'ALLOWED DOMAINS',
-      cell: ({ row }: { row: Row<UiProviderRow> }) => (
-        <TruncateText variant="h6" tone="secondary">
-          {row.original.allowedDomains.length > 0 ? row.original.allowedDomains.join(', ') : 'None'}
-        </TruncateText>
-      ),
-      meta: { width: 'flex-[1.5] min-w-0' },
-    });
-
-    baseColumns.push({
-      accessorKey: 'hasConfig',
-      header: 'CONFIGURATION',
-      cell: ({ row }: { row: Row<UiProviderRow> }) => (
-        <span className="text-h6 text-ods-text-secondary">
-          {row.original.hasConfig ? 'Configured' : 'Not configured'}
-        </span>
-      ),
-      meta: { width: 'flex-1 min-w-0' },
-    });
-
-    baseColumns.push({
-      id: 'actions',
-      cell: ({ row }: { row: Row<UiProviderRow> }) => (
-        <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
-          <Button
-            variant="outline"
-            leftIcon={<EditProfileIcon className="h-6 w-6 text-ods-text-primary" />}
-            onClick={() => {
-              setModalState({
-                open: true,
-                providerKey: row.original.provider,
-                displayName: row.original.displayName,
-                isEnabled: row.original.status.label === 'ACTIVE',
-                clientId: row.original.original?.config?.clientId,
-                clientSecret: row.original.original?.config?.clientSecret,
-                msTenantId: row.original.original?.config?.msTenantId,
-                autoProvisionUsers: row.original.autoProvisionUsers,
-                allowedDomains: row.original.allowedDomains,
-              });
-            }}
-          >
-            Edit
-          </Button>
-        </div>
-      ),
-      enableSorting: false,
-      meta: { width: 'min-w-[100px] w-auto shrink-0 flex-none', align: 'right' },
-    });
-
-    return baseColumns;
-  }, []);
+          return (
+            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+              <Button
+                className="hidden md:inline-flex"
+                variant="outline"
+                leftIcon={<PenEditIcon className="h-6 w-6" />}
+                onClick={openEditModal}
+              >
+                Edit
+              </Button>
+              {/* Mobile: the labeled button doesn't fit beside the provider and status — collapse to an icon. */}
+              <Button
+                className="md:hidden"
+                variant="outline"
+                size="icon"
+                aria-label={`Edit ${row.original.displayName}`}
+                onClick={openEditModal}
+                leftIcon={<PenEditIcon />}
+              />
+            </div>
+          );
+        },
+        enableSorting: false,
+        meta: { width: 'w-12 shrink-0 md:w-[120px]', align: 'right' },
+      },
+    ],
+    [],
+  );
 
   const filtered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -336,7 +345,7 @@ export function SsoConfigurationTab() {
       )}
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} />
+        <DataTable.Header rightSlot={<DataTable.RowCount itemName="provider" />} />
         <DataTable.Body loading={isLoading} emptyMessage="No SSO providers found." rowClassName="mb-1" />
       </DataTable>
       <SsoConfigModal
