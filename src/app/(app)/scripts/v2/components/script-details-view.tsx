@@ -191,6 +191,19 @@ export function ScriptDetailsTabSkeleton() {
   );
 }
 
+/**
+ * Both tab bodies behind one memoized component — `TabNavigation` re-renders
+ * on its own (scroll-shadow state, ResizeObserver) and calls its render prop
+ * each time; see `ScheduleTabBody` for the full account.
+ */
+const ScriptTabBody = memo(function ScriptTabBody({ tab, scriptId }: { tab: string; scriptId: string }) {
+  return tab === 'executions' ? (
+    <ScriptExecutionsTab scriptId={scriptId} />
+  ) : (
+    <ScriptDetailsTabSection scriptId={scriptId} />
+  );
+});
+
 // ----------------------------------------------------------------
 // Page shell — chrome renders immediately, data islands suspend
 // ----------------------------------------------------------------
@@ -306,17 +319,15 @@ function ScriptDetailsChrome({ scriptId, script }: ScriptDetailsViewProps & { sc
           </Suspense>
 
           <TabNavigation tabs={DETAIL_TABS} urlSync defaultTab="details">
-            {/* One boundary at a fixed position for both tabs, plus the stale
-                dimming — same reasoning as the schedule details page, written
-                out on `ScheduleDetailsChrome`. */}
+            {/* Dim wrapper → one shared boundary → keyed fade → memoized body.
+                Each layer's reason is written out on `ScheduleDetailsChrome`;
+                this page is the same shape with two tabs instead of four. */}
             {(activeTab, { isStale }) => (
               <div className={cn('transition-opacity duration-200', isStale && 'opacity-60')}>
                 <Suspense fallback={<ScriptDetailsTabSkeleton />}>
-                  {activeTab === 'executions' ? (
-                    <ScriptExecutionsTab scriptId={scriptId} />
-                  ) : (
-                    <ScriptDetailsTabSection scriptId={scriptId} />
-                  )}
+                  <div key={activeTab} className="animate-in fade-in duration-200 motion-reduce:animate-none">
+                    <ScriptTabBody tab={activeTab} scriptId={scriptId} />
+                  </div>
                 </Suspense>
               </div>
             )}

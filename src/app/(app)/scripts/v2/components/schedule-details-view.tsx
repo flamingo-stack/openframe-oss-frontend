@@ -558,6 +558,33 @@ function ScheduleDevicesTabSkeleton() {
   return <ScheduleDevicesTable devices={[]} loading />;
 }
 
+/**
+ * The four tab bodies behind one memoized component.
+ *
+ * `TabNavigation` calls its render prop from its OWN render, and it re-renders
+ * for reasons that have nothing to do with which tab is open: the strip tracks
+ * its scroll position in state (edge fade shadows) and re-measures on a
+ * ResizeObserver, so scrolling or resizing the bar re-invoked the render prop
+ * and re-rendered whichever heavy table was open underneath. Inline branches
+ * had no way to opt out — a fresh element every time. Behind `memo`, the same
+ * three props mean React drops the update at the door, and only a real tab
+ * change gets through.
+ */
+const ScheduleTabBody = memo(function ScheduleTabBody({
+  tab,
+  scheduleId,
+  schedule,
+}: {
+  tab: string;
+  scheduleId: string;
+  schedule: ScheduleDetailData | undefined;
+}) {
+  if (tab === 'devices') return <ScheduleDevicesTabSection scheduleId={scheduleId} schedule={schedule} />;
+  if (tab === 'runs') return <ScheduleRunsTab scheduleId={scheduleId} />;
+  if (tab === 'executions') return <ScheduleExecutionsTab scheduleId={scheduleId} />;
+  return <ScheduleScriptsTabSection scheduleId={scheduleId} />;
+});
+
 // ----------------------------------------------------------------
 // Page shell — chrome renders immediately, data islands suspend
 // ----------------------------------------------------------------
@@ -689,33 +716,32 @@ function ScheduleDetailsChrome({
           </Suspense>
 
           <TabNavigation tabs={SCHEDULE_DETAIL_TABS} urlSync defaultTab="scripts">
-            {/* ONE boundary for all four tabs, at a fixed position in the tree,
-                rather than one per branch. `TabNavigation` hands the body a
-                DEFERRED tab id, so a switch renders in a transition — and a
-                transition can only hold the previous content on a boundary that
-                already has some. A branch that mounted its own boundary gave the
-                transition nothing to hold and dropped straight to a skeleton.
-                (Runs and Execution History still show theirs: each owns an inner
-                boundary so filter changes don't blank its toolbar, and the inner
-                one catches the suspension first.)
+            {/* Three separate jobs, in three separate elements, and the nesting
+                order is what makes each of them work:
 
-                `isStale` is the switch's only other feedback — the bar has
-                already moved but the body has not, and without dimming that
-                reads as a tab that did nothing. */}
+                1. The dim wrapper is OUTSIDE everything and never remounts —
+                   `isStale` marks the tab you are leaving while the next one
+                   loads. `activeTab` here is TabNavigation's DEFERRED id, so
+                   while stale it still names the OLD tab.
+                2. ONE Suspense boundary for all four tabs, at a fixed position.
+                   A switch renders in a transition, and a transition can only
+                   hold the previous content on a boundary that already has
+                   some — a branch that mounted its own gave it nothing to hold
+                   and dropped straight to a skeleton. (Runs and Execution
+                   History still show theirs: each owns an inner boundary so a
+                   filter change doesn't blank its toolbar, and the inner one
+                   catches the suspension first.)
+                3. The keyed wrapper is what replays the fade: CSS animations
+                   run on mount, so without a new key the swapped-in tab would
+                   simply appear. */}
             {(activeTab, { isStale }) => (
               <div className={cn('transition-opacity duration-200', isStale && 'opacity-60')}>
                 <Suspense
                   fallback={activeTab === 'devices' ? <ScheduleDevicesTabSkeleton /> : <ScheduleScriptsTabSkeleton />}
                 >
-                  {activeTab === 'devices' ? (
-                    <ScheduleDevicesTabSection scheduleId={scheduleId} schedule={schedule} />
-                  ) : activeTab === 'runs' ? (
-                    <ScheduleRunsTab scheduleId={scheduleId} />
-                  ) : activeTab === 'executions' ? (
-                    <ScheduleExecutionsTab scheduleId={scheduleId} />
-                  ) : (
-                    <ScheduleScriptsTabSection scheduleId={scheduleId} />
-                  )}
+                  <div key={activeTab} className="animate-in fade-in duration-200 motion-reduce:animate-none">
+                    <ScheduleTabBody tab={activeTab} scheduleId={scheduleId} schedule={schedule} />
+                  </div>
                 </Suspense>
               </div>
             )}
