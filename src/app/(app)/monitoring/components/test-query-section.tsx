@@ -1,6 +1,13 @@
 'use client';
 
-import { Button, SearchableSelect, TestRunResults, TimingStat } from '@flamingo-stack/openframe-frontend-core';
+import {
+  Button,
+  SearchableSelect,
+  type SearchableSelectOption,
+  Tag,
+  TestRunResults,
+  TimingStat,
+} from '@flamingo-stack/openframe-frontend-core';
 import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { FlaskVialIcon, XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -8,6 +15,7 @@ import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { Device } from '../../devices/types/device.types';
 import { getFleetHostId } from '../../devices/utils/device-action-utils';
+import { getDeviceStatusConfig } from '../../devices/utils/device-status';
 import { useQueryTestRun } from './query-test-run';
 
 export interface TestQuerySectionProps {
@@ -39,6 +47,33 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
         .sort((a, b) => (a.displayName || a.hostname || '').localeCompare(b.displayName || b.hostname || ''))
         .map(d => ({ value: String(getFleetHostId(d)), label: d.displayName || d.hostname || '' })),
     [devices],
+  );
+
+  // ONLINE/OFFLINE tag per option (same config as the Devices table), per design.
+  const statusByHostId = useMemo(() => {
+    const map = new Map<string, { label: string; variant: ReturnType<typeof getDeviceStatusConfig>['variant'] }>();
+    for (const d of devices) {
+      const fleetId = getFleetHostId(d);
+      if (fleetId === undefined || !d.status) continue;
+      const config = getDeviceStatusConfig(d.status);
+      map.set(String(fleetId), { label: config.label, variant: config.variant });
+    }
+    return map;
+  }, [devices]);
+
+  const renderDeviceOption = useCallback(
+    (option: SearchableSelectOption) => {
+      const status = statusByHostId.get(option.value);
+      return (
+        <>
+          <span className="flex-1 truncate text-h4 text-ods-text-primary" title={option.label}>
+            {option.label}
+          </span>
+          {status && <Tag label={status.label} variant={status.variant} />}
+        </>
+      );
+    },
+    [statusByHostId],
   );
 
   const handleToggle = useCallback(() => {
@@ -103,6 +138,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                 emptyText="No devices found"
                 isLoading={isLoadingDevices}
                 disabled={test.isActive}
+                renderOption={renderDeviceOption}
               />
             </div>
 

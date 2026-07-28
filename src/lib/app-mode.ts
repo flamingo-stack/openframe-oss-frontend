@@ -3,6 +3,7 @@
  * Controls whether the app runs in auth-only mode or full application mode
  */
 
+import { isPaymentUiEnabled } from './billing-visibility';
 import { isNativeShell } from './native-shell';
 import { runtimeEnv } from './runtime-config';
 
@@ -78,6 +79,17 @@ export function isRouteAllowedInCurrentMode(pathname: string): boolean {
     pathname.startsWith('/icons')
   ) {
     return true;
+  }
+
+  // Purchase surfaces exist only where the payment UI does — the `billings` flag
+  // AND a build allowed to show payments (App Store review; see
+  // billing-visibility.ts). The pages 404 on their own; this keeps them
+  // unreachable via a deep link or a restored history entry too.
+  if (
+    !isPaymentUiEnabled() &&
+    (pathname.startsWith('/settings/billing-usage/subscription') || pathname.startsWith('/checkout'))
+  ) {
+    return false;
   }
 
   if (mode === 'saas-shared') {

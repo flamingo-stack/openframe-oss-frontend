@@ -1,3 +1,5 @@
+import { featureFlags } from '@/lib/feature-flags';
+
 export const GET_MINGO_DIALOGS_QUERY = `
   query GetDialogs($filter: DialogFilterInput, $pagination: CursorPaginationInput, $search: String) {
   dialogs(filter: $filter, pagination: $pagination, search: $search) {
@@ -101,6 +103,12 @@ export const GET_MINGO_DIALOG_QUERY = `
 `;
 
 export function getMingoDialogMessagesQuery() {
+  const guideFragment = featureFlags.guideChunks.enabled()
+    ? `... on GuideData {
+              text
+            }`
+    : '';
+
   return `
   query GetAllMessages($dialogId: ID!, $cursor: String, $limit: Int, $sortField: String, $sortDirection: SortDirection) {
     messages(
@@ -144,6 +152,8 @@ export function getMingoDialogMessagesQuery() {
             ... on ThinkingData {
               text
             }
+
+            ${guideFragment}
 
             ... on ExecutingToolData {
               type

@@ -1,4 +1,4 @@
-import type { billingUsageViewQuery$data } from '@/__generated__/billingUsageViewQuery.graphql';
+import type { billingUsageContentQuery$data } from '@/__generated__/billingUsageContentQuery.graphql';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
 
@@ -17,7 +17,7 @@ function getUsageState(percentage: number, isOver: boolean): UsageState {
   return 'success';
 }
 
-type SubscriptionData = billingUsageViewQuery$data['subscription'];
+type SubscriptionData = billingUsageContentQuery$data['subscription'];
 
 export function useBillingSummary(subscription: SubscriptionData) {
   const subscriptionProducts = subscription?.products ?? [];

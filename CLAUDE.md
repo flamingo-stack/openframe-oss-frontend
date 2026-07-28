@@ -70,6 +70,30 @@ NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER=true   # Dev ticket auth mode (Bearer tok
 
 Feature flags are **not** env vars — they are server-loaded via GraphQL (see Feature Flags below). Native-shell env split is documented in `.env.export.example`.
 
+### Payment UI Visibility (native app builds)
+
+`src/lib/billing-visibility.ts` is the single switch for every payment surface, and it is exactly
+`isNativeShell()` — the native builds (Capacitor mobile, Tauri desktop) hide payments, the web app
+keeps them. Billing runs through Stripe on the web; App Store Guideline 3.1.1 forbids showing plans,
+prices, invoices, or any CTA leading to a non-IAP purchase, and Google Play treats an in-app Stripe
+Checkout for a digital subscription as bypassing Play Billing.
+
+No env var backs this: the shell injects `window.Capacitor` / the Tauri globals itself, so a native
+build can't forget to declare what it is, and the web bundle can't be misconfigured into hiding its
+billing.
+
+- `isBillingHidden()` — payments not allowed on this build
+- `isPaymentUiEnabled()` — `billings` server flag **and** payments allowed on this build
+
+When hidden: Settings shows a **Usage** card (`billing-usage/components/usage-view.tsx` — device/AI
+counters and workspace limits over its own price-free query),
+`/settings/billing-usage/subscription` and `/checkout/*` 404 and are blocked in
+`isRouteAllowedInCurrentMode()`, and the subscription lock screen renders `WorkspaceInactiveScreen`
+instead of the plan picker.
+
+**Any new payment-adjacent UI (price, plan, invoice, upgrade/pay CTA) must be gated on
+`isPaymentUiEnabled()` / `isBillingHidden()`.**
+
 ## Architecture & Structure
 
 ### Technology Stack
