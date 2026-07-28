@@ -126,6 +126,7 @@ export const routes = {
     root: '/auth',
     login: '/auth/login',
     signup: '/auth/signup',
+    checkEmail: '/auth/check-email',
     verify: '/auth/verify',
     invite: '/auth/invite',
     passwordReset: '/auth/password-reset',
