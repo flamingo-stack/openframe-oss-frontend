@@ -9,7 +9,6 @@ export const removeDevicesFromScheduleMutation = graphql`
   mutation removeDevicesFromScheduleMutation($scheduleId: ID!, $machineIds: [ID!]!) {
     removeDevicesFromSchedule(scheduleId: $scheduleId, machineIds: $machineIds) {
       id
-      deviceCount
     }
   }
 `;

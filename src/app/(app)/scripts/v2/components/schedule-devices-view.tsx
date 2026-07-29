@@ -3,7 +3,7 @@
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
 import { ConnectionHandler, type RecordSourceSelectorProxy } from 'relay-runtime';
 import type {
@@ -102,7 +102,8 @@ interface ConnectionNarrowing {
  *   what the server would return: both lists are queried with the SAME
  *   narrowing, so a device visible in Available necessarily satisfies the
  *   filter and search the Selected list is under.
- * - **`deviceCount`** moves by one — but only optimistically; see below.
+ * - **`deviceCount`** moves by one, and stays moved — the payload no longer
+ *   restates it; see `addDevicesToScheduleMutation` for why.
  *
  * This is what lets the row render ONCE. Re-reading both connections instead
  * would republish every node on the page, and a node whose `lastSeen` ticked
@@ -151,32 +152,28 @@ function assignmentUpdaters(scheduleId: string, deviceId: string, assigned: bool
     if (typeof filteredCount === 'number') {
       selected.setValue(Math.max(0, filteredCount + delta), 'filteredCount');
     }
+
+    // The schedule's own count — what the picker's tab label and the DEVICES
+    // column show. Moved by the same delta, in the same pass and under the same
+    // idempotency guard as the lists, because the payload no longer carries it:
+    // it answered with an ABSOLUTE count, and two clicks whose responses crossed
+    // settled on the older of the two snapshots. Deltas compose in any order.
+    const deviceCount = schedule.getValue('deviceCount');
+    if (typeof deviceCount === 'number') {
+      schedule.setValue(Math.max(0, deviceCount + delta), 'deviceCount');
+    }
   };
 
-  return {
-    optimisticUpdater: (store: RecordSourceSelectorProxy) => {
-      patchLists(store);
-      // The count rides the optimistic layer rather than a state offset kept
-      // beside it. `deviceCount` is a field the RESPONSE overwrites, so an
-      // offset added on top of whatever the store reports would be counted
-      // twice — up on the click, up again on the response, back down only when
-      // something later retired it. A layer has no such window: Relay drops it
-      // and applies the payload in one commit, so the number moves exactly once
-      // per click and a failed mutation un-moves it with no rollback written
-      // here. Layers compose, too — a second click in flight re-runs over the
-      // first's result, not over the value they both started from.
-      const schedule = store.get(scheduleId);
-      const deviceCount = schedule?.getValue('deviceCount');
-      if (schedule && typeof deviceCount === 'number') {
-        schedule.setValue(Math.max(0, deviceCount + delta), 'deviceCount');
-      }
-    },
-    // Same patch again on the real commit — the optimistic layer is gone by
-    // then and the payload describes only `deviceCount`, never the lists. The
-    // count is deliberately NOT touched here: the payload has already written
-    // the server's own number into that field.
-    updater: patchLists,
-  };
+  // ONE patch, applied twice: in the optimistic layer so the row and both counts
+  // move on the click, and again on the real commit, by which point Relay has
+  // dropped that layer — so the net effect is a single delta, exactly as it is
+  // for `filteredCount`, which has always worked this way.
+  //
+  // A failure still needs no rollback: Relay drops the layer and nothing
+  // replaces it, so the row and the counts go back to what the server last said.
+  // And a sibling still in flight is rebased over the committed base, so its own
+  // delta survives this commit instead of being overwritten by it.
+  return { optimisticUpdater: patchLists, updater: patchLists };
 }
 
 /**
@@ -578,8 +575,16 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
   // The bulk actions must send the narrowing as it is AT CLICK TIME; a ref keeps
   // the handlers reference-stable so the memoized rows don't re-render on every
   // keystroke in the search box.
+  //
+  // Written in an effect, not in render: a render React replays or throws away
+  // would otherwise publish a narrowing no committed UI is showing, and a bulk
+  // click landing in that window would act on a filter the user cannot see. An
+  // effect can only run for a render that committed — which is also exactly the
+  // "at click time" value, since a click can only follow a commit.
   const narrowingRef = useRef({ filter, search: debouncedSearch });
-  narrowingRef.current = { filter, search: debouncedSearch };
+  useEffect(() => {
+    narrowingRef.current = { filter, search: debouncedSearch };
+  }, [filter, debouncedSearch]);
 
   // Both the store patches and the refresh must name the narrowing the mounted
   // queries were READ with — the deferred one, which is what their connection
@@ -588,12 +593,21 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
   // would touch a connection nothing on screen is subscribed to, and the change
   // would land invisibly.
   const queryVarsRef = useRef({ filter: deferredFilter, search: deferredSearch });
-  queryVarsRef.current = { filter: deferredFilter, search: deferredSearch };
+  useEffect(() => {
+    queryVarsRef.current = { filter: deferredFilter, search: deferredSearch };
+  }, [deferredFilter, deferredSearch]);
 
   const connectionNarrowing = useCallback((): ConnectionNarrowing => {
     const { filter: f, search: term } = queryVarsRef.current;
     return { filter: toRelayFilter(f), search: term || null };
   }, []);
+
+  const errorHandler = useCallback(
+    (fallback: string) => (error: Error) => {
+      toast({ title: 'Error', description: getRelayErrorMessage(error, fallback), variant: 'destructive' });
+    },
+    [toast],
+  );
 
   /**
    * Re-reads both halves from the network.
@@ -605,18 +619,19 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
    */
   const refreshLists = useCallback(() => {
     const variables = { scheduleId, ...connectionNarrowing(), first: PAGE_SIZE, after: null };
-    fetchQuery(environment, scheduleDevicePickerRelayQuery, variables, { fetchPolicy: 'network-only' }).subscribe({});
+    // Both halves report their own failure, and they have to. The mutation that
+    // called this one has already toasted its success, and these re-reads are the
+    // only thing that puts the new assignment on screen — so a failure swallowed
+    // here leaves the user looking at the PREVIOUS lists having just been told
+    // the new ones were saved.
+    const onError = errorHandler('Devices were saved, but the lists could not be refreshed');
+    fetchQuery(environment, scheduleDevicePickerRelayQuery, variables, { fetchPolicy: 'network-only' }).subscribe({
+      error: onError,
+    });
     fetchQuery(environment, scheduleDevicePickerRelayAssignedQuery, variables, {
       fetchPolicy: 'network-only',
-    }).subscribe({});
-  }, [environment, scheduleId, connectionNarrowing]);
-
-  const errorHandler = useCallback(
-    (fallback: string) => (error: Error) => {
-      toast({ title: 'Error', description: getRelayErrorMessage(error, fallback), variant: 'destructive' });
-    },
-    [toast],
-  );
+    }).subscribe({ error: onError });
+  }, [environment, scheduleId, connectionNarrowing, errorHandler]);
 
   // Both single-row handlers render the change once, in the optimistic layer,
   // and never again: the same patch is re-applied on the real commit, so the

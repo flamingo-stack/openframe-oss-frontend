@@ -341,7 +341,10 @@ function ScheduleRunsContent({
     [renderRowActions, router, runDetailsHref, statusOptions],
   );
 
-  const filterGroups = useMemo(() => [{ id: 'status', title: 'Status', options: RUN_STATUS_OPTIONS }], []);
+  // The SAME options the desktop column funnel gets — the server facet, not the
+  // whole enum. Built from `statusOptions` so the mobile modal cannot offer a
+  // status these runs never reached while the desktop dropdown hides it.
+  const filterGroups = useMemo(() => [{ id: 'status', title: 'Status', options: statusOptions }], [statusOptions]);
 
   const columnFilters = useMemo(
     () =>

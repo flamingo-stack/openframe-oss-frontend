@@ -12,13 +12,19 @@ import { graphql } from 'react-relay';
  * guarantee it could not make once an assignment outgrew a single page. A delta
  * states only what changed, so nothing has to be read in full to write safely.
  *
- * The payloads read back `id` and `deviceCount`. The count is the number the
- * picker's tab label and the schedule's DEVICES column show, and it is keyed by
- * `id`, so Relay writes it into the normalized store and both update themselves
- * without anyone refetching. That is also why the picker shows a click on the
- * count through an `optimisticUpdater` over the same field rather than an offset
- * of its own: this payload overwrites the field the moment it lands, so a
- * separate offset would be counted a second time until it retired.
+ * The payloads read back `id` alone. `deviceCount` — the number the picker's tab
+ * label and the schedule's DEVICES column show — used to come back with it and be
+ * written straight into the normalized store, which is right for one mutation in
+ * flight and wrong for two: each response carries an ABSOLUTE snapshot, so two
+ * clicks whose responses crossed left the count on the OLDER of them, and it
+ * stayed there until something refetched.
+ *
+ * So the picker owns that number as a delta instead (`assignmentUpdaters` in
+ * `schedule-devices-view.tsx`), applied in the optimistic layer and again on
+ * commit. Deltas from concurrent clicks compose in any order; absolute counts
+ * cannot be ordered by a client that has no sequence to order them by. The
+ * server's own number is not lost — it arrives with every read of the schedule,
+ * and with the refetch the bulk siblings below already do.
  *
  * The picker's two connections ARE patched by an updater rather than refetched
  * (`assignmentUpdaters` in `schedule-devices-view.tsx`), which is safe for this
@@ -33,7 +39,6 @@ export const addDevicesToScheduleMutation = graphql`
   mutation addDevicesToScheduleMutation($scheduleId: ID!, $machineIds: [ID!]!) {
     addDevicesToSchedule(scheduleId: $scheduleId, machineIds: $machineIds) {
       id
-      deviceCount
     }
   }
 `;
