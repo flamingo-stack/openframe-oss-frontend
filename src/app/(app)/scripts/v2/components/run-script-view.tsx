@@ -17,8 +17,10 @@ import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
 import type { Device } from '../../../devices/types/device.types';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
@@ -170,8 +172,11 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
         await dispatchBatch(machineIds, args, formData.timeout, envVars, formData.runAsUser);
         setShowExecutionModal(true);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Failed to dispatch script';
-        toast({ title: 'Submission failed', description: msg, variant: 'destructive' });
+        toast({
+          title: 'Submission failed',
+          description: getRelayErrorMessage(e, 'Failed to dispatch script'),
+          variant: 'destructive',
+        });
       }
     },
     [allDevices, selectedIds, toast, dispatchBatch],
@@ -183,6 +188,8 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
       if (firstError?.message) {
         toast({ title: 'Validation error', description: firstError.message, variant: 'destructive' });
       }
+      // The offending field is usually scrolled off-screen by now — take the user to it.
+      scrollToFirstInvalidField();
     },
     [toast],
   );
@@ -207,7 +214,13 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
 
   return (
     <>
-      <ScriptPageChrome title="Run Script" backFallback={routes.scriptsV2.details(scriptId)} actions={actions}>
+      <ScriptPageChrome
+        title="Run Script"
+        backFallback={routes.scriptsV2.details(scriptId)}
+        actions={actions}
+        actionsVariant="primary-buttons"
+        showMobileCancel
+      >
         {script ? (
           <ScriptSummaryCard
             name={script.name}

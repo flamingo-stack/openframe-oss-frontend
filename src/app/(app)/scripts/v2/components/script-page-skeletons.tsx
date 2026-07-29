@@ -13,8 +13,8 @@ import {
 import { DeviceSelector } from '@/app/components/shared/device-selector';
 import { EntityTagPickerFallback } from '@/app/components/shared/tags';
 import { routes } from '@/lib/routes';
+import { ExecutionsSkeleton } from './executions-table';
 import { DETAIL_TABS, ScriptDetailsTabSkeleton, ScriptHeaderSkeleton } from './script-details-view';
-import { ScriptExecutionsSkeleton } from './script-executions-tab';
 import { ScriptPageChrome } from './script-page-chrome';
 import { RUN_SUMMARY_LABELS, ScriptSummaryCardSkeleton } from './script-summary-card';
 
@@ -74,7 +74,7 @@ export function ScriptDetailsPageSkeleton({ tab }: { tab?: string }) {
             skeleton can't rewrite the URL. `pointer-events-none` is kept as a
             mouse-only fallback for browsers without `inert`. */}
         <TabNavigation tabs={DETAIL_TABS} activeTab={activeTab} onTabChange={noop} className="pointer-events-none">
-          {() => (activeTab === 'executions' ? <ScriptExecutionsSkeleton /> : <ScriptDetailsTabSkeleton />)}
+          {() => (activeTab === 'executions' ? <ExecutionsSkeleton /> : <ScriptDetailsTabSkeleton />)}
         </TabNavigation>
       </div>
     </ScriptPageChrome>

@@ -12,6 +12,10 @@ export const unarchiveScriptMutation = graphql`
   mutation unarchiveScriptMutation($id: ID!, $connections: [ID!]!) {
     unarchiveScript(id: $id) {
       id @deleteEdge(connections: $connections)
+      # Not for the list (the edge is gone by then) but for the DETAILS page,
+      # which stays mounted on the archived script: the payload writes the new
+      # status straight into the record, so its header flips without a refetch.
+      status
     }
   }
 `;

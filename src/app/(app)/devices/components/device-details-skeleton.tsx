@@ -678,13 +678,10 @@ export function DeviceDetailsSkeleton({ activeTab = 'overview' }: DeviceDetailsS
   return (
     <PageLayout
       loading
-      // The real header always renders a subtitle ("Updated X ago"). Core
-      // `TitleBlock` only draws the subtitle skeleton bar when `subtitle` is
-      // truthy (`{subtitle && …}`), so we MUST pass a non-empty placeholder —
-      // `loading` swaps its text for the skeleton bar, so the value is just a
-      // truthiness gate. Without it the loading header is shorter than the
-      // loaded one and the subtitle skeleton is missing.
-      subtitle=" "
+      // The real header always renders a subtitle ("Updated X ago"), so this
+      // skeleton has to reserve that line too — otherwise the loading header is
+      // shorter than the loaded one and the page jumps once the device lands.
+      subtitleRow="always"
       backButton={{ label: 'Back', onClick: noop }}
       actions={SKELETON_ACTIONS}
       menuActions={SKELETON_MENU_ACTIONS}

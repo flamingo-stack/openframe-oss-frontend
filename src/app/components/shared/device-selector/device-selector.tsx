@@ -13,6 +13,9 @@ import {
   type ColumnFiltersState,
   DataTable,
   EntityImage,
+  type OnChangeFn,
+  RadioGroupBlock,
+  type RadioGroupBlockOption,
   type Row,
   type TabItem,
   TabNavigation,
@@ -30,7 +33,8 @@ import { DevicesFilterToolbar } from '@/app/components/shared';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { deduplicateFilterOptions } from '@/lib/filter-utils';
 import { getFullImageUrl } from '@/lib/image-url';
-import type { DeviceSelectorProps } from './device-selector.types';
+import { DeviceSelectionModeRadio } from './device-selection-mode-radio';
+import type { DeviceSelectorProps, SubTab } from './device-selector.types';
 import { useDeviceSelector } from './use-device-selector';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
@@ -61,6 +65,15 @@ const DEFAULT_GET_DEVICE_KEY = (d: Device): string | undefined => d.machineId ||
  *
  * For a server-driven listing with URL state, GraphQL pagination and filter
  * counts coming from the backend, use `DevicesPanel` instead.
+ *
+ * Two opt-in modes change the picture above:
+ *
+ * - **`server`** hands search, filtering, paging and the bulk actions to the
+ *   parent's backend — see {@link DeviceSelectorServer}.
+ * - **`selectionMode` + `criteriaContent`** swap the picker for the rule editor
+ *   of "Select Devices by Criteria": `criteriaContent` replaces the card
+ *   entirely, the search toolbar and row actions go away, and the table becomes
+ *   a live preview of what the rule matches.
  */
 export function DeviceSelector({
   devices,
@@ -76,7 +89,12 @@ export function DeviceSelector({
   singleSelect: singleSelectProp = false,
   isDeviceDisabled,
   hideColumns,
+  totalCount,
   readOnly = false,
+  server,
+  selectionMode,
+  onSelectionModeChange,
+  criteriaContent,
 }: DeviceSelectorProps) {
   // In readOnly mode, force-disable interactions and hide the selection UI.
   const selectedIds = (selectedIdsProp ?? EMPTY_SET) as Set<string>;
@@ -85,8 +103,20 @@ export function DeviceSelector({
   const disabled = readOnly || disabledProp;
   const showSelectionModeRadio = readOnly ? false : showSelectionModeRadioProp;
   const singleSelect = readOnly ? true : singleSelectProp;
-  const { searchTerm, setSearchTerm, activeSubTab, handleTabChange, filteredDevices, displayDevices } =
-    useDeviceSelector({ devices, selectedIds, getDeviceKey });
+  // Criteria mode replaces the whole picker — card, tabs and search row — with
+  // the rule editor over a read-only preview of what that rule resolves to.
+  const isCriteria = selectionMode === 'criteria';
+  // Called unconditionally (hooks rule); in server mode its results are simply
+  // not the ones used — the parent's query already answered those questions.
+  const client = useDeviceSelector({ devices, selectedIds, getDeviceKey });
+
+  const searchTerm = server ? server.search : client.searchTerm;
+  const setSearchTerm = server ? server.onSearchChange : client.setSearchTerm;
+  const activeSubTab = server ? server.activeTab : client.activeSubTab;
+  const handleTabChange = useMemo(
+    () => (server ? (tabId: string) => server.onTabChange(tabId as SubTab) : client.handleTabChange),
+    [server, client.handleTabChange],
+  );
 
   // Read latest selectedIds via ref so toggleDevice can stay reference-stable.
   // The DataTable rows are React.memo'd; rows that don't re-render keep an old
@@ -95,10 +125,38 @@ export function DeviceSelector({
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
 
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [clientColumnFilters, setClientColumnFilters] = useState<ColumnFiltersState>([]);
+  const [clientTags, setClientTags] = useState<string[]>([]);
 
-  const toggleDevice = useCallback(
+  const columnFilters = server ? server.narrowing.columnFilters : clientColumnFilters;
+  const selectedTags = server ? server.narrowing.tags : clientTags;
+
+  const setColumnFilters = useCallback(
+    (next: ColumnFiltersState) => {
+      if (server) server.onNarrowingChange({ columnFilters: next, tags: server.narrowing.tags });
+      else setClientColumnFilters(next);
+    },
+    [server],
+  );
+
+  // TanStack hands either a value or an updater fn; resolve it against what is
+  // on screen before it reaches the (possibly lifted) setter above.
+  const handleTableColumnFiltersChange = useCallback<OnChangeFn<ColumnFiltersState>>(
+    updaterOrValue => {
+      setColumnFilters(typeof updaterOrValue === 'function' ? updaterOrValue(columnFilters) : updaterOrValue);
+    },
+    [columnFilters, setColumnFilters],
+  );
+
+  const setSelectedTags = useCallback(
+    (next: string[]) => {
+      if (server) server.onNarrowingChange({ columnFilters: server.narrowing.columnFilters, tags: next });
+      else setClientTags(next);
+    },
+    [server],
+  );
+
+  const clientToggleDevice = useCallback(
     (device: Device) => {
       if (disabled) return;
       if (isDeviceDisabled?.(device)) return;
@@ -122,10 +180,27 @@ export function DeviceSelector({
     [disabled, isDeviceDisabled, getDeviceKey, onSelectionChange, singleSelect],
   );
 
+  // Server mode has no selection set to flip — the row action states what to DO
+  // (add here, remove there), and the tab decides which.
+  const toggleDevice = useCallback(
+    (device: Device) => {
+      if (!server) return clientToggleDevice(device);
+      if (disabled) return;
+      if (isDeviceDisabled?.(device)) return;
+      if (server.activeTab === 'selected') server.onRemove(device);
+      else server.onAdd(device);
+    },
+    [server, clientToggleDevice, disabled, isDeviceDisabled],
+  );
+
   const addAllDevices = useCallback(() => {
     if (disabled) return;
+    if (server) {
+      server.onAddAll();
+      return;
+    }
     const base = addAllBehavior === 'replace' ? new Set<string>() : new Set(selectedIds);
-    for (const d of filteredDevices) {
+    for (const d of client.filteredDevices) {
       if (isDeviceDisabled?.(d)) continue;
       const key = getDeviceKey(d);
       if (key !== undefined) {
@@ -133,12 +208,25 @@ export function DeviceSelector({
       }
     }
     onSelectionChange(base);
-  }, [disabled, isDeviceDisabled, addAllBehavior, selectedIds, filteredDevices, getDeviceKey, onSelectionChange]);
+  }, [
+    disabled,
+    server,
+    isDeviceDisabled,
+    addAllBehavior,
+    selectedIds,
+    client.filteredDevices,
+    getDeviceKey,
+    onSelectionChange,
+  ]);
 
   const removeAllSelected = useCallback(() => {
     if (disabled) return;
+    if (server) {
+      server.onRemoveAll();
+      return;
+    }
     onSelectionChange(new Set());
-  }, [disabled, onSelectionChange]);
+  }, [disabled, server, onSelectionChange]);
 
   // Filter options are derived client-side from the `devices` prop. We don't
   // hit the backend here — DeviceSelector is given a pre-fetched list, so the
@@ -178,9 +266,14 @@ export function DeviceSelector({
 
   // Apply column filters + tag filters client-side on top of the search/tab-filtered list.
   // singleSelect mode skips the tab split and shows all matching devices.
-  const baseDevices = singleSelect ? filteredDevices : displayDevices;
+  // In server mode there is nothing to apply: `devices` is already the answer
+  // to this tab, this search and these filters.
+  // Criteria mode is the same deal as server mode: `devices` is already the
+  // answer — here, the set the rule resolves to.
+  const passThrough = !!server || isCriteria;
+  const baseDevices = passThrough ? devices : singleSelect ? client.filteredDevices : client.displayDevices;
   const devicesForTable = useMemo(() => {
-    if (columnFilters.length === 0 && selectedTagValues.length === 0) return baseDevices;
+    if (passThrough || (columnFilters.length === 0 && selectedTagValues.length === 0)) return baseDevices;
     return baseDevices.filter(d => {
       for (const f of columnFilters) {
         const values = f.value as string[];
@@ -201,7 +294,7 @@ export function DeviceSelector({
       }
       return true;
     });
-  }, [baseDevices, columnFilters, selectedTagValues]);
+  }, [passThrough, baseDevices, columnFilters, selectedTagValues]);
 
   // Client-side `DeviceFilters`-shaped object — built from the prop list so
   // `useTagFilterModal` and `getDeviceFilterColumns` can drive the FilterModal
@@ -243,18 +336,25 @@ export function DeviceSelector({
     };
   }, [devices]);
 
-  const filterColumns = useMemo(() => getDeviceFilterColumns(clientDeviceFilters), [clientDeviceFilters]);
+  // Counting the rows on screen only describes the page the client happens to
+  // hold; when the server is paging, it supplies the real facets instead.
+  const deviceFilters = server?.filterOptions ?? clientDeviceFilters;
+
+  const filterColumns = useMemo(() => getDeviceFilterColumns(deviceFilters), [deviceFilters]);
 
   // Adapter: useTagFilterModal expects a single `setParams({ statuses, osTypes, organizationIds, tags })`
   // call. We split it back into our local state.
-  const handleSetParams = useCallback((params: Record<string, any>) => {
-    setColumnFilters([
-      ...(params.statuses?.length ? [{ id: 'status', value: params.statuses }] : []),
-      ...(params.osTypes?.length ? [{ id: 'os', value: params.osTypes }] : []),
-      ...(params.organizationIds?.length ? [{ id: 'organization', value: params.organizationIds }] : []),
-    ]);
-    setSelectedTags(params.tags ?? []);
-  }, []);
+  const handleSetParams = useCallback(
+    (params: Record<string, any>) => {
+      setColumnFilters([
+        ...(params.statuses?.length ? [{ id: 'status', value: params.statuses }] : []),
+        ...(params.osTypes?.length ? [{ id: 'os', value: params.osTypes }] : []),
+        ...(params.organizationIds?.length ? [{ id: 'organization', value: params.organizationIds }] : []),
+      ]);
+      setSelectedTags(params.tags ?? []);
+    },
+    [setColumnFilters, setSelectedTags],
+  );
 
   const {
     isOpen: tagsModalOpen,
@@ -267,7 +367,7 @@ export function DeviceSelector({
     handleTagsChange: handleModalTagsChange,
   } = useTagFilterModal({
     tags: selectedTags,
-    deviceFilters: clientDeviceFilters,
+    deviceFilters,
     columns: filterColumns,
     setParams: handleSetParams,
   });
@@ -284,23 +384,26 @@ export function DeviceSelector({
     [columnFilters],
   );
 
-  const handleTagRemove = useCallback((value: string) => {
-    setSelectedTags(prev => prev.filter(t => t !== value));
-  }, []);
+  const handleTagRemove = useCallback(
+    (value: string) => {
+      setSelectedTags(selectedTags.filter(t => t !== value));
+    },
+    [selectedTags, setSelectedTags],
+  );
 
   const handleClearAll = useCallback(() => {
     setSearchTerm('');
     setSelectedTags([]);
-  }, [setSearchTerm]);
+  }, [setSearchTerm, setSelectedTags]);
 
   const handleTagSubmit = useCallback(
     (value: string) => {
       const trimmed = value.trim();
       if (!trimmed) return;
-      setSelectedTags(prev => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+      if (!selectedTags.includes(trimmed)) setSelectedTags([...selectedTags, trimmed]);
       setSearchTerm('');
     },
-    [setSearchTerm],
+    [selectedTags, setSelectedTags, setSearchTerm],
   );
 
   const columns = useMemo<ColumnDef<Device>[]>(
@@ -315,8 +418,8 @@ export function DeviceSelector({
           return (
             <div className="flex items-center gap-3 h-20">
               <div className="flex h-8 w-8 items-center justify-center shrink-0 rounded-[6px] border border-ods-border">
-                {renderDeviceTypeIcon(device.type, 'w-5 h-5 text-ods-text-secondary') ?? (
-                  <MonitorIcon className="w-5 h-5 text-ods-text-secondary" />
+                {renderDeviceTypeIcon(device.type, 'w-4 h-4 text-ods-text-secondary') ?? (
+                  <MonitorIcon className="w-4 h-4 text-ods-text-secondary" />
                 )}
               </div>
               <div className="flex flex-col truncate">
@@ -343,17 +446,28 @@ export function DeviceSelector({
           const device = row.original;
           const fullImageUrl = getFullImageUrl(device.organizationImageUrl, device.organizationImageHash);
           return (
-            <div className="flex items-center gap-3">
-              <EntityImage src={fullImageUrl} alt={device.organization || 'Customer'} className="size-12 md:size-12" />
-              <span className="text-h4 text-ods-text-primary truncate" title={device.organization || ''}>
-                {device.organization || ''}
-              </span>
+            <div className="flex items-center gap-3 min-w-0">
+              <EntityImage
+                src={fullImageUrl}
+                alt={device.organization || 'Customer'}
+                className="size-10 md:size-10 shrink-0"
+              />
+              <div className="flex min-w-0 flex-col justify-center">
+                <span className="text-h4 text-ods-text-primary truncate" title={device.organization || ''}>
+                  {device.organization || ''}
+                </span>
+                {device.organizationEmail && (
+                  <span className="text-h6 text-ods-text-secondary truncate" title={device.organizationEmail}>
+                    {device.organizationEmail}
+                  </span>
+                )}
+              </div>
             </div>
           );
         },
         enableSorting: false,
         meta: {
-          width: 'w-1/4',
+          width: 'w-[320px]',
           hideAt: 'lg',
           filter: orgFilterOptions.length > 0 ? { options: orgFilterOptions, placement: 'bottom-end' } : undefined,
         },
@@ -381,7 +495,7 @@ export function DeviceSelector({
         },
         enableSorting: false,
         meta: {
-          width: 'w-[90px]',
+          width: 'w-[160px]',
           filter: statusFilterOptions.length > 0 ? { options: statusFilterOptions } : undefined,
         },
       },
@@ -410,7 +524,10 @@ export function DeviceSelector({
 
           const key = getDeviceKey(device);
           if (key === undefined) return null;
-          const isSelected = selectedIds.has(key);
+          // Server mode holds a page of the assignment, not the assignment, so
+          // "already in?" is not a question this row can answer — it offers the
+          // action its tab implies and lets the idempotent mutation settle it.
+          const isSelected = !server && selectedIds.has(key);
 
           if (activeSubTab === 'selected') {
             return (
@@ -434,9 +551,14 @@ export function DeviceSelector({
                 size="icon"
                 onClick={() => toggleDevice(device)}
                 leftIcon={isSelected ? <CheckCircleIcon size={24} /> : <PlusCircleIcon size={24} />}
+                // Selected is a STATE, not an affordance: the yellow fill already
+                // says "this one is in", so it holds still under the cursor. The
+                // hover repeats on both bg and border because `variant="outline"`
+                // ships its own `hover:bg-ods-bg-hover` / `hover:border-ods-border-hover`
+                // — restating them at the same value is what neutralizes them.
                 className={
                   isSelected
-                    ? 'text-ods-accent border-ods-accent bg-ods-open-yellow-secondary hover:bg-[var(--ods-open-yellow-secondary-hover)]'
+                    ? 'text-ods-accent border-ods-accent hover:border-ods-accent bg-ods-open-yellow-secondary hover:bg-ods-open-yellow-secondary'
                     : 'text-ods-text-secondary hover:text-ods-text-primary'
                 }
                 disabled={disabled}
@@ -457,14 +579,17 @@ export function DeviceSelector({
       activeSubTab,
       toggleDevice,
       disabled,
+      server,
     ],
   );
 
   const visibleColumns = useMemo(() => {
-    if (!hideColumns?.length) return columns;
-    const hidden = new Set(hideColumns);
+    // Nothing on a criteria row is actionable — membership follows the rule, so
+    // an add/remove button there would promise an edit the mode cannot make.
+    const hidden = new Set([...(hideColumns ?? []), ...(isCriteria ? ['actions'] : [])]);
+    if (hidden.size === 0) return columns;
     return columns.filter(c => !c.id || !hidden.has(c.id));
-  }, [columns, hideColumns]);
+  }, [columns, hideColumns, isCriteria]);
 
   const table = useDataTable<Device>({
     data: devicesForTable,
@@ -472,8 +597,10 @@ export function DeviceSelector({
     getRowId: row => String(getDeviceKey(row) ?? row.id),
     enableSorting: false,
     state: { columnFilters },
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: handleTableColumnFiltersChange,
   });
+
+  const selectedCount = server ? server.selectedCount : selectedIds.size;
 
   // Per-row className whose value differs by selection state. DataTableRow is
   // React.memo'd on `className`, so only rows whose selection actually flipped
@@ -499,116 +626,148 @@ export function DeviceSelector({
       },
       {
         id: 'selected',
-        label: singleSelect ? `Selected Device (${selectedIds.size})` : `Selected Devices (${selectedIds.size})`,
+        // Server mode counts the whole assignment, not the page in hand.
+        label: singleSelect ? `Selected Device (${selectedCount})` : `Selected Devices (${selectedCount})`,
         icon: CheckCircleIcon,
         component: () => null,
       },
     ],
-    [selectedIds.size, singleSelect],
+    [selectedCount, singleSelect],
   );
 
   const availableInfiniteScroll = activeSubTab === 'available' ? infiniteScroll : undefined;
 
+  // Column headers over nothing are just noise — drop them when the list is
+  // empty. Except when the emptiness is the RESULT of narrowing (search, tag
+  // chips, column funnels): the funnels live in that header, so tearing it down
+  // would strip the only way to undo the filter that emptied the table. While
+  // loading, the skeleton rows are the content the header belongs to.
+  // The design (460:71435) puts the bulk action where a table normally shows its
+  // row count — the right end of the column header — instead of on a line of its
+  // own above the table. Null in single-select mode, and on the Selected tab
+  // until there is something to remove; the row count takes the slot back then.
+  const bulkAction =
+    singleSelect || isCriteria ? null : activeSubTab === 'available' ? (
+      <button
+        type="button"
+        onClick={addAllDevices}
+        disabled={disabled}
+        className="text-h6 underline text-ods-accent hover:text-ods-accent-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Add All Devices
+      </button>
+    ) : selectedCount > 0 ? (
+      <button
+        type="button"
+        onClick={removeAllSelected}
+        disabled={disabled}
+        className="text-h6 underline text-ods-error hover:text-ods-error-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Remove {server ? (server.totalCount ?? devicesForTable.length) : selectedIds.size} Devices
+      </button>
+    ) : null;
+
+  const hasActiveFilter = columnFilters.length > 0 || selectedTags.length > 0 || searchTerm.trim().length > 0;
+  // In criteria mode the header's row count is the readout of the rule ("42
+  // devices"), so it stays even at zero — that IS the answer the user is after.
+  const showHeader = isCriteria || loading || devicesForTable.length > 0 || hasActiveFilter;
+
+  const deviceTable = (
+    <DataTable table={table}>
+      {showHeader && (
+        <DataTable.Header
+          rightSlot={
+            bulkAction ?? <DataTable.RowCount itemName="device" totalCount={totalCount ?? server?.totalCount} />
+          }
+        />
+      )}
+      <DataTable.Body
+        loading={loading}
+        skeletonRows={8}
+        emptyMessage={
+          isCriteria
+            ? 'No devices match these criteria'
+            : activeSubTab === 'selected'
+              ? 'No devices selected'
+              : 'No devices found'
+        }
+        rowClassName={rowClassName}
+      />
+      {availableInfiniteScroll && (
+        <DataTable.InfiniteFooter
+          hasNextPage={availableInfiniteScroll.hasNextPage}
+          isFetchingNextPage={availableInfiniteScroll.isFetchingNextPage}
+          onLoadMore={availableInfiniteScroll.onLoadMore}
+          skeletonRows={availableInfiniteScroll.skeletonRows}
+        />
+      )}
+    </DataTable>
+  );
+
   return (
-    <div className="flex flex-col gap-4">
+    // The page-level stack (info bar → mode picker → the picker card) uses
+    // `--spacing-system-l`, the token every other stacked page surface in the app
+    // separates its blocks with (16px mobile / 24px desktop).
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
       {headerContent}
 
       {showSelectionModeRadio && (
-        <div className="flex flex-col gap-3">
-          <label className="flex items-start gap-3 p-4 bg-ods-card border border-ods-accent rounded-[6px] cursor-pointer">
-            <input
-              type="radio"
-              name="selectionMode"
-              value="specific"
-              defaultChecked
-              disabled={disabled}
-              className="mt-1 accent-ods-accent"
+        <DeviceSelectionModeRadio value={selectionMode} onChange={onSelectionModeChange} disabled={disabled} />
+      )}
+
+      {/* Criteria mode (design 460:85294) has no card at all: the rule's fields
+          and the table it previews sit straight on the page, in the same 24px
+          stack as everything above them. There is nothing to frame — no tab
+          strip to seat, and no search row to inset with it. */}
+      {isCriteria ? (
+        <>
+          {criteriaContent}
+          {deviceTable}
+        </>
+      ) : (
+        /* Design 460:71435 frames the picker as ONE bordered card: the tab strip
+           sits flush against the top edge with its own underline doubling as the
+           divider, and the search row and table are inset below it.
+           Deliberately NOT `overflow-clip` (which the Figma export puts here to
+           round the tab strip's corners): the column-filter dropdowns are
+           absolutely positioned INSIDE this box rather than portaled, so clipping
+           it would cut them off whenever the table is short. The tab strip clips
+           its own corners instead — it is the only child that reaches the radius. */
+        <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-bg">
+          {!singleSelect && (
+            <TabNavigation
+              tabs={assignTabs}
+              activeTab={activeSubTab}
+              onTabChange={handleTabChange}
+              className="rounded-t-[6px] overflow-clip"
             />
-            <div className="flex flex-col">
-              <span className="text-h4 text-ods-text-primary">Select Specific Devices</span>
-              <span className="text-h6 text-ods-text-secondary">
-                Choose individual devices to include in this selection
-              </span>
-            </div>
-          </label>
-          <label className="flex items-start gap-3 p-4 bg-ods-card border border-ods-border rounded-[6px] opacity-50 cursor-not-allowed">
-            <input type="radio" name="selectionMode" value="criteria" disabled className="mt-1" />
-            <div className="flex flex-col flex-1">
-              <span className="text-h4 text-ods-text-primary">Select Devices by Criteria</span>
-              <span className="text-h6 text-ods-text-secondary">
-                Automatically include all devices (current and future) that match your defined criteria
-              </span>
-            </div>
-            <span className="text-h5 px-3 py-1 bg-ods-card border border-ods-border rounded-[4px] text-ods-text-secondary">
-              Coming Soon
-            </span>
-          </label>
+          )}
+
+          <div className="flex flex-col gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]">
+            <DevicesFilterToolbar
+              sticky={false}
+              searchValue={searchTerm}
+              onSearchChange={setSearchTerm}
+              tags={tagOptions}
+              onTagRemove={handleTagRemove}
+              onClearAll={handleClearAll}
+              onSubmit={handleTagSubmit}
+              isMdUp={isMdUp}
+              onOpenFilterModal={openTagsModal}
+              isFilterModalOpen={tagsModalOpen}
+              onCloseFilterModal={closeTagsModal}
+              filterGroups={filterGroups}
+              onFilterChange={handleModalFilterChange}
+              currentFilters={!isMdUp ? tableFilters : undefined}
+              tagFilterKeys={tagFilterKeys}
+              selectedTags={selectedTags}
+              onTagsChange={handleModalTagsChange}
+            />
+
+            {deviceTable}
+          </div>
         </div>
       )}
-
-      {!singleSelect && <TabNavigation tabs={assignTabs} activeTab={activeSubTab} onTabChange={handleTabChange} />}
-
-      <DevicesFilterToolbar
-        sticky={false}
-        searchValue={searchTerm}
-        onSearchChange={setSearchTerm}
-        tags={tagOptions}
-        onTagRemove={handleTagRemove}
-        onClearAll={handleClearAll}
-        onSubmit={handleTagSubmit}
-        isMdUp={isMdUp}
-        onOpenFilterModal={openTagsModal}
-        isFilterModalOpen={tagsModalOpen}
-        onCloseFilterModal={closeTagsModal}
-        filterGroups={filterGroups}
-        onFilterChange={handleModalFilterChange}
-        currentFilters={!isMdUp ? tableFilters : undefined}
-        tagFilterKeys={tagFilterKeys}
-        selectedTags={selectedTags}
-        onTagsChange={handleModalTagsChange}
-      />
-
-      {!singleSelect && (
-        <div className="flex justify-end -mb-2">
-          {activeSubTab === 'available' ? (
-            <button
-              type="button"
-              onClick={addAllDevices}
-              disabled={disabled}
-              className="text-h6 underline text-ods-accent hover:text-ods-accent-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Add All Devices
-            </button>
-          ) : selectedIds.size > 0 ? (
-            <button
-              type="button"
-              onClick={removeAllSelected}
-              disabled={disabled}
-              className="text-h6 underline text-ods-error hover:text-ods-error-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Remove {selectedIds.size} Devices
-            </button>
-          ) : null}
-        </div>
-      )}
-
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="device" />} />
-        <DataTable.Body
-          loading={loading}
-          skeletonRows={8}
-          emptyMessage={activeSubTab === 'selected' ? 'No devices selected' : 'No devices found'}
-          rowClassName={rowClassName}
-        />
-        {availableInfiniteScroll && (
-          <DataTable.InfiniteFooter
-            hasNextPage={availableInfiniteScroll.hasNextPage}
-            isFetchingNextPage={availableInfiniteScroll.isFetchingNextPage}
-            onLoadMore={availableInfiniteScroll.onLoadMore}
-            skeletonRows={availableInfiniteScroll.skeletonRows}
-          />
-        )}
-      </DataTable>
     </div>
   );
 }

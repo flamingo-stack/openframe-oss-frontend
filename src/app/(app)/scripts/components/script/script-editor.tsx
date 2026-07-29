@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { Monaco } from '@monaco-editor/react';
 import dynamic from 'next/dynamic';
 import { useCallback, useRef } from 'react';
@@ -118,6 +119,12 @@ interface ScriptEditorProps {
   height?: string;
   /** Render an error border (e.g. when the bound form field is invalid). */
   invalid?: boolean;
+  /**
+   * Merged into the framing wrapper. For editors embedded in a surface that
+   * already draws its own edges — pass `rounded-none border-0` to drop the
+   * standalone card look.
+   */
+  className?: string;
 }
 
 export function ScriptEditor({
@@ -127,6 +134,7 @@ export function ScriptEditor({
   readOnly = false,
   height = '400px',
   invalid = false,
+  className,
 }: ScriptEditorProps) {
   const editorRef = useRef<ReturnType<Monaco['editor']['create']> | null>(null);
 
@@ -148,7 +156,9 @@ export function ScriptEditor({
   );
 
   return (
-    <div className={`rounded-md border overflow-hidden ${invalid ? 'border-ods-error' : 'border-ods-border'}`}>
+    <div
+      className={cn('rounded-md border overflow-hidden', invalid ? 'border-ods-error' : 'border-ods-border', className)}
+    >
       <Editor
         height={height}
         language={language}
