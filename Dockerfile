@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/app/dist/cache \
       rm -rf dist/standalone/node_modules/@img dist/standalone/node_modules/sharp; \
     fi
 
-FROM --platform=$TARGETPLATFORM node:22-alpine3.24 AS runner
+FROM node:22-alpine3.24 AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
