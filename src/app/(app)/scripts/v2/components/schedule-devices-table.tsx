@@ -215,6 +215,12 @@ export function ScheduleDevicesTable({ devices, loading, totalCount, infiniteScr
       <DevicesTableBody
         devices={rows}
         isLoading={loading}
+        // "No devices assigned to this schedule yet" is the whole content of an
+        // unassigned tab; a row of column labels above it explains nothing. It
+        // stays while loading — the skeleton rows are what it labels — and
+        // whenever a search, tag chip or column funnel is what emptied the list,
+        // since the funnels live in that header.
+        showHeader={loading || rows.length > 0 || hasActiveFilters}
         emptyMessage={
           hasActiveFilters
             ? 'No devices found. Try adjusting your search or filters.'

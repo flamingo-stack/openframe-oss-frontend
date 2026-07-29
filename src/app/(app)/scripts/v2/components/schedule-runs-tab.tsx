@@ -52,9 +52,11 @@ import {
 const PAGE_SIZE = 20;
 
 /**
- * The status facet has no server-side counterpart for runs (there is no
- * `scheduleRunFilters` field), so the options are the `ScriptExecutionStatus`
- * enum itself — the same three states a run aggregates to.
+ * Fallback status options: the `ScriptExecutionStatus` enum itself, used until
+ * `scheduleRunFilters` answers. The server facet is the real source — it lists
+ * only the states this schedule's runs actually reached — but it arrives with
+ * the rows, and a funnel that is empty on first paint reads as "no filters
+ * available" rather than "not loaded yet".
  */
 const RUN_STATUS_OPTIONS = Object.values(ScriptExecutionStatus).map(value => ({
   id: value,
@@ -121,6 +123,18 @@ function ScheduleRunsContent({
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<RunsPaginationQueryType, RunsFragmentKey>(
     scheduleRunsRelayFragment,
     queryData,
+  );
+
+  // Server facet, scoped to the same filter/search the rows came back with —
+  // so the dropdown offers the states these runs actually reached instead of
+  // every state the enum can name. Falls back to the enum until it answers.
+  const statusFacet = queryData.scheduleRunFilters?.statuses;
+  const statusOptions = useMemo(
+    () =>
+      statusFacet && statusFacet.length > 0
+        ? statusFacet.map(s => ({ id: s.value, label: executionStatusLabel(s.value), value: s.value }))
+        : RUN_STATUS_OPTIONS,
+    [statusFacet],
   );
 
   const runs: UiRun[] = useMemo(() => {
@@ -215,7 +229,7 @@ function ScheduleRunsContent({
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px]', filter: { options: RUN_STATUS_OPTIONS } },
+        meta: { width: 'w-[120px]', filter: { options: statusOptions } },
       },
       {
         accessorKey: 'responded',
@@ -324,10 +338,13 @@ function ScheduleRunsContent({
         meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
       },
     ],
-    [renderRowActions, router, runDetailsHref],
+    [renderRowActions, router, runDetailsHref, statusOptions],
   );
 
-  const filterGroups = useMemo(() => [{ id: 'status', title: 'Status', options: RUN_STATUS_OPTIONS }], []);
+  // The SAME options the desktop column funnel gets — the server facet, not the
+  // whole enum. Built from `statusOptions` so the mobile modal cannot offer a
+  // status these runs never reached while the desktop dropdown hides it.
+  const filterGroups = useMemo(() => [{ id: 'status', title: 'Status', options: statusOptions }], [statusOptions]);
 
   const columnFilters = useMemo(
     () =>

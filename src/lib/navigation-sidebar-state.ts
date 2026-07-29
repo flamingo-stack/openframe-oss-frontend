@@ -20,6 +20,25 @@ export const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
 export const SIDEBAR_WIDTH_CSS_VAR = '--of-sidebar-skeleton-width';
 
 /**
+ * The REAL sidebar's root element. It carries an `aria-label` the (aria-hidden)
+ * skeleton sidebar deliberately does not, so this selector can never match the
+ * placeholder. Used by viewport-`fixed` overlays that have to clear the sidebar
+ * but can't read its width any other way — the core `NavigationSidebar` keeps
+ * its collapse state module-internal, and the `useLocalStorage` it persists
+ * through emits no in-tab event, so a second reader of that key never learns
+ * about a toggle.
+ */
+export const SIDEBAR_ELEMENT_SELECTOR = 'aside[aria-label="Main navigation sidebar"]';
+
+/**
+ * LIVE sidebar width, mirrored from the element above into a CSS variable by
+ * whoever needs it (see `useSidebarWidthVar` in `walkthrough-video.tsx`).
+ * Distinct from {@link SIDEBAR_WIDTH_CSS_VAR}, which is a pre-paint SEED for the
+ * skeleton and goes stale the moment the user toggles the real sidebar.
+ */
+export const SIDEBAR_LIVE_WIDTH_CSS_VAR = '--of-sidebar-live-width';
+
+/**
  * Assembled through a tagged template so the value is built at runtime. A plain
  * concatenation or constant template literal gets constant-folded by Turbopack's
  * SWC minifier, which mis-folds this particular string and silently drops the
