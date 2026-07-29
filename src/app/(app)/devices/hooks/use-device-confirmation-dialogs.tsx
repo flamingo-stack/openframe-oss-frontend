@@ -119,7 +119,6 @@ export function useDeviceConfirmationDialogs(
           </>
         }
         confirmLabel="Reboot Device"
-        pendingLabel="Rebooting..."
         variant="warning"
         isPending={isRebooting}
         onConfirm={handleReboot}
