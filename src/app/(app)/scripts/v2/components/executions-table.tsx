@@ -517,6 +517,16 @@ export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?
         enableSorting: false,
         meta: { width: 'flex-1 min-w-0', hideAt: 'xl' },
       },
+      // The loaded table ends in two 48px action columns. They carry no header
+      // text, but they do carry width — leaving them out of the skeleton meant
+      // the `flex-1` columns were laid out across ~128px more than they would
+      // get, and every label jumped left the moment the rows arrived.
+      { id: 'actions', enableSorting: false, meta: { width: 'w-12 shrink-0 flex-none', align: 'right' } },
+      {
+        id: 'open',
+        enableSorting: false,
+        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+      },
     ],
     [],
   );
