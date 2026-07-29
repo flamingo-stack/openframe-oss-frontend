@@ -10,9 +10,15 @@ import { graphql } from 'react-relay';
  * `respondedMachineCount / totalMachineCount` backs the progress ratio
  * (responded = devices we have processed at least one result from).
  *
- * Unlike the executions pair there is no server facets field — the only filter
- * is `statuses`, whose options are the `ScriptExecutionStatus` enum, so the
- * dropdown is built client-side from the generated enum.
+ * `scheduleRunFilters` rides along in the same operation, the way
+ * `scheduleExecutionFilters` does for the executions pair: one round-trip per
+ * interaction, and the counts describe the same scope the rows were fetched
+ * with because both take the same `filter`/`search`.
+ *
+ * Only `statuses` is wired to a funnel. `initiators` comes back too, but
+ * `ScheduleRunFilterInput` has no field to apply it — see §11 of
+ * docs/script-schedules-v2-graphql-gaps.md — so selecting from it could not
+ * narrow anything, and it is not offered.
  */
 export const scheduleRunsRelayQuery = graphql`
   query scheduleRunsRelayQuery(
@@ -22,6 +28,13 @@ export const scheduleRunsRelayQuery = graphql`
     $first: Int!
     $after: String
   ) {
+    scheduleRunFilters(scheduleId: $scheduleId, filter: $filter, search: $search) {
+      statuses {
+        value
+        label
+        count
+      }
+    }
     ...scheduleRunsRelay_query
       @arguments(scheduleId: $scheduleId, filter: $filter, search: $search, first: $first, after: $after)
   }

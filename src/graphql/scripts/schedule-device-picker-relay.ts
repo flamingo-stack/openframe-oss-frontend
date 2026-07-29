@@ -3,21 +3,23 @@ import { graphql } from 'react-relay';
 /**
  * The "Available Devices" half of the schedule device picker.
  *
- * `availableDevicesForSchedule` is already scoped to the schedule's
- * `supportedPlatforms` server-side, so a platform-mismatched device is never
- * offered — the old page pulled the generic `devices` list and narrowed it in
- * the browser, which only worked for as long as the whole fleet fit in the one
- * page it fetched.
+ * `availableDevices` hangs off the schedule rather than the root — it is the
+ * schedule that scopes it, to that schedule's `supportedPlatforms`, so a
+ * platform-mismatched device is never offered. The old page pulled the generic
+ * `devices` list and narrowed it in the browser, which only worked for as long
+ * as the whole fleet fit in the one page it fetched.
  *
  * Search, filters and paging all live on the server, so what the user sees IS
  * the full candidate set rather than the first page of it. That is what makes
  * "Add All Devices" honest: the same `filter`/`search` go to
  * `addAllDevicesToSchedule`, which resolves the set itself.
  *
- * Open question the UI is deliberately robust to: the field's contract does not
- * say whether it EXCLUDES already-assigned devices. Every row therefore offers
- * "add" unconditionally, and `addDevicesToSchedule` is documented idempotent —
- * so re-adding an assigned device is a no-op either way.
+ * `assigned` is selected on the EDGE, not the node — it is a fact about this
+ * device's relationship to THIS schedule, not about the machine, and the
+ * connection type (`AvailableDeviceConnection`) exists to carry it. It settles
+ * what the old contract left open: the list does NOT exclude devices that are
+ * already assigned, it marks them, so the picker pre-checks those rows instead
+ * of offering to add what is already in.
  */
 export const scheduleDevicePickerRelayQuery = graphql`
   query scheduleDevicePickerRelayQuery(
@@ -27,30 +29,28 @@ export const scheduleDevicePickerRelayQuery = graphql`
     $first: Int!
     $after: String
   ) {
-    ...scheduleDevicePickerRelay_query
-      @arguments(scheduleId: $scheduleId, filter: $filter, search: $search, first: $first, after: $after)
+    scriptSchedule(id: $scheduleId) {
+      id
+      ...scheduleDevicePickerRelay_available
+        @arguments(filter: $filter, search: $search, first: $first, after: $after)
+    }
   }
 `;
 
 export const scheduleDevicePickerRelayFragment = graphql`
-  fragment scheduleDevicePickerRelay_query on Query
+  fragment scheduleDevicePickerRelay_available on ScriptSchedule
     @refetchable(queryName: "scheduleDevicePickerRelayPaginationQuery")
     @argumentDefinitions(
-      scheduleId: { type: "ID!" }
       filter: { type: "DeviceFilterInput" }
       search: { type: "String" }
       first: { type: "Int", defaultValue: 20 }
       after: { type: "String" }
     ) {
-    availableDevicesForSchedule(
-      scheduleId: $scheduleId
-      filter: $filter
-      search: $search
-      first: $first
-      after: $after
-    ) @connection(key: "scheduleDevicePickerRelay_availableDevicesForSchedule") {
+    availableDevices(filter: $filter, search: $search, first: $first, after: $after)
+      @connection(key: "scheduleDevicePickerRelay_availableDevices") {
       filteredCount
       edges {
+        assigned
         node {
           id
           machineId

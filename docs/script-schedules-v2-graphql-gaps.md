@@ -85,21 +85,23 @@ Incremental, and server-resolved in bulk:
   `removeAllDevicesFromSchedule(...)` — the set is resolved on the server from
   the same narrowing the list shows, so "all" means all rather than "all the
   ones paged in".
-- `availableDevicesForSchedule(scheduleId, ...)` — the candidate list, already
-  scoped to the schedule's `supportedPlatforms`.
+- `ScriptSchedule.availableDevices(...)` — the candidate list, already scoped to
+  the schedule's `supportedPlatforms`.
 
 This replaced `setScriptScheduleDevices`, whose replace-all shape meant the
 editor had to hold the entire assignment or delete the part it never read.
 Frontend: `schedule-devices-view.tsx` + `DeviceSelector`'s `server` contract.
 
-Undocumented in the schema and worth confirming: **does
-`availableDevicesForSchedule` exclude already-assigned devices?** The picker is
-written not to care (every row offers add; the mutation is idempotent), but the
-answer decides two things: whether the Available tab should hide what is already
-assigned, and — since §7's criteria preview reads the same field — whether that
-preview shows "devices the rule targets" or only "devices the rule would add".
-The second matters more: on a schedule that is ALREADY on a criteria rule, an
-excluding resolver would make the preview read empty while re-editing it.
+**Answered by the 2026-07-29 schema refresh.** The old root-level
+`availableDevicesForSchedule(scheduleId:)` is gone, replaced by
+`ScriptSchedule.availableDevices` returning an `AvailableDeviceConnection` whose
+edges carry `assigned: Boolean!`. So the list does NOT exclude already-assigned
+devices — it marks them. Two consequences, both now implemented:
+
+- The Available tab pre-checks assigned rows instead of offering to add what is
+  already in, and clicking a checked row removes it.
+- §7's criteria preview reads "devices the rule targets", not "devices the rule
+  would add" — so re-editing an existing rule no longer risks an empty preview.
 
 ## 7. Criteria targeting — **DELIVERED**
 
@@ -131,10 +133,11 @@ free-term field.
 Three notes on how the rest is wired, each a consequence of the schema:
 
 - **The preview is the server's own answer.** `ScheduleDeviceCriteriaInput` is a
-  strict subset of `DeviceFilterInput`, so the draft rule goes to
-  `availableDevicesForSchedule` as its `filter` and the matching devices come
-  back already scoped to `supportedPlatforms`. Nothing client-side re-implements
-  the matching. (Subject to §6's open question, above.)
+  strict subset of `DeviceFilterInput`, so the draft rule goes to the schedule's
+  `availableDevices` as its `filter` and the matching devices come back already
+  scoped to `supportedPlatforms`. Nothing client-side re-implements the matching,
+  and since that field marks assigned devices rather than withholding them (§6),
+  the count is what the rule targets.
 - **Device types come from the schema, customers and OS from facets.** A rule is
   forward-looking, so offering only the device types some machine currently has
   would make "all servers" unwritable before the first server is enrolled; the
@@ -222,3 +225,21 @@ verified against QA — the token supplied for the schema refresh has expired.
 The clean fix is a `setScheduleDeviceSelectionMode(scheduleId, mode)` mutation
 (or `selectionMode` on the update input), after which the picker can commit the
 switch the way it commits everything else.
+
+## 11. `scheduleRunFilters.initiators` has no matching filter input — **OPEN**
+
+The 2026-07-29 refresh added `scheduleRunFilters(scheduleId, filter, search)`,
+which returns `statuses`, `initiators` and `filteredCount`. `statuses` is wired
+to the Status funnel on the Schedule Runs tab, and it is a real improvement over
+the enum it replaced: it lists only the states this schedule's runs actually
+reached, with live counts.
+
+`initiators` cannot be used. `ScheduleRunFilterInput` is
+`{ statuses, dispatchedAtFrom, dispatchedAtTo }` — there is no `initiatorIds`
+(or equivalent) to send the selection back in, so an "Executed by" funnel built
+from this facet could show options that narrow nothing. The column therefore
+still has no filter, and the query does not select the facet.
+
+The fix is one field on the input: `initiatorIds: [ID!]`, matching
+`ScriptExecutionFilterInput`, which already has it. The column's `accessorKey`
+is already `initiatorId` for exactly this.

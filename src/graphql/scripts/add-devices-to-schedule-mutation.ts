@@ -15,11 +15,19 @@ import { graphql } from 'react-relay';
  * The payloads read back `id` and `deviceCount`. The count is the number the
  * picker's tab label and the schedule's DEVICES column show, and it is keyed by
  * `id`, so Relay writes it into the normalized store and both update themselves
- * without anyone refetching.
+ * without anyone refetching. That is also why the picker shows a click on the
+ * count through an `optimisticUpdater` over the same field rather than an offset
+ * of its own: this payload overwrites the field the moment it lands, so a
+ * separate offset would be counted a second time until it retired.
  *
- * The connections are NOT patched by an updater. Membership of either list
- * depends on filters and search the server evaluates, not the client, so the
- * honest refresh is to re-read the affected connection.
+ * The picker's two connections ARE patched by an updater rather than refetched
+ * (`assignmentUpdaters` in `schedule-devices-view.tsx`), which is safe for this
+ * pair precisely because it names its machines: the one row that moves is known,
+ * and it satisfies whatever narrowing is on screen — both lists are read with
+ * the same one, so a device visible in Available belongs in Selected too. The
+ * BULK siblings have no such guarantee. They take a filter the server resolves,
+ * so what is left in either list afterwards is not something the client can work
+ * out, and those re-read.
  */
 export const addDevicesToScheduleMutation = graphql`
   mutation addDevicesToScheduleMutation($scheduleId: ID!, $machineIds: [ID!]!) {

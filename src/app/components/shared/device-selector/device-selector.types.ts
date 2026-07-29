@@ -27,8 +27,9 @@ export interface DeviceSelectorNarrowing {
  *
  * The row action is add-or-remove by tab, not a toggle: with only a page of the
  * assignment in hand, "is this one selected?" is not a question the client can
- * answer — so Available always offers add (the mutation is idempotent) and
- * Selected always offers remove.
+ * answer. Selected always offers remove; on Available the row flips off
+ * `selectedIds`, which the parent fills from the connection's own per-row
+ * "already assigned" flag rather than from the page it holds.
  */
 export interface DeviceSelectorServer {
   activeTab: SubTab;
@@ -67,7 +68,13 @@ export interface DeviceSelectorProps {
   devices: Device[];
   /** Whether the device list is loading. */
   loading: boolean;
-  /** Set of currently selected device keys (string). Required unless `readOnly`. */
+  /**
+   * Currently selected device keys. Required unless `readOnly`.
+   *
+   * In `server` mode this is not the picker's own state — the parent fills it
+   * with the rows the backend reports as already assigned, so the Available tab
+   * pre-checks them instead of offering to add what is already in.
+   */
   selectedIds?: Set<string>;
   /** Called when selection changes. Required unless `readOnly`. */
   onSelectionChange?: (ids: Set<string>) => void;
