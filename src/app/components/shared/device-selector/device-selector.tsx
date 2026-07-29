@@ -475,32 +475,13 @@ export function DeviceSelector({
       {
         id: 'os',
         accessorKey: 'os',
-        header: 'DETAILS',
-        cell: ({ row }: { row: Row<Device> }) => {
-          const device = row.original;
-          // "Dell, Latitude 5420" in the design; either half can be missing on a
-          // device, and joining blindly would leave a dangling comma.
-          const hardware = [device.manufacturer, device.model].filter(Boolean).join(', ');
-          const serial = device.serialNumber || device.serial_number;
-          return (
-            <div className="flex min-w-0 flex-col justify-center">
-              <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-                <OSTypeBadge osType={device.osType} iconOnly iconSize="w-4 h-4 md:w-6 md:h-6" />
-                <span className="text-h4 text-ods-text-primary truncate" title={hardware || undefined}>
-                  {hardware || '—'}
-                </span>
-              </div>
-              {serial && (
-                <span className="text-h6 text-ods-text-secondary truncate" title={serial}>
-                  {serial}
-                </span>
-              )}
-            </div>
-          );
-        },
+        header: 'OS',
+        cell: ({ row }: { row: Row<Device> }) => (
+          <OSTypeBadge osType={row.original.osType} iconSize="w-4 h-4 md:w-6 md:h-6" />
+        ),
         enableSorting: false,
         meta: {
-          width: 'w-[240px]',
+          width: 'w-[200px] md:w-1/6',
           hideAt: 'md',
         },
       },
