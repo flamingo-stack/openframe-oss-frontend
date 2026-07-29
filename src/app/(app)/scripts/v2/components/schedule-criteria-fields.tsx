@@ -1,104 +1,39 @@
 'use client';
 
-import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import type { AutocompleteOption, InfoCardData } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
+  Autocomplete,
+  InfoCard,
   Input,
-  InputTrigger,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
+import { useDeviceOrganizations } from '@/app/(app)/devices/hooks/use-device-organizations';
 import type { DeviceFilters } from '@/app/(app)/devices/types/device.types';
-// Value import: the generated module exports the enum as both a const and a
-// type, so the full set of device types is enumerable here.
-import { DeviceType } from '@/generated/schema-enums';
-import { deduplicateFilterOptions } from '@/lib/filter-utils';
+import { OrgAvatar } from '@/app/components/shared';
 import type { ScheduleCriteria } from '../utils/schedule-criteria';
 
-interface CriteriaOption {
-  value: string;
-  label: string;
-}
-
-interface CriteriaSelectProps {
-  label: string;
-  /** Trigger text while the dimension is unconstrained — "All Customers" and friends. */
-  allLabel: string;
-  options: CriteriaOption[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-  disabled?: boolean;
-}
-
 /**
- * One dimension of the rule: a form-field-shaped trigger over a checkable list.
+ * "No constraint on this dimension" is an ANSWER, so both fields offer it as a
+ * real, pickable row rather than leaving it as the shape of an empty control —
+ * otherwise the only way back from a narrowed rule is to clear the field, which
+ * reads as erasing an answer rather than choosing one.
  *
- * Multi-select behind a control the design draws as a single select, because
- * the stored dimension IS a list — every `ScheduleDeviceCriteriaInput` field is
- * `[String!]`. The trigger reads as a VALUE, not a placeholder, when nothing is
- * picked: empty means "no constraint on this dimension", so "All Customers" is
- * an answer rather than the absence of one, and it renders in primary text
- * exactly as the design has it.
+ * It needs a stand-in value either way: the rule stores "unconstrained" as an
+ * empty list, and Radix `Select` reserves the empty string on top of that.
+ * Neither sentinel leaves this module — both map back to `[]` on the way out.
  */
-function CriteriaSelect({ label, allLabel, options, selected, onChange, disabled }: CriteriaSelectProps) {
-  // A value stored in the rule that no current device carries is absent from the
-  // options — keep it in the trigger rather than quietly hiding a constraint
-  // that is genuinely part of the rule.
-  const selectedLabel = useMemo(() => {
-    if (selected.length === 0) return allLabel;
-    const byValue = new Map(options.map(o => [o.value, o.label]));
-    return selected.map(v => byValue.get(v) ?? v).join(', ');
-  }, [selected, options, allLabel]);
-
-  const toggle = (value: string) =>
-    onChange(selected.includes(value) ? selected.filter(v => v !== value) : [...selected, value]);
-
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <Label className="text-h4">{label}</Label>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild disabled={disabled}>
-          <InputTrigger
-            selectedLabel={selectedLabel}
-            endIcon={<Chevron02DownIcon className="size-6" />}
-            disabled={disabled}
-          />
-        </DropdownMenuTrigger>
-        {/* Width matched to the trigger so the list lines up under the field,
-            and scrollable because the customer list is as long as the fleet. */}
-        <DropdownMenuContent
-          align="start"
-          className="max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
-        >
-          {options.length === 0 ? (
-            // Reachable while the facets query is still in flight, and for good
-            // on a fleet with nothing to offer on this dimension.
-            <div className="px-[var(--spacing-system-sf)] py-[var(--spacing-system-xsf)] text-h6 text-ods-text-tertiary">
-              No options available
-            </div>
-          ) : (
-            options.map(option => (
-              <DropdownMenuCheckboxItem
-                key={option.value}
-                checked={selected.includes(option.value)}
-                // One value is rarely the whole rule; without this the menu
-                // closes after every tick and the second pick costs a reopen.
-                onSelect={event => event.preventDefault()}
-                onCheckedChange={() => toggle(option.value)}
-              >
-                {option.label}
-              </DropdownMenuCheckboxItem>
-            ))
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
+const ALL_OS_TYPES = '__all_os_types__';
+const ALL_CUSTOMERS = '__all_customers__';
 
 /** `MOBILE_DEVICE` -> `Mobile Device`. The schema ships the enum unlabelled. */
 function humanizeDeviceType(value: string): string {
@@ -109,183 +44,225 @@ function humanizeDeviceType(value: string): string {
     .join(' ');
 }
 
-/**
- * Every `DeviceType`, not just the ones some device currently has.
- *
- * A criteria rule is forward-looking — "include devices that match, including
- * ones registered later" — so offering only the types present in the fleet
- * today would make exactly the future-proofing case unexpressible: you could
- * not write "all servers" before the first server is enrolled.
- */
-const DEVICE_TYPE_OPTIONS: CriteriaOption[] = Object.values(DeviceType).map(value => ({
-  value,
-  label: humanizeDeviceType(value),
-}));
-
 interface ScheduleCriteriaFieldsProps {
   criteria: ScheduleCriteria;
   onChange: (next: ScheduleCriteria) => void;
-  /** Facets over the WHOLE fleet — see the note on option scope below. */
+  /** Facets over the WHOLE fleet — the only source of OS values, see below. */
   deviceFilters: DeviceFilters | null | undefined;
   disabled?: boolean;
 }
 
 /**
- * The rule editor for "Select Devices by Criteria" (design 460:85294) — three
- * whitelists over customer, device type and OS, `AND`ed across dimensions.
+ * The rule editor for "Select Devices by Criteria" (design 460:85294) — a
+ * customer whitelist and an OS constraint, `AND`ed across dimensions.
  *
- * The design lays the fields out as a four-column row with the last column left
- * empty, so they keep a field's width instead of stretching to a third of the
- * page each; the grid reproduces that by simply not filling the fourth cell.
+ * The design lays the fields out as a four-column row, so they keep a field's
+ * width instead of stretching to half the page each; the grid reproduces that by
+ * simply not filling the remaining cells.
  *
- * **Options must not follow the current match.** `deviceFilters` is queried
- * unfiltered, not with the rule applied: options derived from what the rule
- * currently matches would shrink as the user narrows, so picking a second
- * customer would be impossible after picking the first.
+ * The customer field is the picker from `/devices/new` — same `Autocomplete`,
+ * same `OrgAvatar` rows — in its multi-select mode, since `organizationIds` is a
+ * list. It reads the full customer list rather than the device facets, so a
+ * customer with no devices yet can still be targeted: that is the whole point of
+ * a forward-looking rule, and facets can only ever offer customers that already
+ * own a machine.
  *
- * Two consequences of taking options from facets at all, both accepted:
+ * OS has no such source — `osType` is a free-form string with no enum to
+ * enumerate — so it keeps taking its options from `deviceFilters`, queried
+ * UNFILTERED. Options must not follow the current match: derived from what the
+ * rule already resolves to, the list would shrink as the user narrows.
  *
- * - The OS list can offer a platform this schedule does not support. Harmless —
- *   the backend intersects `osTypes` with the schedule's `supportedPlatforms`,
- *   and the preview under the fields shows that intersection, so an unsupported
- *   pick visibly matches nothing.
- * - The customer list only holds customers that own at least one device, so a
- *   brand-new customer cannot be pre-targeted. `osType` is a free-form string
- *   with no enum to enumerate, and customers have no cheap complete source
- *   here; device types do, so those come from the schema instead.
+ * The OS list can offer a platform this schedule does not support. Harmless —
+ * the backend intersects `osTypes` with the schedule's `supportedPlatforms`, and
+ * the preview under the fields shows that intersection, so an unsupported pick
+ * visibly matches nothing.
  */
 export function ScheduleCriteriaFields({ criteria, onChange, deviceFilters, disabled }: ScheduleCriteriaFieldsProps) {
-  const organizationOptions = useMemo<CriteriaOption[]>(
-    () =>
-      deduplicateFilterOptions(
-        (deviceFilters?.organizationIds ?? []).map(o => ({ id: o.value, label: o.label, value: o.value })),
-      ).map(o => ({ value: o.value, label: o.label })),
-    [deviceFilters],
+  const organizations = useDeviceOrganizations(100);
+
+  const orgOptions = useMemo<AutocompleteOption[]>(
+    () => [
+      { label: 'All Customers', value: ALL_CUSTOMERS },
+      ...organizations.map(o => ({ label: o.name, value: o.organizationId })),
+    ],
+    [organizations],
   );
 
-  const osOptions = useMemo<CriteriaOption[]>(
-    () => (deviceFilters?.osTypes ?? []).map(o => ({ value: o.value, label: o.value })),
-    [deviceFilters],
-  );
+  const osOptions = useMemo(() => (deviceFilters?.osTypes ?? []).map(o => o.value), [deviceFilters]);
+
+  const noCustomerConstraint = criteria.organizationIds.length === 0;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-4">
-        <CriteriaSelect
+        <Autocomplete
+          multiple
           label="Customer"
-          allLabel="All Customers"
-          options={organizationOptions}
-          selected={criteria.organizationIds}
-          onChange={next => onChange({ ...criteria, organizationIds: next })}
+          placeholder="All Customers"
+          // "All Customers" is the VALUE of an unconstrained dimension, not a
+          // prompt for one: an empty list means "every customer", which is an
+          // answer, and the design renders it in primary text like any other.
+          // The component's empty state is a placeholder, so it is recoloured
+          // for exactly the case where it stands in for a value. Once customers
+          // are picked the placeholder becomes the component's own "Add More…"
+          // prompt, which IS a prompt, and reads as one again.
+          className={noCustomerConstraint && !disabled ? '[&_input::placeholder]:text-ods-text-primary' : undefined}
+          options={orgOptions}
+          // The sentinel is a row, never a chip: as a selected value it would
+          // render a removable tag whose X could only reset it to itself.
+          value={criteria.organizationIds}
+          onChange={next =>
+            onChange({
+              ...criteria,
+              organizationIds: next.includes(ALL_CUSTOMERS) ? [] : next,
+            })
+          }
           disabled={disabled}
+          renderOption={(option, isSelected) => {
+            const isAll = option.value === ALL_CUSTOMERS;
+            // The component reads selection off its `value`, which never holds
+            // the sentinel — so the "All Customers" row states its own.
+            const selected = isAll ? noCustomerConstraint : isSelected;
+            const org = organizations.find(o => o.organizationId === option.value);
+            return (
+              <div className="flex w-full min-w-0 items-center justify-between gap-[var(--spacing-system-xsf)]">
+                <div className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
+                  {!isAll && (
+                    <OrgAvatar imageUrl={org?.imageUrl} hash={org?.imageHash} name={org?.name ?? option.label} />
+                  )}
+                  <span className={cn('truncate', isAll && selected && 'text-ods-accent')} title={option.label}>
+                    {option.label}
+                  </span>
+                </div>
+                {selected && <CheckIcon className="shrink-0 text-ods-accent" size={20} />}
+              </div>
+            );
+          }}
         />
-        <CriteriaSelect
-          label="Type"
-          allLabel="All Types"
-          options={DEVICE_TYPE_OPTIONS}
-          selected={criteria.deviceTypes}
-          onChange={next => onChange({ ...criteria, deviceTypes: next })}
+
+        {/* One platform, not a list: `Select` is single-value by construction.
+            `osTypes` stays an array at the boundary because that is the field's
+            shape — this control just never fills it past one. */}
+        <Select
+          value={criteria.osTypes[0] ?? ALL_OS_TYPES}
+          onValueChange={value => onChange({ ...criteria, osTypes: value === ALL_OS_TYPES ? [] : [value] })}
           disabled={disabled}
-        />
-        <CriteriaSelect
-          label="OS"
-          allLabel="All Platforms"
-          options={osOptions}
-          selected={criteria.osTypes}
-          onChange={next => onChange({ ...criteria, osTypes: next })}
-          disabled={disabled}
-        />
+        >
+          <SelectTrigger label="OS" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_OS_TYPES}>All Platforms</SelectItem>
+            {osOptions.map(value => (
+              <SelectItem key={value} value={value}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Drawn in the design as a working chip input, but there is nowhere to
-          put what it collects: `ScheduleDeviceCriteriaInput` is closed at
-          { organizationIds, deviceTypes, osTypes }, with no field for tags or
-          any free-form term (docs/script-schedules-v2-graphql-gaps.md §7).
-          Kept in place and disabled, tagged the way this screen already marks
-          what is not built yet, rather than shipped as a control that swallows
-          whatever the user types. */}
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-        <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-          <Label className="text-h4">Custom Criteria</Label>
-          <Tag label="Coming Soon" variant="grey" />
-        </div>
-        <Input placeholder="Press enter after each criteria" disabled />
-      </div>
-    </div>
-  );
-}
-
-function SummaryDimension({
-  title,
-  unconstrainedText,
-  values,
-  labelFor,
-}: {
-  title: string;
-  unconstrainedText: string;
-  values: string[];
-  labelFor?: (value: string) => string;
-}) {
-  return (
-    <div className="flex flex-col items-start gap-[var(--spacing-system-xxs)]">
-      <p className="text-h5 text-ods-text-secondary">{title}</p>
-      {values.length > 0 ? (
-        <div className="flex flex-wrap gap-[var(--spacing-system-xxs)]">
-          {values.map(value => (
-            <Tag key={value} label={labelFor ? labelFor(value) : value} variant="outline" className="max-w-full" />
-          ))}
-        </div>
-      ) : (
-        <p className="text-h6 text-ods-text-tertiary">{unconstrainedText}</p>
-      )}
+      <CustomCriteriaField />
     </div>
   );
 }
 
 /**
- * Read-only echo of the stored rule, for the schedule's Assigned Devices tab.
+ * Drawn in the design as a working chip input, but there is nowhere to put what
+ * it collects: `ScheduleDeviceCriteriaInput` is closed at { organizationIds,
+ * deviceTypes, osTypes }, with no field for tags or any free-form term
+ * (docs/script-schedules-v2-graphql-gaps.md §7). Kept in place and disabled,
+ * tagged the way this screen already marks what is not built yet, rather than
+ * shipped as a control that swallows whatever the user types.
+ *
+ * Nothing about it depends on a request, so the loading state renders it
+ * verbatim rather than as a placeholder.
+ */
+function CustomCriteriaField() {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
+        <Label className="text-h4">Custom Criteria</Label>
+        <Tag label="Coming Soon" variant="grey" />
+      </div>
+      <Input placeholder="Press enter after each criteria" disabled />
+    </div>
+  );
+}
+
+/**
+ * The rule editor while its option queries are still in flight.
+ *
+ * Only the two dropdowns wait on a request, so only they are placeholders — the
+ * labels and the Custom Criteria block are static and render for real. The
+ * boxes carry the fields' own `h-11 md:h-12`, and the labels the `text-h4 mb-1`
+ * that `FieldWrapper` gives them, so the editor doesn't resize under the user
+ * when the options land.
+ */
+export function ScheduleCriteriaFieldsSkeleton() {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-4">
+        {['Customer', 'OS'].map(label => (
+          <div key={label} className="flex w-full flex-col">
+            <span className="mb-1 text-h4 text-ods-text-primary">{label}</span>
+            <Skeleton className="h-11 w-full rounded-[6px] md:h-12" />
+          </div>
+        ))}
+      </div>
+
+      <CustomCriteriaField />
+    </div>
+  );
+}
+
+/**
+ * Read-only echo of the stored rule, above the list it produces on the
+ * schedule's Assigned Devices tab (design 1:49430).
  *
  * Without it a criteria-driven assignment is indistinguishable from a hand-made
  * one — the tab lists machines either way — so devices appearing or vanishing
  * on their own would have no visible cause on the page that shows them.
+ *
+ * The design draws it as the ODS Info-card: one `label — leader line — value`
+ * row per dimension, which `InfoCard` already implements down to the divider
+ * and the `text-h4` on both sides.
+ *
+ * An unconstrained dimension keeps its row and says so ("All Customers"), in
+ * the editor's own wording. Dropping the row instead would read as the rule not
+ * covering that dimension at all, which is the opposite of what empty means.
+ *
+ * Customer names come from the same list the editor picks from, so a rule
+ * naming a customer that owns no devices still reads as a name here rather than
+ * as a raw id.
  */
-export function ScheduleCriteriaSummary({
-  criteria,
-  deviceFilters,
-}: {
-  criteria: ScheduleCriteria;
-  deviceFilters: DeviceFilters | null | undefined;
-}) {
-  const customerLabel = useMemo(() => {
-    const byId = new Map((deviceFilters?.organizationIds ?? []).map(o => [o.value, o.label]));
-    return (value: string) => byId.get(value) ?? value;
-  }, [deviceFilters]);
+export function ScheduleCriteriaSummary({ criteria }: { criteria: ScheduleCriteria }) {
+  const organizations = useDeviceOrganizations(100);
 
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
-      <p className="text-h6 text-ods-text-secondary">
-        Devices are selected by criteria — this list resolves live, so machines registered later that match are included
-        automatically.
-      </p>
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-mf)] md:grid-cols-3">
-        <SummaryDimension
-          title="Customers"
-          unconstrainedText="All customers"
-          values={criteria.organizationIds}
-          labelFor={customerLabel}
-        />
-        <SummaryDimension
-          title="Device Types"
-          unconstrainedText="All device types"
-          values={criteria.deviceTypes}
-          labelFor={humanizeDeviceType}
-        />
-        <SummaryDimension
-          title="Operating Systems"
-          unconstrainedText="All supported operating systems"
-          values={criteria.osTypes}
-        />
-      </div>
-    </div>
-  );
+  const items = useMemo<InfoCardData['items']>(() => {
+    const byId = new Map(organizations.map(o => [o.organizationId, o.name]));
+    return [
+      {
+        label: 'Customer',
+        value: criteria.organizationIds.length
+          ? criteria.organizationIds.map(id => byId.get(id) ?? id).join(', ')
+          : 'All Customers',
+      },
+      // Device type is no longer editable here, so an "All Types" line would be
+      // permanent furniture. Shown only when a stored rule actually carries the
+      // constraint — the editor round-trips it untouched, so it can still
+      // arrive from elsewhere.
+      ...(criteria.deviceTypes.length
+        ? [{ label: 'Type', value: criteria.deviceTypes.map(humanizeDeviceType).join(', ') }]
+        : []),
+      { label: 'OS', value: criteria.osTypes.length ? criteria.osTypes.join(', ') : 'All Platforms' },
+      // The design's fourth row, "Custom Criteria", has no field behind it —
+      // `ScheduleDeviceCriteriaInput` is closed at the three dimensions above
+      // (docs/script-schedules-v2-graphql-gaps.md §7). A row that could only
+      // ever read empty is left out rather than shipped as furniture; the
+      // editor is where the gap is marked, with its "Coming Soon" tag.
+    ];
+  }, [criteria, organizations]);
+
+  return <InfoCard data={{ items }} />;
 }

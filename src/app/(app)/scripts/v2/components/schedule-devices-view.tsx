@@ -3,7 +3,7 @@
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { Suspense, startTransition, useCallback, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type {
   addAllDevicesToScheduleMutation as AddAllDevicesMutationType,
@@ -30,6 +30,7 @@ import type {
 } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import { CONTENT_SWAP_ANIMATION } from '@/app/components/shared';
 import { DeviceSelectionModeRadio, DeviceSelector } from '@/app/components/shared/device-selector';
 import type {
   DeviceSelectionMode,
@@ -63,7 +64,7 @@ import {
 } from '../utils/schedule-criteria';
 import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { platformsToIds } from '../utils/script-mappers';
-import { ScheduleCriteriaFields } from './schedule-criteria-fields';
+import { ScheduleCriteriaFields, ScheduleCriteriaFieldsSkeleton } from './schedule-criteria-fields';
 import { type ScheduleDetailData, ScheduleDetailGate } from './schedule-detail-gate';
 import { ScheduleInfoBarSkeleton } from './schedule-details-view';
 import { ScriptPageChrome } from './script-page-chrome';
@@ -270,12 +271,11 @@ function SchedulePickerLists({
         narrowing,
         onNarrowingChange,
         filterOptions,
-        // `deviceCount` would say this directly, but it is unusable
-        // (docs/script-schedules-v2-graphql-gaps.md §9). `filteredCount` is the
-        // same number whenever nothing is narrowed — and while a filter IS on,
-        // a label reading fewer than the assignment is the lesser wrong than
-        // one that takes the whole page down.
-        selectedCount: assignedConnection?.filteredCount ?? 0,
+        // The WHOLE assignment, not `assignedConnection.filteredCount`: the tab
+        // label names what is in the schedule, and that does not drop because
+        // the user typed in the search box. The narrowed number belongs to the
+        // list, which reports it itself.
+        selectedCount: assignedData.scriptSchedule?.deviceCount ?? 0,
         totalCount: totalCount ?? undefined,
         onAdd,
         onRemove,
@@ -369,9 +369,26 @@ function ScheduleCriteriaPicker({ scheduleId, criteria, onCriteriaChange, busy }
   );
 }
 
-/** The real picker in its loading state, so there is no separate skeleton to drift. */
-function SchedulePickerSkeleton() {
-  return <DeviceSelector devices={[]} loading readOnly />;
+/**
+ * The real picker in its loading state, so there is no separate skeleton to
+ * drift.
+ *
+ * It takes the mode because the two halves are different surfaces — a card with
+ * a tab strip and a search row versus bare fields over a preview. A switch
+ * commits before its data arrives, so a skeleton of the half being LEFT would
+ * be the wrong shape, and the layout would jump again the moment the real half
+ * landed.
+ */
+function SchedulePickerSkeleton({ mode }: { mode: DeviceSelectionMode }) {
+  return (
+    <DeviceSelector
+      devices={[]}
+      loading
+      readOnly
+      selectionMode={mode}
+      criteriaContent={mode === 'criteria' ? <ScheduleCriteriaFieldsSkeleton /> : undefined}
+    />
+  );
 }
 
 /** The schedule's own row above the editor — page-level, so mode switches never redraw it. */
@@ -480,10 +497,10 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
     const { filter: f, search: s } = narrowingRef.current;
     commitAddAll({
       variables: { scheduleId, filter: toRelayFilter(f), search: s || null },
-      onCompleted: () => {
+      onCompleted: response => {
         toast({
           title: 'Devices assigned',
-          description: 'Every device matching the current filters was added to this schedule.',
+          description: `This schedule now runs on ${response.addAllDevicesToSchedule.deviceCount} device(s).`,
           variant: 'success',
         });
         refresh();
@@ -496,10 +513,10 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
     const { filter: f, search: s } = narrowingRef.current;
     commitRemoveAll({
       variables: { scheduleId, filter: toRelayFilter(f), search: s || null },
-      onCompleted: () => {
+      onCompleted: response => {
         toast({
           title: 'Devices unassigned',
-          description: 'Every device matching the current filters was removed from this schedule.',
+          description: `This schedule now runs on ${response.removeAllDevicesFromSchedule.deviceCount} device(s).`,
           variant: 'success',
         });
         refresh();
@@ -516,11 +533,14 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
     setNarrowing(EMPTY_NARROWING);
   }, []);
 
-  // Both halves read their own query, so switching modes suspends. In a
-  // transition React keeps the current half on screen until the other is ready
-  // — without it the radio the user just clicked would vanish into a fallback.
+  // Deliberately NOT a transition. Both halves read their own query, so a
+  // transition would hold the old half — radio included — on screen until the
+  // new one's request came back, and the click would look ignored for as long
+  // as the backend took. The radio is a mode switch, not a navigation: it
+  // commits at once, and the half underneath falls to its skeleton while its
+  // devices load.
   const handleModeChange = useCallback((mode: DeviceSelectionMode) => {
-    startTransition(() => setModeOverride(mode));
+    setModeOverride(mode);
   }, []);
 
   const goBackToSchedule = useCallback(
@@ -595,17 +615,20 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
             would fire its two queries and then throw them away the moment a
             CRITERIA schedule landed. On the path users actually take — in from
             the details page — the store is warm and the gate seeds before the
-            first paint, so this branch costs nothing. */}
-        <Suspense fallback={<SchedulePickerSkeleton />}>
-          {/* Keyed on the mode so the wrapper itself remounts and replays the
-              fade; the switch runs in a transition, so the previous half stays
-              on screen until the new one has its data and the fade is the only
-              thing the user sees happen. The boundary stays OUTSIDE the key —
-              remounting it would bring back the fallback the transition exists
-              to avoid. */}
-          <div key={selectionMode} className="animate-in fade-in duration-300 motion-reduce:animate-none">
+            first paint, so this branch costs nothing.
+
+            The fallback reads the LIVE mode, not a deferred one: the switch
+            commits immediately, so by the time this boundary suspends
+            `selectionMode` already names the half being loaded.
+
+            The keyed wrapper is what replays the enter animation. Here it earns
+            its place — the half arrives where a skeleton was, so the fade covers
+            an appearance rather than blanking content that was already
+            readable, which is why the tab bodies have none. */}
+        <Suspense fallback={<SchedulePickerSkeleton mode={selectionMode} />}>
+          <div key={schedule ? selectionMode : 'pending'} className={CONTENT_SWAP_ANIMATION}>
             {!schedule ? (
-              <SchedulePickerSkeleton />
+              <SchedulePickerSkeleton mode={selectionMode} />
             ) : selectionMode === 'criteria' ? (
               <ScheduleCriteriaPicker
                 scheduleId={scheduleId}

@@ -33,8 +33,7 @@ import type {
 import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPaginationQueryType } from '@/__generated__/scriptScheduleDevicesRelayPaginationQuery.graphql';
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
-import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
-import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 import { ScheduleDeviceSelectionMode, ScriptStatus } from '@/generated/schema-enums';
 import { archiveScriptScheduleMutation } from '@/graphql/scripts/archive-script-schedule-mutation';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -69,13 +68,6 @@ import { ScriptPageChrome } from './script-page-chrome';
 
 /** How many assigned devices load per page in the Assigned Devices tab. */
 const DEVICES_PAGE_SIZE = 20;
-
-/**
- * Facets over the whole fleet — the criteria summary needs them only to turn
- * stored organization ids into customer names. Module-level to keep the
- * react-query key stable.
- */
-const UNFILTERED: DeviceFilterInput = {};
 
 // "Runs" is the aggregate (one row per fire of the schedule); "Execution
 // History" is the flat per-script-per-device history under those fires.
@@ -491,15 +483,12 @@ function ScheduleScriptsTabSkeleton() {
 export type AssignedMachine = ScheduleDevicesFragmentData['assignedDevices']['edges'][number]['node'];
 
 /**
- * The stored rule, above the list it produces. Its own component so the facets
- * query (needed only to name customers) is mounted with it — a SPECIFIC
- * schedule never issues it.
+ * The stored rule, above the list it produces. Its own component so the
+ * customer query (needed only to name the ids in the rule) is mounted with it —
+ * a SPECIFIC schedule never issues it.
  */
 function ScheduleCriteriaSummarySection({ schedule }: { schedule: ScheduleDetailData }) {
-  const { data: filterOptions } = useDeviceFilters(UNFILTERED);
-  return (
-    <ScheduleCriteriaSummary criteria={criteriaFromStored(schedule.deviceCriteria)} deviceFilters={filterOptions} />
-  );
+  return <ScheduleCriteriaSummary criteria={criteriaFromStored(schedule.deviceCriteria)} />;
 }
 
 function ScheduleDevicesTabSection({
@@ -716,34 +705,30 @@ function ScheduleDetailsChrome({
           </Suspense>
 
           <TabNavigation tabs={SCHEDULE_DETAIL_TABS} urlSync defaultTab="scripts">
-            {/* Three separate jobs, in three separate elements, and the nesting
-                order is what makes each of them work:
+            {/* ONE Suspense boundary for all four tabs, at a fixed position in
+                the tree. A switch renders in a transition, and a transition can
+                only hold the previous content on a boundary that already has
+                some — a branch that mounted its own gave it nothing to hold and
+                dropped straight to a skeleton. (Runs and Execution History still
+                show theirs: each owns an inner boundary so a filter change
+                doesn't blank its toolbar, and the inner one catches the
+                suspension first.)
 
-                1. The dim wrapper is OUTSIDE everything and never remounts —
-                   `isStale` marks the tab you are leaving while the next one
-                   loads. `activeTab` here is TabNavigation's DEFERRED id, so
-                   while stale it still names the OLD tab.
-                2. ONE Suspense boundary for all four tabs, at a fixed position.
-                   A switch renders in a transition, and a transition can only
-                   hold the previous content on a boundary that already has
-                   some — a branch that mounted its own gave it nothing to hold
-                   and dropped straight to a skeleton. (Runs and Execution
-                   History still show theirs: each owns an inner boundary so a
-                   filter change doesn't blank its toolbar, and the inner one
-                   catches the suspension first.)
-                3. The keyed wrapper is what replays the fade: CSS animations
-                   run on mount, so without a new key the swapped-in tab would
-                   simply appear. */}
-            {(activeTab, { isStale }) => (
-              <div className={cn('transition-opacity duration-200', isStale && 'opacity-60')}>
-                <Suspense
-                  fallback={activeTab === 'devices' ? <ScheduleDevicesTabSkeleton /> : <ScheduleScriptsTabSkeleton />}
-                >
-                  <div key={activeTab} className="animate-in fade-in duration-200 motion-reduce:animate-none">
-                    <ScheduleTabBody tab={activeTab} scheduleId={scheduleId} schedule={schedule} />
-                  </div>
-                </Suspense>
-              </div>
+                `activeTab` is TabNavigation's DEFERRED id, so while a switch is
+                pending it still names the tab on screen — which is what makes
+                the fallback above match the content underneath.
+
+                No enter animation on the swapped-in tab. The switch renders in
+                a transition, so the previous tab holds the screen until the new
+                one has its data; by the time it commits the content is already
+                complete, and fading it up from transparent would only delay
+                content that was ready and blank the frame that had it. */}
+            {activeTab => (
+              <Suspense
+                fallback={activeTab === 'devices' ? <ScheduleDevicesTabSkeleton /> : <ScheduleScriptsTabSkeleton />}
+              >
+                <ScheduleTabBody tab={activeTab} scheduleId={scheduleId} schedule={schedule} />
+              </Suspense>
             )}
           </TabNavigation>
         </div>

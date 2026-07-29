@@ -15,7 +15,6 @@ import {
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { memo, Suspense, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
@@ -319,17 +318,14 @@ function ScriptDetailsChrome({ scriptId, script }: ScriptDetailsViewProps & { sc
           </Suspense>
 
           <TabNavigation tabs={DETAIL_TABS} urlSync defaultTab="details">
-            {/* Dim wrapper → one shared boundary → keyed fade → memoized body.
-                Each layer's reason is written out on `ScheduleDetailsChrome`;
-                this page is the same shape with two tabs instead of four. */}
-            {(activeTab, { isStale }) => (
-              <div className={cn('transition-opacity duration-200', isStale && 'opacity-60')}>
-                <Suspense fallback={<ScriptDetailsTabSkeleton />}>
-                  <div key={activeTab} className="animate-in fade-in duration-200 motion-reduce:animate-none">
-                    <ScriptTabBody tab={activeTab} scriptId={scriptId} />
-                  </div>
-                </Suspense>
-              </div>
+            {/* One shared boundary → memoized body, and no enter animation on
+                the swap. Each layer's reason is written out on
+                `ScheduleDetailsChrome`; this page is the same shape with two
+                tabs instead of four. */}
+            {activeTab => (
+              <Suspense fallback={<ScriptDetailsTabSkeleton />}>
+                <ScriptTabBody tab={activeTab} scriptId={scriptId} />
+              </Suspense>
             )}
           </TabNavigation>
         </div>
