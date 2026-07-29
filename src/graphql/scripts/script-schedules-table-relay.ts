@@ -54,9 +54,7 @@ export const scriptSchedulesTableRelayFragment = graphql`
           name
           description
           supportedPlatforms
-          # deviceCount omitted — see docs/script-schedules-v2-graphql-gaps.md §9.
-          # The resolver returns null for an Int!, which nulls the whole
-          # connection, so selecting it here empties the entire list.
+          deviceCount
           trigger
           startAt
           repeat

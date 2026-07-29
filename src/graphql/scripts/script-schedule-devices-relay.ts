@@ -25,7 +25,7 @@ export const scriptScheduleDevicesRelayQuery = graphql`
   query scriptScheduleDevicesRelayQuery($id: ID!, $first: Int!, $after: String) {
     scriptSchedule(id: $id) {
       id
-      # deviceCount omitted — see docs/script-schedules-v2-graphql-gaps.md §9.
+      deviceCount
       ...scriptScheduleDevicesRelay_schedule @arguments(first: $first, after: $after)
     }
   }

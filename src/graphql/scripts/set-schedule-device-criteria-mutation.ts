@@ -10,11 +10,10 @@ import { graphql } from 'react-relay';
  * change of how the schedule targets devices, not an edit to a list — so the
  * picker collects the whole rule and commits it behind an explicit Save.
  *
- * The payload reads back exactly what the write changed, so the schedule record
- * already in the Relay store (the detail query behind `ScheduleDetailGate`)
- * updates itself without a refetch. `deviceCount` would be the obvious fifth
- * field — how many devices the new rule resolves to — but selecting it nulls
- * the entire response (docs/script-schedules-v2-graphql-gaps.md §9).
+ * The payload reads back exactly what the write changed, plus `deviceCount` —
+ * how many devices the new rule resolves to — so the schedule record already in
+ * the Relay store (the detail query behind `ScheduleDetailGate`) updates itself
+ * without a refetch.
  *
  * One-way, per the schema: nothing switches a schedule back to SPECIFIC. See §10
  * of the same doc.
@@ -23,6 +22,7 @@ export const setScheduleDeviceCriteriaMutation = graphql`
   mutation setScheduleDeviceCriteriaMutation($scheduleId: ID!, $criteria: ScheduleDeviceCriteriaInput!) {
     setScheduleDeviceCriteria(scheduleId: $scheduleId, criteria: $criteria) {
       id
+      deviceCount
       selectionMode
       deviceCriteria {
         organizationIds

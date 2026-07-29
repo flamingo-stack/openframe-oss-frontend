@@ -102,11 +102,11 @@ export const scheduleDevicePickerRelayFragment = graphql`
  * narrowed by the picker's. Separate `@connection` keys keep the two lists from
  * overwriting each other's pages in the store.
  *
- * The tab label counts the assignment, which `deviceCount` would state
- * directly — but that field is unusable (see
- * docs/script-schedules-v2-graphql-gaps.md §9), so the label reads
- * `filteredCount` instead. Same number whenever nothing is narrowed, which is
- * the state the label is read in.
+ * `deviceCount` sits on the schedule rather than inside the connection because
+ * it is what the "Selected Devices (N)" tab label counts: the WHOLE assignment,
+ * which does not shrink because the user typed in the search box. The
+ * connection's own `filteredCount` answers a different question — how many rows
+ * the current narrowing leaves — and is what the list itself reports.
  */
 export const scheduleDevicePickerRelayAssignedQuery = graphql`
   query scheduleDevicePickerRelayAssignedQuery(
@@ -118,6 +118,7 @@ export const scheduleDevicePickerRelayAssignedQuery = graphql`
   ) {
     scriptSchedule(id: $scheduleId) {
       id
+      deviceCount
       ...scheduleDevicePickerRelay_schedule
         @arguments(filter: $filter, search: $search, first: $first, after: $after)
     }

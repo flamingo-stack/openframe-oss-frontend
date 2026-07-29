@@ -158,11 +158,12 @@ Still open, and the reason the mode is one-way in the UI: see §10.
 - `search` is a name-only substring match; the list also shows `description`,
   which is not searched.
 
-## 9. `deviceCount` returns null for a non-null field — **BROKEN, frontend worked around**
+## 9. `deviceCount` returned null for a non-null field — **FIXED, workaround reverted**
 
-`ScriptSchedule.deviceCount` is declared `Int!` and its resolver returns `null`.
-GraphQL then nulls the parent, and because `node`, `edges` and the connection
-are all non-null too, the violation bubbles until the entire payload is null:
+`ScriptSchedule.deviceCount` is declared `Int!` and its resolver returned
+`null`. GraphQL then nulls the parent, and because `node`, `edges` and the
+connection are all non-null too, the violation bubbled until the entire payload
+was null:
 
 ```
 No data returned for operation `scriptSchedulesTableRelayQuery`
@@ -171,29 +172,28 @@ non null type, but the code involved in retrieving data has wrongly returned a
 null value. The non-nullable type is 'Int' within parent type 'ScriptSchedule'
 ```
 
-One bad count therefore empties the whole schedules list — and would do the same
-to the details page, the assigned-devices tab, the device picker and every
-assignment mutation, all of which selected the field. Nothing on the client can
-salvage it: the response arrives with `data: null`, so there is no partial
-result for Relay to read (`@catch` included).
+One bad count therefore emptied the whole schedules list — and would have done
+the same to the details page, the assigned-devices tab, the device picker and
+every assignment mutation, all of which selected the field. Nothing on the
+client could salvage it: the response arrived with `data: null`, so there was no
+partial result for Relay to read (`@catch` included).
 
-The contract did not change (`Int!` before and after the QA schema refresh), so
-this is the resolver regressing. Prime suspect, unverified: the release that
-added `selectionMode` / `deviceCriteria` — a CRITERIA schedule's count has to be
-resolved by evaluating the rule, and legacy rows read as SPECIFIC.
+The frontend worked around it by selecting the field NOWHERE. That workaround is
+**reverted**: `deviceCount` is selected again everywhere it belongs, and the two
+substitutions it forced are undone.
 
-**Frontend workaround, to be reverted when the resolver is fixed:** the field is
-selected NOWHERE. Every site carries a comment pointing here.
-
-| Consumer | Now reads |
+| Consumer | Reads |
 |---|---|
-| Schedules list, DEVICES column | nothing — renders `—` |
-| Picker, "Selected Devices (N)" | `assignedDevices.filteredCount` (same number when nothing is narrowed) |
-| Assignment mutations | `id` only; the picker re-reads the list after each commit |
-| Detail / assigned-devices queries | dropped (nothing read it) |
+| Schedules list, DEVICES column | `node.deviceCount` |
+| Picker, "Selected Devices (N)" | `scriptSchedule.deviceCount` — the whole assignment, not the narrowed `filteredCount` |
+| Assignment mutations (4) | `{ id, deviceCount }`, so Relay updates the label and the column from the store with no refetch |
+| `setScheduleDeviceCriteria` | `deviceCount` alongside the rule — how many devices it resolves to |
+| Detail / assigned-devices queries | `deviceCount` |
 
-Restoring it is a matter of putting `deviceCount` back in those selections and
-undoing the two substitutions above.
+**If the resolver regresses, this is the blast radius again** — every one of
+those surfaces goes blank, not just the count. The failure is loud and
+unmistakable (empty list, `data: null` in the response), so it needs no client
+guard; it needs a backend test.
 
 ## 10. No way back from CRITERIA to SPECIFIC — **OPEN**
 

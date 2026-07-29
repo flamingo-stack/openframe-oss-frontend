@@ -82,12 +82,7 @@ interface UiScheduleEntry {
   name: string;
   description: string;
   supportedPlatforms: string[];
-  /**
-   * `null` throughout: the field it comes from is unusable server-side, so the
-   * column renders a dash rather than a number. See
-   * docs/script-schedules-v2-graphql-gaps.md §9.
-   */
-  deviceCount: number | null;
+  deviceCount: number;
   /** `DEVICE_ONLINE` schedules have no startAt/repeat at all — see `isEventTrigger`. */
   trigger: string;
   startAt: string | null;
@@ -182,7 +177,7 @@ function SchedulesTableContent({
           name: node.name,
           description: node.description ?? '',
           supportedPlatforms: platformsToIds(node.supportedPlatforms),
-          deviceCount: null,
+          deviceCount: node.deviceCount,
           trigger: node.trigger,
           startAt: node.startAt ?? null,
           repeat: node.repeat ?? null,
@@ -405,13 +400,7 @@ function SchedulesTableContent({
         accessorKey: 'deviceCount',
         header: 'Devices',
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <span
-            className={
-              row.original.deviceCount === null ? 'text-h4 text-ods-text-secondary' : 'text-h4 text-ods-text-primary'
-            }
-          >
-            {row.original.deviceCount ?? '—'}
-          </span>
+          <span className="text-h4 text-ods-text-primary">{row.original.deviceCount}</span>
         ),
         enableSorting: false,
         meta: { width: 'w-[100px] md:w-[140px]', hideAt: 'lg' },
