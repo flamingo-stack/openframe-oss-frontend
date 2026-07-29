@@ -52,7 +52,7 @@ export const TAB_IDS = {
   scripts: ['list', 'schedules'],
   scheduleDetails: ['schedule-scripts', 'schedule-devices', 'schedule-history'],
   scriptsV2Details: ['details', 'executions'],
-  scriptsV2ScheduleDetails: ['scripts', 'devices'],
+  scriptsV2ScheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
   monitoring: ['policies', 'queries'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
   aiSettings: ['mingo', 'customer', 'guardrails'],
@@ -175,8 +175,12 @@ export const routes = {
       list: '/scripts-v2/schedules',
       archived: '/scripts-v2/schedules/archived',
       new: '/scripts-v2/schedules/new',
-      details: (id: string | number, o?: { tab?: ScriptsV2ScheduleDetailTab }) =>
-        withQuery('/scripts-v2/schedules/details', { id, tab: o?.tab }),
+      // `search` seeds the target tab's search box — used by the Runs table to
+      // drill into the Execution History tab narrowed to one run's executionId.
+      details: (id: string | number, o?: { tab?: ScriptsV2ScheduleDetailTab; search?: string }) =>
+        withQuery('/scripts-v2/schedules/details', { id, tab: o?.tab, search: o?.search }),
+      /** One fire of a schedule. `id` is the `ScheduleRun` global id, not the schedule's. */
+      run: (id: string | number) => withQuery('/scripts-v2/schedules/run', { id }),
       edit: (id: string | number) => withQuery('/scripts-v2/schedules/edit', { id }),
       devices: (id: string | number) => withQuery('/scripts-v2/schedules/devices', { id }),
     },

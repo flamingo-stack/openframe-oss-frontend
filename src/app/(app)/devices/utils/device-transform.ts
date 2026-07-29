@@ -82,6 +82,8 @@ export function createDeviceListItem(node: DevicesGraphQlNode): Device {
     // Organization
     organizationId: node.organization?.organizationId,
     organization: node.organization?.name,
+    // A customer can carry several contacts; take the first that has an address.
+    organizationEmail: node.organization?.contactInformation?.contacts?.find(c => c?.email)?.email,
     organizationImageUrl: node.organization?.image?.imageUrl || null,
     organizationImageHash: node.organization?.image?.hash || null,
 

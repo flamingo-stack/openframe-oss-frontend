@@ -5,6 +5,7 @@ import {
   ArrowRightUpIcon,
   BracketCurlyIcon,
   ClockHistoryIcon,
+  InboxArrowUpIcon,
   PenEditIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -13,17 +14,23 @@ import {
   type TabItem,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useMemo } from 'react';
-import { useLazyLoadQuery } from 'react-relay';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { memo, Suspense, useCallback, useMemo } from 'react';
+import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
+import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
+import { ScriptStatus } from '@/generated/schema-enums';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
+import { unarchiveScriptMutation } from '@/graphql/scripts/unarchive-script-mutation';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { initiatorName } from '../utils/execution-helpers';
 import { envVarsToStrings, platformsToIds, shellToId } from '../utils/script-mappers';
-import { NotFoundBoundary, NotFoundSignal } from './not-found-boundary';
+import { NotFoundSignal } from './not-found-boundary';
+import { type ScriptDetailData, ScriptDetailGate } from './script-detail-gate';
 import { ScriptDetailsTab } from './script-details-tab';
 import { ScriptExecutionsTab } from './script-executions-tab';
 import { ScriptPageChrome } from './script-page-chrome';
@@ -183,6 +190,19 @@ export function ScriptDetailsTabSkeleton() {
   );
 }
 
+/**
+ * Both tab bodies behind one memoized component — `TabNavigation` re-renders
+ * on its own (scroll-shadow state, ResizeObserver) and calls its render prop
+ * each time; see `ScheduleTabBody` for the full account.
+ */
+const ScriptTabBody = memo(function ScriptTabBody({ tab, scriptId }: { tab: string; scriptId: string }) {
+  return tab === 'executions' ? (
+    <ScriptExecutionsTab scriptId={scriptId} />
+  ) : (
+    <ScriptDetailsTabSection scriptId={scriptId} />
+  );
+});
+
 // ----------------------------------------------------------------
 // Page shell — chrome renders immediately, data islands suspend
 // ----------------------------------------------------------------
@@ -196,49 +216,98 @@ export function ScriptDetailsTabSkeleton() {
  * client-side hop to another script (the router reuses the `[id]` segment)
  * resets a tripped not-found instead of latching it.
  */
-export function ScriptDetailsView({ scriptId }: ScriptDetailsViewProps) {
+function ScriptDetailsChrome({ scriptId, script }: ScriptDetailsViewProps & { script: ScriptDetailData | undefined }) {
+  const { toast } = useToast();
   const editHref = routes.scriptsV2.edit(scriptId);
   const runHref = routes.scriptsV2.run(scriptId);
 
-  const actions = useMemo(
-    () => [
-      {
-        label: 'Run Script',
-        href: runHref,
-        variant: 'accent' as const,
-        // Split button: the divider + arrow half opens the run page in a new tab.
-        iconAction: {
-          icon: <ArrowRightUpIcon className="w-5 h-5" />,
-          'aria-label': 'Open Run Script in new tab',
-          href: runHref,
-          openInNewTab: true,
-        },
+  const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScriptMutationType>(unarchiveScriptMutation);
+  const archived = script?.status === ScriptStatus.ARCHIVED;
+
+  const handleUnarchive = useCallback(() => {
+    if (!script) return;
+    commitUnarchive({
+      // Nothing to prune from here — the lists own their connections and
+      // refetch on navigation. The payload's `status` is what updates this page.
+      variables: { id: script.id, connections: [] },
+      onCompleted: () => {
+        toast({
+          title: 'Script unarchived',
+          description: `"${script.name}" was moved back to Scripts.`,
+          variant: 'success',
+        });
       },
-    ],
-    [runHref],
+      onError: error => {
+        toast({
+          title: 'Error',
+          description: getRelayErrorMessage(error, 'Failed to unarchive script'),
+          variant: 'destructive',
+        });
+      },
+    });
+  }, [script, commitUnarchive, toast]);
+
+  // An archived script can't be run or meaningfully edited — the one thing
+  // worth offering is putting it back (design node 1:24107).
+  const actions = useMemo(
+    () =>
+      archived
+        ? [
+            {
+              label: 'Unarchive',
+              variant: 'outline' as const,
+              onClick: handleUnarchive,
+              icon: <InboxArrowUpIcon className="text-ods-text-secondary" />,
+              disabled: isUnarchiving,
+              loading: isUnarchiving,
+            },
+          ]
+        : [
+            {
+              label: 'Run Script',
+              href: runHref,
+              variant: 'accent' as const,
+              // Split button: the divider + arrow half opens the run page in a new tab.
+              iconAction: {
+                icon: <ArrowRightUpIcon className="w-5 h-5" />,
+                'aria-label': 'Open Run Script in new tab',
+                href: runHref,
+                openInNewTab: true,
+              },
+            },
+          ],
+    [archived, handleUnarchive, isUnarchiving, runHref],
   );
 
   const menuActions = useMemo<ActionsMenuGroup[]>(
-    () => [
-      {
-        items: [
-          {
-            id: 'edit-script',
-            label: 'Edit Script',
-            icon: <PenEditIcon className="w-6 h-6 text-ods-text-secondary" />,
-            href: editHref,
-          },
-        ],
-      },
-    ],
-    [editHref],
+    () =>
+      archived
+        ? []
+        : [
+            {
+              items: [
+                {
+                  id: 'edit-script',
+                  label: 'Edit Script',
+                  icon: <PenEditIcon className="w-6 h-6 text-ods-text-secondary" />,
+                  href: editHref,
+                },
+              ],
+            },
+          ],
+    [archived, editHref],
   );
 
   return (
-    <NotFoundBoundary key={scriptId} message="Script not found">
+    <>
       <ScriptPageChrome
         title="Script Details"
-        backFallback={routes.scriptsV2.list}
+        titleAdornment={archived ? <Tag label="Archived" variant="grey" /> : undefined}
+        // The action SET depends on the record (archived → Unarchive only), so
+        // the buttons wait for it as placeholders instead of guessing.
+        loadingActions={!script}
+        // Back follows the list the script actually belongs to.
+        backFallback={archived ? routes.scriptsV2.archived : routes.scriptsV2.list}
         actions={actions}
         menuActions={menuActions}
         actionsVariant="menu-primary"
@@ -249,18 +318,31 @@ export function ScriptDetailsView({ scriptId }: ScriptDetailsViewProps) {
           </Suspense>
 
           <TabNavigation tabs={DETAIL_TABS} urlSync defaultTab="details">
-            {activeTab =>
-              activeTab === 'executions' ? (
-                <ScriptExecutionsTab scriptId={scriptId} />
-              ) : (
-                <Suspense fallback={<ScriptDetailsTabSkeleton />}>
-                  <ScriptDetailsTabSection scriptId={scriptId} />
-                </Suspense>
-              )
-            }
+            {/* One shared boundary → memoized body, and no enter animation on
+                the swap. Each layer's reason is written out on
+                `ScheduleDetailsChrome`; this page is the same shape with two
+                tabs instead of four. */}
+            {activeTab => (
+              <Suspense fallback={<ScriptDetailsTabSkeleton />}>
+                <ScriptTabBody tab={activeTab} scriptId={scriptId} />
+              </Suspense>
+            )}
           </TabNavigation>
         </div>
       </ScriptPageChrome>
-    </NotFoundBoundary>
+    </>
   );
 }
+
+/**
+ * Script details page. The gate supplies the record the header needs to know it
+ * is archived (and owns the not-found boundary) without making the page wait for
+ * it — see {@link ScriptDetailsChrome}.
+ */
+export const ScriptDetailsView = memo(function ScriptDetailsView({ scriptId }: ScriptDetailsViewProps) {
+  return (
+    <ScriptDetailGate scriptId={scriptId}>
+      {script => <ScriptDetailsChrome scriptId={scriptId} script={script} />}
+    </ScriptDetailGate>
+  );
+});

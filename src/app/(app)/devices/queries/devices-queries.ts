@@ -68,6 +68,14 @@ export const GET_DEVICES_QUERY = `
             id
             organizationId
             name
+            # The CUSTOMER column's second line. The organization is already
+            # joined here for name + logo, so this rides along on a record we
+            # are loading anyway rather than adding a fan-out of its own.
+            contactInformation {
+              contacts {
+                email
+              }
+            }
             image {
               imageUrl
               hash

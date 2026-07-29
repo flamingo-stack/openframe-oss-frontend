@@ -77,7 +77,9 @@ export function ScriptFormFields({
   return (
     <>
       {/* Supported Platform Section */}
-      <div className="relative">
+      {/* `data-invalid`: the block has no input of its own, so it carries the
+          marker itself — that is what `scrollToFirstInvalidField` looks for. */}
+      <div className="relative" data-invalid={(showErrors && !!errors.supported_platforms) || undefined}>
         <Label className="text-h4 text-ods-text-primary">Supported Platform</Label>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-1">
           {AVAILABLE_PLATFORMS.map(p => {
@@ -293,7 +295,9 @@ export function ScriptFormFields({
         name="script_body"
         control={control}
         render={({ field, fieldState }) => (
-          <div>
+          // Monaco is not a focusable control the marker can sit on, so the
+          // wrapper carries it (the scroll helper falls back to scrolling).
+          <div data-invalid={(showErrors && !!fieldState.error) || undefined}>
             <Label className="text-h4 text-ods-text-primary">Syntax</Label>
             <ScriptEditor
               value={field.value}
