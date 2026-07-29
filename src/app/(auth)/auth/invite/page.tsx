@@ -142,6 +142,7 @@ export default function InvitePage() {
         onSsoClick={handleSso}
         title="Accept Invitation"
         subtitle="Complete your registration to join the organization"
+        submitLabel="Create Account"
         submitDisabled={!isValid}
         loading={loading || isSubmitting}
         errors={{
