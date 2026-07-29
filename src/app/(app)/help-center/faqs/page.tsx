@@ -1,7 +1,7 @@
 'use client';
 
 import { FaqDocumentPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
-import { CONTENT_API_BASE, HELP_CENTER_BASE } from '../endpoints';
+import { CONTENT_BASE, HELP_CENTER_BASE } from '../endpoints';
 
 /**
  * FAQs — one-line mount of the lib's ready-made `<FaqDocumentPage>`. It routes
@@ -15,7 +15,7 @@ export default function FaqsRoute() {
     <FaqDocumentPage
       shell={false}
       subtitle="Answers to the most common questions about OpenFrame."
-      apiBaseUrl={CONTENT_API_BASE}
+      apiBaseUrl={CONTENT_BASE}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
     />
   );
