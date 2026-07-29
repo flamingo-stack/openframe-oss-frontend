@@ -6,6 +6,7 @@ import {
   BoxArchiveIcon,
   BracketCurlyIcon,
   InboxArrowUpIcon,
+  Refresh01LeftIcon,
   TrashIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useRouter } from 'next/navigation';
@@ -37,6 +38,7 @@ export interface DeviceActionsMenuItems {
   remoteControl: ActionsMenuItem;
   manageFiles: ActionsMenuItem;
   runScript: ActionsMenuItem;
+  reboot: ActionsMenuItem | null;
   deviceLogs: ActionsMenuItem;
   archive: ActionsMenuItem | null;
   unarchive: ActionsMenuItem | null;
@@ -68,10 +70,12 @@ export function useDeviceActionsMenu(
     if (navigateOnDestructive) router.push(routes.devices.list);
   }, [onActionComplete, navigateOnDestructive, router]);
 
-  const { openArchive, openDelete, dialogs, unarchiveDevice, isUnarchiving } = useDeviceConfirmationDialogs(device, {
-    onArchived: handleDestructiveSuccess,
-    onDeleted: handleDestructiveSuccess,
-  });
+  const { openArchive, openDelete, openReboot, dialogs, unarchiveDevice, isUnarchiving, isRebooting } =
+    useDeviceConfirmationDialogs(device, {
+      onArchived: handleDestructiveSuccess,
+      onDeleted: handleDestructiveSuccess,
+      onRebooted: onActionComplete,
+    });
 
   // Unarchive is non-destructive and instantly reversible — no confirm dialog,
   // just the action + toast. The device stays valid, so no navigation either.
@@ -118,6 +122,16 @@ export function useDeviceActionsMenu(
       onClick: handleRunScript,
     };
 
+    const reboot: ActionsMenuItem | null = actionAvailability?.rebootEnabled
+      ? {
+          id: 'reboot',
+          label: 'Reboot Device',
+          icon: <Refresh01LeftIcon className={`${iconSize} text-ods-text-secondary`} />,
+          disabled: isRebooting,
+          onClick: openReboot,
+        }
+      : null;
+
     const archive: ActionsMenuItem | null = actionAvailability?.archiveEnabled
       ? {
           id: 'archive',
@@ -152,6 +166,7 @@ export function useDeviceActionsMenu(
       remoteControl: base.remoteControl,
       manageFiles: base.manageFiles,
       runScript,
+      reboot,
       deviceLogs: base.deviceLogs,
       archive,
       unarchive,
@@ -165,6 +180,8 @@ export function useDeviceActionsMenu(
     handleRunScript,
     openArchive,
     openDelete,
+    openReboot,
+    isRebooting,
     handleUnarchive,
     isUnarchiving,
   ]);

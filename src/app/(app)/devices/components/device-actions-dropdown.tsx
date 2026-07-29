@@ -29,6 +29,7 @@ export function DeviceActionsDropdown({ device, context, onActionComplete, onRun
       actionItems.push(items.remoteShell, items.remoteControl, items.manageFiles);
     }
     actionItems.push(items.runScript);
+    if (items.reboot) actionItems.push(items.reboot);
 
     if (actionItems.length > 0) {
       groups.push({ items: actionItems, separator: true });
