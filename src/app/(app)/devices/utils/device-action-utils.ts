@@ -70,6 +70,7 @@ export interface DeviceActionAvailability {
   remoteControlEnabled: boolean;
   manageFilesEnabled: boolean;
   runScriptEnabled: boolean;
+  rebootEnabled: boolean;
   archiveEnabled: boolean;
   unarchiveEnabled: boolean;
   deleteEnabled: boolean;
@@ -97,6 +98,10 @@ export function getDeviceActionAvailability(device: Device): DeviceActionAvailab
     remoteShellEnabled: meshcentralReady,
     remoteControlEnabled: meshcentralReady,
     manageFilesEnabled: meshcentralReady,
+
+    // Reboot goes through the MeshCentral control socket (poweraction/reset),
+    // so it has the same requirements as the other remote actions.
+    rebootEnabled: meshcentralReady,
 
     // Run Script (native scripts-v2 flow): only requires the device to be online.
     // TODO(openframe-rmm): gate on an OpenFrame RMM agent once run-script is wired.

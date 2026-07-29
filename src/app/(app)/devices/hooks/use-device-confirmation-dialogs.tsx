@@ -6,22 +6,27 @@ import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import type { Device } from '../types/device.types';
+import { getDeviceActionAvailability } from '../utils/device-action-utils';
 import { buildUninstallCommand, normalizeDevicePlatform } from '../utils/device-command-utils';
 import { getDeviceName } from '../utils/device-name';
 import { useDeviceActions } from './use-device-actions';
+import { useRebootDevice } from './use-reboot-device';
 import { useReleaseVersion } from './use-release-version';
 
 interface UseDeviceConfirmationDialogsOptions {
   onArchived?: () => void;
   onDeleted?: () => void;
+  onRebooted?: () => void;
 }
 
 interface UseDeviceConfirmationDialogsResult {
   openArchive: () => void;
   openDelete: () => void;
+  openReboot: () => void;
   dialogs: ReactNode;
   isArchiving: boolean;
   isDeleting: boolean;
+  isRebooting: boolean;
   /** Re-exported from the hook's internal useDeviceActions instance so callers
    *  (e.g. useDeviceActionsMenu) don't have to instantiate a second one. */
   unarchiveDevice: (deviceId: string, deviceName?: string) => Promise<boolean>;
@@ -30,15 +35,17 @@ interface UseDeviceConfirmationDialogsResult {
 
 export function useDeviceConfirmationDialogs(
   device: Device | null | undefined,
-  { onArchived, onDeleted }: UseDeviceConfirmationDialogsOptions = {},
+  { onArchived, onDeleted, onRebooted }: UseDeviceConfirmationDialogsOptions = {},
 ): UseDeviceConfirmationDialogsResult {
   const { copy: copyCommand, copied: commandCopied } = useCopyToClipboard({
     successDescription: 'Uninstall command copied to clipboard',
     errorDescription: 'Could not copy command to clipboard',
   });
   const { archiveDevice, unarchiveDevice, deleteDevice, isArchiving, isUnarchiving, isDeleting } = useDeviceActions();
+  const { rebootDevice, isRebooting } = useRebootDevice();
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRebootConfirm, setShowRebootConfirm] = useState(false);
   const { releaseVersion } = useReleaseVersion({ enabled: showDeleteConfirm });
 
   const deviceName = getDeviceName(device) || 'this device';
@@ -58,6 +65,7 @@ export function useDeviceConfirmationDialogs(
 
   const openArchive = useCallback(() => setShowArchiveConfirm(true), []);
   const openDelete = useCallback(() => setShowDeleteConfirm(true), []);
+  const openReboot = useCallback(() => setShowRebootConfirm(true), []);
 
   const handleArchive = useCallback(async () => {
     if (!device) return;
@@ -72,6 +80,14 @@ export function useDeviceConfirmationDialogs(
     setShowDeleteConfirm(false);
     if (success) onDeleted?.();
   }, [deleteDevice, deviceId, deviceName, device, onDeleted]);
+
+  const handleReboot = useCallback(async () => {
+    const meshcentralAgentId = device ? getDeviceActionAvailability(device).meshcentralAgentId : undefined;
+    if (!meshcentralAgentId) return;
+    const success = await rebootDevice(meshcentralAgentId, deviceName);
+    setShowRebootConfirm(false);
+    if (success) onRebooted?.();
+  }, [device, deviceName, rebootDevice, onRebooted]);
 
   const dialogs = (
     <>
@@ -90,6 +106,22 @@ export function useDeviceConfirmationDialogs(
         variant="default"
         isPending={isArchiving}
         onConfirm={handleArchive}
+      />
+
+      <ConfirmDialog
+        open={showRebootConfirm}
+        onOpenChange={setShowRebootConfirm}
+        title="Reboot Device"
+        description={
+          <>
+            Are you sure you want to reboot <span className="text-ods-accent font-medium">{deviceName}</span>? The
+            device will be temporarily unavailable while it restarts.
+          </>
+        }
+        confirmLabel="Reboot Device"
+        variant="warning"
+        isPending={isRebooting}
+        onConfirm={handleReboot}
       />
 
       <ConfirmDialog
@@ -126,5 +158,15 @@ export function useDeviceConfirmationDialogs(
     </>
   );
 
-  return { openArchive, openDelete, dialogs, isArchiving, isDeleting, unarchiveDevice, isUnarchiving };
+  return {
+    openArchive,
+    openDelete,
+    openReboot,
+    dialogs,
+    isArchiving,
+    isDeleting,
+    isRebooting,
+    unarchiveDevice,
+    isUnarchiving,
+  };
 }
