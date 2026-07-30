@@ -1,10 +1,10 @@
 import { featureFlags } from './feature-flags';
-import { isNativeShell } from './native-shell';
+import { isAppShell } from './platform';
 
 /**
  * Kill-switch for every payment-related surface in the app.
  *
- * Tied to `isNativeShell()`: the native app builds (Capacitor mobile, Tauri
+ * Tied to `isAppShell()`: the native app builds (Capacitor mobile, Tauri
  * desktop) hide payments, the web app keeps them. OpenFrame is billed through
  * Stripe on the web, and an app distributed as a native binary must not carry
  * that flow:
@@ -23,7 +23,7 @@ import { isNativeShell } from './native-shell';
  * counters), which is account state rather than a purchasing mechanism.
  */
 export function isBillingHidden(): boolean {
-  return isNativeShell();
+  return isAppShell();
 }
 
 /**

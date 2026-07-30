@@ -4,7 +4,7 @@
  */
 
 import { isPaymentUiEnabled } from './billing-visibility';
-import { isNativeShell } from './native-shell';
+import { isAppShell } from './platform';
 import { runtimeEnv } from './runtime-config';
 
 export type AppMode = 'oss-tenant' | 'saas-tenant' | 'saas-shared';
@@ -106,7 +106,7 @@ export function isRouteAllowedInCurrentMode(pathname: string): boolean {
     // App-only mode: block all auth routes — except in the native shell, where
     // the auth pages are the sign-in entry point (email → tenant discovery →
     // provider selection → system-browser OAuth).
-    return isNativeShell() || !pathname.startsWith('/auth');
+    return isAppShell() || !pathname.startsWith('/auth');
   }
 
   if (mode === 'oss-tenant') {
@@ -132,7 +132,7 @@ export function getDefaultRedirectPath(isAuthenticated: boolean): string {
 
   if (mode === 'saas-tenant') {
     // Native shell has auth pages enabled — land unauthenticated users there.
-    if (isNativeShell() && !isAuthenticated) {
+    if (isAppShell() && !isAuthenticated) {
       return '/auth';
     }
     // App-only: send users to the app landing (no auth pages)
