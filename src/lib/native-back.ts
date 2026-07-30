@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { appPlugin, isNativeShell } from './native-shell';
+import { appPlugin } from './native-shell';
+import { isMobileShell } from './platform';
 
 /**
  * Native hardware/gesture back (Android), wired through @capacitor/app.
@@ -31,9 +32,9 @@ export function pushBackDismissible(close: Dismissible): () => void {
 
 let initialized = false;
 
-/** Wire the Android back button once. No-op on web and (effectively) on iOS. */
+/** Wire the Android back button once. No-op off mobile and (effectively) on iOS. */
 export function initNativeBack(): void {
-  if (initialized || !isNativeShell()) return;
+  if (initialized || !isMobileShell()) return;
   const app = appPlugin();
   if (!app) return;
   initialized = true;
@@ -77,7 +78,7 @@ export function initNativeBack(): void {
  */
 export function useNativeBackDismissible(isOpen: boolean, onClose: Dismissible): void {
   useEffect(() => {
-    if (!isOpen || !isNativeShell()) return;
+    if (!isOpen || !isMobileShell()) return;
     return pushBackDismissible(onClose);
   }, [isOpen, onClose]);
 }

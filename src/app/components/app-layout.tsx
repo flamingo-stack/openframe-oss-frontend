@@ -26,7 +26,7 @@ import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal
 import { featureFlags } from '@/lib/feature-flags';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
@@ -119,7 +119,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // `embedAuthedFetch` refuses from the capacitor:// origin — a SYNCHRONOUS
     // throw inside the resolver effect that unmounts the whole shell. Leave
     // identity disabled there; the lib's designed fallback is anon identity.
-    if (chatOpen && !isNativeShell()) setChatIdentityEnabled(true);
+    if (chatOpen && !isAppShell()) setChatIdentityEnabled(true);
   }, [chatOpen]);
 
   const handleNavigate = useCallback(

@@ -85,16 +85,19 @@ input[type="number"] {
 }
 
 /*
- * Native shell (Capacitor) safe areas — activated via the data attribute that
- * NativeShellInitializer sets; browsers never get it, so the web layout is
- * untouched. The shell draws edge-to-edge (viewport-fit=cover, no native
+ * Mobile shell (Capacitor) safe areas — activated by `data-shell="mobile"`,
+ * which NativeShellInitializer sets from the detected shell kind. Browsers never
+ * get the attribute and the desktop shell reports `"desktop"`, so neither the web
+ * layout nor the Tauri window is touched by these phone-inset rules (it was
+ * `data-native-shell`, which the desktop DID match). The mobile shell draws
+ * edge-to-edge (viewport-fit=cover, no native
  * content insets): paint an opaque band over the status-bar inset and lay the
  * app chrome out below it. Exactly ONE element owns each inset edge — the
  * layout root owns the top, and each chrome strip (header, topBar banner,
  * main, bottom action bar) clears its own side/bottom insets. Inner components
  * must position against layout flow, never against viewport constants.
  */
-html[data-native-shell] body::before {
+html[data-shell="mobile"] body::before {
   content: "";
   position: fixed;
   top: 0;
@@ -114,14 +117,14 @@ html[data-native-shell] body::before {
    started at y=0 under the status bar (clipped by the band), the header
    double-padded, and the burger menu's below-header offset (top: 48px = the
    header's natural height) no longer matched the inflated header. */
-html[data-native-shell] .app-shell-root,
-html[data-native-shell] .of-auth-shell {
+html[data-shell="mobile"] .app-shell-root,
+html[data-shell="mobile"] .of-auth-shell {
   padding-top: var(--native-safe-top, env(safe-area-inset-top));
 }
 
 /* Header contents clear the notch/rounded corners in landscape. No top
    padding — the top inset is owned by .app-shell-root above. */
-html[data-native-shell] header.sticky {
+html[data-shell="mobile"] header.sticky {
   padding-left: var(--native-safe-left, env(safe-area-inset-left));
   padding-right: var(--native-safe-right, env(safe-area-inset-right));
 }
@@ -129,7 +132,7 @@ html[data-native-shell] header.sticky {
 /* topBar banners in the AppLayout `topBar` slot (announcement bars): clear
    the notch in landscape; max() keeps the bar's own design padding when the
    inset is smaller (portrait / web). */
-html[data-native-shell] .app-top-bar {
+html[data-shell="mobile"] .app-top-bar {
   padding-left: max(var(--native-safe-left, env(safe-area-inset-left)), var(--spacing-system-l));
   padding-right: max(var(--native-safe-right, env(safe-area-inset-right)), var(--spacing-system-l));
 }
@@ -138,7 +141,7 @@ html[data-native-shell] .app-top-bar {
    insets on the sides so scrolled content never sits under them in landscape.
    Uses the logical `scroll-padding`-free `padding-inline` so it composes with —
    rather than clobbers — the app's vertical `pb-*` Tailwind classes on <main>. */
-html[data-native-shell] main.overflow-y-auto {
+html[data-shell="mobile"] main.overflow-y-auto {
   padding-inline: var(--native-safe-left, env(safe-area-inset-left))
     var(--native-safe-right, env(safe-area-inset-right));
 }
@@ -147,7 +150,7 @@ html[data-native-shell] main.overflow-y-auto {
    md+) — the fixed bottom element that overlaps the home indicator. Lift its
    contents above the indicator and clear the side insets so its buttons stay
    fully tappable in both orientations. */
-html[data-native-shell] .fixed.bottom-0.left-0.right-0.z-50 {
+html[data-shell="mobile"] .fixed.bottom-0.left-0.right-0.z-50 {
   padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom));
   padding-left: var(--native-safe-left, env(safe-area-inset-left));
   padding-right: var(--native-safe-right, env(safe-area-inset-right));
