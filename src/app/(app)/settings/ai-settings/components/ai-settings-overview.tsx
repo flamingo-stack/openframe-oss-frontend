@@ -1,6 +1,6 @@
 'use client';
 
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import type { AgentAiConfig, AiQuickAction, ClientView } from '../types/ai-settings';
 import { AiSettingsCustomerCard } from './ai-settings-customer-card';
@@ -40,13 +40,15 @@ export function AiSettingsOverview({
   quickActions,
   quickActionsBanner,
 }: AiSettingsOverviewProps) {
+  const customizationEnabled = useFeatureFlag('customer-ai-assistant-settings');
+
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       {aiConfig && view && (
         <>
           <AiSettingsCustomerCard aiConfig={aiConfig} view={view} providerModelLabel={providerModelLabel} />
           {/* Previews are part of the not-yet-released AI customization. */}
-          {featureFlags.customerAiAssistantSettings.enabled() && (
+          {customizationEnabled && (
             <AiSettingsPreviews
               assistantName={view.assistantName}
               avatarUrl={getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash)}
@@ -59,7 +61,7 @@ export function AiSettingsOverview({
         </>
       )}
       {/* Quick actions are part of the not-yet-released AI customization. */}
-      {featureFlags.customerAiAssistantSettings.enabled() && quickActions && aiConfig && (
+      {customizationEnabled && quickActions && aiConfig && (
         <AiSettingsQuickActionsSection
           title="Assistant Quick Actions"
           actions={quickActions}

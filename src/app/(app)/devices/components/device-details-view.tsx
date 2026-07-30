@@ -25,6 +25,12 @@ import { DeviceDetailsSkeleton } from './device-details-skeleton';
 import { RunScriptModal } from './run-script/run-script-modal';
 import { DEVICE_TABS } from './tabs/device-tabs';
 
+// Icon size for the "…" dropdown items only. The same registry feeds the header
+// buttons, but there this class never applies: every button variant styles its glyphs
+// with a `[&_svg]:h-*` descendant rule, which outranks a utility sitting on the svg
+// itself (0,1,1 vs 0,1,0). Header glyph size is the button's to decide — don't try to
+// set it from here. The token is 16px below md / 24px from md, the same scale the
+// buttons and the menu's own icon cells use.
 const DETAIL_ICON_SIZE = 'w-[var(--icon-size-icon-size)] h-[var(--icon-size-icon-size)]';
 
 interface DeviceDetailsViewProps {

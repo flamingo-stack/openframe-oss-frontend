@@ -200,13 +200,12 @@ export function ScheduleDevicesTable({ devices, loading, totalCount, infiniteScr
         onTagRemove={handleTagRemove}
         onClearAll={handleClearAll}
         onSubmit={handleTagSubmit}
-        isMdUp={isMdUp}
         onOpenFilterModal={openFilterModal}
         isFilterModalOpen={filterModalOpen}
         onCloseFilterModal={closeFilterModal}
         filterGroups={filterGroups}
         onFilterChange={handleModalFilterChange}
-        currentFilters={!isMdUp ? tableFilters : undefined}
+        currentFilters={isMdUp === false ? tableFilters : undefined}
         tagFilterKeys={tagFilterKeys}
         selectedTags={selectedTags}
         onTagsChange={handleModalTagsChange}

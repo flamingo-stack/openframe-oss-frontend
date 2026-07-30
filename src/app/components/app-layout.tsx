@@ -18,22 +18,23 @@ import {
   TENANT_ONBOARDING_STEPS,
   USER_ONBOARDING_STEPS,
 } from '@/app/(app)/onboarding/onboarding-steps';
-import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
-import { getNavigationItems } from '../../lib/navigation-config';
-import { APP_MAIN_CLASS_NAME, AppShellSkeleton } from './app-shell-skeleton';
+import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
+import { APP_MAIN_CLASS_NAME, AppShellSkeleton, headerLoadingCells } from './app-shell-skeleton';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
+import { GenericPageSkeleton } from './generic-page-skeleton';
 import { InitialSetupBar } from './initial-setup-bar';
 import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
@@ -41,7 +42,7 @@ import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
 import {
   CachedOnboardingTopBar,
-  readCachedOnboardingTopBar,
+  useCachedOnboardingTopBar,
   writeCachedOnboardingTopBar,
 } from './onboarding-top-bar-cache';
 import { OnboardingTourBar } from './onboarding-tour-bar';
@@ -86,7 +87,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const router = useRouter();
   const pathname = usePathname();
 
-  const userId = useAuthStore(state => state.user?.id);
+  // The shell now mounts BEFORE the session resolves (see `AppLayoutInner`), so it
+  // owns two things it used to get for free from being rendered only afterwards:
+  // the user chrome fills in instead of being present from the start, and every
+  // fetching child below is gated on this — a hydrator firing before `/me` has
+  // answered would 401 into the refresh/force-logout path.
+  const { isReady: sessionResolved, isAuthenticated } = useAuthSession();
+  const sessionReady = sessionResolved && isAuthenticated;
+
   const userFirstName = useAuthStore(state => state.user?.firstName);
   const userLastName = useAuthStore(state => state.user?.lastName);
   const userEmail = useAuthStore(state => state.user?.email);
@@ -143,10 +151,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   useNativeBackDismissible(chatOpen, closeChat);
   useNativeBackDismissible(logoutOpen, closeLogout);
 
-  const handleProfile = useCallback(() => {
-    router.push(userId ? employeeDetailHref(userId) : '/settings');
-  }, [router, userId]);
-
   // Notifications context (provided by NotificationsDataProvider in the root
   // layout). Read via ref so the pathname effect below doesn't depend on the
   // context value's render-to-render identity.
@@ -171,11 +175,27 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     closeNotificationsRef.current?.();
   }, [pathname]);
 
-  const { isLocked } = useSubscriptionLock();
+  const { isLocked, isResolved: subscriptionResolved } = useSubscriptionLock();
   // Checkout result pages render their own success/cancel UI; they're the only
   // place a paying user lands before the webhook flips the subscription to ACTIVE.
   const isCheckoutResultPage = pathname?.startsWith('/checkout') ?? false;
   const showLockContent = isLocked && !isCheckoutResultPage;
+  // The subscription answer decides whether the page or the lock screen belongs
+  // in `<main>`, so until it lands the page area holds the route's skeleton.
+  // Checkout pages are exempt for the same reason they are exempt from the lock.
+  // Note there is deliberately NO "still resolving" placeholder for the page
+  // area. `children` render immediately — before the session and before the
+  // subscription answer — and show their OWN loading state, because every app
+  // data request waits on the session latch (`lib/session-ready.ts`) rather than
+  // on this tree. That is what removed the route→skeleton registry: the mapping
+  // from a page to its skeleton lives in the page, once.
+  //
+  // The trade-off is on the lock: a locked workspace sees its page's skeleton for
+  // the length of the subscription round-trip before the lock screen swaps in.
+  // The lock is UX, not enforcement (the API refuses the data either way), and
+  // the query is `store-and-network`, so the window exists only on a cold store.
+  void subscriptionResolved;
+  void isCheckoutResultPage;
   // The Mingo sidebar (header launcher + in-layout chat drawer) is gated by the
   // `mingo-sidebar` feature flag. It's also only meaningful inside the full,
   // unlocked app shell (it hits authed endpoints), so the subscription lock
@@ -188,7 +208,25 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // just cleared, so Back appears to do nothing. The drawer is the replacement
   // for that page, so they should never be live at the same time.
   const isMingoPage = pathname?.startsWith('/mingo') ?? false;
-  const chatEnabled = featureFlags.mingoSidebar.enabled() && !showLockContent && !isMingoPage;
+  // Every flag this shell's CHROME depends on, read reactively in one place:
+  // the sidebar memo below and the header props both consume these, and a
+  // `featureFlags.*` snapshot taken before the flags query answers would leave
+  // them stuck on the env defaults with nothing to recompute them.
+  // Plain booleans: `AppLayoutInner` holds its stub until the flags have answered,
+  // so nothing below ever renders on an unanswered flag.
+  const mingoSidebarEnabled = useFeatureFlag('mingo-sidebar');
+  const timeTrackerEnabled = useFeatureFlag('time-tracker');
+  const scriptsV2Enabled = useFeatureFlag('scripts-v2');
+  const helpCenterEnabled = useFeatureFlag('help-center');
+  const notificationsEnabled = useFeatureFlag('notifications');
+
+  // The nav's entries are flag-shaped, so until the flags answer the chrome renders
+  // its own loading state (core `loading` props below) instead of a partly-built or
+  // guessed nav. That is also what covers the core header's first render: its
+  // mobile/desktop split runs through `useMdUp() ?? false`, which reads "mobile"
+  // until an effect has run.
+  const chromeLoading = !useFeatureFlagsReady();
+  const chatEnabled = mingoSidebarEnabled && !showLockContent && !isMingoPage;
   const [unreadCounts, setUnreadCounts] = useState<UnreadCountsByCategory>({});
 
   // Onboarding chrome (behind the `new-onboarding` flag): the sidebar "Onboarding"
@@ -196,7 +234,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // via the onboarding store, hydrated by `OnboardingProgressHydrator` (mounted below
   // only when the flag is on). `onboardingLoaded` gates the chrome so nothing flickers
   // before we know the real state.
-  const newOnboardingEnabled = featureFlags.newOnboarding.enabled();
+  const newOnboardingEnabled = useFeatureFlag('new-onboarding', runtimeEnv.newOnboardingFlag());
   const tenantProgress = useOnboardingStore(state => state.tenant);
   const userProgress = useOnboardingStore(state => state.user);
   const onboardingLoaded = useOnboardingStore(state => state.isLoaded);
@@ -219,25 +257,41 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // tenant Initial Setup is complete — until then the user is kept on Initial Setup.
   const userOnboardingActive = showOnboardingChrome && initialSetupComplete && userInProgress;
 
+  const navigationFlags = useMemo<NavigationFlags>(
+    () => ({
+      scriptsV2: scriptsV2Enabled,
+      mingoSidebar: mingoSidebarEnabled,
+      timeTracker: timeTrackerEnabled,
+      helpCenter: helpCenterEnabled,
+    }),
+    [scriptsV2Enabled, mingoSidebarEnabled, timeTrackerEnabled, helpCenterEnabled],
+  );
+
   const navigationItems = useMemo(
     () =>
       getNavigationItems(
         pathname,
+        navigationFlags,
         unreadCounts,
         userOnboardingActive ? { inProgress: true, remaining: userRemaining } : undefined,
       ),
-    [pathname, unreadCounts, userOnboardingActive, userRemaining],
+    [pathname, navigationFlags, unreadCounts, userOnboardingActive, userRemaining],
   );
 
   const sidebarConfig: NavigationSidebarConfig = useMemo(
     () => ({
       items: navigationItems,
+      loading: chromeLoading,
+      // The counts this app's nav settles on, so the placeholder is the same height
+      // as the loaded rail: 7 primary (Dashboard, Customers, Devices, Scripts,
+      // Monitoring, Logs, Tickets) and 2 secondary (Knowledge Base, Settings).
+      loadingRows: { primary: 7, secondary: 2 },
       onNavigate: handleNavigate,
       // `h-full` (not `h-screen`) so the sidebar fills the layout row below the
       // optional top bar rather than overflowing the viewport by its height.
       className: 'h-full',
     }),
-    [navigationItems, handleNavigate],
+    [navigationItems, chromeLoading, handleNavigate],
   );
 
   // Onboarding top bar (single `topBar` slot, one bar at a time):
@@ -251,8 +305,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const isOnboardingPage = pathname?.startsWith('/onboarding') ?? false;
   const isDashboardPage = pathname === '/' || (pathname?.startsWith('/dashboard') ?? false);
   // Read once per mount so the reserved band can't change under the layout
-  // between the pre-load render and the real one.
-  const [cachedTopBar] = useState(readCachedOnboardingTopBar);
+  // between the pre-load render and the real one — and past hydration, since the
+  // cache behind it is browser-only (see `useCachedOnboardingTopBar`).
+  const cachedTopBar = useCachedOnboardingTopBar();
   let topBar: React.ReactNode;
   if (showOnboardingChrome) {
     if (initialSetupActive) {
@@ -317,19 +372,28 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
 
-  const notificationsEnabled = featureFlags.notifications.enabled();
-  const timeTrackerEnabled = featureFlags.timeTracker.enabled();
-
   const headerProps = useMemo(
     () => ({
+      // Placeholder cells until the flags answer — and, as a side effect, until the
+      // core header's own `useMdUp()` has resolved, so its mobile-first render never
+      // reaches the screen.
+      loading: chromeLoading,
+      // MUST be passed explicitly: `showNotifications`/`showTimeTracker`/`showMingoAI`
+      // below are themselves flag-driven, so during `loading` they all read false and
+      // the placeholder would reserve nothing at all.
+      //
+      // Shared with `AppShellSkeleton` (which renders first, as the streaming fallback)
+      // so the two placeholders reserve the same cells. A tenant with one of the flags
+      // off loses a cell from a right-aligned cluster in empty space, which shifts
+      // nothing else on the page — see `headerLoadingCells`.
+      loadingActionCells: headerLoadingCells(),
       showNotifications: notificationsEnabled,
       showTimeTracker: timeTrackerEnabled,
-      showUser: true,
-      userName: displayName,
-      userEmail,
-      userAvatarUrl: avatarUrl,
-      onProfile: handleProfile,
-      onLogout: handleLogout,
+      // No user cell in the header. Profile and Log Out stay reachable from the
+      // Settings hub (its pinned "Log Out" button) and, on mobile, from the burger
+      // menu — which is why the user props below are gone rather than kept unused:
+      // the core header only reads them under `showUser`.
+      showUser: false,
       // These three are core `AppHeader` prop names (the "AI" digraph trips
       // biome's strictCase camelCase rule); they're external API, not ours.
       // biome-ignore lint/style/useNamingConvention: external lib prop name
@@ -339,18 +403,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // biome-ignore lint/style/useNamingConvention: external lib prop name
       isMingoAIActive: chatOpen,
     }),
-    [
-      notificationsEnabled,
-      timeTrackerEnabled,
-      displayName,
-      userEmail,
-      avatarUrl,
-      handleProfile,
-      handleLogout,
-      chatEnabled,
-      toggleChat,
-      chatOpen,
-    ],
+    [chromeLoading, notificationsEnabled, timeTrackerEnabled, chatEnabled, toggleChat, chatOpen],
   );
 
   const mobileBurgerMenuProps = useMemo(
@@ -404,7 +457,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   return (
     <>
-      {notificationsEnabled && (
+      {notificationsEnabled && sessionReady && (
         // ErrorBoundary + Suspense mirror the drawer hydrator: a trial-expired GraphQL error
         // makes the query return null data, which Relay surfaces as a thrown error. Without the
         // boundary it bubbles to Next's root and shows the full-page "couldn't load" screen
@@ -415,20 +468,27 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           </Suspense>
         </ErrorBoundary>
       )}
-      <TimeTrackerHostProvider enabled={timeTrackerEnabled}>
+      <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady}>
         <CoreAppLayout
           // Hook for the native-shell safe-area CSS in globals.css: the layout
           // root owns the top inset (see `.app-shell-root`). Inert on the web.
           className="app-shell-root"
           mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
           sidebarConfig={sidebarConfig}
-          loadingFallback={null}
+          // Core wraps `children` in its own Suspense with this fallback. It is
+          // the LAST resort: a page that suspends without a boundary of its own
+          // shows the neutral page shape here instead of blanking the content
+          // area, which `null` did. Pages own their real skeleton.
+          loadingFallback={<GenericPageSkeleton />}
           mobileBurgerMenuProps={mobileBurgerMenuProps}
           headerProps={headerProps}
           disabled={showLockContent}
           drawer={chatDrawer}
           topBar={topBar}
         >
+          {/* One shell, two possible contents. The chrome around this never
+              unmounts, so moving between them is a swap inside `<main>` and not
+              a re-mount of the sidebar + header. */}
           {showLockContent ? <SubscriptionLockContent /> : children}
         </CoreAppLayout>
       </TimeTrackerHostProvider>
@@ -436,7 +496,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           + coach-mark (shows only when a page was reached from an onboarding step
           via the `setupHint` query param). Both only when the flag is on, so the
           onboarding queries never fire while the feature is off. */}
-      {newOnboardingEnabled && (
+      {newOnboardingEnabled && sessionReady && (
         <Suspense fallback={null}>
           <OnboardingProgressHydrator />
           <OnboardingCoachMark />
@@ -467,30 +527,33 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
     }
   }, [isReady, isAuthenticated, pathname, router]);
 
-  // Still loading initial auth check
-  if (!isReady) {
-    return <AppShellSkeleton />;
-  }
-
   // Auth-only mode (saas-shared): render children directly
   if (isAuthOnlyMode()) {
     return <>{children}</>;
   }
 
-  // Not authenticated
-  if (!isAuthenticated) {
+  // Resolved as signed out on a SaaS tenant: the overlay replaces the app.
+  if (isReady && !isAuthenticated) {
     if (isSaasTenantMode()) {
       return <UnauthorizedOverlay />;
     }
-    // OSS mode - show skeleton while redirecting to /auth
-    return <AppShellSkeleton />;
+    // OSS mode: the effect above is redirecting to /auth. Fall through so the
+    // shell stays mounted with the page's own loading state in its content area
+    // rather than swapping the whole chrome for a placeholder on the way out.
   }
 
   return (
     <>
-      <NativePushInitializer />
-      <BiometricEnrollPrompt />
-      <SubscriptionGuard fallback={<AppShellSkeleton />}>
+      {/* Both assume a signed-in user (push registration, biometric enrolment). */}
+      {isReady && isAuthenticated && (
+        <>
+          <NativePushInitializer />
+          <BiometricEnrollPrompt />
+        </>
+      )}
+      {/* No `fallback` — the guard no longer suspends, so the shell below mounts
+          once and stays mounted through the subscription round-trip. */}
+      <SubscriptionGuard>
         <AppShell mainClassName={mainClassName}>{children}</AppShell>
       </SubscriptionGuard>
     </>
@@ -499,6 +562,12 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
 
 export function AppLayout({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   return (
+    // Nothing inside `AppLayoutInner` suspends on the normal boot path any more
+    // (`TimeTrackerHostProvider` and every hydrator carry their own boundary, and
+    // `SubscriptionGuard` no longer suspends), so this is a backstop rather than
+    // a phase every page load goes through. It still renders the shell
+    // placeholder: whatever new suspension lands here would otherwise blank the
+    // whole app.
     <Suspense fallback={<AppShellSkeleton />}>
       <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>
     </Suspense>

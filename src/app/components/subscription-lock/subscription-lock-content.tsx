@@ -1,7 +1,10 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useOwnerGate } from '@/app/hooks/use-owner-gate';
+import { SubscriptionStatus } from '@/generated/schema-enums';
 import { isBillingHidden } from '@/lib/billing-visibility';
+import { useSubscriptionLock } from './subscription-lock-context';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
 // Lazy on purpose, not for weight: a static import would put the plan cards,
@@ -15,17 +18,54 @@ const SubscriptionPlanLockContent = dynamic(() => import('./subscription-plan-lo
 });
 
 /**
+ * Copy for the viewer who cannot fix the lock themselves. Split by status because
+ * "your trial ended" and "your subscription ended" are different facts, and the
+ * one thing both need to say is who to go to.
+ *
+ * Not sourced from `subscription-lock-copy.ts`: that module is plan-and-purchase
+ * wording, kept out of every non-purchasing bundle on purpose, and this path is
+ * exactly a non-purchasing one.
+ */
+function nonOwnerCopy(status: SubscriptionStatus): { title: string; description: string } {
+  const description =
+    'Only the workspace owner can restore it. Contact them to bring the workspace back for your team.';
+
+  return status === SubscriptionStatus.TRIAL_EXPIRED
+    ? { title: 'The free trial has ended.', description }
+    : { title: 'The subscription has ended.', description };
+}
+
+/**
  * Content rendered in place of the normal page content when the tenant is
  * locked out of the app (trial expired, subscription canceled, etc.).
  *
- * Web/desktop get the plan picker — same data, same cards as the subscription
- * settings page. Builds with the payment UI hidden (the native app builds — see
- * `billing-visibility.ts`) get `WorkspaceInactiveScreen`: the lock stays, the
- * plans, prices and checkout CTA do not, and none of that code is even fetched.
+ * The lock itself applies to everyone in the workspace — `SubscriptionGuard` does
+ * not consult the role, and it must not: the data is unavailable to the whole
+ * tenant. Only the REMEDY is role-shaped, so this picks between three screens:
+ *
+ *   - payment UI hidden for the build (native) → `WorkspaceInactiveScreen`;
+ *   - not the workspace owner → the same screen, with subscription wording,
+ *     because every route that could fix this is owner-only (`use-owner-gate.ts`)
+ *     and a plan picker leading to a 404 is worse than a plain explanation;
+ *   - the owner on a paying build → the plan picker, same cards as the
+ *     subscription settings page.
+ *
+ * `'loading'` is grouped with "not the owner" deliberately. It should be
+ * unreachable — every query that can produce a lock waits on the session latch,
+ * which `/me` opens, so the role is known by the time a lock renders — and if that
+ * ever stops holding, erring toward the screen with no prices on it is the safe
+ * direction, not the one that flashes a purchase flow at someone.
  */
 export function SubscriptionLockContent() {
+  const owner = useOwnerGate();
+  const { status } = useSubscriptionLock();
+
   if (isBillingHidden()) {
     return <WorkspaceInactiveScreen />;
+  }
+
+  if (owner !== 'owner') {
+    return <WorkspaceInactiveScreen {...nonOwnerCopy(status)} />;
   }
 
   return <SubscriptionPlanLockContent />;

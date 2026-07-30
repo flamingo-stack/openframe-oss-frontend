@@ -5,8 +5,9 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense } from 'react';
 import { InitialSetupCard, InitialSetupSkeleton } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { isSaasTenantMode } from '@/lib/app-mode';
-import { featureFlags } from '@/lib/feature-flags';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { CustomersOverviewSection } from './customers-overview';
 import { DevicesOverviewSection } from './devices-overview';
 import { OnboardingSection } from './onboarding-section';
@@ -26,7 +27,7 @@ export default function DashboardContent() {
   // The legacy onboarding section is replaced by the new onboarding chrome once the
   // `new-onboarding` flag is on: the tenant "Initial Setup" card here, plus the
   // standalone `/onboarding` (user Get Started) page and the top bar.
-  const newOnboardingEnabled = featureFlags.newOnboarding.enabled();
+  const newOnboardingEnabled = useFeatureFlag('new-onboarding', runtimeEnv.newOnboardingFlag());
   const showLegacyOnboarding = !newOnboardingEnabled;
 
   // Dim (and disable) the rest of the dashboard ONLY while the tenant Initial Setup is

@@ -79,7 +79,12 @@ export function BiometricUnlockGate({ onUnlocked, onUseAnotherLogin }: Biometric
           <Button className="w-full" onClick={handleRetry} disabled={isUnlocking || isLeaving}>
             {isUnlocking ? 'Unlocking…' : `Unlock with ${label}`}
           </Button>
-          <Button className="w-full" variant="outline" onClick={handleUseAnotherLogin} disabled={isUnlocking || isLeaving}>
+          <Button
+            className="w-full"
+            variant="outline"
+            onClick={handleUseAnotherLogin}
+            disabled={isUnlocking || isLeaving}
+          >
             {isLeaving ? 'Loading…' : 'Log in another way'}
           </Button>
         </div>

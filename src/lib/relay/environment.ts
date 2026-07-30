@@ -4,6 +4,7 @@ import type { FetchFunction, IEnvironment } from 'relay-runtime';
 import { Environment, Network, RecordSource, Store } from 'relay-runtime';
 import { forceLogout } from '../force-logout';
 import { runtimeEnv } from '../runtime-config';
+import { waitForSessionReady } from '../session-ready';
 import { detectTrialExpiredFromGraphqlErrors } from '../subscription-lock-signal';
 import { refreshAccessToken } from '../token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '../token-store';
@@ -46,10 +47,60 @@ async function executeFetch(
 }
 
 /**
+ * "Render this subtree on the client instead" — Next's own signal, not an error.
+ *
+ * A plain `Error` here works but is REPORTED: React recovers by client-rendering
+ * the boundary, then Next surfaces it as a `Recoverable Error` in the dev overlay
+ * on every single load, and logs it server-side per request. Neither is a real
+ * failure — a server render with no session was never going to produce data.
+ *
+ * `digest === 'BAILOUT_TO_CLIENT_SIDE_RENDERING'` is the contract Next checks to
+ * treat a throw as an intentional bail-out; it is exactly how `next/dynamic` with
+ * `ssr: false` opts a component out of SSR. Both ends honor it:
+ *   - `next/dist/client/react-client-callbacks/on-recoverable-error.js`
+ *     — `if (isBailoutToCSRError(cause)) return;` → no overlay, no client report
+ *   - `next/dist/server/app-render/create-error-handler.js`
+ *     — returns the digest before logging, and `isRelevantError` excludes it
+ *
+ * The digest string is replicated rather than deep-imported from
+ * `next/dist/shared/lib/lazy-dynamic/bailout-to-csr`, whose path is internal.
+ * If a future Next were to change the string, this degrades LOUDLY — back to a
+ * visible recoverable error — rather than silently swallowing a real failure.
+ */
+class BailoutToClientRenderError extends Error {
+  readonly digest = 'BAILOUT_TO_CLIENT_SIDE_RENDERING';
+
+  constructor() {
+    super('Bail out to client-side rendering: Relay query has no session during server render');
+  }
+}
+
+/**
  * Relay network fetch function.
  * Mirrors apiClient auth logic: cookie-based auth + 401 token refresh + force logout.
  */
 const fetchRelay: FetchFunction = async (request, variables) => {
+  // No GraphQL during a server render. There is no user cookie in the Node
+  // process, so the request would 401 — and the 401 path below calls
+  // `refreshAccessToken`/`forceLogout`, which touch `window` and localStorage.
+  //
+  // Throwing (rather than just refusing) is what SETTLES the Suspense boundary.
+  // A query left pending keeps its boundary open, and React's stream stays open
+  // until every boundary settles — that is what made every Relay route's HTTP
+  // response never finish while its HTML was already flushed and interactive
+  // (see `session-ready.ts`). Settling it makes React emit the fallback — the
+  // page's own skeleton — close the stream, and re-render this subtree on the
+  // client, where the session and cookies exist.
+  if (typeof window === 'undefined') {
+    throw new BailoutToClientRenderError();
+  }
+
+  // Every Relay query waits for the session (see `session-ready.ts`). This is
+  // what lets a page render — and therefore CALL its query hooks — before `/me`
+  // answers: the request simply doesn't leave, Relay suspends, and the page shows
+  // its own `<Suspense>` fallback instead of a central route skeleton.
+  await waitForSessionReady();
+
   // Captured BEFORE the request goes out: a 401 that comes back after the
   // credential has already rotated needs a retry, not another rotation.
   const sentAtEpoch = getTokenEpoch();

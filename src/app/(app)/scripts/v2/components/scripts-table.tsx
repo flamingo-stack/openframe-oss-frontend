@@ -43,7 +43,7 @@ import type {
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { EmptyState, onboardingGuideButton } from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, onboardingGuideButton, skeletonColumnDefs } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -65,6 +65,7 @@ import { platformsToEnums, platformsToIds, shellToEnum, shellToId } from '../uti
 import { ArchiveScriptModal } from './archive-script-modal';
 import { RestoreScriptModal } from './restore-script-modal';
 import { ScriptShellBadge } from './script-shell-badge';
+import { SCRIPT_COLUMNS, SCRIPTS_TABLE_COLUMNS } from './scripts-table-columns';
 import { ScriptsTagFilter, ScriptsTagFilterSkeleton } from './scripts-tag-filter';
 
 const PAGE_SIZE = 20;
@@ -352,7 +353,7 @@ function ScriptsTableContent({
     () => [
       {
         accessorKey: 'name',
-        header: 'Name',
+        header: SCRIPT_COLUMNS.name.header,
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
           <div className="flex flex-col justify-center gap-1 min-w-0">
             <TruncateText>{row.original.name}</TruncateText>
@@ -364,41 +365,34 @@ function ScriptsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'flex-1 min-w-0' },
+        meta: liveColumnMeta(SCRIPT_COLUMNS.name),
       },
       {
         accessorKey: 'shellType',
-        header: 'Shell Type',
+        header: SCRIPT_COLUMNS.shellType.header,
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
           <ScriptShellBadge value={row.original.shellType} iconClassName="w-4 h-4 md:w-6 md:h-6" />
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: {
-          width: 'w-[100px] md:w-[160px]',
-          filter: { options: shellOptions },
-        },
+        meta: liveColumnMeta(SCRIPT_COLUMNS.shellType, { filter: { options: shellOptions } }),
       },
       {
         accessorKey: 'supportedPlatforms',
-        header: 'OS',
+        header: SCRIPT_COLUMNS.supportedPlatforms.header,
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
           <OSTypeBadgeGroup osTypes={row.original.supportedPlatforms} iconSize="w-4 h-4 md:w-6 md:h-6" />
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: {
-          width: 'w-[80px]',
-          hideAt: 'lg',
-          filter: { options: platformOptions },
-        },
+        meta: liveColumnMeta(SCRIPT_COLUMNS.supportedPlatforms, { filter: { options: platformOptions } }),
       },
       {
         // "Added by" = Script.author. Server filter via `authorIds`; the dropdown
         // options come from `scriptFilters.authors` (see authorOptions). accessorKey
         // is `authorId` so the option values (ids) match the server filter.
         accessorKey: 'authorId',
-        header: 'Added by',
+        header: SCRIPT_COLUMNS.authorId.header,
         // The author id is a User global id; decode it to the raw id the REST-backed
         // employee page expects. The whole cell opens that user's page in a new tab
         // (accent + underline). `data-no-row-click` stops the row's own navigation
@@ -457,12 +451,10 @@ function ScriptsTableContent({
         // Rightmost filterable column: anchor the dropdown to the right edge so it
         // never flips placement (start↔end) on open/close — that flip makes the
         // panel jump sideways as it animates out.
-        meta: {
-          width: 'w-[250px]',
-          hideAt: 'lg',
+        meta: liveColumnMeta(SCRIPT_COLUMNS.authorId, {
           cellClassName: 'self-stretch',
           filter: { options: authorOptions, placement: 'bottom-end' },
-        },
+        }),
       },
       {
         id: 'actions',
@@ -472,7 +464,7 @@ function ScriptsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(SCRIPT_COLUMNS.actions),
       },
       {
         id: 'open',
@@ -489,7 +481,7 @@ function ScriptsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: liveColumnMeta(SCRIPT_COLUMNS.open),
       },
     ],
     [renderRowActions, shellOptions, platformOptions, authorOptions],
@@ -638,32 +630,10 @@ function ScriptsTableContent({
 const EMPTY_ROWS: UiScriptEntry[] = [];
 
 function ScriptsTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
+  // Same layout the live table above renders, including the trailing action
+  // columns — so the loading header reserves the same widths and stays aligned.
   const columns = useMemo<ColumnDef<UiScriptEntry>[]>(
-    () => [
-      { accessorKey: 'name', header: 'Name', enableSorting: false, meta: { width: 'flex-1 min-w-0' } },
-      {
-        accessorKey: 'shellType',
-        header: 'Shell Type',
-        enableSorting: false,
-        meta: { width: 'w-[100px] md:w-[160px]' },
-      },
-      {
-        accessorKey: 'supportedPlatforms',
-        header: 'OS',
-        enableSorting: false,
-        meta: { width: 'w-[80px]', hideAt: 'lg' },
-      },
-      {
-        accessorKey: 'authorId',
-        header: 'Added by',
-        enableSorting: false,
-        meta: { width: 'w-[250px]', hideAt: 'lg' },
-      },
-      // Mirror the real table's trailing action columns (row actions menu + open
-      // button) so the loading header reserves the same width and stays aligned.
-      { id: 'actions', enableSorting: false, meta: { width: 'w-12 shrink-0 flex-none', align: 'right' } },
-      { id: 'open', enableSorting: false, meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' } },
-    ],
+    () => skeletonColumnDefs<UiScriptEntry>(SCRIPTS_TABLE_COLUMNS),
     [],
   );
 

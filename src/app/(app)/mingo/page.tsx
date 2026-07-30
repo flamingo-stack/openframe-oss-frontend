@@ -16,9 +16,9 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { isSaasTenantMode } from '@/lib/app-mode';
-import { featureFlags } from '@/lib/feature-flags';
 import { routes } from '@/lib/routes';
 import { useMingoChat } from './hooks/use-mingo-chat';
 import { useMingoDialog } from './hooks/use-mingo-dialog';
@@ -27,7 +27,63 @@ import { useMingoDialogs } from './hooks/use-mingo-dialogs';
 import { DialogSubscription, useMingoRealtimeSubscription } from './hooks/use-mingo-realtime-subscription';
 import { useMingoMessagesStore } from './stores/mingo-messages-store';
 
-export default function Mingo() {
+/**
+ * Route gate for the LEGACY standalone `/mingo` page. When `mingo-sidebar` is on,
+ * Mingo lives in the in-layout sidebar drawer instead and this route is fully
+ * hidden, so any direct/bookmarked hit redirects to the dashboard. Also covers the
+ * non-SaaS guard.
+ *
+ * Tri-state on purpose — whether a route is reachable is exactly what must not be
+ * decided on a guess. Read as a plain boolean the flag said "off" for the length of
+ * the flags round-trip, so a tenant that has the drawer mounted this whole legacy
+ * chat first — dialog list, message history, a NATS subscription — and unmounted it
+ * again once the answer landed.
+ */
+export default function MingoPage() {
+  const router = useRouter();
+  const isSaasTenant = isSaasTenantMode();
+  const mingoSidebarGate = useFeatureFlagGate('mingo-sidebar');
+
+  useEffect(() => {
+    if (!isSaasTenant || mingoSidebarGate === 'on') {
+      router.replace(routes.dashboard);
+    }
+  }, [router, isSaasTenant, mingoSidebarGate]);
+
+  // On the way out — the redirect above owns this render.
+  if (!isSaasTenant || mingoSidebarGate === 'on') {
+    return null;
+  }
+
+  if (mingoSidebarGate === 'loading') {
+    return <MingoChatSkeleton />;
+  }
+
+  return <MingoChat />;
+}
+
+/**
+ * Held while `mingo-sidebar` is unanswered. Promises only the frame: the real
+ * `ChatSidebar` in its own loading state (so the rail's width comes from the
+ * component itself rather than a guessed one) beside an empty message column with
+ * the composer's reserved height.
+ */
+function MingoChatSkeleton() {
+  return (
+    <PageLayout showHeader={false} className="h-full" contentClassName="h-full flex flex-col">
+      <div className="flex h-full w-full">
+        <ChatSidebar isLoading className="flex-shrink-0 hidden md:flex" />
+        <div className="flex-1 flex flex-col min-h-0 justify-end">
+          <div className="flex-shrink-0 px-[var(--spacing-system-lf)] pb-[var(--spacing-system-mf)]">
+            <Skeleton className="mx-auto h-14 w-full max-w-3xl rounded-lg" />
+          </div>
+        </div>
+      </div>
+    </PageLayout>
+  );
+}
+
+function MingoChat() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { aiModel: initialAiModel, isLoading: isAiModelLoading } = useAiModelStatus();
@@ -244,18 +300,6 @@ export default function Mingo() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeDialogId, isDraftChat, sidebarOpen, router]);
 
-  // The standalone `/mingo` page is the LEGACY surface. When `mingo-sidebar` is
-  // on, Mingo lives in the in-layout sidebar drawer instead, so this route is
-  // fully hidden — redirect any direct/bookmarked hit to the dashboard. (Flags
-  // are guaranteed loaded here: `FeatureFlagsGate` blocks the app shell until
-  // then, so the imperative read is stable.) Also covers the non-SaaS guard.
-  useEffect(() => {
-    if (!isSaasTenantMode() || featureFlags.mingoSidebar.enabled()) {
-      router.replace(routes.dashboard);
-      return;
-    }
-  }, [router]);
-
   const handleDialogSelect = useCallback(
     async (dialogId: string) => {
       setSidebarOpen(false);
@@ -361,10 +405,6 @@ export default function Mingo() {
       addMessage,
     ],
   );
-
-  if (!isSaasTenantMode() || featureFlags.mingoSidebar.enabled()) {
-    return null;
-  }
 
   return (
     <PageLayout showHeader={false} className="h-full" contentClassName="h-full flex flex-col">

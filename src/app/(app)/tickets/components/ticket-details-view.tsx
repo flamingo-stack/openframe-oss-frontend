@@ -51,13 +51,13 @@ import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { type AiModel, useAiModel } from '@/app/hooks/use-ai-model';
+import { useFeatureFlag, useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
 import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation';
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
-import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
@@ -138,16 +138,50 @@ function withActivityTracking(
   };
 }
 
+/**
+ * Route-level gate for the flag that picks the LAYOUT, held here so the body
+ * below never renders on a guess.
+ *
+ * `mingo-sidebar-context` decides which of two layouts a ticket opens in — and
+ * with it whether the embedded technician chat exists at all. Read as a plain
+ * boolean it reported "off" for the length of the flags round-trip, so a tenant
+ * with the flag ON mounted the classic two-chat layout, its NATS subscription and
+ * its history fetch, then threw all three away. `TicketDetailsSkeleton` already
+ * refuses to guess the layout while the gate is loading; this is what makes the
+ * loaded view agree with it.
+ *
+ * It also settles the other flags read further down: by the time the body mounts,
+ * the flags have answered, so `useFeatureFlag('time-tracker')` there can no longer
+ * report a stale default.
+ */
 export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
+  const handleBackToTickets = useSafeBack(routes.tickets.list);
+  const sidebarContextGate = useFeatureFlagGate('mingo-sidebar-context');
+
+  if (sidebarContextGate === 'loading') {
+    return <TicketDetailsSkeleton onBack={handleBackToTickets} />;
+  }
+
+  return <TicketDetailsContent ticketId={ticketId} technicianChatEnabled={sidebarContextGate === 'off'} />;
+}
+
+interface TicketDetailsContentProps extends TicketDetailsViewProps {
+  /**
+   * The resolved `mingo-sidebar-context` answer, inverted: when the Mingo sidebar
+   * carries per-ticket context, the embedded technician (Mingo) chat is redundant
+   * and its panel, NATS subscription, history fetch and chunk processing are all
+   * dropped in favor of the global sidebar chat.
+   */
+  technicianChatEnabled: boolean;
+}
+
+function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianChatEnabled }: TicketDetailsContentProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const handleBackToTickets = useSafeBack(routes.tickets.list);
   const { toast } = useToast();
-  // When the Mingo sidebar carries per-ticket context, the embedded technician
-  // (Mingo) chat is redundant: its panel, NATS subscription, history fetch, and
-  // chunk processing are all dropped in favor of the global sidebar chat.
-  const isTechnicianChatEnabled = !featureFlags.mingoSidebarContext.enabled();
+  const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const isSidebarLayout = !isTechnicianChatEnabled;
   const assignedItems = useAssignedItems({ itemId: ticketId, itemType: 'TICKET', enabled: isSidebarLayout });
   // Tenant-wide ADMIN (Mingo) model — the admin agent has no per-org override.
@@ -767,7 +801,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // AI-assistance, resolved, and archived tickets. Once a timer is running the
   // button disables — only one timer can be active at a time.
   const canTrackTime =
-    featureFlags.timeTracker.enabled() &&
+    timeTrackerEnabled &&
     (dialog.statusKind === TICKET_STATUS_KIND.TECH_REQUIRED || dialog.statusKind === TICKET_STATUS_KIND.CUSTOM);
   const isTimerActive = (timeTracker?.status ?? 'ready') !== 'ready';
 
