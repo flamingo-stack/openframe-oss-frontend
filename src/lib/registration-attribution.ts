@@ -139,6 +139,21 @@ function publishEventIdToDataLayer(eventId: string): void {
 }
 
 /**
+ * Serialize an attribution set into `attribution.<field>` query parameters for the SSO
+ * registration start URL. Nested `attribution.*` keys are what Spring's @ModelAttribute
+ * binds on the backend. Blank values are skipped — same "omit, never send empty" contract
+ * as the password-flow body. Kept here (not in the API client) so the field set that rides
+ * the SSO redirect provably matches what `collectRegistrationAttribution` produces.
+ */
+export function appendAttributionQueryParams(params: URLSearchParams, attribution: RegistrationAttribution): void {
+  for (const [field, value] of Object.entries(attribution)) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      params.append(`attribution.${field}`, value);
+    }
+  }
+}
+
+/**
  * Build the attribution payload for a registration request. Cookies are read live, URL
  * signals come from what was captured on the landing page, and a fresh `eventId` is minted
  * for this submission. Empty values are dropped so the backend never receives a blank

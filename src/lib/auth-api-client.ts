@@ -6,7 +6,11 @@
 
 import { isSaasSharedMode } from './app-mode';
 import { forceLogout } from './force-logout';
-import { collectRegistrationAttribution, type RegistrationAttribution } from './registration-attribution';
+import {
+  appendAttributionQueryParams,
+  collectRegistrationAttribution,
+  type RegistrationAttribution,
+} from './registration-attribution';
 import { runtimeEnv } from './runtime-config';
 import { refreshAccessToken } from './token-refresh-manager';
 import { getAccessTokenSync, getRefreshToken, getTokenEpoch, isBearerAuthMode } from './token-store';
@@ -189,12 +193,10 @@ class AuthApiClient {
     // The IdP callback is a fresh request from Google/Microsoft — the landing URL's click ids
     // and this browser's tracking cookies are unreachable by then. Send them now; the backend
     // stashes them in the SSO state cookie and replays them when the callback builds the
-    // registration. Nested `attribution.*` keys are what Spring's @ModelAttribute binds.
+    // registration.
     const attribution = payload.attribution ?? collectRegistrationAttribution();
     if (attribution) {
-      for (const [field, value] of Object.entries(attribution)) {
-        if (value) params.append(`attribution.${field}`, value);
-      }
+      appendAttributionQueryParams(params, attribution);
     }
 
     const url = buildAuthUrl(`/sas/oauth/register/sso?${params.toString()}`);
