@@ -139,6 +139,19 @@ function publishEventIdToDataLayer(eventId: string): void {
 }
 
 /**
+ * Enforce the "omit, never send empty" contract: drop blank fields, return `undefined` when
+ * nothing survives. Both registration flows (password body and SSO query params) run their
+ * attribution through this, so an explicit caller-supplied object gets the exact same
+ * treatment as a collector-produced one.
+ */
+export function normalizeAttribution(attribution: RegistrationAttribution): RegistrationAttribution | undefined {
+  const cleaned = Object.fromEntries(
+    Object.entries(attribution).filter(([, value]) => typeof value === 'string' && value.trim().length > 0),
+  ) as RegistrationAttribution;
+  return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+}
+
+/**
  * Serialize an attribution set into `attribution.<field>` query parameters for the SSO
  * registration start URL. Nested `attribution.*` keys are what Spring's @ModelAttribute
  * binds on the backend. Blank values are skipped — same "omit, never send empty" contract
@@ -146,10 +159,8 @@ function publishEventIdToDataLayer(eventId: string): void {
  * the SSO redirect provably matches what `collectRegistrationAttribution` produces.
  */
 export function appendAttributionQueryParams(params: URLSearchParams, attribution: RegistrationAttribution): void {
-  for (const [field, value] of Object.entries(attribution)) {
-    if (typeof value === 'string' && value.trim().length > 0) {
-      params.append(`attribution.${field}`, value);
-    }
+  for (const [field, value] of Object.entries(normalizeAttribution(attribution) ?? {})) {
+    params.append(`attribution.${field}`, value);
   }
 }
 
@@ -180,9 +191,5 @@ export function collectRegistrationAttribution(): RegistrationAttribution | unde
     raw[field] = readStored(param) ?? readUrlParam(param);
   }
 
-  const cleaned = Object.fromEntries(
-    Object.entries(raw).filter(([, value]) => typeof value === 'string' && value.trim().length > 0),
-  ) as RegistrationAttribution;
-
-  return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+  return normalizeAttribution(raw);
 }

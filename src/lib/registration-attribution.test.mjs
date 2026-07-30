@@ -120,3 +120,12 @@ test('SSO query serialization skips blank values instead of sending empty string
   A.appendAttributionQueryParams(params, { fbp: 'fb.1.170.999', fbc: '', utmSource: '   ' });
   assert.deepEqual([...params.keys()], ['attribution.fbp']);
 });
+
+// The password-flow body runs explicit attribution through the same normalization, so a
+// caller-supplied `{ fbp: '' }` is omitted identically on both flows.
+test('normalizeAttribution drops blanks and collapses an all-blank object to undefined', () => {
+  assert.deepEqual(A.normalizeAttribution({ fbp: 'fb.1.170.999', fbc: '', utmSource: '   ' }), {
+    fbp: 'fb.1.170.999',
+  });
+  assert.equal(A.normalizeAttribution({ fbc: '', utmSource: '   ' }), undefined);
+});

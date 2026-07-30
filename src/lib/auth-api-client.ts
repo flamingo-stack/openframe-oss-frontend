@@ -9,6 +9,7 @@ import { forceLogout } from './force-logout';
 import {
   appendAttributionQueryParams,
   collectRegistrationAttribution,
+  normalizeAttribution,
   type RegistrationAttribution,
 } from './registration-attribution';
 import { runtimeEnv } from './runtime-config';
@@ -164,9 +165,13 @@ class AuthApiClient {
     /** Marketing-attribution signals (click ids, campaign labels, tracking cookies, event id). */
     attribution?: RegistrationAttribution;
   }) {
+    // Same "omit, never send empty" treatment the SSO query serialization applies — an
+    // explicit caller-supplied object must not smuggle blank strings into the JSON body.
+    const { attribution, ...rest } = payload;
+    const normalized = attribution ? normalizeAttribution(attribution) : undefined;
     return request<T>('/sas/oauth/register', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...rest, ...(normalized ? { attribution: normalized } : {}) }),
     });
   }
 
