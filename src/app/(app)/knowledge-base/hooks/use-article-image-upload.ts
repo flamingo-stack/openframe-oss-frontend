@@ -47,7 +47,7 @@ export function useArticleImageUpload() {
       } catch (err) {
         toast({
           title: 'Image upload failed',
-          description: err instanceof Error ? err.message : 'Failed to upload image',
+          description: 'Failed to upload image. Please try again.',
           variant: 'destructive',
         });
         throw err;
