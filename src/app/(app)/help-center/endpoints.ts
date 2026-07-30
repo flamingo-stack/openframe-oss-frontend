@@ -28,15 +28,23 @@
  * 401-refresh). Same-origin keeps `embedAuthedFetch` valid in prod builds too.
  */
 import type { EndpointsRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 /** `''` on the web (relative, same-origin); the tenant gateway origin in the
  *  native shell. Exported for the chat auth adapter's `allowedOrigins`. */
-export const CONTENT_ORIGIN = isNativeShell() ? runtimeEnv.tenantHostUrl() : '';
+export const CONTENT_ORIGIN = isAppShell() ? runtimeEnv.tenantHostUrl() : '';
 
-const CONTENT_BASE = `${CONTENT_ORIGIN}/content`;
+/**
+ * The `/content` proxy root (no `/api` suffix). Exported for the two callers
+ * that need the base rather than a finished endpoint:
+ *   - `<FaqSection apiBaseUrl>`, which self-builds `/api/faqs?…` onto it;
+ *   - RELATIVE hub URLs that arrive INSIDE a payload and have to be routed back
+ *     through the proxy — the walkthrough video's `captionsUrl` comes as
+ *     `/api/captions/…` and would otherwise resolve against the app origin.
+ */
+export const CONTENT_BASE = `${CONTENT_ORIGIN}/content`;
 const CONTENT = `${CONTENT_BASE}/api`;
 
 /**
@@ -60,9 +68,6 @@ export const HELP_CENTER_BASE = routes.helpCenter.root;
  *  pulling the client `DocsHubPage` module into the chat bundle. */
 export const KNOWLEDGE_BASE_ROUTE = routes.helpCenter.knowledgeBase;
 
-/** Base the `<FaqSection>` appends `/api/faqs?…` to. */
-export const CONTENT_API_BASE = CONTENT_BASE;
-
 export const EP = {
   // onboarding guides
   onboarding: `${CONTENT}/onboarding-guides`,
@@ -83,7 +88,7 @@ export const EP = {
   productReleaseBySlug: (slug: string) => `${CONTENT}/releases/${slug}`,
   // legal (privacy / terms)
   legal: (docType: string) => `${CONTENT}/legal/${docType}`,
-  // FAQs — `<FaqSection apiBaseUrl=CONTENT_API_BASE>` self-builds `/api/faqs`.
+  // FAQs — `<FaqSection apiBaseUrl=CONTENT_BASE>` self-builds `/api/faqs`.
   // knowledge base (docs hub) — the lib `<DocsHubPage>` fetches the tree +
   // content from `…/docs/sources/<sourceId>/{structure,content}`, resolves
   // relative in-doc links via `…/docs/resolve-link`, and backs the in-source
@@ -94,6 +99,11 @@ export const EP = {
   docsContent: (sourceId: string) => `${CONTENT}/docs/sources/${sourceId}/content`,
   docsResolveLink: `${CONTENT}/docs/resolve-link`,
   docsSearch: `${CONTENT}/docs/search`,
+  // Walkthrough video — the floating per-platform demo video (mounted app-wide
+  // by `<WalkthroughVideo>`, not by a Help Center page). Public: no auth, no
+  // platform param — the hub resolves the platform server-side and answers with
+  // the raw body `{ walkthroughVideo }` (null when that platform has none).
+  walkthroughVideo: `${CONTENT}/walkthrough-video`,
 } as const;
 
 /**

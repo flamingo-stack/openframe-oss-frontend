@@ -6,7 +6,13 @@
 
 import { isSaasSharedMode } from './app-mode';
 import { forceLogout } from './force-logout';
-import { collectRegistrationAttribution, type RegistrationAttribution } from './registration-attribution';
+import { isAppShell } from './platform';
+import {
+  appendAttributionQueryParams,
+  collectRegistrationAttribution,
+  normalizeAttribution,
+  type RegistrationAttribution,
+} from './registration-attribution';
 import { runtimeEnv } from './runtime-config';
 import { refreshAccessToken } from './token-refresh-manager';
 import { getAccessTokenSync, getRefreshToken, getTokenEpoch, isBearerAuthMode } from './token-store';
@@ -160,9 +166,13 @@ class AuthApiClient {
     /** Marketing-attribution signals (click ids, campaign labels, tracking cookies, event id). */
     attribution?: RegistrationAttribution;
   }) {
+    // Same "omit, never send empty" treatment the SSO query serialization applies — an
+    // explicit caller-supplied object must not smuggle blank strings into the JSON body.
+    const { attribution, ...rest } = payload;
+    const normalized = attribution ? normalizeAttribution(attribution) : undefined;
     return request<T>('/sas/oauth/register', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...rest, ...(normalized ? { attribution: normalized } : {}) }),
     });
   }
 
@@ -189,12 +199,10 @@ class AuthApiClient {
     // The IdP callback is a fresh request from Google/Microsoft — the landing URL's click ids
     // and this browser's tracking cookies are unreachable by then. Send them now; the backend
     // stashes them in the SSO state cookie and replays them when the callback builds the
-    // registration. Nested `attribution.*` keys are what Spring's @ModelAttribute binds.
+    // registration.
     const attribution = payload.attribution ?? collectRegistrationAttribution();
     if (attribution) {
-      for (const [field, value] of Object.entries(attribution)) {
-        if (value) params.append(`attribution.${field}`, value);
-      }
+      appendAttributionQueryParams(params, attribution);
     }
 
     const url = buildAuthUrl(`/sas/oauth/register/sso?${params.toString()}`);
@@ -270,16 +278,19 @@ class AuthApiClient {
     });
   }
 
+  /** `redirectTo` is pre-encoded by the caller — it is interpolated as-is. */
   loginUrl(tenantId: string, redirectTo: string, provider?: string, options?: { authMobile?: boolean }) {
     const providerParam = provider && provider !== 'openframe-sso' ? `&provider=${encodeURIComponent(provider)}` : '';
     const base = `/oauth/login?tenantId=${encodeURIComponent(tenantId)}${providerParam}`;
-    // authMobile logins always carry redirectTo (the app's custom scheme) —
-    // the gateway 302s the devTicket straight to the app, in shared mode too.
-    const path = options?.authMobile
-      ? `${base}&authMobile=true&redirectTo=${redirectTo}`
-      : isSaasSharedMode()
-        ? base
-        : `${base}&redirectTo=${redirectTo}`;
+    // Shared mode drops a caller-supplied redirectTo — the shared auth host owns
+    // where a browser lands after login. Both native shells are the exception:
+    // each blocks on a callback it named itself, and the gateway only sends that
+    // callback because of redirectTo, so dropping it doesn't degrade the login,
+    // it hangs it forever. Keyed on isAppShell() rather than authMobile because
+    // desktop passes authMobile=false — it takes the https landing, not the
+    // mobile scheme.
+    const keepRedirect = options?.authMobile || isAppShell() || !isSaasSharedMode();
+    const path = `${base}${options?.authMobile ? '&authMobile=true' : ''}${keepRedirect ? `&redirectTo=${redirectTo}` : ''}`;
     return buildAuthUrl(path);
   }
 

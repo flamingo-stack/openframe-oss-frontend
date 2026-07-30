@@ -6,6 +6,7 @@ import {
   BoxArchiveIcon,
   Filter02Icon,
   HourglassClockIcon,
+  InboxArrowUpIcon,
   LaptopIcon,
   ListBulletIcon,
   PenEditIcon,
@@ -20,6 +21,7 @@ import {
   Button,
   type ColumnDef,
   DataTable,
+  type DataTableSortState,
   FilterModal,
   Input,
   multiSelectFilterFn,
@@ -40,6 +42,7 @@ import type { scriptSchedulesTableRelayPaginationQuery as SchedulesPaginationQue
 import type {
   scriptSchedulesTableRelayQuery as SchedulesTableQueryType,
   ScriptScheduleFilterInput,
+  SortInput,
 } from '@/__generated__/scriptSchedulesTableRelayQuery.graphql';
 import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
 import { EmptyState, onboardingGuideButton } from '@/app/components/shared';
@@ -55,13 +58,24 @@ import {
   scriptSchedulesTableRelayQuery,
 } from '@/graphql/scripts/script-schedules-table-relay';
 import { unarchiveScriptScheduleMutation } from '@/graphql/scripts/unarchive-script-schedule-mutation';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { formatScheduleStartAt, isEventTrigger, repeatToLabel } from '../utils/schedule-timing';
 import { platformsToEnums, platformsToIds } from '../utils/script-mappers';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { RestoreScheduleModal } from './restore-schedule-modal';
 
 const PAGE_SIZE = 20;
+
+/**
+ * Columns whose header offers a sort toggle — and therefore the only values
+ * allowed to reach `SortInput.field`. Each id doubles as the backend sort field.
+ * `scriptSchedules(sort:)` also accepts `deviceCount`, `name`, `createdAt` and
+ * `updatedAt`; they are not offered here, so they are not accepted from the URL
+ * either (see `docs/script-schedules-v2-graphql-gaps.md` §7).
+ */
+const SORTABLE_COLUMN_IDS = ['repeat'] as const;
 
 interface UiScheduleEntry {
   id: string;
@@ -69,6 +83,10 @@ interface UiScheduleEntry {
   description: string;
   supportedPlatforms: string[];
   deviceCount: number;
+  /** `DEVICE_ONLINE` schedules have no startAt/repeat at all — see `isEventTrigger`. */
+  trigger: string;
+  startAt: string | null;
+  repeat: number | null;
 }
 
 // ----------------------------------------------------------------
@@ -78,7 +96,12 @@ interface UiScheduleEntry {
 interface SchedulesTableContentProps {
   backendFilters: ScriptScheduleFilterInput;
   debouncedSearch: string;
+  /** Deferred sort — feeds the query (lags the live indicator during a refetch). */
+  sort: SortInput | null;
   tableFilters: Record<string, string[]>;
+  /** Live sort — drives the header indicator so it flips instantly on click. */
+  sortState: DataTableSortState | null;
+  onSortChange: (columnId: string) => void;
   /**
    * True while the deferred query variables lag the live filter/search state
    * (a refetch is in flight and the rows on screen are the previous result) —
@@ -96,7 +119,10 @@ interface SchedulesTableContentProps {
 function SchedulesTableContent({
   backendFilters,
   debouncedSearch,
+  sort,
   tableFilters,
+  sortState,
+  onSortChange,
   isPending,
   onFilterChange,
   onEmptyChange,
@@ -121,6 +147,7 @@ function SchedulesTableContent({
     {
       filter: backendFilters,
       search: debouncedSearch || null,
+      sort,
       first: PAGE_SIZE,
       after: null,
     },
@@ -151,6 +178,9 @@ function SchedulesTableContent({
           description: node.description ?? '',
           supportedPlatforms: platformsToIds(node.supportedPlatforms),
           deviceCount: node.deviceCount,
+          trigger: node.trigger,
+          startAt: node.startAt ?? null,
+          repeat: node.repeat ?? null,
         },
       ];
     });
@@ -182,8 +212,24 @@ function SchedulesTableContent({
       const newTabIcon = <ArrowRightUpIcon className="w-5 h-5 text-ods-text-secondary" />;
       const mutating = isArchiving || isUnarchiving;
 
-      // Archive (active list) ↔ Unarchive (archived list). The action only opens
-      // a confirmation modal; the mutation runs on confirm.
+      // An archived schedule has exactly one thing that can be done to it, so it
+      // gets a button rather than a menu — editing belongs to schedules that still
+      // run, and a dropdown holding a single item is a click of pure ceremony.
+      if (archived) {
+        return (
+          <Button
+            onClick={() => setConfirmTarget(schedule)}
+            variant="outline"
+            size="icon"
+            leftIcon={<InboxArrowUpIcon className="w-5 h-5" />}
+            aria-label="Unarchive Schedule"
+            disabled={mutating}
+            className="bg-ods-card"
+          />
+        );
+      }
+
+      // Opens the confirmation modal only; the mutation runs on confirm.
       const groups: ActionsMenuGroup[] = [
         {
           items: [
@@ -212,8 +258,8 @@ function SchedulesTableContent({
               },
             },
             {
-              id: archived ? 'unarchive-schedule' : 'archive-schedule',
-              label: archived ? 'Unarchive Schedule' : 'Archive Schedule',
+              id: 'archive-schedule',
+              label: 'Archive Schedule',
               icon: <BoxArchiveIcon className="w-6 h-6 text-ods-text-secondary" />,
               disabled: mutating,
               onClick: () => setConfirmTarget(schedule),
@@ -273,7 +319,7 @@ function SchedulesTableContent({
       onError: error => {
         toast({
           title: 'Error',
-          description: error.message || `Failed to ${archived ? 'unarchive' : 'archive'} schedule`,
+          description: getRelayErrorMessage(error, `Failed to ${archived ? 'unarchive' : 'archive'} schedule`),
           variant: 'destructive',
         });
         setConfirmTarget(null);
@@ -314,23 +360,41 @@ function SchedulesTableContent({
         },
       },
       {
-        // TODO(backend): the design's DATE & TIME column — ScriptSchedule has no
-        // timing/trigger fields in the GraphQL schema yet. Placeholder until the
-        // backend exposes them.
         id: 'dateTime',
         header: 'Date & Time',
-        cell: () => <span className="text-h4 text-ods-text-secondary">—</span>,
+        cell: ({ row }: { row: Row<UiScheduleEntry> }) => {
+          // Event-driven schedules have no date/time — name the trigger instead
+          // of showing an em dash that reads as "not configured yet".
+          if (isEventTrigger(row.original.trigger)) {
+            return <TruncateText tone="secondary">Device Online</TruncateText>;
+          }
+          const { date, time } = formatScheduleStartAt(row.original.startAt);
+          if (!row.original.startAt) {
+            return <span className="text-h4 text-ods-text-secondary">—</span>;
+          }
+          return (
+            <div className="flex flex-col justify-center gap-1 min-w-0">
+              <TruncateText>{date}</TruncateText>
+              <TruncateText variant="h6" tone="secondary">
+                {time}
+              </TruncateText>
+            </div>
+          );
+        },
         enableSorting: false,
         meta: { width: 'w-[100px] md:w-[160px]', hideAt: 'md' },
       },
       {
-        // TODO(backend): the design's REPEAT column — no repeat/interval field on
-        // ScriptSchedule yet. Placeholder until the backend exposes it.
         id: 'repeat',
         header: 'Repeat',
-        cell: () => <span className="text-h4 text-ods-text-secondary">—</span>,
+        cell: ({ row }: { row: Row<UiScheduleEntry> }) =>
+          isEventTrigger(row.original.trigger) ? (
+            <span className="text-h4 text-ods-text-secondary">—</span>
+          ) : (
+            <span className="text-h4 text-ods-text-primary">{repeatToLabel(row.original.repeat)}</span>
+          ),
         enableSorting: false,
-        meta: { width: 'w-[120px]', hideAt: 'md' },
+        meta: { width: 'w-[120px]', hideAt: 'md', sortable: true },
       },
       {
         accessorKey: 'deviceCount',
@@ -450,7 +514,13 @@ function SchedulesTableContent({
           flight — the subtle fade is the pending feedback. */}
       <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
         <DataTable table={table}>
-          <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
+          <DataTable.Header
+            stickyHeader
+            stickyHeaderOffset={stickyHeaderOffset}
+            rightSlot={<DataTable.RowCount />}
+            sort={sortState}
+            onSortChange={onSortChange}
+          />
           <DataTable.Body
             skeletonRows={PAGE_SIZE}
             emptyMessage={
@@ -565,6 +635,11 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
     supportedPlatforms: { type: 'array', default: [] },
+    // Server-side sort: column id (backend sort field — 'repeat' is the only
+    // sortable column) + direction. Empty sortBy = backend default order
+    // (newest-first by _id).
+    sortBy: { type: 'string', default: '' },
+    sortDir: { type: 'string', default: 'desc' },
   });
 
   // Local search input keeps typing responsive; the shared hook debounces it to
@@ -589,10 +664,30 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
     };
   }, [archived, params.supportedPlatforms]);
 
-  // Deferred query variables: on a filter/search interaction the table keeps
-  // rendering the current rows while the refetch is in flight, instead of
-  // dropping to the Suspense skeleton.
-  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(backendFilters, debouncedSearch);
+  // `sortBy` arrives from the URL, so it is user input: a hand-edited or stale
+  // link (`?sortBy=deviceCount` from before DEVICES lost its toggle) would
+  // otherwise travel straight into `SortInput.field` and surface as a GraphQL
+  // error inside the Suspense boundary, with no way back from the page itself.
+  // Anything outside SORTABLE_COLUMN_IDS falls back to the backend's own order.
+  const sortBy = (SORTABLE_COLUMN_IDS as readonly string[]).includes(params.sortBy) ? params.sortBy : '';
+
+  // Backend SortInput for the query; null = no sort (backend default order).
+  const sortInput = useMemo<SortInput | null>(
+    () => (sortBy ? { field: sortBy, direction: params.sortDir === 'asc' ? 'ASC' : 'DESC' } : null),
+    [sortBy, params.sortDir],
+  );
+
+  // Live descriptor the header renders its indicator from (flips instantly on click).
+  const sortState = useMemo<DataTableSortState | null>(
+    () => (sortBy ? { id: sortBy, desc: params.sortDir !== 'asc' } : null),
+    [sortBy, params.sortDir],
+  );
+
+  // Filter + sort travel together as one deferred object so the query lags in
+  // lockstep and `isPending` covers both; the LIVE params keep driving the
+  // controls (checkboxes, header indicator) so they respond instantly.
+  const queryVars = useMemo(() => ({ filter: backendFilters, sort: sortInput }), [backendFilters, sortInput]);
+  const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
 
   const tableFilters = useMemo(() => ({ supportedPlatforms: params.supportedPlatforms }), [params.supportedPlatforms]);
 
@@ -602,6 +697,31 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
     [setParams],
+  );
+
+  // 3-state toggle owned by the consumer (per DataTable.Header contract):
+  // unsorted → desc → asc → unsorted. `columnId` is the column's id, which
+  // equals the backend sort field ('repeat').
+  //
+  // `sortDir: ''` — NOT `'desc'` — whenever the direction is the default one:
+  // `useApiParams` drops a param from the URL only when the value is empty, it
+  // never compares against the schema default. Writing `'desc'` would leave a
+  // stale `?sortDir=desc` behind on an unsorted list. Reading it back still
+  // yields `'desc'` (the schema default), so the state is identical.
+  // Cycles against the CLAMPED value, so a bogus `?sortBy` in the URL behaves
+  // like no sort at all rather than as an invisible first state to click past.
+  const handleSortChange = useCallback(
+    (columnId: string) => {
+      if (sortBy !== columnId) {
+        setParams({ sortBy: columnId, sortDir: '' });
+      } else if (params.sortDir === 'desc') {
+        setParams({ sortDir: 'asc' });
+      } else {
+        setParams({ sortBy: '', sortDir: '' });
+      }
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+    },
+    [sortBy, params.sortDir, setParams],
   );
 
   const handleOpenArchive = useCallback(() => {
@@ -674,9 +794,12 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
 
         <Suspense fallback={<SchedulesTableSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
           <SchedulesTableContent
-            backendFilters={deferredFilters}
+            backendFilters={deferredVars.filter}
             debouncedSearch={deferredSearch}
+            sort={deferredVars.sort}
             tableFilters={tableFilters}
+            sortState={sortState}
+            onSortChange={handleSortChange}
             isPending={isPending}
             onFilterChange={handleFilterChange}
             onEmptyChange={setIsEmpty}

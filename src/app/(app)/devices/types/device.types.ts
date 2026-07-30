@@ -227,6 +227,8 @@ export interface Device {
   // Organization
   organizationId?: string;
   organization?: string;
+  /** Primary contact of the customer — the CUSTOMER column's second line. */
+  organizationEmail?: string;
   organizationImageUrl?: string | null;
   organizationImageHash?: string | null;
 
@@ -330,6 +332,9 @@ export type DevicesGraphQlNode = {
     id: string;
     organizationId: string;
     name: string;
+    contactInformation?: {
+      contacts?: Array<{ email?: string }>;
+    };
     image?: {
       imageUrl: string;
       hash?: string;
@@ -372,6 +377,9 @@ export type DeviceGraphQlNode = {
     id: string;
     organizationId: string;
     name: string;
+    contactInformation?: {
+      contacts?: Array<{ email?: string }>;
+    };
     image?: {
       imageUrl: string;
       hash?: string;

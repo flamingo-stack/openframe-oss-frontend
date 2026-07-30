@@ -93,3 +93,39 @@ test('no signals present yields only the always-minted event id', () => {
   assert.equal(got.fbc, undefined);
   assert.equal(typeof got.eventId, 'string');
 });
+
+// The SSO start URL must carry the same attribution set as the password-flow body — a field
+// collected but silently dropped from the query string is exactly the kind of gap behind the
+// low fbp coverage on one flow (see Meta CAPI follow-up task 86ajt9vye, F1/F2).
+test('SSO query params carry every collected field, matching the password body', () => {
+  cookies.push('_fbc=fb.1.170.AbC', '_fbp=fb.1.170.999', 'hubspotutk=hutk-abc');
+  window.location.search =
+    '?fbclid=FBID&gclid=GG&rdt_cid=RD&li_fat_id=LI&utm_source=facebook&utm_medium=cpc&utm_campaign=q3&utm_content=v1&utm_term=msp';
+  A.captureAttributionFromUrl();
+
+  const collected = A.collectRegistrationAttribution();
+  const params = new URLSearchParams({ tenantName: 'org', provider: 'google' });
+  A.appendAttributionQueryParams(params, collected);
+
+  // 3 cookies + 9 URL params + eventId = 13 fields, every one present as attribution.<field>.
+  const attributionKeys = [...params.keys()].filter(k => k.startsWith('attribution.'));
+  assert.equal(attributionKeys.length, 13);
+  for (const [field, value] of Object.entries(collected)) {
+    assert.equal(params.get(`attribution.${field}`), value, `attribution.${field} must ride the SSO start URL`);
+  }
+});
+
+test('SSO query serialization skips blank values instead of sending empty strings', () => {
+  const params = new URLSearchParams();
+  A.appendAttributionQueryParams(params, { fbp: 'fb.1.170.999', fbc: '', utmSource: '   ' });
+  assert.deepEqual([...params.keys()], ['attribution.fbp']);
+});
+
+// The password-flow body runs explicit attribution through the same normalization, so a
+// caller-supplied `{ fbp: '' }` is omitted identically on both flows.
+test('normalizeAttribution drops blanks and collapses an all-blank object to undefined', () => {
+  assert.deepEqual(A.normalizeAttribution({ fbp: 'fb.1.170.999', fbc: '', utmSource: '   ' }), {
+    fbp: 'fb.1.170.999',
+  });
+  assert.equal(A.normalizeAttribution({ fbc: '', utmSource: '   ' }), undefined);
+});

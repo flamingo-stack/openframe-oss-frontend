@@ -26,7 +26,7 @@ import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal
 import { featureFlags } from '@/lib/feature-flags';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
@@ -51,6 +51,36 @@ import { SubscriptionLockContent } from './subscription-lock/subscription-lock-c
 import { useSubscriptionLock } from './subscription-lock/subscription-lock-context';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
+import { WalkthroughVideo } from './walkthrough-video';
+
+/**
+ * Layer the Mingo drawer OVER the floating walkthrough video card.
+ *
+ * The card is a viewport-`fixed` `z-[9980]` element the lib owns. The drawer is
+ * `absolute` inside AppLayout's main-area container, which is `relative` with
+ * NO z-index and so starts no stacking context — the two therefore compare
+ * directly in the root context, and the drawer's default `z-[103]` lost. The
+ * promo card sat on top of the chat, over its message input included.
+ *
+ * The raise MUST go on the drawer's `Content` node, which is what carries that
+ * `z-[103]` and hence OWNS the stacking context. `panelClassName` lands on a
+ * div INSIDE it, where any z-index is scoped to that context and can never
+ * out-rank the card — and raising the overlay alone then puts the scrim above
+ * the panel and dims the chat itself.
+ *
+ * `Content` exposes no className seam, but it does forward `style`, so the
+ * z-index goes there. The overlay stays just under the panel and above the
+ * card, so the card dims with the rest of the page instead of staying lit over
+ * the scrim. 9990 is the tier the lib's own comment reserves for a chat dock;
+ * both stay below toasts (`z-[9999]`).
+ *
+ * NOTE: this covers the drawer this app mounts. The lib's `NotificationDrawer`
+ * renders inside `AppLayout` with no seam at all, so it keeps its own layer.
+ */
+const WALKTHROUGH_OVERLAP_Z = {
+  content: { zIndex: 9990 },
+  overlay: '!z-[9985]',
+} as const;
 
 function AppShell({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   const router = useRouter();
@@ -89,7 +119,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // `embedAuthedFetch` refuses from the capacitor:// origin — a SYNCHRONOUS
     // throw inside the resolver effect that unmounts the whole shell. Leave
     // identity disabled there; the lib's designed fallback is anon identity.
-    if (chatOpen && !isNativeShell()) setChatIdentityEnabled(true);
+    if (chatOpen && !isAppShell()) setChatIdentityEnabled(true);
   }, [chatOpen]);
 
   const handleNavigate = useCallback(
@@ -357,6 +387,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           defaultSize={920}
           storageKey="openframe:mingo-chat-width-v2"
           panelClassName="!bg-ods-bg"
+          // See WALKTHROUGH_OVERLAP_Z: the z-index belongs on Content (which
+          // owns the stacking context), not on the panel inside it.
+          style={WALKTHROUGH_OVERLAP_Z.content}
+          overlayClassName={WALKTHROUGH_OVERLAP_Z.overlay}
         >
           {/* No AppLayoutDrawerHeader/Title — EmbeddableChat renders its own
               header + X button; a wrapper header would double it up. */}
@@ -411,6 +445,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       {/* Logout confirmation modal — opened from the nav user menu and the
           Settings "Log Out" button via `useLogoutConfirmStore`. */}
       <LogoutConfirmModal />
+      {/* Floating walkthrough/demo video — the same widget every other Flamingo
+          platform ships, mounted ONCE for the whole app next to the chat
+          drawer. Which bottom corner it pins to is content-managed (the hub
+          admin sets it per platform). Left out behind the subscription lock for
+          the same reason the Mingo launcher is: that screen is not the app. */}
+      {!showLockContent && <WalkthroughVideo />}
     </>
   );
 }

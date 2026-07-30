@@ -73,7 +73,7 @@ Feature flags are **not** env vars — they are server-loaded via GraphQL (see F
 ### Payment UI Visibility (native app builds)
 
 `src/lib/billing-visibility.ts` is the single switch for every payment surface, and it is exactly
-`isNativeShell()` — the native builds (Capacitor mobile, Tauri desktop) hide payments, the web app
+`isAppShell()` — both native builds (Capacitor mobile, Tauri desktop) hide payments, the web app
 keeps them. Billing runs through Stripe on the web; App Store Guideline 3.1.1 forbids showing plans,
 prices, invoices, or any CTA leading to a non-IAP purchase, and Google Play treats an in-app Stripe
 Checkout for a digital subscription as bypassing Play Billing.
@@ -81,6 +81,21 @@ Checkout for a digital subscription as bypassing Play Billing.
 No env var backs this: the shell injects `window.Capacitor` / the Tauri globals itself, so a native
 build can't forget to declare what it is, and the web bundle can't be misconfigured into hiding its
 billing.
+
+### Which shell am I in? (`src/lib/platform.ts`)
+
+The same export runs in three places, so ask the axis that owns the feature — never "is this native?":
+
+- `isAppShell()` — either shell. Shell-custodied tokens, no Next server behind the origin (so
+  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above.
+- `isMobileShell()` — the phone. FCM push, biometrics, status bar/splash/safe-area insets, Android
+  back, custom-scheme OAuth callback.
+- `isDesktopShell()` — Tauri. Shell-side token rotation + OS-notification click event transports.
+
+`platform.ts` is the only module that reads the injected globals, and it probes **Tauri first**: the
+desktop shell injects a Capacitor-shaped bridge, so a Capacitor check alone reports every desktop
+install as mobile. `native-shell.ts` owns typed bridge access and gates each plugin on its own axis.
+CSS scopes on `html[data-shell="mobile"|"desktop"]`.
 
 - `isBillingHidden()` — payments not allowed on this build
 - `isPaymentUiEnabled()` — `billings` server flag **and** payments allowed on this build
@@ -237,6 +252,7 @@ src/
 │   ├── token-store.ts  token-refresh-manager.ts  force-logout.ts  # auth token plumbing
 │   ├── app-mode.ts  runtime-config.ts  feature-flags.ts
 │   ├── nats/                  # NatsAppProvider + WS URL config
+│   ├── platform.ts            # web | mobile | desktop shell detection (SSOT)
 │   ├── native-shell.ts  native-login.ts  # Capacitor/Tauri shell bridge
 │   ├── register-embed-shims.ts  navigation-config.tsx  navigation-sidebar-state.ts
 │   ├── subscription-lock-signal.ts  analytics.ts  openframe-core-ui.tsx

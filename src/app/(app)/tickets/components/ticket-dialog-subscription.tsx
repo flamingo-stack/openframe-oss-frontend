@@ -101,10 +101,14 @@ export function TicketDialogSubscription({
     onReconnectedRef.current = onReconnected;
   }, [onReconnected]);
 
-  // Both subscriptions share one NATS connection, so a reconnect bumps both
-  // counters together — collapse to a single parent notification per event.
+  // Sum, not max: a shared-connection reconnect bumps both counters at once, but
+  // the counter also covers per-consumer events (a JetStream consumer being
+  // recreated, a resync after the page was hidden) that move only one of them.
+  // Under max, a recovery on the tail that happens to be behind is invisible —
+  // its gap never gets refetched. Summing keeps every bump observable; the ref
+  // below still collapses a simultaneous pair into one parent notification.
   const lastNotifiedReconnectRef = useRef(0);
-  const reconnectTotal = Math.max(clientReconnectionCount, adminReconnectionCount);
+  const reconnectTotal = clientReconnectionCount + adminReconnectionCount;
   useEffect(() => {
     if (reconnectTotal <= lastNotifiedReconnectRef.current) return;
     lastNotifiedReconnectRef.current = reconnectTotal;

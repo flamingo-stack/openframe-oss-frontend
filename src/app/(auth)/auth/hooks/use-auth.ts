@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { authApiClient } from '@/lib/auth-api-client';
 import { nativeLogin } from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell, isMobileShell } from '@/lib/platform';
 import { collectRegistrationAttribution } from '@/lib/registration-attribution';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -210,7 +210,7 @@ export function useAuth() {
       if (tenantInfo?.tenantId) {
         setTenantId(tenantInfo.tenantId);
 
-        if (isNativeShell()) {
+        if (isAppShell()) {
           const { tenantHostChanged } = await nativeLogin({
             tenantId: tenantInfo.tenantId,
             provider,
@@ -263,15 +263,18 @@ export function useAuth() {
     const effectiveTenantId =
       storeTenantId || currentUser?.tenantId || currentUser?.organizationId || tenantInfo?.tenantId;
 
-    // In the native shell revoke server-side BEFORE clearing local tokens —
+    // In either shell revoke server-side BEFORE clearing local tokens —
     // logoutAsync needs the stored refresh token to send the Refresh-Token header,
     // and the push-token DELETE is an authenticated call.
-    if (isNativeShell()) {
+    if (isMobileShell()) {
+      // Only the mobile shell holds an FCM registration.
       try {
         await unregisterNativePush();
       } catch {
         // Best-effort; the backend also prunes tokens on APNs rejections.
       }
+    }
+    if (isAppShell()) {
       try {
         await authApiClient.logoutAsync(effectiveTenantId);
       } catch {
@@ -296,7 +299,7 @@ export function useAuth() {
     setAvailableProviders([]);
     setIsLoading(false);
 
-    if (isNativeShell()) {
+    if (isAppShell()) {
       // No browser redirect in the shell — the route guard shows the sign-in screen.
       return;
     }

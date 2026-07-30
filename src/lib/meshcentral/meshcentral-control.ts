@@ -284,7 +284,10 @@ export class MeshControlClient {
       poweroff: 2,
     };
     const actiontype = actionTypes[action];
-    const nodePath = nodeId.startsWith('node//') ? nodeId : `node//${nodeId}`;
+    // Full MeshCentral node ids are `node/<domain>/<hash>` (domain may be empty →
+    // `node//<hash>`). Agent tool ids already arrive in that full form; only a
+    // bare hash needs the default-domain prefix.
+    const nodePath = nodeId.startsWith('node/') ? nodeId : `node//${nodeId}`;
     const responseid = `power_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
     return new Promise<void>((resolve, reject) => {

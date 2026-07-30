@@ -73,6 +73,17 @@ interface DevicesTableBodyProps {
   disableColumnFilters?: string[];
   /** Server-side total (for paginated lists). Falls back to loaded-row count when omitted. */
   totalCount?: number;
+  /**
+   * Render the column header. Default true.
+   *
+   * Pass `false` to drop it over a genuinely empty list — column labels above
+   * nothing are noise, and the empty message reads better without a row of
+   * headings it does not explain. Keep it `true` while loading (the skeleton
+   * rows are the content it belongs to) and whenever the emptiness is the RESULT
+   * of narrowing: the column funnels live in this header, so removing it would
+   * strip the only way to undo the filter that emptied the table.
+   */
+  showHeader?: boolean;
 }
 
 export function DevicesTableBody({
@@ -89,6 +100,7 @@ export function DevicesTableBody({
   hideColumns,
   disableColumnFilters,
   totalCount,
+  showHeader = true,
 }: DevicesTableBodyProps) {
   const columns = useMemo<ColumnDef<Device>[]>(() => {
     const hidden = new Set(hideColumns ?? []);
@@ -110,11 +122,13 @@ export function DevicesTableBody({
 
   return (
     <DataTable table={table}>
-      <DataTable.Header
-        stickyHeader={!!stickyHeaderOffset}
-        stickyHeaderOffset={stickyHeaderOffset}
-        rightSlot={<DataTable.RowCount itemName="device" totalCount={totalCount} />}
-      />
+      {showHeader && (
+        <DataTable.Header
+          stickyHeader={!!stickyHeaderOffset}
+          stickyHeaderOffset={stickyHeaderOffset}
+          rightSlot={<DataTable.RowCount itemName="device" totalCount={totalCount} />}
+        />
+      )}
       <DataTable.Body
         loading={isLoading}
         skeletonRows={skeletonRows}

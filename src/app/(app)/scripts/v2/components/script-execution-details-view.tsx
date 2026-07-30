@@ -293,12 +293,13 @@ export function ScriptExecutionDetailsView({ executionId }: ScriptExecutionDetai
   return (
     <Suspense
       fallback={
-        // The `\u00A0` subtitle reserves the subtitle line so the header does not
-        // grow when the real execution UUID arrives (TitleBlock only renders the
-        // subtitle row when the prop is truthy).
+        // `always`, not `while-loading`: this fallback shows a real (static) title
+        // rather than a loading one, and the loaded page ALWAYS has a subtitle —
+        // the execution UUID. The line is held so the header does not grow when it
+        // arrives.
         <ScriptPageChrome
           title="Script Execution Details"
-          subtitle={'\u00A0'}
+          subtitleRow="always"
           backFallback={routes.scriptsV2.list}
           actions={LOADING_EXECUTION_ACTIONS}
         >

@@ -16,7 +16,7 @@ import {
   isBiometricLoginEnabled,
   setBiometricLoginChoice,
 } from '@/lib/native-biometrics';
-import { isNativeShell } from '@/lib/native-shell';
+import { isMobileShell } from '@/lib/platform';
 
 /**
  * Native-shell-only "Biometric login" toggle: Face ID / Touch ID / Fingerprint
@@ -35,7 +35,7 @@ export function BiometricLoginCard() {
   const [isBusy, setIsBusy] = useState(false);
 
   useEffect(() => {
-    if (!isNativeShell()) return;
+    if (!isMobileShell()) return;
     let active = true;
     void (async () => {
       const [{ available: avail, biometryType }, isEnabled] = await Promise.all([
@@ -52,7 +52,7 @@ export function BiometricLoginCard() {
     };
   }, []);
 
-  if (!isNativeShell() || !available) return null;
+  if (!isMobileShell() || !available) return null;
 
   const handleToggle = async (next: boolean) => {
     // Optimistic flip; revert on reject so the switch never lies about the

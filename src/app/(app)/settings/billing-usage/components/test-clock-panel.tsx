@@ -2,14 +2,16 @@
 
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Input, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useId, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { testClockPanelQuery as TestClockPanelQueryType } from '@/__generated__/testClockPanelQuery.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { BillingProvisioningState } from '@/generated/schema-enums';
+import { type BillingMetricType, BillingProvisioningState } from '@/generated/schema-enums';
 import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { useBillingProvisioningStatus } from '../hooks/use-billing-provisioning-status';
+import { type SeedTestUsageResult, useSeedTestUsage } from '../hooks/use-seed-test-usage';
 import { useAdvanceTestClock, useResetTestClock } from '../hooks/use-test-clock';
 
 interface TestClockPanelProps {
@@ -154,6 +156,26 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
         </Button>
       </form>
 
+      <div className="flex flex-col gap-[var(--spacing-system-xs)] border-t border-ods-border pt-[var(--spacing-system-s)]">
+        <p className="text-h5 font-bold text-ods-text-primary">Seed usage</p>
+        <div className="flex flex-wrap items-end gap-[var(--spacing-system-l)]">
+          {/* Devices SET the day's peak count — a value below the real device count changes nothing. */}
+          <SeedUsageField
+            label="Devices"
+            metricType="MANAGED_DEVICES"
+            successMessage={(value, r) => `Device peak for ${r.billingDate} set to ${r.dayValue}`}
+            onSeeded={onClockChanged}
+          />
+          {/* Tokens are ADDED to the day's sum. */}
+          <SeedUsageField
+            label="AI tokens"
+            metricType="AI_TOKENS"
+            successMessage={(value, r) => `Added ${value} tokens — ${r.billingDate} total is ${r.dayValue}`}
+            onSeeded={onClockChanged}
+          />
+        </div>
+      </div>
+
       <ConfirmDialog
         open={confirmResetOpen}
         onOpenChange={setConfirmResetOpen}
@@ -165,5 +187,61 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
         onConfirm={handleReset}
       />
     </div>
+  );
+}
+
+interface SeedUsageFieldProps {
+  label: string;
+  metricType: BillingMetricType;
+  successMessage: (value: number, result: SeedTestUsageResult) => string;
+  /** Bumps the host page's Relay `fetchKey` so the usage cards re-request the seeded totals. */
+  onSeeded: () => void;
+}
+
+/** Numeric input + Apply for one seedTestUsage metric (dev/stage only, like the rest of the panel). */
+function SeedUsageField({ label, metricType, successMessage, onSeeded }: SeedUsageFieldProps) {
+  const inputId = useId();
+  const { toast } = useToast();
+  const seed = useSeedTestUsage();
+  const [valueInput, setValueInput] = useState('');
+
+  const parsedValue = Number.parseInt(valueInput, 10);
+  const isValueValid = Number.isInteger(parsedValue) && parsedValue >= 1;
+
+  const handleApply = () => {
+    if (!isValueValid || seed.isPending) return;
+    seed.mutate(metricType, parsedValue, result => {
+      toast({ title: `${label} Seeded`, description: successMessage(parsedValue, result), variant: 'success' });
+      onSeeded();
+    });
+  };
+
+  return (
+    <form
+      className="flex items-end gap-[var(--spacing-system-s)]"
+      onSubmit={event => {
+        event.preventDefault();
+        handleApply();
+      }}
+    >
+      <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+        <label htmlFor={inputId} className="text-h6 text-ods-text-secondary">
+          {label}
+        </label>
+        <Input
+          id={inputId}
+          type="number"
+          min={1}
+          step={1}
+          value={valueInput}
+          disabled={seed.isPending}
+          onChange={event => setValueInput(event.target.value)}
+          className="w-32"
+        />
+      </div>
+      <Button type="submit" variant="outline" loading={seed.isPending} disabled={!isValueValid || seed.isPending}>
+        Apply
+      </Button>
+    </form>
   );
 }

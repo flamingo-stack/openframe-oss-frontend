@@ -7,6 +7,7 @@ import {
   BoxArchiveIcon,
   BracketCurlyIcon,
   Filter02Icon,
+  InboxArrowUpIcon,
   PenEditIcon,
   PlayIcon,
   PlusCircleIcon,
@@ -53,6 +54,7 @@ import { scriptFiltersRefreshRelayQuery } from '@/graphql/scripts/script-filters
 import { scriptTagsRelayFilterQuery } from '@/graphql/scripts/script-tags-relay';
 import { scriptsTableRelayFragment, scriptsTableRelayQuery } from '@/graphql/scripts/scripts-table-relay';
 import { unarchiveScriptMutation } from '@/graphql/scripts/unarchive-script-mutation';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
@@ -218,11 +220,28 @@ function ScriptsTableContent({
       const newTabIcon = <ArrowRightUpIcon className="w-5 h-5 text-ods-text-secondary" />;
       const mutating = isArchiving || isUnarchiving;
 
-      // Archive (active list) ↔ Unarchive (archived list). The action only opens a
-      // confirmation modal; the mutation runs on confirm (see `handleConfirmArchive`).
+      // An archived script has exactly one thing that can be done to it, so it gets
+      // a button rather than a menu — Run and Edit belong to scripts that are live,
+      // and a dropdown holding a single item is a click of pure ceremony.
+      if (archived) {
+        return (
+          <Button
+            onClick={() => setConfirmTarget(script)}
+            variant="outline"
+            size="icon"
+            leftIcon={<InboxArrowUpIcon className="w-5 h-5" />}
+            aria-label="Unarchive Script"
+            disabled={mutating}
+            className="bg-ods-card"
+          />
+        );
+      }
+
+      // Opens the confirmation modal only; the mutation runs on confirm (see
+      // `handleConfirmArchive`).
       const archiveAction = {
-        id: archived ? 'unarchive-script' : 'archive-script',
-        label: archived ? 'Unarchive Script' : 'Archive Script',
+        id: 'archive-script',
+        label: 'Archive Script',
         icon: <BoxArchiveIcon className="w-6 h-6 text-ods-text-secondary" />,
         disabled: mutating,
         onClick: () => setConfirmTarget(script),
@@ -321,7 +340,7 @@ function ScriptsTableContent({
       onError: error => {
         toast({
           title: 'Error',
-          description: error.message || `Failed to ${archived ? 'unarchive' : 'archive'} script`,
+          description: getRelayErrorMessage(error, `Failed to ${archived ? 'unarchive' : 'archive'} script`),
           variant: 'destructive',
         });
         setConfirmTarget(null);

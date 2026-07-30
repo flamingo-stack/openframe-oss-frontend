@@ -10,7 +10,7 @@ import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { featureFlags } from '@/lib/feature-flags';
 import { getFullImageUrl } from '@/lib/image-url';
-import { isNativeShell } from '@/lib/native-shell';
+import { isMobileShell } from '@/lib/platform';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { NotificationSettingsModal } from './notification-settings-modal';
 
@@ -36,7 +36,11 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   // Push settings only make sense in the mobile shell — hide on web/desktop.
-  const showNotificationSettings = featureFlags.notifications.enabled() && isNativeShell();
+  // `isMobileShell`, NOT `isAppShell`: the modal's toggle writes the
+  // account-level `pushEnabled` setting that governs the user's FCM devices, so
+  // offering it in the desktop app (which registers none) let a desktop user
+  // silently turn off their phone's push.
+  const showNotificationSettings = featureFlags.notifications.enabled() && isMobileShell();
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
 
   const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '—';
