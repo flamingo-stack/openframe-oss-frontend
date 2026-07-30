@@ -180,17 +180,22 @@ export function DeviceSelector({
     [disabled, isDeviceDisabled, getDeviceKey, onSelectionChange, singleSelect],
   );
 
-  // Server mode has no selection set to flip — the row action states what to DO
-  // (add here, remove there), and the tab decides which.
+  // In server mode the Selected tab can only ever remove. The Available tab
+  // holds the whole candidate set — assigned devices included, marked as such by
+  // the backend — so there the row does flip: a marked row removes, an unmarked
+  // one adds. Read through the ref for the same reason `clientToggleDevice`
+  // does: memoized rows keep the closure they were rendered with.
   const toggleDevice = useCallback(
     (device: Device) => {
       if (!server) return clientToggleDevice(device);
       if (disabled) return;
       if (isDeviceDisabled?.(device)) return;
-      if (server.activeTab === 'selected') server.onRemove(device);
+      if (server.activeTab === 'selected') return server.onRemove(device);
+      const key = getDeviceKey(device);
+      if (key !== undefined && selectedIdsRef.current.has(key)) server.onRemove(device);
       else server.onAdd(device);
     },
-    [server, clientToggleDevice, disabled, isDeviceDisabled],
+    [server, clientToggleDevice, disabled, isDeviceDisabled, getDeviceKey],
   );
 
   const addAllDevices = useCallback(() => {
@@ -524,10 +529,10 @@ export function DeviceSelector({
 
           const key = getDeviceKey(device);
           if (key === undefined) return null;
-          // Server mode holds a page of the assignment, not the assignment, so
-          // "already in?" is not a question this row can answer — it offers the
-          // action its tab implies and lets the idempotent mutation settle it.
-          const isSelected = !server && selectedIds.has(key);
+          // Server mode fills `selectedIds` from the connection's own
+          // per-row flag, so "already in?" is answered by the backend rather
+          // than by whichever page the client happens to hold.
+          const isSelected = selectedIds.has(key);
 
           if (activeSubTab === 'selected') {
             return (
@@ -579,7 +584,6 @@ export function DeviceSelector({
       activeSubTab,
       toggleDevice,
       disabled,
-      server,
     ],
   );
 

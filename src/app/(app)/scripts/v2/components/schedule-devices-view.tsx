@@ -3,8 +3,9 @@
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useMemo, useRef, useState } from 'react';
-import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
+import { ConnectionHandler, type RecordSourceSelectorProxy } from 'relay-runtime';
 import type {
   addAllDevicesToScheduleMutation as AddAllDevicesMutationType,
   DeviceFilterInput as RelayDeviceFilterInput,
@@ -13,9 +14,9 @@ import type { addDevicesToScheduleMutation as AddDevicesMutationType } from '@/_
 import type { removeAllDevicesFromScheduleMutation as RemoveAllDevicesMutationType } from '@/__generated__/removeAllDevicesFromScheduleMutation.graphql';
 import type { removeDevicesFromScheduleMutation as RemoveDevicesMutationType } from '@/__generated__/removeDevicesFromScheduleMutation.graphql';
 import type {
-  scheduleDevicePickerRelay_query$data as AvailableFragmentData,
-  scheduleDevicePickerRelay_query$key as AvailableFragmentKey,
-} from '@/__generated__/scheduleDevicePickerRelay_query.graphql';
+  scheduleDevicePickerRelay_available$data as AvailableFragmentData,
+  scheduleDevicePickerRelay_available$key as AvailableFragmentKey,
+} from '@/__generated__/scheduleDevicePickerRelay_available.graphql';
 import type {
   scheduleDevicePickerRelay_schedule$data as AssignedFragmentData,
   scheduleDevicePickerRelay_schedule$key as AssignedFragmentKey,
@@ -30,7 +31,6 @@ import type {
 } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
-import { CONTENT_SWAP_ANIMATION } from '@/app/components/shared';
 import { DeviceSelectionModeRadio, DeviceSelector } from '@/app/components/shared/device-selector';
 import type {
   DeviceSelectionMode,
@@ -72,6 +72,109 @@ import { ScriptPageChrome } from './script-page-chrome';
 const PAGE_SIZE = 20;
 
 const EMPTY_NARROWING: DeviceSelectorNarrowing = { columnFilters: [], tags: [] };
+
+const AVAILABLE_CONNECTION_KEY = 'scheduleDevicePickerRelay_availableDevices';
+const ASSIGNED_CONNECTION_KEY = 'scheduleDevicePickerRelay_assignedDevices';
+
+/**
+ * The narrowing a connection record is keyed by.
+ *
+ * `@connection` folds every non-pagination argument into the connection's
+ * storage key, so `availableDevices(filter:…, search:…)` is a DIFFERENT record
+ * per narrowing. An updater therefore has to name the one the screen is reading
+ * — which is the deferred pair, the same values the mounted queries were read
+ * with.
+ */
+interface ConnectionNarrowing {
+  filter: RelayDeviceFilterInput;
+  search: string | null;
+}
+
+/**
+ * The store writes for one device joining or leaving the assignment.
+ *
+ * Everything a single +/− changes is something the client already knows, so it
+ * is written directly instead of being asked for again:
+ *
+ * - **Available** keeps the row and flips its `assigned` flag. The connection
+ *   marks rather than excludes, so membership of that list does not move.
+ * - **Selected** gains or loses the row. Safe to decide here, not a guess about
+ *   what the server would return: both lists are queried with the SAME
+ *   narrowing, so a device visible in Available necessarily satisfies the
+ *   filter and search the Selected list is under.
+ * - **`deviceCount`** moves by one, and stays moved — the payload no longer
+ *   restates it; see `addDevicesToScheduleMutation` for why.
+ *
+ * This is what lets the row render ONCE. Re-reading both connections instead
+ * would republish every node on the page, and a node whose `lastSeen` ticked
+ * over in the meantime is a changed record — so the whole table would render
+ * again a second later, restating what the click had already shown.
+ *
+ * Other narrowings' connection records are left stale on purpose. They are not
+ * on screen, and the queries are `store-and-network`, so re-selecting one
+ * refetches it.
+ */
+function assignmentUpdaters(scheduleId: string, deviceId: string, assigned: boolean, narrowing: ConnectionNarrowing) {
+  const delta = assigned ? 1 : -1;
+
+  const patchLists = (store: RecordSourceSelectorProxy) => {
+    const schedule = store.get(scheduleId);
+    if (!schedule) return;
+
+    const available = ConnectionHandler.getConnection(schedule, AVAILABLE_CONNECTION_KEY, narrowing);
+    for (const edge of available?.getLinkedRecords('edges') ?? []) {
+      if (edge?.getLinkedRecord('node')?.getDataID() === deviceId) edge.setValue(assigned, 'assigned');
+    }
+
+    const selected = ConnectionHandler.getConnection(schedule, ASSIGNED_CONNECTION_KEY, narrowing);
+    if (!selected) return;
+    const present = (selected.getLinkedRecords('edges') ?? []).some(
+      edge => edge?.getLinkedRecord('node')?.getDataID() === deviceId,
+    );
+    // Idempotent, like the mutations themselves: re-adding what is already in
+    // must not grow the list or the count.
+    if (present === assigned) return;
+
+    if (assigned) {
+      const node = store.get(deviceId);
+      if (!node) return;
+      // At the front, because there is no cursor to place it by. The list is
+      // server-sorted and this row has never been through that sort; it lands
+      // in its real position with the next read of this connection.
+      ConnectionHandler.insertEdgeBefore(selected, ConnectionHandler.createEdge(store, selected, node, 'DeviceEdge'));
+    } else {
+      ConnectionHandler.deleteNode(selected, deviceId);
+    }
+
+    // What the Selected list reports under itself — the narrowed count, not the
+    // schedule's `deviceCount`.
+    const filteredCount = selected.getValue('filteredCount');
+    if (typeof filteredCount === 'number') {
+      selected.setValue(Math.max(0, filteredCount + delta), 'filteredCount');
+    }
+
+    // The schedule's own count — what the picker's tab label and the DEVICES
+    // column show. Moved by the same delta, in the same pass and under the same
+    // idempotency guard as the lists, because the payload no longer carries it:
+    // it answered with an ABSOLUTE count, and two clicks whose responses crossed
+    // settled on the older of the two snapshots. Deltas compose in any order.
+    const deviceCount = schedule.getValue('deviceCount');
+    if (typeof deviceCount === 'number') {
+      schedule.setValue(Math.max(0, deviceCount + delta), 'deviceCount');
+    }
+  };
+
+  // ONE patch, applied twice: in the optimistic layer so the row and both counts
+  // move on the click, and again on the real commit, by which point Relay has
+  // dropped that layer — so the net effect is a single delta, exactly as it is
+  // for `filteredCount`, which has always worked this way.
+  //
+  // A failure still needs no rollback: Relay drops the layer and nothing
+  // replaces it, so the row and the counts go back to what the server last said.
+  // And a sibling still in flight is rebased over the committed base, so its own
+  // delta survives this commit instead of being overwritten by it.
+  return { optimisticUpdater: patchLists, updater: patchLists };
+}
 
 /**
  * The criteria dropdowns must offer the whole fleet's dimensions, never just
@@ -165,13 +268,12 @@ interface SchedulePickerListsProps {
   /** Deferred narrowing — what the two lists are actually reading. */
   deferredFilter: DeviceFilterInput;
   deferredSearch: string;
+  /** Bulk work only — a single +/- must not lock the page it happens on. */
   busy: boolean;
   onAdd: (device: Device) => void;
   onRemove: (device: Device) => void;
   onAddAll: () => void;
   onRemoveAll: () => void;
-  /** Bumped after a mutation to make both lists re-read from the network. */
-  refetchSignal: number;
 }
 
 /**
@@ -198,7 +300,6 @@ function SchedulePickerLists({
   onRemove,
   onAddAll,
   onRemoveAll,
-  refetchSignal,
 }: SchedulePickerListsProps) {
   const variables = {
     scheduleId,
@@ -208,32 +309,48 @@ function SchedulePickerLists({
     after: null,
   };
 
-  // `fetchKey` is what makes a committed change show up: the assignment moved on
-  // the server in a way no client updater can reproduce, because membership of
-  // either list depends on filters and search only the server evaluates.
+  // No `fetchKey`. A single +/− is written straight into the store by the
+  // mutation's updaters, so these re-render from it once and are then already
+  // right; only the bulk actions, which replace the assignment wholesale, go
+  // back to the network (`refreshLists()` on the page).
   const availableData = useLazyLoadQuery<AvailableQueryType>(scheduleDevicePickerRelayQuery, variables, {
     fetchPolicy: 'store-and-network',
-    fetchKey: refetchSignal,
   });
   const assignedData = useLazyLoadQuery<AssignedQueryType>(scheduleDevicePickerRelayAssignedQuery, variables, {
     fetchPolicy: 'store-and-network',
-    fetchKey: refetchSignal,
   });
 
   const available = usePaginationFragment<AvailablePaginationQueryType, AvailableFragmentKey>(
     scheduleDevicePickerRelayFragment,
-    availableData,
+    availableData.scriptSchedule ?? null,
   );
   const assigned = usePaginationFragment<AssignedPaginationQueryType, AssignedFragmentKey>(
     scheduleDevicePickerRelayAssignedFragment,
     assignedData.scriptSchedule ?? null,
   );
 
-  const availableConnection = (available.data as AvailableFragmentData | null)?.availableDevicesForSchedule;
+  const availableConnection = (available.data as AvailableFragmentData | null)?.availableDevices;
   const assignedConnection = (assigned.data as AssignedFragmentData | null)?.assignedDevices;
 
   const availableRows = useMemo(() => toDevices(availableConnection?.edges), [availableConnection?.edges]);
   const assignedRows = useMemo(() => toDevices(assignedConnection?.edges), [assignedConnection?.edges]);
+
+  // Which rows are marked "in". Taken from the Available connection's per-row
+  // `assigned` flag alone — the one place that answers it, and the only list
+  // these marks are used on, since every row of the Selected tab is assigned by
+  // definition.
+  //
+  // No local overlay on top: a click flips that very flag in the store (see
+  // `assignmentUpdaters`), so what the row shows is what the store says, before
+  // and after the response alike. The rows below come from the same store for
+  // the same reason.
+  const selectedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const edge of availableConnection?.edges ?? []) {
+      if (edge?.assigned && edge.node) keys.add(edge.node.machineId || edge.node.id);
+    }
+    return keys;
+  }, [availableConnection?.edges]);
 
   const isAvailable = activeTab === 'available';
   const rows = isAvailable ? availableRows : assignedRows;
@@ -257,6 +374,9 @@ function SchedulePickerLists({
       loading={false}
       disabled={busy}
       showSelectionModeRadio={false}
+      // Only meaningful on Available: every row on the Selected tab is assigned
+      // by definition, and the Selected tab shows removals by dropping the row.
+      selectedIds={isAvailable ? selectedKeys : undefined}
       infiniteScroll={{
         hasNextPage: hasNext,
         isFetchingNextPage: isLoadingNext,
@@ -275,6 +395,11 @@ function SchedulePickerLists({
         // label names what is in the schedule, and that does not drop because
         // the user typed in the search box. The narrowed number belongs to the
         // list, which reports it itself.
+        //
+        // Read straight off the record, with no local offset added on top: an
+        // unconfirmed click already moved it, through the mutation's optimistic
+        // layer (`assignmentUpdaters`), so the label keeps up with the row
+        // without anyone counting the same click twice.
         selectedCount: assignedData.scriptSchedule?.deviceCount ?? 0,
         totalCount: totalCount ?? undefined,
         onAdd,
@@ -297,19 +422,16 @@ interface ScheduleCriteriaPickerProps {
  * The "Select Devices by Criteria" half — the rule editor over a live preview
  * of what it matches.
  *
- * The preview runs the rule through `availableDevicesForSchedule`, the same
+ * The preview runs the rule through the schedule's `availableDevices`, the same
  * connection the Available list uses, with the criteria as its `filter`. That
  * is not a convenience: `ScheduleDeviceCriteriaInput` is a strict subset of
  * `DeviceFilterInput`, so the server answers "which devices does this rule
  * select?" itself — already scoped to the schedule's `supportedPlatforms`,
  * exactly as the stored rule will be. Nothing here re-implements the matching.
  *
- * Caveat carried over from that field's open question (see
- * docs/script-schedules-v2-graphql-gaps.md §6): if it turns out to EXCLUDE
- * already-assigned devices, this preview reads "devices the rule would add"
- * rather than "devices the rule targets", and re-editing an existing rule
- * under-reports. It is still the closest match available — the top-level
- * `devices` query is not platform-scoped, so it would over-report instead.
+ * It is also the right count, which used to be an open question: the field
+ * marks already-assigned devices with `assigned` rather than withholding them,
+ * so the preview reads "devices the rule targets", not "devices it would add".
  *
  * Nothing commits as you type. A rule is a single value the server replaces
  * whole, and applying it re-points the schedule at a live set, so it goes
@@ -330,9 +452,9 @@ function ScheduleCriteriaPicker({ scheduleId, criteria, onCriteriaChange, busy }
 
   const preview = usePaginationFragment<AvailablePaginationQueryType, AvailableFragmentKey>(
     scheduleDevicePickerRelayFragment,
-    data,
+    data.scriptSchedule ?? null,
   );
-  const connection = (preview.data as AvailableFragmentData | null)?.availableDevicesForSchedule;
+  const connection = (preview.data as AvailableFragmentData | null)?.availableDevices;
   const rows = useMemo(() => toDevices(connection?.edges), [connection?.edges]);
 
   const loadMore = useCallback(() => {
@@ -411,11 +533,11 @@ function SchedulePickerHeader({ schedule }: { schedule: ScheduleDetailData | und
 function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContentProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const environment = useRelayEnvironment();
 
   const [activeTab, setActiveTab] = useState<SubTab>('available');
   const [search, setSearch] = useState('');
   const [narrowing, setNarrowing] = useState<DeviceSelectorNarrowing>(EMPTY_NARROWING);
-  const [refetchSignal, setRefetchSignal] = useState(0);
 
   // Mode and rule are DERIVED from the schedule until the user touches them, so
   // the page renders the stored answer the moment the gate delivers it — no
@@ -433,22 +555,52 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
   const filter = useMemo(() => narrowingToFilter(narrowing), [narrowing]);
   const { deferredFilters: deferredFilter, deferredSearch } = useDeferredQuery(filter, debouncedSearch);
 
-  const [commitAdd, isAdding] = useMutation<AddDevicesMutationType>(addDevicesToScheduleMutation);
-  const [commitRemove, isRemoving] = useMutation<RemoveDevicesMutationType>(removeDevicesFromScheduleMutation);
+  // No in-flight flag for the single-row pair: the pending map below is their
+  // state, per row, and a global one would only re-lock what it replaced.
+  const [commitAdd] = useMutation<AddDevicesMutationType>(addDevicesToScheduleMutation);
+  const [commitRemove] = useMutation<RemoveDevicesMutationType>(removeDevicesFromScheduleMutation);
   const [commitAddAll, isAddingAll] = useMutation<AddAllDevicesMutationType>(addAllDevicesToScheduleMutation);
   const [commitRemoveAll, isRemovingAll] = useMutation<RemoveAllDevicesMutationType>(
     removeAllDevicesFromScheduleMutation,
   );
   const [commitSetCriteria, isSavingCriteria] = useMutation<SetCriteriaMutationType>(setScheduleDeviceCriteriaMutation);
-  const busy = isAdding || isRemoving || isAddingAll || isRemovingAll || isSavingCriteria;
+
+  // Only the wholesale writes lock the editor. "Add All" / "Remove All" replace
+  // the list under the user and the criteria save navigates away, so letting a
+  // second click land mid-flight would act on a list that is about to be
+  // replaced. A single +/- is scoped to its own row and shows optimistically —
+  // disabling the page for it made every click feel like a page load.
+  const busy = isAddingAll || isRemovingAll || isSavingCriteria;
 
   // The bulk actions must send the narrowing as it is AT CLICK TIME; a ref keeps
   // the handlers reference-stable so the memoized rows don't re-render on every
   // keystroke in the search box.
+  //
+  // Written in an effect, not in render: a render React replays or throws away
+  // would otherwise publish a narrowing no committed UI is showing, and a bulk
+  // click landing in that window would act on a filter the user cannot see. An
+  // effect can only run for a render that committed — which is also exactly the
+  // "at click time" value, since a click can only follow a commit.
   const narrowingRef = useRef({ filter, search: debouncedSearch });
-  narrowingRef.current = { filter, search: debouncedSearch };
+  useEffect(() => {
+    narrowingRef.current = { filter, search: debouncedSearch };
+  }, [filter, debouncedSearch]);
 
-  const refresh = useCallback(() => setRefetchSignal(n => n + 1), []);
+  // Both the store patches and the refresh must name the narrowing the mounted
+  // queries were READ with — the deferred one, which is what their connection
+  // records are keyed by. It differs from the live pair only while a narrowing
+  // transition is in flight, but on that frame writing against the live values
+  // would touch a connection nothing on screen is subscribed to, and the change
+  // would land invisibly.
+  const queryVarsRef = useRef({ filter: deferredFilter, search: deferredSearch });
+  useEffect(() => {
+    queryVarsRef.current = { filter: deferredFilter, search: deferredSearch };
+  }, [deferredFilter, deferredSearch]);
+
+  const connectionNarrowing = useCallback((): ConnectionNarrowing => {
+    const { filter: f, search: term } = queryVarsRef.current;
+    return { filter: toRelayFilter(f), search: term || null };
+  }, []);
 
   const errorHandler = useCallback(
     (fallback: string) => (error: Error) => {
@@ -457,40 +609,74 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
     [toast],
   );
 
+  /**
+   * Re-reads both halves from the network.
+   *
+   * For the BULK actions only. They replace the assignment wholesale against a
+   * filter the server resolves, so what is left in either list is not something
+   * the client can work out — unlike a single +/−, which changes exactly one
+   * row and one number and is written into the store directly.
+   */
+  const refreshLists = useCallback(() => {
+    const variables = { scheduleId, ...connectionNarrowing(), first: PAGE_SIZE, after: null };
+    // Both halves report their own failure, and they have to. The mutation that
+    // called this one has already toasted its success, and these re-reads are the
+    // only thing that puts the new assignment on screen — so a failure swallowed
+    // here leaves the user looking at the PREVIOUS lists having just been told
+    // the new ones were saved.
+    const onError = errorHandler('Devices were saved, but the lists could not be refreshed');
+    fetchQuery(environment, scheduleDevicePickerRelayQuery, variables, { fetchPolicy: 'network-only' }).subscribe({
+      error: onError,
+    });
+    fetchQuery(environment, scheduleDevicePickerRelayAssignedQuery, variables, {
+      fetchPolicy: 'network-only',
+    }).subscribe({ error: onError });
+  }, [environment, scheduleId, connectionNarrowing, errorHandler]);
+
+  // Both single-row handlers render the change once, in the optimistic layer,
+  // and never again: the same patch is re-applied on the real commit, so the
+  // data the response settles on is the data already on screen and Relay's
+  // snapshot comparison finds nothing to re-render. Nothing is refetched — a
+  // re-read would republish every node on the page, and one whose `lastSeen`
+  // has ticked over since is a changed record, which is a second render of the
+  // whole table for no new information.
+  //
+  // A failure needs no rollback either: Relay drops the layer, and the row and
+  // the count go back to what the server last said.
   const handleAdd = useCallback(
     (device: Device) => {
       commitAdd({
         variables: { scheduleId, machineIds: [device.id] },
+        ...assignmentUpdaters(scheduleId, device.id, true, connectionNarrowing()),
         onCompleted: () => {
           toast({
             title: 'Device assigned',
             description: `"${device.displayName || device.hostname}" was added to this schedule.`,
             variant: 'success',
           });
-          refresh();
         },
         onError: errorHandler('Failed to assign device'),
       });
     },
-    [commitAdd, scheduleId, toast, refresh, errorHandler],
+    [commitAdd, scheduleId, toast, errorHandler, connectionNarrowing],
   );
 
   const handleRemove = useCallback(
     (device: Device) => {
       commitRemove({
         variables: { scheduleId, machineIds: [device.id] },
+        ...assignmentUpdaters(scheduleId, device.id, false, connectionNarrowing()),
         onCompleted: () => {
           toast({
             title: 'Device unassigned',
             description: `"${device.displayName || device.hostname}" was removed from this schedule.`,
             variant: 'success',
           });
-          refresh();
         },
         onError: errorHandler('Failed to unassign device'),
       });
     },
-    [commitRemove, scheduleId, toast, refresh, errorHandler],
+    [commitRemove, scheduleId, toast, errorHandler, connectionNarrowing],
   );
 
   const handleAddAll = useCallback(() => {
@@ -503,11 +689,11 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
           description: `This schedule now runs on ${response.addAllDevicesToSchedule.deviceCount} device(s).`,
           variant: 'success',
         });
-        refresh();
+        refreshLists();
       },
       onError: errorHandler('Failed to assign devices'),
     });
-  }, [commitAddAll, scheduleId, toast, refresh, errorHandler]);
+  }, [commitAddAll, scheduleId, toast, refreshLists, errorHandler]);
 
   const handleRemoveAll = useCallback(() => {
     const { filter: f, search: s } = narrowingRef.current;
@@ -519,11 +705,11 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
           description: `This schedule now runs on ${response.removeAllDevicesFromSchedule.deviceCount} device(s).`,
           variant: 'success',
         });
-        refresh();
+        refreshLists();
       },
       onError: errorHandler('Failed to unassign devices'),
     });
-  }, [commitRemoveAll, scheduleId, toast, refresh, errorHandler]);
+  }, [commitRemoveAll, scheduleId, toast, refreshLists, errorHandler]);
 
   // Each tab narrows its own list, and carrying one tab's search into the other
   // would silently hide rows the user never filtered.
@@ -621,42 +807,40 @@ function ScheduleDevicesContent({ scheduleId, schedule }: ScheduleDevicesContent
             commits immediately, so by the time this boundary suspends
             `selectionMode` already names the half being loaded.
 
-            The keyed wrapper is what replays the enter animation. Here it earns
-            its place — the half arrives where a skeleton was, so the fade covers
-            an appearance rather than blanking content that was already
-            readable, which is why the tab bodies have none. */}
+            No enter animation on the swap. The radio is a control, not a
+            navigation: the answer belongs under the finger that asked for it,
+            and a fade — however light — is time between the click and the
+            readable half. Each branch is its own component type, so React
+            replaces the subtree on its own; there is no wrapper to key. */}
         <Suspense fallback={<SchedulePickerSkeleton mode={selectionMode} />}>
-          <div key={schedule ? selectionMode : 'pending'} className={CONTENT_SWAP_ANIMATION}>
-            {!schedule ? (
-              <SchedulePickerSkeleton mode={selectionMode} />
-            ) : selectionMode === 'criteria' ? (
-              <ScheduleCriteriaPicker
-                scheduleId={scheduleId}
-                criteria={criteria}
-                onCriteriaChange={setCriteriaDraft}
-                busy={busy}
-              />
-            ) : (
-              <SchedulePickerLists
-                scheduleId={scheduleId}
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                search={search}
-                onSearchChange={setSearch}
-                narrowing={narrowing}
-                onNarrowingChange={setNarrowing}
-                filter={filter}
-                deferredFilter={deferredFilter}
-                deferredSearch={deferredSearch}
-                busy={busy}
-                onAdd={handleAdd}
-                onRemove={handleRemove}
-                onAddAll={handleAddAll}
-                onRemoveAll={handleRemoveAll}
-                refetchSignal={refetchSignal}
-              />
-            )}
-          </div>
+          {!schedule ? (
+            <SchedulePickerSkeleton mode={selectionMode} />
+          ) : selectionMode === 'criteria' ? (
+            <ScheduleCriteriaPicker
+              scheduleId={scheduleId}
+              criteria={criteria}
+              onCriteriaChange={setCriteriaDraft}
+              busy={busy}
+            />
+          ) : (
+            <SchedulePickerLists
+              scheduleId={scheduleId}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              search={search}
+              onSearchChange={setSearch}
+              narrowing={narrowing}
+              onNarrowingChange={setNarrowing}
+              filter={filter}
+              deferredFilter={deferredFilter}
+              deferredSearch={deferredSearch}
+              busy={busy}
+              onAdd={handleAdd}
+              onRemove={handleRemove}
+              onAddAll={handleAddAll}
+              onRemoveAll={handleRemoveAll}
+            />
+          )}
         </Suspense>
       </div>
     </ScriptPageChrome>
