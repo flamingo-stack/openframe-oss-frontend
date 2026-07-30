@@ -1,10 +1,10 @@
 /**
- * Native-shell push notifications: permission → FCM registration token handed
+ * Mobile-shell push notifications: permission → FCM registration token handed
  * to the backend, and notification taps deep-linked to the `route` key of the
  * push payload (contract: openframe-mobile dev/push-sample.apns). All push
  * flows through Firebase/FCM on both platforms (@capacitor-firebase/messaging,
- * shipped with the shell — not an npm dep here). No-ops on web and in shells
- * without the plugin.
+ * shipped with the shell — not an npm dep here). Mobile-only: no-ops on the
+ * web, in the desktop shell, and in shells without the plugin.
  *
  * Init runs post-login (registration is an authenticated call; the permission
  * prompt belongs after sign-in, not at launch).
@@ -16,16 +16,17 @@ import type { unregisterPushDeviceMutation as UnregisterPushDeviceMutationType }
 import type { PushPlatform } from '@/generated/schema-enums';
 import { registerPushDeviceMutation } from '@/graphql/notifications/register-push-device-mutation';
 import { unregisterPushDeviceMutation } from '@/graphql/notifications/unregister-push-device-mutation';
-import { firebaseMessagingPlugin, nativePlatform } from './native-shell';
+import { firebaseMessagingPlugin } from './native-shell';
+import { mobilePlatform } from './platform';
 import { getRelayEnvironment } from './relay';
 
 const PUSH_TOKEN_STORAGE_KEY = 'native:push-token';
 
 let initialized = false;
 
-/** Platform uppercased for the PushPlatform enum; null on web / unknown. */
+/** Platform uppercased for the PushPlatform enum; null off the mobile shell. */
 function pushPlatform(): PushPlatform | null {
-  const platform = nativePlatform();
+  const platform = mobilePlatform();
   return platform ? (platform.toUpperCase() as PushPlatform) : null;
 }
 

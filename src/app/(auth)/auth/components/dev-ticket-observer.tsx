@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useDevTicketExchange } from '@/app/(auth)/auth/hooks/use-dev-ticket-exchange';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell } from '@/lib/platform';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 /**
@@ -23,7 +23,7 @@ export function DevTicketObserver() {
 
   // The native shell exchanges tickets through the NativeAuth plugin
   // (native-login.ts) and must not mirror tokens into localStorage.
-  const isEnabled = runtimeEnv.enableDevTicketObserver() && !isNativeShell();
+  const isEnabled = runtimeEnv.enableDevTicketObserver() && !isAppShell();
 
   useEffect(() => {
     if (!isEnabled) return;

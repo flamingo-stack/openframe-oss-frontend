@@ -6,7 +6,8 @@
  */
 
 import { clearStoredTokens } from './force-logout';
-import { isNativeShell, nativeAuthPlugin } from './native-shell';
+import { nativeAuthPlugin } from './native-shell';
+import { isAppShell } from './platform';
 import { runtimeEnv } from './runtime-config';
 import { getRefreshToken, getTokenEpoch, isBearerAuthMode, markTokenRotation, setTokens } from './token-store';
 
@@ -60,7 +61,7 @@ async function executeRefresh(tenantId?: string): Promise<boolean> {
     if (refreshToken) {
       headers['Refresh-Token'] = refreshToken;
       usingStoredRefreshToken = true;
-    } else if (isNativeShell()) {
+    } else if (isAppShell()) {
       // Native has no cookie jar, so no stored token means no credential at
       // all: the POST could only 401, and that 401 clears the stored tokens
       // below. Fatal during the biometric cold-start lock, where the tokens

@@ -28,13 +28,13 @@
  * 401-refresh). Same-origin keeps `embedAuthedFetch` valid in prod builds too.
  */
 import type { EndpointsRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 /** `''` on the web (relative, same-origin); the tenant gateway origin in the
  *  native shell. Exported for the chat auth adapter's `allowedOrigins`. */
-export const CONTENT_ORIGIN = isNativeShell() ? runtimeEnv.tenantHostUrl() : '';
+export const CONTENT_ORIGIN = isAppShell() ? runtimeEnv.tenantHostUrl() : '';
 
 /**
  * The `/content` proxy root (no `/api` suffix). Exported for the two callers

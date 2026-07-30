@@ -9,7 +9,8 @@
  * requires `dev-ticket-enabled` on the gateway; not for production tenants.
  */
 import { authApiClient } from './auth-api-client';
-import { nativeAuthPlugin, nativePlatform, storeTenantHost } from './native-shell';
+import { nativeAuthPlugin, storeTenantHost } from './native-shell';
+import { isMobileShell } from './platform';
 import { runtimeEnv } from './runtime-config';
 import { setTokens } from './token-store';
 
@@ -49,16 +50,15 @@ export async function nativeLogin(options: {
     );
   }
 
-  const isMobileShell = nativePlatform() !== null;
   const mobileScheme = runtimeEnv.mobileAppScheme();
 
   // Mobile (authMobile=true): the gateway 302s the devTicket straight to the
   // app's custom scheme — the auth session completes on it, no https landing.
   // Desktop: the BFF only accepts http(s) redirect targets there; the shell
   // window intercepts the tenant-host callback before navigation.
-  const redirectTarget = isMobileShell ? `${mobileScheme}://auth` : `${tenantHost}${CALLBACK_PATH}`;
+  const redirectTarget = isMobileShell() ? `${mobileScheme}://auth` : `${tenantHost}${CALLBACK_PATH}`;
   const rawLoginUrl = authApiClient.loginUrl(options.tenantId, encodeURIComponent(redirectTarget), options.provider, {
-    authMobile: isMobileShell,
+    authMobile: isMobileShell(),
   });
   const loginUrl = rawLoginUrl.startsWith('http') ? rawLoginUrl : `${tenantHost}${rawLoginUrl}`;
 
@@ -66,7 +66,7 @@ export async function nativeLogin(options: {
     url: loginUrl,
     callbackHost: new URL(tenantHost).hostname,
     callbackPath: CALLBACK_PATH,
-    ...(isMobileShell ? { callbackScheme: mobileScheme } : {}),
+    ...(isMobileShell() ? { callbackScheme: mobileScheme } : {}),
   });
 
   const parsedResult = new URL(resultUrl);
