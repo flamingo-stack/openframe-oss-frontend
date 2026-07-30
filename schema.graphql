@@ -182,6 +182,12 @@ input BatchRunScriptInput {
   envVars: [ScriptEnvVarInput!]
 }
 
+"""Billing usage metric a seedTestUsage call targets (dev/stage only)."""
+enum BillingMetricType {
+  AI_TOKENS
+  MANAGED_DEVICES
+}
+
 enum BillingPeriod {
   MONTHLY
   YEARLY
@@ -1345,6 +1351,11 @@ type Mutation {
   Delete this tenant's Stripe test clock (dev/stage only). Cascades to delete the customer, resetting the tenant to trial.
   """
   resetTestClock: Boolean!
+
+  """
+  Seed synthetic billing usage for this tenant (dev/stage only). AI_TOKENS adds the value to the day's sum; MANAGED_DEVICES sets the day's peak device count (a value below the real count changes nothing). `date` (yyyy-MM-dd) backdates within the current billing period and defaults to the tenant's virtual today (test-clock aware).
+  """
+  seedTestUsage(metricType: BillingMetricType!, value: Int!, date: String): TestUsageResult!
 }
 
 input MutationDeleteInput {
@@ -2491,6 +2502,16 @@ enum TenantOnboardingStep {
 
 type TestClockResult {
   frozenTime: String!
+}
+
+type TestUsageResult {
+  metricType: BillingMetricType!
+
+  """Billing day the usage landed on, yyyy-MM-dd."""
+  billingDate: String!
+
+  """The day's total for the metric after seeding."""
+  dayValue: Long!
 }
 
 " Ticket fields exposed for AssignableTarget resolution. Full type in ai-agent (ticket.graphqls).\n All fields below come from the Ticket @Document entity (denormalized at write time).\n Fields requiring DataLoaders (assignee User, attachments, notes, dialog, labels) are\n only on the ai-agent side; query ticket(id) there for full detail.\n TODO: Remove after Apollo Federation migration — single shared Ticket type."
