@@ -18,8 +18,8 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
-import { featureFlags } from '@/lib/feature-flags';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes, TAB_IDS } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -142,10 +142,11 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   // Customer AI Configuration (provider/model, answer style, quick actions);
   // off (default) → the legacy appearance-only block, which keeps its original
   // `customer-ai-assistant-settings` gate (pre-session behavior).
-  const isFullAiConfig = featureFlags.customerAiConfiguration.enabled();
-  const showAiConfig =
-    !!organizationId && isSaasTenant && (isFullAiConfig || featureFlags.customerAiAssistantSettings.enabled());
-  const showGuardrails = !!organizationId && isSaasTenant && featureFlags.customerGuardrails.enabled();
+  const isFullAiConfig = useFeatureFlag('customer-ai-configuration');
+  const customizationEnabled = useFeatureFlag('customer-ai-assistant-settings');
+  const guardrailsEnabled = useFeatureFlag('customer-guardrails');
+  const showAiConfig = !!organizationId && isSaasTenant && (isFullAiConfig || customizationEnabled);
+  const showGuardrails = !!organizationId && isSaasTenant && guardrailsEnabled;
   const showTabs = showAiConfig || showGuardrails;
 
   const editTabs = useMemo<TabItem[]>(

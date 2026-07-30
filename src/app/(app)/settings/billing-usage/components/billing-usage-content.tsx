@@ -12,8 +12,8 @@ import { useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingUsageContentQuery as BillingUsageContentQueryType } from '@/__generated__/billingUsageContentQuery.graphql';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { featureFlags } from '@/lib/feature-flags';
 import { routes } from '@/lib/routes';
 import { useBillingSummary } from '../hooks/use-billing-summary';
 import { useCancelSubscription } from '../hooks/use-cancel-subscription';
@@ -53,9 +53,10 @@ export function BillingUsageContent() {
   // omitted when there's nothing to bill (null / 0) or while the user is on
   // an active trial — instead of rendering a "Free" placeholder.
   const nextPaymentAmount = billing.nextPayment ?? 0;
+  const cancelSubscriptionEnabled = useFeatureFlag('cancel-subscription');
 
   const menuActions: ActionsMenuGroup[] =
-    status === SubscriptionStatus.ACTIVE && featureFlags.cancelSubscription.enabled()
+    status === SubscriptionStatus.ACTIVE && cancelSubscriptionEnabled
       ? [
           {
             items: [

@@ -11,10 +11,10 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
+import { skeletonColumnMeta, type TableSkeletonColumn } from './table-column-layout';
 
 /**
- * Building blocks shared by every route-level page skeleton (see
- * `@/app/components/route-content-skeleton`).
+ * Building blocks shared by the page skeletons that stand in for a loading route.
  *
  * The principle is the one already used by the dashboard/device/customer
  * skeletons: render the REAL chrome (`PageLayout`, `DataTable`) with static,
@@ -105,17 +105,28 @@ export function InfoCardSkeleton({
   );
 }
 
-export interface TableSkeletonColumn {
-  id: string;
-  /** Real column header text — rendered verbatim, it isn't query-dependent. */
-  header?: string;
-  /** The real column's `meta.width` class. */
-  width: string;
-  hideAt?: 'md' | 'lg';
-  align?: 'right';
-}
+export type { TableSkeletonColumn } from './table-column-layout';
 
 const EMPTY_SKELETON_ROWS: unknown[] = [];
+
+/**
+ * Column defs for a skeleton table, from a shared column layout.
+ *
+ * Every skeleton that stands in for a `DataTable` builds its columns through
+ * here — the simple ones via `TableSkeleton` below, and the pages' own inline
+ * `<Suspense>` fallbacks (which need their table's `stickyHeader`, so they render
+ * `DataTable` themselves) by calling this directly. One mapping, so
+ * a column's header/width/`hideAt`/`sortable` can't be reproduced correctly in
+ * one loading state and wrongly in the other.
+ */
+export function skeletonColumnDefs<T>(columns: readonly TableSkeletonColumn[]): ColumnDef<T>[] {
+  return columns.map(column => ({
+    id: column.id,
+    header: column.header ?? '',
+    enableSorting: false,
+    meta: skeletonColumnMeta(column),
+  }));
+}
 
 interface TableSkeletonProps {
   columns: readonly TableSkeletonColumn[];
@@ -134,16 +145,7 @@ interface TableSkeletonProps {
  * wraps a single child, so the flex-item count of the parent is unchanged.
  */
 export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
-  const columnDefs = useMemo<ColumnDef<unknown>[]>(
-    () =>
-      columns.map(column => ({
-        id: column.id,
-        header: column.header ?? '',
-        enableSorting: false,
-        meta: { width: column.width, hideAt: column.hideAt, align: column.align },
-      })),
-    [columns],
-  );
+  const columnDefs = useMemo<ColumnDef<unknown>[]>(() => skeletonColumnDefs<unknown>(columns), [columns]);
 
   const table = useDataTable<unknown>({
     data: EMPTY_SKELETON_ROWS,

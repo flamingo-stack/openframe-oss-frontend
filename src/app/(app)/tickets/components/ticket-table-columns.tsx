@@ -15,11 +15,13 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useMemo } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import type { ClientDialogOwner, Dialog } from '../types/dialog.types';
+import { TICKET_COLUMNS } from './ticket-table-layout';
 
 export interface StatusFilterOption {
   id: string;
@@ -52,7 +54,7 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
 
   const titleColumn: ColumnDef<Dialog> = {
     accessorKey: 'title',
-    header: 'TITLE',
+    header: TICKET_COLUMNS.title.header,
     cell: ({ row }: { row: Row<Dialog> }) => {
       const ticket = row.original;
       return (
@@ -64,12 +66,12 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
         </div>
       );
     },
-    meta: { width: 'w-[60%] md:flex-1 min-w-0' },
+    meta: liveColumnMeta(TICKET_COLUMNS.title),
   };
 
   const sourceColumn: ColumnDef<Dialog> = {
     accessorKey: 'source',
-    header: 'SOURCE',
+    header: TICKET_COLUMNS.source.header,
     cell: ({ row }: { row: Row<Dialog> }) => {
       const ticket = row.original;
       const isClientOwner = 'machine' in (ticket.owner || {});
@@ -79,12 +81,12 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
       return <DeviceCardCompact deviceName={deviceName || '—'} organization={ticket.organizationName} />;
     },
     enableSorting: false,
-    meta: { hideAt: 'md' },
+    meta: liveColumnMeta(TICKET_COLUMNS.source),
   };
 
   const middleColumn: ColumnDef<Dialog> = {
     accessorKey: 'assignee',
-    header: 'ASSIGNEE',
+    header: TICKET_COLUMNS.assignee.header,
     cell: ({ row }: { row: Row<Dialog> }) => {
       const ticket = row.original;
       return ticket.assignedName ? (
@@ -104,20 +106,19 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
       );
     },
     enableSorting: false,
-    meta: { hideAt: 'lg' },
+    meta: liveColumnMeta(TICKET_COLUMNS.assignee),
   };
 
   const statusColumn: ColumnDef<Dialog> = {
     accessorKey: 'status',
-    header: 'STATUS',
+    header: TICKET_COLUMNS.status.header,
     cell: ({ row }: { row: Row<Dialog> }) => <TicketStatusTag {...resolveStatusTagProps(row.original)} />,
+    meta: liveColumnMeta(TICKET_COLUMNS.status),
     ...(!isArchived && {
       filterFn: multiSelectFilterFn,
-      meta: {
-        filter: {
-          options: statusOptions ?? LEGACY_STATUS_FILTER_OPTIONS,
-        },
-      },
+      meta: liveColumnMeta(TICKET_COLUMNS.status, {
+        filter: { options: statusOptions ?? LEGACY_STATUS_FILTER_OPTIONS },
+      }),
     }),
   };
 
@@ -128,7 +129,7 @@ export const ticketRowHref = (ticket: Dialog): string => routes.tickets.dialog(t
 
 export function getTicketOpenColumn(getUnreadCount?: (ticket: Dialog) => number | undefined): ColumnDef<Dialog> {
   return {
-    id: 'open',
+    id: TICKET_COLUMNS.open.id,
     cell: ({ row }: { row: Row<Dialog> }) => {
       // This trailing slot shows the unread-message count when there is one, otherwise the open action.
       const unread = getUnreadCount?.(row.original);
@@ -156,7 +157,7 @@ export function getTicketOpenColumn(getUnreadCount?: (ticket: Dialog) => number 
       );
     },
     enableSorting: false,
-    meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+    meta: liveColumnMeta(TICKET_COLUMNS.open),
   };
 }
 

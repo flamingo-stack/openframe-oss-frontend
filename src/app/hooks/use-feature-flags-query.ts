@@ -32,10 +32,16 @@ export function useFeatureFlagsQuery({ enabled }: { enabled: boolean }) {
   const query = useQuery<FeatureFlag[]>({
     queryKey: featureFlagsQueryKey,
     queryFn: async () => {
-      const response = await apiClient.post<FeFeatureFlagsResponse>('/api/graphql', {
-        query: FE_FEATURE_FLAGS_QUERY,
-        variables: { names: [...FEATURE_FLAG_NAMES] },
-      });
+      const response = await apiClient.post<FeFeatureFlagsResponse>(
+        '/api/graphql',
+        {
+          query: FE_FEATURE_FLAGS_QUERY,
+          variables: { names: [...FEATURE_FLAG_NAMES] },
+        },
+        // Bootstrap call: it runs as soon as the session resolves and must not
+        // wait on the session latch, which app data requests block on.
+        { skipSessionGate: true },
+      );
 
       detectTrialExpiredFromGraphqlErrors(response.data?.errors);
 

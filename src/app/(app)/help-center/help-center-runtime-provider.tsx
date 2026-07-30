@@ -25,7 +25,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { notFound } from 'next/navigation';
 import { type ReactNode, useContext, useMemo } from 'react';
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { HELP_CENTER_ENDPOINTS } from './endpoints';
 import { composeOpenframeContentUrl } from './help-center-content-href';
 
@@ -40,6 +40,7 @@ import { composeOpenframeContentUrl } from './help-center-content-href';
 
 export function HelpCenterRuntimeProvider({ children }: { children: ReactNode }) {
   const parent = useContext(ChatRuntimeContext);
+  const helpCenter = useFeatureFlagGate('help-center');
 
   const runtime = useMemo<ChatRuntime>(
     () => ({
@@ -60,7 +61,24 @@ export function HelpCenterRuntimeProvider({ children }: { children: ReactNode })
   // no per-page check. Hooks above run unconditionally; the guard sits before
   // the render to satisfy the rules-of-hooks. (Mirrors the `knowledge-base`
   // page's `notFound()` gate.)
-  if (!featureFlags.helpCenter.enabled()) {
+  //
+  // Only a definitive "off" 404s. `notFound()` throws, so firing it on a flag that
+  // simply hasn't answered yet takes down the whole `/help-center/*` subtree
+  // permanently — the boundary renders 404 and nothing re-renders this.
+  //
+  // "Not answered yet" renders the subtree as normal, with NO placeholder of its own.
+  // This gate only ever covered the flag round-trip (never a content fetch), and the
+  // landing route under it is a static menu — there is nothing to wait for, so a
+  // placeholder there was pure flash: a neutral grey page shape swapped for the real
+  // card list a moment later, on every load, for every tenant that has the feature.
+  // The content routes deeper in the subtree keep whatever loading state they already
+  // had; they just start a beat earlier now.
+  //
+  // The trade this accepts: a tenant with the flag OFF sees the menu for the length of
+  // the flag round-trip before the 404 lands. That surface is generic product help, it
+  // is unreachable from the nav (the sidebar omits the row until the flag answers), and
+  // the alternative was showing every other tenant a placeholder for nothing.
+  if (helpCenter === 'off') {
     notFound();
   }
 

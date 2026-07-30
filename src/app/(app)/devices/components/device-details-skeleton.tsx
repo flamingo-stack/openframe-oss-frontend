@@ -11,7 +11,6 @@ import {
   ArrowRightUpIcon,
   BracketCurlyIcon,
   ComputerMouseIcon,
-  PowershellLogoGreyIcon,
   SearchIcon,
   TerminalIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -24,9 +23,22 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
+import { DEVICE_TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
+import {
+  PoliciesTable,
+  type PolicyTableRow,
+  QueriesTable,
+  type QueryTableRow,
+  skeletonColumnDefs,
+  type TableSkeletonColumn,
+} from '@/app/components/shared';
+import { SOFTWARE_TAB_COLUMNS, USERS_TAB_COLUMNS, VULNERABILITIES_TAB_COLUMNS } from './tabs/device-tab-columns';
 import { DEVICE_TABS } from './tabs/device-tabs';
 
 const noop = () => {};
+
+const EMPTY_POLICY_ROWS: PolicyTableRow[] = [];
+const EMPTY_QUERY_ROWS: QueryTableRow[] = [];
 
 /**
  * Static placeholder actions so the REAL `PageActions` renders during load — pixel-perfect
@@ -52,10 +64,12 @@ const SKELETON_ACTIONS: PageActionButton[] = [
     label: 'Remote Control',
     variant: 'outline',
     disabled: true,
-    icon: <ComputerMouseIcon className="w-6 h-6 text-ods-text-secondary" />,
+    icon: <ComputerMouseIcon className="text-ods-text-secondary" />,
     onClick: noop,
     iconAction: {
-      icon: <ArrowRightUpIcon className="w-5 h-5 text-ods-text-secondary" />,
+      // Uncolored, like the loaded header's trailing arrow: the split button's icon
+      // half inherits primary (white), and the leading icons are the muted ones.
+      icon: <ArrowRightUpIcon />,
       'aria-label': 'Open Remote Control',
       onClick: noop,
       disabled: true,
@@ -65,23 +79,32 @@ const SKELETON_ACTIONS: PageActionButton[] = [
     label: 'Remote Shell',
     variant: 'outline',
     disabled: true,
-    icon: <TerminalIcon className="w-6 h-6 text-ods-text-secondary" />,
-    submenu: [
-      {
-        id: 'cmd',
-        label: 'CMD',
-        icon: <TerminalIcon className="w-6 h-6 text-ods-text-secondary" />,
-        onClick: noop,
-        disabled: true,
-      },
-      {
-        id: 'powershell',
-        label: 'PowerShell',
-        icon: <PowershellLogoGreyIcon className="w-6 h-6" />,
-        onClick: noop,
-        disabled: true,
-      },
-    ],
+    icon: <TerminalIcon className="text-ods-text-secondary" />,
+    // A SPLIT button, like Remote Control above — not a `submenu`, which is what
+    // this used to be. The two are different components in `PageActions`
+    // (`iconAction` → `SplitButton`, `submenu` → `Button` + `splitIcon`), and the
+    // loaded header picks between them by the device's OS: Windows gets the
+    // CMD/PowerShell submenu, everything else the open-in-new-tab arrow. The OS is
+    // exactly what is still loading, so hardcoding the Windows shape here was a
+    // guess that was wrong on every mac and Linux device.
+    //
+    // Split is the shape to stand in with: it is the geometry of both variants, so a
+    // Windows device differs only in the trailing glyph rather than in the component.
+    // The two shapes also used to disagree on glyph SIZE — `SplitButton` scales its
+    // icons 16/24 while the `Button` split slots were a flat 20px, and since both are
+    // `[&_svg]:h-*` descendant rules they outrank whatever the icon carries itself —
+    // so the button changed its leading icon size on handoff too. That one is fixed in
+    // the lib: both shapes now share `splitGlyphSizeClasses`.
+    onClick: noop,
+    iconAction: {
+      // Deliberately a placeholder, not an arrow or a chevron: which one this
+      // becomes is the OS answer we don't have yet. The cell it reserves is what
+      // matters.
+      icon: <Skeleton className="h-4 w-4 md:h-6 md:w-6 rounded" />,
+      'aria-label': 'Remote Shell',
+      onClick: noop,
+      disabled: true,
+    },
   },
 ];
 
@@ -189,8 +212,6 @@ function SearchInputSkeleton({ placeholder }: { placeholder: string }) {
   );
 }
 
-type SkeletonColumn = { id: string; header?: string; width: string; hideAt?: 'md' | 'lg' };
-
 const EMPTY_TABLE_ROWS: unknown[] = [];
 
 /**
@@ -199,18 +220,8 @@ const EMPTY_TABLE_ROWS: unknown[] = [];
  * `DataTableSkeleton` (all columns, correct header height, responsive condensing). Headers are
  * rendered for real; the search input is a plain bar (not a disabled input).
  */
-function TableTabSkeleton({ columns, placeholder }: { columns: SkeletonColumn[]; placeholder: string }) {
-  const colDefs = useMemo<ColumnDef<unknown>[]>(
-    () =>
-      columns.map(col => ({
-        id: col.id,
-        accessorKey: col.id,
-        header: col.header ?? '',
-        enableSorting: false,
-        meta: { width: col.width, hideAt: col.hideAt },
-      })),
-    [columns],
-  );
+function TableTabSkeleton({ columns, placeholder }: { columns: readonly TableSkeletonColumn[]; placeholder: string }) {
+  const colDefs = useMemo<ColumnDef<unknown>[]>(() => skeletonColumnDefs<unknown>(columns), [columns]);
 
   const table = useDataTable<unknown>({
     data: EMPTY_TABLE_ROWS,
@@ -229,57 +240,6 @@ function TableTabSkeleton({ columns, placeholder }: { columns: SkeletonColumn[];
     </div>
   );
 }
-
-// Column sets mirror the real device tables (1:1 with their `useDataTable` column defs).
-const USERS_SKELETON_COLUMNS: SkeletonColumn[] = [
-  { id: 'user', header: 'User', width: 'flex-1' },
-  { id: 'uid', header: 'UID', width: 'w-[100px]' },
-  { id: 'type', header: 'Type', width: 'w-[120px]' },
-  { id: 'group', header: 'Group', width: 'w-[160px]' },
-  { id: 'shell', header: 'Shell', width: 'w-[200px]' },
-  { id: 'status', header: 'Status', width: 'w-[120px]' },
-];
-
-const SOFTWARE_SKELETON_COLUMNS: SkeletonColumn[] = [
-  { id: 'software', header: 'Software', width: 'flex-1' },
-  { id: 'source', header: 'Source', width: 'w-[140px]' },
-  { id: 'vulnerabilities', header: 'Vulnerabilities', width: 'w-[160px]' },
-  { id: 'filePath', header: 'File Path', width: 'w-[220px]' },
-  { id: 'lastUsed', header: 'Last Used', width: 'w-[140px]' },
-];
-
-const VULNERABILITIES_SKELETON_COLUMNS: SkeletonColumn[] = [
-  { id: 'cve', header: 'CVE ID', width: 'w-[20%]' },
-  { id: 'severity', header: 'Severity', width: 'w-[16%]' },
-  { id: 'software', header: 'Software', width: 'flex-1 min-w-0' },
-  { id: 'discovered', header: 'Discovered', width: 'w-[18%]', hideAt: 'md' },
-  { id: 'open', header: '', width: 'w-12 shrink-0 flex-none' },
-];
-
-const POLICIES_SKELETON_COLUMNS: SkeletonColumn[] = [
-  { id: 'name', header: 'Name', width: 'flex-1 min-w-0' },
-  { id: 'severity', header: 'Severity', width: 'w-[100px]' },
-  { id: 'platform', header: 'Platform', width: 'w-[140px]' },
-  { id: 'status', header: 'Status', width: 'w-[140px]' },
-  { id: 'actions', header: '', width: 'w-12 md:w-auto md:min-w-[100px] shrink-0 flex-none' },
-  { id: 'open', header: '', width: 'w-12 shrink-0 flex-none', hideAt: 'md' },
-];
-
-const QUERIES_SKELETON_COLUMNS: SkeletonColumn[] = [
-  { id: 'name', header: 'Name', width: 'flex-1 min-w-0' },
-  { id: 'frequency', header: 'Frequency', width: 'w-[120px]' },
-  { id: 'actions', header: '', width: 'w-12 md:w-auto md:min-w-[100px] shrink-0 flex-none' },
-  { id: 'open', header: '', width: 'w-12 shrink-0 flex-none', hideAt: 'md' },
-];
-
-// Widths must stay 1:1 with the real tickets-tab columns (see tickets-tab.tsx)
-// so the page-level skeleton and the tab's own loading table don't jump.
-const TICKETS_SKELETON_COLUMNS: SkeletonColumn[] = [
-  { id: 'title', header: 'Title', width: 'flex-1' },
-  { id: 'assignee', header: 'Assignee', width: 'w-[280px]' },
-  { id: 'status', header: 'Status', width: 'w-[160px]' },
-  { id: 'open', header: '', width: 'w-12 shrink-0 flex-none', hideAt: 'md' },
-];
 
 /**
  * Mirrors the real `InfoCell`: a column with [row(optional inline icon + value), label].
@@ -577,27 +537,44 @@ function AgentsTabSkeleton() {
 }
 
 function UsersTabSkeleton() {
-  return <TableTabSkeleton columns={USERS_SKELETON_COLUMNS} placeholder="Search for User" />;
+  return <TableTabSkeleton columns={USERS_TAB_COLUMNS} placeholder="Search for User" />;
 }
 
 function SoftwareTabSkeleton() {
-  return <TableTabSkeleton columns={SOFTWARE_SKELETON_COLUMNS} placeholder="Search for Software" />;
+  return <TableTabSkeleton columns={SOFTWARE_TAB_COLUMNS} placeholder="Search for Software" />;
 }
 
 function VulnerabilitiesTabSkeleton() {
-  return <TableTabSkeleton columns={VULNERABILITIES_SKELETON_COLUMNS} placeholder="Search for Vulnerability" />;
+  return <TableTabSkeleton columns={VULNERABILITIES_TAB_COLUMNS} placeholder="Search for Vulnerability" />;
 }
 
+/**
+ * Policies and Queries render the REAL shared tables in their loading state
+ * instead of a column copy: both already reserve the actions column while
+ * `isLoading` (see `PoliciesTable`), and the column set depends on props the tab
+ * passes — the device tab omits `showPlatform`, so the copy here used to draw a
+ * PLATFORM column the loaded table never renders.
+ */
 function PoliciesTabSkeleton() {
-  return <TableTabSkeleton columns={POLICIES_SKELETON_COLUMNS} placeholder="Search for Policies" />;
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <SearchInputSkeleton placeholder="Search for Policies" />
+      <PoliciesTable rows={EMPTY_POLICY_ROWS} isLoading emptyMessage="" />
+    </div>
+  );
 }
 
 function QueriesTabSkeleton() {
-  return <TableTabSkeleton columns={QUERIES_SKELETON_COLUMNS} placeholder="Search for Query" />;
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <SearchInputSkeleton placeholder="Search for Query" />
+      <QueriesTable rows={EMPTY_QUERY_ROWS} isLoading emptyMessage="" />
+    </div>
+  );
 }
 
 function TicketsTabSkeleton() {
-  return <TableTabSkeleton columns={TICKETS_SKELETON_COLUMNS} placeholder="Search for Tickets" />;
+  return <TableTabSkeleton columns={DEVICE_TICKET_COLUMNS} placeholder="Search for Tickets" />;
 }
 
 /** Matches embedded LogsTable: full-width search input + the real log columns (header labels static). */

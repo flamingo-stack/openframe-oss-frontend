@@ -47,6 +47,7 @@ import type {
 import type { notificationsDrawerRelayPaginationQuery as NotificationsDrawerPaginationQueryType } from '@/__generated__/notificationsDrawerRelayPaginationQuery.graphql';
 import type { notificationsDrawerRelayQuery as NotificationsDrawerRelayQueryType } from '@/__generated__/notificationsDrawerRelayQuery.graphql';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { markNotificationReadMutation } from '@/graphql/notifications/mark-notification-read-mutation';
 import {
   notificationsDrawerRelayFragment,
@@ -68,7 +69,6 @@ import {
   isDialogViewActive,
   subscribeActiveDialogViews,
 } from '@/lib/active-dialog-views';
-import { featureFlags } from '@/lib/feature-flags';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { withCategoryIcon } from './notification-category-icons';
@@ -316,7 +316,7 @@ export function NotificationsDataProvider({ children }: { children: ReactNode })
   const userId = useAuthStore(s => s.user?.id);
   const [showPopups, setShowPopups] = useLocalStorage<boolean>(SHOW_POPUPS_STORAGE_KEY, true);
   const [showDesktopPopups, setShowDesktopPopups] = useLocalStorage<boolean>(SHOW_DESKTOP_POPUPS_STORAGE_KEY, false);
-  const notificationsEnabled = featureFlags.notifications.enabled();
+  const notificationsEnabled = useFeatureFlag('notifications');
 
   return (
     <NotificationsDataInner

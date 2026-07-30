@@ -12,8 +12,10 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device } from '../../types/device.types';
+import { USER_COLUMNS } from './device-tab-columns';
 import { TabEmptyState } from './tab-empty-state';
 
 interface UsersTabProps {
@@ -71,7 +73,7 @@ export function UsersTab({ device }: UsersTabProps) {
     () => [
       {
         accessorKey: 'username',
-        header: 'USER',
+        header: USER_COLUMNS.username.header,
         cell: ({ row }: { row: Row<UserRow> }) => (
           <div className="flex flex-col justify-center min-w-0">
             <TruncateText>{row.original.username}</TruncateText>
@@ -81,51 +83,51 @@ export function UsersTab({ device }: UsersTabProps) {
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'flex-1 min-w-0' },
+        meta: liveColumnMeta(USER_COLUMNS.username),
       },
       {
         accessorKey: 'uid',
-        header: 'UID',
+        header: USER_COLUMNS.uid.header,
         cell: ({ row }: { row: Row<UserRow> }) => (
           <span className="text-h4 text-ods-text-primary">
             {row.original.uid !== undefined ? row.original.uid : '—'}
           </span>
         ),
         enableSorting: false,
-        meta: { width: 'w-[100px] shrink-0' },
+        meta: liveColumnMeta(USER_COLUMNS.uid),
       },
       {
         accessorKey: 'type',
-        header: 'TYPE',
+        header: USER_COLUMNS.type.header,
         cell: ({ row }: { row: Row<UserRow> }) => (
           <span className="text-h4 text-ods-text-primary capitalize">{row.original.type || '—'}</span>
         ),
         enableSorting: false,
-        meta: { width: 'w-[120px] shrink-0', hideAt: 'md' },
+        meta: liveColumnMeta(USER_COLUMNS.type),
       },
       {
         accessorKey: 'groupname',
-        header: 'GROUP',
+        header: USER_COLUMNS.groupname.header,
         cell: ({ row }: { row: Row<UserRow> }) => (
           <TruncateText tone={row.original.groupname ? 'primary' : 'secondary'}>
             {row.original.groupname || '—'}
           </TruncateText>
         ),
         enableSorting: false,
-        meta: { width: 'w-[160px] shrink-0', hideAt: 'lg' },
+        meta: liveColumnMeta(USER_COLUMNS.groupname),
       },
       {
         accessorKey: 'shell',
-        header: 'SHELL',
+        header: USER_COLUMNS.shell.header,
         cell: ({ row }: { row: Row<UserRow> }) => (
           <TruncateText tone={row.original.shell ? 'primary' : 'secondary'}>{row.original.shell || '—'}</TruncateText>
         ),
         enableSorting: false,
-        meta: { width: 'w-[200px] shrink-0', hideAt: 'lg' },
+        meta: liveColumnMeta(USER_COLUMNS.shell),
       },
       {
-        id: 'status',
-        header: 'STATUS',
+        id: USER_COLUMNS.status.id,
+        header: USER_COLUMNS.status.header,
         cell: ({ row }: { row: Row<UserRow> }) =>
           row.original.isLoggedIn ? (
             <Tag label="ACTIVE" variant="success" className="w-fit" />
@@ -133,7 +135,7 @@ export function UsersTab({ device }: UsersTabProps) {
             <span className="text-h4 text-ods-text-secondary">—</span>
           ),
         enableSorting: false,
-        meta: { width: 'w-[120px] shrink-0', align: 'right' },
+        meta: liveColumnMeta(USER_COLUMNS.status),
       },
     ],
     [],

@@ -13,11 +13,27 @@ export const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
 
 /**
  * CSS variable seeded before first paint (by {@link sidebarWidthFoucScript}) so
- * the SSR'd skeleton sidebar renders at the persisted width. `localStorage` is
- * unreadable on the server, so without this the sidebar flashes expanded →
- * minimized on every refresh.
+ * the sidebar renders at the persisted width from the very first frame.
+ * `localStorage` is unreadable on the server, so without this the sidebar
+ * flashes expanded → minimized on every refresh — and, worse, any markup derived
+ * from the preference disagrees with the server's HTML and React regenerates the
+ * whole tree.
+ *
+ * ONE variable for the skeleton AND the real `NavigationSidebar`: this string is
+ * the core lib's `NAVIGATION_SIDEBAR_WIDTH_VAR`, which its sidebar reads through
+ * an arbitrary-value width utility scoped to `lg` and rewrites on toggle. Two
+ * separate variables was the bug — the seed reached the placeholder and the real
+ * sidebar was born expanded behind it. Duplicated as a literal rather than
+ * imported because this module is deliberately framework-neutral (the SERVER
+ * root layout imports it) and the lib's constant ships from a `'use client'`
+ * barrel.
+ *
+ * Do NOT write an abbreviated utility class in prose anywhere under `src/`:
+ * Tailwind scans these files as raw text and cannot tell code from comment, so a
+ * placeholder inside square brackets becomes a real candidate and emits CSS with
+ * an ellipsis where a custom property belongs — which fails the build.
  */
-export const SIDEBAR_WIDTH_CSS_VAR = '--of-sidebar-skeleton-width';
+export const SIDEBAR_WIDTH_CSS_VAR = '--of-navigation-sidebar-width';
 
 /**
  * The REAL sidebar's root element. It carries an `aria-label` the (aria-hidden)
@@ -50,8 +66,22 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
 
 /**
  * Inline FOUC-prevention script. Runs synchronously in `<head>` before first
- * paint: reads the persisted (or tablet-forced) collapse state and seeds the
- * width CSS var. Breakpoints mirror the core sidebar hooks (md 800px, lg
- * 1280px); tablet always starts minimized.
+ * paint: reads the persisted collapse state and seeds the sidebar width var.
+ *
+ * This is the whole mechanism by which a preference that only `localStorage`
+ * knows reaches the first frame. It cannot travel through React: the server
+ * cannot read it, so any markup derived from it would differ between the SSR'd
+ * HTML and the hydration render, and React would throw the tree away.
+ *
+ * The WIDTH is all it seeds. It briefly also published the preference as a
+ * number for the collapse chevron; core `0.0.500` derives that from the rail's
+ * rendered width with a container query instead, so the property has no reader
+ * left and seeding it is dead weight in a script that blocks first paint.
+ *
+ * Viewport-free on purpose. It used to force the minimized width between 800px
+ * and 1280px, back when the skeleton applied this var at every breakpoint. Both
+ * sidebars now pin the tablet rail in CSS (`md:w-14`) and read the var only from
+ * `lg`, so a viewport check here would poison the DESKTOP value for anyone who
+ * loaded at tablet width and then widened the window.
  */
-export const sidebarWidthFoucScript = runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';if(window.matchMedia('(min-width:800px)').matches&&!window.matchMedia('(min-width:1280px)').matches)m=true;document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':'${SIDEBAR_EXPANDED_WIDTH}px');}catch(e){}})();`;
+export const sidebarWidthFoucScript = runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':'${SIDEBAR_EXPANDED_WIDTH}px');}catch(e){}})();`;

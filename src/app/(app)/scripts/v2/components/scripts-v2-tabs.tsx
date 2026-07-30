@@ -4,9 +4,10 @@ import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-
 import { BracketCurlyIcon, TimerIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
-import { featureFlags } from '@/lib/feature-flags';
+import { TabBarSkeleton } from '@/app/components/shared';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { routes } from '@/lib/routes';
-import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
+import { SCRIPTS_V2_TAB_WIDTHS } from './scripts-table-columns';
 
 const SCRIPTS_V2_TABS: TabItem[] = [
   { id: 'list', label: 'Scripts List', icon: BracketCurlyIcon },
@@ -27,14 +28,19 @@ interface ScriptsV2TabNavigationProps {
  * view (Scripts List), so the whole tab bar is hidden rather than rendering a
  * lone tab — the schedules routes themselves redirect away (see
  * `scripts-v2/schedules/layout.tsx`).
+ *
+ * Before the flag answers the bar renders as a SKELETON rather than guessing.
+ * Guessing "off" hid a bar the tenant does have and dropped it in late; guessing
+ * "on" showed a tab that must not exist. A skeleton is the only honest answer, and
+ * it keeps the bar's height reserved either way, so the page below it doesn't jump
+ * when the answer lands.
  */
 export function ScriptsV2TabNavigation({ activeTab }: ScriptsV2TabNavigationProps) {
   const router = useRouter();
 
-  // Mirror the schedules layout gate so the tab and the route agree with no
-  // flash: resolved store value, env-var fallback when the server omits it.
-  const serverValue = useFeatureFlagsStore(s => (s.isLoaded ? s.flags['script-schedules'] : undefined));
-  const schedulesEnabled = serverValue ?? featureFlags.scriptSchedules.enabled();
+  // Same gate as the schedules layout and the page skeleton, so tab bar, route
+  // and placeholder can't disagree for a frame.
+  const schedules = useFeatureFlagGate('script-schedules');
 
   const handleTabChange = useCallback(
     (tabId: string) => {
@@ -44,13 +50,17 @@ export function ScriptsV2TabNavigation({ activeTab }: ScriptsV2TabNavigationProp
     [activeTab, router],
   );
 
-  if (!schedulesEnabled) {
+  if (schedules === 'off') {
     return null;
   }
 
   return (
     <div className="px-[var(--spacing-system-l)]">
-      <TabNavigation urlSync={false} activeTab={activeTab} tabs={SCRIPTS_V2_TABS} onTabChange={handleTabChange} />
+      {schedules === 'loading' ? (
+        <TabBarSkeleton widths={SCRIPTS_V2_TAB_WIDTHS} />
+      ) : (
+        <TabNavigation urlSync={false} activeTab={activeTab} tabs={SCRIPTS_V2_TABS} onTabChange={handleTabChange} />
+      )}
     </div>
   );
 }

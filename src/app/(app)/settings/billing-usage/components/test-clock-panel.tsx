@@ -7,8 +7,8 @@ import { Suspense, useId, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { testClockPanelQuery as TestClockPanelQueryType } from '@/__generated__/testClockPanelQuery.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { type BillingMetricType, BillingProvisioningState } from '@/generated/schema-enums';
-import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { useBillingProvisioningStatus } from '../hooks/use-billing-provisioning-status';
 import { type SeedTestUsageResult, useSeedTestUsage } from '../hooks/use-seed-test-usage';
@@ -33,7 +33,9 @@ interface TestClockPanelProps {
  * requests that fail GraphQL validation on prod.
  */
 export function TestClockPanel({ onClockChanged }: TestClockPanelProps) {
-  if (!featureFlags.testClock.enabled()) return null;
+  const testClockEnabled = useFeatureFlag('test-clock');
+
+  if (!testClockEnabled) return null;
 
   return (
     <Suspense fallback={<Skeleton className="h-[104px] w-full rounded-md" />}>

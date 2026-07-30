@@ -1,6 +1,6 @@
 'use client';
 
-import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { WorkTimeTable } from '@/app/components/shared/work-time-table';
@@ -11,7 +11,11 @@ export function WorktimeView() {
   const actions = [
     {
       label: 'Add Work Time',
-      icon: <PlusCircleIcon iconSize={20} whiteOverlay />,
+      // icons-v2, not the legacy `components/icons` one: that version hardcodes its
+      // fill (`white` under `whiteOverlay`, brand green otherwise) and ignores every
+      // text color, so it could not be muted. This one fills with `currentColor`.
+      // Size is the button's to set (`[&_svg]:h-5`), so no `iconSize` either.
+      icon: <PlusCircleIcon className="text-ods-text-secondary" />,
       onClick: () => setAddWorkTimeOpen(true),
       variant: 'outline' as const,
     },

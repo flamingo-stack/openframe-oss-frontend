@@ -214,8 +214,13 @@ export function DevicesPanel({
 
   // Grid layout is desktop-only — force-collapse to table on mobile so the
   // user always gets a usable list at narrow widths.
+  //
+  // `=== false`, NOT `!isMdUp`: the hook answers `undefined` until an effect has run,
+  // so `!isMdUp` was true on the first pass at every width — on a desktop load with
+  // `viewMode=grid` persisted, this wrote `viewMode=table` into the URL and silently
+  // destroyed the user's grid preference on every visit.
   useEffect(() => {
-    if (!isMdUp && params.viewMode === 'grid') {
+    if (isMdUp === false && params.viewMode === 'grid') {
       setParam('viewMode', 'table');
     }
   }, [isMdUp, params.viewMode, setParam]);
@@ -307,13 +312,12 @@ export function DevicesPanel({
               onTagRemove={handleTagRemove}
               onClearAll={handleClearAll}
               onSubmit={handleTagSubmit}
-              isMdUp={isMdUp}
               onOpenFilterModal={openFilterModal}
               isFilterModalOpen={filterModalOpen}
               onCloseFilterModal={closeFilterModal}
               filterGroups={filterGroups}
               onFilterChange={handleModalFilterChange}
-              currentFilters={!isMdUp ? tableFilters : undefined}
+              currentFilters={isMdUp === false ? tableFilters : undefined}
               tagFilterKeys={tagFilterKeys}
               selectedTags={selectedTags}
               onTagsChange={handleModalTagsChange}
