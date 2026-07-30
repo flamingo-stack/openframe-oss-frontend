@@ -11,7 +11,7 @@
     "start": "next start -p ${PORT:-3000}",
     "start:standalone": "cp -R public dist/standalone/ && mkdir -p dist/standalone/dist && cp -R dist/static dist/standalone/dist/ && PORT=${PORT:-3000} HOSTNAME=0.0.0.0 NODE_ENV=production node dist/standalone/server.js",
     "lint": "eslint 'src/**/*.{ts,tsx}'",
-    "test": "node --test src/lib/registration-attribution.test.mjs",
+    "test": "node --test src/lib/*.test.mjs",
     "lint:biome": "biome check .",
     "lint:biome:fix": "biome check --fix .",
     "format": "biome format .",

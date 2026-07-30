@@ -56,6 +56,8 @@ export async function nativeLogin(options: {
   // app's custom scheme — the auth session completes on it, no https landing.
   // Desktop: the BFF only accepts http(s) redirect targets there; the shell
   // window intercepts the tenant-host callback before navigation.
+  // Either way redirectTarget must reach the gateway — start() below resolves on
+  // nothing else — so loginUrl keeps it for any shell, saas-shared included.
   const redirectTarget = isMobileShell() ? `${mobileScheme}://auth` : `${tenantHost}${CALLBACK_PATH}`;
   const rawLoginUrl = authApiClient.loginUrl(options.tenantId, encodeURIComponent(redirectTarget), options.provider, {
     authMobile: isMobileShell(),
