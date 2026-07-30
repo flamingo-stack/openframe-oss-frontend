@@ -16,9 +16,9 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { isSaasTenantMode } from '@/lib/app-mode';
-import { featureFlags } from '@/lib/feature-flags';
 import { routes } from '@/lib/routes';
 import { useMingoChat } from './hooks/use-mingo-chat';
 import { useMingoDialog } from './hooks/use-mingo-dialog';
@@ -29,6 +29,7 @@ import { useMingoMessagesStore } from './stores/mingo-messages-store';
 
 export default function Mingo() {
   const router = useRouter();
+  const mingoSidebarEnabled = useFeatureFlag('mingo-sidebar');
   const searchParams = useSearchParams();
   const { aiModel: initialAiModel, isLoading: isAiModelLoading } = useAiModelStatus();
 
@@ -246,15 +247,16 @@ export default function Mingo() {
 
   // The standalone `/mingo` page is the LEGACY surface. When `mingo-sidebar` is
   // on, Mingo lives in the in-layout sidebar drawer instead, so this route is
-  // fully hidden — redirect any direct/bookmarked hit to the dashboard. (Flags
-  // are guaranteed loaded here: `FeatureFlagsGate` blocks the app shell until
-  // then, so the imperative read is stable.) Also covers the non-SaaS guard.
+  // fully hidden — redirect any direct/bookmarked hit to the dashboard. Also
+  // covers the non-SaaS guard. The flag is read reactively and is a dependency:
+  // this effect can run before the flags query answers, and a stale `false`
+  // would leave the legacy page open with nothing to re-run the redirect.
   useEffect(() => {
-    if (!isSaasTenantMode() || featureFlags.mingoSidebar.enabled()) {
+    if (!isSaasTenantMode() || mingoSidebarEnabled) {
       router.replace(routes.dashboard);
       return;
     }
-  }, [router]);
+  }, [router, mingoSidebarEnabled]);
 
   const handleDialogSelect = useCallback(
     async (dialogId: string) => {
@@ -362,7 +364,7 @@ export default function Mingo() {
     ],
   );
 
-  if (!isSaasTenantMode() || featureFlags.mingoSidebar.enabled()) {
+  if (!isSaasTenantMode() || mingoSidebarEnabled) {
     return null;
   }
 

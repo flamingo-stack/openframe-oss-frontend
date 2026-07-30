@@ -31,7 +31,7 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
       setPushEnabled(null);
       return;
     }
-    
+
     const subscription = fetchQuery<NotificationSettingsRelayQueryType>(
       environment,
       notificationSettingsRelayQuery,

@@ -8,7 +8,7 @@ import {
   PageLayout,
   Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { skeletonFlagEnabled } from '@/lib/feature-flags';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 
 interface TicketDetailsSkeletonProps {
   onBack: () => void;
@@ -17,9 +17,9 @@ interface TicketDetailsSkeletonProps {
    * `showTechnicianChat` is `isTechnicianChatEnabled`, which is exactly the
    * inverse of the sidebar layout, so it doubles as the layout discriminator.
    *
-   * Defaults to the same flag the page reads, via `skeletonFlagEnabled` — a
-   * plain `featureFlags` read returns the ENV default here, because the route
-   * skeleton renders before `FeatureFlagsGate` has the server's answer.
+   * Omitted by the route-level skeleton, which has no caller to tell it — it
+   * reads the flag itself and renders a layout-agnostic placeholder until the
+   * answer arrives.
    */
   showTechnicianChat?: boolean;
 }
@@ -69,22 +69,79 @@ const CLASSIC_ACTIONS: PageActionButton[] = [];
  * always renders `dialog.title`, so omitting it left the `h1` line out entirely
  * and the whole page shifted up by one line while loading.
  */
-export function TicketDetailsSkeleton({
-  onBack,
-  showTechnicianChat = !skeletonFlagEnabled('mingo-sidebar-context'),
-}: TicketDetailsSkeletonProps) {
+export function TicketDetailsSkeleton({ onBack, showTechnicianChat }: TicketDetailsSkeletonProps) {
+  // Hook, not a prop default: as a route-level skeleton this renders with no
+  // caller to tell it which layout is coming, so it has to read the flag itself.
+  const gate = useFeatureFlagGate('mingo-sidebar-context');
+
+  // A caller that already knows wins. Otherwise 'unknown' until the flag answers —
+  // never a guessed layout (see `UnknownLayoutSkeleton`).
+  const layout: 'classic' | 'sidebar' | 'unknown' =
+    showTechnicianChat === undefined
+      ? gate === 'loading'
+        ? 'unknown'
+        : gate === 'on'
+          ? 'sidebar'
+          : 'classic'
+      : showTechnicianChat
+        ? 'classic'
+        : 'sidebar';
+
+  const isClassic = layout === 'classic';
+
   return (
     <PageLayout
       loading
       backButton={{ label: 'Back', onClick: onBack }}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] h-[calc(100%)]"
-      actions={showTechnicianChat ? CLASSIC_ACTIONS : SIDEBAR_ACTIONS}
-      actionsVariant={showTechnicianChat ? 'menu-primary' : 'icon-buttons'}
-      menuActions={showTechnicianChat ? CLASSIC_MENU_ACTIONS : undefined}
+      actions={layout === 'sidebar' ? SIDEBAR_ACTIONS : CLASSIC_ACTIONS}
+      actionsVariant={isClassic ? 'menu-primary' : 'icon-buttons'}
+      menuActions={isClassic ? CLASSIC_MENU_ACTIONS : undefined}
       contentClassName="flex flex-col min-h-0"
     >
-      {showTechnicianChat ? <ClassicChatSkeleton /> : <SidebarLayoutSkeleton />}
+      {layout === 'unknown' ? (
+        <UnknownLayoutSkeleton />
+      ) : isClassic ? (
+        <ClassicChatSkeleton />
+      ) : (
+        <SidebarLayoutSkeleton />
+      )}
     </PageLayout>
+  );
+}
+
+/**
+ * The chat pane both layouts are built around — the sidebar layout puts a details
+ * column beside it, the classic layout a second chat. Shared so the
+ * layout-unknown state can render exactly the part that is certain.
+ */
+function MainChatPaneSkeleton() {
+  return (
+    <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)] min-h-0">
+      <Skeleton className="h-5 w-24" />
+      <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
+        <ChatMessageListSkeleton fullWidth contentClassName="px-[var(--spacing-system-mf)]" />
+      </div>
+      <Skeleton className="mt-[var(--spacing-system-xsf)] h-12 w-full rounded-lg" />
+    </div>
+  );
+}
+
+/**
+ * Rendered while `mingo-sidebar-context` hasn't answered: the pane common to both
+ * layouts, full width, and no layout-specific header actions.
+ *
+ * Picking a layout here would be a coin flip that is visibly wrong half the time —
+ * the two differ in column count AND in how the header renders its actions (a "…"
+ * menu vs icon buttons), so a wrong guess reshuffles the whole page when the answer
+ * lands. Showing only the certain part means the second column appears, rather than
+ * one appearing and another disappearing.
+ */
+function UnknownLayoutSkeleton() {
+  return (
+    <div className="flex-1 flex min-h-0">
+      <MainChatPaneSkeleton />
+    </div>
   );
 }
 
@@ -93,13 +150,7 @@ function SidebarLayoutSkeleton() {
   return (
     <div className="flex-1 flex flex-col lg:flex-row gap-[var(--spacing-system-l)] min-h-0">
       {/* Main pane — chat is the most common case; transitions seamlessly into it */}
-      <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)] min-h-0">
-        <Skeleton className="h-5 w-24" />
-        <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
-          <ChatMessageListSkeleton fullWidth contentClassName="px-[var(--spacing-system-mf)]" />
-        </div>
-        <Skeleton className="mt-[var(--spacing-system-xsf)] h-12 w-full rounded-lg" />
-      </div>
+      <MainChatPaneSkeleton />
 
       {/* Right sidebar — desktop only, matching the loaded layout */}
       <aside className="hidden lg:flex shrink-0 lg:w-80 flex-col gap-[var(--spacing-system-l)] min-h-0">

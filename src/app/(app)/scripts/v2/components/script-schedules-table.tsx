@@ -45,7 +45,7 @@ import type {
   SortInput,
 } from '@/__generated__/scriptSchedulesTableRelayQuery.graphql';
 import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
-import { EmptyState, onboardingGuideButton } from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, onboardingGuideButton, skeletonColumnDefs } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -65,6 +65,7 @@ import { formatScheduleStartAt, isEventTrigger, repeatToLabel } from '../utils/s
 import { platformsToEnums, platformsToIds } from '../utils/script-mappers';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { RestoreScheduleModal } from './restore-schedule-modal';
+import { SCHEDULE_COLUMNS, SCHEDULES_TABLE_COLUMNS } from './scripts-table-columns';
 
 const PAGE_SIZE = 20;
 
@@ -331,7 +332,7 @@ function SchedulesTableContent({
     () => [
       {
         accessorKey: 'name',
-        header: 'Script',
+        header: SCHEDULE_COLUMNS.name.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
           <div className="flex flex-col justify-center gap-1 min-w-0">
             <TruncateText>{row.original.name}</TruncateText>
@@ -343,25 +344,21 @@ function SchedulesTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'flex-1 min-w-0' },
+        meta: liveColumnMeta(SCHEDULE_COLUMNS.name),
       },
       {
         accessorKey: 'supportedPlatforms',
-        header: 'OS',
+        header: SCHEDULE_COLUMNS.supportedPlatforms.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
           <OSTypeBadgeGroup osTypes={row.original.supportedPlatforms} iconSize="w-4 h-4 md:w-6 md:h-6" />
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: {
-          width: 'w-[90px]',
-          hideAt: 'lg',
-          filter: { options: platformOptions },
-        },
+        meta: liveColumnMeta(SCHEDULE_COLUMNS.supportedPlatforms, { filter: { options: platformOptions } }),
       },
       {
         id: 'dateTime',
-        header: 'Date & Time',
+        header: SCHEDULE_COLUMNS.dateTime.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => {
           // Event-driven schedules have no date/time — name the trigger instead
           // of showing an em dash that reads as "not configured yet".
@@ -382,11 +379,11 @@ function SchedulesTableContent({
           );
         },
         enableSorting: false,
-        meta: { width: 'w-[100px] md:w-[160px]', hideAt: 'md' },
+        meta: liveColumnMeta(SCHEDULE_COLUMNS.dateTime),
       },
       {
         id: 'repeat',
-        header: 'Repeat',
+        header: SCHEDULE_COLUMNS.repeat.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) =>
           isEventTrigger(row.original.trigger) ? (
             <span className="text-h4 text-ods-text-secondary">—</span>
@@ -394,16 +391,16 @@ function SchedulesTableContent({
             <span className="text-h4 text-ods-text-primary">{repeatToLabel(row.original.repeat)}</span>
           ),
         enableSorting: false,
-        meta: { width: 'w-[120px]', hideAt: 'md', sortable: true },
+        meta: liveColumnMeta(SCHEDULE_COLUMNS.repeat),
       },
       {
         accessorKey: 'deviceCount',
-        header: 'Devices',
+        header: SCHEDULE_COLUMNS.deviceCount.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
           <span className="text-h4 text-ods-text-primary">{row.original.deviceCount}</span>
         ),
         enableSorting: false,
-        meta: { width: 'w-[100px] md:w-[140px]', hideAt: 'lg' },
+        meta: liveColumnMeta(SCHEDULE_COLUMNS.deviceCount),
       },
       {
         id: 'actions',
@@ -413,7 +410,7 @@ function SchedulesTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(SCHEDULE_COLUMNS.actions),
       },
       {
         id: 'open',
@@ -430,7 +427,7 @@ function SchedulesTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: liveColumnMeta(SCHEDULE_COLUMNS.open),
       },
     ],
     [renderRowActions, platformOptions],
@@ -574,33 +571,10 @@ function SchedulesTableContent({
 const EMPTY_ROWS: UiScheduleEntry[] = [];
 
 function SchedulesTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
+  // Same layout the live table above renders, including the trailing action
+  // columns — so the loading header reserves the same widths and stays aligned.
   const columns = useMemo<ColumnDef<UiScheduleEntry>[]>(
-    () => [
-      { accessorKey: 'name', header: 'Script', enableSorting: false, meta: { width: 'flex-1 min-w-0' } },
-      {
-        accessorKey: 'supportedPlatforms',
-        header: 'OS',
-        enableSorting: false,
-        meta: { width: 'w-[90px]', hideAt: 'lg' },
-      },
-      {
-        id: 'dateTime',
-        header: 'Date & Time',
-        enableSorting: false,
-        meta: { width: 'w-[100px] md:w-[160px]', hideAt: 'md' },
-      },
-      { id: 'repeat', header: 'Repeat', enableSorting: false, meta: { width: 'w-[120px]', hideAt: 'md' } },
-      {
-        accessorKey: 'deviceCount',
-        header: 'Devices',
-        enableSorting: false,
-        meta: { width: 'w-[100px] md:w-[140px]', hideAt: 'lg' },
-      },
-      // Mirror the real table's trailing actions column so the loading header
-      // reserves the same width and stays aligned.
-      { id: 'actions', enableSorting: false, meta: { width: 'w-12 shrink-0 flex-none', align: 'right' } },
-      { id: 'open', enableSorting: false, meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' } },
-    ],
+    () => skeletonColumnDefs<UiScheduleEntry>(SCHEDULES_TABLE_COLUMNS),
     [],
   );
 

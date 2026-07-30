@@ -51,13 +51,13 @@ import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { type AiModel, useAiModel } from '@/app/hooks/use-ai-model';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
 import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation';
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
-import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
@@ -147,7 +147,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // When the Mingo sidebar carries per-ticket context, the embedded technician
   // (Mingo) chat is redundant: its panel, NATS subscription, history fetch, and
   // chunk processing are all dropped in favor of the global sidebar chat.
-  const isTechnicianChatEnabled = !featureFlags.mingoSidebarContext.enabled();
+  const mingoSidebarContextEnabled = useFeatureFlag('mingo-sidebar-context');
+  const isTechnicianChatEnabled = !mingoSidebarContextEnabled;
+  const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const isSidebarLayout = !isTechnicianChatEnabled;
   const assignedItems = useAssignedItems({ itemId: ticketId, itemType: 'TICKET', enabled: isSidebarLayout });
   // Tenant-wide ADMIN (Mingo) model — the admin agent has no per-org override.
@@ -775,7 +777,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // AI-assistance, resolved, and archived tickets. Once a timer is running the
   // button disables — only one timer can be active at a time.
   const canTrackTime =
-    featureFlags.timeTracker.enabled() &&
+    timeTrackerEnabled &&
     (dialog.statusKind === TICKET_STATUS_KIND.TECH_REQUIRED || dialog.statusKind === TICKET_STATUS_KIND.CUSTOM);
   const isTimerActive = (timeTracker?.status ?? 'ready') !== 'ready';
 

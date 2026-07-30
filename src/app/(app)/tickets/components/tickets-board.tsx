@@ -30,7 +30,7 @@ import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
-import { buildPlaceholderBoardColumns, type CachedBoardColumn, writeCachedBoardColumns } from './board-columns-cache';
+import { type CachedBoardColumn, usePlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
 import { TicketTagFilter } from './ticket-label-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
@@ -229,8 +229,9 @@ export function TicketsBoard({
   const columnError = statuses.map(s => columnUpdates[s.id]?.error).find(Boolean) ?? null;
 
   // Lanes to show until the statuses query resolves. Read once per mount so the
-  // set can't shift underneath the board mid-load.
-  const [placeholderColumns] = useState(buildPlaceholderBoardColumns);
+  // set can't shift underneath the board mid-load — and past hydration, since the
+  // cache behind it is browser-only (see `usePlaceholderBoardColumns`).
+  const placeholderColumns = usePlaceholderBoardColumns();
 
   const boardColumns = useMemo<BoardColumnDef[]>(() => {
     // No statuses yet means no lanes to map, and an empty `Board` is a blank

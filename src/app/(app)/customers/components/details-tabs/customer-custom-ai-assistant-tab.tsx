@@ -18,7 +18,7 @@ import {
 } from '@/app/(app)/settings/ai-settings/types/ai-settings';
 import { APPLICATION_THEME_LABEL } from '@/app/(app)/settings/ai-settings/utils/ai-settings-display';
 import { InfoCell } from '@/app/components/shared/info-cell';
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 
@@ -33,7 +33,9 @@ interface CustomerCustomAiAssistantTabProps {
  * mirrors the global AI settings CLIENT tab. Editing happens on /customers/edit.
  */
 export function CustomerCustomAiAssistantTab({ organizationId }: CustomerCustomAiAssistantTabProps) {
-  return featureFlags.customerAiConfiguration.enabled() ? (
+  const fullAiConfigEnabled = useFeatureFlag('customer-ai-configuration');
+
+  return fullAiConfigEnabled ? (
     <CustomerAiConfigurationReadOnly organizationId={organizationId} />
   ) : (
     <CustomerAiAppearanceReadOnly organizationId={organizationId} />
@@ -49,6 +51,7 @@ export function CustomerCustomAiAssistantTab({ organizationId }: CustomerCustomA
  */
 function CustomerAiConfigurationReadOnly({ organizationId }: CustomerCustomAiAssistantTabProps) {
   const router = useRouter();
+  const customizationEnabled = useFeatureFlag('customer-ai-assistant-settings');
   const { view: orgView, isLoading: isViewLoading } = useClientView(organizationId);
   const { view: defaultView } = useClientView(null);
   const {
@@ -63,7 +66,7 @@ function CustomerAiConfigurationReadOnly({ organizationId }: CustomerCustomAiAss
   // source the settings CLIENT tab uses. Gated by the customization flag that
   // governs the quick-actions section inside AiSettingsOverview.
   const hubDefaults = useHubDefaultQuickActions(ASSISTANT_QUICK_ACTIONS_CONFIG.agentSlug, {
-    enabled: featureFlags.customerAiAssistantSettings.enabled(),
+    enabled: customizationEnabled,
   });
 
   if (isViewLoading || isConfigLoading || hubDefaults.loading) {

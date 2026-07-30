@@ -8,7 +8,7 @@ import { azeretMono, dmSans } from '@/lib/fonts';
 import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
 import { sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
 import { Toaster } from '@/lib/openframe-core-ui';
-import { FeatureFlagsGate } from '../components/feature-flags-gate';
+import { FeatureFlagsLoader } from '../components/feature-flags-loader';
 import { RouteGuard } from '../components/route-guard';
 import { isAuthEnabled } from '../lib/app-mode';
 import { QueryClientProvider } from '../lib/query-client-provider';
@@ -130,7 +130,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             )}
             <NatsAppProvider>
               <BiometricLockBoundary>
-                <FeatureFlagsGate>
+                <FeatureFlagsLoader>
                   <NotificationsDataProvider>
                     <RouteGuard>
                       <div className="relative flex min-h-screen flex-col">
@@ -138,7 +138,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </div>
                     </RouteGuard>
                   </NotificationsDataProvider>
-                </FeatureFlagsGate>
+                </FeatureFlagsLoader>
               </BiometricLockBoundary>
             </NatsAppProvider>
           </QueryClientProvider>

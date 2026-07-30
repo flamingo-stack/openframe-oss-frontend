@@ -228,7 +228,12 @@ export function useCustomersOverview(limit: number = 10) {
 
   return {
     rows: query.data?.rows ?? EMPTY_OVERVIEW_ROWS,
-    loading: query.isLoading,
+    // `isPending`, not `isLoading`: this query is `enabled: isAuthenticated`, which
+    // is false on the first render, and a DISABLED query reports `isLoading: false`
+    // (v5 defines it as `isPending && isFetching`). The section's
+    // `loading && rows.length === 0` guard therefore fell through to the "No
+    // Customers added yet" empty state on every load. See `use-dashboard-stats.ts`.
+    loading: query.isPending,
     error: query.error?.message ?? null,
     totalOrganizations: query.data?.totalOrganizations ?? 0,
     refresh: query.refetch,

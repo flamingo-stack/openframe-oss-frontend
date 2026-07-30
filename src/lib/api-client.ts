@@ -6,6 +6,13 @@
 interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;
   skipAuth?: boolean;
+  /**
+   * Issue the request without waiting for the session latch (see
+   * `session-ready.ts`). ONLY for the two calls that establish the session —
+   * `/me` and the feature-flags query. Anything else would fetch before `/me`
+   * has answered, or during server rendering where there is no user at all.
+   */
+  skipSessionGate?: boolean;
 }
 
 interface ApiResponse<T = any> {
@@ -17,6 +24,7 @@ interface ApiResponse<T = any> {
 
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
+import { waitForSessionReady } from './session-ready';
 import { refreshAccessToken } from './token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from './token-store';
 
@@ -71,7 +79,13 @@ class ApiClient {
     options: ApiRequestOptions = {},
     isRetry: boolean = false,
   ): Promise<ApiResponse<T>> {
-    const { skipAuth = false, headers = {}, ...fetchOptions } = options;
+    const { skipAuth = false, skipSessionGate = false, headers = {}, ...fetchOptions } = options;
+
+    // App data waits for the session; the bootstrap pair opts out. Retries keep
+    // whatever the first attempt decided (the latch is already open by then).
+    if (!skipSessionGate && !isRetry) {
+      await waitForSessionReady();
+    }
 
     // Build headers
     const requestHeaders: Record<string, string> = {
@@ -223,7 +237,8 @@ class ApiClient {
   }
 
   me<T = any>() {
-    return this.request<T>('/api/me');
+    // Bootstrap call: this is what opens the session latch.
+    return this.request<T>('/api/me', { skipSessionGate: true });
   }
 }
 

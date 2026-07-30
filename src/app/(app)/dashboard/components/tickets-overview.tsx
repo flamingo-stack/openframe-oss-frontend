@@ -14,11 +14,7 @@ export function TicketsOverviewSection() {
 
   return (
     <div>
-      <TitleBlock
-        title="Tickets Overview"
-        subtitle={`${tickets.total.toLocaleString()} Tickets in Total`}
-        className="[&_p]:hidden lg:[&_p]:block"
-      />
+      <TitleBlock title="Tickets Overview" />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-mf)]">
         <DashboardInfoCard

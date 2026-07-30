@@ -39,7 +39,10 @@ function useActiveSsoProviderCount() {
 
   return {
     count: query.data ?? 0,
-    isLoading: query.isLoading,
+    // `isPending`, not `isLoading` — a disabled query reports `isLoading: false`
+    // with no data, which showed every onboarding step as not-done. See
+    // `use-dashboard-stats.ts`.
+    isLoading: query.isPending,
   };
 }
 
@@ -64,7 +67,10 @@ function useUsersCount() {
 
   return {
     totalElements: query.data ?? 0,
-    isLoading: query.isLoading,
+    // `isPending`, not `isLoading` — a disabled query reports `isLoading: false`
+    // with no data, which showed every onboarding step as not-done. See
+    // `use-dashboard-stats.ts`.
+    isLoading: query.isPending,
   };
 }
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   FilterModal,
@@ -9,6 +8,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ComponentProps } from 'react';
+import { DeviceTagsFilterButton } from './device-tags-filter-button';
 
 type FilterModalProps = ComponentProps<typeof FilterModal>;
 
@@ -22,8 +22,6 @@ export interface DevicesFilterToolbarProps {
   onClearAll: () => void;
   onSubmit: (value: string) => void;
 
-  /** Whether viewport is md+ (controls Device Tags button label vs icon-only). */
-  isMdUp: boolean | undefined;
   /** Open the Device Tags modal. */
   onOpenFilterModal: () => void;
 
@@ -59,7 +57,6 @@ export function DevicesFilterToolbar({
   onTagRemove,
   onClearAll,
   onSubmit,
-  isMdUp,
   onOpenFilterModal,
   isFilterModalOpen,
   onCloseFilterModal,
@@ -93,24 +90,7 @@ export function DevicesFilterToolbar({
             addMorePlaceholder="Add More..."
           />
         </div>
-        {isMdUp ? (
-          <Button
-            variant="outline"
-            onClick={onOpenFilterModal}
-            leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
-            className="shrink-0"
-          >
-            Device Tags
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={onOpenFilterModal}
-            leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
-            className="shrink-0"
-          />
-        )}
+        <DeviceTagsFilterButton onClick={onOpenFilterModal} />
       </div>
 
       <FilterModal

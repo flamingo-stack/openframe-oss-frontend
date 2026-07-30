@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { InitialSetupBar } from './initial-setup-bar';
 import { OnboardingTourBar } from './onboarding-tour-bar';
 
@@ -46,6 +47,41 @@ export function readCachedOnboardingTopBar(): CachedOnboardingTopBar | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Set once any instance has mounted, so a later mount reads the cache in its
+ * initializer rather than a render later.
+ */
+let hasHydrated = false;
+
+/**
+ * Hydration-safe `readCachedOnboardingTopBar` — use this from a render.
+ *
+ * The read is `localStorage`, so it returns `null` during a server render and the
+ * cached bar in the browser. Consumed straight from a `useState` initializer (as
+ * the shell layout used to), that makes the server and the first client render
+ * disagree about whether the band exists at all — a hydration mismatch, which
+ * costs the whole shell subtree being discarded and re-rendered. Since this bar
+ * sits in the app shell, that applied to every page.
+ *
+ * First render returns `null` on both sides; the cached value lands right after
+ * mount. The band still gets reserved before the onboarding query answers, which
+ * is what the cache is for — just one frame later than before.
+ */
+export function useCachedOnboardingTopBar(): CachedOnboardingTopBar | null {
+  const [cached, setCached] = useState<CachedOnboardingTopBar | null>(() =>
+    hasHydrated ? readCachedOnboardingTopBar() : null,
+  );
+
+  useEffect(() => {
+    hasHydrated = true;
+    // `prev ?? …` keeps a remount free: its initializer already read the cache, so
+    // this is a same-reference no-op React bails out of.
+    setCached(prev => prev ?? readCachedOnboardingTopBar());
+  }, []);
+
+  return cached;
 }
 
 export function writeCachedOnboardingTopBar(next: CachedOnboardingTopBar): void {

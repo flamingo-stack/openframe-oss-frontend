@@ -22,6 +22,7 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
+import { DeviceTagsFilterButton } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
 import { useDeviceFilters } from '../hooks/use-device-filters';
@@ -171,24 +172,7 @@ export function DevicesView() {
                 addMorePlaceholder="Add More..."
               />
             </div>
-            {isMdUp ? (
-              <Button
-                variant="outline"
-                onClick={openFilterModal}
-                leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
-                className="shrink-0"
-              >
-                Device Tags
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={openFilterModal}
-                leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
-                className="shrink-0"
-              />
-            )}
+            <DeviceTagsFilterButton onClick={openFilterModal} />
           </div>
 
           {params.viewMode === 'table' ? (
@@ -228,7 +212,7 @@ export function DevicesView() {
         onClose={closeFilterModal}
         filterGroups={filterGroups}
         onFilterChange={handleModalFilterChange}
-        currentFilters={!isMdUp ? tableFilters : undefined}
+        currentFilters={isMdUp === false ? tableFilters : undefined}
         tagFilterKeys={tagFilterKeys}
         selectedTags={selectedTags}
         onTagsChange={handleModalTagsChange}

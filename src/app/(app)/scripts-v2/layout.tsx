@@ -2,32 +2,34 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { routes } from '@/lib/routes';
-import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 
 /**
- * Gates every `/scripts-v2/*` route behind the `scripts-v2` feature flag.
- * Feature flags are guaranteed loaded before app children render (see
- * `FeatureFlagsGate`), so this reads the resolved value with no flash. When the
+ * Gates every `/scripts-v2/*` route behind the `scripts-v2` feature flag. When the
  * flag is off, direct navigation here redirects to the stable `/scripts` page.
+ *
+ * The gate MUST distinguish "off" from "not answered yet". Reading the flag as a
+ * plain boolean made unanswered indistinguishable from off, so the redirect fired
+ * on mount and refreshing `/scripts-v2` bounced to legacy `/scripts` — for tenants
+ * that have the flag on. Re-evaluating later can't undo it: by then the navigation
+ * has already happened.
+ *
+ * While unanswered, `children` render. The page's own loading state is the right
+ * placeholder — an access gate has no business inventing a second one — and if the
+ * answer turns out to be "off", the redirect below runs then.
  */
 export default function ScriptsV2Layout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-
-  // Subscribe to the resolved flag so the gate re-evaluates when the store loads
-  // or the value changes. When the server doesn't return the flag, fall back to
-  // the env-var default (mirrors `featureFlags.scriptsV2.enabled()`).
-  const serverValue = useFeatureFlagsStore(s => (s.isLoaded ? s.flags['scripts-v2'] : undefined));
-  const enabled = serverValue ?? featureFlags.scriptsV2.enabled();
+  const gate = useFeatureFlagGate('scripts-v2');
 
   useEffect(() => {
-    if (!enabled) {
+    if (gate === 'off') {
       router.replace(routes.scripts.list());
     }
-  }, [enabled, router]);
+  }, [gate, router]);
 
-  if (!enabled) {
+  if (gate === 'off') {
     return null;
   }
 

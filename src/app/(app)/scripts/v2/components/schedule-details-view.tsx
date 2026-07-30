@@ -22,7 +22,7 @@ import {
 import { useMdUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { memo, type ReactNode, Suspense, useCallback, useMemo, useState } from 'react';
+import { memo, type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { archiveScriptScheduleMutation as ArchiveScheduleMutationType } from '@/__generated__/archiveScriptScheduleMutation.graphql';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
@@ -45,7 +45,7 @@ import { unarchiveScriptScheduleMutation } from '@/graphql/scripts/unarchive-scr
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { ScheduleInfoBarFromData } from '../../components/schedule/schedule-info-bar';
-import { ScriptEditor } from '../../components/script/script-editor';
+import { prewarmScriptEditor, ScriptEditor, scheduleEditorWarmup } from '../../components/script/script-editor';
 import {
   argsToParamRows,
   envPairsToParamRows,
@@ -182,6 +182,16 @@ type ScheduleScript = ScheduleDetailData['scripts'][number];
 /** Design default when a script carries no timeout of its own. */
 const DEFAULT_TIMEOUT_SECONDS = 90;
 
+/** The source editor's height — and the height of the box that holds its place. */
+const SCRIPT_SOURCE_HEIGHT = '400px';
+
+/**
+ * Kept in step with the `duration-300` on the row that opens the source. The
+ * editor is built once the row has stopped moving, not while it moves — see
+ * {@link ScheduleScriptCard}.
+ */
+const SOURCE_REVEAL_DELAY_MS = 300;
+
 /**
  * One half of a script card's footer: a titled list of `key ——— value` lines.
  *
@@ -239,15 +249,56 @@ function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
   const router = useRouter();
   const isMdUp = useMdUp();
   const [isExpanded, setIsExpanded] = useState(false);
-  // Monaco is expensive and a schedule lists several cards. The editor is built
-  // on the first expand and kept afterwards, so collapsed cards cost nothing and
-  // re-opening one is instant. On a phone it is never built at all.
+  // The editor is kept once built, so re-opening a card is instant and a closed
+  // one costs nothing beyond memory. On a phone it is never built at all.
   const [hasExpanded, setHasExpanded] = useState(false);
+  const [isSourceReady, setIsSourceReady] = useState(false);
 
   const handleToggle = useCallback(() => {
     setIsExpanded(prev => !prev);
     setHasExpanded(true);
   }, []);
+
+  // The chevron opens Monaco, so start fetching it while the card is still shut.
+  // ~4 MB arrives over the network and ~3.6 MB of it is parsed on the main
+  // thread; paid inside the click, that is the whole opening animation spent
+  // frozen. `prewarmScriptEditor` is idle-scheduled and idempotent, so every
+  // card on the page calling it costs one background request that yields to the
+  // page's own data. A phone never builds an editor, so it fetches nothing.
+  useEffect(() => {
+    if (isMdUp) {
+      prewarmScriptEditor();
+    }
+  }, [isMdUp]);
+
+  // Then build the editor, still while the card is shut. This is what makes the
+  // open show finished code instead of an empty frame: `@monaco-editor/react`
+  // creates the editor inside a container it has styled `display: none`, so
+  // Monaco measures 0×0 and renders nothing until the wrapper reveals it and
+  // `automaticLayout` re-measures — two phases that read as "empty editor, then
+  // it blinks and the text arrives" if they happen in front of the user. Here
+  // the region is clipped, not unmounted: its box is real, so Monaco lays out
+  // correctly, and both phases are over before the chevron is touched.
+  useEffect(() => {
+    if (!isMdUp || isSourceReady || isExpanded) {
+      return;
+    }
+    return scheduleEditorWarmup(() => setIsSourceReady(true));
+  }, [isMdUp, isSourceReady, isExpanded]);
+
+  // Opened before idle ever came around — the rarer path, and the only one that
+  // can still show the placeholder. Build once the row has stopped moving rather
+  // than during: creating an editor is tens of milliseconds of layout, and spent
+  // mid-transition it lands as a dropped frame in the one animation this card
+  // has. Collapsing before the delay is up cancels the build; re-opening or the
+  // next idle slot starts it again.
+  useEffect(() => {
+    if (!isExpanded || !isMdUp || isSourceReady) {
+      return;
+    }
+    const timer = window.setTimeout(() => setIsSourceReady(true), SOURCE_REVEAL_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [isExpanded, isMdUp, isSourceReady]);
 
   const handleScriptDetails = useCallback(() => {
     router.push(routes.scriptsV2.details(script.id));
@@ -315,7 +366,9 @@ function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
 
       {/* The source: desktop only, and what the chevron opens there. `hidden`
           keeps it out of the phone layout entirely; `isMdUp` keeps Monaco from
-          being built for a viewport that will never show it. */}
+          being built for a viewport that will never show it. Closed, the region
+          is CLIPPED rather than unmounted — which is what lets the editor be
+          built here ahead of the open, out of sight but at its real size. */}
       <div
         className="hidden md:grid transition-[grid-template-rows] duration-300 ease-in-out"
         style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
@@ -325,16 +378,28 @@ function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
         inert={!isExpanded}
       >
         <div className="overflow-hidden min-h-0">
-          {hasExpanded && isMdUp && (
-            <div className="border-t border-ods-border">
-              <ScriptEditor
-                value={script.scriptBody}
-                shell={shellToId(script.shell)}
-                readOnly
-                height="400px"
-                // The card already draws the edges around this block.
-                className="rounded-none border-0"
-              />
+          {isMdUp && (isSourceReady || hasExpanded) && (
+            // The tone lives HERE rather than on either child: it is what Monaco
+            // itself paints (`editor.background`), so the placeholder, the frame
+            // Monaco spends building itself, and the editor all read as one
+            // surface — no flash of the card's lighter background through the swap.
+            <div className="border-t border-ods-border bg-ods-bg">
+              {isSourceReady ? (
+                <ScriptEditor
+                  value={script.scriptBody}
+                  shell={shellToId(script.shell)}
+                  readOnly
+                  height={SCRIPT_SOURCE_HEIGHT}
+                  // The card already draws the edges around this block.
+                  className="rounded-none border-0"
+                />
+              ) : (
+                // The editor's box before the editor exists — its exact height,
+                // so the row animates to where it will actually stop. Reached
+                // only by opening the card faster than idle ever came around;
+                // normally the editor is already here by the first click.
+                <div style={{ height: SCRIPT_SOURCE_HEIGHT }} />
+              )}
             </div>
           )}
         </div>

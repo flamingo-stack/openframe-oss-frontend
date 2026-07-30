@@ -1,6 +1,7 @@
 'use client';
 
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 /**
@@ -26,7 +27,10 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
  * this is `true`, the card is showing too (its content or its Suspense skeleton).
  */
 export function useInitialSetupActive(): boolean {
+  // Reactive flag read: the app shell consumes this on its first render, which
+  // can precede the flags query answering.
+  const newOnboardingEnabled = useFeatureFlag('new-onboarding', runtimeEnv.newOnboardingFlag());
   const isLoaded = useOnboardingStore(state => state.isLoaded);
   const tenant = useOnboardingStore(state => state.tenant);
-  return featureFlags.newOnboarding.enabled() && isLoaded && !!tenant && !tenant.completed;
+  return newOnboardingEnabled && isLoaded && !!tenant && !tenant.completed;
 }

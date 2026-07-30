@@ -1,22 +1,38 @@
 'use client';
 
-import { LockAltIcon, Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback } from 'react';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
+import { LockedScreen } from '@/app/components/shared/locked-screen';
+
+interface WorkspaceInactiveScreenProps {
+  /** Overrides the default heading. See `SubscriptionLockContent`. */
+  title?: string;
+  /** Overrides the default body copy. */
+  description?: string;
+}
 
 /**
- * Lock screen shown in place of the app when the workspace is inactive AND the
- * payment UI is hidden for this build — the native app builds (`isBillingHidden()`,
- * see `billing-visibility.ts`).
+ * Lock screen shown in place of the app when the workspace is inactive and the
+ * viewer has no purchase flow to be sent to. Two callers, for two different
+ * reasons (see `subscription-lock-content.tsx`):
+ *   - the native app builds, where the payment UI is hidden for the whole build
+ *     (`isBillingHidden()`, see `billing-visibility.ts`);
+ *   - anyone who is not the workspace owner, on any build — renewing is owner-only.
  *
  * Deliberately carries NO plans, prices, "choose a plan"/"pay" CTA, or link to
  * an external purchase flow: App Store Review Guideline 3.1.1 treats any of
  * those as steering the user to a non-IAP purchasing mechanism. It states the
- * account state, points at the workspace administrator, and keeps the user out
- * of a dead end with a re-check and a sign-out action.
+ * account state, points at who can act, and keeps the user out of a dead end
+ * with a re-check and a sign-out action.
+ *
+ * The DEFAULT copy is the native one and is deliberately subscription-agnostic —
+ * it stays well clear of that guideline by not naming a purchase at all. The
+ * non-owner case overrides it, because on web there is nothing to stay clear of
+ * and "contact the owner about the subscription" is the actionable message.
  */
-export function WorkspaceInactiveScreen() {
+export function WorkspaceInactiveScreen({ title, description }: WorkspaceInactiveScreenProps = {}) {
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
 
   // The lock state comes from the subscription query resolved in the app shell;
@@ -27,21 +43,14 @@ export function WorkspaceInactiveScreen() {
   }, []);
 
   return (
-    <div className="flex flex-1 items-center justify-center p-[var(--spacing-system-l)]">
-      <div className="flex w-full max-w-[560px] flex-col items-center gap-[var(--spacing-system-l)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xl)] text-center">
-        <div className="flex size-16 items-center justify-center rounded-full bg-ods-bg text-ods-text-secondary">
-          <LockAltIcon className="size-8" />
-        </div>
-
-        <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-          <h1 className="text-h2 text-ods-text-primary">Workspace access is inactive</h1>
-          <p className="text-h4 text-ods-text-secondary">
-            This OpenFrame workspace is not active at the moment, so its data isn&apos;t available here. Your workspace
-            administrator can restore access for your team.
-          </p>
-        </div>
-
-        <div className="flex w-full flex-col gap-[var(--spacing-system-s)] sm:w-auto sm:flex-row">
+    <LockedScreen
+      title={title ?? 'Workspace access is inactive'}
+      description={
+        description ??
+        "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team."
+      }
+      actions={
+        <>
           <Button
             variant="outline"
             onClick={handleRecheck}
@@ -52,8 +61,8 @@ export function WorkspaceInactiveScreen() {
           <Button variant="outline" onClick={openLogoutConfirm}>
             Log Out
           </Button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 }

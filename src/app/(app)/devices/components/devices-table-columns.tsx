@@ -269,7 +269,12 @@ export function getDeviceTableColumns(deviceFilters?: DeviceFilters | null): Col
       },
       meta: {
         width: 'w-[80px] md:w-1/5',
-        filter: statusFilterOptions.length > 0 ? { options: statusFilterOptions } : undefined,
+        // Declared unconditionally, empty options and all. `meta.filter` is what
+        // keeps a header cell visible below `lg`, so dropping it until the
+        // options query resolves made every header on a tablet disappear on
+        // reload — and reserving the funnel from the start keeps the label from
+        // shifting when they arrive. The dropdown stays shut while it is empty.
+        filter: { options: statusFilterOptions },
       },
     },
     {
@@ -282,7 +287,7 @@ export function getDeviceTableColumns(deviceFilters?: DeviceFilters | null): Col
       meta: {
         width: 'w-[200px] md:w-1/6',
         hideAt: 'md',
-        filter: osFilterOptions.length > 0 ? { options: osFilterOptions } : undefined,
+        filter: { options: osFilterOptions },
       },
     },
     {
@@ -293,7 +298,7 @@ export function getDeviceTableColumns(deviceFilters?: DeviceFilters | null): Col
       meta: {
         width: 'w-1/6',
         hideAt: 'lg',
-        filter: orgFilterOptions.length > 0 ? { options: orgFilterOptions, placement: 'bottom-end' } : undefined,
+        filter: { options: orgFilterOptions, placement: 'bottom-end' },
       },
     },
   ];

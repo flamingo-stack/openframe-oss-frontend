@@ -17,11 +17,12 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { useOwnerGate } from '@/app/hooks/use-owner-gate';
 import { apiClient } from '@/lib/api-client';
 import { isOssTenantMode } from '@/lib/app-mode';
 import { authApiClient } from '@/lib/auth-api-client';
 import { isBillingHidden } from '@/lib/billing-visibility';
-import { featureFlags } from '@/lib/feature-flags';
 import { handleApiError } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { AccountSettingsCard } from './account-settings-card';
@@ -29,7 +30,7 @@ import { BiometricLoginCard } from './biometric-login-card';
 import { EditProfileModal } from './edit-profile-modal';
 import { EmailVerificationBanner } from './email-verification-banner';
 import { EmailVerificationModal } from './email-verification-modal';
-import { SettingMenuItem } from './setting-menu-item';
+import { SettingMenuItem, SettingMenuItemSkeleton } from './setting-menu-item';
 
 const SETTINGS_NAV_ITEMS = [
   {
@@ -85,6 +86,22 @@ const USAGE_MENU_ITEM = {
 export function SettingsHub() {
   const { toast } = useToast();
   const billingHidden = isBillingHidden();
+  // Both tri-state, not booleans: Billing is the one conditional cell in the grid AND it
+  // is the first one, so treating "not answered yet" as "hide it" dropped a cell and
+  // re-flowed every card after it the moment the answers landed.
+  const billingsGate = useFeatureFlagGate('billings');
+  // Billing & Usage is the workspace's money — owners only, admins included in "no".
+  const ownerGate = useOwnerGate();
+
+  // The app mode is a build constant, so this list — every card this build can ever show
+  // — is known on the first render. It is what the loading grid draws.
+  const defaultItems = SETTINGS_NAV_ITEMS.filter(
+    item => item.href !== routes.settings.architecture || isOssTenantMode(),
+  );
+  const gatesResolved = billingsGate !== 'loading' && ownerGate !== 'loading';
+  const visibleItems = defaultItems.filter(
+    item => item.href !== routes.settings.billingUsage || (billingsGate === 'on' && ownerGate === 'owner'),
+  );
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
   const user = useAuthStore(state => state.user);
   const updateUser = useAuthStore(state => state.updateUser);
@@ -177,26 +194,28 @@ export function SettingsHub() {
 
       {/* Navigation Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-m)]">
-        {SETTINGS_NAV_ITEMS.filter(
-          item => item.href !== routes.settings.billingUsage || featureFlags.subscription.enabled(),
-        )
-          .filter(item => item.href !== routes.settings.architecture || isOssTenantMode())
-          .map(item => {
-            const {
-              icon: Icon,
-              title,
-              description,
-            } = item.href === routes.settings.billingUsage && billingHidden ? USAGE_MENU_ITEM : item;
-            return (
-              <SettingMenuItem
-                key={item.href}
-                href={item.href}
-                icon={<Icon size={24} />}
-                title={title}
-                description={description}
-              />
-            );
-          })}
+        {gatesResolved
+          ? visibleItems.map(item => {
+              const {
+                icon: Icon,
+                title,
+                description,
+              } = item.href === routes.settings.billingUsage && billingHidden ? USAGE_MENU_ITEM : item;
+              return (
+                <SettingMenuItem
+                  key={item.href}
+                  href={item.href}
+                  icon={<Icon size={24} />}
+                  title={title}
+                  description={description}
+                />
+              );
+            })
+          : // Whole grid as placeholders until every gate has answered, rather than a
+            // lone grey cell wedged between real cards. The count is the full default
+            // set this build can show — the app mode is known synchronously, so only
+            // Billing's presence is actually in question.
+            defaultItems.map(item => <SettingMenuItemSkeleton key={item.href} />)}
       </div>
 
       {/* Log Out — pinned to the bottom-left of the page */}

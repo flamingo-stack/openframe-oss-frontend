@@ -20,8 +20,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { useClientView } from '@/app/(app)/settings/ai-settings/hooks/use-client-view';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { featureFlags } from '@/lib/feature-flags';
 import { getFullImageUrl } from '@/lib/image-url';
 import { type CustomerDetailTab, type CustomerEditTab, routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -79,14 +79,17 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   // always shows (inherited defaults render with a banner, like guardrails); the
   // legacy view still respects `customer-ai-assistant-settings` and only appears
   // when a ClientView appearance override exists (else it would render empty).
-  const isNewAiConfig = featureFlags.customerAiConfiguration.enabled();
-  const isLegacyAppearance = !isNewAiConfig && featureFlags.customerAiAssistantSettings.enabled();
+  const isNewAiConfig = useFeatureFlag('customer-ai-configuration');
+  // Hook called unconditionally, then combined: `&&` would short-circuit the
+  // call and break hook order on renders where `isNewAiConfig` is true.
+  const customizationEnabled = useFeatureFlag('customer-ai-assistant-settings');
+  const isLegacyAppearance = !isNewAiConfig && customizationEnabled;
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
   const { view: clientView } = useClientView(id, { enabled: isLegacyAppearance && isSaasTenant && !!id });
   const showCustomAiAssistant = isSaasTenant && (isNewAiConfig || (isLegacyAppearance && !!clientView));
   // Effective per-org guardrails via /chat/graphql (saas-ai-agent), so
   // saas-tenant only; own release flag, independent of the appearance feature.
-  const showGuardrails = featureFlags.customerGuardrails.enabled() && isSaasTenant;
+  const showGuardrails = useFeatureFlag('customer-guardrails') && isSaasTenant;
   const tabs = useMemo(
     () => getCustomerTabs({ showCustomAiAssistant, showGuardrails }),
     [showCustomAiAssistant, showGuardrails],
