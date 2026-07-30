@@ -5,7 +5,7 @@ import type { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { forceLogout } from '@/lib/force-logout';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { getBiometricLockState, hasTokensSync, initTokenStore } from '@/lib/token-store';
@@ -50,10 +50,10 @@ export function useAuthSession() {
       // own asset origin and never yield a 401 (Tauri's SPA fallback even
       // answers 200 with HTML). Resolve as signed-out so RouteGuard lands on
       // /auth for tenant discovery instead of an endless shell skeleton.
-      if (isNativeShell() && !runtimeEnv.tenantHostUrl()) {
+      if (isAppShell() && !runtimeEnv.tenantHostUrl()) {
         return null;
       }
-      if (isNativeShell()) {
+      if (isAppShell()) {
         // Cold start: wait for the Keychain read (biometric-gated when enabled)
         // so the first /me carries the bearer instead of 401ing into a refresh.
         await initTokenStore();

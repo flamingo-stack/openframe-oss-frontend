@@ -110,7 +110,7 @@ jobs:
         with:
           max_attempts: 3
           retry_wait_seconds: 5
-          timeout_minutes: 30
+          timeout_minutes: 12
           shell: bash
           command: |
             args=(--platform linux/amd64,linux/arm64 --push --provenance=false --sbom=true

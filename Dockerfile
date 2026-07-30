@@ -2,9 +2,12 @@
 # Next.js 16 standalone (distDir=dist), multi-arch via BuildKit
 FROM --platform=$BUILDPLATFORM node:22-alpine3.24 AS builder
 WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
 
-# Declared (unused) to silence buildx warning — CI passes --build-arg GITHUB_ACTOR uniformly.
+# npm's defaults allow 970s of silence per hung registry socket; these bound it to 115s 
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NPM_CONFIG_FETCH_TIMEOUT=30000 \
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=15000 \
+    NPM_CONFIG_LOGLEVEL=http
 ARG GITHUB_ACTOR
 
 COPY package.json package-lock.json ./
