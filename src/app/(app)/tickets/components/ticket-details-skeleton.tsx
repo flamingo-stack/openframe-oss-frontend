@@ -89,6 +89,12 @@ export function TicketDetailsSkeleton({ onBack, showTechnicianChat }: TicketDeta
 
   const isClassic = layout === 'classic';
 
+  // The header props below split their conditions on purpose, and the three do
+  // agree: `actions` keys off `sidebar`, the other two off `classic`, so 'unknown'
+  // lands on `CLASSIC_ACTIONS` — empty, because the classic layout puts everything
+  // behind the kebab — with no `menuActions`. That is an empty action area, the same
+  // refusal to guess as `UnknownLayoutSkeleton`. Keying `actions` off `isClassic`
+  // instead would hand 'unknown' the sidebar's buttons, i.e. a coin flip.
   return (
     <PageLayout
       loading

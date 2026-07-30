@@ -55,10 +55,17 @@ export function FeatureFlagsLoader({ children }: FeatureFlagsLoaderProps) {
   }, [isReady, isAuthenticated]);
 
   // saas-shared never fetches flags (auth-only surface) — mark them terminally
-  // loaded so isLoaded consumers don't wait forever. Signed-out sessions are
-  // deliberately NOT marked: a loaded-with-empty-flags marker set while signed
-  // out would survive into the post-login render, and every `useFeatureFlag`
-  // would report the env default as authoritative instead of "not answered yet".
+  // loaded so isLoaded consumers don't wait forever. No session condition on
+  // purpose: signed out IS the resting state of that surface, so requiring an
+  // authenticated session would leave every flag reading 'loading' for the whole
+  // life of the login page.
+  //
+  // The mode check is also the whole condition on purpose. It deliberately does
+  // NOT generalize to "signed out anywhere" — in the tenant modes a
+  // loaded-with-empty-flags marker set while signed out would survive into the
+  // post-login render, and every `useFeatureFlag` would report the env default as
+  // authoritative instead of "not answered yet". There, the query's own
+  // error/success path is what marks them.
   useEffect(() => {
     if (saasShared && !isLoaded) {
       setLoaded();

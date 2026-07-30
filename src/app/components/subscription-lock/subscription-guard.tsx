@@ -3,7 +3,8 @@
 import { type ReactNode, Suspense, useEffect, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionGuardQuery as SubscriptionGuardQueryType } from '@/__generated__/subscriptionGuardQuery.graphql';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { useSubscriptionLockSignal } from '@/lib/subscription-lock-signal';
 import { SubscriptionLockProvider } from './subscription-lock-context';
 import { resolveSubscriptionStatus, SubscriptionStatus } from './subscription-status';
@@ -40,24 +41,37 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   // Reactive: the shell now mounts before the flags query answers, and a snapshot
   // read of `billings` would settle on `false` and leave the lock permanently
   // bypassed for a tenant that has it on.
-  const billingsEnabled = useFeatureFlag('billings');
+  //
+  // Tri-state, and — the point of it — the tree below does NOT change shape with
+  // it. Branching between `<>{children}</>` and `<Resolver>{children}</Resolver>`
+  // put a different element type at this position once the flag answered, so React
+  // discarded the whole shell and mounted it again: the remount this refactor
+  // exists to remove, reintroduced one level higher. The gate now only decides
+  // whether the hydrator queries.
+  const billingsGate = useFeatureFlagGate('billings');
 
-  if (!billingsEnabled) {
-    return <>{children}</>;
-  }
-
-  return <SubscriptionStatusResolver>{children}</SubscriptionStatusResolver>;
+  return <SubscriptionStatusResolver gate={billingsGate}>{children}</SubscriptionStatusResolver>;
 }
 
-function SubscriptionStatusResolver({ children }: { children: ReactNode }) {
+function SubscriptionStatusResolver({ gate, children }: { gate: FeatureFlagGate; children: ReactNode }) {
   const trialExpiredFromErrors = useSubscriptionLockSignal(s => s.trialExpiredFromErrors);
   // `null` = the query has not answered yet, which is NOT the same as "no
   // subscription" (that answer is CANCELED). See `isResolved` on the context.
   const [queriedStatus, setQueriedStatus] = useState<SubscriptionStatus | null>(null);
 
-  // A trial expiry detected from other queries' errors is already an answer, so
-  // it wins immediately instead of waiting on this query.
-  const status = trialExpiredFromErrors ? SubscriptionStatus.TRIAL_EXPIRED : queriedStatus;
+  // `off` is an ANSWER, not an absence: a workspace without billing is
+  // resolved-and-unlocked, exactly what surfaces with no provider above them read
+  // (see `useSubscriptionLock`). It outranks the error signal too — with billings
+  // off there is no lock for a trial expiry to trip.
+  //
+  // Otherwise a trial expiry detected from other queries' errors is already an
+  // answer, so it wins immediately instead of waiting on this query.
+  const status =
+    gate === 'off'
+      ? SubscriptionStatus.ACTIVE
+      : trialExpiredFromErrors
+        ? SubscriptionStatus.TRIAL_EXPIRED
+        : queriedStatus;
 
   return (
     <>
@@ -66,7 +80,7 @@ function SubscriptionStatusResolver({ children }: { children: ReactNode }) {
           leave the status null forever and strand the page area on its skeleton
           with nothing to signal why. */}
       <Suspense fallback={null}>
-        <SubscriptionStatusHydrator onResolved={setQueriedStatus} />
+        {gate === 'on' && <SubscriptionStatusHydrator onResolved={setQueriedStatus} />}
       </Suspense>
       <SubscriptionLockProvider status={status}>{children}</SubscriptionLockProvider>
     </>
