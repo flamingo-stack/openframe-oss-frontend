@@ -1,3 +1,5 @@
+import type { DeviceFilterInput } from '../types/device.types';
+
 /**
  * Default visible device statuses (excludes ARCHIVED and DELETED).
  * Archived devices live on the dedicated /devices/archive page.
@@ -48,6 +50,13 @@ export const DEVICE_ENRICHMENT_STATUSES = [
   DEVICE_STATUS.OFFLINE,
   DEVICE_STATUS.ARCHIVED,
 ] as const satisfies string[];
+
+/**
+ * The device-registry filter the monitoring tables read: the enrichment statuses
+ * as a ready `DeviceFilterInput`. Shared so the policy and query tables ask for
+ * the same fleet and therefore share one cached fetch.
+ */
+export const DEVICE_ENRICHMENT_FILTER: DeviceFilterInput = { statuses: [...DEVICE_ENRICHMENT_STATUSES] };
 
 export type DefaultVisibleStatus = (typeof DEFAULT_VISIBLE_STATUSES)[number];
 

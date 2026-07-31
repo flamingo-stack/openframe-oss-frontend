@@ -1,10 +1,11 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { GET_ORGANIZATIONS_MIN_QUERY } from '@/app/(app)/customers/queries/customers-queries';
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
-import { GET_DEVICES_QUERY } from '@/app/(app)/devices/queries/devices-queries';
+import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
+import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import type { Tag } from '@/app/components/shared/tags';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -54,43 +55,54 @@ export function useOrganizationOptions(search = '', enabled = true) {
   return { options: query.data ?? EMPTY_AVATAR_OPTIONS, isLoading: query.isLoading };
 }
 
-// --- Devices (reuse existing query via /api/graphql) ---
+// --- Devices (shared device query layer) ---
 
-// Mirror the Devices page query shape (see use-devices-url-params.ts / use-devices.ts):
-// ONLINE/OFFLINE only — PENDING devices are still enrolling, ARCHIVED/DELETED live
-// elsewhere — sorted so online devices come first.
-const DEVICE_OPTIONS_SORT = { field: 'status', direction: 'DESC' } as const;
+const DEVICE_OPTIONS_LIMIT = 50;
 
-async function fetchDeviceOptions(organizationId?: string, search = ''): Promise<AutocompleteOption[]> {
-  const response = await apiClient.post<any>('/api/graphql', {
-    query: GET_DEVICES_QUERY,
-    variables: {
-      search,
-      first: 50,
-      filter: {
-        statuses: [...DEFAULT_DEVICES_LIST_STATUSES],
-        ...(organizationId && { organizationIds: [organizationId] }),
-      },
-      sort: DEVICE_OPTIONS_SORT,
-    },
-  });
-  if (!response.ok) throw new Error(response.error || 'Failed to fetch devices');
-
-  const edges = response.data?.data?.devices?.edges ?? [];
-  return edges.map(({ node }: any) => ({
-    label: node.displayName || node.hostname || node.machineId,
-    value: node.machineId,
-  }));
-}
-
+/**
+ * The customer's devices, offered in the ticket form. Runs the same Relay
+ * document, ordering and transform as the Devices page, so the dropdown shows
+ * the same fleet the `/devices` table does — ONLINE/OFFLINE only, since PENDING
+ * devices are still enrolling and ARCHIVED/DELETED live elsewhere.
+ *
+ * Imperative `fetchDevicesPage` rather than the suspending `useDeviceList`: this
+ * re-queries on every keystroke, and a Suspense boundary would blank the open
+ * dropdown between characters. react-query keeps the previous options on screen
+ * while the next search resolves — the rows still land in the Relay store.
+ */
 export function useDeviceOptions(organizationId?: string, search = '') {
+  // One object for both the cache key and the request — spelling the filter out
+  // twice let them drift, and a key that doesn't describe its request caches the
+  // wrong answer.
+  const filter = useMemo(
+    () => ({
+      statuses: [...DEFAULT_DEVICES_LIST_STATUSES],
+      ...(organizationId && { organizationIds: [organizationId] }),
+    }),
+    [organizationId],
+  );
+
   const query = useQuery({
-    queryKey: ['ticket-options', 'devices', organizationId, search],
-    queryFn: () => fetchDeviceOptions(organizationId, search),
+    queryKey: deviceQueryKeys.page(filter, search, DEVICE_OPTIONS_LIMIT),
+    queryFn: () => fetchDevicesPage({ filter, search, first: DEVICE_OPTIONS_LIMIT }),
     enabled: !!organizationId,
+    // `search` is part of the key, so every keystroke is a NEW query and `data`
+    // would be undefined until it resolves — the open dropdown emptying itself
+    // between characters. Verified in a browser: without this the option list
+    // goes 4 → 0 → 4 on each refinement.
+    placeholderData: keepPreviousData,
   });
 
-  return { options: query.data ?? EMPTY_AUTOCOMPLETE_OPTIONS, isLoading: query.isLoading };
+  const options = useMemo<AutocompleteOption[]>(
+    () =>
+      (query.data?.devices ?? []).map(device => ({
+        label: device.displayName || device.hostname || device.machineId,
+        value: device.machineId,
+      })),
+    [query.data],
+  );
+
+  return { options, isLoading: query.isLoading };
 }
 
 // --- Users / Assignees (REST via /api/users) ---

@@ -219,7 +219,6 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
               onSearchChange={setSearch}
               narrowing={narrowing}
               onNarrowingChange={setNarrowing}
-              filter={filter}
               deferredFilter={deferredFilter}
               deferredSearch={deferredSearch}
               busy={busy}

@@ -13,15 +13,14 @@ import {
   DataTable,
   type OnChangeFn,
   type PageActionButton,
-  PageError,
   PageLayout,
   type Row,
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { AlertTriangle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { type ReactNode, useCallback, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { type ReactNode, Suspense, useCallback, useEffect, useMemo } from 'react';
 import { DevicesGrid } from '@/app/(app)/devices/components/devices-grid';
 import { DevicesGridFilters } from '@/app/(app)/devices/components/devices-grid-filters';
 import {
@@ -35,9 +34,11 @@ import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-p
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { useTagFilterModal } from '@/app/(app)/devices/hooks/use-tag-filter-modal';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { routes } from '@/lib/routes';
 import { DevicesFilterToolbar } from '../devices-filter-toolbar';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
+import { DevicesPanelErrorBoundary, DevicesPanelSkeleton } from './devices-panel-boundaries';
 
 export interface DevicesPanelProps {
   /** Page title shown in the PageLayout header. */
@@ -99,7 +100,7 @@ export interface DevicesPanelProps {
   isCheckingOrganizations?: boolean;
 }
 
-export function DevicesPanel({
+function DevicesPanelContent({
   title = 'Devices',
   backButton,
   addDeviceHref = routes.devices.new(),
@@ -136,12 +137,19 @@ export function DevicesPanel({
 
   const filters = useMemo<DeviceFilterInput>(() => ({ ...urlFilters, ...lockedFilters }), [urlFilters, lockedFilters]);
 
-  const { devices, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, error, filteredCount } = useDevices(
-    filters,
-    debouncedSearch,
+  // The device queries suspend, and re-suspend whenever their variables change.
+  // Deferring the variables makes a filter or search change a TRANSITION: React
+  // keeps the current rows on screen while the next set loads, instead of
+  // dropping the whole panel to its skeleton mid-interaction. The controls
+  // themselves still read the live `params`, so a checkbox ticks immediately.
+  const { deferredFilters, deferredSearch, isPending: isNarrowing } = useDeferredQuery(filters, debouncedSearch);
+
+  const { devices, isFetchingNextPage, hasNextPage, fetchNextPage, filteredCount } = useDevices(
+    deferredFilters,
+    deferredSearch,
   );
 
-  const { data: deviceFilters, isLoading: isDeviceFiltersLoading } = useDeviceFilters(filters);
+  const deviceFilters = useDeviceFilters(deferredFilters);
 
   const hasActiveDeviceFilters =
     params.statuses.length > 0 ||
@@ -151,12 +159,16 @@ export function DevicesPanel({
 
   // Pristine, genuinely-empty view (no search, no filters, no devices): show the
   // empty state instead of the toolbar + list, when one is provided.
+  // `!isNarrowing` matters: the rows are DEFERRED while the params are live, so
+  // during a transition `devices` still answers the PREVIOUS query. Without it,
+  // clearing a filter that matched nothing flashes the marketing empty state —
+  // pulling the toolbar out from under the user — before the rows arrive.
   const showEmptyState =
-    !!emptyState && !isLoading && !debouncedSearch && !hasActiveDeviceFilters && devices.length === 0;
+    !!emptyState && !isNarrowing && !debouncedSearch && !hasActiveDeviceFilters && devices.length === 0;
 
   const filterColumns = useMemo(() => {
     const hidden = new Set(hideFilters ?? []);
-    return getDeviceFilterColumns(deviceFilters ?? null).filter(c => !hidden.has(c.key));
+    return getDeviceFilterColumns(deviceFilters).filter(c => !hidden.has(c.key));
   }, [deviceFilters, hideFilters]);
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
@@ -207,7 +219,7 @@ export function DevicesPanel({
     selectedTags,
   } = useTagFilterModal({
     tags: params.tags,
-    deviceFilters: deviceFilters ?? null,
+    deviceFilters,
     columns: filterColumns,
     setParams,
   });
@@ -267,10 +279,6 @@ export function DevicesPanel({
     fetchNextPage,
   });
 
-  if (error) {
-    return <PageError message={error} />;
-  }
-
   return (
     <>
       <PageLayout
@@ -304,7 +312,10 @@ export function DevicesPanel({
         {showEmptyState ? (
           emptyState
         ) : (
-          <div>
+          // Dimmed, not skeletoned, while a filter/search change resolves: the
+          // rows on screen are the previous answer and stay readable until the
+          // next one arrives (see the deferred variables above).
+          <div className={cn(isNarrowing && 'opacity-60 transition-opacity')}>
             <DevicesFilterToolbar
               searchValue={localSearch}
               onSearchChange={setLocalSearch}
@@ -321,24 +332,20 @@ export function DevicesPanel({
               tagFilterKeys={tagFilterKeys}
               selectedTags={selectedTags}
               onTagsChange={handleModalTagsChange}
-              isLoading={isDeviceFiltersLoading}
+              isLoading={false}
             />
             {params.viewMode === 'table' ? (
               <DevicesTableBody
                 devices={devices}
-                isLoading={isLoading || isDeviceFiltersLoading}
-                // Facets ride their own query here, so they can land after the rows —
-                // keep the funnels drawn until then instead of growing them mid-view.
-                //
-                // Keyed on the DATA, not on `isDeviceFiltersLoading`: react-query reports
-                // `isLoading` false before the request has started, so the first render
-                // would read as "answered, nothing to filter by" and drop the funnels for
-                // good. No data yet is the honest "not answered".
-                filtersPending={!deviceFilters}
+                isLoading={false}
                 emptyMessage={emptyMessage}
                 skeletonRows={10}
                 stickyHeaderOffset="top-[96px]"
-                deviceFilters={deviceFilters ?? null}
+                deviceFilters={deviceFilters}
+                // No `filtersPending`: the facet query suspends alongside the
+                // list, so by the time this renders the facets are already in
+                // hand. The "isLoading false before the request started" race it
+                // guards against is a react-query behaviour, not a Relay one.
                 columnFilters={columnFilters}
                 onColumnFiltersChange={onColumnFiltersChange}
                 actionsColumn={actionsColumn}
@@ -364,7 +371,7 @@ export function DevicesPanel({
                 />
                 <DevicesGrid
                   devices={devices}
-                  isLoading={isLoading}
+                  isLoading={false}
                   hasNextPage={hasNextPage}
                   isFetchingNextPage={isFetchingNextPage}
                   sentinelRef={gridSentinelRef}
@@ -376,5 +383,37 @@ export function DevicesPanel({
         )}
       </PageLayout>
     </>
+  );
+}
+
+/**
+ * The device list, in every place it appears: the Devices page, the archive
+ * page and the customer devices tab.
+ *
+ * The content suspends (its list and facet queries are Relay), so it is wrapped
+ * here once rather than at each of the three call sites — they keep passing
+ * plain props and stay unaware of the boundary. The error boundary sits OUTSIDE
+ * the Suspense one so a failed query renders the panel's own error state instead
+ * of escaping to the route-level `error.tsx`.
+ */
+export function DevicesPanel(props: DevicesPanelProps) {
+  // The list's whole query surface lives in the URL, so the query string is the
+  // honest "the user asked for something different" signal — it clears a tripped
+  // error boundary without the panel having to reach inside the content that threw.
+  const resetKey = useSearchParams().toString();
+
+  const chrome = {
+    title: props.title ?? 'Devices',
+    backButton: props.backButton,
+    className: props.className,
+    offsetClassName: props.embedded ? EMBEDDED_PAGE_OFFSET : undefined,
+  };
+
+  return (
+    <DevicesPanelErrorBoundary {...chrome} resetKey={resetKey}>
+      <Suspense fallback={<DevicesPanelSkeleton {...chrome} />}>
+        <DevicesPanelContent {...props} />
+      </Suspense>
+    </DevicesPanelErrorBoundary>
   );
 }

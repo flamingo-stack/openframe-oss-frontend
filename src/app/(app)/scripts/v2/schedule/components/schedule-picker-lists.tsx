@@ -39,8 +39,6 @@ interface SchedulePickerListsProps {
   onSearchChange: (value: string) => void;
   narrowing: DeviceSelectorNarrowing;
   onNarrowingChange: (next: DeviceSelectorNarrowing) => void;
-  /** Live narrowing — drives the facet query, which has its own cache. */
-  filter: DeviceFilterInput;
   /** Deferred narrowing — what the two lists are actually reading. */
   deferredFilter: DeviceFilterInput;
   deferredSearch: string;
@@ -69,7 +67,6 @@ export function SchedulePickerLists({
   onSearchChange,
   narrowing,
   onNarrowingChange,
-  filter,
   deferredFilter,
   deferredSearch,
   busy,
@@ -142,7 +139,12 @@ export function SchedulePickerLists({
   // Fleet-wide facets rather than counts taken off the rows in hand: with the
   // server paging, options derived from the current page would only ever offer
   // what page one happens to contain.
-  const { data: filterOptions } = useDeviceFilters(filter);
+  //
+  // DEFERRED, like the two lists: this hook suspends now, so feeding it the live
+  // narrowing would drop the whole picker — search box, tab state and all — to
+  // `SchedulePickerSkeleton` on every funnel click. Facets that lag the rows by
+  // one transition are consistent with them; facets that blank the picker are not.
+  const filterOptions = useDeviceFilters(deferredFilter);
 
   return (
     <DeviceSelector

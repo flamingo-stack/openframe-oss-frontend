@@ -16,7 +16,7 @@ import { useLazyLoadQuery, useMutation } from 'react-relay';
 import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
-import { DeviceSelector } from '@/app/components/shared/device-selector';
+import { DeviceListPicker } from '@/app/components/shared/device-selector';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -31,9 +31,9 @@ import { ExecutionStartedModal } from '../../../components/script/execution-star
 import { scriptArgumentSchema } from '../../../types/edit-script.types';
 import { getDevicePrimaryId } from '../../../utils/device-helpers';
 import { parseKeyValues, serializeKeyValues } from '../../../utils/script-key-values';
+import { runDeviceFilter } from '../../../utils/script-utils';
 import { initiatorName } from '../../shared/utils/execution-helpers';
 import { envVarsToInput, envVarsToPairs, platformsToIds, shellToId } from '../../shared/utils/script-mappers';
-import { useRunDevices } from '../hooks/use-run-devices';
 import type { ScriptDetailData } from '../types/script-detail.types';
 import { ScriptSummaryCard } from './script-summary-card';
 
@@ -74,9 +74,11 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
 
   const supportedPlatforms = useMemo(() => platformsToIds(script?.supportedPlatforms), [script?.supportedPlatforms]);
 
-  const { devices: allDevices, isLoadingDevices } = useRunDevices({ scriptId, supportedPlatforms, enabled: true });
+  const deviceFilter = useMemo(() => runDeviceFilter(supportedPlatforms), [supportedPlatforms]);
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Selection as DEVICES, not ids: the device list lives behind the Suspense
+  // boundary below, so this component has nothing to resolve ids against.
+  const [selection, setSelection] = useState<Device[]>([]);
   const [showExecutionModal, setShowExecutionModal] = useState(false);
   const [commitBatchRun] = useMutation<BatchRunScriptMutationType>(batchRunScriptMutation);
 
@@ -141,7 +143,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
 
   const onSubmit = useCallback(
     async (formData: RunFormData) => {
-      if (selectedIds.size === 0) {
+      if (selection.length === 0) {
         toast({
           title: 'No devices selected',
           description: 'Please select at least one device.',
@@ -150,8 +152,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
         return;
       }
 
-      const selectedDevices = allDevices.filter(d => selectedIds.has(getDevicePrimaryId(d)));
-      const machineIds = selectedDevices.map(getMachineId).filter((id): id is string => !!id);
+      const machineIds = selection.map(getMachineId).filter((id): id is string => !!id);
 
       if (machineIds.length === 0) {
         toast({
@@ -176,7 +177,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
         });
       }
     },
-    [allDevices, selectedIds, toast, dispatchBatch],
+    [selection, toast, dispatchBatch],
   );
 
   const onFormError = useCallback(
@@ -206,11 +207,11 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
         label: 'Run Script',
         onClick: handleSubmit(onSubmit, onFormError),
         variant: 'accent' as const,
-        disabled: selectedIds.size === 0,
+        disabled: selection.length === 0,
         loading: isSubmitting,
       },
     ],
-    [handleSubmit, onSubmit, onFormError, selectedIds.size, isSubmitting, handleBack],
+    [handleSubmit, onSubmit, onFormError, selection.length, isSubmitting, handleBack],
   );
 
   return (
@@ -294,15 +295,14 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
         </div>
 
         <div className="space-y-[var(--spacing-system-xxs)]">
-          <DeviceSelector
-            devices={allDevices}
-            loading={isLoadingDevices}
-            selectedIds={selectedIds}
+          <DeviceListPicker
+            filter={deviceFilter}
+            selected={selection}
+            onSelectionChange={setSelection}
             getDeviceKey={getDevicePrimaryId}
-            onSelectionChange={setSelectedIds}
             showSelectionModeRadio={false}
             addAllBehavior="replace"
-            isDeviceDisabled={d => (!getMachineId(d) ? 'Agent is not\nconnected' : undefined)}
+            isDeviceDisabled={(d: Device) => (!getMachineId(d) ? 'Agent is not\nconnected' : undefined)}
           />
         </div>
       </PageLayout>
