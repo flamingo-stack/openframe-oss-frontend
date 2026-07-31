@@ -11,13 +11,12 @@ import {
   getBiometricLockState,
   subscribeToBiometricLock,
 } from '@/lib/token-store';
-import { AppShellSkeleton } from './app-shell-skeleton';
 import { BiometricUnlockGate } from './biometric-unlock-gate';
 
 /**
  * Root-level owner of the native-shell biometric cold-start lock (token-store).
  * Must sit ABOVE every useAuthSession consumer that renders a loading state on
- * `!isReady` (FeatureFlagsGate, AppLayout): while `'locked'` the session query
+ * `!isReady` (e.g. `AppLayout`): while `'locked'` the session query
  * stays in error state, so a consumer higher in the tree would show its
  * skeleton forever and the unlock gate below it would never mount.
  *
@@ -64,14 +63,17 @@ export function BiometricLockBoundary({ children }: { children: React.ReactNode 
     await signOutToLogin(queryClient, router);
   }, [queryClient, router]);
 
-  // Invalidated hand-off in flight: hold the tree with a neutral skeleton —
+  // Invalidated hand-off in flight: hold the tree with a bare app background —
   // rendering children would flash the signed-out app (tokens already cleared,
   // session seeded null) before router.replace lands, and the unlock gate's
   // copy would promise an unlock that can't happen. The lock state itself is
   // never reset, so release on the pathname: once /auth is current, render
   // normally (the auth flow lives below this boundary).
+  //
+  // What matters here is that `children` do NOT render; a chrome placeholder in
+  // their place promised an app the user is on their way out of.
   if (lock === 'invalidated' && !pathname?.startsWith(routes.auth.root)) {
-    return <AppShellSkeleton />;
+    return <div className="min-h-screen bg-ods-bg" />;
   }
 
   // Prompt canceled/failed at cold start: the tokens are still in the Keychain,

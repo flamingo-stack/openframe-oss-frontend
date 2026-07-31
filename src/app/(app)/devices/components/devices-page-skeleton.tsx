@@ -50,7 +50,7 @@ export function DevicesPageSkeleton({ archived = false }: { archived?: boolean }
     >
       <div>
         <SearchBarSkeleton />
-        <DevicesTableBody devices={EMPTY_DEVICES} isLoading emptyMessage="" skeletonRows={10} deviceFilters={null} />
+        <DevicesTableBody devices={EMPTY_DEVICES} isLoading emptyMessage="" skeletonRows={10} filtersPending />
       </div>
     </PageLayout>
   );

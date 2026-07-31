@@ -6,7 +6,7 @@ import { refreshOnboardingProgress } from '@/graphql/onboarding/onboarding-progr
 
 /**
  * Fetches onboarding progress into the onboarding store once on mount. Renders
- * nothing. Mounted in the app shell only when the `new-onboarding` flag is on, so
+ * nothing. Mounted in the app shell once the session has resolved, so
  * the onboarding queries never fire while the feature is off. Non-suspending — the
  * fetch runs in an effect and errors degrade gracefully (see refreshOnboardingProgress).
  */

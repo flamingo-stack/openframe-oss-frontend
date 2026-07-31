@@ -165,7 +165,7 @@ export function CustomersTable({ status }: CustomersTableProps) {
               className="md:hidden"
               onClick={() => setMobileFilterOpen(true)}
               aria-label="Open filters"
-              leftIcon={<Filter02Icon />}
+              leftIcon={<Filter02Icon className="text-ods-text-primary" />}
             />
           </div>
 

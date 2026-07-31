@@ -13,7 +13,6 @@ import { RouteGuard } from '../components/route-guard';
 import { isAuthEnabled } from '../lib/app-mode';
 import { QueryClientProvider } from '../lib/query-client-provider';
 import { RelayProvider } from '../lib/relay';
-import { AppShellSkeleton } from './components/app-shell-skeleton';
 import { BiometricLockBoundary } from './components/biometric-lock-boundary';
 import { DeploymentInitializer } from './components/deployment-initializer';
 import { EmbedShimRegistration } from './components/embed-shim-registration';
@@ -110,8 +109,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className={`dark ${azeretMono.variable} ${dmSans.variable}`}>
       <head>
         {!isStaticExport && <PublicEnvScript />}
-        {/* Seeds the sidebar width before first paint so the SSR'd skeleton
-            honors the persisted collapsed state instead of flashing expanded. */}
+        {/* Seeds the sidebar width before first paint so the real `NavigationSidebar`
+            honors the persisted collapsed state instead of flashing expanded. The
+            server cannot read localStorage, so this is the only channel by which the
+            preference reaches the first frame — and the only thing that keeps the
+            width out of the markup, where it was a hydration mismatch. */}
         {/* biome-ignore lint/style/useNamingConvention: React's dangerouslySetInnerHTML requires the __html key */}
         <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript }} />
       </head>
@@ -123,6 +125,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NativeShellInitializer />
         <RelayProvider>
           <QueryClientProvider>
+            {/* Its own boundary, and it is load-bearing. This reads `?devTicket=`,
+                and `useSearchParams()` bails out to client rendering during the
+                static prerender — which `next build` treats as an error unless
+                there is a Suspense boundary to bail out to. Sitting in the root
+                layout, it is above every page, so without this the build fails on
+                EVERY statically generated page rather than on anything that looks
+                related to dev tickets. Only a production build raises it; a dev
+                build renders nothing statically and stays quiet. */}
             {isAuthEnabled() && (
               <Suspense fallback={null}>
                 <DevTicketObserver />
@@ -133,9 +143,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <FeatureFlagsLoader>
                   <NotificationsDataProvider>
                     <RouteGuard>
-                      <div className="relative flex min-h-screen flex-col">
-                        <Suspense fallback={<AppShellSkeleton />}>{children}</Suspense>
-                      </div>
+                      {/* No app-wide Suspense boundary around `children` — the one
+                          that used to be here drew `AppShellSkeleton`, and with the
+                          skeleton retired an empty one would only widen the blast
+                          radius: anything suspending below would blank the chrome
+                          along with the page. The boundary inside `<main>` catches
+                          that in the content area instead, and each root-layout
+                          component that reads search params carries its own. */}
+                      <div className="relative flex min-h-screen flex-col">{children}</div>
                     </RouteGuard>
                   </NotificationsDataProvider>
                 </FeatureFlagsLoader>

@@ -82,7 +82,7 @@ const mobileFilterButton = (
     className="md:hidden"
     onClick={noop}
     aria-label="Open filters"
-    leftIcon={<Filter02Icon />}
+    leftIcon={<Filter02Icon className="text-ods-text-primary" />}
   />
 );
 

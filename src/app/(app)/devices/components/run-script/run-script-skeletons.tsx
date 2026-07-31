@@ -1,7 +1,10 @@
 'use client';
 
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { RUN_SUMMARY_LABELS, ScriptSummaryCardSkeleton } from '../../../scripts/v2/components/script-summary-card';
+import {
+  RUN_SUMMARY_LABELS,
+  ScriptSummaryCardSkeleton,
+} from '../../../scripts/v2/script/components/script-summary-card';
 
 /** Description widths cycled through the picker rows so they don't look uniform. */
 const PICKER_ROW_DESCRIPTIONS = ['w-72', 'w-56', 'w-48', 'w-64', 'w-40', 'w-60'];

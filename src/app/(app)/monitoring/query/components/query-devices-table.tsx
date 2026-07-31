@@ -248,8 +248,10 @@ export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
           <Button
             variant="outline"
             size="icon"
+            aria-label="Device Tags"
             onClick={() => setIsFilterModalOpen(true)}
-            leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
+            // Primary below md: with the label gone the funnel is the button.
+            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
             className="shrink-0"
           />
         )}

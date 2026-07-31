@@ -27,14 +27,12 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
-import { runtimeEnv } from '@/lib/runtime-config';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
-import { APP_MAIN_CLASS_NAME, AppShellSkeleton, headerLoadingCells } from './app-shell-skeleton';
+import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
-import { GenericPageSkeleton } from './generic-page-skeleton';
 import { InitialSetupBar } from './initial-setup-bar';
 import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
@@ -220,24 +218,37 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const helpCenterEnabled = useFeatureFlag('help-center');
   const notificationsEnabled = useFeatureFlag('notifications');
 
-  // The nav's entries are flag-shaped, so until the flags answer the chrome renders
+  const chatEnabled = mingoSidebarEnabled && !showLockContent && !isMingoPage;
+  const [unreadCounts, setUnreadCounts] = useState<UnreadCountsByCategory>({});
+
+  // Onboarding chrome: the sidebar "Onboarding" tab/badge and the Initial Setup /
+  // tour top bars. Progress comes from the backend via the onboarding store, hydrated
+  // by `OnboardingProgressHydrator` below. `onboardingLoaded` gates the chrome so
+  // nothing flickers before we know the real state.
+  const tenantProgress = useOnboardingStore(state => state.tenant);
+  const userProgress = useOnboardingStore(state => state.user);
+  const onboardingLoaded = useOnboardingStore(state => state.isLoaded);
+
+  // The nav's entries are flag-shaped, so until the answers arrive the chrome renders
   // its own loading state (core `loading` props below) instead of a partly-built or
   // guessed nav. That is also what covers the core header's first render: its
   // mobile/desktop split runs through `useMdUp() ?? false`, which reads "mobile"
   // until an effect has run.
-  const chromeLoading = !useFeatureFlagsReady();
-  const chatEnabled = mingoSidebarEnabled && !showLockContent && !isMingoPage;
-  const [unreadCounts, setUnreadCounts] = useState<UnreadCountsByCategory>({});
-
-  // Onboarding chrome (behind the `new-onboarding` flag): the sidebar "Onboarding"
-  // tab/badge and the Initial Setup / tour top bars. Progress comes from the backend
-  // via the onboarding store, hydrated by `OnboardingProgressHydrator` (mounted below
-  // only when the flag is on). `onboardingLoaded` gates the chrome so nothing flickers
-  // before we know the real state.
-  const newOnboardingEnabled = useFeatureFlag('new-onboarding', runtimeEnv.newOnboardingFlag());
-  const tenantProgress = useOnboardingStore(state => state.tenant);
-  const userProgress = useOnboardingStore(state => state.user);
-  const onboardingLoaded = useOnboardingStore(state => state.isLoaded);
+  //
+  // Onboarding progress counts as one of those answers: it decides whether the
+  // "Onboarding" entry exists AT ALL, and that entry is PREPENDED (see
+  // `getNavigationItems`), so learning about it late doesn't append a row — it inserts
+  // one at the top and pushes every other item down. Both requests start together the
+  // moment the session resolves (flags in `FeatureFlagsLoader`, progress in the
+  // hydrator below), so waiting for both costs the difference between two parallel
+  // round-trips, not a second one.
+  //
+  // `sessionReady` guards it because the hydrator only mounts once the session has
+  // answered: without that, a signed-out render would wait on a request that is never
+  // going to be made. Both stores resolve terminally for a signed-in user — the flags
+  // loader marks them loaded on query error, and `fetchOnboardingProgress` does the
+  // same on an error or a null payload — so this can't hang the chrome.
+  const chromeLoading = !useFeatureFlagsReady() || (sessionReady && !onboardingLoaded);
 
   const tenantDone = countCompleted(TENANT_ONBOARDING_STEPS, tenantProgress?.completedSteps ?? []);
   const userDone = countCompleted(USER_ONBOARDING_STEPS, userProgress?.completedSteps ?? []);
@@ -251,7 +262,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // real (non-null) tenant record, unlike `!initialSetupComplete` which treated a failed/empty
   // progress fetch (tenant === null) as "incomplete" and lit the bar with no card behind it.
   const initialSetupActive = useInitialSetupActive();
-  const showOnboardingChrome = newOnboardingEnabled && onboardingLoaded;
+  const showOnboardingChrome = onboardingLoaded;
 
   // The personal "Get Started" tour (sidebar tab + badge) only appears once the
   // tenant Initial Setup is complete — until then the user is kept on Initial Setup.
@@ -327,7 +338,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         />
       );
     }
-  } else if (newOnboardingEnabled) {
+  } else {
     // Progress hasn't loaded yet. Rendering nothing here just moves the jump
     // from the skeleton to this side of the handoff — the shell reserves the
     // band, then the live layout drops it and the app snaps up until the query
@@ -341,13 +352,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     );
   }
 
-  // Remember which banner (if any) this slot resolved to, so the shell skeleton
-  // can reserve the same band on the next cold start instead of letting the bar
-  // drop in late and push the whole app down. Only once progress has actually
-  // loaded — before that `topBar` is undefined because we don't know yet, which
-  // is not the same answer as "no bar".
+  // Remember which banner (if any) this slot resolved to, so the next cold start can
+  // replay the same decision instead of letting the bar drop in late and push the whole
+  // app down. Only once progress has actually loaded — before that `topBar` is
+  // undefined because we don't know yet, which is not the same answer as "no bar".
   useEffect(() => {
-    if (!newOnboardingEnabled || !onboardingLoaded) return;
+    if (!onboardingLoaded) return;
     if (initialSetupActive) {
       writeCachedOnboardingTopBar({ kind: 'initial-setup', started: tenantDone > 0 });
     } else if (initialSetupComplete && userInProgress) {
@@ -355,15 +365,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     } else {
       writeCachedOnboardingTopBar({ kind: 'none', started: false });
     }
-  }, [
-    newOnboardingEnabled,
-    onboardingLoaded,
-    initialSetupActive,
-    initialSetupComplete,
-    userInProgress,
-    tenantDone,
-    userDone,
-  ]);
+  }, [onboardingLoaded, initialSetupActive, initialSetupComplete, userInProgress, tenantDone, userDone]);
 
   const displayName = useMemo(
     () => `${userFirstName || ''} ${userLastName || ''}`.trim(),
@@ -382,10 +384,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // below are themselves flag-driven, so during `loading` they all read false and
       // the placeholder would reserve nothing at all.
       //
-      // Shared with `AppShellSkeleton` (which renders first, as the streaming fallback)
-      // so the two placeholders reserve the same cells. A tenant with one of the flags
-      // off loses a cell from a right-aligned cluster in empty space, which shifts
-      // nothing else on the page — see `headerLoadingCells`.
+      // This is now the ONLY header placeholder — the shell skeleton that used to
+      // render one ahead of it is gone, so there is no second copy to stay in step
+      // with. A tenant with one of the flags off loses a cell from a right-aligned
+      // cluster in empty space, which shifts nothing else on the page — see
+      // `headerLoadingCells`.
       loadingActionCells: headerLoadingCells(),
       showNotifications: notificationsEnabled,
       showTimeTracker: timeTrackerEnabled,
@@ -458,10 +461,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   return (
     <>
       {notificationsEnabled && sessionReady && (
-        // ErrorBoundary + Suspense mirror the drawer hydrator: a trial-expired GraphQL error
-        // makes the query return null data, which Relay surfaces as a thrown error. Without the
-        // boundary it bubbles to Next's root and shows the full-page "couldn't load" screen
-        // instead of degrading silently (the subscription lock UI handles the messaging).
+        // Two boundaries, two different failures, both of them real here.
+        //
+        // ErrorBoundary: a trial-expired GraphQL error makes the query return null data,
+        // which Relay surfaces as a thrown error. Unbounded it reaches Next's root and
+        // shows the full-page "couldn't load" screen instead of degrading silently (the
+        // subscription lock UI handles the messaging).
+        //
+        // Suspense: `UnreadCountsHydrator` runs `useLazyLoadQuery` (store-and-network) and
+        // nothing else in the app fetches `unreadCountsByCategory`, so on a cold store it
+        // genuinely suspends. This is the LAST app-owned boundary above it — the shell's
+        // and the root layout's are gone as vestigial RSC-era wrappers — so without it the
+        // wait for a decorative badge count is served by Next's root and holds the whole
+        // app. `null` because there is nothing to draw: the count simply appears.
         <ErrorBoundary fallback={null}>
           <Suspense fallback={null}>
             <UnreadCountsHydrator onChange={setUnreadCounts} />
@@ -475,32 +487,42 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           className="app-shell-root"
           mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
           sidebarConfig={sidebarConfig}
-          // Core wraps `children` in its own Suspense with this fallback. It is
-          // the LAST resort: a page that suspends without a boundary of its own
-          // shows the neutral page shape here instead of blanking the content
-          // area, which `null` did. Pages own their real skeleton.
-          loadingFallback={<GenericPageSkeleton />}
           mobileBurgerMenuProps={mobileBurgerMenuProps}
           headerProps={headerProps}
           disabled={showLockContent}
           drawer={chatDrawer}
           topBar={topBar}
         >
-          {/* One shell, two possible contents. The chrome around this never
+          {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+              dropped in 0.0.502 — `<main>` now renders `children` bare), so it
+              lives here instead.
+
+              It is not idle: the page segment arrives after the layout in the RSC
+              stream, so it opens on EVERY route. Keeping it INSIDE `<main>` is the
+              point — a page that suspends, or that bails to client rendering
+              because it reads `useSearchParams()`, takes only the content area
+              with it and the sidebar and header stay up. The app-wide boundary
+              this replaces took the whole chrome.
+
+              The fallback draws nothing on purpose: a neutral page shape here was
+              a grey block flashed ahead of the real content whenever a browser
+              frame landed in the gap. Pages own their real skeleton.
+
+              One shell, two possible contents. The chrome around this never
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header. */}
-          {showLockContent ? <SubscriptionLockContent /> : children}
+          <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
         </CoreAppLayout>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
           + coach-mark (shows only when a page was reached from an onboarding step
-          via the `setupHint` query param). Both only when the flag is on, so the
-          onboarding queries never fire while the feature is off. */}
-      {newOnboardingEnabled && sessionReady && (
-        <Suspense fallback={null}>
+          via the `setupHint` query param). Gated on the session so the queries
+          never fire before `/me` has answered. */}
+      {sessionReady && (
+        <>
           <OnboardingProgressHydrator />
           <OnboardingCoachMark />
-        </Suspense>
+        </>
       )}
       {/* Logout confirmation modal — opened from the nav user menu and the
           Settings "Log Out" button via `useLogoutConfirmStore`. */}
@@ -565,10 +587,16 @@ export function AppLayout({ children, mainClassName }: { children: React.ReactNo
     // Nothing inside `AppLayoutInner` suspends on the normal boot path any more
     // (`TimeTrackerHostProvider` and every hydrator carry their own boundary, and
     // `SubscriptionGuard` no longer suspends), so this is a backstop rather than
-    // a phase every page load goes through. It still renders the shell
-    // placeholder: whatever new suspension lands here would otherwise blank the
-    // whole app.
-    <Suspense fallback={<AppShellSkeleton />}>
+    // a phase every page load goes through — which is why its fallback is empty.
+    // A shell placeholder here drew a second, parallel copy of the chrome that had
+    // to be kept in step with the real one and still disagreed with it for a frame.
+    //
+    // The boundary itself has to STAY, empty or not: the shell reads
+    // `useSearchParams()`, which bails out to client rendering during the static
+    // prerender, and Next requires a Suspense boundary to bail out to. Without one
+    // `next build` fails on every statically generated page under `(app)` — and
+    // only in a production build, so a dev-mode build won't tell you.
+    <Suspense fallback={null}>
       <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>
     </Suspense>
   );
