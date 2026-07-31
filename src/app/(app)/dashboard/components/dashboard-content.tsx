@@ -6,10 +6,8 @@ import { Suspense } from 'react';
 import { InitialSetupCard, InitialSetupSkeleton } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
 import { isSaasTenantMode } from '@/lib/app-mode';
-import { featureFlags } from '@/lib/feature-flags';
 import { CustomersOverviewSection } from './customers-overview';
 import { DevicesOverviewSection } from './devices-overview';
-import { OnboardingSection } from './onboarding-section';
 import { TicketsOverviewSection } from './tickets-overview';
 
 /** Padded wrapper for the onboarding blocks that live OUTSIDE the PageLayout chrome.
@@ -23,11 +21,6 @@ const ONBOARDING_WRAPPER_CLASS = 'px-[var(--spacing-system-l)] pt-[var(--spacing
  */
 export default function DashboardContent() {
   const showTickets = isSaasTenantMode();
-  // The legacy onboarding section is replaced by the new onboarding chrome once the
-  // `new-onboarding` flag is on: the tenant "Initial Setup" card here, plus the
-  // standalone `/onboarding` (user Get Started) page and the top bar.
-  const newOnboardingEnabled = featureFlags.newOnboarding.enabled();
-  const showLegacyOnboarding = !newOnboardingEnabled;
 
   // Dim (and disable) the rest of the dashboard ONLY while the tenant Initial Setup is
   // active — the exact same predicate that shows the setup card and the top bar, so the
@@ -37,32 +30,25 @@ export default function DashboardContent() {
 
   return (
     <>
-      {/* Onboarding — deliberately OUTSIDE the PageLayout below. */}
-      {showLegacyOnboarding && (
-        <div className={ONBOARDING_WRAPPER_CLASS}>
-          <OnboardingSection />
-        </div>
-      )}
-      {/* Local Suspense so the setup card's suspending queries (e.g. DeviceSetupStep's
+      {/* Onboarding — deliberately OUTSIDE the PageLayout below.
+          Local Suspense so the setup card's suspending queries (e.g. DeviceSetupStep's
           `useDeviceOrganizations`, a `useSuspenseQuery`) are caught here instead of
           bubbling to the route-level `loading.tsx` and re-flashing the whole dashboard
           skeleton. Fallback is the card skeleton (not `null`) so the suspend doesn't
           flash an empty gap between the card's own count-loading skeleton and its
           content — the same skeleton carries through while onboarding progress
           (the tenant step-detection round-trips) loads. */}
-      {newOnboardingEnabled && (
-        <Suspense
-          fallback={
-            <div className={ONBOARDING_WRAPPER_CLASS}>
-              <InitialSetupSkeleton />
-            </div>
-          }
-        >
+      <Suspense
+        fallback={
           <div className={ONBOARDING_WRAPPER_CLASS}>
-            <InitialSetupCard />
+            <InitialSetupSkeleton />
           </div>
-        </Suspense>
-      )}
+        }
+      >
+        <div className={ONBOARDING_WRAPPER_CLASS}>
+          <InitialSetupCard />
+        </div>
+      </Suspense>
       <div
         className={cn('transition-opacity duration-300', dimDashboard && 'pointer-events-none select-none opacity-40')}
         aria-hidden={dimDashboard || undefined}

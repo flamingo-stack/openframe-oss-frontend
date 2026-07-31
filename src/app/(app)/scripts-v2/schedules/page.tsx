@@ -1,7 +1,7 @@
 'use client';
 
-import { ScriptSchedulesTable } from '../../scripts/v2/components/script-schedules-table';
-import { ScriptsV2TabNavigation } from '../../scripts/v2/components/scripts-v2-tabs';
+import { ScriptSchedulesTable } from '../../scripts/v2/schedule/components/script-schedules-table';
+import { ScriptsV2TabNavigation } from '../../scripts/v2/shared/components/scripts-v2-tabs';
 
 export default function ScriptSchedulesV2Page() {
   return (

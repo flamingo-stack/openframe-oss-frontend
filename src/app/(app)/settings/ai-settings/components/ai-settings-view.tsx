@@ -24,7 +24,7 @@ import type { CustomerAiAssistantSubmit } from '../types/customer-ai-assistant.t
 import { MINGO_AI_CHAT_FORM_ID } from '../types/mingo-ai-chat.types';
 import { useAiSettingsActions } from './ai-settings-actions';
 import { AiSettingsLayout } from './ai-settings-layout';
-import { type AiSettingsTabId, AiSettingsTabs, getVisibleAiSettingsTabs } from './ai-settings-tabs';
+import { type AiSettingsTabId, AiSettingsTabs, useVisibleAiSettingsTabs } from './ai-settings-tabs';
 import { CUSTOMER_AI_ASSISTANT_FORM_ID, CustomerAiAssistantTab } from './customer-ai-assistant-tab';
 import { GUARDRAILS_FORM_ID, GuardrailsTab } from './guardrails/guardrails-tab';
 import { MingoAiChatTab } from './mingo-ai-chat-tab';
@@ -40,7 +40,7 @@ export function AiSettings() {
   const searchParams = useSearchParams();
 
   // Tabs are feature-flag gated; default to the first one that's visible.
-  const visibleTabs = getVisibleAiSettingsTabs();
+  const visibleTabs = useVisibleAiSettingsTabs();
   const firstTabId = (visibleTabs[0]?.id as AiSettingsTabId | undefined) ?? 'guardrails';
 
   // Deep-link support: `?tab=<id>&edit=true` opens a tab in edit mode

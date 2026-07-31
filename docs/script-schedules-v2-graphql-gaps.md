@@ -27,10 +27,14 @@ Still open, both minor:
   has `dispatchedAtFrom`/`dispatchedAtTo`; the schedules list has no equivalent),
   so the logs-style date filter cannot be offered on the list.
 
-Note for the UI, not the backend: `repeat` is seconds, but the form's unit
-dropdown starts at Hour, so a sub-hour cadence authored elsewhere can only be
-DISPLAYED rounded. `resolveRepeatSeconds` preserves the stored value unless the
-user actually changes the recurrence.
+Note for the UI, not the backend: `repeat` is seconds, and the form's unit
+dropdown now goes down to Minute with a floor of 30 — one slot of the runner's
+grid, so the finest cadence the backend accepts is also the finest the form can
+author. Minute intervals are constrained to multiples of 30 (stepper + schema
+rule); every coarser unit is a whole number of slots at any interval. Anything
+off the minute grid entirely can still only be DISPLAYED rounded, and
+`resolveRepeatSeconds` preserves the stored value unless the user actually
+changes the recurrence.
 
 ## 2. `assignedDevices` resolver — **DELIVERED** (was a 504 hang)
 

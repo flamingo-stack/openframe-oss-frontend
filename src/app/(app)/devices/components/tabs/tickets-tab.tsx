@@ -16,6 +16,7 @@ import {
   getTicketTableColumns,
   ticketRowHref,
 } from '../../../tickets/components/ticket-table-columns';
+import { DEVICE_TICKET_COLUMNS } from '../../../tickets/components/ticket-table-layout';
 import { TicketsEmptyState } from '../../../tickets/components/tickets-empty-state';
 import { useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
 import type { ClientDialogOwner, Dialog } from '../../../tickets/types/dialog.types';
@@ -79,18 +80,17 @@ export function TicketsTab({ device }: TicketsTabProps) {
 
   // Reuse the shared ticket columns, but drop the device/source column — it's redundant on a
   // device-scoped list — and keep the trailing open-in-new-tab action.
-  // With SOURCE dropped the shared flex widths drift, so pin ASSIGNEE/STATUS to
-  // the same fixed widths as DeviceDetailsSkeleton's tickets variant — the
-  // page-level skeleton, the tab's own loading skeleton and the loaded table
-  // then share one layout (no header jump between loading phases).
+  // With SOURCE dropped the shared flex widths drift, so ASSIGNEE/STATUS are pinned to fixed
+  // widths. Those widths live in `DEVICE_TICKET_COLUMNS`, which `DeviceDetailsSkeleton` reads
+  // too — the page-level skeleton, the tab's own loading skeleton and the loaded table then
+  // share one declaration (no header jump between loading phases).
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {
+    const widthById = new Map(DEVICE_TICKET_COLUMNS.map(column => [column.id, column.width]));
     const base = getTicketTableColumns({ isArchived: false })
       .filter(column => (column as { accessorKey?: string }).accessorKey !== 'source')
       .map(column => {
         const key = (column as { accessorKey?: string }).accessorKey;
-        if (key === 'assignee') {
-          return { ...column, meta: { ...column.meta, width: 'w-[280px]' } };
-        }
+        const width = key ? widthById.get(key) : undefined;
         if (key === 'status' && column.meta?.filter) {
           // STATUS is the last data column here: anchor its filter dropdown to
           // the header's right edge so it doesn't overflow past the table.
@@ -98,12 +98,12 @@ export function TicketsTab({ device }: TicketsTabProps) {
             ...column,
             meta: {
               ...column.meta,
-              width: 'w-[160px]',
+              ...(width && { width }),
               filter: { ...column.meta.filter, placement: 'bottom-end' as const },
             },
           };
         }
-        return column;
+        return width ? { ...column, meta: { ...column.meta, width } } : column;
       });
     return [...base, getTicketOpenColumn()];
   }, []);
@@ -131,9 +131,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // EmptyState replaces the whole table, with the same content as the Tickets page.
   // A search with zero matches keeps the table chrome and its compact empty state below.
   if (!isLoading && isEmpty && !hasSearch) {
-    return (
-      <TicketsEmptyState />
-    );
+    return <TicketsEmptyState />;
   }
 
   return (

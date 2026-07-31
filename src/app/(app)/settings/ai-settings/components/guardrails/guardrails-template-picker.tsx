@@ -49,7 +49,7 @@ export function GuardrailsTemplatePicker({
                 onCreateCustomPolicyFrom(option.id);
               }}
               className="hidden md:inline-flex !text-h3 text-ods-text-primary bg-ods-card border-ods-border hover:bg-ods-bg-hover gap-[var(--spacing-system-xsf)] !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] h-auto [&_svg]:!size-6"
-              leftIcon={<Filter03HrIcon className="text-ods-text-secondary"/>}
+              leftIcon={<Filter03HrIcon className="text-ods-text-secondary" />}
               disabled={disabled}
             >
               Use for Custom Policy
@@ -71,7 +71,7 @@ export function GuardrailsTemplatePicker({
                       {
                         id: 'use-for-custom-policy',
                         label: 'Use for Custom Policy',
-                        icon: <Filter03HrIcon className="text-ods-text-secondary"/>,
+                        icon: <Filter03HrIcon className="text-ods-text-secondary" />,
                         onClick: () => onCreateCustomPolicyFrom(option.id),
                         disabled,
                       },

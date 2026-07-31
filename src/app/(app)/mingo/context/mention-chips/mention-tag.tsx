@@ -42,10 +42,10 @@ interface MentionTagProps {
 }
 
 export function MentionTag({ icon, label, href }: MentionTagProps) {
-  // Wrap the label so it's NOT a string — Tag only sets the native `title`
-  // tooltip for string labels, and that browser tooltip (a grey box on hover)
-  // looks unpolished. Tag still truncates via its own label span.
-  const chip = <Tag as="span" variant="badge" icon={icon} label={<>{label}</>} className={CHIP_CLASS} />;
+  // String labels go straight to Tag: its label slot shows a FloatingTooltip with
+  // the full entity name only when the chip's max-w actually clips it, on a span
+  // trigger that stays valid inside the markdown `<p>`.
+  const chip = <Tag as="span" variant="badge" icon={icon} label={label} className={CHIP_CLASS} />;
   if (!href) return chip;
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="no-underline">

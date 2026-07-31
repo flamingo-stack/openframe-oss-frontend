@@ -25,8 +25,8 @@ import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 import { routes } from '@/lib/routes';
 import { ScriptEditor } from '../../scripts/components/script/script-editor';
 import { EDIT_SCRIPT_DEFAULT_VALUES } from '../../scripts/types/edit-script.types';
-import { formToWriteInput } from '../../scripts/v2/utils/script-mappers';
-import { SCRIPT_V2_SHELL_TYPES } from '../../scripts/v2/utils/shell-types';
+import { formToWriteInput } from '../../scripts/v2/shared/utils/script-mappers';
+import { SCRIPT_V2_SHELL_TYPES } from '../../scripts/v2/shared/utils/shell-types';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 import { useStepActionState } from '../use-step-action-state';
 
@@ -49,7 +49,7 @@ type OnboardingScriptForm = z.infer<typeof onboardingScriptSchema>;
 
 /**
  * Inner body of the "Scripting" onboarding step — a trimmed version of the full
- * add-script form ({@link ../../scripts/v2/components/edit-script-page}). It reuses
+ * add-script form ({@link ../../scripts/v2/script/components/edit-script-page}). It reuses
  * the same primitives (platform `SelectButton`s, shell `Select`, `ScriptEditor`) and
  * the native `createScriptMutation` + `formToWriteInput` mapper. On "Add Script" it
  * creates the script and redirects to its details page with the coach-mark hint.

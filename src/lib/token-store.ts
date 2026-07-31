@@ -9,7 +9,8 @@
  */
 import { clearAuthedImageCache } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { BIOMETRIC_ERROR, biometricErrorCode, isBiometricLoginEnabled } from './native-biometrics';
-import { isNativeShell, nativeAuthPlugin, onNativeTokenUpdate } from './native-shell';
+import { nativeAuthPlugin, onNativeTokenUpdate } from './native-shell';
+import { isAppShell } from './platform';
 import { runtimeEnv } from './runtime-config';
 
 export const ACCESS_TOKEN_KEY = 'of_access_token';
@@ -142,14 +143,14 @@ function emitTokenChange(): void {
 
 /** Bearer-header auth is used instead of cookies: dev-ticket web mode, or always in the native shell. */
 export function isBearerAuthMode(): boolean {
-  return isNativeShell() || runtimeEnv.enableDevTicketObserver();
+  return isAppShell() || runtimeEnv.enableDevTicketObserver();
 }
 
 /** Hydrate the in-memory cache from the Keychain (native only). Safe to call repeatedly. */
 export function initTokenStore(): Promise<void> {
   if (!hydration) {
     hydration = (async () => {
-      if (!isNativeShell()) return;
+      if (!isAppShell()) return;
       // Shells with a shell-side refresher rotate tokens while the webview is
       // idle — mirror every rotation into the cache. The event carries the
       // full stored set, so an empty payload means the session is over.
@@ -218,11 +219,11 @@ function readLocalStorage(key: string): string | null {
  * that path recover via the 401 -> refresh -> retry flow (refresh awaits hydration).
  */
 export function getAccessTokenSync(): string | null {
-  return isNativeShell() ? cachedAccessToken : readLocalStorage(ACCESS_TOKEN_KEY);
+  return isAppShell() ? cachedAccessToken : readLocalStorage(ACCESS_TOKEN_KEY);
 }
 
 export function getRefreshTokenSync(): string | null {
-  return isNativeShell() ? cachedRefreshToken : readLocalStorage(REFRESH_TOKEN_KEY);
+  return isAppShell() ? cachedRefreshToken : readLocalStorage(REFRESH_TOKEN_KEY);
 }
 
 export async function getAccessToken(): Promise<string | null> {
@@ -238,7 +239,7 @@ export async function getRefreshToken(): Promise<string | null> {
 /** Store whichever tokens are present (rotation responses may carry one or both). */
 export async function setTokens(tokens: { accessToken?: string | null; refreshToken?: string | null }): Promise<void> {
   const { accessToken, refreshToken } = tokens;
-  if (isNativeShell()) {
+  if (isAppShell()) {
     await initTokenStore();
     if (accessToken) cachedAccessToken = accessToken;
     if (refreshToken) cachedRefreshToken = refreshToken;
@@ -291,7 +292,7 @@ export async function clearTokens(): Promise<void> {
   // Session end — drop blob object-URLs fetched under this identity's
   // bearer so a follow-on login as a different user can't be served them.
   clearAuthedImageCache();
-  if (isNativeShell()) {
+  if (isAppShell()) {
     try {
       await nativeAuthPlugin()?.clearTokens();
     } catch (error) {

@@ -14,7 +14,7 @@ import type { ReactNode } from 'react';
  *
  * Principle: show as much NON-query-dependent information as possible. Every
  * static label is rendered as its REAL text/element — the section titles
- * ("Devices Overview", …), the "… in Total" units, each info card's title
+ * ("Devices Overview", …), each info card's title
  * ("Online Devices", …) and the ticket status tags — and only the values that
  * actually come from the request (counts, percentages, the progress ring, and
  * the per-customer rows) are skeletons. Because the real elements are used, the
@@ -108,13 +108,14 @@ function CustomerInfoCardSkeleton() {
 
 /**
  * Overview section header in loading state. Faithfully mirrors the FROZEN
- * `TitleBlock` (its subtitle branch) so it doesn't jump when the real header
- * mounts — but shows the REAL static section title and the static "… in Total"
- * unit, skeletoning only the count. Callers pass the same className the real
- * `TitleBlock` gets (`[&_p]:hidden lg:[&_p]:block`), so the subtitle line appears
- * only from `lg` up, exactly as in the loaded header.
+ * `TitleBlock` so it doesn't jump when the real header mounts. The section title is
+ * static, so it renders as its REAL text and there is nothing here to skeleton.
+ *
+ * No subtitle line: the live sections dropped theirs ("N Devices in Total"), and a
+ * placeholder that keeps one would make the header taller while loading and collapse
+ * on handoff.
  */
-function OverviewHeaderSkeleton({ title, unit, className }: { title: string; unit: string; className?: string }) {
+function OverviewHeaderSkeleton({ title, className }: { title: string; className?: string }) {
   return (
     <div
       className={cn(
@@ -128,9 +129,6 @@ function OverviewHeaderSkeleton({ title, unit, className }: { title: string; uni
         <div className="flex w-full min-w-0 items-center gap-[var(--spacing-system-m)]">
           <div className="flex min-w-0 flex-1 flex-col justify-center">
             <h1 className="truncate text-h2 text-ods-text-primary">{title}</h1>
-            <p className="truncate text-h6 text-ods-text-secondary">
-              <InlineSkeleton className="h-2.5 w-8 md:h-3" /> {unit}
-            </p>
           </div>
         </div>
       </div>
@@ -142,11 +140,7 @@ function OverviewHeaderSkeleton({ title, unit, className }: { title: string; uni
 export function DevicesOverviewSkeleton() {
   return (
     <div>
-      <OverviewHeaderSkeleton
-        title="Devices Overview"
-        unit="Devices in Total"
-        className="[&_p]:hidden lg:[&_p]:block"
-      />
+      <OverviewHeaderSkeleton title="Devices Overview" />
       <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] lg:grid-cols-4">
         {DEVICE_CARDS.map(title => (
           <InfoCardSkeleton key={title} title={title} showProgress showPercentage />
@@ -160,11 +154,7 @@ export function DevicesOverviewSkeleton() {
 export function TicketsOverviewSkeleton() {
   return (
     <div>
-      <OverviewHeaderSkeleton
-        title="Tickets Overview"
-        unit="Tickets in Total"
-        className="[&_p]:hidden lg:[&_p]:block"
-      />
+      <OverviewHeaderSkeleton title="Tickets Overview" />
       <div className="grid grid-cols-1 gap-[var(--spacing-system-mf)] md:grid-cols-2 lg:grid-cols-4">
         <InfoCardSkeleton titleSlot={<TicketStatusTag status="AI_ASSISTANCE" />} />
         <InfoCardSkeleton
@@ -205,11 +195,7 @@ function CustomersRowsSkeleton() {
 export function CustomersOverviewSkeleton() {
   return (
     <div>
-      <OverviewHeaderSkeleton
-        title="Customers Overview"
-        unit="Customers in Total"
-        className="[&_p]:hidden lg:[&_p]:block"
-      />
+      <OverviewHeaderSkeleton title="Customers Overview" />
       <CustomersRowsSkeleton />
     </div>
   );

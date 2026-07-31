@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { InfoCell } from '@/app/components/shared/info-cell';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { featureFlags } from '@/lib/feature-flags';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
@@ -58,6 +58,7 @@ function EmployeeSummarySkeleton() {
 }
 
 export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
+  const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const router = useRouter();
   const { toast } = useToast();
   const handleBack = useSafeBack(routes.settings.employees);
@@ -178,7 +179,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
           </div>
         </div>
       )}
-      {featureFlags.timeTracker.enabled() && <EmployeeWorkTime userId={userId} />}
+      {timeTrackerEnabled && <EmployeeWorkTime userId={userId} />}
       <ConfirmDeleteUserModal
         open={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}

@@ -54,11 +54,7 @@ export function DevicesOverviewSection() {
 
   return (
     <div>
-      <TitleBlock
-        title="Devices Overview"
-        subtitle={`${devices.total.toLocaleString()} Devices in Total`}
-        className="[&_p]:hidden lg:[&_p]:block"
-      />
+      <TitleBlock title="Devices Overview" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-mf)]">
         {statusCards.map(card => (

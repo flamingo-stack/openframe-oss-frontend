@@ -2,8 +2,8 @@
 
 import { type UseQueryResult, useQueries } from '@tanstack/react-query';
 import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app/(app)/customers/hooks/use-customers';
-import type { Device, DevicesGraphQlNode } from '@/app/(app)/devices/types/device.types';
-import { createDeviceListItem } from '@/app/(app)/devices/utils/device-transform';
+import type { Device } from '@/app/(app)/devices/types/device.types';
+import { type MachineLike, machineToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { KnowledgeBaseRow } from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
 import type { Dialog, DialogStatus } from '@/app/(app)/tickets/types/dialog.types';
 import { postGraphQl } from './graphql';
@@ -60,7 +60,7 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               timezone
               registeredAt
               updatedAt
-              machineTags: tags { key description color values createdAt }
+              machineTags: tags { id key description color values createdAt }
               toolConnections { id machineId toolType agentToolId status metadata connectedAt lastSyncAt disconnectedAt }
             }
             ... on KnowledgeBaseItem {
@@ -174,7 +174,7 @@ async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetTy
         customers.push(mapOrganizationNode(unaliasFields(target) as unknown as OrganizationNode));
         break;
       case 'Machine':
-        devices.push(createDeviceListItem(unaliasFields(target) as unknown as DevicesGraphQlNode));
+        devices.push(machineToDevice(unaliasFields(target) as unknown as MachineLike));
         break;
       case 'KnowledgeBaseItem':
         articles.push(unaliasFields(target) as unknown as KnowledgeBaseRow);

@@ -1,7 +1,12 @@
 'use client';
 
 import { CheckCircleIcon, DotsLoaderIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Autocomplete, type AutocompleteOption, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Autocomplete,
+  type AutocompleteOption,
+  Button,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { DEFAULT_OS_PLATFORM, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
@@ -107,9 +112,11 @@ export function DeviceSetupStep({
           renderOption={option => {
             const org = orgs.find(o => o.organizationId === option.value);
             return (
-              <div className="flex w-full items-center gap-2">
+              <div className="flex w-full min-w-0 items-center gap-2">
                 <OrgAvatar imageUrl={org?.imageUrl} hash={org?.imageHash} name={org?.name ?? option.label} />
-                <span>{option.label}</span>
+                <div className="min-w-0 flex-1">
+                  <TruncateText className="text-current">{option.label}</TruncateText>
+                </div>
               </div>
             );
           }}

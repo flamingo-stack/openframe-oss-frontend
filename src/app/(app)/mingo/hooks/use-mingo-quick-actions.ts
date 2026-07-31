@@ -1,6 +1,6 @@
 'use client';
 
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useAdminAiConfig } from '../../settings/ai-settings/hooks/use-agent-ai-config';
 import { useHubDefaultQuickActions } from '../../settings/ai-settings/hooks/use-hub-default-quick-actions';
 import type { AiQuickAction } from '../../settings/ai-settings/types/ai-settings';
@@ -16,7 +16,7 @@ import type { AiQuickAction } from '../../settings/ai-settings/types/ai-settings
  * feature toggles together (and the queries stay idle when off).
  */
 export function useMingoQuickActions(): AiQuickAction[] {
-  const enabled = featureFlags.mingoAiChatSettings.enabled();
+  const enabled = useFeatureFlag('mingo-ai-chat-settings');
   const { config } = useAdminAiConfig({ enabled });
   const isDefault = config?.quickActionsIsDefault ?? true;
   const hubDefaults = useHubDefaultQuickActions('mingo', { enabled: enabled && isDefault });

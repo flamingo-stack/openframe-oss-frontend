@@ -7,53 +7,27 @@ export interface FeatureFlag {
   enabled: boolean;
 }
 
-const FLAGS_CACHE_KEY = 'openframe:feature-flags-v1';
-
 /**
- * Last server-resolved flag values, persisted for ONE purpose: loading
- * skeletons that must guess a flag-dependent layout before the flags arrive.
+ * Server-loaded feature flags.
  *
- * `FeatureFlagsGate` blocks the app on the flags query, and the route skeleton
- * is what it renders while blocking — so any flag read from a skeleton happens
- * with `isLoaded === false` and falls back to the env default. When the server
- * disagrees with that default the skeleton picks the wrong layout and visibly
- * swaps on handoff. Replaying the previous answer fixes that from the second
- * visit on; a cold profile still falls back to the env default.
+ * **Deliberately not cached.** Values come from `feFeatureFlags` on every load and
+ * from nowhere else — no `localStorage`, no cookie. A replayed previous answer
+ * would remove the first-render guess, but it would also mean a flag flipped
+ * server-side keeps its old value until the next reload; in the native shell,
+ * whose session outlives many navigations and rarely reloads, "until the next
+ * reload" can mean days. Stale behaviour is a worse failure than a load state.
  *
- * Deliberately NOT wired into `getFlagValue`: real behavior keeps reading the
- * store (or the env default) so a stale entry can never gate a real feature.
+ * The consequence is that `isLoaded === false` is a REAL state that consumers
+ * must handle, not a transient to paper over: before the answer there is no flag
+ * value, and rendering the env default in its place is a guess that is wrong
+ * whenever the server disagrees — visibly (chrome appears/disappears) or
+ * functionally (a flag-gated route redirects as if it were disabled). See
+ * `useFeatureFlag` / `useFeatureFlagsReady` for how consumers are expected to
+ * express "not answered yet".
  */
-export function readCachedFeatureFlags(): Record<string, boolean> | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(FLAGS_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-    // localStorage is user-writable: keep only real booleans so callers that
-    // declare a `boolean` return type aren't handed arbitrary JSON.
-    return Object.fromEntries(Object.entries(parsed).filter(([, v]) => typeof v === 'boolean')) as Record<
-      string,
-      boolean
-    >;
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedFeatureFlags(flags: Record<string, boolean>): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const serialized = JSON.stringify(flags);
-    if (window.localStorage.getItem(FLAGS_CACHE_KEY) === serialized) return;
-    window.localStorage.setItem(FLAGS_CACHE_KEY, serialized);
-  } catch {
-    // Private mode / quota — skeletons fall back to the env defaults.
-  }
-}
-
 export interface FeatureFlagsState {
   flags: Record<string, boolean>;
+  /** The server has answered (or terminally failed). Until then there is no value. */
   isLoaded: boolean;
   setFlags: (flags: FeatureFlag[]) => void;
   setLoaded: () => void;
@@ -62,7 +36,7 @@ export interface FeatureFlagsState {
 
 export const useFeatureFlagsStore = create<FeatureFlagsState>()(
   devtools(
-    immer(set => ({
+    immer<FeatureFlagsState>(set => ({
       flags: {},
       isLoaded: false,
 
@@ -75,9 +49,6 @@ export const useFeatureFlagsStore = create<FeatureFlagsState>()(
           state.flags = next;
           state.isLoaded = true;
         });
-        // Outside the recipe: immer producers must be side-effect free, and
-        // `state.flags` inside one is a draft proxy, not the finalized map.
-        writeCachedFeatureFlags(next);
       },
 
       setLoaded: () =>

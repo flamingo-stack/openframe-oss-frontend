@@ -20,6 +20,7 @@ import {
   type TabItem,
   TabNavigation,
   Tag,
+  TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -427,16 +428,11 @@ export function DeviceSelector({
                   <MonitorIcon className="w-4 h-4 text-ods-text-secondary" />
                 )}
               </div>
-              <div className="flex flex-col truncate">
-                <span className="text-h4 text-ods-text-primary truncate" title={device.displayName || device.hostname}>
-                  {device.displayName || device.hostname}
-                </span>
-                <span
-                  className="text-h6 text-ods-text-secondary truncate"
-                  title={`Last Online: ${lastSeen ? formatRelativeTime(lastSeen) : 'unknown'}`}
-                >
-                  Last Online: {lastSeen ? formatRelativeTime(lastSeen) : 'unknown'}
-                </span>
+              <div className="flex min-w-0 flex-col">
+                <TruncateText>{device.displayName || device.hostname}</TruncateText>
+                <TruncateText variant="h6" tone="secondary">
+                  {`Last Online: ${lastSeen ? formatRelativeTime(lastSeen) : 'unknown'}`}
+                </TruncateText>
               </div>
             </div>
           );
@@ -458,13 +454,11 @@ export function DeviceSelector({
                 className="size-10 md:size-10 shrink-0"
               />
               <div className="flex min-w-0 flex-col justify-center">
-                <span className="text-h4 text-ods-text-primary truncate" title={device.organization || ''}>
-                  {device.organization || ''}
-                </span>
+                <TruncateText>{device.organization || ''}</TruncateText>
                 {device.organizationEmail && (
-                  <span className="text-h6 text-ods-text-secondary truncate" title={device.organizationEmail}>
+                  <TruncateText variant="h6" tone="secondary">
                     {device.organizationEmail}
-                  </span>
+                  </TruncateText>
                 )}
               </div>
             </div>
@@ -474,7 +468,7 @@ export function DeviceSelector({
         meta: {
           width: 'w-[320px]',
           hideAt: 'lg',
-          filter: orgFilterOptions.length > 0 ? { options: orgFilterOptions, placement: 'bottom-end' } : undefined,
+          filter: { options: orgFilterOptions, placement: 'bottom-end' },
         },
       },
       {
@@ -501,7 +495,7 @@ export function DeviceSelector({
         enableSorting: false,
         meta: {
           width: 'w-[160px]',
-          filter: statusFilterOptions.length > 0 ? { options: statusFilterOptions } : undefined,
+          filter: { options: statusFilterOptions },
         },
       },
       {
@@ -756,13 +750,12 @@ export function DeviceSelector({
               onTagRemove={handleTagRemove}
               onClearAll={handleClearAll}
               onSubmit={handleTagSubmit}
-              isMdUp={isMdUp}
               onOpenFilterModal={openTagsModal}
               isFilterModalOpen={tagsModalOpen}
               onCloseFilterModal={closeTagsModal}
               filterGroups={filterGroups}
               onFilterChange={handleModalFilterChange}
-              currentFilters={!isMdUp ? tableFilters : undefined}
+              currentFilters={isMdUp === false ? tableFilters : undefined}
               tagFilterKeys={tagFilterKeys}
               selectedTags={selectedTags}
               onTagsChange={handleModalTagsChange}

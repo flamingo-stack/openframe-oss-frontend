@@ -79,7 +79,10 @@ export function getKnowledgeBaseColumns(mode: KnowledgeBaseTableMode): ColumnDef
             </div>
             <div className="flex flex-col min-w-0 flex-1">
               <div className="flex items-center gap-[var(--spacing-system-xsf)] min-w-0">
-                <TruncateText>{item.name}</TruncateText>
+                {/* min-w-0 wrapper so the FloatingTooltip trigger div can shrink and the name ellipsizes. */}
+                <div className="min-w-0">
+                  <TruncateText>{item.name}</TruncateText>
+                </div>
                 {tagStatus && <StatusTag variant={STATUS_VARIANT[tagStatus]} label={tagStatus} className="shrink-0" />}
               </div>
               {item.type === 'ARTICLE' && item.summary && (

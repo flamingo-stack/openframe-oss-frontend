@@ -88,7 +88,6 @@ Optional variables:
 |----------|-------------|---------|
 | `NEXT_PUBLIC_GTM_CONTAINER_ID` | Google Tag Manager ID | _(none)_ |
 | `NEXT_PUBLIC_AUTH_CHECK_INTERVAL` | Auth token check interval (ms) | `300000` |
-| `NEXT_PUBLIC_FF_NEW_ONBOARDING` | Enable new onboarding flow | `true` in dev |
 
 Create a `.env.local` file in the project root (this file is gitignored):
 

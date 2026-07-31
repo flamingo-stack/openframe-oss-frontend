@@ -2,6 +2,7 @@
 
 import type { ApprovalLevel, PermissionCategory } from '@flamingo-stack/openframe-frontend-core';
 import { PolicyConfigurationPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 
 interface GuardrailsPolicyGroupsProps {
   groups: Map<string, PermissionCategory[]>;
@@ -20,10 +21,12 @@ export function GuardrailsPolicyGroups({
   onCategoryPermissionChange = noop,
 }: GuardrailsPolicyGroupsProps) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+    <div className="flex min-w-0 flex-col gap-[var(--spacing-system-l)]">
       {Array.from(groups.entries()).map(([policyGroupName, categories]) => (
-        <div key={policyGroupName} className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <p className="text-h5 text-ods-text-secondary truncate">{policyGroupName}</p>
+        <div key={policyGroupName} className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
+          <TruncateText variant="h5" tone="secondary">
+            {policyGroupName}
+          </TruncateText>
           <PolicyConfigurationPanel
             categories={categories}
             editMode={editMode}

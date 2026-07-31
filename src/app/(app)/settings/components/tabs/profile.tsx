@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core';
-import { PageError, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageError, SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { AlertCircle, Pencil } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -121,9 +121,9 @@ export function ProfileTab() {
         {/* Name and Email */}
         <div className="flex-1 min-w-0 overflow-hidden">
           <div className="flex items-center gap-2">
-            <span className="text-h4 text-ods-text-primary truncate" title={displayName}>
-              {displayName}
-            </span>
+            <div className="min-w-0">
+              <TruncateText>{displayName}</TruncateText>
+            </div>
             {/* Role badges */}
             {user.roles?.map(role => (
               <span
@@ -135,9 +135,11 @@ export function ProfileTab() {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <p className="text-h6 text-ods-text-secondary truncate" title={user.email}>
-              {user.email}
-            </p>
+            <div className="min-w-0">
+              <TruncateText variant="h6" tone="secondary">
+                {user.email}
+              </TruncateText>
+            </div>
             {user.emailVerified === false && (
               <button
                 onClick={() => setIsVerificationModalOpen(true)}

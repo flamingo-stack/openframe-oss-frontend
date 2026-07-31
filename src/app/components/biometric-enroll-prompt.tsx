@@ -13,7 +13,7 @@ import {
   isBiometricLoginEnabled,
   setBiometricLoginChoice,
 } from '@/lib/native-biometrics';
-import { isNativeShell } from '@/lib/native-shell';
+import { isMobileShell } from '@/lib/platform';
 
 /**
  * One-time post-login offer to turn on biometric login. Mounted with the
@@ -35,7 +35,7 @@ export function BiometricEnrollPrompt() {
   const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
-    if (!isNativeShell() || getBiometricLoginChoice() === 'declined') return;
+    if (!isMobileShell() || getBiometricLoginChoice() === 'declined') return;
     let active = true;
     void (async () => {
       const [{ available, biometryType }, enabled] = await Promise.all([

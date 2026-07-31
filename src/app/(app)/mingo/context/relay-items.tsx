@@ -21,6 +21,8 @@ import type { relayItemsOrgs_query$key } from '@/__generated__/relayItemsOrgs_qu
 import type { relayItemsOrgsListQuery } from '@/__generated__/relayItemsOrgsListQuery.graphql';
 import type { relayItemsScripts_query$key } from '@/__generated__/relayItemsScripts_query.graphql';
 import type { relayItemsScriptsListQuery } from '@/__generated__/relayItemsScriptsListQuery.graphql';
+import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
+import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared';
@@ -28,16 +30,25 @@ import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared'
 // ───────────────────────────── Device ───────────────────────────────────────
 
 // Mingo device context is restricted to live/relevant devices only: ONLINE
-// (rendered as the green "active" state) and OFFLINE. Pending (the backend
-// `ACTIVE`/`PENDING` enum), archived, deleted, decommissioned, etc. are
-// excluded so Mingo never lists or suggests actions on irrelevant devices.
-// Mirrors `DEFAULT_DASHBOARD_STATUSES` ([ONLINE, OFFLINE]); the values are
-// inlined because the Relay compiler needs a static document.
+// (rendered as the green "active" state) and OFFLINE. Pending (still enrolling),
+// archived, deleted, decommissioned, etc. are excluded so Mingo never lists or
+// suggests actions on irrelevant devices.
+//
+// The filter is a VARIABLE, not an inline literal, so the status rule comes from
+// `DEFAULT_DEVICES_LIST_STATUSES` — the same constant the Devices page and every
+// react-query device read use — instead of drifting in this document.
+const MINGO_DEVICE_FILTER = toRelayDeviceFilter({ statuses: [...DEFAULT_DEVICES_LIST_STATUSES] });
+
 const DEVICES_FRAGMENT = graphql`
   fragment relayItemsDevices_query on Query
   @refetchable(queryName: "relayItemsDevicesPaginationQuery")
-  @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 10 }, after: { type: "String" }) {
-    devices(filter: { statuses: [ONLINE, OFFLINE] }, search: $search, first: $first, after: $after)
+  @argumentDefinitions(
+    filter: { type: "DeviceFilterInput" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
+    devices(filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "relayItemsDevices_devices") {
       edges { node { id machineId hostname displayName status } }
     }
@@ -45,13 +56,14 @@ const DEVICES_FRAGMENT = graphql`
 `;
 
 const DEVICES_LIST_QUERY = graphql`
-  query relayItemsDevicesListQuery($search: String, $first: Int) {
-    ...relayItemsDevices_query @arguments(search: $search, first: $first)
+  query relayItemsDevicesListQuery($filter: DeviceFilterInput, $search: String, $first: Int) {
+    ...relayItemsDevices_query @arguments(filter: $filter, search: $search, first: $first)
   }
 `;
 
 export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
   const root = useLazyLoadQuery<relayItemsDevicesListQuery>(DEVICES_LIST_QUERY, {
+    filter: MINGO_DEVICE_FILTER,
     search: query || null,
     first: MINGO_CONTEXT_PAGE_SIZE,
   });

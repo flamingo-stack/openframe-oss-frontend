@@ -7,6 +7,7 @@ import {
   Tag,
   TestRunResults,
   TimingStat,
+  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { FlaskVialIcon, XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -66,9 +67,9 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
       const status = statusByHostId.get(option.value);
       return (
         <>
-          <span className="flex-1 truncate text-h4 text-ods-text-primary" title={option.label}>
-            {option.label}
-          </span>
+          <div className="flex-1 min-w-0">
+            <TruncateText>{option.label}</TruncateText>
+          </div>
           {status && <Tag label={status.label} variant={status.variant} />}
         </>
       );

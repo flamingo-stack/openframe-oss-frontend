@@ -1,5 +1,11 @@
 /**
- * GraphQL queries for devices
+ * The raw-POST device documents — the reads that are NOT yet on Relay.
+ *
+ * The device list and the filter facets are Relay documents under
+ * `src/graphql/devices/`. What is left here is the detail-page node, the counter
+ * facets, and an organization probe the Devices page gates its "Add Device"
+ * action on. Do not inline a `devices`/`deviceFilters` selection anywhere else;
+ * extend a document here or add a Relay one.
  */
 
 /**
@@ -19,104 +25,23 @@ export const HAS_ORGANIZATIONS_QUERY = `
   }
 `;
 
-export const GET_DEVICE_FILTERS_QUERY = `
-  query GetDeviceFilters($filter: DeviceFilterInput) {
+/**
+ * Facet counts only — status + per-organization breakdowns and the total.
+ *
+ * The counter surfaces (dashboard stat cards, customer device counts, the
+ * customers overview) need nothing but the numbers. The full facet set the
+ * filter UI needs is a Relay document — `deviceFiltersRelayQuery`.
+ */
+export const GET_DEVICE_COUNTS_QUERY = `
+  query GetDeviceCounts($filter: DeviceFilterInput) {
     deviceFilters(filter: $filter) {
       statuses {
         value
         count
       }
-      deviceTypes {
-        value
-        count
-      }
-      osTypes {
-        value
-        count
-      }
       organizationIds {
         value
-        label
         count
-      }
-      tagKeys {
-        key
-        value
-        count
-      }
-      filteredCount
-    }
-  }
-`;
-
-export const GET_DEVICES_QUERY = `
-  query GetDevices($filter: DeviceFilterInput, $first: Int, $after: String, $search: String, $sort: SortInput) {
-    devices(filter: $filter, first: $first, after: $after, search: $search, sort: $sort) {
-      edges {
-        node {
-          id
-          machineId
-          hostname
-          displayName
-          ip
-          macAddress
-          osUuid
-          agentVersion
-          status
-          lastSeen
-          organization {
-            id
-            organizationId
-            name
-            # The CUSTOMER column's second line. The organization is already
-            # joined here for name + logo, so this rides along on a record we
-            # are loading anyway rather than adding a fan-out of its own.
-            contactInformation {
-              contacts {
-                email
-              }
-            }
-            image {
-              imageUrl
-              hash
-            }
-          }
-          serialNumber
-          manufacturer
-          model
-          type
-          osType
-          osVersion
-          osBuild
-          timezone
-          registeredAt
-          updatedAt
-          toolConnections {
-            id
-            machineId
-            toolType
-            agentToolId
-            status
-            metadata
-            connectedAt
-            lastSyncAt
-            disconnectedAt
-          }
-          tags {
-            key
-            description
-            color
-            values
-            createdAt
-          }
-        }
-        cursor
-      }
-      pageInfo {
-        hasNextPage
-        hasPreviousPage
-        startCursor
-        endCursor
       }
       filteredCount
     }
@@ -156,6 +81,7 @@ export const GET_DEVICE_QUERY = `
       registeredAt
       updatedAt
       tags {
+        id
         key
         description
         color
@@ -180,22 +106,6 @@ export const GET_DEVICE_QUERY = `
         version
         createdAt
         updatedAt
-      }
-    }
-  }
-`;
-
-export const GET_DEVICES_OVERVIEW_QUERY = `
-  query GetDevicesOverview($filter: DeviceFilterInput, $first: Int, $after: String, $search: String) {
-    devices(filter: $filter, first: $first, after: $after, search: $search) {
-      edges {
-        node {
-          status
-        }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
       }
     }
   }

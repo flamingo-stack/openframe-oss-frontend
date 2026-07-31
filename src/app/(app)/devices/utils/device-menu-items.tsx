@@ -52,8 +52,13 @@ export interface DeviceMenuItems {
   deviceLogs: ActionsMenuItem;
 }
 
+// No size and no color on the glyph, both on purpose. The trailing half of a split
+// button and a menu row's secondary cell each style their glyph with a `[&_svg]:h-*`
+// descendant rule, so a size here is dead weight that only looks authoritative. Color
+// is inherited: per design the trailing target is primary (white), unlike the muted
+// leading icons — an explicit `text-ods-text-secondary` here was what greyed it out.
 const newTabIconAction = (href: string, label: string, disabled?: boolean) => ({
-  icon: <ArrowRightUpIcon className="w-5 h-5 text-ods-text-secondary" />,
+  icon: <ArrowRightUpIcon />,
   'aria-label': `Open ${label} in new tab`,
   href,
   openInNewTab: true,
@@ -70,7 +75,13 @@ function iconClass(ctx: DeviceMenuItemContext): string {
 
 const WINDOWS_SHELLS = [
   { id: 'cmd', label: 'CMD', icon: <TerminalIcon className="w-6 h-6 text-ods-text-secondary" /> },
-  { id: 'powershell', label: 'PowerShell', icon: <PowershellLogoGreyIcon className="w-6 h-6" /> },
+  // The logo fills with `currentColor`, so with no text color it inherited the row's
+  // primary and read as a solid white badge next to CMD's muted outline glyph.
+  {
+    id: 'powershell',
+    label: 'PowerShell',
+    icon: <PowershellLogoGreyIcon className="w-6 h-6 text-ods-text-secondary" />,
+  },
 ] as const;
 
 function buildRemoteShellItem(ctx: DeviceMenuItemContext): ActionsMenuItem {

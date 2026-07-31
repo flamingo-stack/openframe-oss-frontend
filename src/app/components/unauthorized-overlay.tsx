@@ -2,7 +2,7 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 
@@ -15,7 +15,7 @@ export function UnauthorizedOverlay({ onRetry }: UnauthorizedOverlayProps) {
   const loginUrl = runtimeEnv.authLoginUrl();
 
   const handleLogin = () => {
-    if (isNativeShell()) {
+    if (isAppShell()) {
       // Auth pages are enabled in the native shell — full sign-in flow
       // (email → tenant discovery → provider selection → system-browser OAuth).
       // replace, not push: don't stack the auth screens on top of the app route,

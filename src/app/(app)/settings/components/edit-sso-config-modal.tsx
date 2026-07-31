@@ -2,7 +2,7 @@
 
 import { AllowedDomainsInput, Button, CheckboxWithDescription, Label } from '@flamingo-stack/openframe-frontend-core';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input, ModalV2Title } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, ModalV2Title, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { validateEmailDomain } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Eye, EyeOff } from 'lucide-react';
@@ -209,9 +209,9 @@ export function SsoConfigModal({
           <div className="bg-ods-card border border-ods-border rounded-lg p-4 space-y-3">
             <Label>Authorized redirect URL for your SSO provider settings:</Label>
             <div className="bg-ods-bg border border-ods-border rounded-lg p-3 flex items-center gap-3">
-              <code className="flex-1 text-code text-ods-text-primary truncate" title={redirectUrl}>
-                {redirectUrl}
-              </code>
+              <div className="flex-1 min-w-0">
+                <TruncateText className="text-code">{redirectUrl}</TruncateText>
+              </div>
               <Button
                 variant="transparent"
                 size="small-legacy"

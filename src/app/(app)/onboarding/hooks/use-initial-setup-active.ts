@@ -1,6 +1,5 @@
 'use client';
 
-import { featureFlags } from '@/lib/feature-flags';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 /**
@@ -11,8 +10,8 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
  * overlay without the card (or vice-versa) is the inconsistency this predicate exists to
  * prevent — before it, each surface derived its own condition and they drifted.
  *
- * Active ⟺ the `new-onboarding` flag is on AND onboarding progress has loaded AND we
- * actually have a tenant progress record AND it isn't completed yet.
+ * Active ⟺ onboarding progress has loaded AND we actually have a tenant progress
+ * record AND it isn't completed yet.
  *
  * The `!!tenant` guard is the crucial part: `refreshOnboardingProgress` marks the store
  * loaded even on a failed/empty fetch (tenant stays `null`). Treating a null tenant as
@@ -28,5 +27,5 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 export function useInitialSetupActive(): boolean {
   const isLoaded = useOnboardingStore(state => state.isLoaded);
   const tenant = useOnboardingStore(state => state.tenant);
-  return featureFlags.newOnboarding.enabled() && isLoaded && !!tenant && !tenant.completed;
+  return isLoaded && !!tenant && !tenant.completed;
 }

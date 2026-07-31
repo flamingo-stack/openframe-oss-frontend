@@ -1,7 +1,7 @@
 import { clearMingoContext } from '@/app/(app)/mingo/stores/mingo-context-store';
 import { authApiClient } from '@/lib/auth-api-client';
 import { unregisterNativePush } from '@/lib/native-push';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell, isMobileShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { clearTokens, isBearerAuthMode } from '@/lib/token-store';
@@ -17,8 +17,9 @@ export async function performLogout() {
 
   // Deregister this device's push token while still authenticated — the
   // unregister call needs the bearer, so it must run before the session is torn
-  // down. Best-effort. (useAuth.logout does the same on its path.)
-  if (isNativeShell()) {
+  // down. Mobile-only — no other shell holds an FCM registration. Best-effort.
+  // (useAuth.logout does the same on its path.)
+  if (isMobileShell()) {
     try {
       await unregisterNativePush();
     } catch {
@@ -41,7 +42,7 @@ export async function performLogout() {
     await clearTokens();
   }
 
-  if (isNativeShell()) {
+  if (isAppShell()) {
     // An external navigation would bounce to the system browser. Reload the
     // SPA root instead — with tokens cleared it boots to the sign-in screen.
     // replace, not assign: drop the just-authed pages from history so back after

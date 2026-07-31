@@ -21,8 +21,10 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ComponentType, useMemo, useState } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device, Software } from '../../types/device.types';
+import { SOFTWARE_COLUMNS } from './device-tab-columns';
 import { TabEmptyState } from './tab-empty-state';
 
 interface SoftwareTabProps {
@@ -70,42 +72,40 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
     () => [
       {
         accessorKey: 'name',
-        header: 'SOFTWARE',
+        header: SOFTWARE_COLUMNS.name.header,
         cell: ({ row }: { row: Row<Software> }) => (
           <div className="flex flex-col justify-center min-w-0">
-            <span className="text-h4 text-ods-text-primary truncate" title={row.original.name}>
-              {row.original.name}
-            </span>
+            <TruncateText>{row.original.name}</TruncateText>
             {row.original.version && (
-              <span className="text-h6 text-ods-text-secondary truncate" title={row.original.version}>
+              <TruncateText variant="h6" tone="secondary">
                 {row.original.version}
-              </span>
+              </TruncateText>
             )}
           </div>
         ),
         enableSorting: true,
-        meta: { width: 'flex-1 min-w-0' },
+        meta: liveColumnMeta(SOFTWARE_COLUMNS.name),
       },
       {
         accessorKey: 'source',
-        header: 'SOURCE',
+        header: SOFTWARE_COLUMNS.source.header,
         cell: ({ row }: { row: Row<Software> }) => {
           const { Icon, label } = getSourceIcon(row.original.source);
           return (
-            <span className="inline-flex items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary min-w-0">
+            <div className="inline-flex items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary min-w-0">
               <Icon className="w-4 h-4 md:w-6 md:h-6 shrink-0" />
-              <span className="text-h4 truncate" title={label}>
-                {label}
-              </span>
-            </span>
+              <div className="min-w-0">
+                <TruncateText tone="secondary">{label}</TruncateText>
+              </div>
+            </div>
           );
         },
         enableSorting: true,
-        meta: { width: 'w-[180px] shrink-0', hideAt: 'lg' },
+        meta: liveColumnMeta(SOFTWARE_COLUMNS.source),
       },
       {
-        id: 'vulnerabilities',
-        header: 'VULNERABILITIES',
+        id: SOFTWARE_COLUMNS.vulnerabilities.id,
+        header: SOFTWARE_COLUMNS.vulnerabilities.header,
         accessorFn: (row: Software) => row.vulnerabilities.length,
         cell: ({ row }: { row: Row<Software> }) => {
           const vulnCount = row.original.vulnerabilities.length;
@@ -123,11 +123,11 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
           if (a === b) return 0;
           return a > b ? 1 : -1;
         },
-        meta: { width: 'w-[160px] shrink-0' },
+        meta: liveColumnMeta(SOFTWARE_COLUMNS.vulnerabilities),
       },
       {
-        id: 'file_path',
-        header: 'FILE PATH',
+        id: SOFTWARE_COLUMNS.filePath.id,
+        header: SOFTWARE_COLUMNS.filePath.header,
         accessorFn: (row: Software) => row.installed_paths?.[0] ?? '',
         cell: ({ row }: { row: Row<Software> }) => {
           const path = row.original.installed_paths?.[0];
@@ -138,16 +138,16 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
           );
         },
         enableSorting: false,
-        meta: { width: 'w-[220px] shrink-0', hideAt: 'lg' },
+        meta: liveColumnMeta(SOFTWARE_COLUMNS.filePath),
       },
       {
         accessorKey: 'last_opened_at',
-        header: 'LAST USED',
+        header: SOFTWARE_COLUMNS.lastUsed.header,
         cell: ({ row }: { row: Row<Software> }) => (
           <div className="text-h6 text-ods-text-primary">{formatLastUsed(row.original.last_opened_at)}</div>
         ),
         enableSorting: true,
-        meta: { width: 'w-[140px] shrink-0', hideAt: 'md' },
+        meta: liveColumnMeta(SOFTWARE_COLUMNS.lastUsed),
       },
     ],
     [],

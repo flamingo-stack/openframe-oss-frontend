@@ -5,6 +5,7 @@ import { useCallback } from 'react';
 import { commitLocalUpdate, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import type { useTestClockAdvanceMutation as UseTestClockAdvanceMutationType } from '@/__generated__/useTestClockAdvanceMutation.graphql';
 import type { useTestClockResetMutation as UseTestClockResetMutationType } from '@/__generated__/useTestClockResetMutation.graphql';
+import { extractGraphqlErrorMessage } from './extract-graphql-error-message';
 
 /**
  * Stripe test-clock mutations (dev/stage only — gated by the `test-clock` feature flag).
@@ -27,17 +28,6 @@ const resetTestClockMutation = graphql`
     resetTestClock
   }
 `;
-
-/**
- * Relay wraps GraphQL errors as "No data returned for operation `x`, got error(s): <real message>".
- * The backend's own message is the only useful part in a toast — the wrapper eats the width and
- * pushes the actual reason past the truncation point.
- */
-function extractGraphqlErrorMessage(err: unknown, fallback: string): string {
-  if (!(err instanceof Error)) return fallback;
-  const match = /got error\(s\):\s*([\s\S]+)/.exec(err.message);
-  return (match?.[1] ?? err.message).trim() || fallback;
-}
 
 export function useAdvanceTestClock() {
   const { toast } = useToast();

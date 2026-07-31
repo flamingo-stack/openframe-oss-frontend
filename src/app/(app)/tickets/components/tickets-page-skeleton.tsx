@@ -19,7 +19,8 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { TableSkeleton, type TableSkeletonColumn, TagFilterBarSkeleton } from '@/app/components/shared';
-import { buildPlaceholderBoardColumns } from './board-columns-cache';
+import { usePlaceholderBoardColumns } from './board-columns-cache';
+import { ticketTableColumns } from './ticket-table-layout';
 
 /**
  * Route-level skeleton for `/tickets`, mirroring `TicketsView`'s two modes.
@@ -68,13 +69,8 @@ const MENU_ACTIONS: ActionsMenuGroup[] = [
 ];
 
 // Mirrors the column meta in `ticket-table-columns.tsx`.
-const COLUMNS: readonly TableSkeletonColumn[] = [
-  { id: 'title', header: 'TITLE', width: 'w-[60%] md:flex-1 min-w-0' },
-  { id: 'source', header: 'SOURCE', width: '', hideAt: 'md' },
-  { id: 'assignee', header: 'ASSIGNEE', width: '', hideAt: 'lg' },
-  { id: 'status', header: 'STATUS', width: '' },
-  { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
-];
+// Same declaration `getTicketTableColumns` renders from — see `ticket-table-layout`.
+const COLUMNS: readonly TableSkeletonColumn[] = ticketTableColumns();
 
 const EMPTY_OPTIONS: never[] = [];
 const EMPTY_VALUE: never[] = [];
@@ -86,7 +82,7 @@ const mobileFilterButton = (
     className="md:hidden"
     onClick={noop}
     aria-label="Open filters"
-    leftIcon={<Filter02Icon />}
+    leftIcon={<Filter02Icon className="text-ods-text-primary" />}
   />
 );
 
@@ -98,7 +94,7 @@ export function TicketsPageSkeleton({ viewMode }: { viewMode?: string }) {
   // while a stray `?viewMode=grid` is the table on both sides.
   const isTable = !!viewMode && viewMode !== 'board';
   // Read once, on mount: the lane set must not shift while the skeleton is up.
-  const [boardColumns] = useState(buildPlaceholderBoardColumns);
+  const boardColumns = usePlaceholderBoardColumns();
 
   const selector = (
     <TabSelector

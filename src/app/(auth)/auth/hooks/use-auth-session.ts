@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { isSaasSharedMode } from '@/lib/app-mode';
 import { forceLogout } from '@/lib/force-logout';
-import { isNativeShell } from '@/lib/native-shell';
+import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { getBiometricLockState, hasTokensSync, initTokenStore } from '@/lib/token-store';
@@ -45,15 +46,18 @@ export function useAuthSession() {
   const query = useQuery<MeResponse | null>({
     queryKey: authSessionQueryKey,
     queryFn: async () => {
+      if (isSaasSharedMode()) {
+        return null;
+      }
       // Host-less native-shell boot (dynamic tenant, before the first login):
       // there is no gateway to ask yet — an API fetch would hit the bundle's
       // own asset origin and never yield a 401 (Tauri's SPA fallback even
       // answers 200 with HTML). Resolve as signed-out so RouteGuard lands on
       // /auth for tenant discovery instead of an endless shell skeleton.
-      if (isNativeShell() && !runtimeEnv.tenantHostUrl()) {
+      if (isAppShell() && !runtimeEnv.tenantHostUrl()) {
         return null;
       }
-      if (isNativeShell()) {
+      if (isAppShell()) {
         // Cold start: wait for the Keychain read (biometric-gated when enabled)
         // so the first /me carries the bearer instead of 401ing into a refresh.
         await initTokenStore();

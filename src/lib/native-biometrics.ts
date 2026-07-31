@@ -5,11 +5,14 @@
  * one the token store hydrates from — prompts, and can reject with
  * `BIOMETRIC_CANCELED` / `BIOMETRIC_INVALIDATED`.
  *
- * Every wrapper here degrades to a disabled/unavailable answer when not in the
- * native shell or when the (optional) plugin methods are absent, so desktop
- * (Tauri) and web are unaffected — they never see a biometric affordance.
+ * Every wrapper here degrades to a disabled/unavailable answer outside the
+ * MOBILE shell, and inside it when the (optional) plugin methods are absent. So
+ * web and desktop (Tauri) never see a biometric affordance — by an explicit
+ * `isMobileShell()` gate, not merely because the desktop bridge omits the
+ * methods.
  */
-import { type BiometryType, isNativeShell, nativeAuthPlugin } from './native-shell';
+import { type BiometryType, nativeAuthPlugin } from './native-shell';
+import { isMobileShell } from './platform';
 
 /** Reject codes the native contract may surface; anything else is a generic failure. */
 export const BIOMETRIC_ERROR = {
@@ -104,7 +107,7 @@ export function biometryLabel(biometryType: BiometryType): string {
 
 /** True only inside a native shell whose plugin exposes the biometric methods. */
 export function biometricsSupported(): boolean {
-  return isNativeShell() && !!nativeAuthPlugin()?.isBiometricAvailable;
+  return isMobileShell() && !!nativeAuthPlugin()?.isBiometricAvailable;
 }
 
 /**

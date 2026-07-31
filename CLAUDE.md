@@ -73,7 +73,7 @@ Feature flags are **not** env vars — they are server-loaded via GraphQL (see F
 ### Payment UI Visibility (native app builds)
 
 `src/lib/billing-visibility.ts` is the single switch for every payment surface, and it is exactly
-`isNativeShell()` — the native builds (Capacitor mobile, Tauri desktop) hide payments, the web app
+`isAppShell()` — both native builds (Capacitor mobile, Tauri desktop) hide payments, the web app
 keeps them. Billing runs through Stripe on the web; App Store Guideline 3.1.1 forbids showing plans,
 prices, invoices, or any CTA leading to a non-IAP purchase, and Google Play treats an in-app Stripe
 Checkout for a digital subscription as bypassing Play Billing.
@@ -81,6 +81,21 @@ Checkout for a digital subscription as bypassing Play Billing.
 No env var backs this: the shell injects `window.Capacitor` / the Tauri globals itself, so a native
 build can't forget to declare what it is, and the web bundle can't be misconfigured into hiding its
 billing.
+
+### Which shell am I in? (`src/lib/platform.ts`)
+
+The same export runs in three places, so ask the axis that owns the feature — never "is this native?":
+
+- `isAppShell()` — either shell. Shell-custodied tokens, no Next server behind the origin (so
+  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above.
+- `isMobileShell()` — the phone. FCM push, biometrics, status bar/splash/safe-area insets, Android
+  back, custom-scheme OAuth callback.
+- `isDesktopShell()` — Tauri. Shell-side token rotation + OS-notification click event transports.
+
+`platform.ts` is the only module that reads the injected globals, and it probes **Tauri first**: the
+desktop shell injects a Capacitor-shaped bridge, so a Capacitor check alone reports every desktop
+install as mobile. `native-shell.ts` owns typed bridge access and gates each plugin on its own axis.
+CSS scopes on `html[data-shell="mobile"|"desktop"]`.
 
 - `isBillingHidden()` — payments not allowed on this build
 - `isPaymentUiEnabled()` — `billings` server flag **and** payments allowed on this build
@@ -159,7 +174,7 @@ Helper functions: `isOssTenantMode()`, `isSaasTenantMode()`, `isSaasSharedMode()
 
 ### Feature Flags
 
-Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `help-center`, `notifications`, `time-tracker`, `scripts-v2`, `mingo-sidebar`, `new-onboarding`, `cancel-subscription`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-gate.tsx` blocks app render until flags load for authenticated users.
+Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `help-center`, `notifications`, `time-tracker`, `scripts-v2`, `mingo-sidebar`, `cancel-subscription`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-loader.tsx` runs that query but does NOT gate render: read a flag through `useFeatureFlagGate` (tri-state `loading | on | off`) wherever a wrong value would be visible or would redirect, and render the loading branch — see `src/app/hooks/use-feature-flag.ts`.
 
 ### Route Registry (MANDATORY)
 
@@ -194,10 +209,10 @@ table, `pathname.startsWith()` active-state checks, external/API URLs):
 Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query params** (`/x/details?id=`), not dynamic segments (static-export constraint; read via `useRequiredIdParam`). URL strings themselves come from the route registry above.
 
 - **Authentication** (`/auth`) — Multi-provider SSO, signup, login, password reset, invite
-- **Dashboard** (`/dashboard`) — Overview stats + onboarding; standalone `/onboarding` behind flag `new-onboarding`
+- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour)
 - **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
-- **Scripts** (`/scripts` legacy, Tactical backend removed — hooks are `TODO(openframe-rmm)` stubs; `/scripts-v2` Relay, behind flag `scripts-v2` — implementation lives in `src/app/(app)/scripts/v2/components/`)
+- **Scripts** (`/scripts` legacy, Tactical backend removed — hooks are `TODO(openframe-rmm)` stubs; `/scripts-v2` Relay, behind flag `scripts-v2` — implementation lives in `src/app/(app)/scripts/v2/{script,schedule,shared}/`)
 - **Customers** (`/customers`) — Customer/organization CRM (route renamed from `/organizations`; sidebar item id is still `organizations`)
 - **Monitoring** (`/monitoring`) — Fleet osquery queries + policies (not feature-flagged)
 - **Tickets** (`/tickets`) — Ticket board + AI chat dialogs (saas-tenant only; talks to `/chat/graphql`)
@@ -217,13 +232,13 @@ src/
 │   ├── (auth)/auth/       # Authentication (login, signup, invite, password-reset, stores/auth-store.ts)
 │   ├── (app)/             # All app pages, wrapped by AppLayout in (app)/layout.tsx
 │   │   ├── dashboard/  onboarding/  devices/  logs-page/  log-details/
-│   │   ├── scripts/       # legacy + v2 implementation in scripts/v2/components/
+│   │   ├── scripts/       # legacy + v2 in scripts/v2/{script,schedule,shared}/{components,hooks,utils}
 │   │   ├── scripts-v2/    # thin route wrappers over scripts/v2 (flag-gated layout)
 │   │   ├── customers/  monitoring/  tickets/  mingo/  knowledge-base/
 │   │   ├── help-center/  worktime/  notifications/  settings/  checkout/
 │   ├── hooks/             # Shared hooks (use-feature-flags-query, use-required-id-param, …)
 │   └── components/        # Shared components (notifications provider, subscription-lock, shared tables)
-├── components/            # Root-level shared (route-guard, feature-flags-gate, assignments/)
+├── components/            # Root-level shared (route-guard, feature-flags-loader, assignments/)
 ├── stores/                # Zustand stores (feature-flags-store, devices-store [mostly unused])
 ├── graphql/               # Relay operations by domain (notifications/, scripts/, time-tracker/)
 ├── __generated__/         # Relay artifacts (owned by relay-compiler — never import enums from here)
@@ -237,6 +252,7 @@ src/
 │   ├── token-store.ts  token-refresh-manager.ts  force-logout.ts  # auth token plumbing
 │   ├── app-mode.ts  runtime-config.ts  feature-flags.ts
 │   ├── nats/                  # NatsAppProvider + WS URL config
+│   ├── platform.ts            # web | mobile | desktop shell detection (SSOT)
 │   ├── native-shell.ts  native-login.ts  # Capacitor/Tauri shell bridge
 │   ├── register-embed-shims.ts  navigation-config.tsx  navigation-sidebar-state.ts
 │   ├── subscription-lock-signal.ts  analytics.ts  openframe-core-ui.tsx
@@ -672,15 +688,15 @@ The root layout (`src/app/layout.tsx`) establishes the global provider hierarchy
       <QueryClientProvider>          <!-- TanStack React Query -->
         <DevTicketObserver />        <!-- Dev auth (if auth enabled) -->
         <NatsAppProvider>            <!-- NATS live updates -->
-          <FeatureFlagsGate>         <!-- blocks render until server flags load -->
-            <NotificationsDataProvider>  <!-- Notifications drawer/popups (Relay) -->
-              <RouteGuard>           <!-- App mode route filtering -->
-                <Suspense fallback={AppShellSkeleton}>
+          <BiometricLockBoundary>    <!-- Native-shell biometric cold-start lock -->
+            <FeatureFlagsLoader>     <!-- Runs the flags query; does NOT gate render -->
+              <NotificationsDataProvider>  <!-- Notifications drawer/popups (Relay) -->
+                <RouteGuard>         <!-- App mode route filtering -->
                   {children}         <!-- Page content -->
-                </Suspense>
-              </RouteGuard>
-            </NotificationsDataProvider>
-          </FeatureFlagsGate>
+                </RouteGuard>
+              </NotificationsDataProvider>
+            </FeatureFlagsLoader>
+          </BiometricLockBoundary>
         </NatsAppProvider>
       </QueryClientProvider>
     </RelayProvider>
