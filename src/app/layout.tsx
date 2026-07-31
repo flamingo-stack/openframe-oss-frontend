@@ -8,6 +8,7 @@ import { azeretMono, dmSans } from '@/lib/fonts';
 import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
 import { sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
 import { Toaster } from '@/lib/openframe-core-ui';
+import { PostHogAnalyticsBridge } from '@/lib/posthog/posthog-analytics-bridge';
 import { FeatureFlagsLoader } from '../components/feature-flags-loader';
 import { RouteGuard } from '../components/route-guard';
 import { isAuthEnabled } from '../lib/app-mode';
@@ -123,6 +124,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <EmbedShimRegistration />
         <DeploymentInitializer />
         <NativeShellInitializer />
+        <PostHogAnalyticsBridge />
         <RelayProvider>
           <QueryClientProvider>
             {/* Its own boundary, and it is load-bearing. This reads `?devTicket=`,
