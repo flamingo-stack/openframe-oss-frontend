@@ -583,6 +583,14 @@ export function AppLayout({ children, mainClassName }: { children: React.ReactNo
     // a phase every page load goes through — which is why its fallback is empty.
     // A shell placeholder here drew a second, parallel copy of the chrome that had
     // to be kept in step with the real one and still disagreed with it for a frame.
-    <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>
+    //
+    // The boundary itself has to STAY, empty or not: the shell reads
+    // `useSearchParams()`, which bails out to client rendering during the static
+    // prerender, and Next requires a Suspense boundary to bail out to. Without one
+    // `next build` fails on every statically generated page under `(app)` — and
+    // only in a production build, so a dev-mode build won't tell you.
+    <Suspense fallback={null}>
+      <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>
+    </Suspense>
   );
 }
