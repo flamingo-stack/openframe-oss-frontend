@@ -36,7 +36,7 @@ import {
   renderQuickActionIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useEffect, useMemo } from 'react';
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../(app)/mingo/context/context-sources';
 import { CONTEXT_ITEMS_MAX } from '../(app)/mingo/context/context-types';
@@ -106,7 +106,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
   // Entity-context picker (the `+` / `@`-mention flow + selected chips) is
   // gated behind the `mingo-sidebar-context` flag. Passing `contextPicker`
   // undefined makes the lib's composer inert (no `+`, no `@`, no chips).
-  const contextEnabled = featureFlags.mingoSidebarContext.enabled();
+  const contextEnabled = useFeatureFlag('mingo-sidebar-context');
 
   // Context-memory strip above the composer: the navigation history Mingo
   // carries on every message (current page + previously viewed entities), each

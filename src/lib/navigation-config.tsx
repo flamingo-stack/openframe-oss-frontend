@@ -17,7 +17,6 @@ import { NavigationSidebarItem } from '@flamingo-stack/openframe-frontend-core/t
 import type { UnreadCountsByCategory } from '@/app/components/notifications/unread-counts-hydrator';
 import { NotificationCategory } from '@/generated/schema-enums';
 import { isAuthOnlyMode, isSaasTenantMode } from './app-mode';
-import { featureFlags } from './feature-flags';
 import { routes } from './routes';
 
 const CATEGORY_BY_NAV_ID: Record<string, NotificationCategory> = {
@@ -40,8 +39,35 @@ export interface OnboardingNavState {
   remaining: number;
 }
 
+/**
+ * The flags the sidebar's shape depends on.
+ *
+ * Passed in rather than read here on purpose: this runs inside the shell's
+ * `useMemo`, and the caller reads them through `useFeatureFlag` so the memo
+ * recomputes if a value changes.
+ *
+ * Plain booleans, and the reason that is safe lives one level up: while the flags are
+ * unanswered the shell passes `loading` to the core sidebar, which draws placeholder
+ * rows and ignores `items` entirely. So these values are only ever LOOKED AT once
+ * they are real.
+ *
+ * That matters because `false` here is indistinguishable from "not answered yet", and
+ * two of these entries are gated in the "on hides it" direction — `scriptsV2` swaps
+ * which page the Scripts row opens, `mingoSidebar` hides the legacy Mingo row — so a
+ * guessed `false` would render entries that don't belong to the tenant rather than
+ * simply fewer of them. If the `loading` wiring in `app-layout.tsx` is ever removed,
+ * this type has to go back to three states.
+ */
+export interface NavigationFlags {
+  scriptsV2: boolean;
+  mingoSidebar: boolean;
+  timeTracker: boolean;
+  helpCenter: boolean;
+}
+
 export const getNavigationItems = (
   pathname: string,
+  flags: NavigationFlags,
   unreadCounts?: UnreadCountsByCategory,
   onboarding?: OnboardingNavState,
 ): NavigationSidebarItem[] => {
@@ -90,7 +116,7 @@ export const getNavigationItems = (
     // Single "Scripts" entry — the flag swaps which implementation it points at
     // (new `/scripts-v2` when enabled, legacy `/scripts` otherwise). The label
     // stays "Scripts" in both cases; the version is never surfaced in the sidebar.
-    featureFlags.scriptsV2.enabled()
+    flags.scriptsV2
       ? {
           id: 'scripts-v2',
           label: 'Scripts',
@@ -132,7 +158,7 @@ export const getNavigationItems = (
     // The legacy standalone `/mingo` page is fully superseded by the in-layout
     // Mingo sidebar when `mingo-sidebar` is on — hide its nav entry so the old
     // route is unreachable (the page itself also redirects, see mingo/page.tsx).
-    if (!featureFlags.mingoSidebar.enabled()) {
+    if (!flags.mingoSidebar) {
       baseItems.push({
         id: 'mingo',
         label: 'Mingo',
@@ -143,7 +169,7 @@ export const getNavigationItems = (
     }
   }
 
-  if (featureFlags.timeTracker.enabled()) {
+  if (flags.timeTracker) {
     baseItems.push({
       id: 'worktime',
       label: 'Worktime',
@@ -162,7 +188,7 @@ export const getNavigationItems = (
     isActive: pathname.startsWith('/knowledge-base'),
   });
 
-  if (featureFlags.helpCenter.enabled()) {
+  if (flags.helpCenter) {
     baseItems.push({
       id: 'help-center',
       label: 'Help Center',

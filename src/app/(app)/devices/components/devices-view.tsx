@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  Filter02Icon,
-  GridIcon,
-  PlusCircleIcon,
-  TableCellIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { GridIcon, PlusCircleIcon, TableCellIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnDef,
@@ -22,6 +17,7 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
+import { DeviceTagsFilterButton } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
 import { useDeviceFilters } from '../hooks/use-device-filters';
@@ -171,30 +167,21 @@ export function DevicesView() {
                 addMorePlaceholder="Add More..."
               />
             </div>
-            {isMdUp ? (
-              <Button
-                variant="outline"
-                onClick={openFilterModal}
-                leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
-                className="shrink-0"
-              >
-                Device Tags
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={openFilterModal}
-                leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
-                className="shrink-0"
-              />
-            )}
+            <DeviceTagsFilterButton onClick={openFilterModal} />
           </div>
 
           {params.viewMode === 'table' ? (
             <DevicesTableBody
               devices={devices}
               isLoading={isLoading || isDeviceFiltersLoading}
+              // Facets ride their own query here, so they can land after the rows —
+              // keep the funnels drawn until then instead of growing them mid-view.
+              //
+              // Keyed on the DATA, not on `isDeviceFiltersLoading`: react-query reports
+              // `isLoading` false before the request has started, so the first render
+              // would read as "answered, nothing to filter by" and drop the funnels for
+              // good. No data yet is the honest "not answered".
+              filtersPending={!deviceFilters}
               emptyMessage="No devices found. Try adjusting your search or filters."
               skeletonRows={10}
               stickyHeaderOffset={stickyHeaderOffset}
@@ -228,7 +215,7 @@ export function DevicesView() {
         onClose={closeFilterModal}
         filterGroups={filterGroups}
         onFilterChange={handleModalFilterChange}
-        currentFilters={!isMdUp ? tableFilters : undefined}
+        currentFilters={isMdUp === false ? tableFilters : undefined}
         tagFilterKeys={tagFilterKeys}
         selectedTags={selectedTags}
         onTagsChange={handleModalTagsChange}

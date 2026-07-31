@@ -13,7 +13,7 @@ import { CustomersOverviewSkeleton } from './dashboard-skeletons';
  * Organizations Overview Section
  */
 export function CustomersOverviewSection() {
-  const { rows, loading, error, totalOrganizations } = useCustomersOverview(10);
+  const { rows, loading, error } = useCustomersOverview(10);
 
   const organizationRows = useMemo(() => {
     if (error) {
@@ -98,11 +98,7 @@ export function CustomersOverviewSection() {
 
   return (
     <div>
-      <TitleBlock
-        title="Customers Overview"
-        subtitle={`${totalOrganizations.toLocaleString()} Customers in Total`}
-        className="[&_p]:hidden lg:[&_p]:block"
-      />
+      <TitleBlock title="Customers Overview" />
 
       <div className="flex flex-col gap-[var(--spacing-system-mf)]">{organizationRows}</div>
     </div>

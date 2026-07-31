@@ -19,8 +19,8 @@ import { useTicketsQuery } from '../hooks/use-tickets-query';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { Dialog } from '../types/dialog.types';
 import { TicketTagFilter } from './ticket-label-filter';
-import { TicketsEmptyState } from './tickets-empty-state';
 import { getTicketTableColumns, type StatusFilterOption, TicketTableBody } from './ticket-table-columns';
+import { TicketsEmptyState } from './tickets-empty-state';
 
 // TODO(unread-from-entity): re-enable per-ticket unread highlighting once the backend exposes
 // unread counts on the ticket entity itself. Matching unread notifications to tickets by id is a
@@ -192,7 +192,7 @@ export function TicketsTable({
                       className="md:hidden"
                       onClick={() => setMobileFilterOpen(true)}
                       aria-label="Open filters"
-                      leftIcon={<Filter02Icon />}
+                      leftIcon={<Filter02Icon className="text-ods-text-primary" />}
                     />
                   ) : undefined
                 }

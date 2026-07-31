@@ -18,7 +18,7 @@ import {
 } from '@/app/(app)/settings/ai-settings/types/ai-settings';
 import { APPLICATION_THEME_LABEL } from '@/app/(app)/settings/ai-settings/utils/ai-settings-display';
 import { InfoCell } from '@/app/components/shared/info-cell';
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlag, useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 
@@ -33,10 +33,35 @@ interface CustomerCustomAiAssistantTabProps {
  * mirrors the global AI settings CLIENT tab. Editing happens on /customers/edit.
  */
 export function CustomerCustomAiAssistantTab({ organizationId }: CustomerCustomAiAssistantTabProps) {
-  return featureFlags.customerAiConfiguration.enabled() ? (
+  // Tri-state: this flag picks which of two components the tab IS, so reading it
+  // as a plain boolean rendered the legacy view — and ran its `useClientView`
+  // query — for the length of the flags round-trip, then swapped the whole tab out
+  // from under the user once the answer landed.
+  const fullAiConfigGate = useFeatureFlagGate('customer-ai-configuration');
+
+  if (fullAiConfigGate === 'loading') {
+    return <CustomerAiTabSkeleton />;
+  }
+
+  return fullAiConfigGate === 'on' ? (
     <CustomerAiConfigurationReadOnly organizationId={organizationId} />
   ) : (
     <CustomerAiAppearanceReadOnly organizationId={organizationId} />
+  );
+}
+
+/**
+ * Stands in for whichever of the two views is coming. Deliberately the taller
+ * (configuration) shape: both open with a card and a preview block, and the legacy
+ * view is the shorter one, so this never leaves the tab shorter than what replaces it.
+ */
+function CustomerAiTabSkeleton() {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <Skeleton className="h-16 w-full rounded-md" />
+      <Skeleton className="h-40 w-full rounded-md" />
+      <Skeleton className="h-64 w-full rounded-md" />
+    </div>
   );
 }
 
@@ -49,6 +74,7 @@ export function CustomerCustomAiAssistantTab({ organizationId }: CustomerCustomA
  */
 function CustomerAiConfigurationReadOnly({ organizationId }: CustomerCustomAiAssistantTabProps) {
   const router = useRouter();
+  const customizationEnabled = useFeatureFlag('customer-ai-assistant-settings');
   const { view: orgView, isLoading: isViewLoading } = useClientView(organizationId);
   const { view: defaultView } = useClientView(null);
   const {
@@ -63,17 +89,11 @@ function CustomerAiConfigurationReadOnly({ organizationId }: CustomerCustomAiAss
   // source the settings CLIENT tab uses. Gated by the customization flag that
   // governs the quick-actions section inside AiSettingsOverview.
   const hubDefaults = useHubDefaultQuickActions(ASSISTANT_QUICK_ACTIONS_CONFIG.agentSlug, {
-    enabled: featureFlags.customerAiAssistantSettings.enabled(),
+    enabled: customizationEnabled,
   });
 
   if (isViewLoading || isConfigLoading || hubDefaults.loading) {
-    return (
-      <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <Skeleton className="h-16 w-full rounded-md" />
-        <Skeleton className="h-40 w-full rounded-md" />
-        <Skeleton className="h-64 w-full rounded-md" />
-      </div>
-    );
+    return <CustomerAiTabSkeleton />;
   }
 
   if (configError) {

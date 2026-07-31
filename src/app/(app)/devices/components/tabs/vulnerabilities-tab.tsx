@@ -18,9 +18,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { differenceInCalendarDays } from 'date-fns';
 import { useCallback, useMemo, useState } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { formatDate } from '@/lib/format-date';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
+import { VULNERABILITY_COLUMNS } from './device-tab-columns';
 import { TabEmptyState } from './tab-empty-state';
 
 interface VulnerabilitiesTabProps {
@@ -104,13 +106,13 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
     () => [
       {
         accessorKey: 'cve',
-        header: 'CVE ID',
+        header: VULNERABILITY_COLUMNS.cve.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => <span className="text-h4">{row.original.cve}</span>,
-        meta: { width: 'w-[20%]' },
+        meta: liveColumnMeta(VULNERABILITY_COLUMNS.cve),
       },
       {
-        id: 'severity',
-        header: 'SEVERITY',
+        id: VULNERABILITY_COLUMNS.severity.id,
+        header: VULNERABILITY_COLUMNS.severity.header,
         accessorFn: (row: VulnerabilityWithSoftware) => SEVERITY_RANK[getSeverity(row)],
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => {
           const severity = getSeverity(row.original);
@@ -125,11 +127,11 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         enableSorting: true,
         sortingFn: (a: Row<VulnerabilityWithSoftware>, b: Row<VulnerabilityWithSoftware>) =>
           SEVERITY_RANK[getSeverity(a.original)] - SEVERITY_RANK[getSeverity(b.original)],
-        meta: { width: 'w-[16%]', sortable: true },
+        meta: liveColumnMeta(VULNERABILITY_COLUMNS.severity),
       },
       {
         accessorKey: 'software_name',
-        header: 'SOFTWARE',
+        header: VULNERABILITY_COLUMNS.software.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
           <div className="flex flex-col justify-center min-w-0">
             <TruncateText>{row.original.software_name}</TruncateText>
@@ -140,11 +142,11 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
             )}
           </div>
         ),
-        meta: { width: 'flex-1 min-w-0' },
+        meta: liveColumnMeta(VULNERABILITY_COLUMNS.software),
       },
       {
         accessorKey: 'created_at',
-        header: 'DISCOVERED',
+        header: VULNERABILITY_COLUMNS.discovered.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => {
           const discovered = new Date(row.original.created_at);
           if (Number.isNaN(discovered.getTime())) {
@@ -162,10 +164,10 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         },
         enableSorting: true,
         // Least-needed column for mobile triage — hidden below md, CVE/Severity/Software stay.
-        meta: { width: 'w-[18%]', sortable: true, hideAt: 'md' },
+        meta: liveColumnMeta(VULNERABILITY_COLUMNS.discovered),
       },
       {
-        id: 'open',
+        id: VULNERABILITY_COLUMNS.open.id,
         header: '',
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) =>
           row.original.details_link ? (
@@ -181,7 +183,7 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
             </div>
           ) : null,
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(VULNERABILITY_COLUMNS.open),
       },
     ],
     [],

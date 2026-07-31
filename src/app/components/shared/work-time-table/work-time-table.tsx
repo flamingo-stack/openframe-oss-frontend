@@ -1,7 +1,14 @@
 'use client';
 
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { PenEditIcon, SearchIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  ChartDonutIcon,
+  ClockHistoryIcon,
+  Filter01ListIcon,
+  PenEditIcon,
+  SearchIcon,
+  TrashIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnDef,
@@ -30,6 +37,7 @@ import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } fro
 import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { EmptyState } from '@/app/components/shared/empty-state';
 import { InfoCardSkeleton } from '@/app/components/shared/page-skeleton-primitives';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { deleteTimeEntryMutation } from '@/graphql/time-tracker/delete-time-entry-mutation';
@@ -231,7 +239,7 @@ function buildColumns(
             ...employeeColumn,
             meta: {
               ...employeeColumn.meta,
-              filter: employeeFilterOptions.length ? { options: employeeFilterOptions } : undefined,
+              filter: { options: employeeFilterOptions },
             },
           },
         ]
@@ -243,7 +251,7 @@ function buildColumns(
             ...customerColumn,
             meta: {
               ...customerColumn.meta,
-              filter: customerFilterOptions.length ? { options: customerFilterOptions } : undefined,
+              filter: { options: customerFilterOptions },
             },
           },
         ]
@@ -272,6 +280,7 @@ function WorkTimeTableData({
   customerFilterOptions,
   columnFilters,
   onColumnFiltersChange,
+  richEmptyState,
 }: {
   showEmployee: boolean;
   showCustomer: boolean;
@@ -283,6 +292,8 @@ function WorkTimeTableData({
   customerFilterOptions: DataTableFilterOption[];
   columnFilters: ColumnFiltersState;
   onColumnFiltersChange: OnChangeFn<ColumnFiltersState>;
+  /** The caller allows the rich empty state here — see `WorkTimeTable`. */
+  richEmptyState: boolean;
 }) {
   const queryData = useLazyLoadQuery<EmployeeWorkTimeRelayQueryType>(employeeWorkTimeRelayQuery, vars, {
     fetchPolicy: 'store-and-network',
@@ -361,16 +372,32 @@ function WorkTimeTableData({
         />
       </div>
 
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />} />
-        <DataTable.Body emptyMessage="No work time entries for this period." />
-        <DataTable.InfiniteFooter
-          hasNextPage={hasNext}
-          isFetchingNextPage={isLoadingNext}
-          onLoadMore={() => loadNext(PAGE_SIZE)}
-          skeletonRows={2}
+      {richEmptyState && rows.length === 0 ? (
+        // No footer button: the other sections link their onboarding guide here, and
+        // Worktime has no guide article to link to (`ONBOARDING_GUIDE_SLUGS` has no
+        // entry for it), so the block ends with the bullets.
+        <EmptyState
+          icon={<ClockHistoryIcon />}
+          title="No work time yet"
+          description="Time logged against tickets and customers — from the timer or added by hand — is collected here, with the totals above kept in step."
+          actions={[
+            { icon: <ClockHistoryIcon />, label: 'Log time against a ticket, a customer, or neither' },
+            { icon: <Filter01ListIcon />, label: 'Filter by employee, customer, or date range' },
+            { icon: <ChartDonutIcon />, label: 'Track daily totals and the average per day' },
+          ]}
         />
-      </DataTable>
+      ) : (
+        <DataTable table={table}>
+          <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />} />
+          <DataTable.Body emptyMessage="No work time entries for this period." />
+          <DataTable.InfiniteFooter
+            hasNextPage={hasNext}
+            isFetchingNextPage={isLoadingNext}
+            onLoadMore={() => loadNext(PAGE_SIZE)}
+            skeletonRows={2}
+          />
+        </DataTable>
+      )}
     </>
   );
 }
@@ -522,6 +549,19 @@ export function WorkTimeTable({
     [columnFilters, setParams],
   );
 
+  // The rich empty state means "this workspace has logged no time at all", so it is
+  // suppressed in the two scoped mountings (an employee's details, a customer's tab)
+  // and whenever a search, date range or column filter is narrowing the list: an empty
+  // result under a query is not an empty section, and it keeps the plain message that
+  // says which period came back empty.
+  const richEmptyState =
+    !employeeId &&
+    !organizationGlobalId &&
+    !debouncedSearch &&
+    !range?.from &&
+    employeeFilterIds.length === 0 &&
+    customerFilterIds.length === 0;
+
   const filter = useMemo<WorkTimeFilter>(() => {
     const dateRange = range?.from ? toInstantRange(range.from, range.to ?? range.from) : null;
     const employeeIds = employeeId
@@ -613,6 +653,7 @@ export function WorkTimeTable({
             customerFilterOptions={customerFilterOptions}
             columnFilters={columnFilters}
             onColumnFiltersChange={onColumnFiltersChange}
+            richEmptyState={richEmptyState}
           />
         </Suspense>
       </ErrorBoundary>

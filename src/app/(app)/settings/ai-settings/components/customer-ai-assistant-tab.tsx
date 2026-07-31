@@ -8,7 +8,7 @@ import {
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Controller } from 'react-hook-form';
-import { featureFlags } from '@/lib/feature-flags';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { type CommitAvatar, useCustomerAiAssistantForm } from '../hooks/use-customer-ai-assistant-form';
 import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
 import { getProviderModelLabel, useSupportedModels } from '../hooks/use-supported-models';
@@ -47,7 +47,7 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
 
   // Appearance customization (theme/accent + previews, answer style, quick actions)
   // is not released yet — keep it behind the feature flag.
-  const showCustomization = featureFlags.customerAiAssistantSettings.enabled();
+  const showCustomization = useFeatureFlag('customer-ai-assistant-settings');
 
   // OpenFrame defaults come straight from the Product Hub (the BE stores only
   // customs); shown in view mode and as the editor's dimmed preview/seed.

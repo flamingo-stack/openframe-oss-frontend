@@ -7,11 +7,12 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Input, TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { isAuthOnlyMode, isSaasSharedMode } from '@/lib/app-mode';
+import { pushSignupStarted } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 
@@ -37,6 +38,17 @@ export default function SignupPage() {
   const storedOrgName = typeof window !== 'undefined' ? sessionStorage.getItem('auth:org_name') || '' : '';
   const storedDomain = typeof window !== 'undefined' ? sessionStorage.getItem('auth:domain') || '' : '';
   const storedEmail = typeof window !== 'undefined' ? sessionStorage.getItem('auth:email') || '' : '';
+
+  // Funnel event: fire once when the signup form actually renders (all org
+  // details present — i.e. not a bounced direct visit that redirects away).
+  const signupStartedFired = useRef(false);
+  useEffect(() => {
+    if (signupStartedFired.current) return;
+    if (storedOrgName && storedDomain && storedEmail) {
+      signupStartedFired.current = true;
+      pushSignupStarted();
+    }
+  }, [storedOrgName, storedDomain, storedEmail]);
 
   useEffect(() => {
     if (isAuthenticated && !isAuthOnlyMode()) {

@@ -22,11 +22,12 @@ import { graphql } from 'react-relay';
  * the tab paginates instead of pulling the whole assignment at once.
  */
 export const scriptScheduleDevicesRelayQuery = graphql`
-  query scriptScheduleDevicesRelayQuery($id: ID!, $first: Int!, $after: String) {
+  query scriptScheduleDevicesRelayQuery($id: ID!, $first: Int!, $after: String, $filter: DeviceFilterInput, $search: String) {
     scriptSchedule(id: $id) {
       id
       deviceCount
-      ...scriptScheduleDevicesRelay_schedule @arguments(first: $first, after: $after)
+      ...scriptScheduleDevicesRelay_schedule
+        @arguments(first: $first, after: $after, filter: $filter, search: $search)
     }
   }
 `;
@@ -34,8 +35,17 @@ export const scriptScheduleDevicesRelayQuery = graphql`
 export const scriptScheduleDevicesRelayFragment = graphql`
   fragment scriptScheduleDevicesRelay_schedule on ScriptSchedule
     @refetchable(queryName: "scriptScheduleDevicesRelayPaginationQuery")
-    @argumentDefinitions(first: { type: "Int", defaultValue: 20 }, after: { type: "String" }) {
-    assignedDevices(first: $first, after: $after) @connection(key: "scriptScheduleDevicesRelay_assignedDevices") {
+    @argumentDefinitions(
+      first: { type: "Int", defaultValue: 20 }
+      after: { type: "String" }
+      filter: { type: "DeviceFilterInput" }
+      search: { type: "String" }
+    ) {
+    # The connection declares its filters: narrowing is part of the connection's
+    # IDENTITY, so each filter/search combination gets its own record instead of
+    # appending a filtered page onto the unfiltered one already in the store.
+    assignedDevices(first: $first, after: $after, filter: $filter, search: $search)
+      @connection(key: "scriptScheduleDevicesRelay_assignedDevices", filters: ["filter", "search"]) {
       filteredCount
       edges {
         node {

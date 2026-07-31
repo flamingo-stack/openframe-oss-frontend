@@ -110,9 +110,9 @@ html[data-shell="mobile"] body::before {
   z-index: 60;
 }
 
-/* Full-screen view roots: `app-shell-root` (core AppLayout root +
-   AppShellSkeleton root) and `of-auth-shell` (core AuthShell — the auth
-   pages render outside AppLayout). The top inset lives HERE, not on the
+/* Full-screen view roots: `app-shell-root` (core AppLayout root) and
+   `of-auth-shell` (core AuthShell — the auth pages render outside
+   AppLayout). The top inset lives HERE, not on the
    header: with the inset on the header, a `topBar` banner rendered above it
    started at y=0 under the status bar (clipped by the band), the header
    double-padded, and the burger menu's below-header offset (top: 48px = the

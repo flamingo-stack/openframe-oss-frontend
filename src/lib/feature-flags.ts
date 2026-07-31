@@ -1,4 +1,4 @@
-import { readCachedFeatureFlags, useFeatureFlagsStore } from '@/stores/feature-flags-store';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { runtimeEnv } from './runtime-config';
 
 /**
@@ -22,9 +22,19 @@ export const FEATURE_FLAG_NAMES = [
   'scripts-v2',
   'script-schedules',
   'cancel-subscription',
-  'new-onboarding',
   'test-clock',
 ] as const;
+
+export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
+
+/**
+ * A flag read that keeps "not answered yet" distinct from "off".
+ *
+ * Declared here rather than beside `useFeatureFlagGate` so non-React modules
+ * (the navigation config) can be typed by it without importing a client hook.
+ * See `use-feature-flag.ts` for why the distinction is load-bearing.
+ */
+export type FeatureFlagGate = 'loading' | 'on' | 'off';
 
 /**
  * Read a feature flag value from the server-loaded store,
@@ -37,32 +47,6 @@ function getFlagValue(flagName: string, envFallback: () => boolean): boolean {
     return store.flags[flagName];
   }
   return envFallback();
-}
-
-/**
- * Flag read for LOADING SKELETONS whose LAYOUT depends on a flag.
- *
- * Skeletons render while `FeatureFlagsGate` is still fetching, so `isLoaded` is
- * false and `getFlagValue` returns the env default — which is a guess, and a
- * wrong one whenever the server disagrees. That made e.g. the ticket-details
- * skeleton draw the two-column classic chat and then swap to the sidebar layout
- * the moment the real flags landed.
- *
- * Resolution order: live store → last server answer for this browser → env
- * default. Use ONLY to pick what a placeholder looks like; anything that gates
- * real behavior must keep using `featureFlags.*.enabled()`, which never trusts
- * the cache.
- */
-export function skeletonFlagEnabled(flagName: (typeof FEATURE_FLAG_NAMES)[number], envFallback = false): boolean {
-  const store = useFeatureFlagsStore.getState();
-  if (store.isLoaded && flagName in store.flags) {
-    return store.flags[flagName];
-  }
-  const cached = readCachedFeatureFlags();
-  if (cached && flagName in cached) {
-    return cached[flagName];
-  }
-  return envFallback;
 }
 
 /**
@@ -159,16 +143,6 @@ export const featureFlags = {
   cancelSubscription: {
     enabled(): boolean {
       return getFlagValue('cancel-subscription', () => false);
-    },
-  },
-  /**
-   * New `/onboarding` page. When enabled, the standalone onboarding route is shown
-   * and the legacy dashboard `OnboardingSection` is hidden; when disabled it's the
-   * reverse (legacy section on the dashboard, `/onboarding` 404s).
-   */
-  newOnboarding: {
-    enabled(): boolean {
-      return getFlagValue('new-onboarding', () => runtimeEnv.newOnboardingFlag());
     },
   },
   /**

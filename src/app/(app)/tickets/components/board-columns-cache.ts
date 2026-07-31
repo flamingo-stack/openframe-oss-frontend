@@ -16,6 +16,7 @@
  */
 
 import { type BoardColumnDef, columnFromTicketStatus } from '@flamingo-stack/openframe-frontend-core';
+import { useEffect, useState } from 'react';
 
 export interface CachedBoardColumn {
   id: string;
@@ -92,6 +93,47 @@ export function buildPlaceholderBoardColumns(): BoardColumnDef[] {
   const cached = readCachedBoardColumns();
   if (!cached) return SYSTEM_FALLBACK_COLUMNS;
   return cached.map(column => ({ ...column, tickets: NO_TICKETS, isLoading: true }));
+}
+
+/**
+ * Set once any instance has mounted, so a later mount reads the cache in its
+ * INITIALIZER instead of a render later. Mirrors the same module-flag pattern in
+ * `onboarding-top-bar-cache`'s placeholder.
+ */
+let hasHydrated = false;
+
+/**
+ * Hydration-safe `buildPlaceholderBoardColumns` — use this from a render, never
+ * the builder directly.
+ *
+ * Both consumers (the route skeleton and `TicketsBoard`) render on the server,
+ * where `localStorage` does not exist: the builder returns the three system
+ * statuses there and the tenant's real cached lanes in the browser. Reading it in
+ * a `useState` initializer therefore made the server and the first client render
+ * disagree on the lane SET — different column count, different colors, different
+ * counts — which is a hydration mismatch, and not a cosmetic one: React discards
+ * the server HTML for the whole board and re-renders it, the exact redraw this
+ * cache exists to remove.
+ *
+ * So the first render deliberately uses the system fallback on BOTH sides, and the
+ * cached set is applied right after mount. The trade is a one-frame refinement of a
+ * PLACEHOLDER (system lanes → the tenant's lanes) instead of a discarded subtree,
+ * and it only shows at all in the window before the statuses query answers.
+ */
+export function usePlaceholderBoardColumns(): BoardColumnDef[] {
+  const [columns, setColumns] = useState<BoardColumnDef[]>(() =>
+    hasHydrated ? buildPlaceholderBoardColumns() : SYSTEM_FALLBACK_COLUMNS,
+  );
+
+  useEffect(() => {
+    hasHydrated = true;
+    // Only the pre-hydration value is replaced. Guarding on identity (rather than
+    // a `hasHydrated` early return) keeps a remount free: its initializer already
+    // read the cache, so this is a same-reference no-op React bails out of.
+    setColumns(prev => (prev === SYSTEM_FALLBACK_COLUMNS ? buildPlaceholderBoardColumns() : prev));
+  }, []);
+
+  return columns;
 }
 
 export function writeCachedBoardColumns(columns: CachedBoardColumn[]): void {

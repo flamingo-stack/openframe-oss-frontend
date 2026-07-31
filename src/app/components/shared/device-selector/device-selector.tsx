@@ -468,7 +468,7 @@ export function DeviceSelector({
         meta: {
           width: 'w-[320px]',
           hideAt: 'lg',
-          filter: orgFilterOptions.length > 0 ? { options: orgFilterOptions, placement: 'bottom-end' } : undefined,
+          filter: { options: orgFilterOptions, placement: 'bottom-end' },
         },
       },
       {
@@ -495,7 +495,7 @@ export function DeviceSelector({
         enableSorting: false,
         meta: {
           width: 'w-[160px]',
-          filter: statusFilterOptions.length > 0 ? { options: statusFilterOptions } : undefined,
+          filter: { options: statusFilterOptions },
         },
       },
       {
@@ -750,13 +750,12 @@ export function DeviceSelector({
               onTagRemove={handleTagRemove}
               onClearAll={handleClearAll}
               onSubmit={handleTagSubmit}
-              isMdUp={isMdUp}
               onOpenFilterModal={openTagsModal}
               isFilterModalOpen={tagsModalOpen}
               onCloseFilterModal={closeTagsModal}
               filterGroups={filterGroups}
               onFilterChange={handleModalFilterChange}
-              currentFilters={!isMdUp ? tableFilters : undefined}
+              currentFilters={isMdUp === false ? tableFilters : undefined}
               tagFilterKeys={tagFilterKeys}
               selectedTags={selectedTags}
               onTagsChange={handleModalTagsChange}
