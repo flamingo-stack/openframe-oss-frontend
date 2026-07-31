@@ -1,77 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { apiClient } from '@/lib/api-client';
-import { DEVICE_ENRICHMENT_STATUSES } from '../../../devices/constants/device-statuses';
-import { GET_DEVICES_QUERY } from '../../../devices/queries/devices-queries';
-import type { Device, DevicesGraphQlNode, GraphQlResponse } from '../../../devices/types/device.types';
-import { getFleetHostId } from '../../../devices/utils/device-action-utils';
-import { createDeviceListItem } from '../../../devices/utils/device-transform';
+import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-statuses';
+import { useAllDevices } from '../../../devices/hooks/use-all-devices';
+import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
 import type { ComplianceStatus, PolicyDeviceRow } from '../types/policy-device-row';
 import { usePolicyResponseHosts } from './use-policy-response-hosts';
-
-const DEVICES_PAGE_SIZE = 100;
-
-interface DevicesResponseData {
-  devices: {
-    edges: Array<{ node: DevicesGraphQlNode; cursor: string }>;
-    pageInfo: {
-      hasNextPage: boolean;
-      endCursor?: string;
-    };
-  };
-}
-
-interface DevicesPage {
-  devices: Device[];
-  hasNextPage: boolean;
-  endCursor: string | null;
-}
-
-async function fetchDevicesPage(cursor: string | null): Promise<DevicesPage> {
-  const response = await apiClient.post<GraphQlResponse<DevicesResponseData>>('/api/graphql', {
-    query: GET_DEVICES_QUERY,
-    variables: {
-      filter: { statuses: DEVICE_ENRICHMENT_STATUSES },
-      first: DEVICES_PAGE_SIZE,
-      after: cursor,
-      search: '',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(response.error || 'Failed to fetch devices');
-  }
-
-  const graphqlResponse = response.data;
-  if (!graphqlResponse?.data) {
-    throw new Error('No data received from server');
-  }
-
-  const nodes = graphqlResponse.data.devices.edges.map((e: { node: DevicesGraphQlNode }) => e.node);
-  return {
-    devices: nodes.map(createDeviceListItem),
-    hasNextPage: graphqlResponse.data.devices.pageInfo.hasNextPage,
-    endCursor: graphqlResponse.data.devices.pageInfo.endCursor ?? null,
-  };
-}
-
-/**
- * Fetch all Fleet-connected devices via paginated GraphQL queries.
- */
-async function fetchAllDevices(): Promise<Device[]> {
-  const allDevices: Device[] = [];
-  let cursor: string | null = null;
-  let hasMore = true;
-
-  while (hasMore) {
-    const page = await fetchDevicesPage(cursor);
-    allDevices.push(...page.devices);
-    hasMore = page.hasNextPage;
-    cursor = page.endCursor;
-  }
-
-  return allDevices;
-}
 
 export function usePolicyDevicesTable(
   policyId: number | null,
@@ -80,14 +12,13 @@ export function usePolicyDevicesTable(
   const { hosts: failingHosts, isLoading: isLoadingFailing } = usePolicyResponseHosts(policyId, 'failing');
   const { hosts: passingHosts, isLoading: isLoadingPassing } = usePolicyResponseHosts(policyId, 'passing');
 
-  const devicesQuery = useQuery({
-    queryKey: ['policy-devices-table-devices'],
-    queryFn: fetchAllDevices,
-  });
+  const {
+    devices,
+    isLoading: isLoadingDevices,
+    error: devicesError,
+  } = useAllDevices({ filter: DEVICE_ENRICHMENT_FILTER });
 
   const rows: PolicyDeviceRow[] = useMemo(() => {
-    if (!devicesQuery.data) return [];
-
     // The policy's assigned hosts are the source of truth for WHICH devices
     // appear; Fleet's failing/passing membership only supplies their status.
     // Fleet keeps a host's last policy response until its next check-in, so an
@@ -105,18 +36,7 @@ export function usePolicyDevicesTable(
       if (!statusMap.has(host.id)) statusMap.set(host.id, 'pending');
     }
 
-    const deviceByFleetId = new Map<number, Device>();
-    for (const device of devicesQuery.data) {
-      const fleetId = getFleetHostId(device);
-      if (fleetId === undefined) continue;
-      const existing = deviceByFleetId.get(fleetId);
-      if (
-        !existing ||
-        new Date(device.lastSeen || device.last_seen || 0) > new Date(existing.lastSeen || existing.last_seen || 0)
-      ) {
-        deviceByFleetId.set(fleetId, device);
-      }
-    }
+    const deviceByFleetId = indexDevicesByFleetHostId(devices);
 
     const fleetHostMap = new Map<number, { hostname: string; display_name: string }>();
     for (const h of failingHosts) fleetHostMap.set(h.id, h);
@@ -158,11 +78,11 @@ export function usePolicyDevicesTable(
     });
 
     return result;
-  }, [devicesQuery.data, failingHosts, passingHosts, assignedHostIds]);
+  }, [devices, failingHosts, passingHosts, assignedHostIds]);
 
   return {
     rows,
-    isLoading: isLoadingFailing || isLoadingPassing || devicesQuery.isLoading,
-    error: devicesQuery.error?.message ?? null,
+    isLoading: isLoadingFailing || isLoadingPassing || isLoadingDevices,
+    error: devicesError,
   };
 }

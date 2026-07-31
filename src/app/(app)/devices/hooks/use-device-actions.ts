@@ -3,11 +3,9 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import { dashboardQueryKeys } from '@/app/(app)/dashboard/utils/query-keys';
 import { apiClient } from '@/lib/api-client';
 import { DEVICE_STATUS } from '../constants/device-statuses';
-import { deviceQueryKeys } from '../utils/query-keys';
-import { deviceFiltersQueryKeys } from './use-device-filters';
+import { invalidateDeviceQueries } from '../utils/query-keys';
 
 interface UseDeviceActionsOptions {
   onSuccess?: () => void;
@@ -21,15 +19,10 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Every surface caching device data — lists (main / archive / customer tab),
-  // detail views, filter facet counts, dashboard counters — must refresh after
-  // a status mutation. Invalidating here, at the single mutation site, keeps
-  // active views refetching immediately and stale caches refetching on next
-  // mount, without every view wiring its own refetch callback.
-  const invalidateDeviceQueries = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: deviceQueryKeys.all });
-    queryClient.invalidateQueries({ queryKey: deviceFiltersQueryKeys.all });
-    queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.deviceStats() });
-  }, [queryClient]);
+  // pickers, detail views, filter facets, dashboard counters — must refresh
+  // after a status mutation. The rule lives in `invalidateDeviceQueries`, next
+  // to the key registry it invalidates.
+  const invalidateDevices = useCallback(() => invalidateDeviceQueries(queryClient), [queryClient]);
 
   const archiveDevice = useCallback(
     async (deviceId: string, deviceName?: string): Promise<boolean> => {
@@ -48,7 +41,7 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
           description: `${deviceName || deviceId} has been archived`,
         });
 
-        invalidateDeviceQueries();
+        invalidateDevices();
         options?.onSuccess?.();
         return true;
       } catch (error) {
@@ -63,7 +56,7 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
         setIsArchiving(false);
       }
     },
-    [toast, options, invalidateDeviceQueries],
+    [toast, options, invalidateDevices],
   );
 
   // Restores an archived device. OFFLINE is the natural restore target: the
@@ -86,7 +79,7 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
           description: `${deviceName || deviceId} has been restored`,
         });
 
-        invalidateDeviceQueries();
+        invalidateDevices();
         options?.onSuccess?.();
         return true;
       } catch (error) {
@@ -101,7 +94,7 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
         setIsUnarchiving(false);
       }
     },
-    [toast, options, invalidateDeviceQueries],
+    [toast, options, invalidateDevices],
   );
 
   const deleteDevice = useCallback(
@@ -121,7 +114,7 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
           description: `${deviceName || deviceId} has been deleted`,
         });
 
-        invalidateDeviceQueries();
+        invalidateDevices();
         options?.onSuccess?.();
         return true;
       } catch (error) {
@@ -136,7 +129,7 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
         setIsDeleting(false);
       }
     },
-    [toast, options, invalidateDeviceQueries],
+    [toast, options, invalidateDevices],
   );
 
   return {

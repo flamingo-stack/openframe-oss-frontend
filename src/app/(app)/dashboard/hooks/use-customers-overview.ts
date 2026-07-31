@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { DEVICE_STATUS } from '../../devices/constants/device-statuses';
+import { fetchDeviceCounts } from '../../devices/queries/devices-api';
 import type { GraphQlResponse } from '../../devices/types/device.types';
 import { dashboardQueryKeys } from '../utils/query-keys';
 
@@ -64,21 +65,27 @@ const GET_ORGANIZATIONS_QUERY = `
   }
 `;
 
-const GET_DEVICE_FILTERS_QUERY = `
-  query GetDeviceFilters($filter: DeviceFilterInput) {
-    deviceFilters(filter: $filter) {
-      statuses {
-        value
-        count
-      }
-      organizationIds {
-        value
-        count
-      }
-      filteredCount
-    }
+const NO_COUNTS: ReadonlyMap<string, number> = new Map();
+
+/**
+ * Device counts per organization, degrading to zeroes rather than failing.
+ *
+ * The section's subject is the customer list; the device columns are a detail of
+ * it. A counter request that fails should leave those columns at 0, not collapse
+ * the whole section into its "No Customers added yet" empty state.
+ */
+async function countsByOrganization(
+  organizationIds: string[],
+  statuses: string[],
+): Promise<ReadonlyMap<string, number>> {
+  try {
+    const counts = await fetchDeviceCounts({ organizationIds, statuses });
+    return counts.byOrganization;
+  } catch (error) {
+    console.warn('Customer device counts fetch failed:', error);
+    return NO_COUNTS;
   }
-`;
+}
 
 async function fetchCustomersOverview(_limit: number): Promise<{
   rows: OrganizationOverviewRow[];
@@ -110,79 +117,20 @@ async function fetchCustomersOverview(_limit: number): Promise<{
 
     const allOrgIds = organizations.map(org => org.organizationId);
 
-    const deviceResponse = await apiClient.post<
-      GraphQlResponse<{
-        deviceFilters: {
-          filteredCount: number;
-          statuses?: Array<{ value: string; count: number }>;
-          organizationIds?: Array<{ value: string; count: number }>;
-        };
-      }>
-    >('/api/graphql', {
-      query: GET_DEVICE_FILTERS_QUERY,
-      variables: {
-        filter: {
-          organizationIds: allOrgIds,
-          statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE],
-        },
-      },
-    });
-
-    const orgDeviceCounts = new Map<string, number>();
-    if (deviceResponse.ok && deviceResponse.data?.data?.deviceFilters?.organizationIds) {
-      for (const entry of deviceResponse.data.data.deviceFilters.organizationIds) {
-        orgDeviceCounts.set(entry.value, entry.count);
-      }
-    }
-
-    const [onlineResponse, offlineResponse] = await Promise.all([
-      apiClient.post<
-        GraphQlResponse<{
-          deviceFilters: { organizationIds?: Array<{ value: string; count: number }> };
-        }>
-      >('/api/graphql', {
-        query: GET_DEVICE_FILTERS_QUERY,
-        variables: {
-          filter: {
-            organizationIds: allOrgIds,
-            statuses: [DEVICE_STATUS.ONLINE],
-          },
-        },
-      }),
-      apiClient.post<
-        GraphQlResponse<{
-          deviceFilters: { organizationIds?: Array<{ value: string; count: number }> };
-        }>
-      >('/api/graphql', {
-        query: GET_DEVICE_FILTERS_QUERY,
-        variables: {
-          filter: {
-            organizationIds: allOrgIds,
-            statuses: [DEVICE_STATUS.OFFLINE],
-          },
-        },
-      }),
+    // Three per-organization breakdowns: the total plus each half of it. The
+    // facet query returns one count per organization for the statuses it is
+    // scoped to, so online and offline need their own pass.
+    const [totalCounts, onlineCounts, offlineCounts] = await Promise.all([
+      countsByOrganization(allOrgIds, [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE]),
+      countsByOrganization(allOrgIds, [DEVICE_STATUS.ONLINE]),
+      countsByOrganization(allOrgIds, [DEVICE_STATUS.OFFLINE]),
     ]);
-
-    const orgOnlineCounts = new Map<string, number>();
-    const orgOfflineCounts = new Map<string, number>();
-
-    if (onlineResponse.ok && onlineResponse.data?.data?.deviceFilters?.organizationIds) {
-      for (const entry of onlineResponse.data.data.deviceFilters.organizationIds) {
-        orgOnlineCounts.set(entry.value, entry.count);
-      }
-    }
-    if (offlineResponse.ok && offlineResponse.data?.data?.deviceFilters?.organizationIds) {
-      for (const entry of offlineResponse.data.data.deviceFilters.organizationIds) {
-        orgOfflineCounts.set(entry.value, entry.count);
-      }
-    }
 
     const rows: OrganizationOverviewRow[] = organizations
       .map(org => {
-        const total = orgDeviceCounts.get(org.organizationId) || 0;
-        const active = orgOnlineCounts.get(org.organizationId) || 0;
-        const inactive = orgOfflineCounts.get(org.organizationId) || 0;
+        const total = totalCounts.get(org.organizationId) || 0;
+        const active = onlineCounts.get(org.organizationId) || 0;
+        const inactive = offlineCounts.get(org.organizationId) || 0;
         const activePct = total > 0 ? Math.round((active / total) * 100) : 0;
         const inactivePct = total > 0 ? Math.round((inactive / total) * 100) : 0;
 

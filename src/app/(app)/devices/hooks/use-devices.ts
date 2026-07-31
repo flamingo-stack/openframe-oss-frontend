@@ -1,111 +1,72 @@
 'use client';
 
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
-import { apiClient } from '@/lib/api-client';
-import { GET_DEVICES_QUERY } from '../queries/devices-queries';
-import type { Device, DeviceFilterInput, DevicesGraphQlNode, GraphQlResponse } from '../types/device.types';
-import { createDeviceListItem } from '../utils/device-transform';
-import { deviceQueryKeys } from '../utils/query-keys';
+import { useCallback, useMemo } from 'react';
+import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
+import type { devicesListRelay_query$key } from '@/__generated__/devicesListRelay_query.graphql';
+import type { devicesListRelayPaginationQuery as DevicesListRelayPaginationQueryType } from '@/__generated__/devicesListRelayPaginationQuery.graphql';
+import type { devicesListRelayQuery as DevicesListRelayQueryType } from '@/__generated__/devicesListRelayQuery.graphql';
+import { devicesListRelayFragment, devicesListRelayQuery } from '@/graphql/devices/devices-list-relay';
+import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
+import { DEVICES_PAGE_SIZE } from '../queries/devices-api';
+import type { Device, DeviceFilterInput } from '../types/device.types';
+import { useDeviceEpoch } from '../utils/device-refresh';
+import { readMachineEdges } from '../utils/read-machine';
 
-const DEVICES_PAGE_SIZE = 20;
-
-interface DevicesPage {
+export interface UseDevicesResult {
   devices: Device[];
-  pageInfo: {
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-    startCursor?: string;
-    endCursor?: string;
-  };
   filteredCount: number;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
 }
 
-// Derived from the canonical deviceQueryKeys registry so cache invalidation
-// (which targets deviceQueryKeys roots) stays linked by reference, not by a
-// duplicated 'devices' string literal.
-export const devicesQueryKeys = {
-  all: deviceQueryKeys.all,
-  list: (filters: DeviceFilterInput, search: string) => [...deviceQueryKeys.lists(), filters, search] as const,
-};
+/**
+ * The scrolled device list — the Devices page, the customer devices tab and the
+ * archive page.
+ *
+ * **Suspends** on first load and on any filter/search change. Callers render it
+ * inside a `<Suspense>`; to keep the previous page visible while a new filter
+ * loads (rather than dropping to the fallback), pass DEFERRED filter/search —
+ * see `DevicesPanel`, which defers them so a filter change is a transition.
+ *
+ * Relay owns the cursors and page merging that the previous `useInfiniteQuery`
+ * did by hand, and the rows are normalized `Machine` records shared with every
+ * device picker and schedule table in the app.
+ */
+export function useDevices(filters?: DeviceFilterInput, search = ''): UseDevicesResult {
+  // Refetches this query when a device mutation bumps the epoch — the only way
+  // to refresh a Relay query that is already mounted. See `device-refresh.ts`.
+  const fetchKey = useDeviceEpoch();
 
-export function useDevices(filters: DeviceFilterInput = {}, search = '') {
-  const { toast } = useToast();
+  const root = useLazyLoadQuery<DevicesListRelayQueryType>(
+    devicesListRelayQuery,
+    { filter: toRelayDeviceFilter(filters), search: search || null, first: DEVICES_PAGE_SIZE },
+    { fetchPolicy: 'store-and-network', fetchKey },
+  );
 
-  const query = useInfiniteQuery<DevicesPage, Error>({
-    queryKey: devicesQueryKeys.list(filters, search),
-    queryFn: async ({ pageParam }) => {
-      const response = await apiClient.post<
-        GraphQlResponse<{
-          devices: {
-            edges: Array<{ node: DevicesGraphQlNode; cursor: string }>;
-            pageInfo: {
-              hasNextPage: boolean;
-              hasPreviousPage: boolean;
-              startCursor?: string;
-              endCursor?: string;
-            };
-            filteredCount: number;
-          };
-        }>
-      >('/api/graphql', {
-        query: GET_DEVICES_QUERY,
-        variables: {
-          filter: filters,
-          first: DEVICES_PAGE_SIZE,
-          after: (pageParam as string) || null,
-          search: search || '',
-          sort: { field: 'status', direction: 'DESC' },
-        },
-      });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    DevicesListRelayPaginationQueryType,
+    devicesListRelay_query$key
+  >(devicesListRelayFragment, root);
 
-      if (!response.ok) {
-        throw new Error(response.error || `Request failed with status ${response.status}`);
-      }
+  const devices = useMemo(() => readMachineEdges(data.devices?.edges), [data.devices?.edges]);
 
-      const graphqlResponse = response.data;
-      if (!graphqlResponse?.data) {
-        throw new Error('No data received from server');
-      }
-      if (graphqlResponse.errors && graphqlResponse.errors.length > 0) {
-        throw new Error(graphqlResponse.errors[0].message || 'GraphQL error occurred');
-      }
-
-      const nodes = graphqlResponse.data.devices.edges.map(e => e.node);
-      const devices = nodes.map(createDeviceListItem);
-
-      return {
-        devices,
-        pageInfo: graphqlResponse.data.devices.pageInfo,
-        filteredCount: graphqlResponse.data.devices.filteredCount,
-      };
-    },
-    getNextPageParam: lastPage => (lastPage.pageInfo.hasNextPage ? lastPage.pageInfo.endCursor : undefined),
-    initialPageParam: undefined as string | undefined,
-    staleTime: 30 * 1000,
-  });
-
-  useEffect(() => {
-    if (query.error) {
-      toast({
-        title: 'Failed to Load Devices',
-        description: query.error.message,
-        variant: 'destructive',
-      });
-    }
-  }, [query.error, toast]);
-
-  const devices = useMemo(() => query.data?.pages.flatMap(page => page.devices) ?? [], [query.data?.pages]);
+  // KNOWN LIMITATION: this refetches from the head (`after: null`), and
+  // `ConnectionHandler` REPLACES rather than merges on a head fetch, so a user
+  // who has scrolled past page 1 is snapped back to the first 20 rows after a
+  // device mutation. Refetching via `usePaginationFragment`'s `refetch` at the
+  // loaded size was tried and dropped `filteredCount` (the row counter
+  // disappeared), so it is not a straight swap. The correct fix is a
+  // `ConnectionHandler` updater applied from the mutation — but the archive /
+  // unarchive / delete calls are REST (`apiClient.patch`), not Relay mutations,
+  // so that needs the mutation moved to Relay first.
+  const fetchNextPage = useCallback(() => loadNext(DEVICES_PAGE_SIZE), [loadNext]);
 
   return {
     devices,
-    isLoading: query.isLoading,
-    isFetchingNextPage: query.isFetchingNextPage,
-    hasNextPage: query.hasNextPage ?? false,
-    fetchNextPage: query.fetchNextPage,
-    error: query.error?.message ?? null,
-    filteredCount: query.data?.pages[0]?.filteredCount ?? 0,
-    refetch: query.refetch,
+    filteredCount: data.devices?.filteredCount ?? 0,
+    hasNextPage: hasNext,
+    isFetchingNextPage: isLoadingNext,
+    fetchNextPage,
   };
 }

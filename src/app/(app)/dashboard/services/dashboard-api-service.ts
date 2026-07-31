@@ -2,7 +2,7 @@
 
 import { apiClient } from '@/lib/api-client';
 import { DEFAULT_DASHBOARD_STATUSES, DEVICE_STATUS } from '../../devices/constants/device-statuses';
-import { GET_DEVICE_FILTERS_QUERY } from '../../devices/queries/devices-queries';
+import { fetchDeviceCounts } from '../../devices/queries/devices-api';
 import type { GraphQlResponse } from '../../devices/types/device.types';
 import { API_ENDPOINTS, TICKET_STATUS } from '../../tickets/constants';
 import { GET_TICKET_STATISTICS_QUERY } from '../../tickets/queries/ticket-queries';
@@ -43,13 +43,6 @@ export interface DashboardTicketStats {
   techRequiredColor?: string;
 }
 
-interface DeviceFiltersResponse {
-  deviceFilters: {
-    filteredCount: number;
-    statuses?: Array<{ value: string; count: number }>;
-  };
-}
-
 interface TicketStatsResponse {
   ticketStatistics: TicketStatisticsCounts & {
     totalCount: number;
@@ -80,27 +73,14 @@ class DashboardApiService {
   }
 
   /**
-   * Single GraphQL query for device counts and status breakdown
+   * Device counts and status breakdown, via the shared device query layer.
    */
   async fetchDeviceStats(): Promise<DashboardDeviceStats> {
     try {
-      const response = await apiClient.post<GraphQlResponse<DeviceFiltersResponse>>('/api/graphql', {
-        query: GET_DEVICE_FILTERS_QUERY,
-        variables: { filter: { statuses: [...DEFAULT_DASHBOARD_STATUSES] } },
-      });
+      const counts = await fetchDeviceCounts({ statuses: [...DEFAULT_DASHBOARD_STATUSES] });
 
-      if (!response.ok) {
-        throw new Error(response.error || `Device stats request failed with status ${response.status}`);
-      }
-
-      const data = response.data?.data?.deviceFilters;
-      if (!data) {
-        throw new Error('Invalid device stats response structure');
-      }
-
-      const total = data.filteredCount || 0;
-      const statuses = data.statuses || [];
-      const countFor = (value: string) => statuses.find(s => s.value === value)?.count || 0;
+      const total = counts.filteredCount;
+      const countFor = (value: string) => counts.byStatus.get(value) ?? 0;
       const toPercentage = (count: number) => (total > 0 ? Math.round((count / total) * 100) : 0);
 
       const active = countFor(DEVICE_STATUS.ONLINE);

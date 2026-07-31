@@ -62,6 +62,34 @@ export function getFleetHostId(device: Device): number | undefined {
 }
 
 /**
+ * Index devices by their Fleet host id, for the screens that start from a Fleet
+ * host (monitoring queries and policies) and need the OpenFrame device behind it.
+ *
+ * Several devices can carry the same Fleet host id — a machine re-enrolled under
+ * a new device record keeps the old one's connection — so the most recently seen
+ * device wins. Devices with no Fleet connection are absent from the map.
+ */
+export function indexDevicesByFleetHostId(devices: readonly Device[]): Map<number, Device> {
+  const byFleetId = new Map<number, Device>();
+
+  for (const device of devices) {
+    const fleetId = getFleetHostId(device);
+    if (fleetId === undefined) continue;
+
+    const existing = byFleetId.get(fleetId);
+    if (!existing || lastSeenTime(device) > lastSeenTime(existing)) {
+      byFleetId.set(fleetId, device);
+    }
+  }
+
+  return byFleetId;
+}
+
+function lastSeenTime(device: Device): number {
+  return new Date(device.lastSeen || device.last_seen || 0).getTime();
+}
+
+/**
  * Device action availability result
  */
 export interface DeviceActionAvailability {

@@ -1,67 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
-import { DEVICE_ENRICHMENT_STATUSES } from '../../../devices/constants/device-statuses';
-import { GET_DEVICES_QUERY } from '../../../devices/queries/devices-queries';
-import type { Device, DevicesGraphQlNode, GraphQlResponse } from '../../../devices/types/device.types';
-import { getFleetHostId } from '../../../devices/utils/device-action-utils';
-import { createDeviceListItem } from '../../../devices/utils/device-transform';
+import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-statuses';
+import { useAllDevices } from '../../../devices/hooks/use-all-devices';
+import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
 import type { QueryDeviceRow } from '../types/query-device-row';
-
-const DEVICES_PAGE_SIZE = 100;
-
-interface DevicesResponseData {
-  devices: {
-    edges: Array<{ node: DevicesGraphQlNode; cursor: string }>;
-    pageInfo: { hasNextPage: boolean; endCursor?: string };
-  };
-}
-
-async function fetchDevicesPage(
-  cursor: string | null,
-): Promise<{ devices: Device[]; hasNextPage: boolean; endCursor: string | null }> {
-  const response = await apiClient.post<GraphQlResponse<DevicesResponseData>>('/api/graphql', {
-    query: GET_DEVICES_QUERY,
-    variables: {
-      filter: { statuses: DEVICE_ENRICHMENT_STATUSES },
-      first: DEVICES_PAGE_SIZE,
-      after: cursor,
-      search: '',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(response.error || 'Failed to fetch devices');
-  }
-  const graphqlResponse = response.data;
-  if (!graphqlResponse?.data) {
-    throw new Error('No data received from server');
-  }
-
-  const nodes = graphqlResponse.data.devices.edges.map((e: { node: DevicesGraphQlNode }) => e.node);
-  return {
-    devices: nodes.map(createDeviceListItem),
-    hasNextPage: graphqlResponse.data.devices.pageInfo.hasNextPage,
-    endCursor: graphqlResponse.data.devices.pageInfo.endCursor ?? null,
-  };
-}
-
-/** Fetch all Fleet-connected devices via paginated GraphQL queries. */
-async function fetchAllDevices(): Promise<Device[]> {
-  const allDevices: Device[] = [];
-  let cursor: string | null = null;
-  let hasMore = true;
-  while (hasMore) {
-    const page = await fetchDevicesPage(cursor);
-    allDevices.push(...page.devices);
-    // Stop if the cursor can't advance, even when the API still reports a next
-    // page — otherwise a null `endCursor` would refetch page one indefinitely.
-    hasMore = page.hasNextPage && page.endCursor !== null;
-    cursor = page.endCursor;
-  }
-  return allDevices;
-}
 
 const QUERY_HOSTS_PAGE_SIZE = 100;
 
@@ -99,30 +42,17 @@ export function useQueryDevicesTable(queryId: number | null) {
 
   // The full device registry, used to enrich each assigned host with display,
   // organization, OS, status and tag data.
-  const devicesQuery = useQuery({
-    queryKey: ['query-devices-table-devices'],
-    queryFn: fetchAllDevices,
-    enabled: queryId !== null,
-  });
+  const {
+    devices,
+    isLoading: isLoadingDevices,
+    error: devicesError,
+  } = useAllDevices({ filter: DEVICE_ENRICHMENT_FILTER, enabled: queryId !== null });
 
   const rows = useMemo<QueryDeviceRow[]>(() => {
     const hosts = hostsQuery.data;
     if (!hosts) return [];
 
-    // Lookup from Fleet host id to its device, deduplicated by keeping the most
-    // recently seen device when several map to the same Fleet host id.
-    const deviceByFleetId = new Map<number, Device>();
-    for (const device of devicesQuery.data ?? []) {
-      const fleetId = getFleetHostId(device);
-      if (fleetId === undefined) continue;
-      const existing = deviceByFleetId.get(fleetId);
-      if (
-        !existing ||
-        new Date(device.lastSeen || device.last_seen || 0) > new Date(existing.lastSeen || existing.last_seen || 0)
-      ) {
-        deviceByFleetId.set(fleetId, device);
-      }
-    }
+    const deviceByFleetId = indexDevicesByFleetHostId(devices);
 
     // Merge each assigned host with its device data (falling back to the host's
     // own fields when no matching device exists in the registry).
@@ -147,11 +77,11 @@ export function useQueryDevicesTable(queryId: number | null) {
 
     result.sort((a, b) => a.displayName.localeCompare(b.displayName));
     return result;
-  }, [hostsQuery.data, devicesQuery.data]);
+  }, [hostsQuery.data, devices]);
 
   return {
     rows,
-    isLoading: hostsQuery.isLoading || devicesQuery.isLoading,
-    error: hostsQuery.error?.message ?? devicesQuery.error?.message ?? null,
+    isLoading: hostsQuery.isLoading || isLoadingDevices,
+    error: hostsQuery.error?.message ?? devicesError,
   };
 }
