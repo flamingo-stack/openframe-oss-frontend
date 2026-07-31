@@ -73,13 +73,11 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
         header: 'SOFTWARE',
         cell: ({ row }: { row: Row<Software> }) => (
           <div className="flex flex-col justify-center min-w-0">
-            <span className="text-h4 text-ods-text-primary truncate" title={row.original.name}>
-              {row.original.name}
-            </span>
+            <TruncateText>{row.original.name}</TruncateText>
             {row.original.version && (
-              <span className="text-h6 text-ods-text-secondary truncate" title={row.original.version}>
+              <TruncateText variant="h6" tone="secondary">
                 {row.original.version}
-              </span>
+              </TruncateText>
             )}
           </div>
         ),
@@ -92,12 +90,12 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
         cell: ({ row }: { row: Row<Software> }) => {
           const { Icon, label } = getSourceIcon(row.original.source);
           return (
-            <span className="inline-flex items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary min-w-0">
+            <div className="inline-flex items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary min-w-0">
               <Icon className="w-4 h-4 md:w-6 md:h-6 shrink-0" />
-              <span className="text-h4 truncate" title={label}>
-                {label}
-              </span>
-            </span>
+              <div className="min-w-0">
+                <TruncateText tone="secondary">{label}</TruncateText>
+              </div>
+            </div>
           );
         },
         enableSorting: true,

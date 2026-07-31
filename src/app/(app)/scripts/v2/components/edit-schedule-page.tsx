@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
+  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { OS_PLATFORMS } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -729,12 +730,11 @@ function EditScheduleForm({ scheduleId, initialValues, loading = false }: EditSc
               })}
             </div>
             {showErrors && formState.errors.supportedPlatforms && (
-              <p
-                className="absolute bottom-0 left-0 right-0 translate-y-full truncate text-h6 text-ods-error"
-                title={formState.errors.supportedPlatforms.message}
-              >
-                {formState.errors.supportedPlatforms.message}
-              </p>
+              <div className="absolute bottom-0 left-0 right-0 translate-y-full">
+                <TruncateText variant="h6" className="text-ods-error">
+                  {formState.errors.supportedPlatforms.message ?? ''}
+                </TruncateText>
+              </div>
             )}
           </div>
 

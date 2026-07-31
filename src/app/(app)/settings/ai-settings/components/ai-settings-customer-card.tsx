@@ -1,7 +1,7 @@
 'use client';
 
 import { FAE_AVATAR_DATA_URI } from '@flamingo-stack/openframe-frontend-core/assets';
-import { EntityImage } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
@@ -41,7 +41,7 @@ export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: A
         className="size-10 md:size-10 rounded-full"
       />
       <div className="flex flex-col justify-center min-w-0 flex-1">
-        <p className="text-ods-text-primary text-h4 truncate">{view.assistantName}</p>
+        <TruncateText>{view.assistantName}</TruncateText>
         <p className="text-ods-text-secondary text-h6 truncate">Assistant Name</p>
       </div>
     </>,

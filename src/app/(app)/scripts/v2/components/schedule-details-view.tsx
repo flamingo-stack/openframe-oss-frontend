@@ -18,6 +18,7 @@ import {
   Skeleton,
   type TabItem,
   TabNavigation,
+  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -214,9 +215,7 @@ function ScriptParamsPanel({
         className,
       )}
     >
-      <span className="text-h4 text-ods-text-primary truncate" title={title}>
-        {title}
-      </span>
+      <TruncateText>{title}</TruncateText>
       <ScriptParamRows rows={rows} emptyText={emptyText} />
       {footer}
     </div>
@@ -275,9 +274,7 @@ function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
         )}
       >
         <div className="flex-1 min-w-0 flex flex-col justify-center">
-          <span className="text-h4 text-ods-text-primary truncate" title={script.name}>
-            {script.name}
-          </span>
+          <TruncateText>{script.name}</TruncateText>
           <span className="text-h6 text-ods-text-secondary truncate">Script</span>
         </div>
 

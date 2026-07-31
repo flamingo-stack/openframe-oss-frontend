@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Monitor, Square, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
@@ -70,17 +70,15 @@ export function TestRunCard({ run, onStop, onTestAgain, onClose }: TestRunCardPr
         <div className="flex-1 flex flex-col justify-center overflow-hidden">
           <div className="flex gap-1 items-center">
             <Monitor className="size-4 text-ods-text-secondary flex-shrink-0" />
-            <span className="text-h4 text-ods-text-primary truncate" title={run.deviceName}>
-              {run.deviceName}
-            </span>
+            <div className="min-w-0 flex-1">
+              <TruncateText>{run.deviceName}</TruncateText>
+            </div>
           </div>
           <span className="text-h6 text-ods-text-secondary truncate">Device</span>
         </div>
 
         <div className="flex-1 flex flex-col justify-center overflow-hidden">
-          <span className="text-h4 text-ods-text-primary truncate" title={run.startedAt}>
-            {run.startedAt}
-          </span>
+          <TruncateText>{run.startedAt}</TruncateText>
           <span className="text-h6 text-ods-text-secondary">Started</span>
         </div>
 

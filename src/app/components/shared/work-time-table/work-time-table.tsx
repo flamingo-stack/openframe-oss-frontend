@@ -176,8 +176,12 @@ const ticketNotesColumn: ColumnDef<WorkTimeRow> = {
     const ticketLabel = ticketTitle ? `${ticketNumber != null ? `${ticketNumber} – ` : ''}${ticketTitle}` : '–';
     return (
       <div className="flex min-w-0 flex-col">
-        <span className="truncate text-h4 text-ods-text-primary">{ticketLabel}</span>
-        {notes && <span className="truncate text-h6 text-ods-text-secondary">{notes}</span>}
+        <TruncateText>{ticketLabel}</TruncateText>
+        {notes && (
+          <TruncateText variant="h6" tone="secondary">
+            {notes}
+          </TruncateText>
+        )}
       </div>
     );
   },

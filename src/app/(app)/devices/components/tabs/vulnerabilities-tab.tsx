@@ -13,6 +13,7 @@ import {
   Input,
   type Row,
   type SortingState,
+  TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { differenceInCalendarDays } from 'date-fns';
@@ -131,13 +132,11 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         header: 'SOFTWARE',
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
           <div className="flex flex-col justify-center min-w-0">
-            <span className="text-h4 text-ods-text-primary truncate" title={row.original.software_name}>
-              {row.original.software_name}
-            </span>
+            <TruncateText>{row.original.software_name}</TruncateText>
             {row.original.software_version && (
-              <span className="text-h6 text-ods-text-secondary truncate" title={row.original.software_version}>
+              <TruncateText variant="h6" tone="secondary">
                 {row.original.software_version}
-              </span>
+              </TruncateText>
             )}
           </div>
         ),

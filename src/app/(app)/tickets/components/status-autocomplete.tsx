@@ -1,7 +1,11 @@
 'use client';
 
 import { CheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type AutocompleteOption, ColorSwatch } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type AutocompleteOption,
+  ColorSwatch,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 
 export interface StatusOption extends AutocompleteOption {
@@ -14,9 +18,9 @@ export function renderStatusOption(option: AutocompleteOption, isSelected: boole
     <div className="flex items-center justify-between w-full min-w-0 gap-[var(--spacing-system-xs)]">
       <div className="flex items-center gap-[var(--spacing-system-xs)] min-w-0">
         <ColorSwatch color={color} />
-        <span className="truncate" title={label}>
-          {label}
-        </span>
+        <div className="min-w-0">
+          <TruncateText className="text-inherit">{label}</TruncateText>
+        </div>
       </div>
       {isSelected && <CheckIcon className="text-ods-accent" size={20} />}
     </div>

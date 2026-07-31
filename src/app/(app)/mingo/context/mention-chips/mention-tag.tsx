@@ -17,7 +17,7 @@
  * fetch throws (never crashes the message).
  */
 
-import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Component, type ReactNode } from 'react';
 
 // Tweaks on top of Tag's `badge` skin so the mention matches the canonical
@@ -42,10 +42,12 @@ interface MentionTagProps {
 }
 
 export function MentionTag({ icon, label, href }: MentionTagProps) {
-  // Wrap the label so it's NOT a string — Tag only sets the native `title`
-  // tooltip for string labels, and that browser tooltip (a grey box on hover)
-  // looks unpolished. Tag still truncates via its own label span.
-  const chip = <Tag as="span" variant="badge" icon={icon} label={<>{label}</>} className={CHIP_CLASS} />;
+  // String labels render through TruncateText: the chip's max-w truncation gets a
+  // floating tooltip with the full entity name. Node labels stay wrapped in a
+  // fragment so Tag never sees a bare string — that would re-enable the native
+  // `title` browser tooltip (a grey box on hover) which looks unpolished.
+  const labelNode = typeof label === 'string' ? <TruncateText variant="h5">{label}</TruncateText> : <>{label}</>;
+  const chip = <Tag as="span" variant="badge" icon={icon} label={labelNode} className={CHIP_CLASS} />;
   if (!href) return chip;
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="no-underline">

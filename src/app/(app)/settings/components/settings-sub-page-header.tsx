@@ -1,5 +1,6 @@
 'use client';
 
+import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { routes } from '@/lib/routes';
@@ -17,7 +18,10 @@ export function SettingsSubPageHeader({ title }: SettingsSubPageHeaderProps) {
       >
         <ArrowLeft className="size-5" />
       </Link>
-      <h1 className="text-h2 text-ods-text-primary">{title}</h1>
+      {/* role="heading" instead of <h1>: FloatingTooltip's trigger is a block <div>, which is invalid inside a heading element. */}
+      <div role="heading" aria-level={1} className="min-w-0 flex-1">
+        <TruncateText variant="h2">{title}</TruncateText>
+      </div>
     </div>
   );
 }

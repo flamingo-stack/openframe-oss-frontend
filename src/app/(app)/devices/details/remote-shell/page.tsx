@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { Button, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { TerminalSquare } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -293,15 +293,15 @@ export default function RemoteShellPage() {
     >
       <div className="bg-ods-card border rounded-md border-ods-border flex items-center justify-between py-2 px-4 mb-2 flex-shrink-0">
         {/* Device info */}
-        <div className="flex items-center gap-4">
-          <div className="bg-ods-card border border-ods-border rounded-md p-2">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="bg-ods-card border border-ods-border rounded-md p-2 shrink-0">
             <TerminalSquare className="w-4 h-4 text-ods-text-primary" />
           </div>
-          <div className="flex flex-col">
-            <h1 className="text-ods-text-primary text-h4">{hostname || `Device ${deviceId}`}</h1>
-            <p className="text-ods-text-secondary text-h6">
-              {shellLabel} {organizationName ? `\u2022 ${organizationName}` : ''}
-            </p>
+          <div className="flex flex-col min-w-0">
+            <TruncateText>{hostname || `Device ${deviceId}`}</TruncateText>
+            <TruncateText variant="h6" tone="secondary">
+              {`${shellLabel}${organizationName ? ` \u2022 ${organizationName}` : ''}`}
+            </TruncateText>
           </div>
         </div>
 

@@ -10,7 +10,7 @@ import {
   SignalBroadcast02Icon,
   WrenchScrewdiverIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ComponentType } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useTenantInfo } from '../../../hooks/use-tenant-info';
@@ -108,7 +108,9 @@ export function MeetFaePreview({
                   </span>
                   <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
                     <span className="text-h3 text-ods-text-primary">{title}</span>
-                    <span className="line-clamp-2 text-h6 text-ods-text-secondary">{description}</span>
+                    <TruncateText lines={2} variant="h6" tone="secondary">
+                      {description}
+                    </TruncateText>
                   </div>
                 </div>
               ))}

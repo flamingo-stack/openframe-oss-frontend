@@ -2,7 +2,7 @@
 
 import { OSTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { EntityImage } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
 import type React from 'react';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
@@ -74,17 +74,11 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
       <EntityImage src={customerImageUrl} alt={device.organization} className="size-10 md:size-10" />
       <div className="flex flex-col justify-center min-w-0 flex-1">
         {customerHref ? (
-          <Link
-            href={customerHref}
-            className="text-ods-accent underline hover:opacity-80 text-h4 truncate"
-            title={device.organization}
-          >
-            {device.organization}
+          <Link href={customerHref} className="min-w-0">
+            <TruncateText className="text-ods-accent underline hover:opacity-80">{device.organization}</TruncateText>
           </Link>
         ) : (
-          <p className="text-ods-text-primary text-h4 truncate" title={device.organization}>
-            {device.organization}
-          </p>
+          <TruncateText>{device.organization}</TruncateText>
         )}
         <p className="text-ods-text-secondary text-h6 truncate">Customer ID (Site)</p>
       </div>
@@ -95,9 +89,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
     <>
       <EntityImage src={assignedUserImageUrl} alt={assignedUser.username} className="size-10 md:size-10 rounded-full" />
       <div className="flex flex-col justify-center min-w-0 flex-1">
-        <p className="text-ods-accent underline text-h4 truncate" title={assignedUser.username}>
-          {assignedUser.username}
-        </p>
+        <TruncateText className="text-ods-accent underline">{assignedUser.username}</TruncateText>
         <p className="text-ods-text-secondary text-h6 truncate">Assigned User</p>
       </div>
     </>

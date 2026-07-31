@@ -2,7 +2,7 @@
 
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 
 interface MspOrganizationCardProps {
@@ -31,13 +31,11 @@ export function MspOrganizationCard({
           <Skeleton className="h-5 w-40 rounded-md" />
         ) : (
           <>
-            <p className="text-h4 text-ods-text-primary truncate" title={displayName}>
-              {displayName}
-            </p>
+            <TruncateText>{displayName}</TruncateText>
             {website && (
-              <p className="text-h6 text-ods-text-secondary truncate" title={website}>
+              <TruncateText variant="h6" tone="secondary">
                 {website}
-              </p>
+              </TruncateText>
             )}
           </>
         )}

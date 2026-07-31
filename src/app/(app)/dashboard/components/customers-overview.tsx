@@ -1,6 +1,6 @@
 'use client';
 
-import { DashboardInfoCard, EntityImage, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { DashboardInfoCard, EntityImage, TitleBlock, TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import { IdCardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useMemo } from 'react';
 import { EmptyState } from '@/app/components/shared';
@@ -44,10 +44,12 @@ export function CustomersOverviewSection() {
               <EntityImage src={fullImageUrl} alt={org.name} className="size-full md:size-full rounded-none border-0" />
             }
             titleSlot={
-              <span className="flex min-w-0 items-baseline gap-[var(--spacing-system-xs)]">
-                <span className="truncate text-h3 text-ods-text-primary">{org.name}</span>
+              <div className="flex min-w-0 items-baseline gap-[var(--spacing-system-xs)]">
+                <div className="min-w-0">
+                  <TruncateText variant="h3">{org.name}</TruncateText>
+                </div>
                 <span className="shrink-0 text-h4 text-ods-text-secondary">({org.total.toLocaleString()} devices)</span>
-              </span>
+              </div>
             }
             value={org.websiteUrl || 'Organization'}
             valueClassName="text-h6 md:text-h6 text-ods-text-secondary"

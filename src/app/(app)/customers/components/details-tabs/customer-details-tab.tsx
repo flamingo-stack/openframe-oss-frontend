@@ -1,6 +1,7 @@
 'use client';
 
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import type { CustomerDetails } from '../../hooks/use-customer-details';
 
@@ -21,13 +22,13 @@ function InfoCell({ value, label, icon, href }: InfoCellProps) {
     <div className="flex flex-col justify-center min-w-0 flex-1">
       <div className="flex items-center gap-1 min-w-0">
         {icon}
-        <span className="text-h4 text-ods-text-primary truncate" title={display}>
-          {display}
-        </span>
+        <div className="min-w-0 flex-1">
+          <TruncateText>{display}</TruncateText>
+        </div>
       </div>
-      <span className="text-h6 text-ods-text-secondary truncate" title={label}>
+      <TruncateText variant="h6" tone="secondary">
         {label}
-      </span>
+      </TruncateText>
     </div>
   );
 

@@ -14,6 +14,7 @@ import {
   SelectValue,
   Skeleton,
   Tag,
+  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
@@ -130,9 +131,9 @@ export function ScheduleCriteriaFields({ criteria, onChange, deviceFilters, disa
                   {!isAll && (
                     <OrgAvatar imageUrl={org?.imageUrl} hash={org?.imageHash} name={org?.name ?? option.label} />
                   )}
-                  <span className={cn('truncate', isAll && selected && 'text-ods-accent')} title={option.label}>
-                    {option.label}
-                  </span>
+                  <div className="min-w-0">
+                    <TruncateText className={cn(selected && 'text-ods-accent')}>{option.label}</TruncateText>
+                  </div>
                 </div>
                 {selected && <CheckIcon className="shrink-0 text-ods-accent" size={20} />}
               </div>
