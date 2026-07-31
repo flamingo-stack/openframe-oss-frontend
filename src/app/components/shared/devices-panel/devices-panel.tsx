@@ -327,6 +327,14 @@ export function DevicesPanel({
               <DevicesTableBody
                 devices={devices}
                 isLoading={isLoading || isDeviceFiltersLoading}
+                // Facets ride their own query here, so they can land after the rows —
+                // keep the funnels drawn until then instead of growing them mid-view.
+                //
+                // Keyed on the DATA, not on `isDeviceFiltersLoading`: react-query reports
+                // `isLoading` false before the request has started, so the first render
+                // would read as "answered, nothing to filter by" and drop the funnels for
+                // good. No data yet is the honest "not answered".
+                filtersPending={!deviceFilters}
                 emptyMessage={emptyMessage}
                 skeletonRows={10}
                 stickyHeaderOffset="top-[96px]"

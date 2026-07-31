@@ -1,10 +1,10 @@
 'use client';
 
-import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useState } from 'react';
 
 interface StickyToolbar {
   /** Attach to the sticky toolbar element whose height drives the table-header offset. */
-  toolbarRef: RefObject<HTMLDivElement | null>;
+  toolbarRef: (node: HTMLDivElement | null) => void;
   /** Apply to the element wrapping both the toolbar and the table; publishes the measured height. */
   containerStyle: CSSProperties;
   /** Pass to DataTable.Header's `stickyHeaderOffset` so it pins right below the toolbar. */
@@ -17,20 +17,30 @@ interface StickyToolbar {
  * and published as `--sticky-toolbar-h` on the container, which the table header
  * reads via `top-[var(--sticky-toolbar-h)]` — so the header always pins flush
  * below the toolbar without a hard-coded offset.
+ *
+ * A CALLBACK ref, not a ref object: a toolbar can be conditionally rendered (a
+ * list with nothing in it hides its search box), and a plain `useRef` + mount
+ * effect would neither measure a toolbar that appears later nor zero the offset
+ * for one that goes away — the header would then pin below a strip that is no
+ * longer there.
  */
 export function useStickyToolbar(): StickyToolbar {
-  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
   const [height, setHeight] = useState(0);
 
+  const toolbarRef = useCallback((el: HTMLDivElement | null) => setNode(el), []);
+
   useEffect(() => {
-    const el = toolbarRef.current;
-    if (!el) return;
-    const update = () => setHeight(el.offsetHeight);
+    if (!node) {
+      setHeight(0);
+      return;
+    }
+    const update = () => setHeight(node.offsetHeight);
     update();
     const observer = new ResizeObserver(update);
-    observer.observe(el);
+    observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [node]);
 
   return {
     toolbarRef,

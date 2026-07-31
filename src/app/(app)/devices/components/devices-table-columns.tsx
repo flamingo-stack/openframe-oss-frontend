@@ -7,6 +7,7 @@ import {
   type ColumnFiltersState,
   DataTable,
   EntityImage,
+  type NoDataProps,
   type OnChangeFn,
   type Row,
   Tag,
@@ -58,6 +59,12 @@ export const DEVICE_OPEN_COLUMN: ColumnDef<Device> = {
 interface DevicesTableBodyProps {
   devices: Device[];
   isLoading?: boolean;
+  /**
+   * The empty state, as the design's `data-placeholder`: icon over a title over
+   * a description. Wins over `emptyMessage` when both are given.
+   */
+  emptyState?: NoDataProps;
+  /** @deprecated Single-line variant of {@link emptyState} — pass `emptyState` instead. */
   emptyMessage?: string;
   skeletonRows?: number;
   stickyHeaderOffset?: string;
@@ -71,6 +78,8 @@ interface DevicesTableBodyProps {
   hideColumns?: string[];
   /** Column ids whose header filter is dropped while the column stays visible (e.g. ['status'] on the archive page). */
   disableColumnFilters?: string[];
+  /** The facet query is still in flight — see `getDeviceTableColumns`. */
+  filtersPending?: boolean;
   /** Server-side total (for paginated lists). Falls back to loaded-row count when omitted. */
   totalCount?: number;
   /**
@@ -89,6 +98,7 @@ interface DevicesTableBodyProps {
 export function DevicesTableBody({
   devices,
   isLoading,
+  emptyState,
   emptyMessage = 'No devices found.',
   skeletonRows = 10,
   stickyHeaderOffset,
@@ -99,17 +109,18 @@ export function DevicesTableBody({
   actionsColumn,
   hideColumns,
   disableColumnFilters,
+  filtersPending,
   totalCount,
   showHeader = true,
 }: DevicesTableBodyProps) {
   const columns = useMemo<ColumnDef<Device>[]>(() => {
     const hidden = new Set(hideColumns ?? []);
     const unfiltered = new Set(disableColumnFilters ?? []);
-    const base = getDeviceTableColumns(deviceFilters ?? null)
+    const base = getDeviceTableColumns(deviceFilters ?? null, filtersPending)
       .filter(c => !c.id || !hidden.has(c.id))
       .map(c => (c.id && unfiltered.has(c.id) ? { ...c, meta: { ...c.meta, filter: undefined } } : c));
     return actionsColumn ? [...base, actionsColumn, DEVICE_OPEN_COLUMN] : [...base, DEVICE_OPEN_COLUMN];
-  }, [deviceFilters, actionsColumn, hideColumns, disableColumnFilters]);
+  }, [deviceFilters, filtersPending, actionsColumn, hideColumns, disableColumnFilters]);
 
   const table = useDataTable<Device>({
     data: devices,
@@ -132,7 +143,8 @@ export function DevicesTableBody({
       <DataTable.Body
         loading={isLoading}
         skeletonRows={skeletonRows}
-        emptyMessage={emptyMessage}
+        emptyState={emptyState}
+        emptyMessage={emptyState ? undefined : emptyMessage}
         rowClassName="mb-1"
         rowHref={deviceRowHref}
       />
@@ -212,7 +224,16 @@ export function getDeviceFilterColumns(deviceFilters?: DeviceFilters | null): De
   ];
 }
 
-export function getDeviceTableColumns(deviceFilters?: DeviceFilters | null): ColumnDef<Device>[] {
+/**
+ * @param filtersPending The `deviceFilters` query is in flight — keeps the
+ * funnels drawn (inert) rather than growing them when it answers. Absent means
+ * these are the final options: an empty one then hides its funnel, which is what
+ * a list with no facet source of its own wants.
+ */
+export function getDeviceTableColumns(
+  deviceFilters?: DeviceFilters | null,
+  filtersPending?: boolean,
+): ColumnDef<Device>[] {
   const statusFilterOptions = (() => {
     const statuses = deviceFilters?.statuses || [];
     return statuses
@@ -274,7 +295,7 @@ export function getDeviceTableColumns(deviceFilters?: DeviceFilters | null): Col
         // options query resolves made every header on a tablet disappear on
         // reload — and reserving the funnel from the start keeps the label from
         // shifting when they arrive. The dropdown stays shut while it is empty.
-        filter: { options: statusFilterOptions },
+        filter: { options: statusFilterOptions, pending: filtersPending },
       },
     },
     {
@@ -287,7 +308,7 @@ export function getDeviceTableColumns(deviceFilters?: DeviceFilters | null): Col
       meta: {
         width: 'w-[200px] md:w-1/6',
         hideAt: 'md',
-        filter: { options: osFilterOptions },
+        filter: { options: osFilterOptions, pending: filtersPending },
       },
     },
     {
@@ -298,7 +319,7 @@ export function getDeviceTableColumns(deviceFilters?: DeviceFilters | null): Col
       meta: {
         width: 'w-1/6',
         hideAt: 'lg',
-        filter: { options: orgFilterOptions, placement: 'bottom-end' },
+        filter: { options: orgFilterOptions, placement: 'bottom-end', pending: filtersPending },
       },
     },
   ];

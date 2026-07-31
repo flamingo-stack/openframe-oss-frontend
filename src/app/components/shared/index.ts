@@ -6,6 +6,12 @@ export {
   type DevicesFilterToolbarProps,
   DeviceTagsFilterButton,
 } from './devices-filter-toolbar';
+export {
+  DevicesList,
+  type DevicesListNarrowing,
+  type DevicesListProps,
+  EMPTY_DEVICES_NARROWING,
+} from './devices-list';
 export { DevicesPanel, type DevicesPanelProps } from './devices-panel';
 export { EMBEDDED_PAGE_OFFSET } from './embedded-page';
 export { EmptyState, type EmptyStateProps } from './empty-state';
