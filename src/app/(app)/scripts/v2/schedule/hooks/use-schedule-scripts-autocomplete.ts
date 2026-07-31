@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchQuery, useRelayEnvironment } from 'react-relay';
 import type { scheduleScriptsPickerRelayQuery as PickerQueryType } from '@/__generated__/scheduleScriptsPickerRelayQuery.graphql';
 import { scheduleScriptsPickerRelayQuery } from '@/graphql/scripts/schedule-scripts-picker-relay';
-import { platformsToEnums } from '../utils/script-mappers';
+import { platformsToEnums } from '../../shared/utils/script-mappers';
 
 export interface PickerScript {
   id: string;

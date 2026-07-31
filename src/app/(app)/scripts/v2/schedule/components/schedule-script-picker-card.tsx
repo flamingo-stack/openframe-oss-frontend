@@ -8,10 +8,10 @@ import { Autocomplete, Button, Input, Label } from '@flamingo-stack/openframe-fr
 import type { FocusEvent } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
-import { parseKeyValues } from '../../utils/script-key-values';
+import { parseKeyValues } from '../../../utils/script-key-values';
+import { envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleScriptsAutocomplete } from '../hooks/use-schedule-scripts-autocomplete';
-import { envVarsToPairs, platformsToIds } from '../utils/script-mappers';
-import type { EditScheduleFormData } from './edit-schedule-page';
+import type { EditScheduleFormData } from '../types/edit-schedule.types';
 
 /** Fallback when the picked script carries no timeout of its own (design default). */
 const DEFAULT_TIMEOUT_SECONDS = 90;

@@ -61,11 +61,11 @@ import { unarchiveScriptScheduleMutation } from '@/graphql/scripts/unarchive-scr
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { SCHEDULE_COLUMNS, SCHEDULES_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
+import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import { formatScheduleStartAt, isEventTrigger, repeatToLabel } from '../utils/schedule-timing';
-import { platformsToEnums, platformsToIds } from '../utils/script-mappers';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { RestoreScheduleModal } from './restore-schedule-modal';
-import { SCHEDULE_COLUMNS, SCHEDULES_TABLE_COLUMNS } from './scripts-table-columns';
 
 const PAGE_SIZE = 20;
 
@@ -738,7 +738,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
       className="md:hidden"
       onClick={() => setMobileFilterOpen(true)}
       aria-label="Open filters"
-      leftIcon={<Filter02Icon />}
+      leftIcon={<Filter02Icon className="text-ods-text-primary" />}
     />
   );
 

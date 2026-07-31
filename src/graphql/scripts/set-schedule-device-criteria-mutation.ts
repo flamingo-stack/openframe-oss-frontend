@@ -12,7 +12,7 @@ import { graphql } from 'react-relay';
  *
  * The payload reads back exactly what the write changed, plus `deviceCount` —
  * how many devices the new rule resolves to — so the schedule record already in
- * the Relay store (the detail query behind `ScheduleDetailGate`) updates itself
+ * the Relay store (the schedule detail query) updates itself
  * without a refetch.
  *
  * One-way, per the schema: nothing switches a schedule back to SPECIFIC. See §10

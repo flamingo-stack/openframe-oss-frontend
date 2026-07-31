@@ -1,7 +1,8 @@
 'use client';
 
-import { NotFoundError, Tag } from '@flamingo-stack/openframe-frontend-core';
-import { Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { type PageActionButton, Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
@@ -9,6 +10,7 @@ import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPagina
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { useSafeBack } from '@/app/hooks/use-safe-back';
 import {
   scheduleExecutionsRelayFragment,
   scheduleExecutionsRelayQuery,
@@ -18,22 +20,22 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import {
+  EXECUTIONS_PAGE_SIZE,
+  ExecutionsTable,
+  ExecutionsTabShell,
+  type ExecutionsTabState,
+  narrowExecutions,
+  toUiExecution,
+  type UiExecution,
+  useExecutionFacetOptions,
+} from '../../shared/components/executions-table';
+import {
   executionStatusLabel,
   executionStatusVariant,
   formatExecutionTimestamp,
   initiatorInitials,
   initiatorName,
-} from '../utils/execution-helpers';
-import {
-  EXECUTIONS_PAGE_SIZE,
-  ExecutionsTable,
-  ExecutionsTabShell,
-  type ExecutionsTabState,
-  toUiExecution,
-  type UiExecution,
-  useExecutionFacetOptions,
-} from './executions-table';
-import { ScriptPageChrome } from './script-page-chrome';
+} from '../../shared/utils/execution-helpers';
 
 interface ScheduleRunDetailsViewProps {
   /** `ScheduleRun` global id — see `routes.scriptsV2.schedules.run`. */
@@ -41,6 +43,15 @@ interface ScheduleRunDetailsViewProps {
 }
 
 const PAGE_TITLE = 'Script Schedule Execution Details';
+
+const NO_ACTIONS: PageActionButton[] = [];
+
+/** The schedule tab's placeholder (design 1:48878), named for one fire. */
+const EXECUTIONS_EMPTY_STATE = {
+  icon: <ClipboardListIcon />,
+  title: 'No Execution History',
+  description: 'This run produced no executions',
+};
 
 // ----------------------------------------------------------------
 // Info bar
@@ -159,15 +170,136 @@ function RunInfoBarSkeleton() {
 }
 
 // ----------------------------------------------------------------
+// The run itself
+// ----------------------------------------------------------------
+
+/**
+ * The run behind `runId`, read by each island on this page.
+ *
+ * `node(id)` resolves anything, and a wrong id yields a record WITHOUT the run's
+ * fields rather than null — so the narrowed selection is what proves the type,
+ * and every field comes back through the `in` checks below.
+ *
+ * All three islands issue this same query with the same variables; Relay dedupes
+ * identical in-flight requests, so the page still costs one round trip.
+ */
+function useScheduleRun(runId: string, fetchPolicy: 'store-and-network' | 'store-or-network') {
+  const data = useLazyLoadQuery<ScheduleRunDetailQueryType>(
+    scheduleRunDetailRelayQuery,
+    { id: runId },
+    { fetchPolicy },
+  );
+  const run = data.node;
+
+  return {
+    run,
+    executionId: run && 'executionId' in run ? run.executionId : undefined,
+    scheduleId: (run && 'scheduleId' in run ? run.scheduleId : '') ?? '',
+  };
+}
+
+// ----------------------------------------------------------------
+// Islands
+// ----------------------------------------------------------------
+
+/**
+ * The header island. The title is a constant, but the subtitle (the run's
+ * executionId) and the Back target (the schedule it belongs to) are the record's
+ * own answer, so this is what waits for it.
+ */
+function RunHeader({ runId }: ScheduleRunDetailsViewProps) {
+  const { executionId, scheduleId } = useScheduleRun(runId, 'store-and-network');
+
+  // Back to the fires of the schedule this run belongs to; a bad id has no
+  // schedule to return to, so it falls back to the list.
+  const handleBack = useSafeBack(
+    scheduleId ? routes.scriptsV2.schedules.details(scheduleId, { tab: 'runs' }) : routes.scriptsV2.schedules.list,
+  );
+
+  return (
+    <TitleBlock
+      title={PAGE_TITLE}
+      subtitle={executionId}
+      // A run always has an executionId, so the row never collapses once loaded —
+      // and the fallback below holds the same line with a bar in it.
+      subtitleRow="always"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={NO_ACTIONS}
+    />
+  );
+}
+
+/**
+ * `loading` + `while-loading` is what draws the bar where the executionId will
+ * land. It costs the title: `loading` is a single flag on the frozen
+ * `TitleBlock` and swaps title AND subtitle for bars, even though this page's
+ * title is a constant. Splitting them needs a new prop there.
+ */
+function RunHeaderSkeleton() {
+  const handleBack = useSafeBack(routes.scriptsV2.schedules.list);
+
+  return (
+    <TitleBlock
+      title={PAGE_TITLE}
+      loading
+      subtitleRow="while-loading"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={NO_ACTIONS}
+    />
+  );
+}
+
+/** The summary island — and the page's single not-found report. */
+function RunSummary({ runId }: ScheduleRunDetailsViewProps) {
+  const { run, executionId } = useScheduleRun(runId, 'store-and-network');
+
+  if (!run || !executionId) {
+    return <NotFoundError message="Schedule run not found" />;
+  }
+
+  return <RunInfoBar run={run} />;
+}
+
+// ----------------------------------------------------------------
 // Executions of this run
 // ----------------------------------------------------------------
 
-function RunExecutionsContent({ scheduleId, state }: { scheduleId: string; state: ExecutionsTabState }) {
-  const { backendFilters, debouncedSearch, ...tableState } = state;
+/**
+ * Waits for the run inside the shell's OWN boundary, so the search toolbar above
+ * is the real one from the first frame rather than a placeholder shaped like it.
+ *
+ * Renders nothing for an id that isn't a run: the summary above reports the miss
+ * once, and `scheduleExecutions` is keyed by schedule — firing it with an empty
+ * `ID!` would throw here instead.
+ */
+function RunExecutions({ runId, state }: { runId: string; state: ExecutionsTabState }) {
+  const { executionId, scheduleId } = useScheduleRun(runId, 'store-or-network');
+
+  if (!executionId || !scheduleId) {
+    return null;
+  }
+
+  return <RunExecutionRows scheduleId={scheduleId} executionId={executionId} state={state} />;
+}
+
+function RunExecutionRows({
+  scheduleId,
+  executionId,
+  state,
+}: {
+  scheduleId: string;
+  executionId: string;
+  state: ExecutionsTabState;
+}) {
+  const { backendFilters, narrowSearch, ...tableState } = state;
 
   const queryData = useLazyLoadQuery<ScheduleExecutionsQueryType>(
     scheduleExecutionsRelayQuery,
-    { scheduleId, filter: backendFilters, search: debouncedSearch || null, first: EXECUTIONS_PAGE_SIZE, after: null },
+    // `search` is this page's SCOPE, not a term the user typed: every execution
+    // of a fire carries the run's executionId, and search is the only argument
+    // that narrows on it (`ScriptExecutionFilterInput` has no execution-id field,
+    // and `ScheduleRun` has no executions connection of its own).
+    { scheduleId, filter: backendFilters, search: executionId, first: EXECUTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network' },
   );
 
@@ -180,8 +312,13 @@ function RunExecutionsContent({ scheduleId, state }: { scheduleId: string; state
 
   const executions: UiExecution[] = useMemo(() => {
     const edges = data.scheduleExecutions?.edges ?? [];
-    return edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
-  }, [data.scheduleExecutions?.edges]);
+    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
+    // The query's `search` is spent on the scope above, so the user's term
+    // narrows the rows we hold instead. It converges on the whole run rather
+    // than the first page: an empty result keeps the infinite-scroll sentinel
+    // mounted, which pulls the remaining pages in.
+    return narrowExecutions(rows, narrowSearch);
+  }, [data.scheduleExecutions?.edges, narrowSearch]);
 
   const fetchNextPage = useCallback(() => {
     if (hasNext && !isLoadingNext) loadNext(EXECUTIONS_PAGE_SIZE);
@@ -191,10 +328,11 @@ function RunExecutionsContent({ scheduleId, state }: { scheduleId: string; state
     <ExecutionsTable
       executions={executions}
       facetOptions={facetOptions}
-      // Empty string, not the scope: `search` only picks the empty-state copy, and
-      // the executionId is the page's identity rather than something the user typed.
-      search=""
-      emptyHint="This run produced no executions."
+      // The TYPED term, not the scope: `search` only picks the empty-state copy,
+      // and the executionId is the page's identity rather than something the
+      // user typed.
+      search={narrowSearch}
+      emptyState={EXECUTIONS_EMPTY_STATE}
       hasNext={hasNext}
       isLoadingNext={isLoadingNext}
       onLoadMore={fetchNextPage}
@@ -207,56 +345,6 @@ function RunExecutionsContent({ scheduleId, state }: { scheduleId: string; state
 // Page
 // ----------------------------------------------------------------
 
-function ScheduleRunDetailsContent({ runId }: ScheduleRunDetailsViewProps) {
-  const data = useLazyLoadQuery<ScheduleRunDetailQueryType>(
-    scheduleRunDetailRelayQuery,
-    { id: runId },
-    { fetchPolicy: 'store-and-network' },
-  );
-  const run = data.node;
-
-  // `node(id)` resolves anything; a wrong id yields a record without the run's
-  // fields rather than null, so the narrowed selection is what proves the type.
-  const executionId = run && 'executionId' in run ? run.executionId : undefined;
-  if (!run || !executionId) {
-    return <NotFoundError message="Schedule run not found" />;
-  }
-
-  const scheduleId = ('scheduleId' in run ? run.scheduleId : '') ?? '';
-
-  return (
-    <ScriptPageChrome
-      title={PAGE_TITLE}
-      subtitle={executionId}
-      backFallback={
-        scheduleId ? routes.scriptsV2.schedules.details(scheduleId, { tab: 'runs' }) : routes.scriptsV2.schedules.list
-      }
-      actions={[]}
-    >
-      <div className="flex flex-col gap-[var(--spacing-system-lf)]">
-        <RunInfoBar run={run} />
-        {/* `scopeSearch` pins the list to this fire: every execution of a run
-            carries the run's executionId, and search is the only argument that
-            narrows on it.
-
-            `scheduleExecutions` is keyed by schedule, so without one there is
-            nothing to scope — firing the query with an empty `ID!` would throw
-            inside the Suspense boundary and take the run summary above down
-            with it, rather than leaving the page readable. */}
-        {scheduleId ? (
-          <ExecutionsTabShell scopeSearch={executionId}>
-            {state => <RunExecutionsContent scheduleId={scheduleId} state={state} />}
-          </ExecutionsTabShell>
-        ) : (
-          <p className="text-h6 text-ods-text-secondary">
-            This run is not linked to a schedule, so its executions can't be listed.
-          </p>
-        )}
-      </div>
-    </ScriptPageChrome>
-  );
-}
-
 /**
  * One fire of a schedule (Figma 310:33508): the run's own summary over the
  * executions it produced. Reached from the Schedule Runs tab; before this page
@@ -264,27 +352,34 @@ function ScheduleRunDetailsContent({ runId }: ScheduleRunDetailsViewProps) {
  * executionId typed into its search box, which showed the same rows but under
  * the schedule's identity and with no way to link to the run itself.
  *
- * Like the execution-details page, the chrome here IS data-dependent (subtitle
- * and Back target come from the run), so the loaded view and the Suspense
- * fallback each render their own {@link ScriptPageChrome}.
+ * Deliberately NOT `PageLayout`: it takes the subtitle as a prop, so a page whose
+ * subtitle is server data would have to suspend as a whole — and with it the
+ * search toolbar, which needs no data at all. Here the page draws `PageLayout`'s
+ * own two boxes and composes the frozen `TitleBlock` directly, so each part waits
+ * only for what it actually reads: the header for the run, the summary for the
+ * run, the rows for the run and its executions — and the toolbar for nothing.
  */
 export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
   return (
-    <Suspense
-      fallback={
-        <ScriptPageChrome
-          title={PAGE_TITLE}
-          // The executionId always arrives — hold its line so the header does
-          // not grow under the content when it does.
-          subtitleRow="always"
-          backFallback={routes.scriptsV2.schedules.list}
-          actions={[]}
-        >
-          <RunInfoBarSkeleton />
-        </ScriptPageChrome>
-      }
-    >
-      <ScheduleRunDetailsContent runId={runId} />
-    </Suspense>
+    <div className="flex flex-col w-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+      <Suspense fallback={<RunHeaderSkeleton />}>
+        <RunHeader runId={runId} />
+      </Suspense>
+
+      {/* No gap: the executions block carries its own top padding (the sticky
+          toolbar's `pt-l`), the same contract the details pages give their tab
+          bodies. */}
+      <div className="flex flex-col flex-1">
+        <Suspense fallback={<RunInfoBarSkeleton />}>
+          <RunSummary runId={runId} />
+        </Suspense>
+
+        {/* The whole shell, exactly as the two Execution History tabs render it —
+            same search box, same funnels, same sticky toolbar and boundary. It
+            mounts immediately: `clientSearch` is all it needs to know, and the
+            run's id reaches the query inside its boundary. */}
+        <ExecutionsTabShell clientSearch>{state => <RunExecutions runId={runId} state={state} />}</ExecutionsTabShell>
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { memo, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
 import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
@@ -14,23 +15,31 @@ import {
   ExecutionsTable,
   ExecutionsTabShell,
   type ExecutionsTabState,
+  narrowExecutions,
   toUiExecution,
   type UiExecution,
   useExecutionFacetOptions,
-} from './executions-table';
+} from '../../shared/components/executions-table';
+
+/** Design 1:48878 — the placeholder for a schedule that has never fired. */
+const EMPTY_STATE = {
+  icon: <ClipboardListIcon />,
+  title: 'No Execution History',
+  description: 'Script execution logs will be displayed here',
+};
 
 interface ScheduleExecutionsTabProps {
   scheduleId: string;
 }
 
 function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; state: ExecutionsTabState }) {
-  const { backendFilters, debouncedSearch, ...tableState } = state;
+  const { backendFilters, querySearch, narrowSearch, ...tableState } = state;
 
   // One round-trip per interaction: the facets (`scheduleExecutionFilters`)
   // ride the list operation — see the query docstring for the facet semantics.
   const queryData = useLazyLoadQuery<ScheduleExecutionsQueryType>(
     scheduleExecutionsRelayQuery,
-    { scheduleId, filter: backendFilters, search: debouncedSearch || null, first: EXECUTIONS_PAGE_SIZE, after: null },
+    { scheduleId, filter: backendFilters, search: querySearch || null, first: EXECUTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network' },
   );
 
@@ -45,8 +54,11 @@ function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; 
     const edges = data.scheduleExecutions?.edges ?? [];
     // Defensive null-node guard: skip any dangling edge instead of crashing the
     // tab on a store-evicted record.
-    return edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
-  }, [data.scheduleExecutions?.edges]);
+    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
+    // A no-op here — this list's search reaches the server, so `narrowSearch` is
+    // always empty. Kept so every caller of the shell honours the same contract.
+    return narrowExecutions(rows, narrowSearch);
+  }, [data.scheduleExecutions?.edges, narrowSearch]);
 
   const fetchNextPage = useCallback(() => {
     if (hasNext && !isLoadingNext) loadNext(EXECUTIONS_PAGE_SIZE);
@@ -56,8 +68,8 @@ function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; 
     <ExecutionsTable
       executions={executions}
       facetOptions={facetOptions}
-      search={debouncedSearch}
-      emptyHint="No executions yet. Once this schedule fires, every device it ran on shows up here."
+      search={querySearch}
+      emptyState={EMPTY_STATE}
       hasNext={hasNext}
       isLoadingNext={isLoadingNext}
       onLoadMore={fetchNextPage}
@@ -70,11 +82,16 @@ function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; 
  * Execution History for a schedule — the flat per-device history across all of
  * its runs (`scheduleExecutions(scheduleId:)`). Same rows, columns and filters
  * as the per-script tab; the Runs tab is the aggregate view above it.
+ *
+ * The boundary lives inside `ExecutionsTabShell`, BELOW the toolbar, so a filter
+ * change reloads the rows and leaves the search box where it was.
+ *
+ * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
-export function ScheduleExecutionsTab({ scheduleId }: ScheduleExecutionsTabProps) {
+export const ScheduleExecutionsTab = memo(function ScheduleExecutionsTab({ scheduleId }: ScheduleExecutionsTabProps) {
   return (
     <ExecutionsTabShell>
       {state => <ScheduleExecutionsContent scheduleId={scheduleId} state={state} />}
     </ExecutionsTabShell>
   );
-}
+});
