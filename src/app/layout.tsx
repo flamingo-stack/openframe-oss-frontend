@@ -13,7 +13,6 @@ import { RouteGuard } from '../components/route-guard';
 import { isAuthEnabled } from '../lib/app-mode';
 import { QueryClientProvider } from '../lib/query-client-provider';
 import { RelayProvider } from '../lib/relay';
-import { AppShellSkeleton } from './components/app-shell-skeleton';
 import { BiometricLockBoundary } from './components/biometric-lock-boundary';
 import { DeploymentInitializer } from './components/deployment-initializer';
 import { EmbedShimRegistration } from './components/embed-shim-registration';
@@ -110,8 +109,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className={`dark ${azeretMono.variable} ${dmSans.variable}`}>
       <head>
         {!isStaticExport && <PublicEnvScript />}
-        {/* Seeds the sidebar width before first paint so the SSR'd skeleton
-            honors the persisted collapsed state instead of flashing expanded. */}
+        {/* Seeds the sidebar width before first paint so the real `NavigationSidebar`
+            honors the persisted collapsed state instead of flashing expanded. The
+            server cannot read localStorage, so this is the only channel by which the
+            preference reaches the first frame — and the only thing that keeps the
+            width out of the markup, where it was a hydration mismatch. */}
         {/* biome-ignore lint/style/useNamingConvention: React's dangerouslySetInnerHTML requires the __html key */}
         <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript }} />
       </head>
@@ -123,19 +125,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NativeShellInitializer />
         <RelayProvider>
           <QueryClientProvider>
-            {isAuthEnabled() && (
-              <Suspense fallback={null}>
-                <DevTicketObserver />
-              </Suspense>
-            )}
+            {isAuthEnabled() && <DevTicketObserver />}
             <NatsAppProvider>
               <BiometricLockBoundary>
                 <FeatureFlagsLoader>
                   <NotificationsDataProvider>
                     <RouteGuard>
-                      <div className="relative flex min-h-screen flex-col">
-                        <Suspense fallback={<AppShellSkeleton />}>{children}</Suspense>
-                      </div>
+                      <div className="relative flex min-h-screen flex-col">{children}</div>
                     </RouteGuard>
                   </NotificationsDataProvider>
                 </FeatureFlagsLoader>
