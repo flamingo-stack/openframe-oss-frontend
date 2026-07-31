@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { isSaasSharedMode } from '@/lib/app-mode';
 import { forceLogout } from '@/lib/force-logout';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
@@ -45,6 +46,9 @@ export function useAuthSession() {
   const query = useQuery<MeResponse | null>({
     queryKey: authSessionQueryKey,
     queryFn: async () => {
+      if (isSaasSharedMode()) {
+        return null;
+      }
       // Host-less native-shell boot (dynamic tenant, before the first login):
       // there is no gateway to ask yet — an API fetch would hit the bundle's
       // own asset origin and never yield a 401 (Tauri's SPA fallback even
