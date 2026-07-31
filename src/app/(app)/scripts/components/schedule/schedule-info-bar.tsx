@@ -1,6 +1,7 @@
 'use client';
 
 import { OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ScriptScheduleTrigger } from '@/generated/schema-enums';
 import type { ScriptScheduleDetail } from '../../types/script-schedule.types';
 import { formatScheduleDate, getRepeatLabel } from '../../types/script-schedule.types';
@@ -16,21 +17,15 @@ export function ScheduleInfoBar({ schedule }: ScheduleInfoBarProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 bg-ods-card border border-ods-border rounded-[6px] overflow-clip w-full">
       <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px] border-b md:border-b-0 border-ods-border">
-        <span className="text-h4 text-ods-text-primary truncate" title={date}>
-          {date}
-        </span>
+        <TruncateText>{date}</TruncateText>
         <span className="text-h6 text-ods-text-secondary">Date</span>
       </div>
       <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px] border-b md:border-b-0 border-ods-border">
-        <span className="text-h4 text-ods-text-primary truncate" title={time}>
-          {time}
-        </span>
+        <TruncateText>{time}</TruncateText>
         <span className="text-h6 text-ods-text-secondary">Time</span>
       </div>
       <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px]">
-        <span className="text-h4 text-ods-text-primary truncate" title={repeat}>
-          {repeat}
-        </span>
+        <TruncateText>{repeat}</TruncateText>
         <span className="text-h6 text-ods-text-secondary">Repeat</span>
       </div>
       <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px]">
@@ -81,15 +76,11 @@ export function ScheduleInfoBarFromData({
       {name && (
         <div className="grid grid-cols-2 border-b border-ods-border">
           <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px]">
-            <span className="text-h4 text-ods-text-primary truncate" title={name}>
-              {name}
-            </span>
+            <TruncateText>{name}</TruncateText>
             <span className="text-h6 text-ods-text-secondary">Schedule Name</span>
           </div>
           <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px]">
-            <span className="text-h4 text-ods-text-primary truncate" title={note || '—'}>
-              {note || '—'}
-            </span>
+            <TruncateText>{note || '—'}</TruncateText>
             <span className="text-h6 text-ods-text-secondary">Note</span>
           </div>
         </div>
@@ -107,21 +98,15 @@ export function ScheduleInfoBarFromData({
         ) : (
           <>
             <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px] border-b md:border-b-0 border-ods-border">
-              <span className="text-h4 text-ods-text-primary truncate" title={date}>
-                {date}
-              </span>
+              <TruncateText>{date}</TruncateText>
               <span className="text-h6 text-ods-text-secondary">Date</span>
             </div>
             <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px] border-b md:border-b-0 border-ods-border">
-              <span className="text-h4 text-ods-text-primary truncate" title={time}>
-                {time}
-              </span>
+              <TruncateText>{time}</TruncateText>
               <span className="text-h6 text-ods-text-secondary">Time</span>
             </div>
             <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px]">
-              <span className="text-h4 text-ods-text-primary truncate" title={repeat}>
-                {repeat}
-              </span>
+              <TruncateText>{repeat}</TruncateText>
               <span className="text-h6 text-ods-text-secondary">Repeat</span>
             </div>
           </>
@@ -135,9 +120,7 @@ export function ScheduleInfoBarFromData({
           design keeps authorship on a separate line from the timing. */}
       {addedBy && (
         <div className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px]">
-          <span className="text-h4 text-ods-text-primary truncate" title={addedBy}>
-            {addedBy}
-          </span>
+          <TruncateText>{addedBy}</TruncateText>
           <span className="text-h6 text-ods-text-secondary">Added by</span>
         </div>
       )}

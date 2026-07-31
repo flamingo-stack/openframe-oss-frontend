@@ -2,7 +2,12 @@
 
 import { Skeleton, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { AlertCircleIcon, BellIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { ActionsMenuDropdown, PageError, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  ActionsMenuDropdown,
+  PageError,
+  SquareAvatar,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
@@ -120,17 +125,19 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
               has role tags. It is what makes the row a constant 84px and lets the
               placeholder above match it instead of guessing at a role count. */}
           <div className="flex items-center gap-2 min-h-8">
-            <span className="text-h4 text-ods-text-primary truncate" title={displayName}>
-              {displayName}
-            </span>
+            <div className="min-w-0">
+              <TruncateText>{displayName}</TruncateText>
+            </div>
             {user.roles?.map(role => (
               <Tag key={role} variant="outline" label={role} />
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <p className="text-h6 text-ods-text-secondary truncate" title={user.email}>
-              {user.email}
-            </p>
+            <div className="min-w-0">
+              <TruncateText variant="h6" tone="secondary">
+                {user.email}
+              </TruncateText>
+            </div>
             {user.emailVerified === false && (
               <button
                 type="button"

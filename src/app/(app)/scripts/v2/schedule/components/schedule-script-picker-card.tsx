@@ -4,7 +4,13 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { OS_PLATFORMS, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
 import { DraggerIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Autocomplete, Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Autocomplete,
+  Button,
+  Input,
+  Label,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { FocusEvent } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
@@ -198,10 +204,12 @@ export function ScheduleScriptPickerCard({
                   // Mirrors the Autocomplete's own option layout (flex row,
                   // truncated label with a title) — overriding `renderOption`
                   // opts out of it, which is what let long script names wrap.
-                  renderOption={option => (
+                  renderOption={(option, isSelected) => (
                     <span className="flex w-full min-w-0 items-center gap-[var(--spacing-system-xsf)]">
-                      <span className="min-w-0 flex-1 truncate" title={option.label}>
-                        {option.label}
+                      <span className="min-w-0 flex-1">
+                        <TruncateText className={isSelected ? 'text-ods-accent' : undefined}>
+                          {option.label}
+                        </TruncateText>
                       </span>
                       <ScriptPlatformIcons
                         platforms={platformsToIds(scripts.find(s => s.id === option.value)?.supportedPlatforms)}

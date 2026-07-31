@@ -1,5 +1,6 @@
 'use client';
 
+import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { routes } from '@/lib/routes';
@@ -17,7 +18,12 @@ export function SettingsSubPageHeader({ title }: SettingsSubPageHeaderProps) {
       >
         <ArrowLeft className="size-5" />
       </Link>
-      <h1 className="text-h2 text-ods-text-primary">{title}</h1>
+      <h1 className="min-w-0 flex-1">
+        {/* as="span": a heading may only contain phrasing content, and the default tooltip trigger is a div. */}
+        <TruncateText as="span" variant="h2">
+          {title}
+        </TruncateText>
+      </h1>
     </div>
   );
 }

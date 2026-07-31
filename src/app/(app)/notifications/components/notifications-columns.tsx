@@ -12,6 +12,7 @@ import {
   dotColorByVariant,
   type Row,
   SplitButton,
+  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn, formatTicketRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { getNotificationCategoryIcon } from '@/app/components/notifications/notification-category-icons';
@@ -64,18 +65,16 @@ export function buildNotificationColumns({
               )}
             </div>
             <div className="hidden min-w-0 flex-col gap-[var(--spacing-system-xxs)] md:flex">
-              <span className={cn('truncate text-h4', titleColor)}>
-                {/* Context-derived kind label; title stands in when the context is generic. */}
-                {type ?? row.original.title}
-              </span>
+              {/* Context-derived kind label; title stands in when the context is generic. */}
+              <TruncateText className={titleColor}>{type ?? row.original.title}</TruncateText>
               <span className="truncate text-h6 text-ods-text-secondary">{relativeTime}</span>
             </div>
             {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
             <div className="flex min-w-0 flex-col md:hidden">
-              <span className={cn('truncate text-h4', titleColor)}>{row.original.title}</span>
-              <span className="line-clamp-3 break-words text-h6 text-ods-text-secondary">
+              <TruncateText className={titleColor}>{row.original.title}</TruncateText>
+              <TruncateText lines={3} variant="h6" tone="secondary" className="break-words">
                 {row.original.description || relativeTime}
-              </span>
+              </TruncateText>
             </div>
           </div>
         );
@@ -93,11 +92,11 @@ export function buildNotificationColumns({
         const showTitle = !!row.original.notification.type;
         return (
           <div className="flex min-w-0 flex-col">
-            {showTitle ? <span className="truncate text-h4 text-ods-text-primary">{row.original.title}</span> : null}
+            {showTitle ? <TruncateText>{row.original.title}</TruncateText> : null}
             {row.original.description ? (
-              <span className="line-clamp-3 break-words text-h6 text-ods-text-secondary">
+              <TruncateText lines={3} variant="h6" tone="secondary" className="break-words">
                 {row.original.description}
-              </span>
+              </TruncateText>
             ) : null}
           </div>
         );

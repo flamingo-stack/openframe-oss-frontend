@@ -2,7 +2,12 @@
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton, Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type PageActionButton,
+  Skeleton,
+  SquareAvatar,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
@@ -106,16 +111,15 @@ function RunInfoBar({ run }: { run: RunNode }) {
               initialsClassName="text-ods-text-secondary"
             />
             {initiatorHref ? (
-              <a
-                href={initiatorHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-h4 text-ods-accent hover:text-ods-accent-hover underline truncate"
-              >
-                {initiatorName(initiator)}
+              <a href={initiatorHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
+                <TruncateText className="text-ods-accent hover:text-ods-accent-hover underline">
+                  {initiatorName(initiator)}
+                </TruncateText>
               </a>
             ) : (
-              <span className="text-h4 text-ods-text-primary truncate">{initiatorName(initiator)}</span>
+              <div className="min-w-0 flex-1">
+                <TruncateText>{initiatorName(initiator)}</TruncateText>
+              </div>
             )}
           </div>
         </RunInfoCell>
@@ -127,10 +131,10 @@ function RunInfoBar({ run }: { run: RunNode }) {
       </div>
       <div className="grid grid-cols-2">
         <RunInfoCell label="Start Time">
-          <span className="text-h4 text-ods-text-primary truncate">{formatExecutionTimestamp(dispatchedAt)}</span>
+          <TruncateText>{formatExecutionTimestamp(dispatchedAt)}</TruncateText>
         </RunInfoCell>
         <RunInfoCell label="Finish Time">
-          <span className="text-h4 text-ods-text-primary truncate">{formatExecutionTimestamp(finishedAt)}</span>
+          <TruncateText>{formatExecutionTimestamp(finishedAt)}</TruncateText>
         </RunInfoCell>
       </div>
     </div>

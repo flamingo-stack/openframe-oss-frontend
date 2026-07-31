@@ -15,6 +15,7 @@ import {
   Tag,
   TicketAttachmentsList,
   TicketDetailSection,
+  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { notFound } from 'next/navigation';
@@ -212,17 +213,13 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
               variant="round"
             />
             <div className="flex flex-col min-w-0 flex-1">
-              <p className="text-h4 text-ods-text-primary truncate" title={authorName ?? 'Unknown'}>
-                {authorName ?? 'Unknown'}
-              </p>
+              <TruncateText>{authorName ?? 'Unknown'}</TruncateText>
               <p className="text-heading-5 text-ods-text-secondary truncate">Author</p>
             </div>
           </div>
 
           <div className="flex flex-col min-w-0 h-20 justify-center">
-            <p className="text-h4 text-ods-text-primary truncate" title={updatedAt ? formatDate(updatedAt) : '-'}>
-              {updatedAt ? formatDate(updatedAt) : '-'}
-            </p>
+            <TruncateText>{updatedAt ? formatDate(updatedAt) : '-'}</TruncateText>
             <p className="text-heading-5 text-ods-text-secondary truncate">Updated</p>
           </div>
 

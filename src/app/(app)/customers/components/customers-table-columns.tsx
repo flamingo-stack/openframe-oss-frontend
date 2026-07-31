@@ -141,7 +141,9 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => (
       <div className="flex flex-col justify-center min-w-0">
         <TruncateText>{row.original.lastActivityDate}</TruncateText>
-        <span className="text-h6 text-ods-text-secondary truncate">{row.original.lastActivityRelative}</span>
+        <TruncateText variant="h6" tone="secondary">
+          {row.original.lastActivityRelative}
+        </TruncateText>
       </div>
     ),
     // alwaysShowHeader keeps the date filter reachable on tablet (md–lg)

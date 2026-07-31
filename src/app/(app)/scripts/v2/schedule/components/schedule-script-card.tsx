@@ -1,7 +1,7 @@
 'use client';
 
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, Skeleton, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
@@ -58,9 +58,7 @@ function ScriptParamsPanel({
         className,
       )}
     >
-      <span className="text-h4 text-ods-text-primary truncate" title={title}>
-        {title}
-      </span>
+      <TruncateText>{title}</TruncateText>
       <ScriptParamRows rows={rows} emptyText={emptyText} />
       {footer}
     </div>
@@ -155,9 +153,7 @@ export function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
         )}
       >
         <div className="flex-1 min-w-0 flex flex-col justify-center">
-          <span className="text-h4 text-ods-text-primary truncate" title={script.name}>
-            {script.name}
-          </span>
+          <TruncateText>{script.name}</TruncateText>
           <span className="text-h6 text-ods-text-secondary truncate">Script</span>
         </div>
 
