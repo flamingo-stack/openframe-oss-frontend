@@ -487,24 +487,31 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           className="app-shell-root"
           mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
           sidebarConfig={sidebarConfig}
-          // No `loadingFallback` on purpose (core defaults it to `null`). Core wraps
-          // `children` in its own Suspense inside `<main>`, and that boundary is not
-          // idle: the page segment arrives after the layout in the RSC stream, so it
-          // renders on EVERY route — verified on the standalone build, not just dev.
-          // A neutral page shape there was therefore not a rare last resort but a
-          // grey block flashed ahead of the real content whenever a browser frame
-          // landed in the gap. The boundary stays (it keeps that window inside
-          // `<main>` instead of letting it take the chrome too); it just draws nothing.
           mobileBurgerMenuProps={mobileBurgerMenuProps}
           headerProps={headerProps}
           disabled={showLockContent}
           drawer={chatDrawer}
           topBar={topBar}
         >
-          {/* One shell, two possible contents. The chrome around this never
+          {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+              dropped in 0.0.502 — `<main>` now renders `children` bare), so it
+              lives here instead.
+
+              It is not idle: the page segment arrives after the layout in the RSC
+              stream, so it opens on EVERY route. Keeping it INSIDE `<main>` is the
+              point — a page that suspends, or that bails to client rendering
+              because it reads `useSearchParams()`, takes only the content area
+              with it and the sidebar and header stay up. The app-wide boundary
+              this replaces took the whole chrome.
+
+              The fallback draws nothing on purpose: a neutral page shape here was
+              a grey block flashed ahead of the real content whenever a browser
+              frame landed in the gap. Pages own their real skeleton.
+
+              One shell, two possible contents. The chrome around this never
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header. */}
-          {showLockContent ? <SubscriptionLockContent /> : children}
+          <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
         </CoreAppLayout>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)

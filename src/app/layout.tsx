@@ -125,12 +125,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NativeShellInitializer />
         <RelayProvider>
           <QueryClientProvider>
-            {isAuthEnabled() && <DevTicketObserver />}
+            {/* Its own boundary, and it is load-bearing. This reads `?devTicket=`,
+                and `useSearchParams()` bails out to client rendering during the
+                static prerender — which `next build` treats as an error unless
+                there is a Suspense boundary to bail out to. Sitting in the root
+                layout, it is above every page, so without this the build fails on
+                EVERY statically generated page rather than on anything that looks
+                related to dev tickets. Only a production build raises it; a dev
+                build renders nothing statically and stays quiet. */}
+            {isAuthEnabled() && (
+              <Suspense fallback={null}>
+                <DevTicketObserver />
+              </Suspense>
+            )}
             <NatsAppProvider>
               <BiometricLockBoundary>
                 <FeatureFlagsLoader>
                   <NotificationsDataProvider>
                     <RouteGuard>
+                      {/* No app-wide Suspense boundary around `children` — the one
+                          that used to be here drew `AppShellSkeleton`, and with the
+                          skeleton retired an empty one would only widen the blast
+                          radius: anything suspending below would blank the chrome
+                          along with the page. The boundary inside `<main>` catches
+                          that in the content area instead, and each root-layout
+                          component that reads search params carries its own. */}
                       <div className="relative flex min-h-screen flex-col">{children}</div>
                     </RouteGuard>
                   </NotificationsDataProvider>
