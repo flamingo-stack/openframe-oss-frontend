@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { GET_ORGANIZATIONS_MIN_QUERY } from '@/app/(app)/customers/queries/customers-queries';
+import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { GET_DEVICES_QUERY } from '@/app/(app)/devices/queries/devices-queries';
 import type { Tag } from '@/app/components/shared/tags';
 import { apiClient } from '@/lib/api-client';
@@ -55,11 +56,23 @@ export function useOrganizationOptions(search = '', enabled = true) {
 
 // --- Devices (reuse existing query via /api/graphql) ---
 
+// Mirror the Devices page query shape (see use-devices-url-params.ts / use-devices.ts):
+// ONLINE/OFFLINE only — PENDING devices are still enrolling, ARCHIVED/DELETED live
+// elsewhere — sorted so online devices come first.
+const DEVICE_OPTIONS_SORT = { field: 'status', direction: 'DESC' } as const;
+
 async function fetchDeviceOptions(organizationId?: string, search = ''): Promise<AutocompleteOption[]> {
-  const filter = organizationId ? { organizationIds: [organizationId] } : undefined;
   const response = await apiClient.post<any>('/api/graphql', {
     query: GET_DEVICES_QUERY,
-    variables: { search, first: 50, filter },
+    variables: {
+      search,
+      first: 50,
+      filter: {
+        statuses: [...DEFAULT_DEVICES_LIST_STATUSES],
+        ...(organizationId && { organizationIds: [organizationId] }),
+      },
+      sort: DEVICE_OPTIONS_SORT,
+    },
   });
   if (!response.ok) throw new Error(response.error || 'Failed to fetch devices');
 
