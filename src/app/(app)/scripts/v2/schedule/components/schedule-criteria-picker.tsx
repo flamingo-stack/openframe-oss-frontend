@@ -69,7 +69,7 @@ export function ScheduleCriteriaPicker({ scheduleId, criteria, onCriteriaChange,
     if (preview.hasNext && !preview.isLoadingNext) preview.loadNext(DEVICE_PICKER_PAGE_SIZE);
   }, [preview]);
 
-  const { data: filterOptions } = useDeviceFilters(UNFILTERED);
+  const filterOptions = useDeviceFilters(UNFILTERED);
 
   return (
     <DeviceSelector

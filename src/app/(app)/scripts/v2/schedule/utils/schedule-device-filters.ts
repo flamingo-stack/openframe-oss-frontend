@@ -1,8 +1,8 @@
 import type { DeviceFilterInput as RelayDeviceFilterInput } from '@/__generated__/addAllDevicesToScheduleMutation.graphql';
 import type { ScheduleDeviceCriteriaInput } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import { machineToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { DeviceSelectorNarrowing } from '@/app/components/shared/device-selector/device-selector.types';
-import { machineToDevice } from './machine-to-device';
 import { criteriaToInput, type ScheduleCriteria } from './schedule-criteria';
 
 /** How many devices each half of the picker loads per page. */

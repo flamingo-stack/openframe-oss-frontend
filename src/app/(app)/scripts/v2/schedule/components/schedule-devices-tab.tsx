@@ -9,6 +9,7 @@ import type { scriptScheduleDevicesRelay_schedule$key as ScheduleDevicesFragment
 import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPaginationQueryType } from '@/__generated__/scriptScheduleDevicesRelayPaginationQuery.graphql';
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { machineToDevice } from '@/app/(app)/devices/utils/device-transform';
 import { DevicesList, type DevicesListNarrowing, EMPTY_DEVICES_NARROWING } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
@@ -17,7 +18,6 @@ import {
   scriptScheduleDevicesRelayFragment,
   scriptScheduleDevicesRelayQuery,
 } from '@/graphql/scripts/script-schedule-devices-relay';
-import { machineToDevice } from '../utils/machine-to-device';
 import { criteriaFromStored } from '../utils/schedule-criteria';
 import { ScheduleCriteriaSummary } from './schedule-criteria-fields';
 

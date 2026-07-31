@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { dashboardApiService } from '../services/dashboard-api-service';
@@ -26,8 +27,11 @@ import { dashboardQueryKeys } from '../utils/query-keys';
 export function useDevicesOverview() {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
 
+  // Keyed under the device root, not the dashboard one: these counters are
+  // device data, and archiving a device has to refresh them along with every
+  // other device surface (see `invalidateDeviceQueries`).
   const query = useQuery({
-    queryKey: dashboardQueryKeys.deviceStats(),
+    queryKey: deviceQueryKeys.stats(),
     queryFn: dashboardApiService.fetchDeviceStats,
     enabled: isAuthenticated,
     staleTime: 1 * 60 * 1000,

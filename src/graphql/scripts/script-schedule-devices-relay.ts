@@ -8,7 +8,7 @@ import { graphql } from 'react-relay';
  *
  * The selection is dictated by `DevicesTableBody` — the tab renders the same
  * table as the Devices page, so it needs the same per-row fields that page's
- * `GET_DEVICES_QUERY` feeds it.
+ * `deviceFields_machine` feeds it.
  *
  * `organization` IS selected here, deliberately and with a known cost: it fans
  * out one lookup per machine, on top of a field that has already timed out once

@@ -14,16 +14,18 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { DeviceSelector } from '@/app/components/shared/device-selector';
+import { DeviceListPicker } from '@/app/components/shared/device-selector';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
+import type { Device } from '../../../devices/types/device.types';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
-import { useRunScriptData } from '../../hooks/use-run-script-data';
+import { useScriptDetails } from '../../hooks/use-script-details';
 import { rejectScriptsMigrationPending } from '../../lib/scripts-migration';
 import { scriptArgumentSchema } from '../../types/edit-script.types';
 import { getDevicePrimaryId } from '../../utils/device-helpers';
 import { parseKeyValues } from '../../utils/script-key-values';
+import { runDeviceFilter } from '../../utils/script-utils';
 import { ExecutionStartedModal } from './execution-started-modal';
 
 interface RunScriptViewProps {
@@ -42,13 +44,12 @@ export function RunScriptView({ scriptId }: RunScriptViewProps) {
   const router = useRouter();
   const { toast } = useToast();
 
-  const {
-    scriptDetails,
-    isLoadingScript,
-    scriptError,
-    devices: allDevices,
-    isLoadingDevices,
-  } = useRunScriptData({ scriptId });
+  const { scriptDetails, isLoading: isLoadingScript, error: scriptError } = useScriptDetails(scriptId);
+
+  const deviceFilter = useMemo(
+    () => runDeviceFilter(scriptDetails?.supported_platforms ?? []),
+    [scriptDetails?.supported_platforms],
+  );
 
   // Keep this script as the Mingo "open view" while on the run surface (the detail
   // page unmounted on navigation). v1 is REST-backed — `scriptId` is already the
@@ -57,7 +58,9 @@ export function RunScriptView({ scriptId }: RunScriptViewProps) {
     scriptDetails ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptId, label: scriptDetails.name || scriptId } : null,
   );
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Selection as DEVICES, not ids: the device list lives behind the Suspense
+  // boundary below, so this component has nothing to resolve ids against.
+  const [selection, setSelection] = useState<Device[]>([]);
 
   const {
     control,
@@ -85,7 +88,7 @@ export function RunScriptView({ scriptId }: RunScriptViewProps) {
 
   const onSubmit = useCallback(
     async (_data: RunFormData) => {
-      if (selectedIds.size === 0) {
+      if (selection.length === 0) {
         toast({
           title: 'No devices selected',
           description: 'Please select at least one device.',
@@ -105,7 +108,7 @@ export function RunScriptView({ scriptId }: RunScriptViewProps) {
         toast({ title: 'Submission failed', description: msg, variant: 'destructive' });
       }
     },
-    [selectedIds, toast],
+    [selection, toast],
   );
 
   const handleCloseExecutionModal = useCallback(() => {
@@ -133,11 +136,11 @@ export function RunScriptView({ scriptId }: RunScriptViewProps) {
         label: 'Run Script',
         onClick: handleSubmit(onSubmit, onFormError),
         variant: 'accent' as const,
-        disabled: selectedIds.size === 0,
+        disabled: selection.length === 0,
         loading: isSubmitting,
       },
     ],
-    [handleSubmit, onSubmit, onFormError, selectedIds.size, isSubmitting],
+    [handleSubmit, onSubmit, onFormError, selection.length, isSubmitting],
   );
 
   if (isLoadingScript) {
@@ -220,12 +223,11 @@ export function RunScriptView({ scriptId }: RunScriptViewProps) {
         </div>
 
         <div className="pt-6 space-y-1">
-          <DeviceSelector
-            devices={allDevices}
-            loading={isLoadingDevices}
-            selectedIds={selectedIds}
+          <DeviceListPicker
+            filter={deviceFilter}
+            selected={selection}
+            onSelectionChange={setSelection}
             getDeviceKey={getDevicePrimaryId}
-            onSelectionChange={setSelectedIds}
             showSelectionModeRadio={false}
             addAllBehavior="replace"
           />
