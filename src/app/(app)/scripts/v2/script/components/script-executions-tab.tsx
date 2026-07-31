@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { memo, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scriptExecutionsRelay_query$key as ExecutionsFragmentKey } from '@/__generated__/scriptExecutionsRelay_query.graphql';
 import type { scriptExecutionsRelayPaginationQuery as ExecutionsPaginationQueryType } from '@/__generated__/scriptExecutionsRelayPaginationQuery.graphql';
@@ -11,10 +12,18 @@ import {
   ExecutionsTable,
   ExecutionsTabShell,
   type ExecutionsTabState,
+  narrowExecutions,
   toUiExecution,
   type UiExecution,
   useExecutionFacetOptions,
-} from './executions-table';
+} from '../../shared/components/executions-table';
+
+/** The schedule tab's placeholder (design 1:48878), named for one script. */
+const EMPTY_STATE = {
+  icon: <ClipboardListIcon />,
+  title: 'No Execution History',
+  description: 'Runs of this script will be displayed here',
+};
 
 interface ScriptExecutionsTabProps {
   scriptId: string;
@@ -25,13 +34,13 @@ interface ScriptExecutionsTabProps {
 // ----------------------------------------------------------------
 
 function ScriptExecutionsContent({ scriptId, state }: { scriptId: string; state: ExecutionsTabState }) {
-  const { backendFilters, debouncedSearch, ...tableState } = state;
+  const { backendFilters, querySearch, narrowSearch, ...tableState } = state;
 
   // One round-trip per interaction: the filter facets (`scriptExecutionFilters`)
   // ride the list operation — see the query docstring for the facet semantics.
   const queryData = useLazyLoadQuery<ExecutionsQueryType>(
     scriptExecutionsRelayQuery,
-    { scriptId, filter: backendFilters, search: debouncedSearch || null, first: EXECUTIONS_PAGE_SIZE, after: null },
+    { scriptId, filter: backendFilters, search: querySearch || null, first: EXECUTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network' },
   );
 
@@ -46,8 +55,11 @@ function ScriptExecutionsContent({ scriptId, state }: { scriptId: string; state:
     const edges = data.scriptExecutions?.edges ?? [];
     // Defensive null-node guard (same as scripts-table): skip any dangling edge
     // instead of crashing the tab on a store-evicted record.
-    return edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
-  }, [data.scriptExecutions?.edges]);
+    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
+    // A no-op here — this list's search reaches the server, so `narrowSearch` is
+    // always empty. Kept so every caller of the shell honours the same contract.
+    return narrowExecutions(rows, narrowSearch);
+  }, [data.scriptExecutions?.edges, narrowSearch]);
 
   const fetchNextPage = useCallback(() => {
     if (hasNext && !isLoadingNext) loadNext(EXECUTIONS_PAGE_SIZE);
@@ -57,8 +69,8 @@ function ScriptExecutionsContent({ scriptId, state }: { scriptId: string; state:
     <ExecutionsTable
       executions={executions}
       facetOptions={facetOptions}
-      search={debouncedSearch}
-      emptyHint="No executions found. Run this script to see its history here."
+      search={querySearch}
+      emptyState={EMPTY_STATE}
       hasNext={hasNext}
       isLoadingNext={isLoadingNext}
       onLoadMore={fetchNextPage}
@@ -67,9 +79,16 @@ function ScriptExecutionsContent({ scriptId, state }: { scriptId: string; state:
   );
 }
 
-/** Execution history for a single script — `scriptExecutions(scriptId:)`. */
-export function ScriptExecutionsTab({ scriptId }: ScriptExecutionsTabProps) {
+/**
+ * Execution history for a single script — `scriptExecutions(scriptId:)`.
+ *
+ * The boundary lives inside `ExecutionsTabShell`, BELOW the toolbar, so a filter
+ * change reloads the rows and leaves the search box where it was.
+ *
+ * `memo` for the reason given in `script-detail-tabs.ts`.
+ */
+export const ScriptExecutionsTab = memo(function ScriptExecutionsTab({ scriptId }: ScriptExecutionsTabProps) {
   return (
     <ExecutionsTabShell>{state => <ScriptExecutionsContent scriptId={scriptId} state={state} />}</ExecutionsTabShell>
   );
-}
+});

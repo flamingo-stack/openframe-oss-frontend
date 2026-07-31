@@ -2,11 +2,11 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { DEVICE_STATUS } from '../../../devices/constants/device-statuses';
-import { GET_DEVICES_QUERY } from '../../../devices/queries/devices-queries';
-import type { Device, DevicesGraphQlNode, GraphQlResponse } from '../../../devices/types/device.types';
-import { createDeviceListItem } from '../../../devices/utils/device-transform';
-import { mapPlatformsToOsTypes } from '../../utils/script-utils';
+import { DEVICE_STATUS } from '../../../../devices/constants/device-statuses';
+import { GET_DEVICES_QUERY } from '../../../../devices/queries/devices-queries';
+import type { Device, DevicesGraphQlNode, GraphQlResponse } from '../../../../devices/types/device.types';
+import { createDeviceListItem } from '../../../../devices/utils/device-transform';
+import { mapPlatformsToOsTypes } from '../../../utils/script-utils';
 
 export const runDevicesQueryKeys = {
   devices: (scriptId: string) => ['run-script-v2-devices', scriptId] as const,

@@ -15,8 +15,12 @@ import { updateScriptMutation } from '@/graphql/scripts/update-script-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
-import { EDIT_SCRIPT_DEFAULT_VALUES, type EditScriptFormData, editScriptSchema } from '../../types/edit-script.types';
-import { formToWriteInput } from '../utils/script-mappers';
+import {
+  EDIT_SCRIPT_DEFAULT_VALUES,
+  type EditScriptFormData,
+  editScriptSchema,
+} from '../../../types/edit-script.types';
+import { formToWriteInput } from '../../shared/utils/script-mappers';
 
 // v2 tweaks to the shared schema:
 // - script_body is required (drives the Syntax error state).

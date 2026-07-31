@@ -1,6 +1,6 @@
 'use client';
 
-import { ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { NotFoundError, PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
 import {
   CheckboxBlock,
   Input,
@@ -12,28 +12,30 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { useMutation } from 'react-relay';
+import { useLazyLoadQuery, useMutation } from 'react-relay';
 import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
+import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
+import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
+import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
-import type { Device } from '../../../devices/types/device.types';
-import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
-import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
-import { ExecutionStartedModal } from '../../components/script/execution-started-modal';
-import { scriptArgumentSchema } from '../../types/edit-script.types';
-import { getDevicePrimaryId } from '../../utils/device-helpers';
-import { parseKeyValues, serializeKeyValues } from '../../utils/script-key-values';
+import type { Device } from '../../../../devices/types/device.types';
+import { CONTEXT_ENTITY_KIND } from '../../../../mingo/context/context-types';
+import { useTrackOpenView } from '../../../../mingo/context/use-track-open-view';
+import { ExecutionStartedModal } from '../../../components/script/execution-started-modal';
+import { scriptArgumentSchema } from '../../../types/edit-script.types';
+import { getDevicePrimaryId } from '../../../utils/device-helpers';
+import { parseKeyValues, serializeKeyValues } from '../../../utils/script-key-values';
+import { initiatorName } from '../../shared/utils/execution-helpers';
+import { envVarsToInput, envVarsToPairs, platformsToIds, shellToId } from '../../shared/utils/script-mappers';
 import { useRunDevices } from '../hooks/use-run-devices';
-import { initiatorName } from '../utils/execution-helpers';
-import { envVarsToInput, envVarsToPairs, platformsToIds, shellToId } from '../utils/script-mappers';
-import { type ScriptDetailData, ScriptDetailGate } from './script-detail-gate';
-import { ScriptPageChrome } from './script-page-chrome';
-import { RUN_SUMMARY_LABELS, ScriptSummaryCard, ScriptSummaryCardSkeleton } from './script-summary-card';
+import type { ScriptDetailData } from '../types/script-detail.types';
+import { ScriptSummaryCard } from './script-summary-card';
 
 interface RunScriptViewProps {
   scriptId: string;
@@ -52,16 +54,15 @@ function getMachineId(device: Device): string | undefined {
   return device.machineId || undefined;
 }
 
-interface RunScriptContentProps {
+interface RunScriptFormProps {
   scriptId: string;
-  /** `undefined` while the script query is in flight — controls render disabled. */
-  script: ScriptDetailData | undefined;
+  script: ScriptDetailData;
 }
 
-function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
+function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const loading = script === undefined;
+  const handleBack = useSafeBack(routes.scriptsV2.details(scriptId));
 
   // Keep this script as the Mingo "open view" while on the run surface (the detail
   // page unmounted on navigation). Raw db id — the route's `scriptId` is the Relay
@@ -73,11 +74,7 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
 
   const supportedPlatforms = useMemo(() => platformsToIds(script?.supportedPlatforms), [script?.supportedPlatforms]);
 
-  const { devices: allDevices, isLoadingDevices } = useRunDevices({
-    scriptId,
-    supportedPlatforms,
-    enabled: Boolean(script),
-  });
+  const { devices: allDevices, isLoadingDevices } = useRunDevices({ scriptId, supportedPlatforms, enabled: true });
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showExecutionModal, setShowExecutionModal] = useState(false);
@@ -94,10 +91,10 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
   });
 
   useEffect(() => {
-    // `!isDirty` guard: the gate's store-and-network revalidation re-delivers the
-    // script (new snapshot identity); once the user has touched the run config,
-    // a late delivery must not clobber it. `reset` marks the form pristine, so
-    // the initial seed always passes the guard.
+    // `!isDirty` guard: `store-and-network` re-delivers the script (new snapshot
+    // identity) after the store read; once the user has touched the run config, a
+    // late delivery must not clobber it. `reset` marks the form pristine, so the
+    // initial seed always passes the guard.
     if (script && !isDirty) {
       const parsedArgs = parseKeyValues(script.defaultArgs ? [...script.defaultArgs] : [], ' ');
       const parsedEnv = envVarsToPairs(script.envVars);
@@ -201,39 +198,38 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
 
   const actions = useMemo<PageActionButton[]>(
     () => [
+      // Run is the only other action, so on a phone the bar would be one
+      // full-width button with the way out off-screen at the top of the page —
+      // hence the mobile-only Cancel, which IS the Back navigation.
+      { label: 'Cancel', onClick: handleBack, variant: 'outline' as const, showOnlyMobile: true },
       {
         label: 'Run Script',
         onClick: handleSubmit(onSubmit, onFormError),
         variant: 'accent' as const,
-        disabled: selectedIds.size === 0 || loading,
+        disabled: selectedIds.size === 0,
         loading: isSubmitting,
       },
     ],
-    [handleSubmit, onSubmit, onFormError, selectedIds.size, isSubmitting, loading],
+    [handleSubmit, onSubmit, onFormError, selectedIds.size, isSubmitting, handleBack],
   );
 
   return (
     <>
-      <ScriptPageChrome
+      <PageLayout
         title="Run Script"
-        backFallback={routes.scriptsV2.details(scriptId)}
+        backButton={{ label: 'Back', onClick: handleBack }}
         actions={actions}
         actionsVariant="primary-buttons"
-        showMobileCancel
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        {script ? (
-          <ScriptSummaryCard
-            name={script.name}
-            description={script.description}
-            shellId={shellToId(script.shell)}
-            platforms={supportedPlatforms}
-            author={script.author ? initiatorName(script.author) : null}
-            showTimeout={false}
-          />
-        ) : (
-          // Same 3 stats as the loaded card (`showTimeout` is off on the run page).
-          <ScriptSummaryCardSkeleton labels={RUN_SUMMARY_LABELS} />
-        )}
+        <ScriptSummaryCard
+          name={script.name}
+          description={script.description}
+          shellId={shellToId(script.shell)}
+          platforms={supportedPlatforms}
+          author={script.author ? initiatorName(script.author) : null}
+          showTimeout={false}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)] items-end">
           <div>
@@ -247,7 +243,6 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
                   className="w-full"
                   value={field.value}
                   onChange={e => field.onChange(Number(e.target.value) || 0)}
-                  disabled={loading}
                   endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                 />
               )}
@@ -262,7 +257,6 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
                 checked={field.value}
                 onCheckedChange={checked => field.onChange(checked === true)}
                 label="Run as User"
-                disabled={loading}
               />
             )}
           />
@@ -280,7 +274,6 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
                 valuePlaceholder="Enter Value (empty=flag)"
                 addButtonLabel="Add Script Argument"
                 titleLabel="Script Arguments"
-                disabled={loading}
               />
             )}
           />
@@ -295,7 +288,6 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
                 valuePlaceholder="Enter Value"
                 addButtonLabel="Add Environment Var"
                 titleLabel="Environment Vars"
-                disabled={loading}
               />
             )}
           />
@@ -304,7 +296,7 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
         <div className="space-y-[var(--spacing-system-xxs)]">
           <DeviceSelector
             devices={allDevices}
-            loading={loading || isLoadingDevices}
+            loading={isLoadingDevices}
             selectedIds={selectedIds}
             getDeviceKey={getDevicePrimaryId}
             onSelectionChange={setSelectedIds}
@@ -313,7 +305,7 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
             isDeviceDisabled={d => (!getMachineId(d) ? 'Agent is not\nconnected' : undefined)}
           />
         </div>
-      </ScriptPageChrome>
+      </PageLayout>
 
       <ExecutionStartedModal
         isOpen={showExecutionModal}
@@ -325,12 +317,26 @@ function RunScriptContent({ scriptId, script }: RunScriptContentProps) {
   );
 }
 
+/**
+ * "Run Script" — the per-run config (timeout, privilege, args, env) over the
+ * device picker. Suspends on the script query; the route renders
+ * `RunScriptSkeleton` while that is in flight, so the form mounts once, already
+ * seeded (Monaco-free here, but the same contract as the edit page).
+ */
 export function RunScriptView({ scriptId }: RunScriptViewProps) {
-  return (
-    <ScriptDetailGate scriptId={scriptId}>
-      {script => <RunScriptContent scriptId={scriptId} script={script} />}
-    </ScriptDetailGate>
+  const data = useLazyLoadQuery<ScriptDetailQueryType>(
+    scriptDetailRelayQuery,
+    { id: scriptId },
+    { fetchPolicy: 'store-and-network' },
   );
+
+  if (!data.script) {
+    return <NotFoundError message="Script not found" />;
+  }
+
+  // Keyed by id: the router reuses this route segment when only `?id=` changes,
+  // so without the key a hop from script A to B would keep A's run config.
+  return <RunScriptForm key={scriptId} scriptId={scriptId} script={data.script} />;
 }
 
 export default RunScriptView;

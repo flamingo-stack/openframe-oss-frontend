@@ -13,12 +13,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
 import { apiClient } from '@/lib/api-client';
-import { DEVICE_STATUS } from '../../../devices/constants/device-statuses';
-import { GET_DEVICES_QUERY } from '../../../devices/queries/devices-queries';
-import type { Device, DevicesGraphQlNode, GraphQlResponse } from '../../../devices/types/device.types';
-import { createDeviceListItem } from '../../../devices/utils/device-transform';
-import { getDevicePrimaryId } from '../../utils/device-helpers';
-import { mapPlatformsToOsTypes } from '../../utils/script-utils';
+import { DEVICE_STATUS } from '../../../../devices/constants/device-statuses';
+import { GET_DEVICES_QUERY } from '../../../../devices/queries/devices-queries';
+import type { Device, DevicesGraphQlNode, GraphQlResponse } from '../../../../devices/types/device.types';
+import { createDeviceListItem } from '../../../../devices/utils/device-transform';
+import { getDevicePrimaryId } from '../../../utils/device-helpers';
+import { mapPlatformsToOsTypes } from '../../../utils/script-utils';
 
 export interface SelectedTestDevice {
   machineId: string;

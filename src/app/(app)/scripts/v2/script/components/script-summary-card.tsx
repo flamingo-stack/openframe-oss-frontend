@@ -4,7 +4,7 @@ import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
-import { scriptV2ShellLabel } from '../utils/shell-types';
+import { scriptV2ShellLabel } from '../../shared/utils/shell-types';
 
 interface ScriptSummaryCardProps {
   name: string;

@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { scriptV2ShellType } from '../utils/shell-types';
+import { scriptV2ShellType } from '../../shared/utils/shell-types';
 
 interface ScriptShellBadgeProps {
   /** Lowercase shell id (e.g. 'cmd'). */

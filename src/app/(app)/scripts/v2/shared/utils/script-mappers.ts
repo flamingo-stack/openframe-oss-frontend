@@ -2,8 +2,8 @@ import type { ScriptArgument } from '@flamingo-stack/openframe-frontend-core';
 // Value import: the generated module exports each enum as both a `const` (values)
 // and a `type` under the same name, so these stand in for hardcoded literals.
 import { PrivilegeLevel, ScriptPlatform, ScriptShell } from '@/generated/schema-enums';
-import { EDIT_SCRIPT_DEFAULT_VALUES, type EditScriptFormData } from '../../types/edit-script.types';
-import { parseKeyValues, serializeKeyValues } from '../../utils/script-key-values';
+import { EDIT_SCRIPT_DEFAULT_VALUES, type EditScriptFormData } from '../../../types/edit-script.types';
+import { parseKeyValues, serializeKeyValues } from '../../../utils/script-key-values';
 
 /**
  * Translation layer between the UI's (tactical-shaped) form model and the

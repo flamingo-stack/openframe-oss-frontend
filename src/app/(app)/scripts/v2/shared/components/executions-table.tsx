@@ -16,6 +16,7 @@ import {
   FilterModal,
   Input,
   multiSelectFilterFn,
+  type NoDataProps,
   type Row,
   SquareAvatar,
   Tag,
@@ -23,11 +24,15 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, Suspense, useCallback, useMemo, useState } from 'react';
+import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ScriptExecutionFilterInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import {
+  liveColumnMeta,
+  skeletonColumnMeta,
+  type TableSkeletonColumn,
+} from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -61,6 +66,38 @@ import { type FacetOption, facetToSortedOptions } from '../utils/facet-options';
  */
 
 export const EXECUTIONS_PAGE_SIZE = 20;
+
+/**
+ * Column layout — ONE declaration, read by {@link ExecutionsTable} and by
+ * {@link ExecutionsSkeleton}. Widths, `hideAt` and `filterable` were written out
+ * twice before, and the copies drifted: the skeleton's three filterable columns
+ * lost their `filterable`, so their funnels were missing while loading and
+ * popped in with the facets, shifting every label. See `table-column-layout.ts`.
+ */
+const EXECUTION_COLUMNS = {
+  executionId: { id: 'executionId', header: 'Execution', width: 'w-[160px]' },
+  status: { id: 'status', header: 'Status', width: 'w-[120px]', filterable: true },
+  machineId: { id: 'machineId', header: 'Device', width: 'w-[200px]', hideAt: 'lg', filterable: true },
+  initiatorId: { id: 'initiatorId', header: 'Executed by', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
+  result: { id: 'result', header: 'Result', width: 'flex-1 min-w-0', hideAt: 'xl' },
+  actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
+  open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+} satisfies Record<string, TableSkeletonColumn>;
+
+/** Render order, shared by the live table and the skeleton. */
+const EXECUTION_COLUMN_ORDER: readonly TableSkeletonColumn[] = [
+  EXECUTION_COLUMNS.executionId,
+  EXECUTION_COLUMNS.status,
+  EXECUTION_COLUMNS.machineId,
+  EXECUTION_COLUMNS.initiatorId,
+  EXECUTION_COLUMNS.result,
+  // The loaded table ends in two 48px action columns. They carry no header text,
+  // but they do carry width — leaving them out of the skeleton laid the `flex-1`
+  // columns across ~128px more than they get, and every label jumped left the
+  // moment the rows arrived.
+  EXECUTION_COLUMNS.actions,
+  EXECUTION_COLUMNS.open,
+];
 
 export type { ScriptExecutionFilterInput };
 
@@ -131,6 +168,32 @@ export function toUiExecution(node: ExecutionNodeLike): UiExecution {
   };
 }
 
+/**
+ * Narrows already-loaded rows by a typed term — for a list whose server-side
+ * `search` argument is already spoken for (see `clientSearch` on the shell).
+ *
+ * Matches the same things the server's search does plus what the row shows, so
+ * the box behaves the way it does on the other execution lists. An empty term
+ * returns the SAME array, so callers whose search does reach the server pay
+ * nothing for calling this.
+ */
+export function narrowExecutions(executions: UiExecution[], term: string): UiExecution[] {
+  const needle = term.trim().toLowerCase();
+  if (!needle) return executions;
+
+  return executions.filter(execution =>
+    [
+      execution.executionId,
+      execution.machineName,
+      execution.organization,
+      execution.initiatorName,
+      execution.scriptName,
+      execution.result,
+      executionStatusLabel(execution.status),
+    ].some(field => field?.toLowerCase().includes(needle)),
+  );
+}
+
 /** Server facet entry (`ScriptFilterOption`), typed structurally for both artifacts. */
 type FacetEntries = ReadonlyArray<{ readonly value: string; readonly label: string }> | null | undefined;
 
@@ -186,12 +249,19 @@ export interface ExecutionsTableProps {
   onLoadMore: () => void;
   /** The search term the rows on screen were fetched with (for the empty copy). */
   search: string;
-  /** Empty-state copy when nothing is searched or filtered. */
-  emptyHint: string;
+  /**
+   * The empty state when nothing is searched or filtered — the design's
+   * `data-placeholder` (icon / title / description), named for whatever list
+   * this is. The narrowed case is the table's own "no results" placeholder and
+   * is built here.
+   */
+  emptyState: NoDataProps;
   /** Pins the column header flush below the sticky search toolbar. */
   stickyHeaderOffset: string;
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
+  /** See `ExecutionsTabState.onEmptyChange` — arrives with the shell's state. */
+  onEmptyChange?: (empty: boolean) => void;
 }
 
 export function ExecutionsTable({
@@ -204,10 +274,11 @@ export function ExecutionsTable({
   isLoadingNext,
   onLoadMore,
   search,
-  emptyHint,
+  emptyState,
   stickyHeaderOffset,
   mobileFilterOpen,
   onMobileFilterClose,
+  onEmptyChange,
 }: ExecutionsTableProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -253,7 +324,7 @@ export function ExecutionsTable({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-[160px]' },
+        meta: liveColumnMeta(EXECUTION_COLUMNS.executionId),
       },
       {
         accessorKey: 'status',
@@ -270,7 +341,7 @@ export function ExecutionsTable({
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px]', filter: { options: statusOptions } },
+        meta: liveColumnMeta(EXECUTION_COLUMNS.status, { filter: { options: statusOptions } }),
       },
       {
         // accessorKey is `machineId` so the filter option values (machineIds)
@@ -298,7 +369,7 @@ export function ExecutionsTable({
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[200px]', hideAt: 'lg', filter: { options: machineOptions } },
+        meta: liveColumnMeta(EXECUTION_COLUMNS.machineId, { filter: { options: machineOptions } }),
       },
       {
         // accessorKey is `initiatorId` so the filter option values (user ids)
@@ -352,11 +423,7 @@ export function ExecutionsTable({
         },
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: {
-          width: 'flex-1 min-w-0',
-          hideAt: 'md',
-          filter: { options: initiatorOptions },
-        },
+        meta: liveColumnMeta(EXECUTION_COLUMNS.initiatorId, { filter: { options: initiatorOptions } }),
       },
       {
         accessorKey: 'result',
@@ -365,7 +432,7 @@ export function ExecutionsTable({
           <TruncateText lines={2}>{row.original.result || '—'}</TruncateText>
         ),
         enableSorting: false,
-        meta: { width: 'flex-1 min-w-0', hideAt: 'xl' },
+        meta: liveColumnMeta(EXECUTION_COLUMNS.result),
       },
       {
         id: 'actions',
@@ -375,7 +442,7 @@ export function ExecutionsTable({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(EXECUTION_COLUMNS.actions),
       },
       {
         id: 'open',
@@ -392,7 +459,7 @@ export function ExecutionsTable({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: liveColumnMeta(EXECUTION_COLUMNS.open),
       },
     ],
     [renderRowActions, router, executionHref, statusOptions, initiatorOptions, machineOptions],
@@ -443,13 +510,35 @@ export function ExecutionsTable({
   const hasActiveFilter = columnFilters.length > 0;
   const showHeader = executions.length > 0 || hasActiveFilter || isPending;
 
-  // The default copy claims nothing ever ran — only true without an active
-  // search/filter; otherwise it's the narrowing that produced the empty result.
-  const emptyMessage = search
-    ? `No executions found matching "${search}". Try adjusting your search.`
-    : hasActiveFilter
-      ? 'No executions match the current filters. Try adjusting them.'
-      : emptyHint;
+  // `emptyState` claims nothing ever ran — only true without an active
+  // search/filter; otherwise it's the narrowing that produced the empty result,
+  // and the table's own "no results" placeholder is what says so.
+  //
+  // `hasNext` wins over both: an empty list with pages still to come is a list
+  // being narrowed CLIENT-side (the server can't have returned zero rows and a
+  // next page), and "nothing matched" would be a claim we can't make yet — the
+  // footer below is still pulling the pages that might.
+  const resolvedEmptyState: NoDataProps = hasNext
+    ? { icon: <SearchIcon />, title: 'Looking through the remaining executions…' }
+    : search || hasActiveFilter
+      ? {
+          icon: <SearchIcon />,
+          title: 'No executions found',
+          description: search
+            ? `Nothing matches "${search}". Try adjusting your search or filters.`
+            : 'Try adjusting your filters.',
+        }
+      : emptyState;
+
+  // Only the un-narrowed empty list hides the toolbar: when narrowing is what
+  // emptied it, the search box is the way back out.
+  const isEmptyState = executions.length === 0 && !search && !hasActiveFilter && !hasNext && !isPending;
+  useEffect(() => {
+    onEmptyChange?.(isEmptyState);
+  }, [isEmptyState, onEmptyChange]);
+  // Restore it on the way out: this table unmounts whenever its query re-suspends,
+  // and a toolbar hidden by a list that is no longer rendered would never return.
+  useEffect(() => () => onEmptyChange?.(false), [onEmptyChange]);
 
   return (
     <>
@@ -462,11 +551,15 @@ export function ExecutionsTable({
           )}
           <DataTable.Body
             skeletonRows={EXECUTIONS_PAGE_SIZE}
-            emptyMessage={emptyMessage}
+            emptyState={resolvedEmptyState}
             rowClassName="mb-1"
             rowHref={executionHref}
           />
-          {executions.length > 0 && (
+          {/* Kept mounted on an EMPTY list too, as long as more pages exist —
+              that only happens under client-side narrowing, and there the
+              sentinel is what walks the rest of the pages so the term ends up
+              searching the whole list instead of just the first page. */}
+          {(executions.length > 0 || hasNext) && (
             <DataTable.InfiniteFooter
               hasNextPage={hasNext}
               isFetchingNextPage={isLoadingNext}
@@ -495,39 +588,17 @@ export function ExecutionsTable({
 const EMPTY_ROWS: UiExecution[] = [];
 
 export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
+  // The live table's own layout, with `skeletonColumnMeta` turning `filterable`
+  // into a filter with no options yet — the header then draws the real control,
+  // funnel included, instead of growing one when the facets land.
   const columns = useMemo<ColumnDef<UiExecution>[]>(
-    () => [
-      { accessorKey: 'executionId', header: 'Execution', enableSorting: false, meta: { width: 'w-[160px]' } },
-      { accessorKey: 'status', header: 'Status', enableSorting: false, meta: { width: 'w-[120px]' } },
-      {
-        accessorKey: 'machineName',
-        header: 'Device',
+    () =>
+      EXECUTION_COLUMN_ORDER.map(column => ({
+        id: column.id,
+        header: column.header,
         enableSorting: false,
-        meta: { width: 'w-[200px]', hideAt: 'lg' },
-      },
-      {
-        accessorKey: 'initiatorName',
-        header: 'Executed by',
-        enableSorting: false,
-        meta: { width: 'flex-1 min-w-0', hideAt: 'md' },
-      },
-      {
-        accessorKey: 'result',
-        header: 'Result',
-        enableSorting: false,
-        meta: { width: 'flex-1 min-w-0', hideAt: 'xl' },
-      },
-      // The loaded table ends in two 48px action columns. They carry no header
-      // text, but they do carry width — leaving them out of the skeleton meant
-      // the `flex-1` columns were laid out across ~128px more than they would
-      // get, and every label jumped left the moment the rows arrived.
-      { id: 'actions', enableSorting: false, meta: { width: 'w-12 shrink-0 flex-none', align: 'right' } },
-      {
-        id: 'open',
-        enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
-      },
-    ],
+        meta: skeletonColumnMeta(column),
+      })),
     [],
   );
 
@@ -553,35 +624,57 @@ export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?
 /** Everything the shell owns, handed to the tab's Relay content. */
 export interface ExecutionsTabState {
   backendFilters: ScriptExecutionFilterInput;
-  debouncedSearch: string;
+  /** The `search` argument for the query. Empty under `clientSearch`, where the caller supplies its own scope. */
+  querySearch: string;
+  /**
+   * What the user typed when it CAN'T reach the server (`clientSearch`) — run it
+   * through {@link narrowExecutions} before handing the rows to
+   * {@link ExecutionsTable}. Empty on every list whose search is server-side,
+   * where narrowing is then a no-op.
+   */
+  narrowSearch: string;
   isPending: boolean;
   tableFilters: Record<string, string[]>;
   onFilterChange: (filters: Record<string, string[]>) => void;
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
   stickyHeaderOffset: string;
+  /**
+   * Reports whether the list is showing its "nothing here at all" placeholder,
+   * so the shell can drop the search toolbar over it. Spread straight into
+   * {@link ExecutionsTable}, which is what knows.
+   */
+  onEmptyChange: (empty: boolean) => void;
 }
 
 /**
  * URL-backed filter/search state + the sticky search toolbar + the Suspense
- * boundary around the Relay content. Both executions tabs render this and only
- * supply the query wiring through `children`.
+ * boundary around the Relay content. Every executions list renders this — the
+ * per-script tab, the per-schedule tab and the Schedule Run Details page — and
+ * supplies only the query wiring through `children`.
  */
 export function ExecutionsTabShell({
   children,
-  scopeSearch,
+  clientSearch,
 }: {
   children: (state: ExecutionsTabState) => ReactNode;
   /**
-   * Pins the list to one server-side search term and hides the search box.
-   * For the Schedule Run Details page, which shows the executions of ONE fire:
-   * the only handle the API offers for that is `search` on the run's
-   * `executionId` (`ScriptExecutionFilterInput` has no execution-id field), so a
-   * user-typed term would REPLACE the scope and silently widen the page to the
-   * whole schedule. The column funnels still work — they travel in `filter`, so
-   * they compose with the scope instead of competing with it.
+   * Says the query's `search` argument is already spoken for, so the typed term
+   * comes back as `narrowSearch` instead of `querySearch`.
+   *
+   * The Schedule Run Details page: it shows the executions of ONE fire, and the
+   * only handle the API offers for that is `search` on the run's `executionId`
+   * (`ScriptExecutionFilterInput` has no execution-id field, and `ScheduleRun`
+   * has no executions connection of its own). Sending the user's term would
+   * replace that scope and silently widen the page to the whole schedule.
+   *
+   * A flag rather than the scope VALUE on purpose: the value is server data on
+   * that page, and demanding it here would keep the toolbar — which needs no
+   * data at all — waiting behind the same query as the rows. The column funnels
+   * are unaffected either way; they travel in `filter`, so they compose with
+   * whatever scope the caller applies.
    */
-  scopeSearch?: string;
+  clientSearch?: boolean;
 }) {
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
   const { params, setParam, setParams } = useApiParams({
@@ -591,6 +684,10 @@ export function ExecutionsTabShell({
     initiatorId: { type: 'array', default: [] },
   });
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  // Set by the table below (the only thing that knows how many rows there are):
+  // an un-narrowed empty list has nothing to search, so the toolbar goes away and
+  // leaves the placeholder alone.
+  const [isEmpty, setIsEmpty] = useState(false);
 
   // Local search input keeps typing responsive; debounced into the URL param.
   const {
@@ -632,29 +729,19 @@ export function ExecutionsTabShell({
   );
 
   return (
-    // The negative `-mt-lf` cancels the `gap-lf` the parent (the details view)
-    // puts between the tab bar and this content: TabNavigation renders as a
-    // fragment, so its tab bar and this body are sibling flex items and the gap
-    // leaks in as a top offset. Without this it stacks with the toolbar's `pt-l`
-    // below → doubled top padding.
-    <div className="flex flex-col -mt-[var(--spacing-system-lf)]" style={containerStyle}>
+    // No top offset to cancel: every caller renders this flush against what
+    // sits above it, so the toolbar's own `pt-l` below IS the separating gap.
+    <div className="flex flex-col" style={containerStyle}>
       {/* Search stays pinned to the top of the scroll area; its measured height
           feeds the sticky column header offset. `pt-l` sits above the input (and,
           once the `-mt-6` cancels the parent gap, is the sole top spacing), `pb-l`
           separates it from the table below — the `bg-ods-bg` hides rows scrolling
           underneath while the toolbar is pinned. */}
-      <div
-        ref={toolbarRef}
-        className={cn(
-          'sticky top-0 z-20 flex items-center gap-[var(--spacing-system-xs)] bg-ods-bg pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]',
-          // Scoped: nothing left to show on desktop once the search box is gone,
-          // so the strip collapses entirely (a measured height of 0 also zeroes
-          // the sticky header offset). Mobile keeps it for the funnel button,
-          // which has no other home on that breakpoint.
-          scopeSearch && 'md:hidden',
-        )}
-      >
-        {!scopeSearch && (
+      {!isEmpty && (
+        <div
+          ref={toolbarRef}
+          className="sticky top-0 z-20 flex items-center gap-[var(--spacing-system-m)] bg-ods-bg pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        >
           <div className="flex-1">
             <Input
               placeholder="Search for Executions"
@@ -663,26 +750,31 @@ export function ExecutionsTabShell({
               startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
             />
           </div>
-        )}
-        <Button
-          variant="outline"
-          size="icon"
-          className={cn('md:hidden', scopeSearch && 'ml-auto')}
-          onClick={() => setMobileFilterOpen(true)}
-          aria-label="Open filters"
-          leftIcon={<Filter02Icon />}
-        />
-      </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setMobileFilterOpen(true)}
+            aria-label="Open filters"
+            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+          />
+        </div>
+      )}
       <Suspense fallback={<ExecutionsSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
         {children({
           backendFilters: deferredFilters,
-          debouncedSearch: scopeSearch ?? deferredSearch,
+          // A caller whose `search` is spoken for gets the typed term as
+          // client-side narrowing instead. Everywhere else it is the query's own
+          // term and nothing is narrowed twice.
+          querySearch: clientSearch ? '' : deferredSearch,
+          narrowSearch: clientSearch ? deferredSearch : '',
           isPending,
           tableFilters,
           onFilterChange: handleFilterChange,
           mobileFilterOpen,
           onMobileFilterClose: () => setMobileFilterOpen(false),
           stickyHeaderOffset,
+          onEmptyChange: setIsEmpty,
         })}
       </Suspense>
     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { NotFoundError, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import { NotFoundError, PageLayout, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -8,6 +8,7 @@ import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execution-detail-relay';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -23,8 +24,7 @@ import {
   machineLabel,
   organizationLabel,
   privilegeLevelLabel,
-} from '../utils/execution-helpers';
-import { ScriptPageChrome } from './script-page-chrome';
+} from '../../shared/utils/execution-helpers';
 
 interface ScriptExecutionDetailsViewProps {
   executionId: string;
@@ -33,9 +33,9 @@ interface ScriptExecutionDetailsViewProps {
 /** How often a RUNNING execution is re-fetched so its status/output stay live. */
 const RUNNING_POLL_INTERVAL_MS = 5000;
 
-// Unlike the other script pages, this page's chrome IS data-dependent (subtitle +
+// Unlike the other script pages, this page's header IS data-dependent (subtitle +
 // back target come from the execution), so the loaded view and the Suspense
-// fallback each render {@link ScriptPageChrome} — the fallback with placeholders.
+// fallback each render their own `PageLayout` — the fallback with placeholders.
 
 /** A value-over-label cell in the execution detail card (also the base of its skeleton — see {@link DetailCellSkeleton}). */
 function DetailCell({ value, label }: { value: ReactNode; label: string }) {
@@ -78,6 +78,10 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
     }, RUNNING_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [isRunning, environment, executionId]);
+
+  const handleBack = useSafeBack(
+    execution?.scriptId ? routes.scriptsV2.details(execution.scriptId, { tab: 'executions' }) : routes.scriptsV2.list,
+  );
 
   const actions = useMemo<PageActionButton[]>(() => {
     if (!execution) return [];
@@ -125,13 +129,12 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
   const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
 
   return (
-    <ScriptPageChrome
+    <PageLayout
       title="Script Execution Details"
       subtitle={execution.executionId}
-      backFallback={
-        execution.scriptId ? routes.scriptsV2.details(execution.scriptId, { tab: 'executions' }) : routes.scriptsV2.list
-      }
+      backButton={{ label: 'Back', onClick: handleBack }}
       actions={actions}
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="bg-ods-card border border-ods-border rounded-[8px] overflow-hidden">
         {/* Row 1 — identity */}
@@ -220,12 +223,12 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
           <div className="text-h6 text-ods-text-secondary">Result</div>
         </div>
       </div>
-    </ScriptPageChrome>
+    </PageLayout>
   );
 }
 
 // ----------------------------------------------------------------
-// Skeleton — body card only; the chrome is the real ScriptPageChrome
+// Skeleton — body card only; the header is the page's own `PageLayout`
 // ----------------------------------------------------------------
 
 /**
@@ -290,21 +293,28 @@ const LOADING_EXECUTION_ACTIONS: PageActionButton[] = [
 ];
 
 export function ScriptExecutionDetailsView({ executionId }: ScriptExecutionDetailsViewProps) {
+  const handleBack = useSafeBack(routes.scriptsV2.list);
+
   return (
     <Suspense
       fallback={
-        // `always`, not `while-loading`: this fallback shows a real (static) title
-        // rather than a loading one, and the loaded page ALWAYS has a subtitle —
-        // the execution UUID. The line is held so the header does not grow when it
-        // arrives.
-        <ScriptPageChrome
+        // `loading` + `while-loading` draws a bar where the execution UUID will
+        // land. `always` merely reserved the line and left it blank, which read
+        // as a header that had finished with nothing to show.
+        //
+        // It costs the title: `loading` is a single flag on the frozen
+        // `TitleBlock` and swaps title AND subtitle for bars, even though this
+        // page's title is a constant. Splitting them needs a new prop there.
+        <PageLayout
           title="Script Execution Details"
-          subtitleRow="always"
-          backFallback={routes.scriptsV2.list}
+          loading
+          subtitleRow="while-loading"
+          backButton={{ label: 'Back', onClick: handleBack }}
           actions={LOADING_EXECUTION_ACTIONS}
+          className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         >
           <ExecutionDetailsCardSkeleton />
-        </ScriptPageChrome>
+        </PageLayout>
       }
     >
       <ScriptExecutionDetailsContent executionId={executionId} />

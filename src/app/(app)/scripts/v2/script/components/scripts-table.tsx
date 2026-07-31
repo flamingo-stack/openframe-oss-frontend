@@ -59,13 +59,13 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { initiatorInitials, initiatorName } from '../utils/execution-helpers';
-import { facetToSortedOptions } from '../utils/facet-options';
-import { platformsToEnums, platformsToIds, shellToEnum, shellToId } from '../utils/script-mappers';
+import { SCRIPT_COLUMNS, SCRIPTS_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
+import { initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
+import { facetToSortedOptions } from '../../shared/utils/facet-options';
+import { platformsToEnums, platformsToIds, shellToEnum, shellToId } from '../../shared/utils/script-mappers';
 import { ArchiveScriptModal } from './archive-script-modal';
 import { RestoreScriptModal } from './restore-script-modal';
 import { ScriptShellBadge } from './script-shell-badge';
-import { SCRIPT_COLUMNS, SCRIPTS_TABLE_COLUMNS } from './scripts-table-columns';
 import { ScriptsTagFilter, ScriptsTagFilterSkeleton } from './scripts-tag-filter';
 
 const PAGE_SIZE = 20;
@@ -766,7 +766,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
       className="md:hidden"
       onClick={() => setMobileFilterOpen(true)}
       aria-label="Open filters"
-      leftIcon={<Filter02Icon />}
+      leftIcon={<Filter02Icon className="text-ods-text-primary" />}
     />
   );
 

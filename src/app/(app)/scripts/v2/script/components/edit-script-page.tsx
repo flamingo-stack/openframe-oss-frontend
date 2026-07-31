@@ -1,24 +1,27 @@
 'use client';
 
+import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
-import { useMutation } from 'react-relay';
+import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { runCommandMutation as RunCommandMutationType } from '@/__generated__/runCommandMutation.graphql';
+import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { EntityTagPicker, EntityTagPickerFallback } from '@/app/components/shared/tags';
+import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { TagEntityType } from '@/generated/schema-enums';
 import { runCommandMutation } from '@/graphql/scripts/run-command-mutation';
+import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import { ExecutionStartedModal } from '../../components/script/execution-started-modal';
-import { ScriptFormFields } from '../../components/script/script-form-fields';
-import type { EditScriptFormData } from '../../types/edit-script.types';
+import { ExecutionStartedModal } from '../../../components/script/execution-started-modal';
+import { ScriptFormFields } from '../../../components/script/script-form-fields';
+import type { EditScriptFormData } from '../../../types/edit-script.types';
+import { relayScriptToForm, shellToEnum } from '../../shared/utils/script-mappers';
+import { SCRIPT_V2_SHELL_TYPES } from '../../shared/utils/shell-types';
 import { useEditScriptForm } from '../hooks/use-edit-script-form';
-import { relayScriptToForm, shellToEnum } from '../utils/script-mappers';
-import { SCRIPT_V2_SHELL_TYPES } from '../utils/shell-types';
-import { type ScriptDetailData, ScriptDetailGate } from './script-detail-gate';
-import { ScriptPageChrome } from './script-page-chrome';
+import type { ScriptDetailData } from '../types/script-detail.types';
 import { type SelectedTestDevice, TestScriptModal } from './test-script-modal';
 
 interface ScriptTag {
@@ -30,17 +33,12 @@ interface EditScriptFormProps {
   scriptId: string | null;
   initialValues: EditScriptFormData | null;
   initialTags: ReadonlyArray<ScriptTag>;
-  /**
-   * True while the script query is still in flight: every control renders
-   * disabled and empty, and the values pour in once the data arrives. The real
-   * form IS the loading state — no skeleton swap, no remount (Monaco mounts once).
-   */
-  loading?: boolean;
 }
 
-function EditScriptForm({ scriptId, initialValues, initialTags, loading = false }: EditScriptFormProps) {
+function EditScriptForm({ scriptId, initialValues, initialTags }: EditScriptFormProps) {
   const isEditMode = Boolean(scriptId);
   const { toast } = useToast();
+  const handleBack = useSafeBack(isEditMode && scriptId ? routes.scriptsV2.details(scriptId) : routes.scriptsV2.list);
 
   const { form, isSubmitting, handleSave } = useEditScriptForm({ scriptId, initialValues, isEditMode });
 
@@ -151,39 +149,34 @@ function EditScriptForm({ scriptId, initialValues, initialTags, loading = false 
 
   const actions = useMemo<PageActionButton[]>(
     () => [
-      {
-        label: 'Test Script',
-        onClick: handleOpenTest,
-        variant: 'outline' as const,
-        disabled: loading,
-      },
+      { label: 'Test Script', onClick: handleOpenTest, variant: 'outline' as const },
       {
         label: 'Save Script',
         onClick: handleSaveClick,
         variant: 'accent' as const,
-        disabled: isSubmitting || loading,
+        disabled: isSubmitting,
         loading: isSubmitting,
       },
     ],
-    [handleSaveClick, isSubmitting, handleOpenTest, loading],
+    [handleSaveClick, isSubmitting, handleOpenTest],
   );
 
   return (
     <>
-      <ScriptPageChrome
+      <PageLayout
         title={isEditMode ? 'Edit Script' : 'New Script'}
-        backFallback={isEditMode && scriptId ? routes.scriptsV2.details(scriptId) : routes.scriptsV2.list}
+        backButton={{ label: 'Back', onClick: handleBack }}
         actions={actions}
         // Form page: on mobile the actions belong in the fixed bottom bar, in
         // reach of the thumb — not folded into the header's "..." menu. Test +
         // Save already fill that bar, so no separate Cancel.
         actionsVariant="primary-buttons"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
         <ScriptFormFields
           form={form}
           shellTypes={SCRIPT_V2_SHELL_TYPES}
           hideCategory
-          disabled={loading}
           showErrors={showErrors}
           tagsField={
             <Controller
@@ -196,7 +189,6 @@ function EditScriptForm({ scriptId, initialValues, initialTags, loading = false 
                     selectedIds={field.value}
                     onChange={field.onChange}
                     initialTags={initialTags}
-                    disabled={loading}
                     deletable
                     entityLabel="script"
                   />
@@ -205,7 +197,7 @@ function EditScriptForm({ scriptId, initialValues, initialTags, loading = false 
             />
           }
         />
-      </ScriptPageChrome>
+      </PageLayout>
 
       <TestScriptModal
         isOpen={isTestModalOpen}
@@ -226,33 +218,35 @@ function EditScriptForm({ scriptId, initialValues, initialTags, loading = false 
   );
 }
 
-/** Maps the gated script (`undefined` while loading) to the form's seed props. */
-function LoadedEditScriptForm({ scriptId, script }: { scriptId: string; script: ScriptDetailData | undefined }) {
+/**
+ * Edit mode: the script is resolved BEFORE the form mounts, so its fields (and
+ * Monaco) are seeded on the first render and there is no window in which a
+ * disabled, empty form stands in for the record. Suspends — the route renders
+ * `EditScriptSkeleton` meanwhile.
+ */
+function EditScriptView({ scriptId }: { scriptId: string }) {
+  const data = useLazyLoadQuery<ScriptDetailQueryType>(
+    scriptDetailRelayQuery,
+    { id: scriptId },
+    { fetchPolicy: 'store-and-network' },
+  );
+  const script: ScriptDetailData | null = data.script;
   const initialValues = useMemo(() => (script ? relayScriptToForm(script) : null), [script]);
   const initialTags = useMemo(() => script?.tags?.map(t => ({ id: t.id, key: t.key })) ?? [], [script]);
 
-  return (
-    <EditScriptForm
-      scriptId={scriptId}
-      initialValues={initialValues}
-      initialTags={initialTags}
-      loading={script === undefined}
-    />
-  );
+  if (!script) {
+    return <NotFoundError message="Script not found" />;
+  }
+
+  // Keyed by id: the router reuses this route segment when only `?id=` changes,
+  // so without the key a hop from script A to B would keep A's form state.
+  return <EditScriptForm key={scriptId} scriptId={scriptId} initialValues={initialValues} initialTags={initialTags} />;
 }
 
-interface EditScriptPageProps {
-  scriptId: string | null;
-}
-
-export function EditScriptPage({ scriptId }: EditScriptPageProps) {
+/** Create + edit page for a script (v2, Relay). */
+export function EditScriptPage({ scriptId }: { scriptId: string | null }) {
   if (!scriptId) {
     return <EditScriptForm scriptId={null} initialValues={null} initialTags={[]} />;
   }
-
-  return (
-    <ScriptDetailGate scriptId={scriptId}>
-      {script => <LoadedEditScriptForm scriptId={scriptId} script={script} />}
-    </ScriptDetailGate>
-  );
+  return <EditScriptView scriptId={scriptId} />;
 }
