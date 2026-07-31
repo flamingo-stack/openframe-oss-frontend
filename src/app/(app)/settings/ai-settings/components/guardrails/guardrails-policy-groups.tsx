@@ -21,9 +21,9 @@ export function GuardrailsPolicyGroups({
   onCategoryPermissionChange = noop,
 }: GuardrailsPolicyGroupsProps) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+    <div className="flex min-w-0 flex-col gap-[var(--spacing-system-l)]">
       {Array.from(groups.entries()).map(([policyGroupName, categories]) => (
-        <div key={policyGroupName} className="flex flex-col gap-[var(--spacing-system-xxs)]">
+        <div key={policyGroupName} className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
           <TruncateText variant="h5" tone="secondary">
             {policyGroupName}
           </TruncateText>
