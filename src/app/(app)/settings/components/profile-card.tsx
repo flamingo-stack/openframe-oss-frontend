@@ -12,7 +12,6 @@ import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { getFullImageUrl } from '@/lib/image-url';
 import { isMobileShell } from '@/lib/platform';
-import { runtimeEnv } from '@/lib/runtime-config';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { NotificationSettingsModal } from './notification-settings-modal';
 
@@ -60,15 +59,13 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   // branch below explains why that distinction is the whole fix.
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
-  // "Reset Onboarding" replays the personal Get Started tour. Offered only when the
-  // `new-onboarding` feature is on AND there is a finished tour to replay — i.e. progress
-  // has loaded and the user has completed or skipped it. While the tour is still in
-  // progress it's already in the menu, so there's nothing to reset.
-  const newOnboardingEnabled = useFeatureFlag('new-onboarding', runtimeEnv.newOnboardingFlag());
+  // "Reset Onboarding" replays the personal Get Started tour. Offered only when there
+  // is a finished tour to replay — i.e. progress has loaded and the user has completed
+  // or skipped it. While the tour is still in progress it's already in the menu, so
+  // there's nothing to reset.
   const onboardingProgress = useOnboardingStore(state => state.user);
   const onboardingLoaded = useOnboardingStore(state => state.isLoaded);
-  const canResetOnboarding =
-    newOnboardingEnabled && onboardingLoaded && !!(onboardingProgress?.completed || onboardingProgress?.skipped);
+  const canResetOnboarding = onboardingLoaded && !!(onboardingProgress?.completed || onboardingProgress?.skipped);
   const { resetUser, isMutating: isResettingOnboarding } = useOnboardingMutations();
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
@@ -91,8 +88,8 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
     // fetch, which `fetchFullProfile` refuses to start before a user id exists. It therefore
     // reads `false` both before and after, so the old `isLoadingProfile && !user` skeleton
     // condition was false exactly when the data was most missing, and the error below owned
-    // the window. That was invisible while `FeatureFlagsGate` blocked the app until the
-    // session and flags resolved; with the gate gone this body renders immediately, so
+    // the window. That was invisible back when a root gate blocked the app until the
+    // session and flags resolved; nothing blocks now, so this body renders immediately and
     // "Page Error / No user data available" lands in the server HTML and is swapped out on
     // hydration — a flash on every load.
     //
