@@ -18,10 +18,12 @@ export function SettingsSubPageHeader({ title }: SettingsSubPageHeaderProps) {
       >
         <ArrowLeft className="size-5" />
       </Link>
-      {/* role="heading" instead of <h1>: FloatingTooltip's trigger is a block <div>, which is invalid inside a heading element. */}
-      <div role="heading" aria-level={1} className="min-w-0 flex-1">
-        <TruncateText variant="h2">{title}</TruncateText>
-      </div>
+      <h1 className="min-w-0 flex-1">
+        {/* as="span": a heading may only contain phrasing content, and the default tooltip trigger is a div. */}
+        <TruncateText as="span" variant="h2">
+          {title}
+        </TruncateText>
+      </h1>
     </div>
   );
 }
