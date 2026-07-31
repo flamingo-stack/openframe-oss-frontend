@@ -7,6 +7,13 @@ import type { BillingPeriod, PlanComparison, PlanLine, ProductSelectionState } f
 export const CUSTOM_OPTION_ID = '__custom__';
 export const PAYG_OPTION_ID = '__payg__';
 
+/** Committed-package minimums per product; billing enforces the same floor server-side. */
+const MIN_CUSTOM_QUANTITY: Partial<Record<string, number>> = { MANAGED_DEVICES: 10 };
+
+export function minCustomQuantity(product: { readonly name: string }): number {
+  return MIN_CUSTOM_QUANTITY[product.name] ?? 1;
+}
+
 type ProductData = productSubscriptionCardProductFragment$data;
 type SubscriptionProductData = productSubscriptionCardSubscriptionFragment$data;
 
@@ -139,12 +146,12 @@ function committedOptionId(product: ProductData, period: BillingPeriod): string 
  * Backend `quantity`, catalog `priceTier.from`/`upTo`, and the Custom Amount
  * input all speak the same real product count (devices, tokens) — no unit
  * conversion. `unitSize` (devices: 1, AI tokens: 100_000) is only a granularity
- * constraint: the custom quantity must be a positive whole multiple of it.
- * Returns the entered quantity when valid, else null (the UI surfaces a
- * "must be a multiple of N" error in that case).
+ * constraint: the custom quantity must be a whole multiple of it, at or above
+ * the product's minimum (devices: 10). Returns the entered quantity when valid,
+ * else null (the UI surfaces the matching inline error in that case).
  */
-function validCustomQuantity(product: ProductData, customQuantity: number | null): number | null {
-  if (customQuantity == null || customQuantity <= 0) return null;
+export function validCustomQuantity(product: ProductData, customQuantity: number | null): number | null {
+  if (customQuantity == null || customQuantity < minCustomQuantity(product)) return null;
   const unitSize = Number(product.unitSize ?? 1) || 1;
   if (customQuantity % unitSize !== 0) return null;
   return customQuantity;

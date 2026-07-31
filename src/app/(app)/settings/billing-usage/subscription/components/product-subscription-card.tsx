@@ -23,6 +23,7 @@ import {
   calculateCustomQuantityPrice,
   formatCompact,
   formatMoney,
+  minCustomQuantity,
 } from '../utils/subscription.utils';
 
 export const productSubscriptionCardProductFragment = graphql`
@@ -146,11 +147,13 @@ export function ProductSubscriptionCard({
 
   // customQuantity is the real product count the user typed (same unit the
   // backend stores and prices in); unitSize only constrains its granularity —
-  // it must be a positive whole multiple of unitSize.
+  // it must be a whole multiple of unitSize, at or above the product's minimum.
   const isCustom = selection.selectedPackageId === CUSTOM_OPTION_ID;
   const customQty = selection.customQuantity;
-  const customDivisible = customQty != null && customQty > 0 && customQty % unitSize === 0;
-  const customNotDivisible = isCustom && customQty != null && customQty > 0 && !customDivisible;
+  const minQty = minCustomQuantity(product);
+  const customBelowMin = isCustom && customQty != null && customQty > 0 && customQty < minQty;
+  const customDivisible = customQty != null && customQty >= minQty && customQty % unitSize === 0;
+  const customNotDivisible = isCustom && customQty != null && customQty >= minQty && !customDivisible;
 
   const customPrice =
     isCustom && customDivisible && customQty != null
@@ -235,7 +238,11 @@ export function ProductSubscriptionCard({
                     endAdornment={packageUnitLabel}
                     tabIndex={!disabled && selection.selectedPackageId === CUSTOM_OPTION_ID ? undefined : -1}
                   />
-                  {customNotDivisible ? (
+                  {customBelowMin ? (
+                    <p className="text-h6 text-ods-error">
+                      {`A minimum of ${minQty} ${packageUnitLabel} is required.`}
+                    </p>
+                  ) : customNotDivisible ? (
                     <p className="text-h6 text-ods-error">
                       {`Must be a multiple of ${formatCompact(unitSize)} ${packageUnitLabel}`}
                     </p>

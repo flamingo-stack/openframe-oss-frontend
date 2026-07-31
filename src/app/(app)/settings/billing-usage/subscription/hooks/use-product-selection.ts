@@ -10,8 +10,10 @@ import {
   buildPlanComparison,
   CUSTOM_OPTION_ID,
   diffPackageUpdates,
+  minCustomQuantity,
   PAYG_OPTION_ID,
   topmostSelectionId,
+  validCustomQuantity,
 } from '../utils/subscription.utils';
 
 type ProductData = productSubscriptionCardProductFragment$data;
@@ -34,13 +36,12 @@ export function useProductSelection({ product, subscriptionProduct, onUpdatesCha
   onUpdatesChangeRef.current = onUpdatesChange;
 
   useEffect(() => {
-    // customQuantity is the real product count the user typed; unitSize only
-    // constrains granularity — it must be a positive multiple of unitSize
-    // (devices: 1, AI tokens: 100_000).
-    const unitSize = Number(product.unitSize ?? 1) || 1;
+    // customQuantity is the real product count the user typed; it must be a
+    // multiple of unitSize (devices: 1, AI tokens: 100_000) and at or above the
+    // product's minimum (devices: 10).
     const valid =
       selection.selectedPackageId !== CUSTOM_OPTION_ID ||
-      (selection.customQuantity != null && selection.customQuantity > 0 && selection.customQuantity % unitSize === 0);
+      validCustomQuantity(product, selection.customQuantity) != null;
     onUpdatesChangeRef.current({
       packageUpdates: diffPackageUpdates(product, selection, subscriptionProduct),
       checkout: buildCheckoutProduct(product, selection),
@@ -69,6 +70,8 @@ export function useProductSelection({ product, subscriptionProduct, onUpdatesCha
   // Granularity for the Custom input (devices: 1, AI tokens: 100_000): the
   // entered real product count must be a whole multiple of unitSize.
   const unitSize = Number(product.unitSize ?? 1) || 1;
+  // What the Custom input pre-fills with: the smallest valid amount.
+  const defaultCustomQuantity = Math.max(unitSize, minCustomQuantity(product));
 
   return {
     selection,
@@ -88,7 +91,7 @@ export function useProductSelection({ product, subscriptionProduct, onUpdatesCha
           billingPeriod: nextPeriod,
           selectedPackageId: topmost,
           payAsYouGoEnabled: topmost === PAYG_OPTION_ID,
-          customQuantity: topmost === CUSTOM_OPTION_ID ? (prev.customQuantity ?? unitSize) : null,
+          customQuantity: topmost === CUSTOM_OPTION_ID ? (prev.customQuantity ?? defaultCustomQuantity) : null,
         };
       }),
     setSelectedPackage: (packageId: string) => {
@@ -97,7 +100,7 @@ export function useProductSelection({ product, subscriptionProduct, onUpdatesCha
         ...prev,
         payAsYouGoEnabled: isPayg,
         selectedPackageId: packageId,
-        customQuantity: packageId === CUSTOM_OPTION_ID ? (prev.customQuantity ?? unitSize) : null,
+        customQuantity: packageId === CUSTOM_OPTION_ID ? (prev.customQuantity ?? defaultCustomQuantity) : null,
       }));
     },
     setCustomQuantity: (value: string) => {
