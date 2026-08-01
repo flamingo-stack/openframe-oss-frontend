@@ -223,13 +223,14 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         findTicketUrl: content('/api/chat/agent/find-ticket'),
         ticketActionUrl: content('/api/chat/agent/ticket-action'),
         listEngagementsUrl: content('/api/chat/agent/list-engagements'),
-        // Ticket live stream + unread endpoints (TicketLiveProvider) —
-        // same `/content` proxying as the three above. The stream is a
+        // Ticket live stream + read-receipt endpoints (TicketLiveProvider)
+        // — same `/content` proxying as the three above. The stream is a
         // long-lived GET SSE response; the lib's fetch-based reader
-        // carries the bearer via the embed auth adapter.
+        // carries the bearer via the embed auth adapter. The unread
+        // summary has NO endpoint — it arrives as `ticket-summary`
+        // frames on the stream and in ticket-read responses.
         ticketStreamUrl: content('/api/chat/agent/ticket-stream'),
         ticketReadUrl: content('/api/chat/agent/ticket-read'),
-        ticketUnreadSummaryUrl: content('/api/chat/agent/ticket-unread-summary'),
         commandsUrl: content('/api/docs/commands'),
         // Per-platform empty-state config (greeting + try-asking quick-action
         // chips + RAG-source filter), admin-edited in MPH's `/admin/chat-config`.
