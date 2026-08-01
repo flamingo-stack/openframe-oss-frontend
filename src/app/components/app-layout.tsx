@@ -379,9 +379,15 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     [userFirstName, userLastName],
   );
 
-  const openHelpCenterTickets = useCallback(() => {
-    router.push(routes.helpCenter.tickets);
-  }, [router]);
+  // Receives the FULL href computed by TicketAlertsButton
+  // (`/help-center/tickets?ticket=<id>#ticket-<id>` for the newest-unread
+  // ticket) — soft-navigate so the drawer auto-opens + the row scrolls.
+  const openHelpCenterTickets = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
+  );
 
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
 
@@ -411,9 +417,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // These three are core `AppHeader` prop names (the "AI" digraph trips
       // biome's strictCase camelCase rule); they're external API, not ours.
       // Support-ticket alerts cell — Help Center unread indication.
-      // Renders nothing unless <TicketLiveProvider> is mounted (same
-      // helpCenterEnabled gate below) and the viewer is authed.
+      // Attention-only: renders nothing unless <TicketLiveProvider> is
+      // mounted (same helpCenterEnabled gate below), the viewer is
+      // authed, AND there are unread replies.
       showTicketAlerts: helpCenterEnabled,
+      ticketAlertsHref: routes.helpCenter.tickets,
       onTicketAlerts: openHelpCenterTickets,
       // biome-ignore lint/style/useNamingConvention: external lib prop name
       showMingoAI: chatEnabled,
