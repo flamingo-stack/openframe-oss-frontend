@@ -2,6 +2,7 @@
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { ChatIdentityProvider } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AppLayoutDrawer,
@@ -80,6 +81,12 @@ const WALKTHROUGH_OVERLAP_Z = {
   content: { zIndex: 9990 },
   overlay: '!z-[9985]',
 } as const;
+
+/** Conditional `TicketLiveProvider` mount — a flag-off tenant gets a
+ *  passthrough (no stream, no summary fetch, no context). */
+function TicketLiveWhenEnabled({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  return enabled ? <TicketLiveProvider>{children}</TicketLiveProvider> : <>{children}</>;
+}
 
 function AppShell({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   const router = useRouter();
@@ -372,6 +379,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     [userFirstName, userLastName],
   );
 
+  const openHelpCenterTickets = useCallback(() => {
+    router.push(routes.helpCenter.tickets);
+  }, [router]);
+
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
 
   const headerProps = useMemo(
@@ -399,6 +410,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       showUser: false,
       // These three are core `AppHeader` prop names (the "AI" digraph trips
       // biome's strictCase camelCase rule); they're external API, not ours.
+      // Support-ticket alerts cell — Help Center unread indication.
+      // Renders nothing unless <TicketLiveProvider> is mounted (same
+      // helpCenterEnabled gate below) and the viewer is authed.
+      showTicketAlerts: helpCenterEnabled,
+      onTicketAlerts: openHelpCenterTickets,
       // biome-ignore lint/style/useNamingConvention: external lib prop name
       showMingoAI: chatEnabled,
       // biome-ignore lint/style/useNamingConvention: external lib prop name
@@ -406,7 +422,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // biome-ignore lint/style/useNamingConvention: external lib prop name
       isMingoAIActive: chatOpen,
     }),
-    [chromeLoading, notificationsEnabled, timeTrackerEnabled, chatEnabled, toggleChat, chatOpen],
+    [chromeLoading, notificationsEnabled, timeTrackerEnabled, chatEnabled, toggleChat, chatOpen, helpCenterEnabled, openHelpCenterTickets],
   );
 
   const mobileBurgerMenuProps = useMemo(
@@ -481,6 +497,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         </ErrorBoundary>
       )}
       <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady}>
+        {/* Ticket live stream + unread indication (Help Center). Gated on the
+            same feature flag as the surface it serves; wraps CoreAppLayout so
+            BOTH the header's TicketAlertsButton and the /help-center/tickets
+            page (children) read one provider. Without it every ticket-live
+            surface renders nothing and no stream/summary request fires. */}
+        <TicketLiveWhenEnabled enabled={helpCenterEnabled && sessionReady}>
         <CoreAppLayout
           // Hook for the native-shell safe-area CSS in globals.css: the layout
           // root owns the top inset (see `.app-shell-root`). Inert on the web.
@@ -513,6 +535,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               a re-mount of the sidebar + header. */}
           <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
         </CoreAppLayout>
+        </TicketLiveWhenEnabled>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
           + coach-mark (shows only when a page was reached from an onboarding step
