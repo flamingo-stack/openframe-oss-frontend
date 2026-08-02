@@ -1,6 +1,7 @@
 'use client';
 
 import type { ScriptArgument } from '@flamingo-stack/openframe-frontend-core';
+import { FloatingTooltip, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { parseKeyValues } from '../../utils/script-key-values';
 
@@ -70,16 +71,20 @@ export function ScriptParamRows({ rows, emptyText, className }: ScriptParamRowsP
         ? emptyText && <span className="text-h6 text-ods-text-secondary">{emptyText}</span>
         : rows.map(row => (
             <div key={row.id} className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-              <span className="text-h4 text-ods-text-primary truncate max-w-[50%]" title={row.label}>
-                {row.label}
-              </span>
+              <div className="min-w-0 max-w-[50%]">
+                <TruncateText>{row.label}</TruncateText>
+              </div>
               <span className="h-px min-w-4 flex-1 bg-ods-divider" />
-              <span
-                className={cn('text-h4 truncate', row.muted ? 'text-ods-text-secondary' : 'text-ods-text-primary')}
-                title={row.hint ?? row.value}
-              >
-                {row.value}
-              </span>
+              <div className="min-w-0">
+                {row.hint ? (
+                  /* The hint explains the muted mark ("flag"/"empty"), so it must show even when nothing overflows. */
+                  <FloatingTooltip content={row.hint} className="max-w-xs">
+                    <span className="block truncate text-h4 text-ods-text-secondary">{row.value}</span>
+                  </FloatingTooltip>
+                ) : (
+                  <TruncateText tone={row.muted ? 'secondary' : 'primary'}>{row.value}</TruncateText>
+                )}
+              </div>
             </div>
           ))}
     </div>

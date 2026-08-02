@@ -12,6 +12,7 @@ import {
   Button,
   SquareAvatar,
   Textarea,
+  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type KeyboardEvent, useState } from 'react';
@@ -121,8 +122,10 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
           variant="round"
         />
         <div className="flex-1 min-w-0 flex flex-col">
-          <p className="text-h4 text-ods-open-yellow truncate">{note.authorName}</p>
-          <p className="text-h6 text-ods-text-secondary truncate">{formatDateTime(note.createdAt)}</p>
+          <TruncateText className="text-ods-open-yellow">{note.authorName}</TruncateText>
+          <TruncateText variant="h6" tone="secondary">
+            {formatDateTime(note.createdAt)}
+          </TruncateText>
         </div>
         {note.isOwn && (
           <span

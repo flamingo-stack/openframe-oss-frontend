@@ -2,7 +2,12 @@
 
 import { Skeleton, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { AlertCircleIcon, BellIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { ActionsMenuDropdown, PageError, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  ActionsMenuDropdown,
+  PageError,
+  SquareAvatar,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
@@ -12,7 +17,6 @@ import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { getFullImageUrl } from '@/lib/image-url';
 import { isMobileShell } from '@/lib/platform';
-import { runtimeEnv } from '@/lib/runtime-config';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { NotificationSettingsModal } from './notification-settings-modal';
 
@@ -60,15 +64,13 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   // branch below explains why that distinction is the whole fix.
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
-  // "Reset Onboarding" replays the personal Get Started tour. Offered only when the
-  // `new-onboarding` feature is on AND there is a finished tour to replay — i.e. progress
-  // has loaded and the user has completed or skipped it. While the tour is still in
-  // progress it's already in the menu, so there's nothing to reset.
-  const newOnboardingEnabled = useFeatureFlag('new-onboarding', runtimeEnv.newOnboardingFlag());
+  // "Reset Onboarding" replays the personal Get Started tour. Offered only when there
+  // is a finished tour to replay — i.e. progress has loaded and the user has completed
+  // or skipped it. While the tour is still in progress it's already in the menu, so
+  // there's nothing to reset.
   const onboardingProgress = useOnboardingStore(state => state.user);
   const onboardingLoaded = useOnboardingStore(state => state.isLoaded);
-  const canResetOnboarding =
-    newOnboardingEnabled && onboardingLoaded && !!(onboardingProgress?.completed || onboardingProgress?.skipped);
+  const canResetOnboarding = onboardingLoaded && !!(onboardingProgress?.completed || onboardingProgress?.skipped);
   const { resetUser, isMutating: isResettingOnboarding } = useOnboardingMutations();
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
@@ -91,8 +93,8 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
     // fetch, which `fetchFullProfile` refuses to start before a user id exists. It therefore
     // reads `false` both before and after, so the old `isLoadingProfile && !user` skeleton
     // condition was false exactly when the data was most missing, and the error below owned
-    // the window. That was invisible while `FeatureFlagsGate` blocked the app until the
-    // session and flags resolved; with the gate gone this body renders immediately, so
+    // the window. That was invisible back when a root gate blocked the app until the
+    // session and flags resolved; nothing blocks now, so this body renders immediately and
     // "Page Error / No user data available" lands in the server HTML and is swapped out on
     // hydration — a flash on every load.
     //
@@ -123,17 +125,19 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
               has role tags. It is what makes the row a constant 84px and lets the
               placeholder above match it instead of guessing at a role count. */}
           <div className="flex items-center gap-2 min-h-8">
-            <span className="text-h4 text-ods-text-primary truncate" title={displayName}>
-              {displayName}
-            </span>
+            <div className="min-w-0">
+              <TruncateText>{displayName}</TruncateText>
+            </div>
             {user.roles?.map(role => (
               <Tag key={role} variant="outline" label={role} />
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <p className="text-h6 text-ods-text-secondary truncate" title={user.email}>
-              {user.email}
-            </p>
+            <div className="min-w-0">
+              <TruncateText variant="h6" tone="secondary">
+                {user.email}
+              </TruncateText>
+            </div>
             {user.emailVerified === false && (
               <button
                 type="button"

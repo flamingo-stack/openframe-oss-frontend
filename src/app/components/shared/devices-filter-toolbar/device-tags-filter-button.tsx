@@ -37,7 +37,11 @@ export function DeviceTagsFilterButton({ onClick }: { onClick: () => void }) {
         size="icon"
         aria-label="Device Tags"
         onClick={onClick}
-        leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
+        // Primary, not secondary: below md the funnel IS the button — there is no
+        // label beside it to carry the meaning, so it reads as the control itself
+        // rather than as decoration next to one. Same as every other mobile filter
+        // trigger in the app.
+        leftIcon={<Filter02Icon className="text-ods-text-primary" />}
         className="shrink-0 md:hidden"
       />
     </>

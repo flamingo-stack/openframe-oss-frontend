@@ -3,25 +3,16 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import {
   getMeshCentralDeviceInfo,
   parseMeshCentralDeviceStatus,
   parseMeshCentralLastSeen,
 } from '@/lib/meshcentral/meshcentral-api';
-import { GET_DEVICE_QUERY } from '../queries/devices-queries';
-import type {
-  Battery,
-  Device,
-  DeviceGraphQlNode,
-  DevicePolicy,
-  GraphQlResponse,
-  MdmInfo,
-  Software,
-  User,
-} from '../types/device.types';
+import { fetchDeviceNode } from '../queries/devices-api';
+import type { Battery, Device, DeviceGraphQlNode, DevicePolicy, MdmInfo, Software, User } from '../types/device.types';
 import type { FleetHost } from '../types/fleet.types';
+import { toDeviceTags } from '../utils/device-transform';
 import { deviceQueryKeys } from '../utils/query-keys';
 
 /** Collect unique end-user emails from Fleet `end_users` (primary email + other_emails). */
@@ -257,7 +248,7 @@ function createDevice(
     organizationImageHash: node.organization?.image?.hash || null,
 
     // Tags
-    tags: node.tags || [],
+    tags: toDeviceTags(node.tags),
 
     // Tool Connections (enriched with status + lastSeen from Fleet / MeshCentral API)
     toolConnections: (node.toolConnections || []).map(tc => {
@@ -318,25 +309,8 @@ function createDevice(
 }
 
 async function fetchDeviceDetails(machineId: string): Promise<Device> {
-  // 1) Fetch primary device from GraphQL
-  const response = await apiClient.post<GraphQlResponse<{ device: DeviceGraphQlNode }>>('/api/graphql', {
-    query: GET_DEVICE_QUERY,
-    variables: { machineId },
-  });
-
-  if (!response.ok) {
-    throw new Error(response.error || `Request failed with status ${response.status}`);
-  }
-
-  const graphqlResponse = response.data;
-  if (!graphqlResponse?.data?.device) {
-    throw new Error('Device not found');
-  }
-  if (graphqlResponse.errors && graphqlResponse.errors.length > 0) {
-    throw new Error(graphqlResponse.errors[0].message || 'GraphQL error occurred');
-  }
-
-  const node = graphqlResponse.data.device;
+  // 1) Fetch primary device from the shared device query layer
+  const node = await fetchDeviceNode(machineId);
 
   // 2.5) Fetch Fleet MDM details if present
   const fleet = node.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');

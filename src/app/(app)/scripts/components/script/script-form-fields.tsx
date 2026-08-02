@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from '@flamingo-stack/openframe-frontend-core';
 import { SelectButton } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { CheckboxBlock, Input, Textarea } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { CheckboxBlock, Input, Textarea, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { SHELL_TYPES, type ShellTypeDefinition } from '@flamingo-stack/openframe-frontend-core/types';
 import type { ReactNode } from 'react';
@@ -127,12 +127,11 @@ export function ScriptFormFields({
           )}
         </div>
         {showErrors && errors.supported_platforms && (
-          <p
-            className="absolute bottom-0 left-0 right-0 translate-y-full truncate text-h6 text-ods-error"
-            title={errors.supported_platforms.message}
-          >
-            {errors.supported_platforms.message}
-          </p>
+          <div className="absolute bottom-0 left-0 right-0 translate-y-full">
+            <TruncateText variant="h6" className="text-ods-error">
+              {errors.supported_platforms.message ?? ''}
+            </TruncateText>
+          </div>
         )}
       </div>
 
@@ -308,9 +307,11 @@ export function ScriptFormFields({
               invalid={showErrors && !!fieldState.error}
             />
             {showErrors && fieldState.error && (
-              <p className="text-h6 text-ods-error truncate mt-1" title={fieldState.error.message}>
-                {fieldState.error.message}
-              </p>
+              <div className="mt-1">
+                <TruncateText variant="h6" className="text-ods-error">
+                  {fieldState.error.message ?? ''}
+                </TruncateText>
+              </div>
             )}
           </div>
         )}

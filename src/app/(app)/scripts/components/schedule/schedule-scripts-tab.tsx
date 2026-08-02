@@ -2,7 +2,7 @@
 
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { Chevron01DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { routes } from '@/lib/routes';
@@ -65,14 +65,12 @@ function ScheduleScriptCard({ action }: ScheduleScriptCardProps) {
       {/* Header */}
       <div className="flex gap-4 items-center h-[80px] px-4">
         <div className="flex-1 flex flex-col min-w-0">
-          <span className="text-h4 text-ods-text-primary truncate" title={action.name}>
-            {action.name}
-          </span>
+          <TruncateText>{action.name}</TruncateText>
           <span className="text-h6 text-ods-text-secondary truncate">Script</span>
         </div>
 
-        <div className="flex flex-col">
-          <span className="text-h4 text-ods-text-primary truncate">{action.timeout} Seconds</span>
+        <div className="flex flex-col min-w-0">
+          <TruncateText>{`${action.timeout} Seconds`}</TruncateText>
           <span className="text-h6 text-ods-text-secondary truncate">Timeout</span>
         </div>
 

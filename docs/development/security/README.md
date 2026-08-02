@@ -151,8 +151,8 @@ Variables prefixed with `NEXT_PUBLIC_` are embedded in the client bundle and **v
 # ✅ Safe - public URL
 NEXT_PUBLIC_TENANT_HOST_URL=https://your-tenant.openframe.dev
 
-# ✅ Safe - public feature flag
-NEXT_PUBLIC_FF_NEW_ONBOARDING=true
+# ✅ Safe - public runtime setting
+NEXT_PUBLIC_AUTH_CHECK_INTERVAL=300000
 
 # ❌ Never - private key
 NEXT_PUBLIC_SECRET_KEY=secret123  # This would be exposed in the browser!

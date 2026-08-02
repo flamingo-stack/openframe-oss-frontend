@@ -1,7 +1,11 @@
 'use client';
 
 import { CheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type AutocompleteOption, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type AutocompleteOption,
+  SquareAvatar,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
 import type { AvatarOption } from '../hooks/use-ticket-options';
@@ -15,9 +19,9 @@ export function renderAvatarOption(variant: AvatarVariant) {
       <div className="flex items-center justify-between w-full min-w-0 gap-[var(--spacing-system-xs)]">
         <div className="flex items-center gap-[var(--spacing-system-xs)] min-w-0">
           <SquareAvatar src={getFullImageUrl(imageUrl)} alt={label} fallback={label} size="sm" variant={variant} />
-          <span className="truncate" title={label}>
-            {label}
-          </span>
+          <div className="min-w-0">
+            <TruncateText className="text-inherit">{label}</TruncateText>
+          </div>
         </div>
         {isSelected && <CheckIcon className="text-ods-accent" size={20} />}
       </div>

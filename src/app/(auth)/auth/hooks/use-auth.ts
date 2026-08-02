@@ -8,6 +8,7 @@ import { authApiClient } from '@/lib/auth-api-client';
 import { nativeLogin } from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
 import { isAppShell, isMobileShell } from '@/lib/platform';
+import { appendPosthogHandoff, markPendingSignup } from '@/lib/posthog/posthog-events';
 import { collectRegistrationAttribution } from '@/lib/registration-attribution';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -172,6 +173,12 @@ export function useAuth() {
         variant: 'success',
       });
 
+      // Funnel: registration is server-confirmed. `signup_completed` (with the
+      // OpenFrame user.id + email) fires once the authenticated session resolves
+      // — see PostHogAnalyticsBridge — since no user id exists yet here (the flow
+      // goes to the email-verify step next). Mark the pending signup so it fires.
+      markPendingSignup();
+
       // Client-side replace (not window.location.href) so the success toast
       // survives the transition; replace keeps signup out of the back stack.
       router.replace(routes.auth.checkEmail);
@@ -190,6 +197,10 @@ export function useAuth() {
     setIsLoading(true);
 
     try {
+      // Funnel: Google/Microsoft SSO signup. There is no synchronous success
+      // point (the browser leaves for OAuth), so mark the pending signup now —
+      // `signup_completed` fires when the session resolves after the callback.
+      markPendingSignup();
       await authApiClient.registerOrganizationSso(data);
       return true;
     } catch (error: any) {
@@ -219,7 +230,9 @@ export function useAuth() {
           if (tenantHostChanged) {
             // replace, not assign: keep /auth out of the history stack so
             // native/browser back can't return to the login screen post-login.
-            window.location.replace(routes.dashboard);
+            // Small delay so a just-fired signup_completed (dataLayer/PostHog)
+            // flushes before this hard navigation tears down the page context.
+            setTimeout(() => window.location.replace(routes.dashboard), 100);
             return;
           }
           // Refetch /me BEFORE leaving the auth screen (its spinner covers the
@@ -242,7 +255,11 @@ export function useAuth() {
           return `${window.location.origin}/dashboard`;
         };
 
-        const returnUrl = encodeURIComponent(getReturnUrl());
+        // Carry the PostHog distinct_id + session_id across the (SaaS) auth-host
+        // → tenant-dashboard-host hop so the session recording stays continuous.
+        // Encoded here, so the `#…` handoff rides through the OAuth roundtrip and
+        // becomes a live fragment only when the gateway redirects to the dashboard.
+        const returnUrl = encodeURIComponent(appendPosthogHandoff(getReturnUrl()));
         const loginUrl = authApiClient.loginUrl(tenantInfo.tenantId, returnUrl, provider);
         window.location.href = loginUrl;
       } else {

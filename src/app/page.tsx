@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getDefaultRedirectPath } from '../lib/app-mode';
-import { AppShellSkeleton } from './components/app-shell-skeleton';
 
 export default function Home() {
   const router = useRouter();
@@ -16,9 +15,11 @@ export default function Home() {
     }
   }, [router, isAuthenticated]);
 
-  // Only pre-render the app-shell skeleton when we're heading into the app.
-  // An unauthenticated boot redirects to /auth, so show a bare app-background
-  // screen instead — matching the native splash so its handoff to the sign-in
-  // page doesn't flash the dashboard chrome.
-  return isAuthenticated ? <AppShellSkeleton /> : <div className="min-h-screen bg-ods-bg" />;
+  // This route only ever redirects — it holds until the effect above lands on the
+  // dashboard or on /auth. A bare app-background screen for both branches, matching
+  // the native splash so the handoff doesn't flash anything. It used to draw the
+  // full app-shell placeholder on the authenticated branch; that guessed chrome for
+  // a page the user never stays on, and the live shell draws its own loading state
+  // the moment it mounts.
+  return <div className="min-h-screen bg-ods-bg" />;
 }

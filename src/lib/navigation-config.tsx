@@ -65,26 +65,6 @@ export interface NavigationFlags {
   helpCenter: boolean;
 }
 
-/**
- * Row counts for the nav's loading state — 7 primary + 2 secondary, mirroring the
- * SaaS nav.
- *
- * Exported so `AppShellSkeleton` draws the same number of rows: the two placeholders
- * appear one after the other (shell skeleton → live sidebar still awaiting flags),
- * and a different count between them would move the whole sidebar mid-load.
- * Used as React keys only; none of these names is rendered.
- */
-export const PRIMARY_NAV_SKELETON_KEYS = [
-  'dashboard',
-  'customers',
-  'devices',
-  'scripts',
-  'monitoring',
-  'logs',
-  'tickets',
-] as const;
-export const SECONDARY_NAV_SKELETON_KEYS = ['knowledge-base', 'settings'] as const;
-
 export const getNavigationItems = (
   pathname: string,
   flags: NavigationFlags,

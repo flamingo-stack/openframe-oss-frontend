@@ -24,6 +24,11 @@ const ORGANIZATIONS_SEARCH_QUERY = `#graphql
   }
 `;
 
+// Deliberately lean, and deliberately NOT the shared `fetchDevicesPage`: this is
+// a per-keystroke type-ahead that renders a label, while the shared device
+// document carries the full list row (organization + contact fan-out,
+// toolConnections, tags). Its three siblings above and below keep their own
+// documents for the same reason.
 const DEVICES_SEARCH_QUERY = `#graphql
   query AssignmentsDevicesSearch($search: String, $first: Int) {
     devices(search: $search, first: $first) { edges { node { id hostname displayName } } }
@@ -50,7 +55,7 @@ const fetchDevices = async (search: string): Promise<AssignmentSearchOption[]> =
   }>(DEVICES_SEARCH_QUERY, { search, first: PAGE_SIZE });
   return data.devices.edges.map(({ node }) => ({
     value: node.id,
-    label: node.displayName ?? node.hostname ?? node.id,
+    label: node.displayName || node.hostname || node.id,
   }));
 };
 

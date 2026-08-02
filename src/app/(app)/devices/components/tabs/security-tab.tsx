@@ -5,6 +5,7 @@ import {
   CheckCircleIcon,
   ShieldIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
@@ -59,9 +60,9 @@ function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
     <div className="flex h-6 items-center gap-[var(--spacing-system-xs)] w-full">
       <span className="text-h4 text-ods-text-secondary whitespace-nowrap">{label}</span>
       <div className="flex-1 h-px bg-ods-divider" />
-      <span className={cn('text-h4 truncate', VALUE_COLOR[status])} title={value}>
-        {value}
-      </span>
+      <div className="min-w-0">
+        <TruncateText className={VALUE_COLOR[status]}>{value}</TruncateText>
+      </div>
       {icon}
     </div>
   );
@@ -71,11 +72,7 @@ function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
 function SecurityStatusCard({ title, rows }: SecurityCard) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)] bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-m)] w-full">
-      {title && (
-        <span className="text-h4 text-ods-text-primary truncate" title={title}>
-          {title}
-        </span>
-      )}
+      {title && <TruncateText>{title}</TruncateText>}
       <div className="flex flex-col gap-[var(--spacing-system-xs)] w-full">
         {rows.map(row => (
           <StatusRow key={row.label} {...row} />

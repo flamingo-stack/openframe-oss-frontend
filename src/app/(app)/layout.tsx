@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { AppLayout } from '../components/app-layout';
-import { APP_MAIN_CLASS_NAME, getMainClassNameOverride } from '../components/app-shell-skeleton';
+import { APP_MAIN_CLASS_NAME, getMainClassNameOverride } from '../components/app-shell-chrome';
 import { OpenframeChatRuntimeProvider } from '../components/openframe-chat-runtime-provider';
 
 export default function AppGroupLayout({ children }: { children: React.ReactNode }) {

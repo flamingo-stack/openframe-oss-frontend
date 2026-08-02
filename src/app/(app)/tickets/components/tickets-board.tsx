@@ -354,7 +354,7 @@ export function TicketsBoard({
                     className="md:hidden"
                     onClick={() => setMobileFiltersOpen(true)}
                     aria-label="Open filters"
-                    leftIcon={<Filter02Icon />}
+                    leftIcon={<Filter02Icon className="text-ods-text-primary" />}
                   />
                 }
               />
