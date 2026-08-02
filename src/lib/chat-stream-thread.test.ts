@@ -219,6 +219,33 @@ describe('activity indicator after hydration', () => {
     expect(useMingoMessagesStore.getState().getTyping(dialogId)).toBe(true);
   });
 
+  it('reports busy for an APPROVED batch whose commands are still running', () => {
+    // The operator approves, then reloads (or leaves and re-enters the dialog).
+    // A batch records its runs INSIDE the segment, so there is no EXECUTING_TOOL
+    // to find — the indicator has to come from the approval's own state, or the
+    // thread renders as if nothing were happening while commands execute.
+    const dialogId = 'dialog-approved-batch';
+    useMingoMessagesStore.getState().setMessages(dialogId, [
+      { id: 'u1', role: 'user', content: 'check the disks' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: [
+          {
+            type: 'approval_batch',
+            status: 'approved',
+            data: {
+              approvalRequestId: 'req-3',
+              toolCalls: [{ toolExecutionRequestId: 'exec-1' }, { toolExecutionRequestId: 'exec-2' }],
+            },
+          },
+        ],
+      } as ChatMessage,
+    ]);
+
+    expect(useMingoMessagesStore.getState().getTyping(dialogId)).toBe(true);
+  });
+
   it('stays idle when the turn is merely awaiting an approval', () => {
     // The opposite state: the agent is blocked on the USER. Spinning here
     // would claim work that is not happening.
