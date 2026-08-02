@@ -1,5 +1,6 @@
 'use client';
 
+import { CalendarIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
   DataTable,
@@ -34,7 +35,17 @@ export function LogsTableSkeleton() {
     () => [
       {
         id: 'logId',
-        header: 'Log ID',
+        // The live table's date control is a custom header, not a `meta.filter`,
+        // so `pending` cannot draw it — the markup has to be repeated here. Inert:
+        // the menu needs the applied range and sort direction, and neither exists
+        // yet. Present, though, for the same reason the funnels are: an icon that
+        // arrives with the data shoves the label sideways.
+        header: () => (
+          <div className="flex w-full items-center gap-[var(--spacing-system-xsf)] select-none">
+            <span className="text-h5 text-ods-text-secondary whitespace-nowrap">Log ID</span>
+            <CalendarIcon className="w-4 h-4 text-ods-text-secondary" />
+          </div>
+        ),
         enableSorting: false,
         meta: { width: 'w-[200px]', alwaysShowHeader: true },
       },

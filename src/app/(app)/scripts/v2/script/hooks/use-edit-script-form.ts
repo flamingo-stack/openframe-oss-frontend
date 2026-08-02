@@ -3,7 +3,7 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from 'react-relay';
 import { z } from 'zod';
@@ -33,7 +33,6 @@ const editScriptFormSchema = editScriptSchema.extend({
 
 interface UseEditScriptFormOptions {
   scriptId: string | null;
-  initialValues: EditScriptFormData | null;
   isEditMode: boolean;
 }
 
@@ -45,7 +44,7 @@ const CREATE_SCRIPT_DEFAULT_VALUES: EditScriptFormData = {
   env_vars: [{ id: 'env-0', key: '', value: '' }],
 };
 
-export function useEditScriptForm({ scriptId, initialValues, isEditMode }: UseEditScriptFormOptions) {
+export function useEditScriptForm({ scriptId, isEditMode }: UseEditScriptFormOptions) {
   const { toast } = useToast();
   const router = useRouter();
 
@@ -58,18 +57,10 @@ export function useEditScriptForm({ scriptId, initialValues, isEditMode }: UseEd
     mode: 'onChange',
   });
 
-  const { reset, handleSubmit } = form;
-  const { isDirty } = form.formState;
-
-  useEffect(() => {
-    // Seed the form from the query. The detail query runs `store-and-network`, so a
-    // background refresh can deliver a new `initialValues` reference after the user
-    // has started editing — re-seeding then would wipe their in-progress changes.
-    // Guard on `!isDirty`: apply fresh data only while the form is still pristine.
-    if (initialValues && isEditMode && !isDirty) {
-      reset(initialValues);
-    }
-  }, [initialValues, isEditMode, isDirty, reset]);
+  // No `form.formState` read during render here on purpose: the page holds this
+  // hook while the record seeds the form from a child, and a formState
+  // subscription at this level would make that write a parent update mid-render.
+  const { handleSubmit } = form;
 
   const [commitCreate, isCreating] = useMutation<CreateScriptMutationType>(createScriptMutation);
   const [commitUpdate, isUpdating] = useMutation<UpdateScriptMutationType>(updateScriptMutation);

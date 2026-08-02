@@ -303,6 +303,10 @@ export function ScriptFormFields({
               onChange={field.onChange}
               shell={getValues('shell')}
               readOnly={disabled}
+              // `disabled` on this form means "the record is still in flight",
+              // so the editor holds its placeholder until the body arrives
+              // rather than being revealed empty and filled a moment later.
+              loading={disabled}
               height="600px"
               invalid={showErrors && !!fieldState.error}
             />

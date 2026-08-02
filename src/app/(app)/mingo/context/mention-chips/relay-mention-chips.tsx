@@ -26,21 +26,26 @@ import { routes } from '@/lib/routes';
  *   - script                → `script(id:)` (dedicated query, takes a GLOBAL id;
  *     the v2 `/scripts-v2/details/<globalId>` route ALSO keys on the global id) —
  *     so, like kb, both the fetch AND the href use `globalId`.
+ *   - script schedule       → `scriptSchedule(id:)` (same deal as script: a
+ *     dedicated query on a GLOBAL id, and the `/scripts-v2/schedules/details`
+ *     route keys on the global id too).
  */
 
 import { type ReactNode, Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { relayMentionChipsKbQuery } from '@/__generated__/relayMentionChipsKbQuery.graphql';
 import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChipsNodeQuery.graphql';
+import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentionChipsScheduleQuery.graphql';
 import type { relayMentionChipsScriptQuery } from '@/__generated__/relayMentionChipsScriptQuery.graphql';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
 import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
 
 interface GraphqlMentionChipProps {
-  /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | KB_ARTICLE | SCRIPT. */
+  /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | KB_ARTICLE | SCRIPT |
+   *  SCHEDULED_SCRIPT. */
   kind: ContextEntityKind;
-  /** RAW db id (machineId / organizationId / kb id / script id). */
+  /** RAW db id (machineId / organizationId / kb id / script id / schedule id). */
   id: string;
   icon?: ReactNode;
   /** Known display name (e.g. a context item's picked label). Shown instead of
@@ -82,8 +87,20 @@ const SCRIPT_QUERY = graphql`
   }
 `;
 
+/** script schedule — dedicated `scriptSchedule(id:)` query (GLOBAL id, server
+ *  decodes). Throws (not null) on a missing/foreign-tenant id → the error
+ *  boundary below turns it into a plain id chip. */
+const SCHEDULE_QUERY = graphql`
+  query relayMentionChipsScheduleQuery($id: ID!) {
+    scriptSchedule(id: $id) {
+      name
+    }
+  }
+`;
+
 /** Detail-page URL for a resolved entity. Device/org routes key on the RAW id;
- *  the kb + script routes key on the GLOBAL id (same id their queries take). */
+ *  the kb + script + schedule routes key on the GLOBAL id (same id their queries
+ *  take). */
 function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): string | undefined {
   switch (kind) {
     case CONTEXT_ENTITY_KIND.DEVICE:
@@ -94,6 +111,8 @@ function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): stri
       return routes.knowledgeBase.details(globalId);
     case CONTEXT_ENTITY_KIND.SCRIPT:
       return routes.scriptsV2.details(globalId);
+    case CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT:
+      return routes.scriptsV2.schedules.details(globalId);
     default:
       return undefined;
   }
@@ -146,12 +165,29 @@ function ScriptInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
   return <MentionTag icon={icon} label={data.script?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />;
 }
 
+function ScheduleInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+  const data = useLazyLoadQuery<relayMentionChipsScheduleQuery>(
+    SCHEDULE_QUERY,
+    { id: globalId },
+    { fetchPolicy: 'store-or-network' },
+  );
+  return (
+    <MentionTag
+      icon={icon}
+      label={data.scriptSchedule?.name || fallbackLabel || id}
+      href={hrefFor(kind, id, globalId)}
+    />
+  );
+}
+
 function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
   switch (kind) {
     case CONTEXT_ENTITY_KIND.KB_ARTICLE:
       return KbInner;
     case CONTEXT_ENTITY_KIND.SCRIPT:
       return ScriptInner;
+    case CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT:
+      return ScheduleInner;
     default:
       return NodeInner;
   }
@@ -160,7 +196,7 @@ function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
 export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMentionChipProps) {
   const typename = CONTEXT_RELAY_TYPENAME[kind];
   // No relay typename for this kind → can't build a global id; render a plain
-  // (clickable where a route exists) chip. Should not happen for the four
+  // (clickable where a route exists) chip. Should not happen for the five
   // GraphQL kinds.
   if (!typename) return <MentionTag icon={icon} label={fallbackLabel || id} href={hrefFor(kind, id, id)} />;
   // `id` may be a RAW db id (context item) OR an already-global id (an inline

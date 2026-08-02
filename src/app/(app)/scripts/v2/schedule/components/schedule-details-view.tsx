@@ -13,7 +13,10 @@ import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
+import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { CONTEXT_ENTITY_KIND } from '../../../../mingo/context/context-types';
+import { useTrackOpenView } from '../../../../mingo/context/use-track-open-view';
 import { ScheduleInfoBarFromData } from '../../../components/schedule/schedule-info-bar';
 import { initiatorName } from '../../shared/utils/execution-helpers';
 import { platformsToIds } from '../../shared/utils/script-mappers';
@@ -49,6 +52,16 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
   // Back follows the list the schedule actually belongs to, so Back from an
   // archived schedule doesn't land the user on a list without it.
   const handleBack = useSafeBack(isArchived ? routes.scriptsV2.schedules.archived : routes.scriptsV2.schedules.list);
+
+  // Mingo context carries the RAW db id (the route's `scheduleId` is the Relay
+  // global id) — matching the picker + the `@scheduledScript:<id>` marker the
+  // backend resolver expects. The mention chip re-encodes it for its fetch.
+  const scheduleDbId = useMemo(() => decodeGlobalId(scheduleId)?.rawId ?? scheduleId, [scheduleId]);
+  useTrackOpenView(
+    schedule
+      ? { type: CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT, id: scheduleDbId, label: schedule.name || scheduleDbId }
+      : null,
+  );
 
   const closeArchiveDialog = useCallback(() => setConfirmArchiveOpen(false), []);
   const handleArchiveToggle = useCallback(() => toggleArchive(closeArchiveDialog), [toggleArchive, closeArchiveDialog]);

@@ -16,11 +16,21 @@ import { type EditScheduleFormData, TRIGGER_OPTIONS } from '../types/edit-schedu
 import { ScheduleScriptsField } from './schedule-scripts-field';
 import { ScheduleTimingFields } from './schedule-timing-fields';
 
+interface ScheduleFormFieldsProps {
+  showErrors: boolean;
+  /**
+   * Locks every control. This is the edit page's loading state: the real fields,
+   * in the geometry they will keep, with nothing in them yet — so there is no
+   * placeholder to swap for them when the schedule lands.
+   */
+  disabled?: boolean;
+}
+
 /**
  * Every field of the schedule form, in the order the design has them. Reads the
  * form off context, so the page around it only owns the chrome and the Save.
  */
-export function ScheduleFormFields({ showErrors }: { showErrors: boolean }) {
+export function ScheduleFormFields({ showErrors, disabled = false }: ScheduleFormFieldsProps) {
   const { control, formState, getValues, setValue } = useFormContext<EditScheduleFormData>();
   const isMdUp = useMdUp();
   const supportedPlatforms = useWatch({ control, name: 'supportedPlatforms' });
@@ -51,6 +61,7 @@ export function ScheduleFormFields({ showErrors }: { showErrors: boolean }) {
               placeholder="Enter schedule name"
               value={field.value}
               onChange={field.onChange}
+              disabled={disabled}
               className="w-full"
               error={showErrors ? fieldState.error?.message : undefined}
               invalid={showErrors && !!fieldState.error}
@@ -70,6 +81,7 @@ export function ScheduleFormFields({ showErrors }: { showErrors: boolean }) {
               placeholder="Enter note here (optional)"
               value={field.value}
               onChange={field.onChange}
+              disabled={disabled}
               className="w-full min-h-[96px]"
             />
           )}
@@ -86,12 +98,13 @@ export function ScheduleFormFields({ showErrors }: { showErrors: boolean }) {
             variant="grouped"
             value={field.value}
             onValueChange={field.onChange}
+            disabled={disabled}
             options={TRIGGER_OPTIONS}
           />
         )}
       />
 
-      <ScheduleTimingFields showErrors={showErrors} />
+      <ScheduleTimingFields showErrors={showErrors} disabled={disabled} />
 
       {/* The min-1 error overlays the section gap below the row (same absolute
           pattern as the script form) — no layout shift. `data-invalid`: the block
@@ -111,9 +124,9 @@ export function ScheduleFormFields({ showErrors }: { showErrors: boolean }) {
                 title={platform.name}
                 icon={<platform.icon className="w-5 h-5" />}
                 selected={!comingSoon && supportedPlatforms.includes(platform.id)}
-                disabled={comingSoon}
+                disabled={comingSoon || disabled}
                 tag={comingSoon ? (isMdUp ? 'Coming Soon' : 'Soon') : undefined}
-                onClick={comingSoon ? undefined : () => togglePlatform(platform.id)}
+                onClick={comingSoon || disabled ? undefined : () => togglePlatform(platform.id)}
               />
             );
           })}
@@ -127,7 +140,7 @@ export function ScheduleFormFields({ showErrors }: { showErrors: boolean }) {
         )}
       </div>
 
-      <ScheduleScriptsField showErrors={showErrors} />
+      <ScheduleScriptsField showErrors={showErrors} disabled={disabled} />
     </div>
   );
 }

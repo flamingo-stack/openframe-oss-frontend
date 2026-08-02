@@ -2,11 +2,15 @@ import { graphql } from 'react-relay';
 
 /**
  * Single schedule query (v2). Resolves the schedule itself and the scripts it
- * runs (in run order) — everything the detail / edit / devices pages need
- * EXCEPT the assigned machines. `assignedDevices` deliberately lives in its own
- * query (`script-schedule-devices-relay.ts`): the per-machine resolution is
- * heavy enough to 504 on real fleets, so only the views that actually render
- * devices pay for it.
+ * runs (in run order) — everything the detail and edit pages need EXCEPT the
+ * assigned machines. `assignedDevices` deliberately lives in its own query
+ * (`script-schedule-devices-relay.ts`): the per-machine resolution is heavy
+ * enough to 504 on real fleets, so only the views that actually render devices
+ * pay for it.
+ *
+ * The "Edit Devices" page reads `script-schedule-devices-settings-relay.ts`
+ * instead — it renders no scripts, and this query would make the mode it
+ * branches on wait behind every `scriptBody` in the schedule.
  */
 export const scriptScheduleDetailRelayQuery = graphql`
   query scriptScheduleDetailRelayQuery($id: ID!) {

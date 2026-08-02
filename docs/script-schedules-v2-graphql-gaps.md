@@ -226,6 +226,18 @@ local state; the specific half then behaves exactly as it does on a SPECIFIC
 schedule, and no copy claims what that does to the stored mode. Neither could be
 verified against QA — the token supplied for the schema refresh has expired.
 
+**Question 1 now answers itself in the app.** All four assignment mutations
+(`addDevicesToSchedule`, `removeDevicesFromSchedule` and their bulk siblings)
+select `selectionMode` and `deviceCriteria` in their payloads, so whatever the
+server does to the mode lands in the Relay store on the first +/−. If it flips
+to SPECIFIC, the page is correct with no further work; if it does not, the
+switch is unsaveable and needs the mutation below.
+
+What is NOT fixable from the client either way: switching the radio to specific
+and leaving through Done without assigning anything. There is no write to make —
+"Done" exists precisely because the specific half has already committed
+everything it does.
+
 The clean fix is a `setScheduleDeviceSelectionMode(scheduleId, mode)` mutation
 (or `selectionMode` on the update input), after which the picker can commit the
 switch the way it commits everything else.
