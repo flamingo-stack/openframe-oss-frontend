@@ -22,7 +22,6 @@ export const FEATURE_FLAG_NAMES = [
   'scripts-v2',
   'script-schedules',
   'cancel-subscription',
-  'new-onboarding',
   'test-clock',
 ] as const;
 
@@ -144,16 +143,6 @@ export const featureFlags = {
   cancelSubscription: {
     enabled(): boolean {
       return getFlagValue('cancel-subscription', () => false);
-    },
-  },
-  /**
-   * New `/onboarding` page. When enabled, the standalone onboarding route is shown
-   * and the legacy dashboard `OnboardingSection` is hidden; when disabled it's the
-   * reverse (legacy section on the dashboard, `/onboarding` 404s).
-   */
-  newOnboarding: {
-    enabled(): boolean {
-      return getFlagValue('new-onboarding', () => runtimeEnv.newOnboardingFlag());
     },
   },
   /**

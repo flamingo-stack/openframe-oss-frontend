@@ -7,7 +7,7 @@ import {
   type TagSearchOption,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, Ref } from 'react';
 import { DeviceTagsFilterButton } from './device-tags-filter-button';
 
 type FilterModalProps = ComponentProps<typeof FilterModal>;
@@ -43,6 +43,13 @@ export interface DevicesFilterToolbarProps {
    * shouldn't bleed (e.g. a modal).
    */
   sticky?: boolean;
+
+  /**
+   * Attach to the pinned row so a caller can measure it — its height is what the
+   * sticky table header parks below, and it CHANGES as the tag-chip row appears
+   * and collapses. See `useStickyToolbar`.
+   */
+  toolbarRef?: Ref<HTMLDivElement>;
 }
 
 /**
@@ -68,10 +75,12 @@ export function DevicesFilterToolbar({
   onTagsChange,
   isLoading,
   sticky = true,
+  toolbarRef,
 }: DevicesFilterToolbarProps) {
   return (
     <>
       <div
+        ref={toolbarRef}
         className={cn(
           'flex gap-[var(--spacing-system-m)] items-center',
           sticky &&

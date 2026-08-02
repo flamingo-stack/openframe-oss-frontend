@@ -317,51 +317,6 @@ export interface GraphQlResponse<T> {
   }>;
 }
 
-export type DevicesGraphQlNode = {
-  id: string;
-  machineId?: string;
-  hostname: string;
-  displayName?: string;
-  ip?: string;
-  macAddress?: string;
-  osUuid?: string;
-  agentVersion?: string;
-  status: string;
-  lastSeen?: string;
-  organization?: {
-    id: string;
-    organizationId: string;
-    name: string;
-    contactInformation?: {
-      contacts?: Array<{ email?: string }>;
-    };
-    image?: {
-      imageUrl: string;
-      hash?: string;
-    };
-  };
-  serialNumber?: string;
-  manufacturer?: string;
-  model?: string;
-  type?: string;
-  osType?: string;
-  osVersion?: string;
-  osBuild?: string;
-  timezone?: string;
-  registeredAt?: string;
-  updatedAt?: string;
-  tags?: Array<{
-    tagId: string;
-    key: string;
-    description?: string;
-    color?: string;
-    values: string[];
-    createdAt?: string;
-  }>;
-  toolConnections?: ToolConnection[];
-  installedAgents?: InstalledAgent[];
-};
-
 export type DeviceGraphQlNode = {
   id: string;
   machineId: string;
@@ -395,8 +350,12 @@ export type DeviceGraphQlNode = {
   timezone?: string;
   registeredAt?: string;
   updatedAt?: string;
+  // `id`, not `tagId` — this mirrors the GraphQL `Tag` node, and the transform
+  // renames it. The old `tagId` here named a field the documents never selected,
+  // so every tag arrived with `tagId: undefined` behind a type that claimed
+  // otherwise.
   tags?: Array<{
-    tagId: string;
+    id: string;
     key: string;
     description?: string;
     color?: string;

@@ -12,9 +12,14 @@ import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__g
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { scriptArgumentSchema } from '@/app/(app)/scripts/types/edit-script.types';
 import { parseKeyValues, serializeKeyValues } from '@/app/(app)/scripts/utils/script-key-values';
-import { ScriptSummaryCard } from '@/app/(app)/scripts/v2/components/script-summary-card';
-import { initiatorName } from '@/app/(app)/scripts/v2/utils/execution-helpers';
-import { envVarsToInput, envVarsToPairs, platformsToIds, shellToId } from '@/app/(app)/scripts/v2/utils/script-mappers';
+import { ScriptSummaryCard } from '@/app/(app)/scripts/v2/script/components/script-summary-card';
+import { initiatorName } from '@/app/(app)/scripts/v2/shared/utils/execution-helpers';
+import {
+  envVarsToInput,
+  envVarsToPairs,
+  platformsToIds,
+  shellToId,
+} from '@/app/(app)/scripts/v2/shared/utils/script-mappers';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
 

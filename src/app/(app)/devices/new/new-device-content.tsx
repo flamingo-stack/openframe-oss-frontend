@@ -4,7 +4,7 @@ import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { CommandBox } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon, PlayIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Autocomplete } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Autocomplete, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { DEFAULT_OS_PLATFORM, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -232,9 +232,11 @@ export function NewDeviceContent() {
                 renderOption={option => {
                   const org = orgs.find(o => o.organizationId === option.value);
                   return (
-                    <div className="flex items-center gap-2 w-full">
+                    <div className="flex items-center gap-2 w-full min-w-0">
                       <OrgAvatar imageUrl={org?.imageUrl} hash={org?.imageHash} name={org?.name ?? option.label} />
-                      <span>{option.label}</span>
+                      <div className="min-w-0 flex-1">
+                        <TruncateText className="text-current">{option.label}</TruncateText>
+                      </div>
                     </div>
                   );
                 }}

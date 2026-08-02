@@ -6,6 +6,7 @@ import {
   Button,
   PageLayout,
   Skeleton,
+  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
 import {
   Collapse02Icon,
@@ -508,8 +509,11 @@ export default function RemoteDesktopPage() {
         <MonitorIcon className="w-4 h-4 text-ods-text-primary" />
       </div>
       <div className="flex flex-col min-w-0">
-        <h1 className="text-ods-text-primary text-h4 truncate">{hostname || `Device ${deviceId}`}</h1>
-        <p className="text-ods-text-secondary text-h6 truncate">Desktop • {organizationName || 'Unknown Customer'}</p>
+        <TruncateText>{hostname || `Device ${deviceId}`}</TruncateText>
+        <TruncateText
+          variant="h6"
+          tone="secondary"
+        >{`Desktop • ${organizationName || 'Unknown Customer'}`}</TruncateText>
       </div>
     </div>
   );

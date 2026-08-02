@@ -15,7 +15,7 @@ interface FeatureFlagsLoaderProps {
  * Runs the server feature-flags query into the store. Renders `children`
  * unconditionally — it does NOT gate the app.
  *
- * It used to (as `FeatureFlagsGate`), returning the app-shell placeholder until
+ * An earlier version of this file did, returning an app-shell placeholder until
  * the session check and the flags query had both answered. That block was a
  * workaround for one thing: flags were read through
  * `useFeatureFlagsStore.getState()`, a one-shot snapshot, so anything rendered

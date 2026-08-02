@@ -2,7 +2,13 @@
 
 import { OS_PLATFORMS, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
 import { TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Autocomplete, Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Autocomplete,
+  Button,
+  Input,
+  Label,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type FocusEvent, useMemo } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import { useScriptsAutocomplete } from '../../hooks/use-scripts-autocomplete';
@@ -69,9 +75,11 @@ export function ScheduleActionFormCard({
     loading: isLoading,
     loadingText: 'Searching scripts...',
     noOptionsText: inputValue ? 'No scripts match your search' : 'No scripts available',
-    renderOption: (option: { label: string; value: number }) => (
-      <span className="inline-flex items-center">
-        {option.label}
+    renderOption: (option: { label: string; value: number }, isSelected: boolean) => (
+      <span className="flex w-full min-w-0 items-center">
+        <span className="min-w-0">
+          <TruncateText className={isSelected ? 'text-ods-accent' : undefined}>{option.label}</TruncateText>
+        </span>
         <ScriptPlatformIcons platforms={scripts.find(s => s.id === option.value)?.supported_platforms || []} />
       </span>
     ),

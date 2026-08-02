@@ -174,7 +174,7 @@ Helper functions: `isOssTenantMode()`, `isSaasTenantMode()`, `isSaasSharedMode()
 
 ### Feature Flags
 
-Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `help-center`, `notifications`, `time-tracker`, `scripts-v2`, `mingo-sidebar`, `new-onboarding`, `cancel-subscription`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-gate.tsx` blocks app render until flags load for authenticated users.
+Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `help-center`, `notifications`, `time-tracker`, `scripts-v2`, `mingo-sidebar`, `cancel-subscription`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-loader.tsx` runs that query but does NOT gate render: read a flag through `useFeatureFlagGate` (tri-state `loading | on | off`) wherever a wrong value would be visible or would redirect, and render the loading branch — see `src/app/hooks/use-feature-flag.ts`.
 
 ### Route Registry (MANDATORY)
 
@@ -209,10 +209,10 @@ table, `pathname.startsWith()` active-state checks, external/API URLs):
 Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query params** (`/x/details?id=`), not dynamic segments (static-export constraint; read via `useRequiredIdParam`). URL strings themselves come from the route registry above.
 
 - **Authentication** (`/auth`) — Multi-provider SSO, signup, login, password reset, invite
-- **Dashboard** (`/dashboard`) — Overview stats + onboarding; standalone `/onboarding` behind flag `new-onboarding`
+- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour)
 - **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
-- **Scripts** (`/scripts` legacy, Tactical backend removed — hooks are `TODO(openframe-rmm)` stubs; `/scripts-v2` Relay, behind flag `scripts-v2` — implementation lives in `src/app/(app)/scripts/v2/components/`)
+- **Scripts** (`/scripts` legacy, Tactical backend removed — hooks are `TODO(openframe-rmm)` stubs; `/scripts-v2` Relay, behind flag `scripts-v2` — implementation lives in `src/app/(app)/scripts/v2/{script,schedule,shared}/`)
 - **Customers** (`/customers`) — Customer/organization CRM (route renamed from `/organizations`; sidebar item id is still `organizations`)
 - **Monitoring** (`/monitoring`) — Fleet osquery queries + policies (not feature-flagged)
 - **Tickets** (`/tickets`) — Ticket board + AI chat dialogs (saas-tenant only; talks to `/chat/graphql`)
@@ -232,13 +232,13 @@ src/
 │   ├── (auth)/auth/       # Authentication (login, signup, invite, password-reset, stores/auth-store.ts)
 │   ├── (app)/             # All app pages, wrapped by AppLayout in (app)/layout.tsx
 │   │   ├── dashboard/  onboarding/  devices/  logs-page/  log-details/
-│   │   ├── scripts/       # legacy + v2 implementation in scripts/v2/components/
+│   │   ├── scripts/       # legacy + v2 in scripts/v2/{script,schedule,shared}/{components,hooks,utils}
 │   │   ├── scripts-v2/    # thin route wrappers over scripts/v2 (flag-gated layout)
 │   │   ├── customers/  monitoring/  tickets/  mingo/  knowledge-base/
 │   │   ├── help-center/  worktime/  notifications/  settings/  checkout/
 │   ├── hooks/             # Shared hooks (use-feature-flags-query, use-required-id-param, …)
 │   └── components/        # Shared components (notifications provider, subscription-lock, shared tables)
-├── components/            # Root-level shared (route-guard, feature-flags-gate, assignments/)
+├── components/            # Root-level shared (route-guard, feature-flags-loader, assignments/)
 ├── stores/                # Zustand stores (feature-flags-store, devices-store [mostly unused])
 ├── graphql/               # Relay operations by domain (notifications/, scripts/, time-tracker/)
 ├── __generated__/         # Relay artifacts (owned by relay-compiler — never import enums from here)
@@ -688,15 +688,15 @@ The root layout (`src/app/layout.tsx`) establishes the global provider hierarchy
       <QueryClientProvider>          <!-- TanStack React Query -->
         <DevTicketObserver />        <!-- Dev auth (if auth enabled) -->
         <NatsAppProvider>            <!-- NATS live updates -->
-          <FeatureFlagsGate>         <!-- blocks render until server flags load -->
-            <NotificationsDataProvider>  <!-- Notifications drawer/popups (Relay) -->
-              <RouteGuard>           <!-- App mode route filtering -->
-                <Suspense fallback={AppShellSkeleton}>
+          <BiometricLockBoundary>    <!-- Native-shell biometric cold-start lock -->
+            <FeatureFlagsLoader>     <!-- Runs the flags query; does NOT gate render -->
+              <NotificationsDataProvider>  <!-- Notifications drawer/popups (Relay) -->
+                <RouteGuard>         <!-- App mode route filtering -->
                   {children}         <!-- Page content -->
-                </Suspense>
-              </RouteGuard>
-            </NotificationsDataProvider>
-          </FeatureFlagsGate>
+                </RouteGuard>
+              </NotificationsDataProvider>
+            </FeatureFlagsLoader>
+          </BiometricLockBoundary>
         </NatsAppProvider>
       </QueryClientProvider>
     </RelayProvider>

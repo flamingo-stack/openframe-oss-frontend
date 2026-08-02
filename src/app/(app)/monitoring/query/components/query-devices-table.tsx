@@ -125,9 +125,9 @@ export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
               <div className="flex flex-col justify-center flex-1 min-w-0">
                 <TruncateText>{r.displayName || r.hostname}</TruncateText>
                 {r.lastSeen && (
-                  <span className="text-h6 text-ods-text-secondary truncate">
-                    Last online: {formatRelativeTime(r.lastSeen)}
-                  </span>
+                  <TruncateText variant="h6" tone="secondary">
+                    {`Last online: ${formatRelativeTime(r.lastSeen)}`}
+                  </TruncateText>
                 )}
               </div>
             </div>
@@ -248,8 +248,10 @@ export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
           <Button
             variant="outline"
             size="icon"
+            aria-label="Device Tags"
             onClick={() => setIsFilterModalOpen(true)}
-            leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
+            // Primary below md: with the label gone the funnel is the button.
+            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
             className="shrink-0"
           />
         )}

@@ -8,7 +8,7 @@ import {
   AppLayoutDrawerHeader,
   AppLayoutDrawerTitle,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
-import { DeviceCard, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DeviceCard, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
@@ -122,12 +122,11 @@ export function LogDrawer({
               <div className="p-4 bg-ods-card border border-ods-border rounded-[6px] flex flex-col gap-3">
                 {infoFields.map(field => (
                   <div key={typeof field.label === 'string' ? field.label : ''} className="flex flex-col gap-0.5">
-                    <span
-                      className="text-h4 text-ods-text-primary truncate"
-                      title={typeof field.value === 'string' ? field.value : undefined}
-                    >
-                      {field.value || '—'}
-                    </span>
+                    {typeof field.value === 'string' ? (
+                      <TruncateText>{field.value || '—'}</TruncateText>
+                    ) : (
+                      <span className="text-h4 text-ods-text-primary truncate">{field.value || '—'}</span>
+                    )}
                     <span className="text-h6 text-ods-text-secondary truncate">{field.label}</span>
                   </div>
                 ))}

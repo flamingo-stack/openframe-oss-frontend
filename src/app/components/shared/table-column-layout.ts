@@ -19,13 +19,20 @@
  * - `sortable` makes the real header render a sort icon beside its label, so a
  *   skeleton without it centers the label differently.
  */
+/**
+ * The core table's own `hideAt` breakpoints, restated rather than imported —
+ * this module stays import-free (see above), and a type import would be the
+ * first crack in that.
+ */
+export type TableBreakpoint = 'md' | 'lg' | 'xl' | '2xl';
+
 export interface TableSkeletonColumn {
   id: string;
   /** Real column header text — rendered verbatim, it isn't query-dependent. */
   header?: string;
   /** The real column's `meta.width` class. */
   width: string;
-  hideAt?: 'md' | 'lg';
+  hideAt?: TableBreakpoint;
   align?: 'right';
   /** Real column declares `meta.sortable` — its header renders a sort icon. */
   sortable?: boolean;
@@ -36,7 +43,7 @@ export interface TableSkeletonColumn {
 /** The `meta` fields a live column and its skeleton must agree on. */
 interface SharedColumnMeta {
   width: string;
-  hideAt?: 'md' | 'lg';
+  hideAt?: TableBreakpoint;
   align?: 'right';
   sortable?: boolean;
 }
@@ -56,16 +63,20 @@ const NO_FILTER_OPTIONS: never[] = [];
 /**
  * `meta` for a column inside a SKELETON table.
  *
- * A filterable column declares its filter WITH NO OPTIONS, which is exactly what
- * the live table does while its options query is in flight — the header renders
- * the real control, funnel included, and simply does not open. It used to say
- * `alwaysShowHeader` instead, which reproduced the tablet visibility but drew a
- * bare label: the funnel then appeared with the data and pushed every label
- * sideways. One representation for "filterable, options unknown" leaves the
- * loading and loaded headers the same shape.
+ * A filterable column declares its filter as PENDING: no options, and the flag
+ * that says they are still coming. That is what keeps the funnel drawn (inert)
+ * instead of appearing with the data and pushing every label sideways — an empty
+ * filter without the flag means "there is nothing to filter by", and the table
+ * hides the funnel for it. It used to say `alwaysShowHeader`, which reproduced
+ * the tablet visibility but drew a bare label.
  */
-export function skeletonColumnMeta(column: TableSkeletonColumn): SharedColumnMeta & { filter?: { options: never[] } } {
-  return { ...sharedMeta(column), filter: column.filterable ? { options: NO_FILTER_OPTIONS } : undefined };
+export function skeletonColumnMeta(
+  column: TableSkeletonColumn,
+): SharedColumnMeta & { filter?: { options: never[]; pending: true } } {
+  return {
+    ...sharedMeta(column),
+    filter: column.filterable ? { options: NO_FILTER_OPTIONS, pending: true } : undefined,
+  };
 }
 
 /**

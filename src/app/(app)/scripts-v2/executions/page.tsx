@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { ScriptExecutionDetailsView } from '../../scripts/v2/components/script-execution-details-view';
+import { ScriptExecutionDetailsView } from '../../scripts/v2/script/components/script-execution-details-view';
 
 export default function ScriptExecutionDetailsPage() {
   const id = useSearchParams().get('id') ?? '';

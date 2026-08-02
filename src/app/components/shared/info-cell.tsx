@@ -1,3 +1,4 @@
+import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 
 /**
@@ -24,9 +25,13 @@ export function InfoCell({ value, label, icon, href, className }: InfoCellProps)
     <div className={`flex flex-col justify-center min-w-0 flex-1 ${className ?? ''}`}>
       <div className="flex items-center gap-[var(--spacing-system-xxs)] min-w-0">
         {icon && <span className="shrink-0">{icon}</span>}
-        <div className="text-ods-text-primary text-h4 truncate" title={typeof value === 'string' ? value : undefined}>
-          {value}
-        </div>
+        {typeof value === 'string' ? (
+          <div className="min-w-0 flex-1">
+            <TruncateText>{value}</TruncateText>
+          </div>
+        ) : (
+          <div className="text-ods-text-primary text-h4 truncate">{value}</div>
+        )}
       </div>
       <p className="text-ods-text-secondary text-h6 truncate">{label}</p>
     </div>
