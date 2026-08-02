@@ -609,6 +609,16 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     // unfinished (pending approval, executing tool, open compaction).
     const extras = computeIncompleteTailState(messages);
     const armAdopt = extras !== undefined && hydrateOptions?.expectingReplay !== false;
+    // A tool left mid-flight means the AGENT IS STILL WORKING, and the host
+    // renders its activity indicator off the phase. Nothing else restores it:
+    // the phase machine is driven by wire events, the run's own EXECUTING chunk
+    // is long past, and its EXECUTED one may be minutes away — so a reload
+    // during a tool run showed a dead-looking thread with no indicator at all.
+    //
+    // Only executing tools count. A PENDING APPROVAL is the opposite state —
+    // the agent is blocked on the user, and spinning there would claim work
+    // that is not happening.
+    const hasExecutingTool = (extras?.executingTools?.size ?? 0) > 0;
 
     mutate(key, reducer => {
       reducer.initializeWithState(messages.map(m => toUnifiedMessage(m)));
@@ -617,6 +627,13 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
       // field when handed `null`).
       if (extras) reducer.initializeWithState(null, extras);
       reducer.armAdoptTrailingAssistant(armAdopt);
+      // Same rule the reducer applies to a live `onAgentBusy`: only 'idle'
+      // upgrades to 'thinking', so an open stream keeps ownership of the phase.
+      // The host's server-side IDLE self-heal is what clears a tool that died
+      // without ever reporting back.
+      if (hasExecutingTool && reducer.state.streamingPhase === 'idle') {
+        reducer.setPhase('thinking');
+      }
     });
 
     if (armAdopt) awaitingAdopt.add(key);

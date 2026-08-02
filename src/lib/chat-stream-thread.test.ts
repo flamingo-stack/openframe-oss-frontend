@@ -177,7 +177,11 @@ describe('LRU eviction', () => {
       },
     });
 
-    mirror.hydrate('a', unfinishedThread());
+    // A FINISHED thread on purpose: hydrating an unfinished one raises the
+    // phase to 'thinking' (the agent is still working), and the store never
+    // evicts a reducer whose phase is not 'idle' — so this test would be
+    // asserting against a key that cannot be dropped in the first place.
+    mirror.hydrate('a', hydratedThread());
     // A key handed out by `getReducer` is protected from eviction until its
     // FIRST retain lands (the store stands in for the retain a rendering host
     // has not committed yet). Retain then release to reach the state a real
@@ -199,5 +203,41 @@ describe('LRU eviction', () => {
     // The epoch moved, which is what re-arms the consumers' post-eviction
     // re-seed (`useChatChunkProcessor`) against the new instance.
     expect(mirror.bind('a').evictionEpoch).toBeGreaterThan(epochBefore);
+  });
+});
+
+describe('activity indicator after hydration', () => {
+  it('reports the agent as busy when a tool was left mid-flight', () => {
+    // A reload during a tool run: the EXECUTING chunk is long past and the
+    // EXECUTED one may be minutes away, so nothing on the wire would restore
+    // the phase. Hosts render their spinner off it — an idle phase here shows
+    // a dead-looking thread while the agent is still working.
+    const dialogId = 'dialog-busy';
+    useMingoMessagesStore.getState().setMessages(dialogId, unfinishedThread());
+
+    expect(useMingoMessagesStore.getState().phaseByDialog.get(dialogId)).toBe('thinking');
+    expect(useMingoMessagesStore.getState().getTyping(dialogId)).toBe(true);
+  });
+
+  it('stays idle when the turn is merely awaiting an approval', () => {
+    // The opposite state: the agent is blocked on the USER. Spinning here
+    // would claim work that is not happening.
+    const dialogId = 'dialog-approval-idle';
+    useMingoMessagesStore.getState().setMessages(dialogId, [
+      { id: 'u1', role: 'user', content: 'run it' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: [
+          {
+            type: 'approval_request',
+            status: 'pending',
+            data: { requestId: 'req-9', command: 'rm -rf /tmp/cache', approvalType: 'CLIENT' },
+          },
+        ],
+      } as ChatMessage,
+    ]);
+
+    expect(useMingoMessagesStore.getState().getTyping(dialogId)).toBe(false);
   });
 });
