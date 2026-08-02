@@ -244,8 +244,12 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
     });
   },
 
+  // `mirror.hydrate`, NOT a raw thread write — see `HydrateOptions` and the
+  // twin comment in `mingo-messages-store`. Per-side here, but the same
+  // first-page semantics: the paginated path goes through
+  // `prependWithBoundaryMerge`.
   setMessages: (side, messages) => {
-    mutateTicketSide(side, r => r.setMessages(messages.map(m => toUnifiedMessage(m))));
+    mirror.hydrate(side, messages);
   },
 
   prependMessages: (side, messages) => {

@@ -259,8 +259,14 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       // Thread commands — the lib reducer owns the mutation semantics
+      // `mirror.hydrate`, NOT a raw thread write: restoring a turn takes three
+      // steps that only work together (thread + `resumed`, accumulator seed,
+      // adopt-once) — see `HydrateOptions`. This is the ONLY full-thread write
+      // on the mingo hydration path (the paginated one goes through
+      // `prependWithBoundaryMerge`), so it maps 1:1 onto the lib adapter's
+      // `cursor === undefined` first-page branch.
       setMessages: (dialogId, messages) => {
-        mutateMingoDialog(dialogId, r => r.setMessages(messages.map(m => toUnifiedMessage(m))));
+        mirror.hydrate(dialogId, messages);
       },
 
       prependMessages: (dialogId, messages) => {

@@ -32,9 +32,8 @@
 
 import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-core';
 import { type ChatStreamEvent, decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
-import type { ChatStreamReducer } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useCallback, useEffect, useRef } from 'react';
-import { type BoundMirror, computeIncompleteTailState } from '@/lib/chat-stream-thread';
+import type { BoundMirror } from '@/lib/chat-stream-thread';
 
 export type { ChatModelMetadata } from '@/lib/chat-stream-thread';
 
@@ -44,19 +43,9 @@ export interface UseChatChunkProcessorOptions {
    *  whole multi-key registry) is also called `mirror`, and the two altitudes
    *  must not read alike here. */
   boundMirror: BoundMirror;
-  /** Hydrated thread of the bound dialog/side (drives the seeding guard). */
+  /** Hydrated thread of the bound dialog/side — the source this hook re-seeds
+   *  a REPLACEMENT reducer from after an LRU eviction. */
   messages: readonly ChatMessage[] | undefined;
-  /**
-   * Identity of the thread currently bound. The incomplete-turn seed is a
-   * ONE-SHOT PER KEY: neither host remounts this hook on dialog/side switch
-   * (tickets clears chat state on `ticketId` change rather than unmounting),
-   * so an unkeyed boolean guard would latch after the first thread and every
-   * later thread with a pending approval or an executing tool would replay
-   * its continuation chunks into a fresh bubble — duplicated approval card,
-   * duplicated tool rows, and a hydrated pending approval that never
-   * resolves. Key on dialogId (mingo) / `${ticketId}:${side}` (tickets).
-   */
-  seedKey: string;
   /** Approval statuses the reducer consults when an APPROVAL_REQUEST replays. */
   approvalStatuses?: Record<string, string>;
   /** Host hook, run before the shared `apply`. Return `true` to claim the
@@ -67,7 +56,6 @@ export interface UseChatChunkProcessorOptions {
 export function useChatChunkProcessor({
   boundMirror,
   messages,
-  seedKey,
   approvalStatuses,
   interceptEvent,
 }: UseChatChunkProcessorOptions): (chunk: unknown) => void {
@@ -83,13 +71,13 @@ export function useChatChunkProcessor({
   const interceptEventRef = useRef(interceptEvent);
   interceptEventRef.current = interceptEvent;
 
-  // EVICTION EPOCH. Both effects below write ONE-SHOT state into a specific
-  // reducer INSTANCE, and LRU eviction silently replaces that instance behind
-  // an unchanged key: `bind(key)` is memoized per key and `seedKey` does not
-  // move, so neither effect would re-run and the replacement would be left
-  // without the persisted statuses and without the accumulator seed. The
-  // mirror bumps this counter per evicted key (and rebuilds the bound handle),
-  // which is the dependency that re-arms both.
+  // EVICTION EPOCH. Both effects below write state into a specific reducer
+  // INSTANCE, and LRU eviction silently replaces that instance behind an
+  // UNCHANGED key — `bind(key)` is memoized per key, so nothing else about
+  // these effects' inputs moves, and the replacement would be left without the
+  // persisted statuses and without the accumulator seed. The mirror bumps this
+  // counter per evicted key (and rebuilds the bound handle), which is the
+  // dependency that re-arms both.
   const { evictionEpoch } = boundMirror;
 
   // Status lookup the reducer consults when an APPROVAL_REQUEST replays.
@@ -103,26 +91,29 @@ export function useChatChunkProcessor({
     }
   }, [approvalStatuses, boundMirror, evictionEpoch]);
 
-  // One-shot-PER-KEY incomplete-turn seed: once the hydrated thread shows an
-  // unfinished trailing assistant run (pending approvals / executing tools),
-  // seed the reducer's per-turn kernel so continuation chunks merge instead
-  // of replaying into a fresh bubble. See `seedKey` above for why the guard
-  // is keyed rather than a plain boolean.
-  const seededKeyRef = useRef<string | null>(null);
+  // POST-EVICTION RE-SEED — the only seeding this hook still owns.
+  //
+  // Ordinary hydration (history fetch, dialog switch, page refetch) goes
+  // through `mirror.hydrate`, which owns the whole three-step protocol; a
+  // second seeding rule here would be the same split that let the adopt-once
+  // flag go unarmed for an entire release.
+  //
+  // Eviction is the case `hydrate` cannot cover: the store silently replaces a
+  // reducer behind an UNCHANGED key, and the host has no reason to re-fetch —
+  // so nothing would call `hydrate` again. The mirror's parking restores the
+  // thread, statuses, seq cursor and armed echoes, but NOT the per-turn kernel
+  // (accumulator), so an unfinished turn would resume into a fresh bubble.
+  //
+  // `expectingReplay: false`: the replacement gets no catchup replay, and an
+  // adopt-once flag armed here would survive until the next genuine turn and
+  // make it overwrite a completed bubble.
   const seededEpochRef = useRef(evictionEpoch);
   useEffect(() => {
-    // A new instance for the SAME key has never been seeded, whatever the
-    // guard remembers about its predecessor — clear it before the check.
-    if (seededEpochRef.current !== evictionEpoch) {
-      seededEpochRef.current = evictionEpoch;
-      seededKeyRef.current = null;
-    }
-    if (seededKeyRef.current === seedKey || !messages || messages.length === 0) return;
-    const extras = computeIncompleteTailState(messages);
-    if (!extras) return;
-    seededKeyRef.current = seedKey;
-    boundMirror.mutate((r: ChatStreamReducer) => r.initializeWithState(null, extras));
-  }, [seedKey, messages, boundMirror, evictionEpoch]);
+    if (seededEpochRef.current === evictionEpoch) return;
+    seededEpochRef.current = evictionEpoch;
+    if (!messages || messages.length === 0) return;
+    boundMirror.hydrate(messages, { expectingReplay: false });
+  }, [messages, boundMirror, evictionEpoch]);
 
   return useCallback((chunk: unknown) => {
     const event = decodeNatsChunk(chunk);

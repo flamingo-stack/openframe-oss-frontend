@@ -196,8 +196,48 @@ export interface ReducerMirrorConfig<K extends string> {
 }
 
 /** Pre-curried per-key handle — see `ReducerMirror.bind`. */
+/**
+ * Options for `hydrate` — the single entry point for a thread fetched from
+ * history.
+ *
+ * `hydrate` is deliberately ONE call because restoring a turn takes three
+ * steps that only work together, and the app previously performed them from
+ * three different places (the stores wrote the thread, `useChatChunkProcessor`
+ * seeded the accumulator, and nobody armed adoption):
+ *
+ *  1. `initializeWithState(thread)` — NOT the raw `setMessages` setter. It
+ *     derives `resumed`, and that flag is what makes a chunk arriving with no
+ *     preceding `turn-start` APPEND to the hydrated bubble instead of
+ *     replacing its segments. A reload mid-stream lands exactly there, and
+ *     without it the first replayed delta wipes the persisted head of the
+ *     turn — pending approval card included.
+ *  2. the accumulator seed, when the trailing assistant run is unfinished, so
+ *     continuation chunks merge into the turn instead of replaying into a
+ *     fresh one.
+ *  3. the adopt-once flag, so a REPLAYED `turn-start` re-streams into the
+ *     partial bubble rather than opening a duplicate beside it.
+ */
+export interface HydrateOptions {
+  /**
+   * Whether a catchup replay is expected to follow (default `true`).
+   *
+   * The adopt-once flag is only safe while a replay is actually inbound: left
+   * armed, it would make the NEXT genuine turn adopt — and overwrite — a
+   * completed bubble. The lib's own adapter gates it on an active catchup
+   * buffer; this app's subscriptions have no such signal (chunks go straight
+   * to the processor), so the flag is instead DISARMED on the first applied
+   * event that is not a `turn-start`. That bounds its life to the very next
+   * event, which after a reload is the replay. Pass `false` on any hydration
+   * that is not a fresh subscribe (pagination, an idle refetch) to skip
+   * arming it altogether.
+   */
+  expectingReplay?: boolean;
+}
+
 export interface BoundMirror {
   apply: (event: ChatStreamEvent) => void;
+  /** Pre-curried `ReducerMirror.hydrate` for this key. */
+  hydrate: (messages: readonly ChatMessage[], options?: HydrateOptions) => void;
   mutate: (fn: (reducer: ChatStreamReducer) => void) => void;
   /** MERGE (stream-learned wins) — see `ReducerMirror.mergeApprovalStatuses`. */
   mergeApprovalStatuses: (statuses: Record<string, string>) => void;
@@ -218,6 +258,12 @@ export interface ReducerMirror<K extends string> {
    *  (with the mirror's `onEvict` wired in). Exposed so a host can export the
    *  instance it would otherwise have had to construct itself. */
   store: ChatDialogStore;
+  /**
+   * THE history-hydration door — the ONLY way a fetched thread should enter a
+   * reducer. See `HydrateOptions` for what it does beyond writing messages and
+   * why splitting those steps across call sites is what broke before.
+   */
+  hydrate: (key: K, messages: readonly ChatMessage[], options?: HydrateOptions) => void;
   /** Run reducer commands (non-wire mutations), then sync. Force-flushes deltas. */
   mutate: <T>(key: K, fn: (reducer: ChatStreamReducer) => T) => T;
   /** Read-modify-write on the app-shape thread, delegated to the reducer. */
@@ -378,6 +424,10 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
   const reseedByKey = new Map<K, ParkedReducerState>();
   /** Per-key eviction counter published on `BoundMirror.evictionEpoch`. */
   const evictionEpochByKey = new Map<K, number>();
+  /** Keys whose reducer is holding an armed adopt-once flag, waiting for the
+   *  replayed `turn-start` that `hydrate` armed it for. `apply` disarms on the
+   *  first event that turns out not to be one. */
+  const awaitingAdopt = new Set<K>();
 
   /** Inverse of `identityFor`, over the keys this mirror knows. Only used to
    *  translate the store's `(dialogId, side)` eviction signal back into `K`;
@@ -549,7 +599,45 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     onSnapshot(key, { messages, phase, streamingId, state: snap });
   }
 
+  /**
+   * THE history-hydration door — see `HydrateOptions` for the three steps and
+   * why they may not be split across call sites.
+   */
+  function hydrate(key: K, messages: readonly ChatMessage[], hydrateOptions?: HydrateOptions): void {
+    // Computed on the APP-shape thread, before conversion: the extractor walks
+    // the trailing consecutive assistant run and reports whether it is still
+    // unfinished (pending approval, executing tool, open compaction).
+    const extras = computeIncompleteTailState(messages);
+    const armAdopt = extras !== undefined && hydrateOptions?.expectingReplay !== false;
+
+    mutate(key, reducer => {
+      reducer.initializeWithState(messages.map(m => toUnifiedMessage(m)));
+      // Second call, `null` thread: seeds ONLY the per-turn kernel, leaving the
+      // thread just written untouched (`initializeWithState` skips the messages
+      // field when handed `null`).
+      if (extras) reducer.initializeWithState(null, extras);
+      reducer.armAdoptTrailingAssistant(armAdopt);
+    });
+
+    if (armAdopt) awaitingAdopt.add(key);
+    else awaitingAdopt.delete(key);
+  }
+
   function apply(key: K, event: ChatStreamEvent): void {
+    // Adopt-once has a ONE-EVENT life (see `HydrateOptions.expectingReplay`).
+    // The flag exists for a REPLAYED `turn-start`; anything else arriving first
+    // means no replay is re-streaming this turn, and a flag left armed would
+    // hand adoption to the next genuine turn — which would then overwrite a
+    // completed bubble instead of opening its own. A `turn-start` needs no
+    // action here: the reducer consumes and clears the flag itself.
+    if (awaitingAdopt.has(key)) {
+      awaitingAdopt.delete(key);
+      if (event.type !== 'turn-start') {
+        mutate(key, reducer => {
+          reducer.armAdoptTrailingAssistant(false);
+        });
+      }
+    }
     // ORDER IS LOAD-BEARING: a pending batch must land BEFORE
     // `getReducer(key)`. The dialog store evicts least-recently-used
     // reducers, so resolving a NEW key's reducer first can evict the pending
@@ -702,6 +790,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     if (existing) return existing;
     const bound: BoundMirror = {
       apply: event => apply(key, event),
+      hydrate: (messages, hydrateOptions) => hydrate(key, messages, hydrateOptions),
       mutate: fn => {
         mutate(key, fn);
       },
@@ -740,6 +829,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
   // its pre-eviction thread with no snapshot ever republishing it.
   return {
     store,
+    hydrate,
     setActiveKeys,
     mutate,
     mutateThread,

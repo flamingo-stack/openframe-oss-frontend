@@ -34,7 +34,6 @@ import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-c
 import { APP_MAIN_CLASS_NAME, AppShellSkeleton, headerLoadingCells } from './app-shell-skeleton';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
-import { GenericPageSkeleton } from './generic-page-skeleton';
 import { InitialSetupBar } from './initial-setup-bar';
 import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
@@ -475,11 +474,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           className="app-shell-root"
           mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
           sidebarConfig={sidebarConfig}
-          // Core wraps `children` in its own Suspense with this fallback. It is
-          // the LAST resort: a page that suspends without a boundary of its own
-          // shows the neutral page shape here instead of blanking the content
-          // area, which `null` did. Pages own their real skeleton.
-          loadingFallback={<GenericPageSkeleton />}
           mobileBurgerMenuProps={mobileBurgerMenuProps}
           headerProps={headerProps}
           disabled={showLockContent}
