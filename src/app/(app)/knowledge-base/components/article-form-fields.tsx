@@ -13,6 +13,7 @@ import { Controller, type UseFormReturn } from 'react-hook-form';
 import { EntityTagPicker } from '@/app/components/shared/tags';
 import { AssignmentsField } from '@/components/assignments';
 import { TagEntityType } from '@/generated/schema-enums';
+import { useArticleImageUpload } from '../hooks/use-article-image-upload';
 import type { useArticleTempAttachments } from '../hooks/use-article-temp-attachments';
 import { buildFolderTree, KNOWLEDGE_BASE_ROOT_LABEL, useKnowledgeBaseFolders } from '../hooks/use-knowledge-base-items';
 import type { ArticleFormData } from '../types/article.types';
@@ -29,6 +30,7 @@ interface ArticleFormFieldsProps {
 export function ArticleFormFields({ form, initialTags, tempAttachments }: ArticleFormFieldsProps) {
   const { control } = form;
   const folders = useKnowledgeBaseFolders();
+  const uploadArticleImage = useArticleImageUpload();
   const tree = useMemo(() => buildFolderTree(folders), [folders]);
 
   const handleFilesAdded = (incoming: File | File[] | undefined) => {
@@ -143,6 +145,7 @@ export function ArticleFormFields({ form, initialTags, tempAttachments }: Articl
             placeholder="Write the article content..."
             height={400}
             renderPreview={renderPreview}
+            onUploadFile={uploadArticleImage}
           />
         )}
       />
