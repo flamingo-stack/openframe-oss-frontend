@@ -9,17 +9,19 @@
  *
  * `CONTEXT_ENTITY_KIND` mirrors the backend `ContextItemType` enum
  * (`com.openframe.data.document.chat.ContextItemType`) — DEVICE / SCRIPT /
- * TICKET / ORGANIZATION / USER / KB_ARTICLE / POLICY / QUERY. All eight are
- * resolved server-side (the ai-agent ships a `*ContextResolver` for each, incl.
- * `PolicyContextResolver` + `ScheduledQueryContextResolver`).
+ * TICKET / ORGANIZATION / USER / KB_ARTICLE / POLICY / QUERY / SCHEDULED_SCRIPT.
+ * All nine are resolved server-side (the ai-agent ships a `*ContextResolver` for
+ * each, incl. `PolicyContextResolver` + `ScheduledQueryContextResolver` +
+ * `ScheduledScriptContextResolver`).
  *
  * `CONTEXT_ENTITY_MARKER` maps each kind to that enum's `marker()` — the SHORT
  * token the backend uses for inline `@marker:id` mentions (note `KB_ARTICLE` →
- * `kb`, not `kb_article`). The structured `contextItems[].type` wire field keeps
- * the UPPERCASE kind (Jackson deserializes the enum by name); only the inline
- * `@`-mention token in the message text uses the marker. The picker forwards the
- * marker to the lib via `ChatContextEntityType.marker`, the single mapper that
- * brings every mention to the backend's short form.
+ * `kb`, not `kb_article`, and `SCHEDULED_SCRIPT` → camelCase `scheduledScript`).
+ * The structured `contextItems[].type` wire field keeps the UPPERCASE kind
+ * (Jackson deserializes the enum by name); only the inline `@`-mention token in
+ * the message text uses the marker. The picker forwards the marker to the lib via
+ * `ChatContextEntityType.marker`, the single mapper that brings every mention to
+ * the backend's short form.
  *
  * SINGLE SOURCE OF TRUTH — to add a kind: add one entry here (+ its marker),
  * then wire its label/icon in `MINGO_CONTEXT_ENTITY_TYPES` and its fetcher in
@@ -37,6 +39,7 @@ export const CONTEXT_ENTITY_KIND = {
   KB_ARTICLE: 'KB_ARTICLE',
   POLICY: 'POLICY',
   QUERY: 'QUERY',
+  SCHEDULED_SCRIPT: 'SCHEDULED_SCRIPT',
 } as const;
 
 export type ContextEntityKind = (typeof CONTEXT_ENTITY_KIND)[keyof typeof CONTEXT_ENTITY_KIND];
@@ -47,9 +50,11 @@ export const CONTEXT_ENTITY_KINDS = Object.values(CONTEXT_ENTITY_KIND) as Contex
 /**
  * Backend mention markers — each kind's `ContextItemType.marker()`. This is the
  * single mapper that reduces every `@`-mention to the backend's short form
- * (`@device:…`, `@kb:…`, `@policy:…`). `KB_ARTICLE → 'kb'` is the only entry that
- * isn't a plain lowercase of the kind. Fed to the lib via the picker so the
- * committed inline token matches the backend's `MentionParser`.
+ * (`@device:…`, `@kb:…`, `@policy:…`). Two entries are not a plain lowercase of
+ * the kind: `KB_ARTICLE → 'kb'` and `SCHEDULED_SCRIPT → 'scheduledScript'` (the
+ * only camelCase marker — the backend's `MentionParser` matches the token
+ * verbatim, so the case MUST be preserved end to end). Fed to the lib via the
+ * picker so the committed inline token matches that parser.
  */
 export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
   DEVICE: 'device',
@@ -60,6 +65,7 @@ export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
   KB_ARTICLE: 'kb',
   POLICY: 'policy',
   QUERY: 'query',
+  SCHEDULED_SCRIPT: 'scheduledScript',
 };
 
 /**
@@ -82,6 +88,7 @@ export const CONTEXT_RELAY_TYPENAME: Partial<Record<ContextEntityKind, string>> 
   ORGANIZATION: 'Organization',
   KB_ARTICLE: 'KnowledgeBaseItem',
   SCRIPT: 'Script',
+  SCHEDULED_SCRIPT: 'ScriptSchedule',
 };
 
 /** Minimal wire shape for `contextItems` / `currentView` / `recentViews`. */

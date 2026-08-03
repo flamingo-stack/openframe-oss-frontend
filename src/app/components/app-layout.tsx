@@ -25,6 +25,7 @@ import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal
 import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
+import { writeCachedOnboardingTopBar } from '@/lib/onboarding-top-bar-cache';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
@@ -38,11 +39,7 @@ import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
 import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
-import {
-  CachedOnboardingTopBar,
-  useCachedOnboardingTopBar,
-  writeCachedOnboardingTopBar,
-} from './onboarding-top-bar-cache';
+import { CachedOnboardingTopBar, useCachedOnboardingTopBar } from './onboarding-top-bar-cache';
 import { OnboardingTourBar } from './onboarding-tour-bar';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { SubscriptionGuard } from './subscription-lock/subscription-guard';
@@ -93,6 +90,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const { isReady: sessionResolved, isAuthenticated } = useAuthSession();
   const sessionReady = sessionResolved && isAuthenticated;
 
+  const userId = useAuthStore(state => state.user?.id);
+  // Persisted alongside `user` in `auth-storage`, so on a reload it is what we
+  // know about the session BEFORE `/me` answers — see `cacheOwnerId` below.
+  const storeAuthenticated = useAuthStore(state => state.isAuthenticated);
   const userFirstName = useAuthStore(state => state.user?.firstName);
   const userLastName = useAuthStore(state => state.user?.lastName);
   const userEmail = useAuthStore(state => state.user?.email);
@@ -315,10 +316,20 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // "Continue …". Driven by the backend onboarding progress in the store.
   const isOnboardingPage = pathname?.startsWith('/onboarding') ?? false;
   const isDashboardPage = pathname === '/' || (pathname?.startsWith('/dashboard') ?? false);
-  // Read once per mount so the reserved band can't change under the layout
-  // between the pre-load render and the real one — and past hydration, since the
-  // cache behind it is browser-only (see `useCachedOnboardingTopBar`).
-  const cachedTopBar = useCachedOnboardingTopBar();
+  // Who the cached band is allowed to speak for. The replay below is the ONLY
+  // branch a signed-out shell can reach — `showOnboardingChrome` needs the
+  // hydrator, which needs a session — so without an owner it held the previous
+  // session's banner over the skeleton indefinitely, CTA and all.
+  //
+  // Before `/me` answers we go on the PERSISTED auth store: a user who signed
+  // out left it false, so a reload after logout reserves nothing, while an
+  // ordinary signed-in reload still gets the band reserved ahead of the session
+  // round-trip — which is the layout shift the cache exists to prevent. Once the
+  // session has answered, its verdict wins in both directions.
+  const cacheOwnerId = (sessionResolved ? isAuthenticated : storeAuthenticated) ? (userId ?? null) : null;
+  // Read per owner, and past hydration, since the cache behind it is
+  // browser-only (see `useCachedOnboardingTopBar`).
+  const cachedTopBar = useCachedOnboardingTopBar(cacheOwnerId);
   let topBar: React.ReactNode;
   if (showOnboardingChrome) {
     if (initialSetupActive) {
@@ -356,16 +367,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // replay the same decision instead of letting the bar drop in late and push the whole
   // app down. Only once progress has actually loaded — before that `topBar` is
   // undefined because we don't know yet, which is not the same answer as "no bar".
+  //
+  // Stamped with the user it was computed for: the entry outlives the session, and
+  // an unattributed one is replayable by whoever opens the tab next.
   useEffect(() => {
-    if (!onboardingLoaded) return;
+    if (!onboardingLoaded || !userId) return;
     if (initialSetupActive) {
-      writeCachedOnboardingTopBar({ kind: 'initial-setup', started: tenantDone > 0 });
+      writeCachedOnboardingTopBar({ kind: 'initial-setup', started: tenantDone > 0, userId });
     } else if (initialSetupComplete && userInProgress) {
-      writeCachedOnboardingTopBar({ kind: 'tour', started: userDone > 0 });
+      writeCachedOnboardingTopBar({ kind: 'tour', started: userDone > 0, userId });
     } else {
-      writeCachedOnboardingTopBar({ kind: 'none', started: false });
+      writeCachedOnboardingTopBar({ kind: 'none', started: false, userId });
     }
-  }, [onboardingLoaded, initialSetupActive, initialSetupComplete, userInProgress, tenantDone, userDone]);
+  }, [onboardingLoaded, initialSetupActive, initialSetupComplete, userInProgress, tenantDone, userDone, userId]);
 
   const displayName = useMemo(
     () => `${userFirstName || ''} ${userLastName || ''}`.trim(),

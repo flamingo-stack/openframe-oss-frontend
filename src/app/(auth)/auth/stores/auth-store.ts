@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { clearCachedOnboardingTopBar } from '@/lib/onboarding-top-bar-cache';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 /**
@@ -114,6 +115,14 @@ export const useAuthStore = create<AuthState>()(
           // state (stale chrome, and a wrong post-login onboarding redirect). Mirrors
           // the existing `clearMingoContext()` reset in `forceLogout`.
           useOnboardingStore.getState().reset();
+          // Same reasoning one level down, for the PERSISTED half of that chrome:
+          // the app shell replays a cached top-bar decision to reserve the band
+          // before progress loads, and that entry survives a reload. Cleared here
+          // so a signed-out boot has nothing to replay — the owner stamp already
+          // stops a different account from reading it, but an expired session
+          // reloads with the same owner. Synchronous on purpose: `forceLogout`
+          // may `window.location.replace` moments later.
+          clearCachedOnboardingTopBar();
         },
 
         updateUser: userUpdate =>

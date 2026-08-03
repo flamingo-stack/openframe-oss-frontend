@@ -251,10 +251,16 @@ export function DeviceSelector({
       });
   }, [devices]);
 
+  // The funnel's VALUE is the customer id whenever the row carries one — that is
+  // what a server-narrowed consumer puts into `organizationIds`, and a name sent
+  // there matches nothing. Rows without an id (list shapes that only resolve the
+  // name) fall back to it, which is also what the client-side matcher below
+  // compares, so the two stay in step either way.
   const orgFilterOptions = useMemo(() => {
     const opts: Array<{ id: string; label: string; value: string }> = [];
     for (const d of devices) {
-      if (d.organization) opts.push({ id: d.organization, label: d.organization, value: d.organization });
+      const value = d.organizationId ?? d.organization;
+      if (value) opts.push({ id: value, label: d.organization ?? value, value });
     }
     return deduplicateFilterOptions(opts);
   }, [devices]);
@@ -290,7 +296,9 @@ export function DeviceSelector({
             : f.id === 'os'
               ? d.osType
               : f.id === 'organization'
-                ? d.organization
+                ? // Same key the option was built from — id first, name only for
+                  // rows that have no id.
+                  (d.organizationId ?? d.organization)
                 : undefined;
         if (cell === undefined || !values.includes(cell)) return false;
       }
@@ -314,9 +322,12 @@ export function DeviceSelector({
     for (const d of devices) {
       if (d.status) statusCounts.set(d.status, (statusCounts.get(d.status) ?? 0) + 1);
       if (d.osType) osCounts.set(d.osType, (osCounts.get(d.osType) ?? 0) + 1);
-      if (d.organization) {
-        const existing = orgCounts.get(d.organization);
-        orgCounts.set(d.organization, { label: d.organization, count: (existing?.count ?? 0) + 1 });
+      // Keyed by id, labelled by name — the mobile FilterModal writes the VALUE
+      // into the same `organization` column filter the funnels above do.
+      const orgKey = d.organizationId ?? d.organization;
+      if (orgKey) {
+        const existing = orgCounts.get(orgKey);
+        orgCounts.set(orgKey, { label: d.organization ?? orgKey, count: (existing?.count ?? 0) + 1 });
       }
       for (const tag of d.tags ?? []) {
         if (!tagSeen.has(tag.key)) tagSeen.set(tag.key, new Map());

@@ -17,6 +17,7 @@ import {
   IdCardIcon,
   MonitorIcon,
   TagIcon,
+  TimerIcon,
   UserIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { CONTEXT_ENTITY_KIND, CONTEXT_ENTITY_MARKER } from './context-types';
@@ -24,8 +25,8 @@ import { CONTEXT_ENTITY_KIND, CONTEXT_ENTITY_MARKER } from './context-types';
 /**
  * Entity types in picker display order. `marker` is the backend mention short
  * form (from `CONTEXT_ENTITY_MARKER`) — the lib uses it to commit `@marker:id`
- * tokens that match the backend's `MentionParser`. All eight kinds (incl. POLICY
- * and QUERY) resolve server-side.
+ * tokens that match the backend's `MentionParser`. All nine kinds (incl. POLICY,
+ * QUERY and SCHEDULED_SCRIPT) resolve server-side.
  */
 export const MINGO_CONTEXT_ENTITY_TYPES: ChatContextEntityType[] = [
   {
@@ -39,6 +40,14 @@ export const MINGO_CONTEXT_ENTITY_TYPES: ChatContextEntityType[] = [
     label: 'Script',
     marker: CONTEXT_ENTITY_MARKER.SCRIPT,
     icon: <BracketCurlyIcon size={24} />,
+  },
+  {
+    // Sits next to Script on purpose — a schedule is "when these scripts run",
+    // so the two read as one pair in the picker.
+    type: CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT,
+    label: 'Script Schedule',
+    marker: CONTEXT_ENTITY_MARKER.SCHEDULED_SCRIPT,
+    icon: <TimerIcon size={24} />,
   },
   {
     type: CONTEXT_ENTITY_KIND.TICKET,

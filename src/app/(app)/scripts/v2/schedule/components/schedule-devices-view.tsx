@@ -6,7 +6,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
-import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
+import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
 import { DeviceSelectionModeRadio } from '@/app/components/shared/device-selector';
 import type {
   DeviceSelectionMode,
@@ -16,7 +16,7 @@ import type {
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
-import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
+import { scriptScheduleDevicesSettingsRelayQuery } from '@/graphql/scripts/script-schedule-devices-settings-relay';
 import { routes } from '@/lib/routes';
 import { ScheduleInfoBarFromData } from '../../../components/schedule/schedule-info-bar';
 import { platformsToIds } from '../../shared/utils/script-mappers';
@@ -51,13 +51,19 @@ interface ScheduleDevicesViewProps {
  *   live, so devices registered later that match are targeted without anyone
  *   editing the schedule. One value, committed behind an explicit Save.
  *
- * Suspends on the schedule query; the route renders `ScheduleDevicesSkeleton`
- * while that is in flight.
+ * Suspends on the SETTINGS query — a small read of the mode, the rule and the
+ * info bar's fields — so the picker's own (heavy) device query loads under a
+ * page that is already drawn. The route renders `ScheduleDevicesSkeleton` while
+ * the settings are in flight.
  */
 export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
   const router = useRouter();
-  const data = useLazyLoadQuery<ScheduleDetailQueryType>(
-    scriptScheduleDetailRelayQuery,
+  // The SETTINGS query, not the full schedule: this page branches on
+  // `selectionMode`, and the detail query would make that answer wait behind the
+  // source of every script the schedule runs. The devices are a query of their
+  // own, issued by whichever half this resolves to.
+  const data = useLazyLoadQuery<ScheduleDevicesSettingsQueryType>(
+    scriptScheduleDevicesSettingsRelayQuery,
     { id: scheduleId },
     { fetchPolicy: 'store-and-network' },
   );

@@ -26,6 +26,7 @@
 
 import type {
   ChatConnectionState,
+  ChatRef,
   DialogItem,
   DialogTokenUsage,
   StreamingPhase,
@@ -33,6 +34,7 @@ import type {
   UnifiedChatState,
   UnifiedSendMessageOptions,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { buildDiscussPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
@@ -406,7 +408,22 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const reloadDialogs = useCallback(() => {
     void refetchDialogs();
   }, [refetchDialogs]);
-  const discussRef = useCallback(() => {}, []);
+  // "Ask Mingo" from an inline entity card's ⋯ menu. The lib's SSE (guide)
+  // transport narrows retrieval with a structured `entityIdFilter`; the agent
+  // backend has no equivalent — its `ContextItemType` enum covers DEVICE /
+  // SCRIPT / TICKET / ORGANIZATION / USER / KB_ARTICLE / POLICY / QUERY /
+  // SCHEDULED_SCRIPT and no content types, so a roadmap item or release can't
+  // ride `contextItems`. Until it can, the prompt carries the type + id as text
+  // (`buildDiscussPrompt`'s `includeReference`) and the agent resolves the row
+  // itself. Shared builder = the sentence matches guide mode word for word.
+  const discussRef = useCallback(
+    (reference: ChatRef) => {
+      void sendMessage(buildDiscussPrompt(reference, { includeReference: true }));
+    },
+    [sendMessage],
+  );
+  // Display dispatches a `/<cmd> display "<x>"` slash command, which only the
+  // hub's SSE transport has a registry for — still inert here.
   const displayRef = useCallback(() => {}, []);
 
   const state = useMemo<UnifiedChatState>(

@@ -10,7 +10,7 @@ import {
 import { DeviceSelector } from '@/app/components/shared/device-selector';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
-import { RUN_SUMMARY_LABELS, ScriptSummaryCardSkeleton } from './script-summary-card';
+import { RUN_SUMMARY_STATS, ScriptSummaryCardSkeleton } from './script-summary-card';
 
 const noop = () => {};
 const EMPTY_ARGUMENTS: never[] = [];
@@ -35,7 +35,7 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       {/* Same 3 stats as the loaded card (`showTimeout` is off on the run page). */}
-      <ScriptSummaryCardSkeleton labels={RUN_SUMMARY_LABELS} />
+      <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)] items-end">
         <div>

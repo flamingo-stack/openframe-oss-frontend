@@ -3,13 +3,14 @@
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useCallback, useMemo, useState } from 'react';
-import { Controller } from 'react-hook-form';
+import { Suspense, useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { Controller, type UseFormReturn } from 'react-hook-form';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { runCommandMutation as RunCommandMutationType } from '@/__generated__/runCommandMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { EntityTagPicker, EntityTagPickerFallback } from '@/app/components/shared/tags';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { useSeedForm } from '@/app/hooks/use-seed-form';
 import { TagEntityType } from '@/generated/schema-enums';
 import { runCommandMutation } from '@/graphql/scripts/run-command-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -29,24 +30,143 @@ interface ScriptTag {
   key: string;
 }
 
-interface EditScriptFormProps {
-  scriptId: string | null;
-  initialValues: EditScriptFormData | null;
-  initialTags: ReadonlyArray<ScriptTag>;
+const NO_TAGS: ReadonlyArray<ScriptTag> = [];
+const NO_PLATFORMS: string[] = [];
+
+interface ScriptFieldsProps {
+  form: UseFormReturn<EditScriptFormData>;
+  showErrors: boolean;
+  /**
+   * Locks every control. This is what the page looks like while the script is in
+   * flight: the real fields, in the exact geometry they will keep, with nothing
+   * in them yet — so there is no placeholder to swap and Monaco mounts once.
+   */
+  disabled?: boolean;
+  /** The script's own tags, so the picker paints them before its own query lands. */
+  initialTags?: ReadonlyArray<ScriptTag>;
 }
 
-function EditScriptForm({ scriptId, initialValues, initialTags }: EditScriptFormProps) {
+/**
+ * The form fields, v2-configured — one place for both the create page and the
+ * edit page, and for the edit page's loading state, which is this same tree with
+ * `disabled` on.
+ *
+ * The tag picker keeps its OWN boundary: the tag list is a second query, and it
+ * has no reason to hold up the field it sits between.
+ */
+function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_TAGS }: ScriptFieldsProps) {
+  return (
+    <ScriptFormFields
+      form={form}
+      shellTypes={SCRIPT_V2_SHELL_TYPES}
+      hideCategory
+      showErrors={showErrors}
+      disabled={disabled}
+      tagsField={
+        <Controller
+          name="tag_ids"
+          control={form.control}
+          render={({ field }) => (
+            <Suspense fallback={<EntityTagPickerFallback />}>
+              <EntityTagPicker
+                entityType={TagEntityType.SCRIPT}
+                selectedIds={field.value}
+                onChange={field.onChange}
+                initialTags={initialTags}
+                deletable
+                disabled={disabled}
+                entityLabel="script"
+              />
+            </Suspense>
+          )}
+        />
+      }
+    />
+  );
+}
+
+/** What the page knows about the record it is editing. */
+type ScriptRecordState =
+  | { status: 'loading' }
+  | { status: 'missing' }
+  | { status: 'ready'; values: EditScriptFormData | null; tags: ReadonlyArray<ScriptTag> };
+
+const RECORD_LOADING: ScriptRecordState = { status: 'loading' };
+/** The create page owns no record: nothing to seed, and the form is live at once. */
+const RECORD_NOT_NEEDED: ScriptRecordState = { status: 'ready', values: null, tags: NO_TAGS };
+
+interface ScriptRecordLoaderProps {
+  scriptId: string;
+  onResolved: (state: ScriptRecordState) => void;
+}
+
+/**
+ * The page's data island — and it renders NOTHING.
+ *
+ * Everything it feeds is already on screen: the form is mounted from the first
+ * render and simply locked, so the island has no placeholder to stand in for
+ * (`fallback={null}`) and no fields to remount when the answer lands. It reads
+ * the script and hands it up; the page writes it into the form (see
+ * `useSeedForm` for why the WRITE cannot happen here).
+ *
+ * The alternative — the fields inside the boundary and a skeleton in the
+ * fallback — costs a full remount of the field column on arrival, Monaco
+ * included, and a second copy of the form's markup to keep in step.
+ */
+function ScriptRecordLoader({ scriptId, onResolved }: ScriptRecordLoaderProps) {
+  const data = useLazyLoadQuery<ScriptDetailQueryType>(
+    scriptDetailRelayQuery,
+    { id: scriptId },
+    { fetchPolicy: 'store-and-network' },
+  );
+  const script: ScriptDetailData | null = data.script;
+
+  const values = useMemo(() => (script ? relayScriptToForm(script) : null), [script]);
+  const tags = useMemo(() => script?.tags?.map(t => ({ id: t.id, key: t.key })) ?? NO_TAGS, [script]);
+
+  // Layout effect: the page seeds and unlocks the fields before the paint, so a
+  // script Relay already had in its store is simply there.
+  useLayoutEffect(() => {
+    onResolved(values ? { status: 'ready', values, tags } : { status: 'missing' });
+  }, [values, tags, onResolved]);
+
+  return null;
+}
+
+/**
+ * The page around the fields: the title, the Back button, the action bar and the
+ * form instance itself. None of it reads the script, so all of it paints on the
+ * first render and none of it is ever replaced by a placeholder.
+ */
+function EditScriptForm({ scriptId }: { scriptId: string | null }) {
   const isEditMode = Boolean(scriptId);
   const { toast } = useToast();
-  const handleBack = useSafeBack(isEditMode && scriptId ? routes.scriptsV2.details(scriptId) : routes.scriptsV2.list);
+  const handleBack = useSafeBack(scriptId ? routes.scriptsV2.details(scriptId) : routes.scriptsV2.list);
 
-  const { form, isSubmitting, handleSave } = useEditScriptForm({ scriptId, initialValues, isEditMode });
+  const { form, isSubmitting, handleSave } = useEditScriptForm({ scriptId, isEditMode });
 
   // ONLY Save reveals inline errors. The form validates on every change, but
   // painting a half-filled form red before the user has claimed to be done is
   // premature — Test reports its own missing prerequisites in a toast instead.
   const [showErrors, setShowErrors] = useState(false);
-  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+
+  // Nothing to wait for when creating. When editing, the loader below reports in
+  // as soon as the script is there; until then the fields are locked, and so are
+  // Save and Test — they would otherwise act on an empty form and answer a page
+  // that is still loading with complaints about fields nobody has seen.
+  const [record, setRecord] = useState<ScriptRecordState>(isEditMode ? RECORD_LOADING : RECORD_NOT_NEEDED);
+  const isRecordReady = record.status === 'ready';
+
+  // Seeded HERE rather than in the island that fetched it: this is the component
+  // that owns the form, so its layout effect runs after every field below has
+  // subscribed. See `useSeedForm`.
+  useSeedForm(form, record.status === 'ready' ? record.values : null);
+
+  // The platforms as of the moment Test was pressed — the picker filters devices
+  // by them, and their presence is also what holds the modal open. Captured
+  // rather than watched: a `watch` at this level would re-render the whole page
+  // on every platform toggle.
+  const [testPlatforms, setTestPlatforms] = useState<string[] | null>(null);
   const [testDispatched, setTestDispatched] = useState(false);
   const [commitRunCommand] = useMutation<RunCommandMutationType>(runCommandMutation);
 
@@ -55,7 +175,7 @@ function EditScriptForm({ scriptId, initialValues, initialTags }: EditScriptForm
     handleSave();
   }, [handleSave]);
 
-  const watchedSupportedPlatforms = form.watch('supported_platforms');
+  const closeTestModal = useCallback(() => setTestPlatforms(null), []);
 
   // The test (runCommand) only needs a shell, a non-empty body and at least one
   // platform (so the device picker has candidates). timeout / privilege have
@@ -101,16 +221,16 @@ function EditScriptForm({ scriptId, initialValues, initialTags }: EditScriptForm
     // its own toast already names what is missing. The `trigger` calls inside
     // still run — they keep RHF's error state current for the eventual Save.
     if (await validateTestPrereqs()) {
-      setIsTestModalOpen(true);
+      setTestPlatforms(form.getValues('supported_platforms'));
     }
-  }, [validateTestPrereqs]);
+  }, [validateTestPrereqs, form]);
 
   const handleDeviceSelected = useCallback(
     async (device: SelectedTestDevice) => {
       // Prereqs were validated before the picker opened; re-check defensively in
       // case the form changed while it was open.
       if (!(await validateTestPrereqs())) {
-        setIsTestModalOpen(false);
+        setTestPlatforms(null);
         return;
       }
       const values = form.getValues();
@@ -149,16 +269,16 @@ function EditScriptForm({ scriptId, initialValues, initialTags }: EditScriptForm
 
   const actions = useMemo<PageActionButton[]>(
     () => [
-      { label: 'Test Script', onClick: handleOpenTest, variant: 'outline' as const },
+      { label: 'Test Script', onClick: handleOpenTest, variant: 'outline' as const, disabled: !isRecordReady },
       {
         label: 'Save Script',
         onClick: handleSaveClick,
         variant: 'accent' as const,
-        disabled: isSubmitting,
+        disabled: !isRecordReady || isSubmitting,
         loading: isSubmitting,
       },
     ],
-    [handleSaveClick, isSubmitting, handleOpenTest],
+    [handleSaveClick, isSubmitting, handleOpenTest, isRecordReady],
   );
 
   return (
@@ -173,37 +293,46 @@ function EditScriptForm({ scriptId, initialValues, initialTags }: EditScriptForm
         actionsVariant="primary-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        <ScriptFormFields
-          form={form}
-          shellTypes={SCRIPT_V2_SHELL_TYPES}
-          hideCategory
-          showErrors={showErrors}
-          tagsField={
-            <Controller
-              name="tag_ids"
-              control={form.control}
-              render={({ field }) => (
-                <Suspense fallback={<EntityTagPickerFallback />}>
-                  <EntityTagPicker
-                    entityType={TagEntityType.SCRIPT}
-                    selectedIds={field.value}
-                    onChange={field.onChange}
-                    initialTags={initialTags}
-                    deletable
-                    entityLabel="script"
-                  />
-                </Suspense>
-              )}
-            />
-          }
-        />
+        {scriptId && (
+          // Suspends with nothing in its place: what it is loading is already
+          // drawn below, locked.
+          <Suspense fallback={null}>
+            <ScriptRecordLoader scriptId={scriptId} onResolved={setRecord} />
+          </Suspense>
+        )}
+
+        {/* Locked fields are announced by nothing on their own — `disabled`
+            reads as "unavailable", not "busy" — so the wait gets a line of its
+            own. `sr-only` is out of flow, so it costs no layout.
+
+            Mounted unconditionally, with only its TEXT switching: a live region
+            that appears with its content already inside it is not reliably
+            announced, and the emptied region is what retracts the message once
+            the record lands. Gated on `loading` rather than `!isRecordReady`,
+            which is also true for `missing` — that branch renders
+            `NotFoundError` below, and announcing a load that never resolves
+            next to it is the opposite of what the reader needs. */}
+        <span role="status" className="sr-only">
+          {record.status === 'loading' ? 'Loading script…' : ''}
+        </span>
+
+        {record.status === 'missing' ? (
+          <NotFoundError message="Script not found" />
+        ) : (
+          <ScriptFields
+            form={form}
+            showErrors={showErrors}
+            disabled={!isRecordReady}
+            initialTags={record.status === 'ready' ? record.tags : NO_TAGS}
+          />
+        )}
       </PageLayout>
 
       <TestScriptModal
-        isOpen={isTestModalOpen}
-        onClose={() => setIsTestModalOpen(false)}
+        isOpen={testPlatforms !== null}
+        onClose={closeTestModal}
         onDeviceSelected={handleDeviceSelected}
-        supportedPlatforms={watchedSupportedPlatforms}
+        supportedPlatforms={testPlatforms ?? NO_PLATFORMS}
       />
 
       <ExecutionStartedModal
@@ -219,34 +348,11 @@ function EditScriptForm({ scriptId, initialValues, initialTags }: EditScriptForm
 }
 
 /**
- * Edit mode: the script is resolved BEFORE the form mounts, so its fields (and
- * Monaco) are seeded on the first render and there is no window in which a
- * disabled, empty form stands in for the record. Suspends — the route renders
- * `EditScriptSkeleton` meanwhile.
+ * Create + edit page for a script (v2, Relay).
+ *
+ * Keyed by id: the router reuses this route segment when only `?id=` changes, so
+ * without the key a hop from script A to B would keep A's form state.
  */
-function EditScriptView({ scriptId }: { scriptId: string }) {
-  const data = useLazyLoadQuery<ScriptDetailQueryType>(
-    scriptDetailRelayQuery,
-    { id: scriptId },
-    { fetchPolicy: 'store-and-network' },
-  );
-  const script: ScriptDetailData | null = data.script;
-  const initialValues = useMemo(() => (script ? relayScriptToForm(script) : null), [script]);
-  const initialTags = useMemo(() => script?.tags?.map(t => ({ id: t.id, key: t.key })) ?? [], [script]);
-
-  if (!script) {
-    return <NotFoundError message="Script not found" />;
-  }
-
-  // Keyed by id: the router reuses this route segment when only `?id=` changes,
-  // so without the key a hop from script A to B would keep A's form state.
-  return <EditScriptForm key={scriptId} scriptId={scriptId} initialValues={initialValues} initialTags={initialTags} />;
-}
-
-/** Create + edit page for a script (v2, Relay). */
 export function EditScriptPage({ scriptId }: { scriptId: string | null }) {
-  if (!scriptId) {
-    return <EditScriptForm scriptId={null} initialValues={null} initialTags={[]} />;
-  }
-  return <EditScriptView scriptId={scriptId} />;
+  return <EditScriptForm key={scriptId ?? 'new'} scriptId={scriptId} />;
 }

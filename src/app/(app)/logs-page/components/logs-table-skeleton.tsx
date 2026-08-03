@@ -1,5 +1,6 @@
 'use client';
 
+import { CalendarIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
   DataTable,
@@ -21,12 +22,30 @@ import { useMemo } from 'react';
 
 const EMPTY_LOG_ROWS: unknown[] = [];
 
+/**
+ * A filterable column while the facets are still in flight: no options, plus the
+ * flag saying they are coming. The flag is what keeps the funnel drawn (inert) —
+ * an empty filter WITHOUT it means "there is nothing to filter by", and the table
+ * hides the funnel for that column. Same contract as `skeletonColumnMeta`.
+ */
+const PENDING_FILTER = { options: [] as never[], pending: true };
+
 export function LogsTableSkeleton() {
   const columns = useMemo<ColumnDef<unknown>[]>(
     () => [
       {
         id: 'logId',
-        header: 'Log ID',
+        // The live table's date control is a custom header, not a `meta.filter`,
+        // so `pending` cannot draw it — the markup has to be repeated here. Inert:
+        // the menu needs the applied range and sort direction, and neither exists
+        // yet. Present, though, for the same reason the funnels are: an icon that
+        // arrives with the data shoves the label sideways.
+        header: () => (
+          <div className="flex w-full items-center gap-[var(--spacing-system-xsf)] select-none">
+            <span className="text-h5 text-ods-text-secondary whitespace-nowrap">Log ID</span>
+            <CalendarIcon className="w-4 h-4 text-ods-text-secondary" />
+          </div>
+        ),
         enableSorting: false,
         meta: { width: 'w-[200px]', alwaysShowHeader: true },
       },
@@ -35,21 +54,21 @@ export function LogsTableSkeleton() {
         header: 'Status',
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px]', filter: { options: [] } },
+        meta: { width: 'w-[120px]', filter: PENDING_FILTER },
       },
       {
         id: 'tool',
         header: 'Tool',
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[150px]', hideAt: 'md', filter: { options: [] } },
+        meta: { width: 'w-[150px]', hideAt: 'md', filter: PENDING_FILTER },
       },
       {
         id: 'source',
         header: 'SOURCE',
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px]', hideAt: 'md', filter: { options: [] } },
+        meta: { width: 'w-[120px]', hideAt: 'md', filter: PENDING_FILTER },
       },
       {
         id: 'description',

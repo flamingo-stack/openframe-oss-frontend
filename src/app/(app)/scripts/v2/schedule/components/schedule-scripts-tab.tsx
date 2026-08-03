@@ -47,12 +47,16 @@ function ScheduleScriptsTabContent({ scheduleId }: { scheduleId: string }) {
   );
 }
 
+/**
+ * ONE card: a schedule that runs nothing is not a schedule, so the first card is
+ * the only one certain to be there. A second placeholder would promise an entry
+ * most schedules do not have and then collapse, taking the page's height with
+ * it — the same reason the tab's own empty case draws nothing at all.
+ */
 export function ScheduleScriptsTabSkeleton() {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
-      {['a', 'b'].map(key => (
-        <ScheduleScriptCardSkeleton key={key} />
-      ))}
+      <ScheduleScriptCardSkeleton />
     </div>
   );
 }

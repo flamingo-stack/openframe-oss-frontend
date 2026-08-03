@@ -25,18 +25,16 @@ import { applyTimeSlot, isEventTrigger, resolveRepeatSeconds, toScheduleInstant 
 interface UseEditScheduleFormOptions {
   /** `null` on the create page — which is also what picks create over update. */
   scheduleId: string | null;
-  /** The stored schedule in form shape; `null` when creating. */
-  initialValues: EditScheduleFormData | null;
 }
 
 /**
  * Form state, validation and the create / update mutation for a script schedule.
  *
- * The form is seeded on mount, not through an effect: both pages resolve their
- * schedule before rendering this, so `defaultValues` already hold the real
- * record and there is no window where the fields disagree with the server.
+ * The form starts empty and is filled by the page through `useSeedForm` once the
+ * record arrives — the fields are mounted (and locked) from the first render, so
+ * there is no skeleton copy of this form to keep in step.
  */
-export function useEditScheduleForm({ scheduleId, initialValues }: UseEditScheduleFormOptions) {
+export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) {
   const isEditMode = Boolean(scheduleId);
   const router = useRouter();
   const { toast } = useToast();
@@ -47,7 +45,7 @@ export function useEditScheduleForm({ scheduleId, initialValues }: UseEditSchedu
 
   const methods = useForm<EditScheduleFormData>({
     resolver: zodResolver(editScheduleFormSchema),
-    defaultValues: initialValues ?? DEFAULT_SCHEDULE_VALUES,
+    defaultValues: DEFAULT_SCHEDULE_VALUES,
   });
 
   // Errors stay hidden on a pristine form and appear only once the user attempts
