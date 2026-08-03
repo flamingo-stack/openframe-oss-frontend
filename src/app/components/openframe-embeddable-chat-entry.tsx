@@ -20,8 +20,12 @@
  * here alongside `<EmbeddableChat>`, wired from the hook's `subscription`
  * bundle — exactly as the `/mingo` page does.
  *
- * Mingo is the ONLY transport: Guide mode (the SSE hub integration) has been
- * removed, so there is no in-panel mode toggle and no `modes.guide` wiring.
+ * Mingo is the ONLY transport: Guide mode (the SSE hub integration) is NOT
+ * wired here, so there is no in-panel mode toggle and no `modes.guide`.
+ * Its endpoints still exist on `OpenframeChatRuntimeProvider` (the
+ * `/content/`-prefixed paths the reverse proxy forwards to the MPH origin)
+ * and are used by the Help Center doc surfaces — re-enabling Guide in this
+ * panel would be a one-line `modes` change, not new plumbing.
  *
  * Coexists with the old `/mingo` page route during migration.
  */
@@ -181,7 +185,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         // `modes.mingo` — that keeps the lib's built-in NATS adapter idle.
         // The EXPLICIT empty object matters: omitting `modes` entirely makes
         // the lib fall back to its legacy guide-only default, resurrecting the
-        // removed Guide (SSE hub) mode. With no `modes.guide`, the panel is
+        // Guide (SSE hub) mode. With no `modes.guide`, the panel is
         // Mingo-only: no mode toggle, no "Start Guide Chat" entry point, and
         // the uncontrolled active mode defaults to 'mingo'.
         modes={{}}
