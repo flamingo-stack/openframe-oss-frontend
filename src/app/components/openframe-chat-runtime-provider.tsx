@@ -49,7 +49,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
-import { composeOpenframeChatContentUrl } from '@/app/(app)/help-center/help-center-content-href';
+import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
 
 /**
@@ -279,8 +279,8 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       },
       // Unified content-href seam (shared with Help Center pages): the four
       // in-app-hosted types soft-nav into `/help-center/...`; every other type
-      // opens OUT to its hub home. See `composeOpenframeChatContentUrl`.
-      composeContentUrl: composeOpenframeChatContentUrl,
+      // opens OUT to its hub home. See `composeOpenframeInAppContentUrl`.
+      composeContentUrl: composeOpenframeInAppContentUrl,
       source: CHAT_SOURCE,
     };
     // `navigate` / `decideNewTab` are the only reactive deps; both are stable

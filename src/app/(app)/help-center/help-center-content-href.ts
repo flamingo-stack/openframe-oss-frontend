@@ -6,18 +6,21 @@
  * OpenFrame hosts FOUR of the hub's content types in-app under `/help-center`
  * (product releases, onboarding guides, roadmap, delivery/bug-fixes); every
  * other type (blog / podcast / case-study / …) lives only on the Flamingo
- * content hub. This module encodes that split ONCE so both runtimes agree:
+ * content hub. This module encodes that split ONCE so every runtime agrees.
  *
- *   - `HelpCenterRuntimeProvider` (the `/help-center` subtree, `mode: 'host'`)
- *     uses the relative composer directly — same-origin relative hrefs soft-nav.
- *   - `OpenframeChatRuntimeProvider` (the app-wide Guide/Mingo chat drawer,
- *     `mode: 'embed'`) wraps it: in-app `/help-center/...` hrefs are absolutized
- *     to the CURRENT origin so the lib's embed-mode nav recognizes them as
- *     same-origin in-app and soft-navs there instead of bouncing every card out
- *     to the hub. Non-hosted types still resolve to their authoritative hub URL.
+ * Both `mode: 'host'` runtimes — `HelpCenterRuntimeProvider` (the
+ * `/help-center` subtree) and `OpenframeChatRuntimeProvider` (the app-wide
+ * Guide/Mingo drawer) — wire the SAME composer,
+ * {@link composeOpenframeInAppContentUrl}: in-app types stay RELATIVE
+ * (`/help-center/...` → `isCrossOriginUrl` false → same-tab soft-nav) and
+ * everything else is forced onto the ABSOLUTE content-hub origin (→ new tab).
  *
- * Keeping the type→route map in one place means a newly in-app-hosted content
- * type becomes internal in BOTH the pages and the chat from a single edit.
+ * THREE surfaces consume the seam, so a single edit here moves all of them:
+ *   - page entity cards (the lib's `resolveContentHref`),
+ *   - chat cards / source chips (`resolveSourceRowCTA`),
+ *   - the RAG search dropdown (`useDocSearch` → `resolveSearchResultAction`),
+ *     which used to navigate to the RAG's canonical hub URL and land on
+ *     `/onboarding-guides/<slug>` — a route that does not exist here.
  */
 
 import {
@@ -51,10 +54,10 @@ const helpCenterTicketHref = (id: string): { href: string; targetPlatform: strin
 });
 
 /**
- * The unified `composeContentUrl` for OpenFrame. Returns RELATIVE in-app hrefs
- * for the four hosted types and the hub URL for everything else — exactly what
- * the `host`-mode help-center subtree needs. The chat wraps this via
- * {@link composeOpenframeChatContentUrl} to force non-hosted hrefs absolute.
+ * Base composer: RELATIVE in-app hrefs for the four hosted types, the RAG
+ * `externalUrl` (or the hub origin) for everything else. Not wired directly —
+ * {@link composeOpenframeInAppContentUrl} wraps it to force non-hosted hrefs
+ * absolute, which is what BOTH runtimes register.
  */
 export const composeOpenframeContentUrl: ComposeContentUrl = makeComposeContentUrl({
   hostedTypes: HOSTED_TYPES,
@@ -121,9 +124,9 @@ function toHubOriginHref(href: string): string {
 }
 
 /**
- * The chat's `composeContentUrl`, shaped for the lib's HOST-mode nav decision
- * (`decideNewTab` → `isCrossOriginUrl` origin-compare / `targetPlatform` vs our
- * `source`). Splits on what openframe hosts in-app:
+ * The composer BOTH runtimes register, shaped for the lib's HOST-mode nav
+ * decision (`decideNewTab` → `isCrossOriginUrl` origin-compare / `targetPlatform`
+ * vs our `source`). Splits on what openframe hosts in-app:
  *
  *   - `/help-center/*` types → keep the href RELATIVE (+ `targetPlatform: null`).
  *     `isCrossOriginUrl('/help-center/…')` is false → SAME-tab soft-nav that the
@@ -137,8 +140,14 @@ function toHubOriginHref(href: string): string {
  *     equals our `source` and would flip `decideNewTab` to same-tab → the click
  *     handler strips the origin and `router.push`es a `/webinars/<id>` path that
  *     404s on our origin (the reported bug).
+ *
+ * The Help Center subtree registers this same wrapper (not the bare
+ * {@link composeOpenframeContentUrl}) because the RAG search dropdown resolves
+ * through the seam too: a hub-only row there would otherwise inherit the RAG's
+ * possibly-relative `externalUrl` and 404 on our origin, exactly like the chat
+ * bug above.
  */
-export const composeOpenframeChatContentUrl: ComposeContentUrl = input => {
+export const composeOpenframeInAppContentUrl: ComposeContentUrl = input => {
   const resolved = composeOpenframeContentUrl(input);
   if (isInAppHelpCenterHref(resolved.href)) {
     return { href: resolved.href, targetPlatform: null };
