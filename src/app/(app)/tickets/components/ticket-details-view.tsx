@@ -215,14 +215,8 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   const { deviceDetails, isLoading: isDeviceLoading } = useDeviceDetails(machineId);
   const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
 
-  const {
-    client,
-    admin,
-    clearChatState,
-    setAccumulatorCallbacks,
-    updateApprovalStatusInMessages,
-    recordHighestStreamSeq,
-  } = useTicketDetailsStore();
+  const { client, admin, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
+    useTicketDetailsStore();
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
 
   const { messages: clientMessages, isTyping: isClientChatTyping } = client;
@@ -353,8 +347,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     undefined;
 
   const processClientChunk = useSideChunkProcessor('client', {
-    assistantName: ASSISTANT_CONFIG.FAE.name,
-    assistantType: ASSISTANT_CONFIG.FAE.type,
+    ticketId,
     userDisplayName: clientDisplayName,
     isDirectMode,
     onMetadata: useCallback((metadata: { modelDisplayName: string; providerName: string }) => {
@@ -363,8 +356,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   });
 
   const processAdminChunk = useSideChunkProcessor('admin', {
-    assistantName: ASSISTANT_CONFIG.MINGO.name,
-    assistantType: ASSISTANT_CONFIG.MINGO.type,
+    ticketId,
     onMetadata: useCallback((metadata: { modelDisplayName: string; providerName: string }) => {
       setCurrentAdminModel({ provider: metadata.providerName, displayName: metadata.modelDisplayName });
     }, []),
@@ -548,9 +540,9 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   );
 
   useEffect(() => {
-    setAccumulatorCallbacks('client', { onApprove: handleApprove, onReject: handleReject });
-    setAccumulatorCallbacks('admin', { onApprove: handleApprove, onReject: handleReject });
-  }, [handleApprove, handleReject, setAccumulatorCallbacks]);
+    setChatHandlers('client', { onApprove: handleApprove, onReject: handleReject });
+    setChatHandlers('admin', { onApprove: handleApprove, onReject: handleReject });
+  }, [handleApprove, handleReject, setChatHandlers]);
 
   useHistoricalMessages({
     side: 'client',
@@ -865,6 +857,12 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     <>
       <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
         <ChatMessageList
+          // The bordered card IS the visual frame here, so a native scrollbar
+          // sits inside its rounded edge and reads as chrome bolted onto the
+          // ticket, not as part of the thread. `scrollbar-hide` (core
+          // app-globals) lands on the scroller — the thread still scrolls,
+          // wheel/touch/keyboard and the jump-to-bottom button all unaffected.
+          className="scrollbar-hide"
           messages={clientChatMessages}
           dialogId={ticketId}
           autoScroll={true}
@@ -1215,6 +1213,8 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                   {/* Messages card */}
                   <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
                     <ChatMessageList
+                      // See the note on the other client-chat list above.
+                      className="scrollbar-hide"
                       messages={clientChatMessages}
                       dialogId={ticketId}
                       autoScroll={true}
@@ -1289,7 +1289,9 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                     ) : (
                       /* Messages */
                       <ChatMessageList
-                        className="flex-1 bg-ods-card border border-ods-border rounded-lg"
+                        // `className` lands on the SCROLLER, so the card frame and
+                        // the scrollbar suppression are the same target here.
+                        className="flex-1 bg-ods-card border border-ods-border rounded-lg scrollbar-hide"
                         messages={adminChatDisplayMessages}
                         dialogId={ticketId}
                         autoScroll={true}

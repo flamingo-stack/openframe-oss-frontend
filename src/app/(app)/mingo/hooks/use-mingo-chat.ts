@@ -6,6 +6,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
 import { findLatestPendingApprovalId } from '@/lib/chat-history';
+import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
 import { selectUser, useAuthStore } from '@/stores';
 import {
@@ -38,6 +39,12 @@ interface ProcessedMessage {
   authorType?: AuthorType;
   assistantType?: 'fae' | 'mingo';
   timestamp: Date;
+  /** Synthetic row the model must see but the reader must not (e.g. an
+   *  auto-continuation directive). Part of the conversation, never rendered —
+   *  the lib's message list skips it. Every field-by-field seam between the
+   *  reducer and the lib has to forward this or the raw directive text (or a
+   *  bare author label) leaks into the transcript. */
+  hidden?: boolean;
 }
 
 interface UseMingoChat {
@@ -82,6 +89,7 @@ function isSameProcessedMessage(a: ProcessedMessage, b: ProcessedMessage): boole
     a.avatar === b.avatar &&
     a.authorType === b.authorType &&
     a.assistantType === b.assistantType &&
+    a.hidden === b.hidden &&
     a.timestamp.getTime() === b.timestamp.getTime() &&
     // Reference equality — contextItems is set once on the optimistic send and
     // never mutated, so a stable reference means the chips are unchanged.
@@ -97,8 +105,8 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
 
   const {
     messagesByDialog,
-    addMessage,
-    typingStates,
+    pushOptimisticSend,
+    phaseByDialog,
     setTyping,
     removeWelcomeMessages,
     updateApprovalStatusInMessages,
@@ -108,8 +116,8 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
 
   const isTyping = useMemo(() => {
     if (!dialogId) return false;
-    return typingStates.get(dialogId) || false;
-  }, [dialogId, typingStates]);
+    return (phaseByDialog.get(dialogId) ?? 'idle') !== 'idle';
+  }, [dialogId, phaseByDialog]);
 
   const createDialogMutation = useCreateDialogMutation();
   const sendMessageMutation = useSendMessageMutation();
@@ -182,6 +190,8 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
         assistantType: msg.assistantType as 'fae' | 'mingo' | undefined,
         timestamp: msg.timestamp || new Date(),
         contextItems: msg.contextItems,
+        // Carry the invisible-but-real flag through (see ProcessedMessage).
+        ...(msg.hidden ? { hidden: true as const } : {}),
       });
     }
 
@@ -295,11 +305,11 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
         }
 
         const optimisticMessage: CoreMessage = {
-          id: `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          id: makeChatRowId('optimistic'),
           role: 'user',
           authorType: 'admin',
           content: content.trim(),
-          name: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Admin',
+          name: adminDisplayName(user),
           // Relative `imageUrl` with cache-bust hash; resolved to a full URL in the processed mapping.
           avatar: appendImageHash(user?.image?.imageUrl, user?.image?.hash) ?? null,
           timestamp: new Date(),
@@ -307,7 +317,9 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
           contextItems: context?.contextItems?.length ? context.contextItems : undefined,
         };
 
-        addMessage(effectiveDialogId, optimisticMessage);
+        // Through the reducer: it records the sent text and consumes the
+        // backend's MESSAGE_REQUEST echo itself (see `pushOptimisticSend`).
+        pushOptimisticSend(effectiveDialogId, optimisticMessage);
         await sendMessageMutation.mutateAsync({
           dialogId: effectiveDialogId,
           content: content.trim(),
@@ -339,7 +351,7 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
       isTyping,
       setTyping,
       removeWelcomeMessages,
-      addMessage,
+      pushOptimisticSend,
       messagesByDialog,
       updateApprovalStatusInMessages,
       sendMessageMutation,
