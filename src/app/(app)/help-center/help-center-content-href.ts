@@ -3,10 +3,15 @@
 /**
  * SINGLE SOURCE OF TRUTH for "where does a content entity card go in OpenFrame".
  *
- * OpenFrame hosts FOUR of the hub's content types in-app under `/help-center`
- * (product releases, onboarding guides, roadmap, delivery/bug-fixes); every
- * other type (blog / podcast / case-study / …) lives only on the Flamingo
- * content hub. This module encodes that split ONCE so every runtime agrees.
+ * OpenFrame hosts part of the hub's content in-app under `/help-center`, by two
+ * different mechanisms: `hostedTypes` for the types with their own slugged
+ * detail route (product releases, onboarding guides), and `overrides` for the
+ * ones that land on an EXISTING in-app route instead — roadmap and
+ * delivery/bug-fixes deep-link into their list views, HubSpot tickets open the
+ * tickets list with the row pre-opened, an FAQ card jumps to its question's
+ * anchor. Every other type (blog / podcast / case-study / …) lives only on the
+ * Flamingo content hub. This module encodes that split ONCE so every runtime
+ * agrees; count the two maps below rather than trusting a number in prose.
  *
  * Both `mode: 'host'` runtimes — `HelpCenterRuntimeProvider` (the
  * `/help-center` subtree) and `OpenframeChatRuntimeProvider` (the app-wide
@@ -54,8 +59,9 @@ const helpCenterTicketHref = (id: string): { href: string; targetPlatform: strin
 });
 
 /**
- * Base composer: RELATIVE in-app hrefs for the four hosted types, the RAG
- * `externalUrl` (or the hub origin) for everything else. Not wired directly —
+ * Base composer: RELATIVE in-app hrefs for the hosted types and the Help Center
+ * `overrides`, the RAG `externalUrl` (or the hub origin) for everything else.
+ * Not wired directly —
  * {@link composeOpenframeInAppContentUrl} wraps it to force non-hosted hrefs
  * absolute, which is what BOTH runtimes register.
  */

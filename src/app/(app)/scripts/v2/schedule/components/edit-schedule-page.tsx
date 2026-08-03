@@ -121,12 +121,18 @@ function ScheduleFormPage({ scheduleId }: { scheduleId: string | null }) {
 
         {/* Locked fields are announced by nothing on their own — `disabled` reads
             as "unavailable", not "busy" — so the wait gets a line of its own.
-            `sr-only` is out of flow, so it costs no layout. */}
-        {!isRecordReady && (
-          <span role="status" className="sr-only">
-            Loading schedule…
-          </span>
-        )}
+            `sr-only` is out of flow, so it costs no layout.
+
+            Mounted unconditionally, with only its TEXT switching: a live region
+            that appears with its content already inside it is not reliably
+            announced, and the emptied region is what retracts the message once
+            the record lands. Gated on `loading` rather than `!isRecordReady`,
+            which is also true for `missing` — that branch renders
+            `NotFoundError` below, and announcing a load that never resolves
+            next to it is the opposite of what the reader needs. */}
+        <span role="status" className="sr-only">
+          {record.status === 'loading' ? 'Loading schedule…' : ''}
+        </span>
 
         {record.status === 'missing' ? (
           <NotFoundError message="Schedule not found" />

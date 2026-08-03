@@ -54,9 +54,10 @@ import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token
 
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
- * Center pages (single source of truth in `help-center-content-href.ts`): the
- * FOUR types openframe hosts in-app (product release / onboarding guide /
- * roadmap / delivery) resolve to `/help-center/...` same-origin URLs — so
+ * Center pages (single source of truth in `help-center-content-href.ts`): every
+ * type openframe hosts in-app — the slugged ones (product release / onboarding
+ * guide) and the ones routed by explicit override (roadmap / delivery / HubSpot
+ * tickets / FAQ) — resolves to a `/help-center/...` same-origin URL, so
  * host-mode nav recognizes them as in-app and soft-navs there instead of
  * bouncing the card out to the hub. Every other type (blog / podcast /
  * case-study / …) still opens OUT to its RAG-authoritative `externalUrl` on
@@ -277,9 +278,10 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         navigate,
         decideNewTab,
       },
-      // Unified content-href seam (shared with Help Center pages): the four
-      // in-app-hosted types soft-nav into `/help-center/...`; every other type
-      // opens OUT to its hub home. See `composeOpenframeInAppContentUrl`.
+      // Unified content-href seam (shared with Help Center pages): the hosted
+      // types and the Help Center overrides soft-nav into `/help-center/...`;
+      // every other type opens OUT to its hub home. See
+      // `composeOpenframeInAppContentUrl`.
       composeContentUrl: composeOpenframeInAppContentUrl,
       source: CHAT_SOURCE,
     };

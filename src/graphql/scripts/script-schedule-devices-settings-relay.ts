@@ -14,7 +14,10 @@ import { graphql } from 'react-relay';
  *
  * Relay normalizes by node, so arriving from the details page — which is how
  * this page is reached — these fields are already in the store and the query
- * answers without a request.
+ * answers from it on the FIRST render, without suspending. The request still
+ * goes out: the consumer reads this with `store-and-network`, which always
+ * refetches, and that revalidation is what the cached answer is traded against
+ * — the page draws immediately and corrects itself if the schedule moved.
  */
 export const scriptScheduleDevicesSettingsRelayQuery = graphql`
   query scriptScheduleDevicesSettingsRelayQuery($id: ID!) {
