@@ -7,6 +7,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -99,10 +100,11 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
     : ' ';
   const role = user ? (user.roles || []).join(', ') || '—' : '';
   const isActive = user?.status === UserStatus.Active;
+  const isDeleted = isDeletedUserStatus(user?.status);
 
   const isOwner = (user?.roles || []).some(r => r?.toLowerCase?.() === 'owner');
   const isSelf = !!currentUser && user?.id === currentUser.id;
-  const disableDelete = isOwner || isSelf || user?.status === UserStatus.Deleted;
+  const disableDelete = isOwner || isSelf || isDeleted;
 
   const handleConfirmDelete = () => {
     if (!user) return;
@@ -156,6 +158,22 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
     >
       {!user ? (
         <EmployeeSummarySkeleton />
+      ) : isDeleted ? (
+        // Deleted variant per design: a single row with the red placeholder
+        // avatar, the name and the status tag — the role row is dropped.
+        // Admin-DELETED users keep their real name AND email (data is kept for
+        // revival); SELF_DELETED users are anonymized server-side and their
+        // synthetic email is hidden entirely.
+        <div className={CARD_CONTAINER}>
+          <div className={CARD_ROW}>
+            <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
+              <DeletedUserAvatar size="lg" />
+              <InfoCell value={displayName} label="Name" />
+            </div>
+            {!isSelfDeletedUserStatus(user.status) && <InfoCell value={user.email} label="Email" />}
+            <InfoCell value={<Tag label="DELETED" variant="grey" />} label="Status" />
+          </div>
+        </div>
       ) : (
         <div className={CARD_CONTAINER}>
           <div className={CARD_ROW}>

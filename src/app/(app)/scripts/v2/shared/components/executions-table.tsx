@@ -24,10 +24,12 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ScriptExecutionFilterInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import {
   liveColumnMeta,
   skeletonColumnMeta,
@@ -36,6 +38,7 @@ import {
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
@@ -282,6 +285,7 @@ export function ExecutionsTable({
 }: ExecutionsTableProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { isUserDeleted } = useUserStatusMap();
   const { statusOptions, machineOptions, initiatorOptions } = facetOptions;
 
   const executionHref = useCallback((execution: UiExecution) => routes.scriptsV2.execution(execution.id), []);
@@ -385,17 +389,22 @@ export function ExecutionsTable({
             ? (decodeGlobalId(row.original.initiatorId)?.rawId ?? row.original.initiatorId)
             : '';
           const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
+          const isDeleted = isUserDeleted(row.original.initiatorId);
 
           return (
             <div className="flex flex-1 items-center gap-2 min-w-0">
-              <SquareAvatar
-                variant="round"
-                size="md"
-                src={row.original.initiatorImage}
-                fallback={row.original.initiatorInitials}
-                alt={row.original.initiatorName}
-                initialsClassName="text-ods-text-secondary"
-              />
+              {isDeleted ? (
+                <DeletedUserAvatar size="md" />
+              ) : (
+                <SquareAvatar
+                  variant="round"
+                  size="md"
+                  src={row.original.initiatorImage}
+                  fallback={row.original.initiatorInitials}
+                  alt={row.original.initiatorName}
+                  initialsClassName="text-ods-text-secondary"
+                />
+              )}
               {/* min-w-0 flex-1 so the FloatingTooltip's block div can shrink and the text ellipsizes. */}
               <div className="flex flex-col justify-center min-w-0 flex-1">
                 {href ? (
@@ -407,10 +416,14 @@ export function ExecutionsTable({
                     onClick={openInNewTab(href)}
                     className="min-w-0 text-left pointer-events-auto"
                   >
-                    <TruncateText className="text-ods-accent underline">{row.original.initiatorName}</TruncateText>
+                    <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+                      {row.original.initiatorName}
+                    </TruncateText>
                   </button>
                 ) : (
-                  <TruncateText>{row.original.initiatorName}</TruncateText>
+                  <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
+                    {row.original.initiatorName}
+                  </TruncateText>
                 )}
                 {row.original.scriptName && (
                   <TruncateText variant="h6" tone="secondary">
@@ -462,7 +475,7 @@ export function ExecutionsTable({
         meta: liveColumnMeta(EXECUTION_COLUMNS.open),
       },
     ],
-    [renderRowActions, router, executionHref, statusOptions, initiatorOptions, machineOptions],
+    [renderRowActions, router, executionHref, statusOptions, initiatorOptions, machineOptions, isUserDeleted],
   );
 
   const filterGroups = useMemo(

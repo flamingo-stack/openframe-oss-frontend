@@ -37,9 +37,11 @@ import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } fro
 import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import { EmptyState } from '@/app/components/shared/empty-state';
 import { InfoCardSkeleton } from '@/app/components/shared/page-skeleton-primitives';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { deleteTimeEntryMutation } from '@/graphql/time-tracker/delete-time-entry-mutation';
 import {
   employeeWorkTimeRelayFragment,
@@ -117,22 +119,34 @@ interface QueryVars {
   after: string | null;
 }
 
-const employeeColumn: ColumnDef<WorkTimeRow> = {
-  id: 'employee',
-  header: 'EMPLOYEE',
-  cell: ({ row }) => (
+function EmployeeCell({ row }: { row: WorkTimeRow }) {
+  const { isUserDeleted, isUserSelfDeleted } = useUserStatusMap();
+  const isDeleted = isUserDeleted(row.userId);
+
+  return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
-      <SquareAvatar src={row.original.userImageUrl} fallback={row.original.userName ?? '?'} size="sm" variant="round" />
+      {isDeleted ? (
+        <DeletedUserAvatar size="sm" />
+      ) : (
+        <SquareAvatar src={row.userImageUrl} fallback={row.userName ?? '?'} size="sm" variant="round" />
+      )}
       <div className="flex min-w-0 flex-col">
-        <TruncateText>{row.original.userName ?? '–'}</TruncateText>
-        {row.original.userEmail && (
+        <TruncateText>{row.userName ?? '–'}</TruncateText>
+        {/* SELF_DELETED emails are synthetic (`deleted-{id}@deleted.invalid`) — hidden. */}
+        {row.userEmail && !isUserSelfDeleted(row.userId) && (
           <TruncateText variant="h6" tone="secondary" mono>
-            {row.original.userEmail}
+            {row.userEmail}
           </TruncateText>
         )}
       </div>
     </div>
-  ),
+  );
+}
+
+const employeeColumn: ColumnDef<WorkTimeRow> = {
+  id: 'employee',
+  header: 'EMPLOYEE',
+  cell: ({ row }) => <EmployeeCell row={row.original} />,
   enableSorting: false,
   meta: { width: 'min-w-0 flex-1' },
 };

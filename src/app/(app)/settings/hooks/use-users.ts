@@ -10,7 +10,10 @@ import { handleApiError } from '@/lib/handle-api-error';
 
 export enum UserStatus {
   Active = 'ACTIVE',
+  /** Deleted by an admin — personal data is kept, the account can be revived by re-invite. */
   Deleted = 'DELETED',
+  /** Self-deleted by the user — personal data is anonymized server-side. */
+  SelfDeleted = 'SELF_DELETED',
 }
 
 export type UserImage = {
@@ -52,7 +55,7 @@ export const usersQueryKeys = {
 
 // ============ API Functions ============
 
-async function fetchUsers(page: number, size: number): Promise<PagedUsersResponse> {
+export async function fetchUsers(page: number, size: number): Promise<PagedUsersResponse> {
   const res = await apiClient.get<PagedUsersResponse>(`api/users?page=${page}&size=${size}`);
   if (!res.ok || !res.data) {
     throw new Error(res.error || `Failed to load users (${res.status})`);

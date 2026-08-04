@@ -28,6 +28,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
@@ -44,10 +45,12 @@ import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { EmptyState, liveColumnMeta, onboardingGuideButton, skeletonColumnDefs } from '@/app/components/shared';
+import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { archiveScriptMutation } from '@/graphql/scripts/archive-script-mutation';
 import { scriptFiltersRefreshRelayQuery } from '@/graphql/scripts/script-filters-refresh-relay';
@@ -123,6 +126,7 @@ function ScriptsTableContent({
 }: ScriptsTableContentProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
+  const { isUserDeleted } = useUserStatusMap();
 
   const [commitArchive, isArchiving] = useMutation<ArchiveScriptMutationType>(archiveScriptMutation);
   const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScriptMutationType>(unarchiveScriptMutation);
@@ -409,7 +413,10 @@ function ScriptsTableContent({
             ? (decodeGlobalId(row.original.authorId)?.rawId ?? row.original.authorId)
             : '';
           const href = rawAuthorId ? employeeDetailHref(rawAuthorId) : null;
-          const avatar = (
+          const isDeleted = isUserDeleted(row.original.authorId);
+          const avatar = isDeleted ? (
+            <DeletedUserAvatar size="sm" />
+          ) : (
             <SquareAvatar
               variant="round"
               size="sm"
@@ -425,7 +432,9 @@ function ScriptsTableContent({
                 {avatar}
                 {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
                 <div className="min-w-0 flex-1">
-                  <TruncateText>{row.original.authorName}</TruncateText>
+                  <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
+                    {row.original.authorName}
+                  </TruncateText>
                 </div>
               </div>
             );
@@ -440,7 +449,9 @@ function ScriptsTableContent({
                 {avatar}
                 {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
                 <div className="min-w-0 flex-1">
-                  <TruncateText className="text-ods-accent underline">{row.original.authorName}</TruncateText>
+                  <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+                    {row.original.authorName}
+                  </TruncateText>
                 </div>
               </button>
             </div>
@@ -484,7 +495,7 @@ function ScriptsTableContent({
         meta: liveColumnMeta(SCRIPT_COLUMNS.open),
       },
     ],
-    [renderRowActions, shellOptions, platformOptions, authorOptions],
+    [renderRowActions, shellOptions, platformOptions, authorOptions, isUserDeleted],
   );
 
   const filterGroups = useMemo(

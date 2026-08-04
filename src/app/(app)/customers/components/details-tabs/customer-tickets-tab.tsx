@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { getTicketTableColumns } from '../../../tickets/components/ticket-table-columns';
@@ -58,7 +59,8 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     [tickets, organizationId],
   );
 
-  const baseColumns = useMemo(() => getTicketTableColumns({ isArchived: false }), []);
+  const { isUserDeleted } = useUserStatusMap();
+  const baseColumns = useMemo(() => getTicketTableColumns({ isArchived: false, isUserDeleted }), [isUserDeleted]);
 
   const columns = useMemo<ColumnDef<Dialog>[]>(
     () => [
