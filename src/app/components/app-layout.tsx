@@ -2,13 +2,13 @@
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { ChatIdentityProvider } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AppLayoutDrawer,
   AppLayoutDrawerContent,
   AppLayout as CoreAppLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -444,7 +444,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // biome-ignore lint/style/useNamingConvention: external lib prop name
       isMingoAIActive: chatOpen,
     }),
-    [chromeLoading, notificationsEnabled, timeTrackerEnabled, chatEnabled, toggleChat, chatOpen, helpCenterEnabled, openHelpCenterTickets],
+    [
+      chromeLoading,
+      notificationsEnabled,
+      timeTrackerEnabled,
+      chatEnabled,
+      toggleChat,
+      chatOpen,
+      helpCenterEnabled,
+      openHelpCenterTickets,
+    ],
   );
 
   const mobileBurgerMenuProps = useMemo(
@@ -525,19 +534,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             page (children) read one provider. Without it every ticket-live
             surface renders nothing and no stream/summary request fires. */}
         <TicketLiveWhenEnabled enabled={helpCenterEnabled && sessionReady}>
-        <CoreAppLayout
-          // Hook for the native-shell safe-area CSS in globals.css: the layout
-          // root owns the top inset (see `.app-shell-root`). Inert on the web.
-          className="app-shell-root"
-          mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
-          sidebarConfig={sidebarConfig}
-          mobileBurgerMenuProps={mobileBurgerMenuProps}
-          headerProps={headerProps}
-          disabled={showLockContent}
-          drawer={chatDrawer}
-          topBar={topBar}
-        >
-          {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+          <CoreAppLayout
+            // Hook for the native-shell safe-area CSS in globals.css: the layout
+            // root owns the top inset (see `.app-shell-root`). Inert on the web.
+            className="app-shell-root"
+            mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
+            sidebarConfig={sidebarConfig}
+            mobileBurgerMenuProps={mobileBurgerMenuProps}
+            headerProps={headerProps}
+            disabled={showLockContent}
+            drawer={chatDrawer}
+            topBar={topBar}
+          >
+            {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it
               lives here instead.
 
@@ -555,8 +564,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               One shell, two possible contents. The chrome around this never
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header. */}
-          <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
-        </CoreAppLayout>
+            <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
+          </CoreAppLayout>
         </TicketLiveWhenEnabled>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
