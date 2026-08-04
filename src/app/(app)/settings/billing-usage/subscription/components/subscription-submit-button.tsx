@@ -5,6 +5,9 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ProductCheckoutInput, useCreateCheckoutSession } from '../hooks/use-create-checkout-session';
 import { type PackageUpdateInput, useUpdateSubscription } from '../hooks/use-update-subscription';
 
+/** The paywall's single CTA label, whichever action it ends up running. */
+const SUBMIT_LABEL = 'Proceed to Payment';
+
 interface SubscriptionSubmitButtonProps {
   /** TRIAL / TRIAL_EXPIRED / CANCELED → create a new subscription via Stripe Checkout. */
   needsCheckout: boolean;
@@ -19,11 +22,16 @@ interface SubscriptionSubmitButtonProps {
 }
 
 /**
- * Renders the correct submit action for the current subscription state:
- * - no active paid subscription → "Create Subscription" (Stripe Checkout); no
- *   diff/validation gating — there is nothing to compare against.
- * - active paid subscription → "Update Subscription"; disabled when the
- *   selection equals the current plan, validated on click.
+ * One label — "Proceed to Payment" — over two different actions, per product
+ * decision: the page is the paywall and its CTA reads the same everywhere.
+ *
+ * The ACTION still splits on the subscription state:
+ * - no active paid subscription → `createCheckoutSession`, which redirects to
+ *   Stripe. No diff gating: there is nothing to compare against.
+ * - active paid subscription → `updateSubscription`, a mutation that applies the
+ *   plan change in place and does NOT redirect to a payment page (an upgrade may
+ *   raise an invoice afterwards). Disabled when the selection equals the current
+ *   plan, validated on click.
  */
 export function SubscriptionSubmitButton({
   needsCheckout,
@@ -38,30 +46,40 @@ export function SubscriptionSubmitButton({
 
   const isPending = updateSubscription.isPending || createCheckout.isPending;
 
+  const rejectInvalidAmount = () => {
+    toast({
+      title: 'Invalid amount',
+      description: 'Enter a valid number for the custom package.',
+      variant: 'destructive',
+    });
+  };
+
   if (needsCheckout) {
     return (
       <Button
         variant="accent"
         className={className}
         onClick={() => {
+          // Checkout has no diff to gate on, but an out-of-range quantity is still
+          // one: it would be sent as a plan nobody can be billed for.
+          if (hasInvalidCustom) {
+            rejectInvalidAmount();
+            return;
+          }
           if (!checkoutProducts.length) return;
           createCheckout.mutate({ products: checkoutProducts });
         }}
         loading={isPending}
         disabled={isPending}
       >
-        Proceed to Payment
+        {SUBMIT_LABEL}
       </Button>
     );
   }
 
   const handleUpdate = () => {
     if (hasInvalidCustom) {
-      toast({
-        title: 'Invalid amount',
-        description: 'Enter a valid number for the custom package.',
-        variant: 'destructive',
-      });
+      rejectInvalidAmount();
       return;
     }
     if (!packageUpdates.length) return;
@@ -76,7 +94,7 @@ export function SubscriptionSubmitButton({
       loading={isPending}
       disabled={isPending || packageUpdates.length === 0}
     >
-      Update Subscription
+      {SUBMIT_LABEL}
     </Button>
   );
 }

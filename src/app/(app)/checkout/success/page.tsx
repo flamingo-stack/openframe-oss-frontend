@@ -21,7 +21,7 @@ export default function CheckoutSuccessPage() {
       title="Payment Successful"
       description="Thanks for subscribing. Your plan is activating now — it may take a moment to show up across the app."
       primaryCta={{ label: 'Continue to Dashboard', href: routes.dashboard }}
-      secondaryCta={{ label: 'View Subscription', href: routes.settings.billingSubscription }}
+      secondaryCta={{ label: 'View Subscription', href: routes.settings.billingUsage }}
     />
   );
 }

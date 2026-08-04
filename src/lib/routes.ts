@@ -240,7 +240,6 @@ export const routes = {
     sso: '/settings/sso',
     architecture: '/settings/architecture',
     billingUsage: '/settings/billing-usage',
-    billingSubscription: '/settings/billing-usage/subscription',
   },
 
   mingo: (o?: { dialogId?: string }) => withQuery('/mingo', { dialogId: o?.dialogId }),

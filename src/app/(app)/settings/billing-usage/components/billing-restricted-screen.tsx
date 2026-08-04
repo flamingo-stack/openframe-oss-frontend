@@ -6,8 +6,9 @@ import { isBillingHidden } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
 
 /**
- * Shown in place of the Billing & Usage pages to anyone who is not the workspace
- * owner, INSTEAD of the 404 every other closed route returns.
+ * Shown in place of the Billing & Usage pages to anyone whose role cannot open them —
+ * owners and admins can, see `use-billing-access-gate.ts` — INSTEAD of the 404 every
+ * other closed route returns.
  *
  * A role refusal is not a missing page: the section exists, it is simply someone
  * else's to open, and the hub already hides its card — so the only way here is a
@@ -21,16 +22,16 @@ import { routes } from '@/lib/routes';
  * copy must not name a subscription or payment (App Store Guideline 3.1.1 — see
  * `billing-visibility.ts`).
  */
-export function BillingOwnerOnlyScreen() {
+export function BillingRestrictedScreen() {
   const hidden = isBillingHidden();
 
   return (
     <LockedScreen
-      title={hidden ? 'Usage is owner-only' : 'Billing is owner-only'}
+      title={hidden ? 'Usage is restricted' : 'Billing is restricted'}
       description={
         hidden
-          ? 'Your workspace owner manages this workspace. Contact them if something here needs to change.'
-          : 'Your workspace owner manages the subscription and payment details for this workspace. Contact them if something needs to change.'
+          ? 'Your workspace owner and admins manage this workspace. Contact one of them if something here needs to change.'
+          : 'Your workspace owner and admins manage the subscription and payment details for this workspace. Contact one of them if something needs to change.'
       }
       actions={
         <Button variant="outline" href={routes.settings.root()}>
