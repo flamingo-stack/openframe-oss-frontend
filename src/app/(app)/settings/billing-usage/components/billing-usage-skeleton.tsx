@@ -26,6 +26,20 @@ function InfoCardSkeleton({ title, withProgress = true }: { title: string; withP
   );
 }
 
+// Mirrors a UsageStatCard: real title and caption (both fixed copy), skeleton
+// value. Only the figure is waiting on the server, so only the figure is a bar.
+function StatCardSkeleton({ title, caption }: { title: string; caption: string }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xsf)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
+      <div className="flex flex-col gap-1">
+        <p className="truncate text-h5 text-ods-text-secondary">{title}</p>
+        <Skeleton className="h-8 w-24" />
+      </div>
+      <p className="truncate text-h6 text-ods-text-secondary">{caption}</p>
+    </div>
+  );
+}
+
 const INVOICE_COLUMNS = ['INVOICE', 'DUE DATE', 'AMOUNT', 'STATUS'] as const;
 const INVOICE_ROW_KEYS = ['a', 'b', 'c'] as const;
 
@@ -95,26 +109,23 @@ export function BillingUsageSkeleton() {
     <PageLayout
       title="Billing & Usage"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      backButton={{ label: 'Back', onClick: handleBack }}
+      backButton={{ label: 'Back to Settings', onClick: handleBack }}
     >
       <TestModeBanner />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-m)]">
-        <InfoCardSkeleton title="Device Usage" />
-        <InfoCardSkeleton title="AI Usage" withProgress={false} />
+      <div className="grid gap-[var(--spacing-system-m)] md:grid-cols-3">
+        <StatCardSkeleton title="Device Usage" caption="Pay as you go" />
+        <StatCardSkeleton title="Free AI Tokens" caption="Updated monthly" />
+        <StatCardSkeleton title="AI Usage" caption="Pay as you go" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-l)] items-stretch">
-        <SectionBlock title="Current Plan">
-          <BillingRow label="Device Package" value={<Value width="w-16" />} />
-          <BillingRow label="AI Package" value={<Value width="w-28" />} />
-          <BillingRow label="Next Payment" value={<Value width="w-16" />} />
-        </SectionBlock>
-        <SectionBlock title="Usage Overview">
-          <BillingRow label="Active devices" value={<Value width="w-8" />} />
-          <BillingRow label="Inactive devices" value={<Value width="w-8" />} />
-        </SectionBlock>
-      </div>
+      <SectionBlock title="Current Plan">
+        <BillingRow label="Billing Cycle" value={<Value width="w-16" />} />
+        <BillingRow label="Device Rate" value={<Value width="w-20" />} />
+        <BillingRow label="Free AI Tokens" value={<Value width="w-20" />} />
+        <BillingRow label="Next Payment" value={<Value width="w-16" />} />
+        <BillingRow label="Next Billing Date" value={<Value width="w-20" />} />
+      </SectionBlock>
 
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <h2 className="text-h2 text-ods-text-primary">Invoices History</h2>

@@ -1,11 +1,7 @@
 'use client';
 
-import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  type ActionsMenuGroup,
-  DashboardInfoCard,
-  PageLayout,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { AlertTriangleIcon, ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { type ActionsMenuGroup, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -15,20 +11,22 @@ import { SubscriptionStatus } from '@/app/components/subscription-lock/subscript
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
+import { useBillingPortalSession } from '../hooks/use-billing-portal-session';
 import { useBillingSummary } from '../hooks/use-billing-summary';
 import { useCancelSubscription } from '../hooks/use-cancel-subscription';
 import { useCancellationImpact } from '../hooks/use-cancellation-impact';
 import { useResumeSubscription } from '../hooks/use-resume-subscription';
-import { formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
+import { formatCompactCount, formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
 import { BillingRow, SectionBlock, TestModeBanner } from './billing-section';
 import { CancelOfferModal } from './cancel-offer-modal';
 import { type CancelReason, CancelSubscriptionModal } from './cancel-subscription-modal';
 import { InvoicesHistory } from './invoices-history';
 import { SubscriptionCancelledModal } from './subscription-cancelled-modal';
 import { TestClockPanel } from './test-clock-panel';
+import { UpgradePlanModal } from './upgrade-plan-modal';
+import { StatSuffix, UsageStatCard } from './usage-stat-card';
 
 export function BillingUsageContent() {
-  const router = useRouter();
   const handleBack = useSafeBack(routes.settings.root());
   // Bumped after a resume so the billing query refetches from the network — the
   // resumeSubscription mutation returns a bare Boolean, so the Relay store can't
@@ -41,11 +39,13 @@ export function BillingUsageContent() {
   );
   const cancelSubscription = useCancelSubscription();
   const resumeSubscription = useResumeSubscription();
+  const billingPortal = useBillingPortalSession();
+  const [planModalOpen, setPlanModalOpen] = useState(false);
   const [cancelStep, setCancelStep] = useState<'idle' | 'reason' | 'offer' | 'cancelled'>('idle');
   const [cancelReason, setCancelReason] = useState<CancelReason | null>(null);
   const [cancelComment, setCancelComment] = useState<string>('');
 
-  const { status, flags, device, ai, ui, billing, updatedPlan } = useBillingSummary(data.subscription);
+  const { status, flags, device, ai, plan, ui, billing, updatedPlan } = useBillingSummary(data.subscription);
   const { impact, isLoading: isImpactLoading } = useCancellationImpact({ enabled: cancelStep === 'reason' });
 
   // `Next Payment` comes straight from the backend's server-computed
@@ -55,11 +55,40 @@ export function BillingUsageContent() {
   const nextPaymentAmount = billing.nextPayment ?? 0;
   const cancelSubscriptionEnabled = useFeatureFlag('cancel-subscription');
 
-  const menuActions: ActionsMenuGroup[] =
-    status === SubscriptionStatus.ACTIVE && cancelSubscriptionEnabled
-      ? [
-          {
-            items: [
+  // Nothing to update in place: these three states have no live paid
+  // subscription, so a plan change has to go through Stripe Checkout. PAST_DUE
+  // and SUSPENDED are deliberately NOT here — those subscriptions still exist.
+  const needsCheckout =
+    status === SubscriptionStatus.TRIAL ||
+    status === SubscriptionStatus.TRIAL_EXPIRED ||
+    status === SubscriptionStatus.CANCELED;
+
+  // A committed package is the only thing that gives the device counter a
+  // denominator, so the same condition decides the caption — the card cannot end
+  // up reading "247/300" over "Pay as you go", or a bare count over "Prepaid".
+  const devicePrepaid = !flags.isTrial && device.allocation > 0;
+  const devicePlanCaption = flags.isTrial
+    ? 'Included in trial'
+    : devicePrepaid
+      ? plan.isAnnual
+        ? 'Annual Prepaid'
+        : 'Monthly Prepaid'
+      : 'Pay as you go';
+
+  const menuActions: ActionsMenuGroup[] = [
+    {
+      items: [
+        {
+          id: 'customer-portal',
+          // Stripe mints the portal session per click, so this runs a mutation
+          // and then navigates — there is no stable URL to hang a link on.
+          label: 'Customer Portal',
+          icon: <ExternalLinkIcon className="w-6 h-6" />,
+          onClick: () => billingPortal.mutate(),
+          disabled: billingPortal.isPending,
+        },
+        ...(status === SubscriptionStatus.ACTIVE && cancelSubscriptionEnabled
+          ? [
               {
                 id: 'cancel-subscription',
                 label: 'Cancel Subscription',
@@ -70,12 +99,24 @@ export function BillingUsageContent() {
                 },
                 disabled: cancelSubscription.isPending,
               },
-            ],
-          },
-        ]
-      : [];
+            ]
+          : []),
+      ],
+    },
+  ];
 
-  const primaryAction = flags.isPendingCancellation
+  /**
+   * The state the workspace is in, when that state has its own thing to do:
+   * clear a scheduled cancellation, settle an overdue invoice, or turn a trial
+   * into a subscription. Rendered alongside the plan change rather than instead
+   * of it — a trial can both be activated and have its device plan chosen.
+   *
+   * All of them end in the same modal — there is no plan page to send anyone to
+   * any more. Activation from a trial is the checkout branch of it, which is why
+   * the modal folds every other product in as pay-as-you-go: a checkout session
+   * describes the whole plan, not just the part the modal edits.
+   */
+  const statusAction = flags.isPendingCancellation
     ? {
         label: 'Renew Subscription',
         // Still inside the paid period → clear the scheduled cancellation in
@@ -92,7 +133,7 @@ export function BillingUsageContent() {
             if (billing.latestPendingInvoice) {
               window.location.href = billing.latestPendingInvoice.hostedInvoiceUrl;
             } else {
-              router.push(routes.settings.billingSubscription);
+              setPlanModalOpen(true);
             }
           },
           variant: 'accent' as const,
@@ -100,22 +141,30 @@ export function BillingUsageContent() {
       : flags.isTrial
         ? {
             label: 'Activate Subscription',
-            onClick: () => router.push(routes.settings.billingSubscription),
+            onClick: () => setPlanModalOpen(true),
             variant: 'accent' as const,
           }
-        : {
-            label: 'Update Subscription',
-            onClick: () => router.push(routes.settings.billingSubscription),
-            variant: (flags.isNearLimits ? 'accent' : 'outline') as 'accent' | 'outline',
-          };
+        : null;
+
+  // Changing the plan no longer leaves the page — see `UpgradePlanModal`. It
+  // steps aside to `outline` whenever the state above has an accent action of
+  // its own, so exactly one button reads as the thing to press.
+  const upgradeAction = {
+    label: 'Upgrade Plan',
+    onClick: () => setPlanModalOpen(true),
+    variant: (statusAction ? 'outline' : 'accent') as 'accent' | 'outline',
+  };
+
+  // Rightmost is the accent one: the status action when there is one.
+  const actions = statusAction ? [upgradeAction, statusAction] : [upgradeAction];
 
   return (
     <PageLayout
       title="Billing & Usage"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actionsVariant={menuActions.length > 0 ? 'menu-primary' : 'primary-buttons'}
-      actions={[primaryAction]}
+      backButton={{ label: 'Back to Settings', onClick: handleBack }}
+      actionsVariant="menu-primary"
+      actions={actions}
       menuActions={menuActions}
     >
       {/* Dev-only; renders nothing (and issues no requests) unless the test-clock env flag is on. */}
@@ -123,27 +172,41 @@ export function BillingUsageContent() {
 
       <TestModeBanner />
 
-      <div
-        className={cn('grid gap-[var(--spacing-system-m)]', flags.hasAi ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1')}
-      >
-        <DashboardInfoCard
+      <div className={cn('grid gap-[var(--spacing-system-m)]', flags.hasAi ? 'md:grid-cols-3' : 'md:grid-cols-1')}>
+        <UsageStatCard
           title="Device Usage"
-          value={device.used}
-          // PAYG has no package limit, so no percentage — just the usage count.
-          percentage={device.isPayg ? undefined : device.pct}
-          progressVariant={device.progressVariant}
-          showProgress={device.showProgress}
-          progressOverflow="wrap"
+          value={
+            devicePrepaid ? (
+              <>
+                {formatCount(device.used)}
+                <StatSuffix>/{formatCount(device.allocation)}</StatSuffix>
+              </>
+            ) : (
+              formatCount(device.used)
+            )
+          }
+          caption={devicePlanCaption}
         />
         {flags.hasAi && (
-          <DashboardInfoCard
-            title="AI Usage"
-            value={ai.used}
-            percentage={ai.isPayg ? undefined : ai.pct}
-            progressVariant={ai.progressVariant}
-            showProgress={ai.showProgress}
-            progressOverflow="wrap"
-          />
+          <>
+            {/* What is LEFT of the allowance, not what was spent — the card is
+                labelled with the tokens themselves, so the figure has to be the
+                ones still available. */}
+            <UsageStatCard
+              title="Free AI Tokens"
+              value={
+                <>
+                  {formatCompactCount(ai.freeRemaining)}
+                  <StatSuffix>/{formatCompactCount(ai.freeAllowance)}</StatSuffix>
+                </>
+              }
+              caption="Updated monthly"
+            />
+            {/* Plain consumption for the period. Where the design put a purchased
+                balance, the product meters instead — so this counts tokens spent,
+                not tokens held. */}
+            <UsageStatCard title="AI Usage" value={formatCount(ai.used)} caption="Pay as you go" />
+          </>
         )}
       </div>
 
@@ -171,65 +234,70 @@ export function BillingUsageContent() {
                 ui.warnings.length > 0 && cn('border-t', ui.accentBorderClass),
               )}
             >
-              {device.state === 'over' && <BillingRow label="Device Overage" value={formatCount(device.overage)} />}
-              {flags.hasAi && ai.state === 'over' && <BillingRow label="AI Overage" value={formatCount(ai.overage)} />}
-              <BillingRow label="Next Billing" value={formatDateOrDash(billing.nextBilling)} />
+              <BillingRow label="Device Overage" value={formatCount(device.overage)} />
             </div>
           )}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-l)] items-stretch">
-        <SectionBlock title="Current Plan">
+      <SectionBlock title="Current Plan">
+        <BillingRow label="Billing Cycle" value={plan.isAnnual ? 'Annual' : 'Monthly'} />
+        {plan.deviceRate != null && (
           <BillingRow
-            label="Device Package"
-            value={flags.isTrial ? 'Unlimited' : device.isPayg ? 'Pay as you go' : formatCount(device.allocation)}
+            label="Device Rate"
+            value={
+              <>
+                {formatCurrency(plan.deviceRate)}
+                <span className="text-ods-text-secondary">/ month</span>
+              </>
+            }
           />
+        )}
+        {flags.hasAi && (
           <BillingRow
-            label="AI Package"
-            value={ai.isPayg ? 'Pay as you go' : flags.hasAi ? formatCount(ai.allocation) : 'None'}
-            muted={!flags.hasAi && !ai.isPayg}
+            label="Free AI Tokens"
+            value={
+              <>
+                {formatCompactCount(ai.freeAllowance)}
+                <span className="text-ods-text-secondary">/ month</span>
+              </>
+            }
           />
-          {!flags.isTrial && nextPaymentAmount > 0 && (
-            <BillingRow label="Next Payment" value={formatCurrency(nextPaymentAmount)} />
-          )}
-          {flags.isPendingCancellation ? (
-            <BillingRow
-              label="Plan ends on"
-              warning
-              value={
-                <>
-                  {formatDateOrDash(billing.nextBilling)}
-                  <AlertTriangleIcon className="size-4 text-ods-warning" />
-                </>
-              }
-            />
-          ) : flags.isTrial ? (
-            <BillingRow
-              label="Trial ends on"
-              warning
-              value={
-                <>
-                  {formatDateOrDash(billing.trialExpirationDate)}
-                  <AlertTriangleIcon className="size-4 text-ods-warning" />
-                </>
-              }
-            />
-          ) : null}
-        </SectionBlock>
-        <SectionBlock title="Usage Overview">
-          <BillingRow label="Active devices" value={formatCount(device.active)} />
-          <BillingRow label="Inactive devices" value={formatCount(device.inactive)} />
-        </SectionBlock>
-      </div>
+        )}
+        {!flags.isTrial && nextPaymentAmount > 0 && (
+          <BillingRow label="Next Payment" value={formatCurrency(nextPaymentAmount)} />
+        )}
+        {flags.isPendingCancellation ? (
+          <BillingRow
+            label="Plan ends on"
+            warning
+            value={
+              <>
+                {formatDateOrDash(billing.nextBilling)}
+                <AlertTriangleIcon className="size-4 text-ods-warning" />
+              </>
+            }
+          />
+        ) : flags.isTrial ? (
+          <BillingRow
+            label="Trial ends on"
+            warning
+            value={
+              <>
+                {formatDateOrDash(billing.trialExpirationDate)}
+                <AlertTriangleIcon className="size-4 text-ods-warning" />
+              </>
+            }
+          />
+        ) : (
+          <BillingRow label="Next Billing Date" value={formatDateOrDash(billing.nextBilling)} />
+        )}
+      </SectionBlock>
 
       {flags.hasPendingPlan && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-l)] items-start">
           <SectionBlock title="Updated Plan">
-            {updatedPlan.showDevice && (
-              <BillingRow label="Device Package" value={formatCount(updatedPlan.deviceQuantity)} />
-            )}
-            {updatedPlan.showAi && <BillingRow label="AI Package" value={formatCount(updatedPlan.aiQuantity)} />}
+            <BillingRow label="Device Package" value={formatCount(updatedPlan.deviceQuantity)} />
             <BillingRow
               label="Plan Starts on"
               warning
@@ -245,6 +313,8 @@ export function BillingUsageContent() {
       )}
 
       <InvoicesHistory invoices={data.subscription?.pendingInvoices ?? []} />
+
+      <UpgradePlanModal isOpen={planModalOpen} needsCheckout={needsCheckout} onClose={() => setPlanModalOpen(false)} />
 
       <CancelSubscriptionModal
         isOpen={cancelStep === 'reason'}
@@ -275,6 +345,12 @@ export function BillingUsageContent() {
         reason={cancelReason}
         isPending={cancelSubscription.isPending}
         onClose={() => setCancelStep('idle')}
+        // "Find a Plan that Fits" — the plan picker is right here now, so the
+        // offer hands off to it instead of sending the user to another page.
+        onCtaClick={() => {
+          setCancelStep('idle');
+          setPlanModalOpen(true);
+        }}
         onConfirm={() => {
           cancelSubscription.mutate({
             reason: cancelReason ?? undefined,

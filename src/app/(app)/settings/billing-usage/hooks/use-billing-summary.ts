@@ -1,6 +1,7 @@
 import type { billingUsageContentQuery$data } from '@/__generated__/billingUsageContentQuery.graphql';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
-import { OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
+import { BillingPeriod, OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
+import { deriveAiTokenUsage } from '../lib/ai-tokens';
 
 const WARNING_THRESHOLD = 90;
 
@@ -29,7 +30,7 @@ export function useBillingSummary(subscription: SubscriptionData) {
   const devicesUsed = subscription?.usage?.devicesUsed ?? 0;
   const activeDevices = subscription?.usage?.activeDevices ?? 0;
   const inactiveDevices = subscription?.usage?.inactiveDevices ?? 0;
-  const aiTokensUsed = subscription?.usage?.aiTokensUsed ?? 0;
+  const aiTokensUsed = Number(subscription?.usage?.aiTokensUsed ?? 0);
   // Server-computed projected next-invoice total (PAYG overage so far + package
   // charges due next cycle). SSOT for the "Next Payment" row — null when there's
   // no upcoming charge (e.g. trial).
@@ -39,14 +40,11 @@ export function useBillingSummary(subscription: SubscriptionData) {
   const aiProduct = subscriptionProducts.find(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? null;
   const managedDevicesActive =
     managedDevicesProduct?.packageOptions.find(o => o.status === SubscriptionProductStatus.ACTIVE) ?? null;
-  const aiActive = aiProduct?.packageOptions.find(o => o.status === SubscriptionProductStatus.ACTIVE) ?? null;
 
-  // A scheduled downgrade surfaces as PENDING_ACTIVATION option(s). It can be
-  // devices-only, AI-only, or both — each row is shown independently.
+  // A scheduled downgrade surfaces as a PENDING_ACTIVATION option. Devices only:
+  // AI has no committed package to schedule a change to (see the `ai` block).
   const managedDevicesPending =
     managedDevicesProduct?.packageOptions.find(o => o.status === SubscriptionProductStatus.PENDING_ACTIVATION) ?? null;
-  const aiPending =
-    aiProduct?.packageOptions.find(o => o.status === SubscriptionProductStatus.PENDING_ACTIVATION) ?? null;
 
   const trialExpirationDate = subscription?.trialExpirationDate ?? null;
   const isTrial = status === SubscriptionStatus.TRIAL;
@@ -57,26 +55,25 @@ export function useBillingSummary(subscription: SubscriptionData) {
     status === SubscriptionStatus.CANCELED;
 
   const deviceIsPayg = managedDevicesProduct?.payAsYouGoOption != null && managedDevicesActive == null;
-  const aiIsPayg = aiProduct?.payAsYouGoOption != null && aiActive == null;
-  const hasAi = aiActive != null || aiIsPayg;
+  // Every workspace carrying the AI product gets the free monthly tokens, whether
+  // or not it has ever paid for consumption beyond them.
+  const hasAi = aiProduct != null;
 
   const deviceAllocation = managedDevicesActive?.quantity ?? 0;
-  const aiAllocation = aiActive?.quantity ?? 0;
-
   const devicePct = deviceAllocation > 0 ? Math.round((devicesUsed / deviceAllocation) * 100) : 0;
-  const aiPct = aiAllocation > 0 ? Math.round((aiTokensUsed / aiAllocation) * 100) : 0;
-
   const deviceOverage = Math.max(0, devicesUsed - deviceAllocation);
-  const aiOverage = Math.max(0, aiTokensUsed - aiAllocation);
-
   const deviceState: UsageState = deviceIsPayg
     ? 'success'
     : getUsageState(devicePct, deviceAllocation > 0 && deviceOverage > 0);
-  const aiState: UsageState = aiIsPayg
-    ? 'success'
-    : hasAi
-      ? getUsageState(aiPct, aiAllocation > 0 && aiOverage > 0)
-      : 'success';
+
+  /**
+   * AI is consumption, not a balance: a free monthly allowance, then metered
+   * pay-as-you-go past it. There is no bought token bank to sit against, so
+   * nothing here reads an AI package quantity, and running past the free tokens
+   * raises no warning — it starts billing, which is the product working, not a
+   * limit being breached.
+   */
+  const ai = deriveAiTokenUsage(aiTokensUsed);
 
   const warnings: Array<{ title: string; description: string }> = [];
   if (deviceState === 'warning') {
@@ -91,41 +88,21 @@ export function useBillingSummary(subscription: SubscriptionData) {
         'Extra devices will be billed at pay-as-you-go rates, charged separately from your plan. Upgrade to lock in a lower device price.',
     });
   }
-  if (hasAi && aiState === 'warning') {
-    warnings.push({
-      title: "You're approaching your AI Package limit",
-      description: 'Any tokens above it will be billed at pay-as-you-go rates, charged separately from your plan.',
-    });
-  } else if (hasAi && aiState === 'over') {
-    warnings.push({
-      title: "You're over your AI Package limit",
-      description:
-        'Extra tokens will be billed at pay-as-you-go rates, charged separately from your plan. Upgrade to include more at a lower cost.',
-    });
-  }
 
-  const showOverageBlock = deviceState === 'over' || aiState === 'over';
+  const showOverageBlock = deviceState === 'over';
   const accentClass = isOverdue ? 'text-ods-error' : 'text-ods-warning';
   const accentBorderClass = isOverdue ? 'border-ods-error' : 'border-ods-warning';
 
   const nextBilling = isPendingCancellation
-    ? (subscription?.cancellationEffectiveAt ?? managedDevicesActive?.endDate ?? aiActive?.endDate ?? null)
-    : (managedDevicesActive?.endDate ?? aiActive?.endDate ?? subscription?.currentPeriodEnd ?? null);
+    ? (subscription?.cancellationEffectiveAt ?? managedDevicesActive?.endDate ?? null)
+    : (managedDevicesActive?.endDate ?? subscription?.currentPeriodEnd ?? null);
 
-  const allPayg = deviceIsPayg && (aiIsPayg || !aiProduct);
-  const isNearLimits =
-    !allPayg && (deviceState === 'warning' || deviceState === 'over' || aiState === 'warning' || aiState === 'over');
+  const isNearLimits = !deviceIsPayg && (deviceState === 'warning' || deviceState === 'over');
 
-  const toProgressVariant = (state: UsageState): 'success' | 'warning' | 'error' =>
-    state === 'success' ? 'success' : isOverdue ? 'error' : 'warning';
-
-  const hasPendingPlan = managedDevicesPending != null || aiPending != null;
+  const hasPendingPlan = managedDevicesPending != null;
   const updatedPlan = {
-    showDevice: managedDevicesPending != null,
     deviceQuantity: managedDevicesPending?.quantity ?? 0,
-    showAi: aiPending != null,
-    aiQuantity: aiPending?.quantity ?? 0,
-    startDate: (managedDevicesPending?.startDate ?? aiPending?.startDate ?? null) as string | null,
+    startDate: (managedDevicesPending?.startDate ?? null) as string | null,
   };
 
   return {
@@ -136,23 +113,26 @@ export function useBillingSummary(subscription: SubscriptionData) {
       used: devicesUsed,
       active: activeDevices,
       inactive: inactiveDevices,
-      pct: devicePct,
       state: deviceState,
       isPayg: deviceIsPayg,
       allocation: deviceAllocation,
       overage: deviceOverage,
-      progressVariant: toProgressVariant(deviceState),
-      showProgress: !deviceIsPayg && !isTrial,
     },
-    ai: {
-      used: aiTokensUsed,
-      pct: aiPct,
-      state: aiState,
-      isPayg: aiIsPayg,
-      allocation: aiAllocation,
-      overage: aiOverage,
-      progressVariant: toProgressVariant(aiState),
-      showProgress: !aiIsPayg,
+    ai,
+    plan: {
+      // A committed yearly package is the only thing that makes the cycle annual;
+      // pay-as-you-go and every monthly package bill each month.
+      isAnnual: managedDevicesActive?.billingPeriod === BillingPeriod.YEARLY,
+      /**
+       * What one device costs per month — the pay-as-you-go rate, or the rate the
+       * active package fixed. Both `price` fields are per unit per month (the same
+       * scale as `priceTiers.unitPrice`), so the annual commitment states a monthly
+       * rate here and bills twelve of them at once.
+       */
+      deviceRate:
+        (deviceIsPayg
+          ? managedDevicesProduct?.payAsYouGoOption?.price
+          : (managedDevicesActive?.price ?? managedDevicesProduct?.payAsYouGoOption?.price)) ?? null,
     },
     ui: { warnings, showOverageBlock, accentClass, accentBorderClass },
     billing: {
