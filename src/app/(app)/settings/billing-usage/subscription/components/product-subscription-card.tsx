@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
   Input,
   RadioGroupBlock,
+  Skeleton,
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -23,6 +24,7 @@ import {
   calculateCustomQuantityPrice,
   formatCompact,
   formatMoney,
+  PAYG_OPTION_ID,
 } from '../utils/subscription.utils';
 
 export const productSubscriptionCardProductFragment = graphql`
@@ -60,7 +62,8 @@ export const productSubscriptionCardSubscriptionFragment = graphql`
 `;
 
 interface ProductSubscriptionCardProps {
-  productRef: productSubscriptionCardProductFragment$key;
+  /** `null` renders the card's loading state — see the component docblock. */
+  productRef: productSubscriptionCardProductFragment$key | null;
   subscriptionProductRef: productSubscriptionCardSubscriptionFragment$key | null;
   title: string;
   /**
@@ -113,6 +116,14 @@ function HelpTooltip({ content }: { content: ReactNode }) {
   );
 }
 
+/**
+ * A product's package picker: billing period, then a radio list of committed
+ * packages (and an optional Custom Amount).
+ *
+ * With a `null` productRef it renders its LOADING state — the real card with the
+ * catalog-derived rows pending — so the page never has to keep a second,
+ * skeleton-shaped copy of this markup in sync with this one.
+ */
 export function ProductSubscriptionCard({
   productRef,
   subscriptionProductRef,
@@ -127,7 +138,7 @@ export function ProductSubscriptionCard({
   reserveBillingPeriodSpace = false,
   onUpdatesChange,
 }: ProductSubscriptionCardProps) {
-  const product = useFragment(productSubscriptionCardProductFragment, productRef);
+  const product = useFragment(productSubscriptionCardProductFragment, productRef) ?? null;
   const subscriptionProduct = useFragment(productSubscriptionCardSubscriptionFragment, subscriptionProductRef) ?? null;
 
   const {
@@ -157,17 +168,24 @@ export function ProductSubscriptionCard({
       ? calculateCustomQuantityPrice(customQty, allTiers, baselineUnitPrice, months)
       : null;
 
-  const radioOptions = buildPackageRadioOptions({
-    tiers,
-    baselineUnitPrice,
-    months,
-    periodSuffix,
-    packageUnitLabel,
-    customLabel,
-    customSubtitle,
-    payAsYouGoOption: product.payAsYouGoOption ?? null,
-    allowCustom,
-  });
+  const loading = product == null;
+
+  // The pay-as-you-go row's LABEL is fixed copy; only the rate under it comes
+  // from the catalog. So the wait shows that row for real, with the rate pending,
+  // rather than a stack of grey bars where the options will be.
+  const radioOptions = loading
+    ? [{ value: PAYG_OPTION_ID, label: 'Pay as you go', description: <Skeleton className="h-4 w-44" /> }]
+    : buildPackageRadioOptions({
+        tiers,
+        baselineUnitPrice,
+        months,
+        periodSuffix,
+        packageUnitLabel,
+        customLabel,
+        customSubtitle,
+        payAsYouGoOption: product.payAsYouGoOption ?? null,
+        allowCustom,
+      });
 
   // "MONTHLY" → "monthly" / "YEARLY" → "yearly", so period-aware copy matches
   // the selected package type.
@@ -181,6 +199,7 @@ export function ProductSubscriptionCard({
         disabled && 'opacity-50 pointer-events-none',
       )}
       aria-disabled={disabled}
+      aria-busy={loading || undefined}
     >
       <div className="flex items-start justify-between gap-4">
         <h2 className="text-h2 text-ods-text-primary">{title}</h2>
@@ -207,8 +226,9 @@ export function ProductSubscriptionCard({
         <p className="text-h5 text-ods-text-secondary">Packages</p>
         <div className="flex w-full flex-col overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
           <RadioGroupBlock
-            name={`packages-${product.id}`}
+            name={`packages-${product?.id ?? 'pending'}`}
             variant="grouped"
+            disabled={loading}
             value={disabled ? '' : (selection.selectedPackageId ?? '')}
             onValueChange={setSelectedPackage}
             options={radioOptions}
