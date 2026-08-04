@@ -1,7 +1,12 @@
 'use client';
 
 import { Skeleton, Tag } from '@flamingo-stack/openframe-frontend-core';
-import { AlertCircleIcon, BellIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  AlertCircleIcon,
+  BellIcon,
+  PenEditIcon,
+  UserXmarkIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
   PageError,
@@ -18,6 +23,7 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { getFullImageUrl } from '@/lib/image-url';
 import { isMobileShell } from '@/lib/platform';
 import { useOnboardingStore } from '@/stores/onboarding-store';
+import { DeleteAccountModal } from './delete-account-modal';
 import { NotificationSettingsModal } from './notification-settings-modal';
 
 interface ProfileCardProps {
@@ -81,6 +87,8 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   // silently turn off their phone's push.
   const showNotificationSettings = useFeatureFlag('notifications') && isMobileShell();
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
+
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
 
   const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '—';
 
@@ -189,6 +197,18 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                     : []),
                 ],
               },
+              {
+                separator: true,
+                items: [
+                  {
+                    id: 'delete-account',
+                    label: 'Delete Account',
+                    icon: <UserXmarkIcon className="w-5 h-5 text-ods-error" />,
+                    danger: true,
+                    onClick: () => setIsDeleteAccountOpen(true),
+                  },
+                ],
+              },
             ]}
           />
         </div>
@@ -200,6 +220,8 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
           onClose={() => setIsNotificationSettingsOpen(false)}
         />
       )}
+
+      <DeleteAccountModal open={isDeleteAccountOpen} onOpenChange={setIsDeleteAccountOpen} />
 
       {/* Reset Onboarding confirmation */}
       <ConfirmDialog

@@ -60,7 +60,7 @@ async function fetchUsers(page: number, size: number): Promise<PagedUsersRespons
   return res.data;
 }
 
-async function deleteUserApi(userId: string): Promise<void> {
+export async function deleteUserApi(userId: string): Promise<void> {
   const res = await apiClient.delete(`/api/users/${encodeURIComponent(userId)}`);
   if (!res.ok) {
     throw new Error(res.error || `Failed to delete user (${res.status})`);
