@@ -38,7 +38,7 @@ const dragInstructions: ScreenReaderInstructions = {
  * order: it is submitted as `scriptIds` verbatim, so a drag is a real, persisted
  * change.
  */
-export function ScheduleScriptsField({ showErrors }: { showErrors: boolean }) {
+export function ScheduleScriptsField({ showErrors, disabled = false }: { showErrors: boolean; disabled?: boolean }) {
   const { control, getValues } = useFormContext<EditScheduleFormData>();
   const { fields, append, remove, move } = useFieldArray({ control, name: 'scripts' });
   const supportedPlatforms = useWatch({ control, name: 'supportedPlatforms' });
@@ -120,6 +120,7 @@ export function ScheduleScriptsField({ showErrors }: { showErrors: boolean }) {
                 supportedPlatforms={supportedPlatforms}
                 onRemove={() => remove(index)}
                 canRemove={fields.length > 1}
+                disabled={disabled}
                 showErrors={showErrors}
               />
             ))}
@@ -132,6 +133,7 @@ export function ScheduleScriptsField({ showErrors }: { showErrors: boolean }) {
         variant="outline"
         size="small"
         onClick={() => append(EMPTY_SCRIPT_ROW)}
+        disabled={disabled}
         className="self-start"
         leftIcon={<PlusCircleIcon className="text-ods-text-secondary" />}
       >

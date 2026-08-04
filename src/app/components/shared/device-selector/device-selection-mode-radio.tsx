@@ -51,8 +51,13 @@ const SELECTION_MODE_OPTIONS_ENABLED: RadioGroupBlockOption[] = [
 ];
 
 export interface DeviceSelectionModeRadioProps {
-  /** Omit for the uncontrolled, criteria-disabled block. */
-  value?: DeviceSelectionMode;
+  /**
+   * The chosen mode. `''` is a real value here: the block with NOTHING marked,
+   * for a page whose stored mode has not arrived yet — marking one would be a
+   * guess at the answer being loaded. Omit the prop entirely for the
+   * uncontrolled, criteria-disabled block.
+   */
+  value?: DeviceSelectionMode | '';
   onChange?: (mode: DeviceSelectionMode) => void;
   disabled?: boolean;
 }
@@ -67,15 +72,19 @@ export interface DeviceSelectionModeRadioProps {
  * Such a page renders this directly and passes `showSelectionModeRadio={false}`.
  */
 export function DeviceSelectionModeRadio({ value, onChange, disabled }: DeviceSelectionModeRadioProps) {
+  // Controlled whenever the consumer PASSES a value — including `''`, which is a
+  // consumer that owns the answer but is still waiting for it. Only an omitted
+  // prop means "decorative", which is what keeps the old criteria-disabled
+  // block for the pages that cannot store a rule.
+  const isControlled = value !== undefined;
+
   return (
     <RadioGroupBlock
       name="selectionMode"
       variant="grouped"
-      // Controlled only when the consumer can store the answer; otherwise the
-      // radio keeps its old decorative behaviour.
-      {...(value ? { value, onValueChange: onChange } : { defaultValue: 'specific' })}
+      {...(isControlled ? { value, onValueChange: onChange } : { defaultValue: 'specific' })}
       disabled={disabled}
-      options={value ? SELECTION_MODE_OPTIONS_ENABLED : SELECTION_MODE_OPTIONS}
+      options={isControlled ? SELECTION_MODE_OPTIONS_ENABLED : SELECTION_MODE_OPTIONS}
       // Design 460:71430 rows are 68px — a 24px title over a 20px description
       // with 12px above and below. The grouped variant pads `py-xs` (8px on
       // desktop) by default, which would come out 8px short.

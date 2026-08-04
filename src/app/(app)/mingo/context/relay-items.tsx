@@ -2,7 +2,8 @@
 
 /**
  * Relay-backed context items for the GraphQL sources on OUR endpoint
- * (`/api/graphql`): Device, Organization, Knowledge Article.
+ * (`/api/graphql`): Device, Organization, Knowledge Article, Script, Script
+ * Schedule.
  *
  * Idiomatic Relay cursor pagination: a `@refetchable` fragment with
  * `@connection` + `useLazyLoadQuery` (suspends on initial load → the picker's
@@ -19,6 +20,8 @@ import type { relayItemsKb_query$key } from '@/__generated__/relayItemsKb_query.
 import type { relayItemsKbListQuery } from '@/__generated__/relayItemsKbListQuery.graphql';
 import type { relayItemsOrgs_query$key } from '@/__generated__/relayItemsOrgs_query.graphql';
 import type { relayItemsOrgsListQuery } from '@/__generated__/relayItemsOrgsListQuery.graphql';
+import type { relayItemsSchedules_query$key } from '@/__generated__/relayItemsSchedules_query.graphql';
+import type { relayItemsSchedulesListQuery } from '@/__generated__/relayItemsSchedulesListQuery.graphql';
 import type { relayItemsScripts_query$key } from '@/__generated__/relayItemsScripts_query.graphql';
 import type { relayItemsScriptsListQuery } from '@/__generated__/relayItemsScriptsListQuery.graphql';
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
@@ -287,6 +290,73 @@ export function ScriptItems({ query, selectedKeys, onToggle, atLimit }: ContextI
       onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
       loadingMore={isLoadingNext}
       emptyLabel="No scripts"
+    />
+  );
+}
+
+// ────────────────────────── Script Schedule ─────────────────────────────────
+
+// Mingo schedule context lists ACTIVE schedules only — an ARCHIVED schedule runs
+// on nothing, so offering it as context would let Mingo reason about a job that
+// can never fire. Same `[ACTIVE]` inlining reason as the scripts fragment above.
+const SCHEDULES_FRAGMENT = graphql`
+  fragment relayItemsSchedules_query on Query
+  @refetchable(queryName: "relayItemsSchedulesPaginationQuery")
+  @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 10 }, after: { type: "String" }) {
+    scriptSchedules(filter: { statuses: [ACTIVE] }, search: $search, first: $first, after: $after)
+      @connection(key: "relayItemsSchedules_scriptSchedules") {
+      edges { node { id name description } }
+    }
+  }
+`;
+
+const SCHEDULES_LIST_QUERY = graphql`
+  query relayItemsSchedulesListQuery($search: String, $first: Int) {
+    ...relayItemsSchedules_query @arguments(search: $search, first: $first)
+  }
+`;
+
+export function ScheduleItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
+  const root = useLazyLoadQuery<relayItemsSchedulesListQuery>(SCHEDULES_LIST_QUERY, {
+    search: query || null,
+    first: MINGO_CONTEXT_PAGE_SIZE,
+  });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment(
+    SCHEDULES_FRAGMENT,
+    root as relayItemsSchedules_query$key,
+  );
+  const items = useMemo(
+    () =>
+      (data.scriptSchedules?.edges ?? []).flatMap(e => {
+        // Raw db id, decoded from the global `id` (`base64("ScriptSchedule:<rawId>")`)
+        // — that's what the backend's SCHEDULED_SCRIPT resolver
+        // (`ScriptScheduleService.findById`) + the `@scheduledScript:<id>` marker
+        // expect. The chip re-encodes it to a global id for its `scriptSchedule(id:)`
+        // fetch. Drop any edge we can't decode: a global id stored here would be
+        // double-encoded on the way back and resolve to nothing.
+        const rawId = e?.node ? decodeGlobalId(e.node.id)?.rawId : null;
+        if (!e?.node || !rawId) return [];
+        return [
+          {
+            type: CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT,
+            id: rawId,
+            label: e.node.name || rawId,
+            description: e.node.description ?? undefined,
+          },
+        ];
+      }),
+    [data],
+  );
+  return (
+    <ContextItemsList
+      items={items}
+      selectedKeys={selectedKeys}
+      onToggle={onToggle}
+      atLimit={atLimit}
+      hasMore={hasNext}
+      onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
+      loadingMore={isLoadingNext}
+      emptyLabel="No script schedules"
     />
   );
 }

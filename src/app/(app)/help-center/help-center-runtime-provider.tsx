@@ -27,7 +27,7 @@ import { notFound } from 'next/navigation';
 import { type ReactNode, useContext, useMemo } from 'react';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { HELP_CENTER_ENDPOINTS } from './endpoints';
-import { composeOpenframeContentUrl } from './help-center-content-href';
+import { composeOpenframeInAppContentUrl } from './help-center-content-href';
 
 // NOTE: the lib `PageShell`'s padding is overridden with OpenFrame's host grid
 // spacing via the `--page-shell-*` CSS vars set on the section wrapper in
@@ -50,7 +50,13 @@ export function HelpCenterRuntimeProvider({ children }: { children: ReactNode })
       // type→route map is shared with the app-wide chat runtime (the single
       // source of truth in `help-center-content-href.ts`) so a card lands in the
       // SAME place whether it's rendered on a Help Center page or in the chat.
-      composeContentUrl: composeOpenframeContentUrl,
+      //
+      // This seam ALSO drives the RAG search dropdown mounted by the onboarding
+      // catalog + knowledge base (the lib threads `composeContentUrl` into
+      // `useDocSearch`), so picking a guide there soft-navs to
+      // `/help-center/onboarding-guides/<slug>` instead of the hub URL the RAG
+      // returns. Hub-only rows keep their absolute hub href → new tab.
+      composeContentUrl: composeOpenframeInAppContentUrl,
     }),
     [parent],
   );

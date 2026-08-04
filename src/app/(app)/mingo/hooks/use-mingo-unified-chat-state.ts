@@ -26,6 +26,7 @@
 
 import type {
   ChatConnectionState,
+  ChatRef,
   DialogItem,
   DialogTokenUsage,
   StreamingPhase,
@@ -33,6 +34,7 @@ import type {
   UnifiedChatState,
   UnifiedSendMessageOptions,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { buildDiscussPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
@@ -96,8 +98,7 @@ export interface MingoUnifiedChat {
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const { aiModel } = useAiModelStatus();
 
-  const { activeDialogId, setActiveDialogId, resetUnread, addMessage, getStreamingMessage, tokenUsageByDialog } =
-    useMingoMessagesStore();
+  const { activeDialogId, setActiveDialogId, resetUnread, addMessage, tokenUsageByDialog } = useMingoMessagesStore();
 
   // Server-side dialog search. The embeddable chat's search bar emits the
   // already-debounced term via `setSearchQuery`; it rides the `useMingoDialogs`
@@ -225,22 +226,41 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       // realtime `MESSAGE_REQUEST` echo; the lib resolves each chip's icon from
       // `contextPicker.entityTypes` by `type`.
       const context = role === 'user' && m.contextItems?.length ? { contextItems: m.contextItems } : {};
+      // `hidden` is load-bearing, NOT cosmetic: it marks synthetic rows (e.g.
+      // an auto-continuation directive) that the model must see but the reader
+      // must not. This field-by-field rebuild drops anything not listed, so the
+      // flag has to be forwarded explicitly — without it the lib's message list
+      // has nothing to skip on and renders an author label with no body (or the
+      // raw directive text) in the transcript.
+      const visibility = m.hidden ? { hidden: true as const } : {};
       const unified: UnifiedChatMessage = Array.isArray(m.content)
-        ? { id: m.id, role, content: '', segments: m.content, timestamp: m.timestamp, ...identity, ...context }
-        : { id: m.id, role, content: m.content, timestamp: m.timestamp, ...identity, ...context };
+        ? {
+            id: m.id,
+            role,
+            content: '',
+            segments: m.content,
+            timestamp: m.timestamp,
+            ...identity,
+            ...context,
+            ...visibility,
+          }
+        : { id: m.id, role, content: m.content, timestamp: m.timestamp, ...identity, ...context, ...visibility };
       cache.set(m, unified);
       return unified;
     });
   }, [processedMessages]);
 
   // ─── Streaming phase: idle → thinking → streaming ─────────────────────────
+  // The lib reducer's phase machine is the source of truth (mirrored per
+  // dialog); a standalone compaction window still locks the composer.
+  const reducerPhase = useMingoMessagesStore(s =>
+    activeDialogId ? (s.phaseByDialog.get(activeDialogId) ?? 'idle') : 'idle',
+  );
   const streamingPhase = useMemo<StreamingPhase>(() => {
-    if (!isTyping && !isCompacting) return 'idle';
-    if (!activeDialogId) return 'thinking';
-    const streaming = getStreamingMessage(activeDialogId);
-    const hasContent = !!streaming && Array.isArray(streaming.content) && streaming.content.length > 0;
-    return hasContent ? 'streaming' : 'thinking';
-  }, [isTyping, isCompacting, activeDialogId, getStreamingMessage]);
+    if (reducerPhase !== 'idle') return reducerPhase;
+    if (isTyping || isCompacting) return 'thinking';
+    return 'idle';
+  }, [reducerPhase, isTyping, isCompacting]);
 
   // ─── Dialog selection (mirrors the /mingo page glue, minus URL syncing) ───
   const selectDialog = useCallback(
@@ -388,7 +408,22 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const reloadDialogs = useCallback(() => {
     void refetchDialogs();
   }, [refetchDialogs]);
-  const discussRef = useCallback(() => {}, []);
+  // "Ask Mingo" from an inline entity card's ⋯ menu. The lib's SSE (guide)
+  // transport narrows retrieval with a structured `entityIdFilter`; the agent
+  // backend has no equivalent — its `ContextItemType` enum covers DEVICE /
+  // SCRIPT / TICKET / ORGANIZATION / USER / KB_ARTICLE / POLICY / QUERY /
+  // SCHEDULED_SCRIPT and no content types, so a roadmap item or release can't
+  // ride `contextItems`. Until it can, the prompt carries the type + id as text
+  // (`buildDiscussPrompt`'s `includeReference`) and the agent resolves the row
+  // itself. Shared builder = the sentence matches guide mode word for word.
+  const discussRef = useCallback(
+    (reference: ChatRef) => {
+      void sendMessage(buildDiscussPrompt(reference, { includeReference: true }));
+    },
+    [sendMessage],
+  );
+  // Display dispatches a `/<cmd> display "<x>"` slash command, which only the
+  // hub's SSE transport has a registry for — still inert here.
   const displayRef = useCallback(() => {}, []);
 
   const state = useMemo<UnifiedChatState>(

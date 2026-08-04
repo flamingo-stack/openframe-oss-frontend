@@ -45,7 +45,7 @@ import {
  * row is unchanged and a COLLAPSED row still leaves no 24px hole (a 0fr track
  * zeroes the padding too — `border-box`).
  */
-export function ScheduleTimingFields({ showErrors }: { showErrors: boolean }) {
+export function ScheduleTimingFields({ showErrors, disabled = false }: { showErrors: boolean; disabled?: boolean }) {
   const { control, getValues, setValue } = useFormContext<EditScheduleFormData>();
   const trigger = useWatch({ control, name: 'trigger' });
   const repeatEnabled = useWatch({ control, name: 'repeatEnabled' });
@@ -84,11 +84,12 @@ export function ScheduleTimingFields({ showErrors }: { showErrors: boolean }) {
                     placeholder="Select date"
                     value={field.value ?? undefined}
                     onChange={date => field.onChange(date ?? null)}
+                    disabled={disabled}
                     className="w-full"
                     error={showErrors ? fieldState.error?.message : undefined}
                     invalid={showErrors && !!fieldState.error}
                   />
-                  {field.value && (
+                  {field.value && !disabled && (
                     <button
                       type="button"
                       onClick={() => field.onChange(null)}
@@ -112,7 +113,7 @@ export function ScheduleTimingFields({ showErrors }: { showErrors: boolean }) {
                 // `''` reads as "no selection" to Radix, so the placeholder shows
                 // until a slot is picked — a date at midnight no longer
                 // masquerades as a chosen 12:00 AM.
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select value={field.value} onValueChange={field.onChange} disabled={disabled}>
                   {/* No `border-ods-border` here: the trigger already sets it, and
                       a repeat of it in `className` lands AFTER the invalid branch
                       in the component's `cn()`, so tailwind-merge would drop the
@@ -145,6 +146,7 @@ export function ScheduleTimingFields({ showErrors }: { showErrors: boolean }) {
                   label="Repeat Script Run"
                   checked={field.value}
                   onCheckedChange={field.onChange}
+                  disabled={disabled}
                   className="w-full"
                 />
               )}
@@ -165,7 +167,7 @@ export function ScheduleTimingFields({ showErrors }: { showErrors: boolean }) {
                     className="w-full"
                     value={String(field.value ?? '')}
                     onChange={e => field.onChange(e.target.value ? Number(e.target.value) : intervalStep)}
-                    disabled={!repeatEnabled}
+                    disabled={disabled || !repeatEnabled}
                     error={showErrors ? fieldState.error?.message : undefined}
                     invalid={showErrors && !!fieldState.error}
                   />
@@ -189,7 +191,7 @@ export function ScheduleTimingFields({ showErrors }: { showErrors: boolean }) {
                       const snapped = snapRepeatInterval(getValues('repeatInterval'), next);
                       if (snapped !== getValues('repeatInterval')) setValue('repeatInterval', snapped);
                     }}
-                    disabled={!repeatEnabled}
+                    disabled={disabled || !repeatEnabled}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />

@@ -12,7 +12,7 @@ import { graphql } from 'react-relay';
  * guarantee it could not make once an assignment outgrew a single page. A delta
  * states only what changed, so nothing has to be read in full to write safely.
  *
- * The payloads read back `id` alone. `deviceCount` — the number the picker's tab
+ * The payloads read back `id` and the SELECTION MODE. `deviceCount` — the number the picker's tab
  * label and the schedule's DEVICES column show — used to come back with it and be
  * written straight into the normalized store, which is right for one mutation in
  * flight and wrong for two: each response carries an ABSOLUTE snapshot, so two
@@ -25,6 +25,10 @@ import { graphql } from 'react-relay';
  * cannot be ordered by a client that has no sequence to order them by. The
  * server's own number is not lost — it arrives with every read of the schedule,
  * and with the refetch the bulk siblings below already do.
+ *
+ * `selectionMode` is exempt from that argument, and deliberately selected: it is
+ * not a running total but a state the server owns, so two responses that cross
+ * carry the SAME answer and cannot land out of order the way two counts can.
  *
  * The picker's two connections ARE patched by an updater rather than refetched
  * (`assignmentUpdaters` in `schedule-devices-view.tsx`), which is safe for this
@@ -39,6 +43,18 @@ export const addDevicesToScheduleMutation = graphql`
   mutation addDevicesToScheduleMutation($scheduleId: ID!, $machineIds: [ID!]!) {
     addDevicesToSchedule(scheduleId: $scheduleId, machineIds: $machineIds) {
       id
+      # The mode is asked for on every assignment write, and that is not
+      # decoration: setScheduleDeviceCriteria is the only documented way to
+      # CHANGE the mode, and nothing in the schema documents what assigning a
+      # device does to a CRITERIA schedule (gaps doc §10). Selecting it here
+      # means the server's answer — whatever it is — lands in the store instead
+      # of the page keeping a stale CRITERIA the user has just edited away.
+      selectionMode
+      deviceCriteria {
+        organizationIds
+        deviceTypes
+        osTypes
+      }
     }
   }
 `;

@@ -17,7 +17,7 @@ import { featureFlags } from '@/lib/feature-flags';
 import { LegacyScriptItems, UserItems } from './batch-items';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import type { ContextItemsProps } from './items-shared';
-import { DeviceItems, KnowledgeBaseItems, OrganizationItems, ScriptItems } from './relay-items';
+import { DeviceItems, KnowledgeBaseItems, OrganizationItems, ScheduleItems, ScriptItems } from './relay-items';
 import { PolicyItems, QueryItems, TicketItems } from './rest-items';
 
 const COMPONENTS: Record<string, (p: ContextItemsProps) => ReactNode> = {
@@ -28,6 +28,10 @@ const COMPONENTS: Record<string, (p: ContextItemsProps) => ReactNode> = {
   [CONTEXT_ENTITY_KIND.POLICY]: PolicyItems,
   [CONTEXT_ENTITY_KIND.QUERY]: QueryItems,
   [CONTEXT_ENTITY_KIND.USER]: UserItems,
+  // Schedules exist only in the native (v2) backend — TacticalRMM had no
+  // equivalent to fall back to — so this source is NOT flag-gated the way SCRIPT
+  // below is.
+  [CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT]: ScheduleItems,
 };
 
 export function renderMingoContextItems({
