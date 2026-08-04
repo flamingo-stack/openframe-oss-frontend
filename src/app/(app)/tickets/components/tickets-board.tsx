@@ -12,6 +12,7 @@ import { Button, PageError, PageLayout } from '@flamingo-stack/openframe-fronten
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
@@ -81,7 +82,11 @@ function initialsOf(name?: string): string | undefined {
   return parts.map(p => p.charAt(0).toUpperCase()).join('') || undefined;
 }
 
-function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false): BoardTicket {
+function dialogToBoardTicket(
+  dialog: Dialog,
+  hasNewMessage = false,
+  isUserDeleted?: (id?: string | null) => boolean,
+): BoardTicket {
   return {
     id: dialog.id,
     title: dialog.title,
@@ -96,6 +101,7 @@ function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false): BoardTicket
             name: dialog.assignedName,
             initials: initialsOf(dialog.assignedName),
             avatarUrl: appendImageHash(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+            deleted: isUserDeleted?.(dialog.assignedTo) || undefined,
           },
         ]
       : undefined,
@@ -128,6 +134,7 @@ export function TicketsBoard({
   const notifications = useOptionalNotifications();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isUserDeleted } = useUserStatusMap();
   const { handleApproveRequest, handleRejectRequest } = useApprovalRequests();
 
   const handleApprovalAction = useCallback(
@@ -245,7 +252,9 @@ export function TicketsBoard({
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
-        tickets: (state?.tickets ?? []).map(ticket => dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id))),
+        tickets: (state?.tickets ?? []).map(ticket =>
+          dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
+        ),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
@@ -264,6 +273,7 @@ export function TicketsBoard({
     isLoading,
     canArchiveResolved,
     ticketIdsWithUnread,
+    isUserDeleted,
   ]);
 
   // Remember the lane set so the route skeleton can lay out the same board on
