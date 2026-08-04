@@ -8,6 +8,7 @@ import {
   AppLayoutDrawerContent,
   AppLayout as CoreAppLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -77,6 +78,12 @@ const WALKTHROUGH_OVERLAP_Z = {
   content: { zIndex: 9990 },
   overlay: '!z-[9985]',
 } as const;
+
+/** Conditional `TicketLiveProvider` mount — a flag-off tenant gets a
+ *  passthrough (no stream, no summary fetch, no context). */
+function TicketLiveWhenEnabled({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  return enabled ? <TicketLiveProvider>{children}</TicketLiveProvider> : <>{children}</>;
+}
 
 function AppShell({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   const router = useRouter();
@@ -386,6 +393,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     [userFirstName, userLastName],
   );
 
+  // Receives the FULL href computed by TicketAlertsButton
+  // (`/help-center/tickets?ticket=<id>#ticket-<id>` for the newest-unread
+  // ticket) — soft-navigate so the drawer auto-opens + the row scrolls.
+  const openHelpCenterTickets = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
+  );
+
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
 
   const headerProps = useMemo(
@@ -413,6 +430,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       showUser: false,
       // These three are core `AppHeader` prop names (the "AI" digraph trips
       // biome's strictCase camelCase rule); they're external API, not ours.
+      // Support-ticket alerts cell — Help Center unread indication.
+      // Attention-only: renders nothing unless <TicketLiveProvider> is
+      // mounted (same helpCenterEnabled gate below), the viewer is
+      // authed, AND there are unread replies.
+      showTicketAlerts: helpCenterEnabled,
+      ticketAlertsHref: routes.helpCenter.tickets,
+      onTicketAlerts: openHelpCenterTickets,
       // biome-ignore lint/style/useNamingConvention: external lib prop name
       showMingoAI: chatEnabled,
       // biome-ignore lint/style/useNamingConvention: external lib prop name
@@ -420,7 +444,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // biome-ignore lint/style/useNamingConvention: external lib prop name
       isMingoAIActive: chatOpen,
     }),
-    [chromeLoading, notificationsEnabled, timeTrackerEnabled, chatEnabled, toggleChat, chatOpen],
+    [
+      chromeLoading,
+      notificationsEnabled,
+      timeTrackerEnabled,
+      chatEnabled,
+      toggleChat,
+      chatOpen,
+      helpCenterEnabled,
+      openHelpCenterTickets,
+    ],
   );
 
   const mobileBurgerMenuProps = useMemo(
@@ -495,19 +528,25 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         </ErrorBoundary>
       )}
       <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady}>
-        <CoreAppLayout
-          // Hook for the native-shell safe-area CSS in globals.css: the layout
-          // root owns the top inset (see `.app-shell-root`). Inert on the web.
-          className="app-shell-root"
-          mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
-          sidebarConfig={sidebarConfig}
-          mobileBurgerMenuProps={mobileBurgerMenuProps}
-          headerProps={headerProps}
-          disabled={showLockContent}
-          drawer={chatDrawer}
-          topBar={topBar}
-        >
-          {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+        {/* Ticket live stream + unread indication (Help Center). Gated on the
+            same feature flag as the surface it serves; wraps CoreAppLayout so
+            BOTH the header's TicketAlertsButton and the /help-center/tickets
+            page (children) read one provider. Without it every ticket-live
+            surface renders nothing and no stream/summary request fires. */}
+        <TicketLiveWhenEnabled enabled={helpCenterEnabled && sessionReady}>
+          <CoreAppLayout
+            // Hook for the native-shell safe-area CSS in globals.css: the layout
+            // root owns the top inset (see `.app-shell-root`). Inert on the web.
+            className="app-shell-root"
+            mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
+            sidebarConfig={sidebarConfig}
+            mobileBurgerMenuProps={mobileBurgerMenuProps}
+            headerProps={headerProps}
+            disabled={showLockContent}
+            drawer={chatDrawer}
+            topBar={topBar}
+          >
+            {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it
               lives here instead.
 
@@ -525,8 +564,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               One shell, two possible contents. The chrome around this never
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header. */}
-          <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
-        </CoreAppLayout>
+            <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
+          </CoreAppLayout>
+        </TicketLiveWhenEnabled>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
           + coach-mark (shows only when a page was reached from an onboarding step
