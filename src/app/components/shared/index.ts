@@ -1,3 +1,4 @@
+export { type AskMingoSource, askMingoButton } from './ask-mingo-button';
 export { DeviceInfoSection } from './device-info-section';
 export type { DeviceSelectorProps, InfiniteScrollConfig } from './device-selector';
 export { DeviceSelector } from './device-selector';
@@ -16,7 +17,6 @@ export { DevicesPanel, type DevicesPanelProps } from './devices-panel';
 export { EMBEDDED_PAGE_OFFSET } from './embedded-page';
 export { EmptyState, type EmptyStateProps } from './empty-state';
 export { LogDrawer, type LogDrawerInfoField } from './log-drawer';
-export { type OnboardingGuideSource, onboardingGuideButton } from './onboarding-guide-button';
 export { OrgAvatar } from './org-avatar';
 export {
   InfoCardSkeleton,
