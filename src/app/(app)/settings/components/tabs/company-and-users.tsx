@@ -36,9 +36,9 @@ import { ConfirmRevokeInvitationModal } from '../confirm-revoke-invitation-modal
 
 const statusToLabel = {
   [UserStatus.Active]: 'ACTIVE',
-  // DELETED and SELF_DELETED are deliberately indistinguishable in the UI.
+  // Same grey variant, distinct labels: admin-deleted vs self-deleted.
   [UserStatus.Deleted]: 'DELETED',
-  [UserStatus.SelfDeleted]: 'DELETED',
+  [UserStatus.SelfDeleted]: 'SELF DELETED',
   [InvitationStatus.Pending]: 'INVITE SENT',
   [InvitationStatus.Expired]: 'INVITE EXPIRED',
 } as const satisfies Record<UnifiedUserStatus, string>;

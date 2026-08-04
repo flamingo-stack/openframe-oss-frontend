@@ -171,7 +171,10 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
               <InfoCell value={displayName} label="Name" />
             </div>
             {!isSelfDeletedUserStatus(user.status) && <InfoCell value={user.email} label="Email" />}
-            <InfoCell value={<Tag label="DELETED" variant="grey" />} label="Status" />
+            <InfoCell
+              value={<Tag label={isSelfDeletedUserStatus(user.status) ? 'SELF DELETED' : 'DELETED'} variant="grey" />}
+              label="Status"
+            />
           </div>
         </div>
       ) : (
