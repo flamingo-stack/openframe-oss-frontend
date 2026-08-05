@@ -22,8 +22,14 @@ import { decodeGlobalId } from '@/lib/relay-id';
  * Deliberately fail-open: an id missing from the map answers "not deleted".
  * That covers REMOVED (purged) users — who never appear in `/api/users` but
  * arrive already anonymized from the backend — and viewers whose role can't
- * list users (the query error just leaves the map empty; no toast, since the
- * feature is decorative).
+ * list users (the query error just leaves the map empty; intentionally no
+ * toast, since the feature is decorative and a permissions-denied viewer
+ * would otherwise see a spurious error on every page).
+ *
+ * Known cap: one page of 1000 users — in a larger tenant, users past the
+ * first page would render unmarked. Accepted for now: the employees page has
+ * the same cap (TODO there), and the proper fix is the pending BE spec that
+ * exposes `status` on the GraphQL `User` type.
  */
 export function useUserStatusMap() {
   const query = useQuery({

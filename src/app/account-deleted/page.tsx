@@ -32,9 +32,9 @@ export default function AccountDeletedPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-ods-bg flex flex-col items-center justify-between p-10">
+    <div className="min-h-screen bg-ods-bg flex flex-col items-center justify-between p-[var(--spacing-system-xlf)]">
       {/* Logo */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
         <OpenFrameLogo
           className="h-10 w-auto"
           lowerPathColor="var(--color-accent-primary)"
@@ -44,7 +44,7 @@ export default function AccountDeletedPage() {
       </div>
 
       {/* Content */}
-      <div className="flex flex-col items-center gap-2 max-w-[600px] text-center">
+      <div className="flex flex-col items-center gap-[var(--spacing-system-xsf)] max-w-[600px] text-center">
         <h1 className="text-h2 text-ods-text-primary">Your account has been deleted</h1>
         <p className="text-h4 text-ods-text-secondary">
           You no longer have access to {organizationName || 'your organization'}. An email with the details has been
@@ -57,7 +57,7 @@ export default function AccountDeletedPage() {
         href="https://flamingo.run"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2 p-4 text-ods-text-secondary rounded-md bg-transparent hover:bg-ods-bg-hover transition-colors"
+        className="flex items-center gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-mf)] text-ods-text-secondary rounded-md bg-transparent hover:bg-ods-bg-hover transition-colors"
       >
         <span className="text-h6">Powered by</span>
         <FlamingoLogo className="h-5 w-5" fill="currentColor" />

@@ -3,6 +3,7 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { useRef } from 'react';
 import { authSessionQueryKey } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
@@ -48,12 +49,19 @@ export function useDeleteOwnAccount() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const user = useAuthStore(state => state.user);
+  // Set once the transfer step commits. If the subsequent delete fails, the
+  // caller is already ADMIN — a retry that repeated the transfer would 403
+  // (only the owner may transfer), stranding the user. The flag makes a retry
+  // skip straight to the delete, and the session invalidation in the error
+  // path refreshes the owner gate so the modal drops its owner-only UI.
+  const transferDoneRef = useRef(false);
 
   return useMutation({
     mutationFn: async ({ newOwnerId }: { newOwnerId?: string }) => {
       if (!user?.id) throw new Error('No authenticated user');
-      if (newOwnerId) {
+      if (newOwnerId && !transferDoneRef.current) {
         await transferOwnershipApi(newOwnerId);
+        transferDoneRef.current = true;
       }
       await deleteUserApi(user.id);
     },
@@ -67,6 +75,13 @@ export function useDeleteOwnAccount() {
       queryClient.setQueryData(authSessionQueryKey, null);
       router.replace(routes.accountDeleted);
     },
-    onError: err => handleApiError(err, toast, 'Failed to delete account'),
+    onError: err => {
+      handleApiError(err, toast, 'Failed to delete account');
+      if (transferDoneRef.current) {
+        // Ownership already moved: re-ask /me so the owner gate (and the
+        // modal's owner-only UI) reflects the caller's new ADMIN role.
+        queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
+      }
+    },
   });
 }

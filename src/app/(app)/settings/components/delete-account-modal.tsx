@@ -49,9 +49,9 @@ function NewOwnerSelect({ currentUserId, value, onChange, disabled }: NewOwnerSe
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-      <Label>New Owner</Label>
+      <Label htmlFor="new-owner-select">New Owner</Label>
       <Select value={value} onValueChange={onChange} disabled={disabled || candidates.length === 0}>
-        <SelectTrigger>
+        <SelectTrigger id="new-owner-select">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>

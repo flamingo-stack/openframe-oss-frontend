@@ -392,7 +392,7 @@ export function ExecutionsTable({
           const isDeleted = isUserDeleted(row.original.initiatorId);
 
           return (
-            <div className="flex flex-1 items-center gap-2 min-w-0">
+            <div className="flex flex-1 items-center gap-[var(--spacing-system-xsf)] min-w-0">
               {isDeleted ? (
                 <DeletedUserAvatar size="md" />
               ) : (
