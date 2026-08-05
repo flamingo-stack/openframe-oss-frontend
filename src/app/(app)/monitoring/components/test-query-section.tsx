@@ -6,6 +6,7 @@ import {
   type SearchableSelectOption,
   Tag,
   TestRunResults,
+  TestRunStatusStat,
   TimingStat,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
@@ -125,7 +126,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
           it, the results (skeleton / table / empty state), per design. */}
       {isOpen && (
         <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-[6px] border border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-s)]">
-          <div className="grid grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-[var(--spacing-system-m)] items-end">
+          <div className="grid grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-[var(--spacing-system-m)] items-end">
             {/* Device — searchable select (search field is the first dropdown
                 item), same pattern as the ticket assignee picker. */}
             <div className="flex flex-col gap-[var(--spacing-system-xxs)] min-w-0 order-1">
@@ -145,11 +146,12 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
 
             <TimingStat value={test.startedLabel} label="Started" className="order-3 lg:order-2" />
             <TimingStat value={test.durationLabel} label="Duration" className="order-4 lg:order-3" />
+            <TestRunStatusStat status={test.status} className="order-5 lg:order-4" />
 
             {/* Action. The column is fixed-width on desktop and every button
                 fills it (and matches the SelectTrigger height), so swapping
                 Run Test / Stop Test / Test Again never shifts the layout. */}
-            <div className="flex items-end justify-end order-2 lg:order-4 lg:w-[150px]">
+            <div className="flex items-end justify-end order-2 lg:order-5 lg:w-[150px]">
               {test.isActive ? (
                 <Button
                   type="button"
