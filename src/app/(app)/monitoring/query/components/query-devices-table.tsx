@@ -4,9 +4,11 @@ import { type DeviceType, getDeviceTypeIcon } from '@flamingo-stack/openframe-fr
 import { OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
+  BracketCurlyEllipsisVrIcon,
   Filter02Icon,
   MonitorIcon,
   SearchIcon,
+  XmarkCircleIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -28,19 +30,37 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { getDeviceStatusConfig } from '../../../devices/utils/device-status';
+import { QuickQueryPanel } from '../../policy/components/quick-query-panel';
 import { useQueryDevicesTable } from '../hooks/use-query-devices-table';
 import type { QueryDeviceRow } from '../types/query-device-row';
 
 interface QueryDevicesTableProps {
   queryId: number;
+  /** Query osquery SQL — copied into the per-device Quick Query draft. */
+  query?: string;
 }
 
-export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
+export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
   const { rows, isLoading } = useQueryDevicesTable(queryId);
   const isMdUp = useMdUp();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  const [quickQueryIds, setQuickQueryIds] = useState<Set<string>>(new Set());
+  const hasQuery = Boolean(query?.trim());
+
+  const toggleQuickQuery = useCallback((rowId: string) => {
+    setQuickQueryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  }, []);
 
   // Device tags grouped by key → values, for the "Device Tags" FilterModal
   // (same shape the /devices tag filter modal consumes).
@@ -195,8 +215,37 @@ export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
         enableSorting: false,
         meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
       },
+      {
+        id: 'quick-query',
+        cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
+          const isOpen = quickQueryIds.has(String(row.original.id));
+          return (
+            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+              <Button
+                onClick={() => toggleQuickQuery(String(row.original.id))}
+                variant="outline"
+                disabled={!isOpen && !hasQuery}
+                leftIcon={
+                  isOpen ? <XmarkCircleIcon className="w-5 h-5" /> : <BracketCurlyEllipsisVrIcon className="w-5 h-5" />
+                }
+                aria-label={isOpen ? 'Close quick query' : 'Open quick query'}
+                aria-expanded={isOpen}
+                className="bg-ods-card w-full"
+              >
+                {/* Icon-only on mobile, per design. */}
+                <span className="hidden md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
+              </Button>
+            </div>
+          );
+        },
+        enableSorting: false,
+        // Fixed column width (matching the header's empty cell) so the flex
+        // columns before it stretch identically in the header and the rows;
+        // the w-full button inside also keeps Quick Query / Close equal width.
+        meta: { width: 'w-12 md:w-[160px] shrink-0 flex-none', align: 'right' },
+      },
     ],
-    [statusOptions, osOptions, customerOptions],
+    [statusOptions, osOptions, customerOptions, quickQueryIds, toggleQuickQuery, hasQuery],
   );
 
   const table = useDataTable<QueryDeviceRow>({
@@ -210,6 +259,16 @@ export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
   const rowHref = useCallback(
     (row: QueryDeviceRow) => (row.machineId ? routes.devices.details(row.machineId) : undefined),
     [],
+  );
+
+  // The panel mounts on open and unmounts on close, so each open copies the
+  // current query into a fresh draft and drops any previous run state.
+  const renderSubRow = useCallback(
+    (row: QueryDeviceRow) => {
+      if (!quickQueryIds.has(String(row.id))) return null;
+      return <QuickQueryPanel fleetHostId={row.fleetHostId} initialQuery={query ?? ''} />;
+    },
+    [quickQueryIds, query],
   );
 
   const tagsActive = selectedTags.length > 0;
@@ -259,7 +318,13 @@ export function QueryDevicesTable({ queryId }: QueryDevicesTableProps) {
 
       <DataTable table={table}>
         {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
-        <DataTable.Body loading={isLoading} skeletonRows={5} emptyState={emptyState} rowHref={rowHref} />
+        <DataTable.Body
+          loading={isLoading}
+          skeletonRows={5}
+          emptyState={emptyState}
+          rowHref={rowHref}
+          renderSubRow={renderSubRow}
+        />
       </DataTable>
 
       <FilterModal
