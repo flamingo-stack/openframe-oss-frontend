@@ -167,7 +167,14 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
         <div className={CARD_CONTAINER}>
           <div className={CARD_ROW}>
             <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
-              <DeletedUserAvatar size="lg" />
+              {/* Design sizes the placeholder responsively: 36px with a 16px icon on
+                  mobile, 48px with a 24px icon on md+ (1095-50238 vs 1095-46586).
+                  `DeletedUserAvatar` has fixed buckets only, so the container and its
+                  svg are overridden here instead of forking the lib component. */}
+              <DeletedUserAvatar
+                size="lg"
+                className="h-9 w-9 md:h-12 md:w-12 [&>svg]:h-4 [&>svg]:w-4 md:[&>svg]:h-6 md:[&>svg]:w-6"
+              />
               <InfoCell value={displayName} label="Name" />
             </div>
             {!isSelfDeletedUserStatus(user.status) && <InfoCell value={user.email} label="Email" />}
