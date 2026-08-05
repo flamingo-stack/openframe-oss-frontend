@@ -17,7 +17,8 @@ import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion'
 import { parseKeyValues } from '../../../utils/script-key-values';
 import { envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleScriptsAutocomplete } from '../hooks/use-schedule-scripts-autocomplete';
-import type { EditScheduleFormData } from '../types/edit-schedule.types';
+import { type EditScheduleFormData, EMPTY_SCRIPT_ROW } from '../types/edit-schedule.types';
+import { toEnvVarInputs } from '../utils/schedule-script-params';
 
 /** Fallback when the picked script carries no timeout of its own (design default). */
 const DEFAULT_TIMEOUT_SECONDS = 90;
@@ -66,11 +67,15 @@ function ScriptPlatformIcons({ platforms }: { platforms: string[] }) {
  * arrows to move, Space to drop, Esc to cancel) with live-region announcements
  * wired up by the list — no separate keyboard affordance needed.
  *
- * ⚠ Timeout / arguments / env vars are editable but **not persisted yet**: the
- * schedule model has no per-script overrides (`scriptEntries` in
- * docs/script-schedules-v2-graphql-gaps.md §3). They are seeded from the picked
- * script's own defaults, which is exactly what a run uses today, so the card
- * shows the truth until the input lands.
+ * Arguments and env vars ARE persisted, as this schedule's per-script override
+ * (`scriptCustomParams`): they seed from the picked script's defaults, and only
+ * a half the user moves off those defaults is written back — so leaving a card
+ * untouched keeps the schedule following later edits to the script itself.
+ *
+ * ⚠ **Timeout is still editable but not persisted**: the override input carries
+ * args and env vars only (docs/script-schedules-v2-graphql-gaps.md §3). It is
+ * seeded from the script's own default, which is what the run actually uses, so
+ * the card shows the truth — it just cannot be changed per schedule yet.
  */
 export function ScheduleScriptPickerCard({
   id,
@@ -122,11 +127,7 @@ export function ScheduleScriptPickerCard({
     if (!scriptId) {
       // Back to the locked state: the run parameters belong to the script, so
       // clearing the script clears them rather than leaving a stale timeout.
-      setValue(
-        `scripts.${index}`,
-        { scriptId: '', name: '', supportedPlatforms: [], timeoutSeconds: UNSET_TIMEOUT, args: [], envVars: [] },
-        { shouldValidate: true },
-      );
+      setValue(`scripts.${index}`, EMPTY_SCRIPT_ROW, { shouldValidate: true });
       return;
     }
     const script = scripts.find(s => s.id === scriptId);
@@ -134,6 +135,10 @@ export function ScheduleScriptPickerCard({
 
     // Seed the run parameters from the script itself — that IS what the
     // schedule will run with, so the card never shows blanks for a real script.
+    // A freshly picked script therefore starts UNCUSTOMISED: the defaults ride
+    // along beside the editable copy, and submit writes an override only for a
+    // half the user actually moved off them.
+    const defaultEnvVars = toEnvVarInputs(script.envVars);
     setValue(
       `scripts.${index}`,
       {
@@ -145,6 +150,8 @@ export function ScheduleScriptPickerCard({
         timeoutSeconds: script.defaultTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
         args: parseKeyValues(script.defaultArgs, ' '),
         envVars: envVarsToPairs(script.envVars),
+        defaultArgs: script.defaultArgs ? [...script.defaultArgs] : [],
+        defaultEnvVars,
       },
       { shouldValidate: true, shouldDirty: true },
     );

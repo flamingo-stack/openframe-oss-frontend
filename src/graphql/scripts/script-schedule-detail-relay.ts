@@ -58,6 +58,21 @@ export const scriptScheduleDetailRelayQuery = graphql`
         envVars {
           name
           value
+          secret
+        }
+      }
+      # Per-script overrides ("custom scripts"): SPARSE — only the scripts whose
+      # args / env the user changed appear here, and each field is null when that
+      # half still inherits the script's own defaults. Keyed by scriptId, which
+      # matches scripts[].id, so a schedule that runs the same script twice gives
+      # BOTH entries the same override — the schema has no per-position id.
+      scriptCustomParams {
+        scriptId
+        args
+        envVars {
+          name
+          value
+          secret
         }
       }
     }

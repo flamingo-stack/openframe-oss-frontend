@@ -18,6 +18,15 @@ import { graphql } from 'react-relay';
  * goes out: the consumer reads this with `store-and-network`, which always
  * refetches, and that revalidation is what the cached answer is traded against
  * — the page draws immediately and corrects itself if the schedule moved.
+ *
+ * It also selects everything `updateScriptSchedule` overwrites, which is what
+ * lets this page flip a schedule back to SPECIFIC (`selectionMode` on the
+ * update input). That mutation is a full PUT — a partial input clears the
+ * fields it omits — so the mode switch has to send the schedule back
+ * unchanged around the one field it means to change. `scripts { id }` and
+ * `scriptCustomParams` are here for that write alone, not for anything this
+ * page renders; the ids are cheap, and dropping them would have the switch
+ * empty the schedule's recipe.
  */
 export const scriptScheduleDevicesSettingsRelayQuery = graphql`
   query scriptScheduleDevicesSettingsRelayQuery($id: ID!) {
@@ -35,6 +44,19 @@ export const scriptScheduleDevicesSettingsRelayQuery = graphql`
         organizationIds
         deviceTypes
         osTypes
+      }
+      # PUT payload only — see above.
+      scripts {
+        id
+      }
+      scriptCustomParams {
+        scriptId
+        args
+        envVars {
+          name
+          value
+          secret
+        }
       }
     }
   }
