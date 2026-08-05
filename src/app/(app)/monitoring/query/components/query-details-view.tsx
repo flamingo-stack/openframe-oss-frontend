@@ -25,7 +25,9 @@ import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/components/script/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
+import { TestQuerySection } from '../../components/test-query-section';
 import { useQueries } from '../../hooks/use-queries';
+import { usePolicyDevices } from '../../policy/hooks/use-policy-devices';
 import { useQueryDetails } from '../hooks/use-query-details';
 import { useQueryReport } from '../hooks/use-query-report';
 import { QueryDevicesTable } from './query-devices-table';
@@ -59,7 +61,12 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
   const { queryDetails, isLoading, error } = useQueryDetails(isValidId ? numericId : null);
   const { rows, isLoading: isReportLoading } = useQueryReport(isValidId ? numericId : null);
   const { deleteQuery, isDeleting } = useQueries();
+  const { devices: queryDevices, isLoading: isLoadingDevices } = usePolicyDevices();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  // Stable reference for TestQuerySection (query is read-only on this page).
+  const queryText = queryDetails?.query || '';
+  const getQuery = useCallback(() => queryText, [queryText]);
 
   const requestedTab = searchParams.get('tab') ?? DEFAULT_QUERY_TAB;
   const activeTab = QUERY_TAB_IDS.includes(requestedTab) ? requestedTab : DEFAULT_QUERY_TAB;
@@ -104,7 +111,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
 
   const actions: PageActionButton[] = [
     {
-      label: 'Edit',
+      label: 'Edit Query',
       icon: <PenEditIcon size={24} className="text-ods-text-secondary" />,
       variant: 'outline',
       onClick: handleEditQuery,
@@ -156,13 +163,20 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
         </div>
       </div>
 
-      {/* Query */}
+      {/* Query + inline test block */}
       {queryDetails.query && (
-        <div className="mt-6">
-          <div className="">
-            <h3 className="text-h5 text-ods-text-secondary">QUERY</h3>
-          </div>
+        <div className="mt-6 space-y-[var(--spacing-system-xxs)]">
+          <h3 className="text-h5 text-ods-text-secondary">QUERY</h3>
           <ScriptEditor value={queryDetails.query} shell="sql" readOnly height="300px" />
+          {/* 8px gap under the editor, matching the section's internal gap
+              (the parent's space-y would give 4px). */}
+          <TestQuerySection
+            getQuery={getQuery}
+            hasQuery={Boolean(queryText.trim())}
+            devices={queryDevices}
+            isLoadingDevices={isLoadingDevices}
+            className="!mt-[var(--spacing-system-xsf)]"
+          />
         </div>
       )}
 
@@ -172,7 +186,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
           {tabId => (
             <div className="mt-6">
               {tabId === 'devices' ? (
-                <QueryDevicesTable queryId={numericId} />
+                <QueryDevicesTable queryId={numericId} query={queryText} />
               ) : (
                 <QueryReportTable
                   data={rows}

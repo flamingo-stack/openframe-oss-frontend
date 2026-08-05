@@ -16,9 +16,22 @@ import {
 } from '../../../components/script/script-param-rows';
 import { envVarsToPairs, shellToId } from '../../shared/utils/script-mappers';
 import type { ScheduleScript } from '../types/schedule-detail.types';
+import { effectiveScriptParams, type StoredScriptCustomParams } from '../utils/schedule-script-params';
+
+interface ScheduleScriptCardProps {
+  script: ScheduleScript;
+  /**
+   * This schedule's override for the script, when it has one. Absent means the
+   * card shows the script's own defaults — which is what the schedule runs.
+   */
+  customParams?: StoredScriptCustomParams;
+}
 
 /** Design default when a script carries no timeout of its own. */
 const DEFAULT_TIMEOUT_SECONDS = 90;
+
+/** The card's two parameter panels, in order — titles are static, so they are real. */
+const SKELETON_PANELS = ['Script Arguments', 'Environment Vars'] as const;
 
 /** The source editor's height — and the height of the box that holds its place. */
 const SOURCE_HEIGHT = '400px';
@@ -113,7 +126,7 @@ function useScriptSourceReady(isExpanded: boolean): boolean {
  *   No source at any point: a 400px editor on a 390px-wide screen is a worse
  *   read than the script page it links to.
  */
-export function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
+export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardProps) {
   const router = useRouter();
   const isMdUp = useMdUp();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -131,8 +144,13 @@ export function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
     router.push(routes.scriptsV2.details(script.id));
   }, [router, script.id]);
 
-  const argRows = argsToParamRows(script.defaultArgs ?? []);
-  const envRows = envPairsToParamRows(envVarsToPairs(script.envVars));
+  // What this SCHEDULE runs the script with, which is not always what the script
+  // itself defaults to: a per-script override replaces either half wholesale.
+  // The card is the page that has to show the difference — it is where a user
+  // checks what a scheduled run will actually pass.
+  const effective = effectiveScriptParams(script, customParams);
+  const argRows = argsToParamRows(effective.args);
+  const envRows = envPairsToParamRows(envVarsToPairs(effective.envVars));
 
   return (
     <div className="bg-ods-card border border-ods-border rounded-[8px] overflow-clip flex flex-col">
@@ -290,9 +308,16 @@ export function ScheduleScriptCardSkeleton() {
 
       {/* Desktop keeps the panels open at all times, so the skeleton has to hold
           their height or the list jumps when data lands. A phone starts closed
-          (1:49009) — there the header alone IS the collapsed card. */}
+          (1:49009) — there the header alone IS the collapsed card.
+
+          Both panels are drawn because both always render — an empty half still
+          holds its column. Their TITLES are static, so they are real text. What
+          is not certain is the contents: arguments and environment variables are
+          each optional, and an empty panel says so in one line ("No script
+          arguments"), so exactly ONE placeholder row is reserved — the line every
+          panel has either way. */}
       <div className="hidden md:flex flex-col md:flex-row items-stretch border-t border-ods-border">
-        {['args', 'env'].map((panel, panelIndex) => (
+        {SKELETON_PANELS.map((panel, panelIndex) => (
           <div
             key={panel}
             className={cn(
@@ -300,16 +325,12 @@ export function ScheduleScriptCardSkeleton() {
               panelIndex === 0 && 'border-b border-ods-border md:border-b-0 md:border-r',
             )}
           >
-            <div className="text-h4">
-              <Skeleton className="inline-block h-4 w-32 max-w-full" />
+            <span className="text-h4 text-ods-text-primary truncate">{panel}</span>
+            <div className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
+              <Skeleton className="h-4 w-20" />
+              <span className="h-px min-w-4 flex-1 bg-ods-divider" />
+              <Skeleton className="h-4 w-16" />
             </div>
-            {['a', 'b'].map(row => (
-              <div key={row} className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-                <Skeleton className="h-4 w-20" />
-                <span className="h-px min-w-4 flex-1 bg-ods-divider" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-            ))}
           </div>
         ))}
       </div>

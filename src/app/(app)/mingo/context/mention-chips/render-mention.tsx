@@ -11,11 +11,11 @@
  * stable identity falls out for free — the lib's per-message memo relies on
  * `renderMention` keeping reference equality across streaming chunks.
  *
- * Coverage = all eight markers the agent can emit. GraphQL types (device,
- * customer, kb) resolve via Relay; REST/ai-agent types (policy, query, user,
- * ticket) via `RestMentionChip`. SCRIPT is dual-sourced — a NEW script (24-char
- * ObjectId) resolves via Relay, a LEGACY Tactical script (numeric id) via REST —
- * so both kinds of script id render regardless of the `scripts-v2` flag. Every
+ * Coverage = all nine markers the agent can emit. GraphQL types (device,
+ * customer, kb, scheduled script) resolve via Relay; REST/ai-agent types (policy,
+ * query, user, ticket) via `RestMentionChip`. SCRIPT is dual-sourced — a NEW
+ * script (24-char ObjectId) resolves via Relay, a LEGACY Tactical script (numeric
+ * id) via REST — so both kinds of script id render regardless of the flag. Every
  * chip falls back to a plain id chip (clickable where a route exists) if its
  * fetch can't resolve a name. Unknown marker → bare token.
  */
@@ -60,6 +60,12 @@ export function renderMingoMention({
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.ORGANIZATION} id={id} icon={icon} fallbackLabel={label} />;
     case M.KB_ARTICLE:
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_ARTICLE} id={id} icon={icon} fallbackLabel={label} />;
+    case M.SCHEDULED_SCRIPT:
+      // Native-only (schedules never existed in Tactical), so — unlike SCRIPT
+      // below — there is no id-shape dispatch: every id resolves through Relay.
+      return (
+        <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT} id={id} icon={icon} fallbackLabel={label} />
+      );
     case M.SCRIPT:
       // Dual-sourced, independent of the `scripts-v2` flag: a 24-char ObjectId is
       // a NEW script (Relay `script(id:)`); anything else (numeric) is a LEGACY

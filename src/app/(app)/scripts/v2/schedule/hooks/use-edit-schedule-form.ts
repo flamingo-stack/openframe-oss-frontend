@@ -20,23 +20,22 @@ import {
   type EditScheduleFormData,
   editScheduleFormSchema,
 } from '../types/edit-schedule.types';
+import { collectScriptCustomParams } from '../utils/schedule-script-params';
 import { applyTimeSlot, isEventTrigger, resolveRepeatSeconds, toScheduleInstant } from '../utils/schedule-timing';
 
 interface UseEditScheduleFormOptions {
   /** `null` on the create page — which is also what picks create over update. */
   scheduleId: string | null;
-  /** The stored schedule in form shape; `null` when creating. */
-  initialValues: EditScheduleFormData | null;
 }
 
 /**
  * Form state, validation and the create / update mutation for a script schedule.
  *
- * The form is seeded on mount, not through an effect: both pages resolve their
- * schedule before rendering this, so `defaultValues` already hold the real
- * record and there is no window where the fields disagree with the server.
+ * The form starts empty and is filled by the page through `useSeedForm` once the
+ * record arrives — the fields are mounted (and locked) from the first render, so
+ * there is no skeleton copy of this form to keep in step.
  */
-export function useEditScheduleForm({ scheduleId, initialValues }: UseEditScheduleFormOptions) {
+export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) {
   const isEditMode = Boolean(scheduleId);
   const router = useRouter();
   const { toast } = useToast();
@@ -47,7 +46,7 @@ export function useEditScheduleForm({ scheduleId, initialValues }: UseEditSchedu
 
   const methods = useForm<EditScheduleFormData>({
     resolver: zodResolver(editScheduleFormSchema),
-    defaultValues: initialValues ?? DEFAULT_SCHEDULE_VALUES,
+    defaultValues: DEFAULT_SCHEDULE_VALUES,
   });
 
   // Errors stay hidden on a pristine form and appear only once the user attempts
@@ -74,10 +73,16 @@ export function useEditScheduleForm({ scheduleId, initialValues }: UseEditSchedu
         description: data.description.trim() || null,
         supportedPlatforms: platformsToEnums(data.supportedPlatforms),
         // Order is the payload: the card order (drag & drop) IS the run order.
-        // TODO(backend): per-script timeout / args / env vars are edited in the
-        // cards but dropped here — the input takes bare ids until it grows
-        // `scriptEntries` (docs/script-schedules-v2-graphql-gaps.md §3).
+        // TODO(backend): per-script TIMEOUT is still edited in the cards and
+        // dropped here — `ScheduledScriptCustomParamsInput` carries args and env
+        // vars only (docs/script-schedules-v2-graphql-gaps.md §3).
         scriptIds: data.scripts.map(s => s.scriptId),
+        // Sparse by construction: a script whose args and env vars still equal
+        // its own defaults contributes no entry, so the schedule keeps
+        // inheriting later edits to that script. PUT semantics on update — this
+        // array IS the stored set, and an empty one clears every override, which
+        // is exactly what "the user reset both halves" has to mean.
+        scriptCustomParams: collectScriptCustomParams(data.scripts),
         trigger: data.trigger,
         // PUT semantics: null clears the timing / recurrence. `repeat` needs a
         // start to anchor it, which a DATE_TIME schedule always has by now.

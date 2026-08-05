@@ -12,9 +12,18 @@ const KB_SOURCE_ID = 'openframe-docs';
  * The one renderer `<DocsHubPage>` requires — the lib ships no default markdown
  * renderer so each host picks its own library. Hands the doc body to the lib's
  * `<RichMarkdownRenderer>`, threading the viewer's internal-link handlers so
- * relative `./intro.md` links resolve via `/api/docs/resolve-link` instead of
- * 404ing. Raw Mermaid files (`.mmd`, stored without a code fence) are wrapped in
- * a ```mermaid block so they render as diagrams, mirroring the hub.
+ * relative `./intro.md` links resolve instead of 404ing. Raw Mermaid files
+ * (`.mmd`, stored without a code fence) are wrapped in a ```mermaid block so
+ * they render as diagrams, mirroring the hub.
+ *
+ * `resolveLinkEndpointUrl` is NOT redundant with the `resolveLinkEndpoint` prop
+ * on `<DocsHubPage>`: the renderer OWNS its `onResolveLink` (the engine prop is
+ * omitted from `RichMarkdownRendererProps`, so `handlers.onResolveLink` cannot
+ * be threaded in) and POSTs the click itself. Left unset it falls back to the
+ * hub-relative default `/api/docs/resolve-link`, which resolves against OUR
+ * origin — a path this app doesn't serve, so every relative in-doc link died on
+ * a gateway 500. Point it at the same `/content` proxy every other doc endpoint
+ * uses.
  */
 const markdownRenderer: DocumentTypeRenderers['markdown'] = (content, handlers) => {
   const body = /\.mmd$/i.test(content.path)
@@ -28,6 +37,7 @@ const markdownRenderer: DocumentTypeRenderers['markdown'] = (content, handlers) 
       brokenLinks={content.brokenLinks}
       currentPath={handlers.currentPath}
       resolveSource={handlers.sourceId}
+      resolveLinkEndpointUrl={EP.docsResolveLink}
     />
   );
 };

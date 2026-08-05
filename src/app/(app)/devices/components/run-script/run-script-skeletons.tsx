@@ -2,7 +2,7 @@
 
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import {
-  RUN_SUMMARY_LABELS,
+  RUN_SUMMARY_STATS,
   ScriptSummaryCardSkeleton,
 } from '../../../scripts/v2/script/components/script-summary-card';
 
@@ -58,7 +58,7 @@ export function RunScriptConfigStepSkeleton() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
       <div className="min-h-0 flex-1 space-y-[var(--spacing-system-l)] overflow-y-auto">
-        <ScriptSummaryCardSkeleton labels={RUN_SUMMARY_LABELS} />
+        <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
 
         {/* Timeout + Run as User */}
         <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-l)] lg:grid-cols-2">

@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, TestRunResults, TimingStat } from '@flamingo-stack/openframe-frontend-core';
+import { Button, TestRunResults, TestRunStatusStat, TimingStat } from '@flamingo-stack/openframe-frontend-core';
 import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { ScriptEditor } from '../../../scripts/components/script/script-editor';
@@ -45,6 +45,7 @@ export function QuickQueryPanel({ fleetHostId, initialQuery }: QuickQueryPanelPr
       <div className="flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)]">
         <TimingStat value={test.startedLabel} label="Started" className="w-1/4 shrink-0 md:w-auto md:flex-1" />
         <TimingStat value={test.durationLabel} label="Duration" className="w-1/4 shrink-0 md:w-auto md:flex-1" />
+        <TestRunStatusStat status={test.status} className="hidden md:flex md:flex-1" />
         <div className="ml-auto flex shrink-0 items-center justify-end md:w-[180px]">
           {test.isActive ? (
             <Button

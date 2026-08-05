@@ -208,13 +208,98 @@ function slotLabel(minutesOfDay: number): string {
  *
  * A function rather than a const because the grid depends on the viewer's
  * timezone, which a module evaluated during prerender does not know.
+ *
+ * `forDate` drops the slots that have already gone by: a schedule cannot start
+ * in the past, and offering "8:00 AM" at noon means offering a save the backend
+ * refuses. Only a `forDate` of TODAY narrows the list — a later day keeps the
+ * full 48, and so does a day not yet picked (the user may well be about to pick
+ * tomorrow; picking today afterwards is what clears a time that has gone by).
+ * A PAST day keeps them too: it can only be a stored start, and the value that
+ * schedule already holds has to stay readable.
  */
-export function getTimeSlotOptions(): { value: string; label: string }[] {
+export function getTimeSlotOptions(forDate?: Date | null): { value: string; label: string }[] {
   const base = slotBaseMinutes();
+  const cutoff = forDate && isToday(forDate) ? nowMinutesOfDay() : -1;
   return Array.from({ length: SLOTS_PER_DAY }, (_, slot) => {
     const minutesOfDay = base + slot * SLOT_MINUTES;
-    return { value: slotValue(minutesOfDay), label: slotLabel(minutesOfDay) };
-  });
+    return { value: slotValue(minutesOfDay), label: slotLabel(minutesOfDay), minutesOfDay };
+  })
+    .filter(slot => slot.minutesOfDay > cutoff)
+    .map(({ value, label }) => ({ value, label }));
+}
+
+/**
+ * The dropdown reading for an `HH:mm` the option list no longer carries — a
+ * stored start whose slot has already gone by today. The form's value has to
+ * stay VISIBLE (it is what will be saved if nothing else changes), so the Select
+ * gets its option back with the same label the live slots use.
+ */
+export function slotToLabel(slot: string): string {
+  const [hours, minutes] = slot.split(':').map(Number);
+  return slotLabel(hours * 60 + minutes);
+}
+
+/** Minutes since local midnight, right now. */
+function nowMinutesOfDay(): number {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+/** Same local calendar day as right now. */
+function isToday(date: Date): boolean {
+  const now = new Date();
+  return (
+    date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
+  );
+}
+
+/**
+ * Local midnight today — the earliest day a schedule may start, and what the
+ * date picker takes as its `fromDate`.
+ *
+ * Midnight rather than "now": the calendar selects whole days, so today has to
+ * stay pickable all day long. Which of today's SLOTS are still available is the
+ * time dropdown's half of the same rule ({@link getTimeSlotOptions}).
+ *
+ * Built per call — a module-level constant would freeze the boundary at import
+ * time and let a tab left open overnight pick yesterday.
+ */
+export function startOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/**
+ * Whether a picked day + slot has already gone by. Compared as instants, so a
+ * slot that is still minutes away passes.
+ */
+export function isScheduleStartInPast(date: Date | null | undefined, slot: string): boolean {
+  if (!date || !slot) return false;
+  return applyTimeSlot(date, slot).getTime() < Date.now();
+}
+
+/** What both the field and the schema say about a start that has gone by. */
+export const PAST_START_MESSAGE = 'Start time must be in the future';
+
+/**
+ * The "no start in the past" rule as the FORM applies it — stated once, and read
+ * by both the fields (which show it the moment it happens) and the schema (which
+ * refuses the save).
+ *
+ * The exemption is the whole reason it needs a name: a schedule already stored
+ * with a past start keeps it. Recurring schedules legitimately started long ago,
+ * and without this, renaming one would demand re-picking its date. So the stored
+ * instant stays legal for exactly as long as the form still shows it; moving
+ * either half makes the choice a new one, held to the same rule as any other.
+ */
+export function isStartInPastAndChanged(
+  date: Date | null | undefined,
+  slot: string,
+  storedIso: string | null | undefined,
+): boolean {
+  if (!isScheduleStartInPast(date, slot) || !date) return false;
+  const stored = storedIso ? fromScheduleInstant(storedIso).getTime() : null;
+  return applyTimeSlot(date, slot).getTime() !== stored;
 }
 
 /**

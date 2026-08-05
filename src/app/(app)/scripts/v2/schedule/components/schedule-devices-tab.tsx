@@ -18,6 +18,7 @@ import {
   scriptScheduleDevicesRelayFragment,
   scriptScheduleDevicesRelayQuery,
 } from '@/graphql/scripts/script-schedule-devices-relay';
+import { useScheduleDeviceFilters } from '../hooks/use-schedule-device-filters';
 import { criteriaFromStored } from '../utils/schedule-criteria';
 import { ScheduleCriteriaSummary } from './schedule-criteria-fields';
 
@@ -73,13 +74,13 @@ function toDeviceFilter(narrowing: Omit<DevicesListNarrowing, 'search'>): Assign
  * (that connection takes the same `filter` / `search` as the top-level query), so
  * it applies to the whole assignment rather than to the pages loaded so far.
  *
- * The column funnels are the exception, and they are absent on purpose: their
- * options would have to come from `deviceFilters`, which is TENANT-wide, and
- * there is no schedule-scoped facet query. Offering the tenant's whole list here
- * would put choices in it that this assignment does not contain, so no options
- * are passed and the table draws no funnel for a column that has none. Search
- * and tag chips still narrow, server-side, and the fix is a schedule-scoped
- * facet query rather than a wider list.
+ * That includes the column funnels, which this tab used to go without: their
+ * options would have had to come from the TENANT-wide `deviceFilters`, offering
+ * statuses and customers this assignment does not contain. The 2026-08-04 schema
+ * added `ScriptSchedule.assignedDeviceFilters(filter, search)` — the same facet
+ * shape resolved over this schedule's own machines — so the funnels are back and
+ * every option in them narrows something. Tag chips are the one exception, still
+ * fleet-fed; see `useScheduleDeviceFilters`.
  */
 function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
   const detail = useLazyLoadQuery<ScheduleDetailQueryType>(
@@ -120,6 +121,11 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
     ScheduleDevicesFragmentKey
   >(scriptScheduleDevicesRelayFragment, queryData.scriptSchedule ?? null);
 
+  // Scoped to THIS schedule's machines, but NOT to the current narrowing — a
+  // funnel that answers through its own selection offers one option after the
+  // first click. See the hook.
+  const deviceFilters = useScheduleDeviceFilters(scheduleId, 'assigned');
+
   const devices = useMemo<Device[]>(() => {
     const edges = data?.assignedDevices?.edges ?? [];
     // Defensive null-node guard: skip any dangling edge instead of crashing the
@@ -150,6 +156,7 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
 
       <DevicesList
         devices={devices}
+        deviceFilters={deviceFilters}
         narrowing={narrowing}
         onNarrowingChange={setNarrowing}
         isPending={isPending}

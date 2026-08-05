@@ -6,6 +6,8 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ComponentType } from 'react';
+import type { ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { isEventTrigger } from '../utils/schedule-timing';
 import { ScheduleDevicesTab } from './schedule-devices-tab';
 import { ScheduleExecutionsTab } from './schedule-executions-tab';
 import { ScheduleRunsTab } from './schedule-runs-tab';
@@ -45,6 +47,31 @@ export const SCHEDULE_DETAIL_TABS: TabItem[] = [
   { id: 'runs', label: 'Schedule Runs', icon: ClockHistoryIcon, component: ScheduleRunsTab },
   { id: 'executions', label: 'Execution History', icon: ListBulletIcon, component: ScheduleExecutionsTab },
 ];
+
+/**
+ * The tabs every schedule has — the set with "Schedule Runs" taken out.
+ *
+ * Also what the strip draws while the trigger is still unknown: three of the
+ * four tabs are certain, and drawing the fourth would mean showing a tab that an
+ * event-driven schedule then RETRACTS — worse than a tab that arrives, since a
+ * retracted one can be clicked in the meantime.
+ */
+export const SCHEDULE_TABS_WITHOUT_RUNS: TabItem[] = SCHEDULE_DETAIL_TABS.filter(tab => tab.id !== 'runs');
+
+/**
+ * The tabs a schedule with this trigger has.
+ *
+ * "Schedule Runs" is the aggregate view — one row per FIRE of the schedule,
+ * counting how many of the targeted devices have answered it. A `DEVICE_ONLINE`
+ * schedule has no such fire: it waits for each machine separately and dispatches
+ * to that one machine as it connects, so every row would be a "fire" of one
+ * device, arriving one per connection. What actually happened is the flat
+ * per-script-per-device list, which is Execution History — kept for both
+ * triggers.
+ */
+export function scheduleDetailTabs(trigger: ScriptScheduleTrigger | string | null | undefined): TabItem[] {
+  return isEventTrigger(trigger) ? SCHEDULE_TABS_WITHOUT_RUNS : SCHEDULE_DETAIL_TABS;
+}
 
 /** What an absent or unrecognised `?tab=` resolves to — the first tab, as the strip reads. */
 export const SCHEDULE_DEFAULT_TAB = SCHEDULE_DETAIL_TABS[0].id;

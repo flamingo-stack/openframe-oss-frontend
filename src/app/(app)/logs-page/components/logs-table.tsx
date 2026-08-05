@@ -46,7 +46,7 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { logsTableRelay_query$key as LogsFragmentKey } from '@/__generated__/logsTableRelay_query.graphql';
 import type { logsTableRelayPaginationQuery as LogsPaginationQueryType } from '@/__generated__/logsTableRelayPaginationQuery.graphql';
 import type { logsTableRelayQuery as LogsQueryType } from '@/__generated__/logsTableRelayQuery.graphql';
-import { EMBEDDED_PAGE_OFFSET, EmptyState, LogDrawer, onboardingGuideButton } from '@/app/components/shared';
+import { askMingoButton, EMBEDDED_PAGE_OFFSET, EmptyState, LogDrawer } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { LogSortField, SortDirection } from '@/generated/schema-enums';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -353,32 +353,40 @@ function LogsTableContent({
         // Custom header: label + calendar popover with timestamp sort + date-range filter.
         // No own vertical padding — the lib HeaderCell wrapper already pads the row.
         header: () => (
-          <div className="group flex items-center gap-[var(--spacing-system-xsf)] select-none">
-            <span className="text-h5 text-ods-text-secondary whitespace-nowrap transition-colors duration-200 group-hover:text-ods-text-primary">
-              Log ID
-            </span>
-            <DateFilterMenu
-              mode="range"
-              sort={sortDirection}
-              range={dateRange}
-              onApply={onDateFilterApply}
-              // Compact inline trigger — keeps the header row height identical to
-              // the other columns (the default lib trigger is a 48px Button).
-              trigger={
-                <button type="button" aria-label="Sort and filter logs by date" className="flex items-center">
-                  <CalendarIcon
-                    className={cn(
-                      'w-4 h-4 transition-colors duration-200',
-                      // Active when a date range or a non-default sort is applied
-                      dateRange || sortDirection !== 'desc'
-                        ? 'text-ods-accent'
-                        : 'text-ods-text-secondary group-hover:text-ods-text-primary',
-                    )}
-                  />
-                </button>
-              }
-            />
-          </div>
+          <DateFilterMenu
+            mode="range"
+            sort={sortDirection}
+            range={dateRange}
+            onApply={onDateFilterApply}
+            // The LABEL is inside the trigger, so the whole header cell opens the
+            // menu — the same hit area the filterable columns beside it have (the
+            // lib's funnel trigger is a full-width box, not the icon). With only
+            // the icon wrapped, this column asked for a 16px target while its
+            // neighbours took the entire cell.
+            //
+            // Still the compact trigger rather than the lib's default 48px Button:
+            // that one would make this header taller than the rest of the row.
+            trigger={
+              <button
+                type="button"
+                aria-label="Sort and filter logs by date"
+                className="group flex w-full items-center gap-[var(--spacing-system-xsf)] select-none cursor-pointer"
+              >
+                <span className="text-h5 text-ods-text-secondary whitespace-nowrap transition-colors duration-200 group-hover:text-ods-text-primary">
+                  Log ID
+                </span>
+                <CalendarIcon
+                  className={cn(
+                    'w-4 h-4 transition-colors duration-200',
+                    // Active when a date range or a non-default sort is applied
+                    dateRange || sortDirection !== 'desc'
+                      ? 'text-ods-accent'
+                      : 'text-ods-text-secondary group-hover:text-ods-text-primary',
+                  )}
+                />
+              </button>
+            }
+          />
         ),
         cell: ({ row }: { row: Row<UiLogEntry> }) => (
           <div className="flex flex-col justify-center shrink-0">
@@ -610,7 +618,7 @@ function LogsTableContent({
           { icon: <Filter01ListIcon />, label: 'Filter by user, action type, Customer, or date range' },
           { icon: <SearchIcon />, label: 'Investigate incidents and audit security events' },
         ]}
-        {...onboardingGuideButton('logs', 'Learn more about Logs')}
+        {...askMingoButton('logs', 'Ask Mingo about Logs')}
       />
     );
   }

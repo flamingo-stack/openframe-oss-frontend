@@ -3,11 +3,95 @@
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { Monaco } from '@monaco-editor/react';
 import dynamic from 'next/dynamic';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
+/**
+ * Monaco's own line geometry, measured off a rendered editor: `.line-numbers`
+ * is a 46×22 box, so the first character of every line sits at x=46 and each
+ * line is 22px tall (the `lineHeight` option below). The top offset is the
+ * `padding.top` those options set.
+ */
+const LINE_HEIGHT = 'h-[22px]';
+const GUTTER_WIDTH = 'w-[46px]';
+/** Where the digit sits: right-aligned in the gutter, a hair off its edge. */
+const GUTTER_NUMBER_INSET = 'pr-[4px]';
+/** The decoration strip between the gutter and the first character of the line. */
+const CODE_COLUMN_INSET = 'pl-[16px]';
+/** One indent step = `tabSize` 2 at ~8.4px per character of 14px Azeret Mono. */
+const PLACEHOLDER_INDENTS = ['ml-0', 'ml-[17px]', 'ml-[34px]'];
+
+/**
+ * Rows of {@link ScriptEditorPlaceholder}: an indent step and a width each, so
+ * the box reads as code waiting to arrive rather than as a grey slab. Widths are
+ * of the CODE column, the part right of the gutter.
+ */
+const PLACEHOLDER_ROWS = [
+  { indent: 0, width: 'w-[42%]' },
+  { indent: 1, width: 'w-[66%]' },
+  { indent: 1, width: 'w-[51%]' },
+  { indent: 2, width: 'w-[37%]' },
+  { indent: 1, width: 'w-[60%]' },
+  { indent: 0, width: 'w-[26%]' },
+  { indent: 0, width: 'w-[45%]' },
+  { indent: 1, width: 'w-[33%]' },
+];
+
+/**
+ * What covers the editor's box until Monaco is built AND has something to show.
+ *
+ * Monaco is the one control on these pages that cannot stand in for itself: it
+ * IS the thing being loaded, and building a second instance to hold its place
+ * costs more than the fidelity is worth. So the box keeps the editor's own
+ * background and line rhythm (22px rows, a gutter column, code-shaped lines of
+ * varying width) — the same geometry the real editor drops into.
+ *
+ * `visible` fades it rather than unmounting it: this element is rendered in ONE
+ * place for the editor's whole life, so nothing about it restarts. It stays
+ * mounted afterwards, without the pulse, so an editor that goes back to loading
+ * (a new script id on the same page) resumes instead of flashing in.
+ */
+function ScriptEditorPlaceholder({ visible }: { visible: boolean }) {
+  return (
+    <div
+      aria-hidden={!visible}
+      className={cn(
+        'absolute inset-0 overflow-hidden bg-ods-bg py-3 transition-opacity duration-200 motion-reduce:transition-none',
+        visible ? 'opacity-100' : 'pointer-events-none opacity-0',
+      )}
+    >
+      {visible && (
+        <span role="status" className="sr-only">
+          Loading editor…
+        </span>
+      )}
+      {/* One pulse on the group rather than per line: rows blinking out of step
+          read as content, which is exactly what this is not. Dropped once the
+          editor is up so a hidden layer costs no animation frames. */}
+      <div className={visible ? 'animate-pulse' : undefined}>
+        {PLACEHOLDER_ROWS.map((row, index) => (
+          <div key={`${index}-${row.width}`} className={cn('flex items-center', LINE_HEIGHT)}>
+            {/* The gutter: a digit's worth of bar, right-aligned exactly where
+                Monaco puts the line number. */}
+            <div className={cn('flex shrink-0 justify-end', GUTTER_WIDTH, GUTTER_NUMBER_INSET)}>
+              <div className="h-3 w-2 rounded-sm bg-ods-border opacity-50" />
+            </div>
+            <div className={cn('min-w-0 flex-1 pr-4', CODE_COLUMN_INSET)}>
+              <div className={cn('h-3 rounded-sm bg-ods-border', PLACEHOLDER_INDENTS[row.indent], row.width)} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// No `loading` of its own: the placeholder belongs to the frame below, which
+// outlives every stage. Handing one to `dynamic` too would mount a second copy
+// in a different tree position, and the swap between them restarts the pulse —
+// the flash this component exists to avoid.
 const Editor = dynamic(() => import('@monaco-editor/react').then(m => m.default), {
   ssr: false,
-  loading: () => <div />,
+  loading: () => null,
 });
 
 let prewarmStarted = false;
@@ -231,6 +315,12 @@ interface ScriptEditorProps {
   /** Render an error border (e.g. when the bound form field is invalid). */
   invalid?: boolean;
   /**
+   * The `value` is still on its way. Keeps the placeholder up past the point
+   * Monaco is built, so the editor is revealed WITH its content instead of
+   * appearing empty and filling in a moment later.
+   */
+  loading?: boolean;
+  /**
    * Merged into the framing wrapper. For editors embedded in a surface that
    * already draws its own edges — pass `rounded-none border-0` to drop the
    * standalone card look.
@@ -245,9 +335,11 @@ export function ScriptEditor({
   readOnly = false,
   height = '400px',
   invalid = false,
+  loading = false,
   className,
 }: ScriptEditorProps) {
   const editorRef = useRef<ReturnType<Monaco['editor']['create']> | null>(null);
+  const [isEditorBuilt, setIsEditorBuilt] = useState(false);
 
   const language = SHELL_TO_LANGUAGE[shell.toLowerCase()] || 'shell';
 
@@ -255,8 +347,11 @@ export function ScriptEditor({
     ensureOdsTheme(monaco);
   }, []);
 
+  // `onMount` fires once the editor exists and has laid its first frame out, so
+  // this is the earliest moment there is anything worth revealing.
   const handleMount = useCallback((editor: ReturnType<Monaco['editor']['create']>) => {
     editorRef.current = editor;
+    setIsEditorBuilt(true);
   }, []);
 
   const handleChange = useCallback(
@@ -316,9 +411,23 @@ export function ScriptEditor({
   );
 
   return (
+    // The frame carries the height itself, so the box is the editor's size from
+    // the very first paint: the wrapper is code-split, and a placeholder sized by
+    // its content would let the page collapse and jump back while the chunk is
+    // still in flight.
     <div
-      className={cn('rounded-md border overflow-hidden', invalid ? 'border-ods-error' : 'border-ods-border', className)}
+      style={{ height }}
+      className={cn(
+        'relative rounded-md border overflow-hidden',
+        invalid ? 'border-ods-error' : 'border-ods-border',
+        className,
+      )}
     >
+      {/* Monaco is NOT hidden while it sets up — the placeholder simply covers
+          it. A `display: none` editor measures itself as 0×0 and lays out only
+          once it is shown, which is the second flash this is meant to prevent;
+          under an opaque overlay it builds at its real size, off screen but not
+          out of layout. */}
       <Editor
         height={height}
         language={language}
@@ -328,9 +437,10 @@ export function ScriptEditor({
         beforeMount={handleBeforeMount}
         onMount={handleMount}
         onChange={handleChange}
-        loading={<div></div>}
+        loading={null}
         options={options}
       />
+      <ScriptEditorPlaceholder visible={!isEditorBuilt || loading} />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   AppLayoutDrawerContent,
   AppLayout as CoreAppLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -25,6 +26,7 @@ import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal
 import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
+import { writeCachedOnboardingTopBar } from '@/lib/onboarding-top-bar-cache';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
@@ -38,11 +40,7 @@ import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
 import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
-import {
-  CachedOnboardingTopBar,
-  useCachedOnboardingTopBar,
-  writeCachedOnboardingTopBar,
-} from './onboarding-top-bar-cache';
+import { CachedOnboardingTopBar, useCachedOnboardingTopBar } from './onboarding-top-bar-cache';
 import { OnboardingTourBar } from './onboarding-tour-bar';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { SubscriptionGuard } from './subscription-lock/subscription-guard';
@@ -81,6 +79,12 @@ const WALKTHROUGH_OVERLAP_Z = {
   overlay: '!z-[9985]',
 } as const;
 
+/** Conditional `TicketLiveProvider` mount — a flag-off tenant gets a
+ *  passthrough (no stream, no summary fetch, no context). */
+function TicketLiveWhenEnabled({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  return enabled ? <TicketLiveProvider>{children}</TicketLiveProvider> : <>{children}</>;
+}
+
 function AppShell({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -93,6 +97,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const { isReady: sessionResolved, isAuthenticated } = useAuthSession();
   const sessionReady = sessionResolved && isAuthenticated;
 
+  const userId = useAuthStore(state => state.user?.id);
+  // Persisted alongside `user` in `auth-storage`, so on a reload it is what we
+  // know about the session BEFORE `/me` answers — see `cacheOwnerId` below.
+  const storeAuthenticated = useAuthStore(state => state.isAuthenticated);
   const userFirstName = useAuthStore(state => state.user?.firstName);
   const userLastName = useAuthStore(state => state.user?.lastName);
   const userEmail = useAuthStore(state => state.user?.email);
@@ -315,10 +323,20 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // "Continue …". Driven by the backend onboarding progress in the store.
   const isOnboardingPage = pathname?.startsWith('/onboarding') ?? false;
   const isDashboardPage = pathname === '/' || (pathname?.startsWith('/dashboard') ?? false);
-  // Read once per mount so the reserved band can't change under the layout
-  // between the pre-load render and the real one — and past hydration, since the
-  // cache behind it is browser-only (see `useCachedOnboardingTopBar`).
-  const cachedTopBar = useCachedOnboardingTopBar();
+  // Who the cached band is allowed to speak for. The replay below is the ONLY
+  // branch a signed-out shell can reach — `showOnboardingChrome` needs the
+  // hydrator, which needs a session — so without an owner it held the previous
+  // session's banner over the skeleton indefinitely, CTA and all.
+  //
+  // Before `/me` answers we go on the PERSISTED auth store: a user who signed
+  // out left it false, so a reload after logout reserves nothing, while an
+  // ordinary signed-in reload still gets the band reserved ahead of the session
+  // round-trip — which is the layout shift the cache exists to prevent. Once the
+  // session has answered, its verdict wins in both directions.
+  const cacheOwnerId = (sessionResolved ? isAuthenticated : storeAuthenticated) ? (userId ?? null) : null;
+  // Read per owner, and past hydration, since the cache behind it is
+  // browser-only (see `useCachedOnboardingTopBar`).
+  const cachedTopBar = useCachedOnboardingTopBar(cacheOwnerId);
   let topBar: React.ReactNode;
   if (showOnboardingChrome) {
     if (initialSetupActive) {
@@ -356,20 +374,33 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // replay the same decision instead of letting the bar drop in late and push the whole
   // app down. Only once progress has actually loaded — before that `topBar` is
   // undefined because we don't know yet, which is not the same answer as "no bar".
+  //
+  // Stamped with the user it was computed for: the entry outlives the session, and
+  // an unattributed one is replayable by whoever opens the tab next.
   useEffect(() => {
-    if (!onboardingLoaded) return;
+    if (!onboardingLoaded || !userId) return;
     if (initialSetupActive) {
-      writeCachedOnboardingTopBar({ kind: 'initial-setup', started: tenantDone > 0 });
+      writeCachedOnboardingTopBar({ kind: 'initial-setup', started: tenantDone > 0, userId });
     } else if (initialSetupComplete && userInProgress) {
-      writeCachedOnboardingTopBar({ kind: 'tour', started: userDone > 0 });
+      writeCachedOnboardingTopBar({ kind: 'tour', started: userDone > 0, userId });
     } else {
-      writeCachedOnboardingTopBar({ kind: 'none', started: false });
+      writeCachedOnboardingTopBar({ kind: 'none', started: false, userId });
     }
-  }, [onboardingLoaded, initialSetupActive, initialSetupComplete, userInProgress, tenantDone, userDone]);
+  }, [onboardingLoaded, initialSetupActive, initialSetupComplete, userInProgress, tenantDone, userDone, userId]);
 
   const displayName = useMemo(
     () => `${userFirstName || ''} ${userLastName || ''}`.trim(),
     [userFirstName, userLastName],
+  );
+
+  // Receives the FULL href computed by TicketAlertsButton
+  // (`/help-center/tickets?ticket=<id>#ticket-<id>` for the newest-unread
+  // ticket) — soft-navigate so the drawer auto-opens + the row scrolls.
+  const openHelpCenterTickets = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
   );
 
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
@@ -399,6 +430,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       showUser: false,
       // These three are core `AppHeader` prop names (the "AI" digraph trips
       // biome's strictCase camelCase rule); they're external API, not ours.
+      // Support-ticket alerts cell — Help Center unread indication.
+      // Attention-only: renders nothing unless <TicketLiveProvider> is
+      // mounted (same helpCenterEnabled gate below), the viewer is
+      // authed, AND there are unread replies.
+      showTicketAlerts: helpCenterEnabled,
+      ticketAlertsHref: routes.helpCenter.tickets,
+      onTicketAlerts: openHelpCenterTickets,
       // biome-ignore lint/style/useNamingConvention: external lib prop name
       showMingoAI: chatEnabled,
       // biome-ignore lint/style/useNamingConvention: external lib prop name
@@ -406,7 +444,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // biome-ignore lint/style/useNamingConvention: external lib prop name
       isMingoAIActive: chatOpen,
     }),
-    [chromeLoading, notificationsEnabled, timeTrackerEnabled, chatEnabled, toggleChat, chatOpen],
+    [
+      chromeLoading,
+      notificationsEnabled,
+      timeTrackerEnabled,
+      chatEnabled,
+      toggleChat,
+      chatOpen,
+      helpCenterEnabled,
+      openHelpCenterTickets,
+    ],
   );
 
   const mobileBurgerMenuProps = useMemo(
@@ -481,19 +528,25 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         </ErrorBoundary>
       )}
       <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady}>
-        <CoreAppLayout
-          // Hook for the native-shell safe-area CSS in globals.css: the layout
-          // root owns the top inset (see `.app-shell-root`). Inert on the web.
-          className="app-shell-root"
-          mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
-          sidebarConfig={sidebarConfig}
-          mobileBurgerMenuProps={mobileBurgerMenuProps}
-          headerProps={headerProps}
-          disabled={showLockContent}
-          drawer={chatDrawer}
-          topBar={topBar}
-        >
-          {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+        {/* Ticket live stream + unread indication (Help Center). Gated on the
+            same feature flag as the surface it serves; wraps CoreAppLayout so
+            BOTH the header's TicketAlertsButton and the /help-center/tickets
+            page (children) read one provider. Without it every ticket-live
+            surface renders nothing and no stream/summary request fires. */}
+        <TicketLiveWhenEnabled enabled={helpCenterEnabled && sessionReady}>
+          <CoreAppLayout
+            // Hook for the native-shell safe-area CSS in globals.css: the layout
+            // root owns the top inset (see `.app-shell-root`). Inert on the web.
+            className="app-shell-root"
+            mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
+            sidebarConfig={sidebarConfig}
+            mobileBurgerMenuProps={mobileBurgerMenuProps}
+            headerProps={headerProps}
+            disabled={showLockContent}
+            drawer={chatDrawer}
+            topBar={topBar}
+          >
+            {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it
               lives here instead.
 
@@ -511,8 +564,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               One shell, two possible contents. The chrome around this never
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header. */}
-          <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
-        </CoreAppLayout>
+            <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
+          </CoreAppLayout>
+        </TicketLiveWhenEnabled>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
           + coach-mark (shows only when a page was reached from an onboarding step

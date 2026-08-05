@@ -39,6 +39,11 @@ function Cell({ value, label, className }: { value: string; label: string; class
  * themselves. That is what makes it hold at every breakpoint: a fixed `h-6 mb-1`
  * + `h-5` pair measures 72px against the real 60px on mobile, and with three rows
  * the page drops ~36px the moment the schedule lands.
+ *
+ * The trailing "Added by" row IS reserved, even though the real bar guards it
+ * with `{addedBy && …}`: every schedule has an author, so the bar is two storeys
+ * tall in practice. The guard covers a case the data does not produce, and
+ * dropping the row here would shorten the block by 80px on every load.
  */
 export function ScheduleInfoBarSkeleton() {
   return (

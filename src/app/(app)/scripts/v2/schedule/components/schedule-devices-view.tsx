@@ -6,7 +6,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
-import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
+import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
 import { DeviceSelectionModeRadio } from '@/app/components/shared/device-selector';
 import type {
   DeviceSelectionMode,
@@ -16,11 +16,12 @@ import type {
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
-import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
+import { scriptScheduleDevicesSettingsRelayQuery } from '@/graphql/scripts/script-schedule-devices-settings-relay';
 import { routes } from '@/lib/routes';
 import { ScheduleInfoBarFromData } from '../../../components/schedule/schedule-info-bar';
 import { platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleDeviceAssignment } from '../hooks/use-schedule-device-assignment';
+import { useScheduleSelectionMode } from '../hooks/use-schedule-selection-mode';
 import { criteriaEqual, criteriaFromStored, type ScheduleCriteria } from '../utils/schedule-criteria';
 import { EMPTY_NARROWING, narrowingToFilter } from '../utils/schedule-device-filters';
 import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
@@ -51,13 +52,28 @@ interface ScheduleDevicesViewProps {
  *   live, so devices registered later that match are targeted without anyone
  *   editing the schedule. One value, committed behind an explicit Save.
  *
- * Suspends on the schedule query; the route renders `ScheduleDevicesSkeleton`
- * while that is in flight.
+ * The MODE itself is a third write, and it follows whichever half it selects.
+ * Into CRITERIA it rides `setScheduleDeviceCriteria`, behind that half's Save,
+ * because it needs the rule. Into SPECIFIC it commits **on the click**, through
+ * `selectionMode` on the schedule's update input (see
+ * `useScheduleSelectionMode`) — that half commits everything as it happens, and
+ * more importantly the mode is what the server's per-row `assigned` flag means:
+ * until it lands, the flag answers "matches the rule", and the list would
+ * pre-check rows that are not in the explicit assignment at all.
+ *
+ * Suspends on the SETTINGS query — a small read of the mode, the rule and the
+ * info bar's fields — so the picker's own (heavy) device query loads under a
+ * page that is already drawn. The route renders `ScheduleDevicesSkeleton` while
+ * the settings are in flight.
  */
 export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
   const router = useRouter();
-  const data = useLazyLoadQuery<ScheduleDetailQueryType>(
-    scriptScheduleDetailRelayQuery,
+  // The SETTINGS query, not the full schedule: this page branches on
+  // `selectionMode`, and the detail query would make that answer wait behind the
+  // source of every script the schedule runs. The devices are a query of their
+  // own, issued by whichever half this resolves to.
+  const data = useLazyLoadQuery<ScheduleDevicesSettingsQueryType>(
+    scriptScheduleDevicesSettingsRelayQuery,
     { id: scheduleId },
     { fetchPolicy: 'store-and-network' },
   );
@@ -83,14 +99,39 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
   const filter = useMemo(() => narrowingToFilter(narrowing), [narrowing]);
   const { deferredFilters: deferredFilter, deferredSearch } = useDeferredQuery(filter, debouncedSearch);
 
-  const { busy, isSavingCriteria, addDevice, removeDevice, addAllDevices, removeAllDevices, saveCriteria } =
-    useScheduleDeviceAssignment({
-      scheduleId,
-      filter,
-      search: debouncedSearch,
-      deferredFilter,
-      deferredSearch,
-    });
+  const {
+    busy: assignmentBusy,
+    isSavingCriteria,
+    addDevice,
+    removeDevice,
+    addAllDevices,
+    removeAllDevices,
+    saveCriteria,
+    refreshLists,
+  } = useScheduleDeviceAssignment({
+    scheduleId,
+    filter,
+    search: debouncedSearch,
+    deferredFilter,
+    deferredSearch,
+  });
+
+  // The other direction of the mode switch — see the hook for why it goes
+  // through the schedule's full update rather than a mutation of its own.
+  const { saveSpecificMode, isSavingMode } = useScheduleSelectionMode(schedule);
+  const busy = assignmentBusy || isSavingMode;
+
+  // What locks the MODE radio, and it is a shorter list than `busy` on purpose.
+  // Only the two writes that set `selectionMode` itself belong here — saving the
+  // rule (which flips to CRITERIA) and the switch to SPECIFIC — because letting
+  // a second one start mid-flight is a race for one field, with the winner
+  // decided by whichever response lands last.
+  //
+  // "Add All" / "Remove All" are NOT that. They edit the membership of a mode
+  // that is already set, they resolve their set server-side, and on a real fleet
+  // they take a while — locking the radio there strands the user in a half they
+  // may have opened by mistake, with nothing to do but wait.
+  const isSavingTargetingMode = isSavingCriteria || isSavingMode;
 
   const handleBack = useSafeBack(routes.scriptsV2.schedules.details(scheduleId));
 
@@ -113,7 +154,48 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
   // the backend took. The radio is a mode switch, not a navigation: it commits
   // at once, and the half underneath falls to its skeleton while its devices
   // load.
-  const handleModeChange = useCallback((mode: DeviceSelectionMode) => setModeOverride(mode), []);
+  //
+  // The narrowing is dropped with the switch, for the same reason a tab switch
+  // drops it — and here it matters more, because the criteria half renders
+  // NEITHER the search box nor the funnels. A search typed in the specific half
+  // survives a trip through criteria invisibly, and coming back the user is
+  // looking at a shortened list of "all devices" with nothing on screen to
+  // explain it. Each half opens the way it does on a fresh visit.
+  //
+  // Picking SPECIFIC also WRITES, straight away. The mode decides what the
+  // server means by each row's `assigned` flag: while the schedule is still
+  // stored as CRITERIA it answers "this device matches the rule", so the
+  // specific list would pre-check rows that are not in the explicit assignment —
+  // and a click on one of them would read as "remove" when the user meant "add".
+  // Committing first makes the list that follows describe the explicit
+  // assignment, which is the thing being edited. `refreshLists` then re-reads
+  // what is already mounted; the invalidation inside the mutation only governs
+  // reads that start later.
+  //
+  // The other direction is not symmetrical, and shouldn't be: CRITERIA needs the
+  // rule, which the user is still writing, so it stays behind Save Devices.
+  const handleModeChange = useCallback(
+    (mode: DeviceSelectionMode) => {
+      setModeOverride(mode);
+      setActiveTab('available');
+      setSearch('');
+      setNarrowing(EMPTY_NARROWING);
+
+      if (mode !== 'specific' || storedMode !== 'criteria') return;
+      saveSpecificMode({
+        // The stored mode now says SPECIFIC on its own, so the local override has
+        // nothing left to override.
+        onSaved: () => {
+          setModeOverride(null);
+          refreshLists();
+        },
+        // The write failed: the radio goes back to what the schedule actually
+        // is, rather than leaving the user editing a list that isn't in effect.
+        onFailed: () => setModeOverride(null),
+      });
+    },
+    [storedMode, saveSpecificMode, refreshLists],
+  );
 
   const handleSaveCriteria = useCallback(
     () => saveCriteria(criteria, goBackToSchedule),
@@ -148,6 +230,9 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
         },
       ];
     }
+    // The specific half has nothing left to save in EITHER case now: its +/−
+    // clicks commit as they happen, and the mode itself was written the moment
+    // the radio moved (see `handleModeChange`).
     return [cancel, { label: 'Done', onClick: goBackToSchedule, variant: 'accent' as const, disabled: busy }];
   }, [
     selectionMode,
@@ -191,7 +276,7 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
           trigger={schedule.trigger}
         />
 
-        <DeviceSelectionModeRadio value={selectionMode} onChange={handleModeChange} disabled={busy} />
+        <DeviceSelectionModeRadio value={selectionMode} onChange={handleModeChange} disabled={isSavingTargetingMode} />
 
         {/* The fallback reads the LIVE mode, not a deferred one: the switch
             commits immediately, so by the time this boundary suspends

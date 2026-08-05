@@ -2,11 +2,15 @@ import { graphql } from 'react-relay';
 
 /**
  * Single schedule query (v2). Resolves the schedule itself and the scripts it
- * runs (in run order) — everything the detail / edit / devices pages need
- * EXCEPT the assigned machines. `assignedDevices` deliberately lives in its own
- * query (`script-schedule-devices-relay.ts`): the per-machine resolution is
- * heavy enough to 504 on real fleets, so only the views that actually render
- * devices pay for it.
+ * runs (in run order) — everything the detail and edit pages need EXCEPT the
+ * assigned machines. `assignedDevices` deliberately lives in its own query
+ * (`script-schedule-devices-relay.ts`): the per-machine resolution is heavy
+ * enough to 504 on real fleets, so only the views that actually render devices
+ * pay for it.
+ *
+ * The "Edit Devices" page reads `script-schedule-devices-settings-relay.ts`
+ * instead — it renders no scripts, and this query would make the mode it
+ * branches on wait behind every `scriptBody` in the schedule.
  */
 export const scriptScheduleDetailRelayQuery = graphql`
   query scriptScheduleDetailRelayQuery($id: ID!) {
@@ -54,6 +58,21 @@ export const scriptScheduleDetailRelayQuery = graphql`
         envVars {
           name
           value
+          secret
+        }
+      }
+      # Per-script overrides ("custom scripts"): SPARSE — only the scripts whose
+      # args / env the user changed appear here, and each field is null when that
+      # half still inherits the script's own defaults. Keyed by scriptId, which
+      # matches scripts[].id, so a schedule that runs the same script twice gives
+      # BOTH entries the same override — the schema has no per-position id.
+      scriptCustomParams {
+        scriptId
+        args
+        envVars {
+          name
+          value
+          secret
         }
       }
     }

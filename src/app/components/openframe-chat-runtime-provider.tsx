@@ -49,14 +49,15 @@ import {
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
-import { composeOpenframeChatContentUrl } from '@/app/(app)/help-center/help-center-content-href';
+import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
 
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
- * Center pages (single source of truth in `help-center-content-href.ts`): the
- * FOUR types openframe hosts in-app (product release / onboarding guide /
- * roadmap / delivery) resolve to `/help-center/...` same-origin URLs — so
+ * Center pages (single source of truth in `help-center-content-href.ts`): every
+ * type openframe hosts in-app — the slugged ones (product release / onboarding
+ * guide) and the ones routed by explicit override (roadmap / delivery / HubSpot
+ * tickets / FAQ) — resolves to a `/help-center/...` same-origin URL, so
  * host-mode nav recognizes them as in-app and soft-navs there instead of
  * bouncing the card out to the hub. Every other type (blog / podcast /
  * case-study / …) still opens OUT to its RAG-authoritative `externalUrl` on
@@ -223,6 +224,14 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         findTicketUrl: content('/api/chat/agent/find-ticket'),
         ticketActionUrl: content('/api/chat/agent/ticket-action'),
         listEngagementsUrl: content('/api/chat/agent/list-engagements'),
+        // Ticket live stream + read-receipt endpoints (TicketLiveProvider)
+        // — same `/content` proxying as the three above. The stream is a
+        // long-lived GET SSE response; the lib's fetch-based reader
+        // carries the bearer via the embed auth adapter. The unread
+        // summary has NO endpoint — it arrives as `ticket-summary`
+        // frames on the stream and in ticket-read responses.
+        ticketStreamUrl: content('/api/tickets/stream'),
+        ticketReadUrl: content('/api/tickets/read'),
         commandsUrl: content('/api/docs/commands'),
         // Per-platform empty-state config (greeting + try-asking quick-action
         // chips + RAG-source filter), admin-edited in MPH's `/admin/chat-config`.
@@ -277,10 +286,11 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         navigate,
         decideNewTab,
       },
-      // Unified content-href seam (shared with Help Center pages): the four
-      // in-app-hosted types soft-nav into `/help-center/...`; every other type
-      // opens OUT to its hub home. See `composeOpenframeChatContentUrl`.
-      composeContentUrl: composeOpenframeChatContentUrl,
+      // Unified content-href seam (shared with Help Center pages): the hosted
+      // types and the Help Center overrides soft-nav into `/help-center/...`;
+      // every other type opens OUT to its hub home. See
+      // `composeOpenframeInAppContentUrl`.
+      composeContentUrl: composeOpenframeInAppContentUrl,
       source: CHAT_SOURCE,
     };
     // `navigate` / `decideNewTab` are the only reactive deps; both are stable

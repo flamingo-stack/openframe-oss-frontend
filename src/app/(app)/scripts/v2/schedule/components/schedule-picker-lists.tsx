@@ -14,7 +14,6 @@ import type { scheduleDevicePickerRelayAssignedPaginationQuery as AssignedPagina
 import type { scheduleDevicePickerRelayAssignedQuery as AssignedQueryType } from '@/__generated__/scheduleDevicePickerRelayAssignedQuery.graphql';
 import type { scheduleDevicePickerRelayPaginationQuery as AvailablePaginationQueryType } from '@/__generated__/scheduleDevicePickerRelayPaginationQuery.graphql';
 import type { scheduleDevicePickerRelayQuery as AvailableQueryType } from '@/__generated__/scheduleDevicePickerRelayQuery.graphql';
-import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
 import type { DeviceSelectorNarrowing, SubTab } from '@/app/components/shared/device-selector/device-selector.types';
@@ -24,6 +23,7 @@ import {
   scheduleDevicePickerRelayFragment,
   scheduleDevicePickerRelayQuery,
 } from '@/graphql/scripts/schedule-device-picker-relay';
+import { useScheduleDeviceFilters } from '../hooks/use-schedule-device-filters';
 import { DEVICE_PICKER_PAGE_SIZE, toDevices, toRelayFilter } from '../utils/schedule-device-filters';
 
 /**
@@ -136,15 +136,26 @@ export function SchedulePickerLists({
     if (hasNext && !isLoadingNext) loadNext(DEVICE_PICKER_PAGE_SIZE);
   }, [hasNext, isLoadingNext, loadNext]);
 
-  // Fleet-wide facets rather than counts taken off the rows in hand: with the
-  // server paging, options derived from the current page would only ever offer
-  // what page one happens to contain.
+  // Server-resolved facets rather than counts taken off the rows in hand: with
+  // the server paging, options derived from the current page would only ever
+  // offer what page one happens to contain.
+  //
+  // Scoped to the ACTIVE half (`assignedDeviceFilters` / `availableDeviceFilters`
+  // on the schedule), not to the fleet: the funnel then offers only values that
+  // narrow the list beside it — a Windows schedule no longer lists macOS, and the
+  // Selected tab no longer offers the customers of machines it doesn't hold.
   //
   // DEFERRED, like the two lists: this hook suspends now, so feeding it the live
   // narrowing would drop the whole picker — search box, tab state and all — to
   // `SchedulePickerSkeleton` on every funnel click. Facets that lag the rows by
   // one transition are consistent with them; facets that blank the picker are not.
-  const filterOptions = useDeviceFilters(deferredFilter);
+  const filterOptions = useScheduleDeviceFilters(
+    scheduleId,
+    activeTab === 'selected' ? 'assigned' : 'available',
+    // Both halves in one read: the tab then stays out of the query variables,
+    // so switching it costs nothing — see the query.
+    { prefetchOtherHalf: true },
+  );
 
   return (
     <DeviceSelector
