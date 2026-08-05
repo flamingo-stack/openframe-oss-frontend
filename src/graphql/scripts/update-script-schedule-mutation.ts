@@ -20,6 +20,14 @@ export const updateScriptScheduleMutation = graphql`
       repeat
       nextRunAt
       lastRunAt
+      # Written by this mutation when the Edit Devices page flips a schedule back
+      # to SPECIFIC, so the picker's mode radio settles from the store.
+      selectionMode
+      deviceCriteria {
+        organizationIds
+        deviceTypes
+        osTypes
+      }
       scripts {
         id
         name
@@ -30,6 +38,16 @@ export const updateScriptScheduleMutation = graphql`
         envVars {
           name
           value
+          secret
+        }
+      }
+      scriptCustomParams {
+        scriptId
+        args
+        envVars {
+          name
+          value
+          secret
         }
       }
     }

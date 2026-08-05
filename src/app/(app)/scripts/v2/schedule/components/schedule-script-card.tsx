@@ -16,6 +16,16 @@ import {
 } from '../../../components/script/script-param-rows';
 import { envVarsToPairs, shellToId } from '../../shared/utils/script-mappers';
 import type { ScheduleScript } from '../types/schedule-detail.types';
+import { effectiveScriptParams, type StoredScriptCustomParams } from '../utils/schedule-script-params';
+
+interface ScheduleScriptCardProps {
+  script: ScheduleScript;
+  /**
+   * This schedule's override for the script, when it has one. Absent means the
+   * card shows the script's own defaults — which is what the schedule runs.
+   */
+  customParams?: StoredScriptCustomParams;
+}
 
 /** Design default when a script carries no timeout of its own. */
 const DEFAULT_TIMEOUT_SECONDS = 90;
@@ -116,7 +126,7 @@ function useScriptSourceReady(isExpanded: boolean): boolean {
  *   No source at any point: a 400px editor on a 390px-wide screen is a worse
  *   read than the script page it links to.
  */
-export function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
+export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardProps) {
   const router = useRouter();
   const isMdUp = useMdUp();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -134,8 +144,13 @@ export function ScheduleScriptCard({ script }: { script: ScheduleScript }) {
     router.push(routes.scriptsV2.details(script.id));
   }, [router, script.id]);
 
-  const argRows = argsToParamRows(script.defaultArgs ?? []);
-  const envRows = envPairsToParamRows(envVarsToPairs(script.envVars));
+  // What this SCHEDULE runs the script with, which is not always what the script
+  // itself defaults to: a per-script override replaces either half wholesale.
+  // The card is the page that has to show the difference — it is where a user
+  // checks what a scheduled run will actually pass.
+  const effective = effectiveScriptParams(script, customParams);
+  const argRows = argsToParamRows(effective.args);
+  const envRows = envPairsToParamRows(envVarsToPairs(effective.envVars));
 
   return (
     <div className="bg-ods-card border border-ods-border rounded-[8px] overflow-clip flex flex-col">

@@ -1,15 +1,19 @@
 import { OS_PLATFORMS } from '@flamingo-stack/openframe-frontend-core/utils';
 import { z } from 'zod';
 import { ScriptScheduleTrigger } from '@/generated/schema-enums';
-import { parseKeyValues } from '../../../utils/script-key-values';
-import { envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
+import { parseKeyValues, serializeKeyValues } from '../../../utils/script-key-values';
+import { envVarsToInput, envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
+import { customParamsByScriptId, effectiveScriptParams, toEnvVarInputs } from '../utils/schedule-script-params';
 import {
   dateToTimeSlot,
   fromScheduleInstant,
   isEventTrigger,
+  isStartInPastAndChanged,
   MIN_REPEAT_MINUTES,
+  PAST_START_MESSAGE,
   REPEAT_UNIT_VALUES,
   secondsToRepeatParts,
+  startOfToday,
 } from '../utils/schedule-timing';
 import type { ScheduleDetailData } from './schedule-detail.types';
 
@@ -45,10 +49,14 @@ export function platformLabel(id: string): string {
 // anchor it" rule).
 //
 // `scripts[]` order IS the run order — it is submitted as `scriptIds` verbatim,
-// so dragging a card is a real, persisted change. `timeoutSeconds` / `args` /
-// `envVars` are per-script run parameters the schedule model can NOT store yet
-// (see docs/script-schedules-v2-graphql-gaps.md §3); they are seeded from the
-// script's own defaults and are dropped on submit until `scriptEntries` lands.
+// so dragging a card is a real, persisted change. `args` / `envVars` are per-
+// script run parameters the schedule DOES store now, as the sparse
+// `scriptCustomParams` (see `utils/schedule-script-params.ts`): they are seeded
+// from the stored override where there is one and from the script's own defaults
+// otherwise, and only the halves that still differ from those defaults are
+// written back. `timeoutSeconds` remains the one field with nowhere to go — the
+// override input carries no timeout — so it is still seeded from the script and
+// dropped on submit (docs/script-schedules-v2-graphql-gaps.md §3).
 export const editScheduleFormSchema = z
   .object({
     name: z.string().min(1, 'Please enter a schedule name').max(255, 'Name must not exceed 255 characters'),
@@ -69,6 +77,17 @@ export const editScheduleFormSchema = z
      * creating, or when the schedule has no recurrence.
      */
     repeatSecondsStored: z.number().nullable(),
+    /**
+     * The `startAt` this form was seeded with, carried with no control of its
+     * own — the same contract as `repeatSecondsStored` above, for the same
+     * reason. A schedule whose start has already passed is perfectly normal (a
+     * recurring one runs off `repeat` from there), and the "no start in the past"
+     * rule below would otherwise make every such schedule unsaveable: renaming
+     * one would demand re-picking its date. So the stored instant stays legal for
+     * as long as the form still shows exactly it; the moment the user moves the
+     * date or the time, their choice has to be in the future like any other.
+     */
+    startAtStored: z.string().nullable(),
     supportedPlatforms: z.array(z.string()).min(1, 'Please select at least one platform'),
     scripts: z
       .array(
@@ -83,6 +102,14 @@ export const editScheduleFormSchema = z
             timeoutSeconds: z.number().int().min(0),
             args: z.array(keyValueSchema),
             envVars: z.array(keyValueSchema),
+            /**
+             * The picked script's OWN defaults, carried with no control of their
+             * own: an override is written only for the half that differs from
+             * them, so a schedule keeps inheriting later edits to the script
+             * instead of freezing a copy the day it was saved.
+             */
+            defaultArgs: z.array(z.string()),
+            defaultEnvVars: z.array(z.object({ name: z.string(), value: z.string(), secret: z.boolean() })),
           })
           .refine(entry => !entry.scriptId || entry.timeoutSeconds >= 1, {
             message: 'Timeout must be at least 1 second',
@@ -113,6 +140,30 @@ export const editScheduleFormSchema = z
       }
     });
 
+    // One override per SCRIPT, not per row: `scriptCustomParams` is keyed by
+    // `scriptId` and the schema has no per-position id, so two rows running the
+    // same script cannot carry different arguments. The picker allows the repeat
+    // on purpose ("A, B, A" is a real recipe) — what it cannot allow is the
+    // repeats disagreeing, since saving would silently keep one row's values and
+    // apply them to both. Flagged on the later row, the one to fix.
+    const paramsByScriptId = new Map<string, string>();
+    data.scripts.forEach((entry, index) => {
+      if (!entry.scriptId) return;
+      const params = JSON.stringify([serializeKeyValues(entry.args, ' '), envVarsToInput(entry.envVars)]);
+      const seen = paramsByScriptId.get(entry.scriptId);
+      if (seen === undefined) {
+        paramsByScriptId.set(entry.scriptId, params);
+        return;
+      }
+      if (seen !== params) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'This script runs twice in the schedule — both entries must use the same arguments and env vars',
+          path: ['scripts', index, 'scriptId'],
+        });
+      }
+    });
+
     // "Run on schedule" fires at a wall-clock instant, so it needs both halves
     // of one. Event-driven schedules carry no timing at all — their controls are
     // collapsed and both fields are submitted as null.
@@ -122,6 +173,22 @@ export const editScheduleFormSchema = z
     }
     if (!data.scheduledTime) {
       ctx.addIssue({ code: 'custom', message: 'Please select a start time', path: ['scheduledTime'] });
+    }
+
+    // A start in the past is not a schedule — the backend would either fire it
+    // immediately or refuse it. The time dropdown already withholds today's gone
+    // slots and the fields flag a past day as it is picked; this is the rule that
+    // actually refuses the save, and it also catches what no control can: a form
+    // left open long enough for its own slot to go by. Exempt while the pair
+    // still reads exactly the stored `startAt` — see `isStartInPastAndChanged`.
+    if (isStartInPastAndChanged(data.scheduledDate, data.scheduledTime, data.startAtStored)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: PAST_START_MESSAGE,
+        // On the field the user can act on: a past DAY is the date's problem,
+        // a past slot of today is the time's.
+        path: [data.scheduledDate && data.scheduledDate < startOfToday() ? 'scheduledDate' : 'scheduledTime'],
+      });
     }
 
     // The runner ticks on a 30-minute grid, so a cadence has to be a whole
@@ -154,6 +221,8 @@ export const EMPTY_SCRIPT_ROW: EditScheduleFormData['scripts'][number] = {
   timeoutSeconds: 0,
   args: [],
   envVars: [],
+  defaultArgs: [],
+  defaultEnvVars: [],
 };
 
 export const TRIGGER_OPTIONS = [
@@ -179,6 +248,7 @@ export const DEFAULT_SCHEDULE_VALUES: EditScheduleFormData = {
   repeatInterval: 1,
   repeatUnit: 'day',
   repeatSecondsStored: null,
+  startAtStored: null,
   supportedPlatforms: ['windows'],
   scripts: [EMPTY_SCRIPT_ROW],
 };
@@ -188,6 +258,9 @@ export function scheduleToFormValues(schedule: ScheduleDetailData): EditSchedule
   const repeatParts = schedule.repeat ? secondsToRepeatParts(schedule.repeat) : null;
   // The stored instant carries both halves; the form keeps them apart.
   const startAt = schedule.startAt ? fromScheduleInstant(schedule.startAt) : null;
+  // Overrides are sparse and keyed by script — a script with no entry runs on
+  // its own defaults, and a script the schedule lists twice reads the same one.
+  const customParams = customParamsByScriptId(schedule.scriptCustomParams);
   return {
     name: schedule.name,
     description: schedule.description ?? '',
@@ -198,17 +271,25 @@ export function scheduleToFormValues(schedule: ScheduleDetailData): EditSchedule
     repeatInterval: repeatParts?.interval ?? 1,
     repeatUnit: repeatParts?.unit ?? 'day',
     repeatSecondsStored: schedule.repeat ?? null,
+    startAtStored: schedule.startAt ?? null,
     supportedPlatforms: platformsToIds(schedule.supportedPlatforms),
     scripts:
       schedule.scripts.length > 0
-        ? schedule.scripts.map(s => ({
-            scriptId: s.id,
-            name: s.name,
-            supportedPlatforms: platformsToIds(s.supportedPlatforms),
-            timeoutSeconds: s.defaultTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
-            args: parseKeyValues(s.defaultArgs ? [...s.defaultArgs] : [], ' '),
-            envVars: envVarsToPairs(s.envVars),
-          }))
+        ? schedule.scripts.map(s => {
+            // What this schedule runs the script with: its override where there
+            // is one, the script's own default for every half without.
+            const effective = effectiveScriptParams(s, customParams.get(s.id));
+            return {
+              scriptId: s.id,
+              name: s.name,
+              supportedPlatforms: platformsToIds(s.supportedPlatforms),
+              timeoutSeconds: s.defaultTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
+              args: parseKeyValues(effective.args, ' '),
+              envVars: envVarsToPairs(effective.envVars),
+              defaultArgs: s.defaultArgs ? [...s.defaultArgs] : [],
+              defaultEnvVars: toEnvVarInputs(s.envVars),
+            };
+          })
         : [EMPTY_SCRIPT_ROW],
   };
 }

@@ -12,16 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import type { EditScheduleFormData } from '../types/edit-schedule.types';
 import {
   getTimeSlotOptions,
   isEventTrigger,
+  isScheduleStartInPast,
+  isStartInPastAndChanged,
   MIN_REPEAT_MINUTES,
+  PAST_START_MESSAGE,
   REPEAT_UNIT_OPTIONS,
   type RepeatUnit,
+  slotToLabel,
   snapRepeatInterval,
+  startOfToday,
 } from '../utils/schedule-timing';
 
 /**
@@ -50,15 +55,74 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
   const trigger = useWatch({ control, name: 'trigger' });
   const repeatEnabled = useWatch({ control, name: 'repeatEnabled' });
   const repeatUnit = useWatch({ control, name: 'repeatUnit' });
+  const scheduledDate = useWatch({ control, name: 'scheduledDate' });
+  const scheduledTime = useWatch({ control, name: 'scheduledTime' });
   const eventDriven = isEventTrigger(trigger);
   // Minutes are the one unit that can express a cadence finer than the runner's
   // 30-minute grid, so they are the one unit the stepper has to constrain — it
   // then produces only legal values, and the schema rule behind it is left to
   // catch typed-in ones.
   const intervalStep = repeatUnit === 'minute' ? MIN_REPEAT_MINUTES : 1;
-  // Local slots, so the grid depends on the viewer's timezone — built once per
-  // mount rather than at import time, which would happen on the server.
-  const timeSlots = useMemo(() => getTimeSlotOptions(), []);
+  // Local slots, so the grid depends on the viewer's timezone — built per mount
+  // rather than at import time, which would happen on the server, and rebuilt
+  // per picked DAY because today offers only the slots still ahead.
+  //
+  // A stored start that has already gone by today keeps its option: it is the
+  // value the form holds and will save if nothing else changes, and a Select
+  // whose value is missing from its list renders as the placeholder — the field
+  // would read empty on a schedule that has a perfectly good start time.
+  const timeSlots = useMemo(() => {
+    const slots = getTimeSlotOptions(scheduledDate);
+    if (!scheduledTime || slots.some(slot => slot.value === scheduledTime)) return slots;
+    return [{ value: scheduledTime, label: slotToLabel(scheduledTime) }, ...slots];
+  }, [scheduledDate, scheduledTime]);
+  // Today, recomputed per mount so a tab left open overnight cannot still treat
+  // yesterday as selectable. Handed to the picker as `fromDate`, which greys out
+  // every earlier day and stops the calendar paging past it.
+  //
+  // ⚠ Requires a core library that TRANSLATES that prop. Up to and including
+  // 0.0.514 the calendar forwarded it straight to react-day-picker v9, where
+  // `fromDate` was removed — the bound was silently dropped and past days stayed
+  // clickable. Fixed in core (`DatePickerCalendar` maps it to a `disabled`
+  // matcher); if this app is ever pinned back below that release, the two rules
+  // below are what still hold the line.
+  //
+  // They are not a fallback in any case: a disabled day cannot stop the clock
+  // from passing the SLOT this form already holds, and the seeded value never
+  // went through the calendar at all.
+  const minDate = useMemo(() => startOfToday(), []);
+
+  /**
+   * Moving the DAY can invalidate the time already chosen: 8:00 AM is a fine
+   * slot for tomorrow and a gone one for today. The dropdown stops offering it,
+   * so a stale value would sit in the form as an empty-looking Select that fails
+   * validation on Save — clear it instead, and let the user re-pick from what
+   * the new day actually has. A day that keeps the slot keeps the value.
+   *
+   * Only for a day that is itself selectable: on a PAST day every slot is in the
+   * past, and clearing the time there would replace the real complaint ("that
+   * day has gone") with a second, misleading one ("pick a time").
+   */
+  const handleDateChange = useCallback(
+    (onChange: (date: Date | null) => void, date: Date | null) => {
+      onChange(date);
+      const time = getValues('scheduledTime');
+      if (date && time && date >= minDate && isScheduleStartInPast(date, time)) setValue('scheduledTime', '');
+    },
+    [getValues, setValue, minDate],
+  );
+
+  // Shown IMMEDIATELY, unlike every other rule on this form, which waits for
+  // Save: the calendar cannot withhold a past day itself (see `minDate`), so a
+  // picked one has to say so at once rather than look accepted until Save
+  // refuses it. Same predicate the schema uses — stored past starts exempt — so
+  // the field and the save can never disagree.
+  const startAtStored = useWatch({ control, name: 'startAtStored' });
+  const startsInPast = !eventDriven && isStartInPastAndChanged(scheduledDate, scheduledTime, startAtStored);
+  // On the field the user can act on: a past DAY is the date's problem, a past
+  // slot of today is the time's.
+  const pastDateError = startsInPast && scheduledDate && scheduledDate < minDate ? PAST_START_MESSAGE : undefined;
+  const pastTimeError = startsInPast && !pastDateError ? PAST_START_MESSAGE : undefined;
 
   return (
     <div
@@ -83,11 +147,13 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                   <DatePickerInputSimple
                     placeholder="Select date"
                     value={field.value ?? undefined}
-                    onChange={date => field.onChange(date ?? null)}
+                    onChange={date => handleDateChange(field.onChange, date ?? null)}
+                    // No day before today: a schedule cannot start in the past.
+                    fromDate={minDate}
                     disabled={disabled}
                     className="w-full"
-                    error={showErrors ? fieldState.error?.message : undefined}
-                    invalid={showErrors && !!fieldState.error}
+                    error={pastDateError ?? (showErrors ? fieldState.error?.message : undefined)}
+                    invalid={!!pastDateError || (showErrors && !!fieldState.error)}
                   />
                   {field.value && !disabled && (
                     <button
@@ -120,8 +186,8 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                       error border. */}
                   <SelectTrigger
                     className="w-full"
-                    error={showErrors ? fieldState.error?.message : undefined}
-                    invalid={showErrors && !!fieldState.error}
+                    error={pastTimeError ?? (showErrors ? fieldState.error?.message : undefined)}
+                    invalid={!!pastTimeError || (showErrors && !!fieldState.error)}
                   >
                     <SelectValue placeholder="Select time" />
                   </SelectTrigger>
