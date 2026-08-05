@@ -44,7 +44,7 @@ import type {
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { EmptyState, liveColumnMeta, onboardingGuideButton, skeletonColumnDefs } from '@/app/components/shared';
+import { askMingoButton, EmptyState, liveColumnMeta, skeletonColumnDefs } from '@/app/components/shared';
 import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -575,7 +575,7 @@ function ScriptsTableContent({
             label: 'Let Mingo suggest or generate scripts for you',
           },
         ]}
-        {...onboardingGuideButton('scripts', 'Learn more about Scripts')}
+        {...askMingoButton('scripts', 'Ask Mingo about Scripts')}
       />
     );
   }

@@ -27,10 +27,21 @@ Still open, both minor:
   has `dispatchedAtFrom`/`dispatchedAtTo`; the schedules list has no equivalent),
   so the logs-style date filter cannot be offered on the list.
 
-Note for the UI, not the backend: `repeat` is seconds, and the form's unit
-dropdown now goes down to Minute with a floor of 30 — one slot of the runner's
-grid, so the finest cadence the backend accepts is also the finest the form can
-author. Minute intervals are constrained to multiples of 30 (stepper + schema
+Notes for the UI, not the backend:
+
+**No start in the past.** The date picker opens at today (`fromDate`), the Time
+dropdown drops the slots of today that have already gone by, and the form schema
+catches what neither can — a form left open long enough for its own slot to
+pass. The rule lives in `utils/schedule-timing.ts` (`startOfToday`,
+`getTimeSlotOptions(forDate)`, `isScheduleStartInPast`). One deliberate
+exemption: a schedule ALREADY stored with a past start keeps it and saves
+untouched (`startAtStored` in the form schema) — recurring schedules legitimately
+started long ago, and without it renaming one would demand re-picking its date.
+Changing the date or the time drops the exemption.
+
+`repeat` is seconds, and the form's unit dropdown now goes down to Minute with a
+floor of 30 — one slot of the runner's grid, so the finest cadence the backend
+accepts is also the finest the form can author. Minute intervals are constrained to multiples of 30 (stepper + schema
 rule); every coarser unit is a whole number of slots at any interval. Anything
 off the minute grid entirely can still only be DISPLAYED rounded, and
 `resolveRepeatSeconds` preserves the stored value unless the user actually
@@ -47,18 +58,45 @@ assigned-devices tab and the picker both select it (CUSTOMER is a column), which
 is the first thing to suspect if these pages start timing out again. The fix is
 a batched org resolver, not dropping the column.
 
-## 3. Per-script overrides inside a schedule — **OPEN**
+## 3. Per-script overrides inside a schedule — **MOSTLY DELIVERED** (timeout still open)
 
-The legacy model stored per-action `timeout`, `script_args`, `env_vars`.
-`CreateScriptScheduleInput` / `UpdateScriptScheduleInput` still take bare
-`scriptIds`, so a schedule cannot override anything per script — every script
-runs with its own defaults.
+The legacy model stored per-action `timeout`, `script_args`, `env_vars`. Two of
+the three landed in the 2026-08-04 refresh, under a different shape than the
+`scriptEntries` originally asked for:
 
-The edit form already renders these fields per script card (seeded from the
-script's defaults) and **drops them on submit**; see the `TODO(backend)` in
-`edit-schedule-page.tsx`. The input needs
-`scriptEntries: [{ scriptId, timeoutSeconds, args, envVars }]`, and the type a
-matching read shape.
+- `ScriptSchedule.scriptCustomParams: [ScheduledScriptCustomParams!]!` — the read
+  side, **sparse**: an entry exists only for a script the user customised.
+- `scriptCustomParams: [ScheduledScriptCustomParamsInput!]` on both write inputs,
+  `{ scriptId, args, envVars }`. PUT semantics on update — the array IS the
+  stored set, and null/empty clears every override.
+
+Frontend: `utils/schedule-script-params.ts` (the whole model — inheritance,
+collection, `secret` preservation), consumed by `edit-schedule.types.ts` (seed),
+`use-edit-schedule-form.ts` (submit) and `schedule-script-card.tsx` (the details
+page shows what the SCHEDULE runs, not what the script defaults to).
+
+Three properties of the shape that drive that code:
+
+- **Inheritance is per field, not per script.** Both `args` and `envVars` are
+  nullable, and null means "inherit this half". So the form writes an override
+  only for the half that differs from the script's own default — otherwise
+  customising the arguments would freeze a copy of the env vars beside them, and
+  a later edit to the script would stop reaching the schedule.
+- **The key is `scriptId`, not the run position.** A schedule may run the same
+  script twice ("A, B, A"), and there is no per-entry id to hang an override on —
+  both occurrences necessarily share one. The form rejects the case where two
+  rows of the same script disagree rather than silently keeping one row's values.
+- **`ScriptEnvVarInput.secret` is non-null and the form has no control for it.**
+  Every pair would go out as `secret: false`, so an override carries the flag over
+  from the script's default by variable name; a renamed or added variable has no
+  default to inherit and stays non-secret.
+
+**Still open: per-schedule `timeout`.** `ScheduledScriptCustomParamsInput` carries
+args and env vars only. The Timeout field is still rendered per script card,
+still seeded from the script's `defaultTimeoutSeconds` (which IS what the run
+uses) and still dropped on submit — see the `TODO(backend)` in
+`use-edit-schedule-form.ts`. One field on the input closes it:
+`timeoutSeconds: Int`.
 
 ## 4. Execution history & runs — **DELIVERED**
 
@@ -106,6 +144,19 @@ devices — it marks them. Two consequences, both now implemented:
   already in, and clicking a checked row removes it.
 - §7's criteria preview reads "devices the rule targets", not "devices the rule
   would add" — so re-editing an existing rule no longer risks an empty preview.
+
+**Picker facets, added 2026-08-04.** `ScriptSchedule.assignedDeviceFilters(filter,
+search)` and `ScriptSchedule.availableDeviceFilters(filter, search)` return the
+same `DeviceFilters` shape as the root `deviceFilters`, resolved over the
+schedule's own scoped sets. The picker read the ROOT field until now, which
+answered a different question than the lists under it: a Windows-only schedule
+was offered "macOS (14)", and filtering by it emptied the list. Frontend:
+`hooks/use-schedule-device-filters.ts` — one query with `@include`/`@skip` on the
+active tab, since a hook cannot choose between two query documents.
+
+Still open on these two: **`tagKeys` comes back empty** from both (the backend
+documents it as "currently always empty for the pickers"), so the picker's tag
+chips have nothing to offer. The devices page's own filter panel has them.
 
 ## 7. Criteria targeting — **DELIVERED**
 
@@ -202,45 +253,55 @@ those surfaces goes blank, not just the count. The failure is loud and
 unmistakable (empty list, `data: null` in the response), so it needs no client
 guard; it needs a backend test.
 
-## 10. No way back from CRITERIA to SPECIFIC — **OPEN**
+## 10. No way back from CRITERIA to SPECIFIC — **DELIVERED**
 
 `setScheduleDeviceCriteria` switches a schedule to `CRITERIA` and stores its
-rule. Nothing in the schema switches it back: there is no
-`setScheduleDeviceSelectionMode`, no `selectionMode` field on
-`UpdateScriptScheduleInput`, and neither `addDevicesToSchedule` nor
-`setScriptScheduleDevices` documents any effect on the mode.
+rule; the 2026-08-04 refresh added the return trip as **`selectionMode` on
+`UpdateScriptScheduleInput`** — the second of the two options this section asked
+for (the alternative was a dedicated `setScheduleDeviceSelectionMode` mutation).
+Its description also settles what the flip does to the data: it "leaves the join
+rows/rule untouched; whichever mode is active is what the resolver reads". So a
+schedule moved back to SPECIFIC keeps its criteria on file, and the assignment
+survives a trip through CRITERIA.
 
-So the direction is one-way as far as the contract is concerned, and two
-questions have no documented answer:
+Frontend: `hooks/use-schedule-selection-mode.ts`, wired into the Edit Devices
+page. The switch commits **on the radio click**, not behind a Save button, and
+that is forced by the observed semantics of `assigned`: on a CRITERIA schedule
+`availableDevices` marks every device the RULE matches, not the ones in the
+explicit list. Drawing the specific half before the mode lands therefore
+pre-checks rows that are not assigned at all — and a click on one of them reads
+as "remove" when the user meant "add". Committing first makes the list describe
+the thing being edited. Both halves then behave consistently: the page exits
+through Done, since every +/− commits as it happens.
 
-1. Does assigning specific devices to a CRITERIA schedule flip it back to
-   SPECIFIC, or does it write into an assignment the criteria resolver then
-   ignores?
-2. What does `assignedDevices` return for a CRITERIA schedule — the resolved
-   rule (which `setScheduleDeviceCriteria`'s own description implies, "resolved
-   live at dispatch and display time") or a stored list that is no longer what
-   fires?
+The reverse direction stays behind Save Devices — it needs the rule, which the
+user is still editing, and `setScheduleDeviceCriteria` carries both.
 
-The UI does not guess at either. The mode radio switches the EDITOR, which is
-local state; the specific half then behaves exactly as it does on a SPECIFIC
-schedule, and no copy claims what that does to the stored mode. Neither could be
-verified against QA — the token supplied for the schema refresh has expired.
+Both writes mark the schedule record invalid (`invalidateRecord`) so later reads
+of any device connection go to the network, and the mode switch also re-reads the
+two lists already on screen — invalidation governs the next read, not a query
+that is already mounted.
 
-**Question 1 now answers itself in the app.** All four assignment mutations
-(`addDevicesToSchedule`, `removeDevicesFromSchedule` and their bulk siblings)
-select `selectionMode` and `deviceCriteria` in their payloads, so whatever the
-server does to the mode lands in the Relay store on the first +/−. If it flips
-to SPECIFIC, the page is correct with no further work; if it does not, the
-switch is unsaveable and needs the mutation below.
+**The mode rides the schedule's full PUT**, which is the one thing to be careful
+with here: `updateScriptSchedule` overwrites every writable field and clears the
+ones the input omits. So the switch has to send the schedule back unchanged
+around that single field — which is why
+`script-schedule-devices-settings-relay.ts` selects `scripts { id }` and
+`scriptCustomParams` on a page that renders neither. Dropping them would empty
+the schedule's recipe as a side effect of a targeting change.
 
-What is NOT fixable from the client either way: switching the radio to specific
-and leaving through Done without assigning anything. There is no write to make —
-"Done" exists precisely because the specific half has already committed
-everything it does.
+**Observed 2026-08-05, still undocumented in the schema:** on a CRITERIA
+schedule, `availableDevices` returns the full platform-scoped fleet (as
+documented) but its per-edge `assigned` answers rule membership rather than the
+explicit assignment. The UI no longer has to reconcile the two — it switches the
+mode first — but the flag's meaning depending on `selectionMode` deserves to be
+stated on the field.
 
-The clean fix is a `setScheduleDeviceSelectionMode(scheduleId, mode)` mutation
-(or `selectionMode` on the update input), after which the picker can commit the
-switch the way it commits everything else.
+Still undocumented, and still not guessed at by the UI: what
+`assignedDevices` returns for a CRITERIA schedule — the resolved rule (which
+`setScheduleDeviceCriteria`'s own description implies, "resolved live at dispatch
+and display time") or a stored list that is no longer what fires. The picker
+reads it as the stored list, which is what the specific half edits.
 
 ## 11. `scheduleRunFilters.initiators` has no matching filter input — **OPEN**
 

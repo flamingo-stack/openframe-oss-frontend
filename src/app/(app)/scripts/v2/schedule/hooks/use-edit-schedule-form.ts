@@ -20,6 +20,7 @@ import {
   type EditScheduleFormData,
   editScheduleFormSchema,
 } from '../types/edit-schedule.types';
+import { collectScriptCustomParams } from '../utils/schedule-script-params';
 import { applyTimeSlot, isEventTrigger, resolveRepeatSeconds, toScheduleInstant } from '../utils/schedule-timing';
 
 interface UseEditScheduleFormOptions {
@@ -72,10 +73,16 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         description: data.description.trim() || null,
         supportedPlatforms: platformsToEnums(data.supportedPlatforms),
         // Order is the payload: the card order (drag & drop) IS the run order.
-        // TODO(backend): per-script timeout / args / env vars are edited in the
-        // cards but dropped here — the input takes bare ids until it grows
-        // `scriptEntries` (docs/script-schedules-v2-graphql-gaps.md §3).
+        // TODO(backend): per-script TIMEOUT is still edited in the cards and
+        // dropped here — `ScheduledScriptCustomParamsInput` carries args and env
+        // vars only (docs/script-schedules-v2-graphql-gaps.md §3).
         scriptIds: data.scripts.map(s => s.scriptId),
+        // Sparse by construction: a script whose args and env vars still equal
+        // its own defaults contributes no entry, so the schedule keeps
+        // inheriting later edits to that script. PUT semantics on update — this
+        // array IS the stored set, and an empty one clears every override, which
+        // is exactly what "the user reset both halves" has to mean.
+        scriptCustomParams: collectScriptCustomParams(data.scripts),
         trigger: data.trigger,
         // PUT semantics: null clears the timing / recurrence. `repeat` needs a
         // start to anchor it, which a DATE_TIME schedule always has by now.

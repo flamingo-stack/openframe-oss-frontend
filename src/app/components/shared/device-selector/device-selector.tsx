@@ -26,13 +26,12 @@ import {
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { getDeviceFilterColumns } from '@/app/(app)/devices/components/devices-table-columns';
-import { DEFAULT_VISIBLE_STATUSES, DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
+import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
 import { useTagFilterModal } from '@/app/(app)/devices/hooks/use-tag-filter-modal';
 import type { Device, DeviceFilters } from '@/app/(app)/devices/types/device.types';
 import { getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { DevicesFilterToolbar } from '@/app/components/shared';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
-import { deduplicateFilterOptions } from '@/lib/filter-utils';
 import { getFullImageUrl } from '@/lib/image-url';
 import { DeviceSelectionModeRadio } from './device-selection-mode-radio';
 import type { DeviceSelectorProps, SubTab } from './device-selector.types';
@@ -234,37 +233,6 @@ export function DeviceSelector({
     onSelectionChange(new Set());
   }, [disabled, server, onSelectionChange]);
 
-  // Filter options are derived client-side from the `devices` prop. We don't
-  // hit the backend here — DeviceSelector is given a pre-fetched list, so the
-  // only sensible options are the ones actually present.
-  const statusFilterOptions = useMemo(() => {
-    const seen = new Set<string>();
-    for (const d of devices) {
-      if (d.status && (DEFAULT_VISIBLE_STATUSES as readonly string[]).includes(d.status)) seen.add(d.status);
-    }
-    return Array.from(seen)
-      .map(s => ({ id: s, label: getDeviceStatusConfig(s).label, value: s }))
-      .sort((a, b) => {
-        if (a.value === DEVICE_STATUS.ARCHIVED) return 1;
-        if (b.value === DEVICE_STATUS.ARCHIVED) return -1;
-        return 0;
-      });
-  }, [devices]);
-
-  // The funnel's VALUE is the customer id whenever the row carries one — that is
-  // what a server-narrowed consumer puts into `organizationIds`, and a name sent
-  // there matches nothing. Rows without an id (list shapes that only resolve the
-  // name) fall back to it, which is also what the client-side matcher below
-  // compares, so the two stay in step either way.
-  const orgFilterOptions = useMemo(() => {
-    const opts: Array<{ id: string; label: string; value: string }> = [];
-    for (const d of devices) {
-      const value = d.organizationId ?? d.organization;
-      if (value) opts.push({ id: value, label: d.organization ?? value, value });
-    }
-    return deduplicateFilterOptions(opts);
-  }, [devices]);
-
   // Tag chips in the search bar take "key:value" form (e.g. "env:prod").
   // Plain text chips are kept visually but don't filter (matches DevicesPanel behavior).
   const selectedTagValues = useMemo(
@@ -358,6 +326,37 @@ export function DeviceSelector({
   const deviceFilters = server?.filterOptions ?? clientDeviceFilters;
 
   const filterColumns = useMemo(() => getDeviceFilterColumns(deviceFilters), [deviceFilters]);
+
+  // The column funnels read `deviceFilters` — the SERVER's facets whenever the
+  // consumer is server-narrowed — rather than the rows in hand.
+  //
+  // They used to be derived from the `devices` prop, and in server mode that is
+  // the narrowed page: picking one customer left the funnel holding only that
+  // customer, so the second one became unpickable and the filter closed behind
+  // the first click. In client mode nothing changes — `deviceFilters` IS the
+  // row-derived object there, and those rows are the unfiltered prop list.
+  //
+  // Same source as the mobile FilterModal below, so the two can no longer offer
+  // different things.
+  const statusFilterOptions = useMemo(() => {
+    const options = filterColumns.find(column => column.key === 'status')?.filterOptions ?? [];
+    // ARCHIVED last: it is a state a device leaves the fleet in, not one anybody
+    // filters by first.
+    return [...options].sort((a, b) => {
+      if (a.value === DEVICE_STATUS.ARCHIVED) return 1;
+      if (b.value === DEVICE_STATUS.ARCHIVED) return -1;
+      return 0;
+    });
+  }, [filterColumns]);
+
+  // The funnel's VALUE is the customer id — that is what a server-narrowed
+  // consumer puts into `organizationIds`, and a name sent there matches nothing.
+  // `getDeviceFilterColumns` keys these by id and labels them by name, and the
+  // client-side matcher below compares the same id, so the two stay in step.
+  const orgFilterOptions = useMemo(
+    () => filterColumns.find(column => column.key === 'organization')?.filterOptions ?? [],
+    [filterColumns],
+  );
 
   // Adapter: useTagFilterModal expects a single `setParams({ statuses, osTypes, organizationIds, tags })`
   // call. We split it back into our local state.

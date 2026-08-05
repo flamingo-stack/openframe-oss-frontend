@@ -15,8 +15,11 @@ import { graphql } from 'react-relay';
  * the Relay store (the schedule detail query) updates itself
  * without a refetch.
  *
- * One-way, per the schema: nothing switches a schedule back to SPECIFIC. See §10
- * of the same doc.
+ * The return trip does NOT come through here: `selectionMode` on
+ * `UpdateScriptScheduleInput` is what switches a schedule back to SPECIFIC (see
+ * `use-schedule-selection-mode.ts`, and §10 of the same doc). Flipping either way
+ * leaves the stored rule and the join rows alone, so a schedule moved back to
+ * SPECIFIC still has its criteria on file if it is ever moved across again.
  */
 export const setScheduleDeviceCriteriaMutation = graphql`
   mutation setScheduleDeviceCriteriaMutation($scheduleId: ID!, $criteria: ScheduleDeviceCriteriaInput!) {
