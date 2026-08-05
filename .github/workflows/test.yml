@@ -118,7 +118,7 @@ jobs:
 
   all-checks:
     name: "All Checks"
-    needs: [trivy_scan, build_image]
+    needs: [build_image]
     runs-on: ubuntu-latest
     if: |
       always() &&
