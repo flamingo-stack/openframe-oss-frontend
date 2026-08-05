@@ -86,6 +86,7 @@ export const scheduleExecutionsRelayFragment = graphql`
             firstName
             lastName
             email
+            status
             image {
               imageUrl
               hash

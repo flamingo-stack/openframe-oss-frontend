@@ -8,12 +8,11 @@ import { decodeGlobalId } from '@/lib/relay-id';
 
 /**
  * Client-side id → status map over `GET /api/users`, for surfaces whose own
- * payload carries no user status:
- *
- * - GraphQL `User` is a stub with no `status` field (scripts v2 initiators/
- *   authors, worktime entries, KB authors) — a BE spec to add it exists, this
- *   map is the interim join;
- * - tickets (`/chat/graphql`) denormalize the assignee to id + name snapshot.
+ * payload carries no user status. Since the backend added `User.status` to
+ * the GraphQL schema, the scripts-v2 / worktime / KB surfaces read it from
+ * their own payloads — the ONLY remaining consumer is the tickets domain:
+ * `/chat/graphql` (saas-ai-agent) denormalizes the assignee to an id + name
+ * snapshot with no status.
  *
  * Lookup accepts both raw ids and Relay global ids (`User:<id>` base64) — the
  * map is keyed by the raw id `/api/users` returns, and `isUserDeleted` decodes

@@ -29,7 +29,7 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ScriptExecutionFilterInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import {
   liveColumnMeta,
   skeletonColumnMeta,
@@ -38,7 +38,6 @@ import {
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
@@ -116,6 +115,8 @@ export interface UiExecution {
   initiatorName: string;
   initiatorInitials: string;
   initiatorImage?: string;
+  /** Initiator account is DELETED / SELF_DELETED — from `User.status` on the payload. */
+  initiatorDeleted: boolean;
   /**
    * Which script this execution ran — the second line under the initiator.
    * Empty unless the operation selects it: the schedule tab does (a schedule
@@ -149,6 +150,7 @@ export interface ExecutionNodeLike {
     readonly firstName?: string | null;
     readonly lastName?: string | null;
     readonly email?: string | null;
+    readonly status?: string | null;
     readonly image?: { readonly imageUrl?: string | null; readonly hash?: string | null } | null;
   } | null;
 }
@@ -166,6 +168,7 @@ export function toUiExecution(node: ExecutionNodeLike): UiExecution {
     initiatorName: initiatorName(node.initiator),
     initiatorInitials: initiatorInitials(node.initiator),
     initiatorImage: getFullImageUrl(node.initiator?.image?.imageUrl, node.initiator?.image?.hash),
+    initiatorDeleted: isDeletedUserStatus(node.initiator?.status),
     scriptName: node.scriptName ?? '',
     result: executionResultText(node),
   };
@@ -285,7 +288,6 @@ export function ExecutionsTable({
 }: ExecutionsTableProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { isUserDeleted } = useUserStatusMap();
   const { statusOptions, machineOptions, initiatorOptions } = facetOptions;
 
   const executionHref = useCallback((execution: UiExecution) => routes.scriptsV2.execution(execution.id), []);
@@ -389,7 +391,7 @@ export function ExecutionsTable({
             ? (decodeGlobalId(row.original.initiatorId)?.rawId ?? row.original.initiatorId)
             : '';
           const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-          const isDeleted = isUserDeleted(row.original.initiatorId);
+          const isDeleted = row.original.initiatorDeleted;
 
           return (
             <div className="flex flex-1 items-center gap-[var(--spacing-system-xsf)] min-w-0">
@@ -475,7 +477,7 @@ export function ExecutionsTable({
         meta: liveColumnMeta(EXECUTION_COLUMNS.open),
       },
     ],
-    [renderRowActions, router, executionHref, statusOptions, initiatorOptions, machineOptions, isUserDeleted],
+    [renderRowActions, router, executionHref, statusOptions, initiatorOptions, machineOptions],
   );
 
   const filterGroups = useMemo(

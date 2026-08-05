@@ -37,11 +37,10 @@ import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } fro
 import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
+import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { EmptyState } from '@/app/components/shared/empty-state';
 import { InfoCardSkeleton } from '@/app/components/shared/page-skeleton-primitives';
 import { useSearchParam } from '@/app/hooks/use-search-param';
-import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { deleteTimeEntryMutation } from '@/graphql/time-tracker/delete-time-entry-mutation';
 import {
   employeeWorkTimeRelayFragment,
@@ -97,6 +96,8 @@ interface WorkTimeRow {
   /** Raw user id (matches assignee-option values), for editing/reassigning the employee. */
   userId: string | null;
   userName: string | null;
+  /** Raw `User.status` from the payload (ACTIVE / DELETED / SELF_DELETED). */
+  userStatus: string | null;
   userEmail: string | null;
   userImageUrl?: string;
   organizationId: string | null;
@@ -120,8 +121,7 @@ interface QueryVars {
 }
 
 function EmployeeCell({ row }: { row: WorkTimeRow }) {
-  const { isUserDeleted, isUserSelfDeleted } = useUserStatusMap();
-  const isDeleted = isUserDeleted(row.userId);
+  const isDeleted = isDeletedUserStatus(row.userStatus);
 
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
@@ -133,7 +133,7 @@ function EmployeeCell({ row }: { row: WorkTimeRow }) {
       <div className="flex min-w-0 flex-col">
         <TruncateText>{row.userName ?? '–'}</TruncateText>
         {/* SELF_DELETED emails are synthetic (`deleted-{id}@deleted.invalid`) — hidden. */}
-        {row.userEmail && !isUserSelfDeleted(row.userId) && (
+        {row.userEmail && !isSelfDeletedUserStatus(row.userStatus) && (
           <TruncateText variant="h6" tone="secondary" mono>
             {row.userEmail}
           </TruncateText>
@@ -337,6 +337,7 @@ function WorkTimeTableData({
             notes: edge.node.notes ?? null,
             userId: edge.node.user?.id ? (decodeGlobalId(edge.node.user.id)?.rawId ?? edge.node.user.id) : null,
             userName: mapUserName(edge.node.user),
+            userStatus: edge.node.user?.status ?? null,
             userEmail: edge.node.user?.email ?? null,
             userImageUrl: getFullImageUrl(edge.node.user?.image?.imageUrl, edge.node.user?.image?.hash),
             organizationId: org?.organizationId ?? null,

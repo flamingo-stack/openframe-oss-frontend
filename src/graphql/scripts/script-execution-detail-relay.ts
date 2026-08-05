@@ -39,6 +39,7 @@ export const scriptExecutionDetailRelayQuery = graphql`
           firstName
           lastName
           email
+          status
           image {
             imageUrl
             hash

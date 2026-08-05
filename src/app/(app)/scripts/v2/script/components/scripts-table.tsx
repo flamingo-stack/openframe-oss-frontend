@@ -45,12 +45,11 @@ import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { askMingoButton, EmptyState, liveColumnMeta, skeletonColumnDefs } from '@/app/components/shared';
-import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { archiveScriptMutation } from '@/graphql/scripts/archive-script-mutation';
 import { scriptFiltersRefreshRelayQuery } from '@/graphql/scripts/script-filters-refresh-relay';
@@ -84,6 +83,8 @@ interface UiScriptEntry {
   authorName: string;
   authorInitials: string;
   authorImage?: string;
+  /** Author account is DELETED / SELF_DELETED — from `User.status` on the payload. */
+  authorDeleted: boolean;
   hasAuthor: boolean;
 }
 
@@ -126,7 +127,6 @@ function ScriptsTableContent({
 }: ScriptsTableContentProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
-  const { isUserDeleted } = useUserStatusMap();
 
   const [commitArchive, isArchiving] = useMutation<ArchiveScriptMutationType>(archiveScriptMutation);
   const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScriptMutationType>(unarchiveScriptMutation);
@@ -177,6 +177,7 @@ function ScriptsTableContent({
           authorName: initiatorName(node.author),
           authorInitials: initiatorInitials(node.author),
           authorImage: getFullImageUrl(node.author?.image?.imageUrl, node.author?.image?.hash),
+          authorDeleted: isDeletedUserStatus(node.author?.status),
           hasAuthor: Boolean(node.author),
         },
       ];
@@ -413,7 +414,7 @@ function ScriptsTableContent({
             ? (decodeGlobalId(row.original.authorId)?.rawId ?? row.original.authorId)
             : '';
           const href = rawAuthorId ? employeeDetailHref(rawAuthorId) : null;
-          const isDeleted = isUserDeleted(row.original.authorId);
+          const isDeleted = row.original.authorDeleted;
           const avatar = isDeleted ? (
             <DeletedUserAvatar size="sm" />
           ) : (
@@ -495,7 +496,7 @@ function ScriptsTableContent({
         meta: liveColumnMeta(SCRIPT_COLUMNS.open),
       },
     ],
-    [renderRowActions, shellOptions, platformOptions, authorOptions, isUserDeleted],
+    [renderRowActions, shellOptions, platformOptions, authorOptions],
   );
 
   const filterGroups = useMemo(

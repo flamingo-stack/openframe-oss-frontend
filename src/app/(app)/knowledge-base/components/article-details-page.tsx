@@ -20,9 +20,8 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { notFound } from 'next/navigation';
 import { Suspense, useCallback, useMemo, useState } from 'react';
-import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { AssignedItemsView } from '@/components/assignments';
 import { formatDate } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -61,7 +60,6 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
   const { publishArticle, isPending: isPublishing } = usePublishArticle();
   const { unpublishArticle, isPending: isUnpublishing } = useUnpublishArticle();
   const { download: downloadAttachment } = useDownloadArticleAttachment();
-  const { isUserDeleted } = useUserStatusMap();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [unarchiveOpen, setUnarchiveOpen] = useState(false);
@@ -102,7 +100,7 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
     [article.author?.image?.imageUrl, article.author?.image?.hash],
   );
 
-  const isDeletedAuthor = isUserDeleted(article.author?.id);
+  const isDeletedAuthor = isDeletedUserStatus(article.author?.status);
 
   const uiAttachments = useMemo(() => {
     if (!article.attachments) return [];

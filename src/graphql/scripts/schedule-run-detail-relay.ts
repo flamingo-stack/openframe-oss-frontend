@@ -28,6 +28,7 @@ export const scheduleRunDetailRelayQuery = graphql`
           firstName
           lastName
           email
+          status
           image {
             imageUrl
             hash

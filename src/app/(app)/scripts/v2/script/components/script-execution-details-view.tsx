@@ -9,9 +9,8 @@ import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execution-detail-relay';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -55,7 +54,6 @@ function DetailCell({ value, label }: { value: ReactNode; label: string }) {
 function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsViewProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
-  const { isUserDeleted } = useUserStatusMap();
   const data = useLazyLoadQuery<ScriptExecutionDetailQueryType>(
     scriptExecutionDetailRelayQuery,
     { id: executionId },
@@ -131,7 +129,7 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
     ? (decodeGlobalId(execution.initiator.id)?.rawId ?? execution.initiator.id)
     : '';
   const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-  const isDeletedInitiator = isUserDeleted(execution.initiator?.id);
+  const isDeletedInitiator = isDeletedUserStatus(execution.initiator?.status);
 
   return (
     <PageLayout

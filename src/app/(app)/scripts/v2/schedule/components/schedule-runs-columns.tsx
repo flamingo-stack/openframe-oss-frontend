@@ -25,7 +25,6 @@ import {
   skeletonColumnMeta,
   type TableSkeletonColumn,
 } from '@/app/components/shared/table-column-layout';
-import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
@@ -83,6 +82,8 @@ export interface UiRun {
   initiatorName: string;
   initiatorInitials: string;
   initiatorImage?: string;
+  /** Initiator account is DELETED / SELF_DELETED — from `User.status` on the payload. */
+  initiatorDeleted: boolean;
   /** Scheduled fires carry no initiator — a person only fires a run manually. */
   isScheduled: boolean;
 }
@@ -94,8 +95,6 @@ export function runDetailsHref(run: UiRun): string {
 
 /** "Executed by" — an avatar plus either the user's name (linked) or "Scheduled". */
 function InitiatorCell({ run }: { run: UiRun }) {
-  const { isUserDeleted } = useUserStatusMap();
-
   if (run.isScheduled) {
     return (
       <TruncateText tone="secondary" className="flex-1">
@@ -109,7 +108,7 @@ function InitiatorCell({ run }: { run: UiRun }) {
   // only the user page opens.
   const rawInitiatorId = decodeGlobalId(run.initiatorId)?.rawId ?? run.initiatorId;
   const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-  const isDeleted = isUserDeleted(run.initiatorId);
+  const isDeleted = run.initiatorDeleted;
 
   const avatar = isDeleted ? (
     <DeletedUserAvatar size="md" />

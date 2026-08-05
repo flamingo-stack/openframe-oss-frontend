@@ -16,9 +16,8 @@ import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPagina
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import {
   scheduleExecutionsRelayFragment,
   scheduleExecutionsRelayQuery,
@@ -80,7 +79,6 @@ function RunInfoCell({ label, children, className }: { label: string; children: 
 type RunNode = NonNullable<ScheduleRunDetailQueryType['response']['node']>;
 
 function RunInfoBar({ run }: { run: RunNode }) {
-  const { isUserDeleted } = useUserStatusMap();
   const initiator = 'initiator' in run ? run.initiator : null;
   const status = 'status' in run ? run.status : null;
   const dispatchedAt = 'dispatchedAt' in run ? run.dispatchedAt : null;
@@ -92,7 +90,7 @@ function RunInfoBar({ run }: { run: RunNode }) {
   // raw one (same decode the execution-details page does).
   const rawInitiatorId = initiator?.id ? (decodeGlobalId(initiator.id)?.rawId ?? initiator.id) : '';
   const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-  const isDeleted = isUserDeleted(initiator?.id);
+  const isDeleted = isDeletedUserStatus(initiator?.status);
 
   return (
     <div className="flex flex-col gap-0 bg-ods-card border border-ods-border rounded-[6px] overflow-clip w-full">
