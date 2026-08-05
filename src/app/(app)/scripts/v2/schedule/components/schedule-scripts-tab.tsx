@@ -4,6 +4,7 @@ import { memo, Suspense } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
+import { customParamsByScriptId } from '../utils/schedule-script-params';
 import { ScheduleScriptCard, ScheduleScriptCardSkeleton } from './schedule-script-card';
 
 /**
@@ -34,6 +35,11 @@ function ScheduleScriptsTabContent({ scheduleId }: { scheduleId: string }) {
     );
   }
 
+  // Per-script overrides, keyed the way the schema keys them — by script, not by
+  // run position — so a schedule that runs the same script twice hands both
+  // cards the same one. There is no per-entry override to hand them instead.
+  const customParams = customParamsByScriptId(schedule.scriptCustomParams);
+
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
       {schedule.scripts.map((script, position) => (
@@ -41,7 +47,11 @@ function ScheduleScriptsTabContent({ scheduleId }: { scheduleId: string }) {
         // valid recipe), so `script.id` is NOT unique here — the RUN POSITION is
         // what identifies an entry. The list is read-only and ordered by the
         // server, so position is stable for as long as the data is.
-        <ScheduleScriptCard key={`${script.id}-${position}`} script={script} />
+        <ScheduleScriptCard
+          key={`${script.id}-${position}`}
+          script={script}
+          customParams={customParams.get(script.id)}
+        />
       ))}
     </div>
   );

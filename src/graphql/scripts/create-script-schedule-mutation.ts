@@ -29,6 +29,16 @@ export const createScriptScheduleMutation = graphql`
         envVars {
           name
           value
+          secret
+        }
+      }
+      scriptCustomParams {
+        scriptId
+        args
+        envVars {
+          name
+          value
+          secret
         }
       }
     }

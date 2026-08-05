@@ -7,11 +7,17 @@ import {
   LaptopIcon,
   PenEditIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton, TabNavigation } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type PageActionButton,
+  type TabItem,
+  TabNavigation,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
+import type { scheduleTriggerRelayQuery as ScheduleTriggerQueryType } from '@/__generated__/scheduleTriggerRelayQuery.graphql';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { scheduleTriggerRelayQuery } from '@/graphql/scripts/schedule-trigger-relay';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
@@ -23,7 +29,12 @@ import { platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleArchive } from '../hooks/use-schedule-archive';
 import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
-import { SCHEDULE_DEFAULT_TAB, SCHEDULE_DETAIL_TABS, scheduleTabBody } from './schedule-detail-tabs';
+import {
+  SCHEDULE_DEFAULT_TAB,
+  SCHEDULE_TABS_WITHOUT_RUNS,
+  scheduleDetailTabs,
+  scheduleTabBody,
+} from './schedule-detail-tabs';
 import { ScheduleHeaderSkeleton } from './schedule-details-skeleton';
 import { ScheduleInfoBarSkeleton } from './schedule-info-bar-skeleton';
 
@@ -170,6 +181,58 @@ function ScheduleInfoBar({ scheduleId }: ScheduleDetailsViewProps) {
 }
 
 /**
+ * The tab strip and whichever body it is on.
+ *
+ * `tabs` is a prop rather than a constant because the SET depends on the
+ * schedule: an event-driven one has no Schedule Runs (see
+ * `scheduleDetailTabs`). Split out so the strip can be rendered both from the
+ * island below and from its own fallback, with no other difference between them.
+ */
+function ScheduleTabs({ scheduleId, tabs }: ScheduleDetailsViewProps & { tabs: TabItem[] }) {
+  return (
+    // `TabNavigation` renders as a fragment, so its bar and its body are
+    // siblings — left as direct children of the page column they would be pushed
+    // apart by its `gap`. Grouped here into ONE flex item instead: the bar sits
+    // flush on the body, and each tab body owns the top padding that separates
+    // it from the bar.
+    <div className="flex flex-col">
+      {/* Each tab brings its own body, its own boundary and its own skeleton
+          (see `schedule-detail-tabs.ts`) — this page renders whichever one the
+          strip is on and knows nothing else about them. */}
+      <TabNavigation tabs={tabs} urlSync defaultTab={SCHEDULE_DEFAULT_TAB}>
+        {activeTab => {
+          const TabBody = scheduleTabBody(activeTab);
+          return <TabBody scheduleId={scheduleId} />;
+        }}
+      </TabNavigation>
+    </div>
+  );
+}
+
+/**
+ * The tab island: it reads the one field that decides which tabs exist.
+ *
+ * Its own tiny query, not the page's detail query — see
+ * `schedule-trigger-relay.ts`. Coming from the schedules list (which selects
+ * `trigger`) it answers from the Relay store and this never suspends, so the
+ * strip still paints with the rest of the page chrome; a cold load — a link
+ * straight into the page — falls back to the certain tabs for one round trip.
+ *
+ * A stale `?tab=runs` needs no handling: `TabNavigation` resolves a tab id that
+ * is not in `tabs` to `defaultTab`, so a link into the Runs tab of a schedule
+ * that has since become event-driven lands on Scheduled Scripts.
+ */
+function ScheduleTabsIsland({ scheduleId }: ScheduleDetailsViewProps) {
+  const data = useLazyLoadQuery<ScheduleTriggerQueryType>(
+    scheduleTriggerRelayQuery,
+    { id: scheduleId },
+    { fetchPolicy: 'store-and-network' },
+  );
+
+  return <ScheduleTabs scheduleId={scheduleId} tabs={scheduleDetailTabs(data.scriptSchedule?.trigger)} />;
+}
+
+/**
  * Schedule details page.
  *
  * Deliberately NOT `PageLayout`: it takes the title as a prop, so a page whose
@@ -204,22 +267,14 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsView({ scheduleI
           <ScheduleInfoBar scheduleId={scheduleId} />
         </Suspense>
 
-        {/* `TabNavigation` renders as a fragment, so its bar and its body are
-            siblings — left as direct children of the column above they would be
-            pushed apart by its `gap`. Grouped here into ONE flex item instead:
-            the bar sits flush on the body, and each tab body owns the top
-            padding that separates it from the bar. */}
-        <div className="flex flex-col">
-          {/* Each tab brings its own body, its own boundary and its own
-              skeleton (see `schedule-detail-tabs.ts`) — this page renders
-              whichever one the strip is on and knows nothing else about them. */}
-          <TabNavigation tabs={SCHEDULE_DETAIL_TABS} urlSync defaultTab={SCHEDULE_DEFAULT_TAB}>
-            {activeTab => {
-              const TabBody = scheduleTabBody(activeTab);
-              return <TabBody scheduleId={scheduleId} />;
-            }}
-          </TabNavigation>
-        </div>
+        {/* The strip's own island — WHICH tabs exist is the schedule's answer
+            (no Schedule Runs on an event-driven one). Its fallback is the same
+            strip on the certain tabs, so the page keeps a working tab bar
+            through the wait instead of a placeholder, and the bodies below go on
+            loading under it. */}
+        <Suspense fallback={<ScheduleTabs scheduleId={scheduleId} tabs={SCHEDULE_TABS_WITHOUT_RUNS} />}>
+          <ScheduleTabsIsland scheduleId={scheduleId} />
+        </Suspense>
       </div>
     </div>
   );

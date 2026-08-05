@@ -108,10 +108,12 @@ export function useScheduleDeviceAssignment({
   /**
    * Re-reads both halves from the network.
    *
-   * For the BULK actions only. They replace the assignment wholesale against a
-   * filter the server resolves, so what is left in either list is not something
-   * the client can work out — unlike a single +/−, which changes exactly one row
-   * and one number and is written into the store directly.
+   * For the writes whose result the client cannot work out: the BULK actions,
+   * which replace the assignment wholesale against a filter the server resolves,
+   * and the MODE switch, which changes what the per-row `assigned` flag even
+   * means (rule membership vs the explicit list). A single +/− needs none of it —
+   * it changes exactly one row and one number, and both are written into the
+   * store directly.
    */
   const refreshLists = useCallback(() => {
     const variables = { scheduleId, ...connectionNarrowing(), first: DEVICE_PICKER_PAGE_SIZE, after: null };
@@ -211,6 +213,21 @@ export function useScheduleDeviceAssignment({
     (criteria: ScheduleCriteria, onSaved: () => void) => {
       commitSetCriteria({
         variables: { scheduleId, criteria: toRelayCriteria(criteria) },
+        // A new rule re-points the schedule at a different SET of machines, and
+        // the payload cannot say which: it carries the rule and the count, not
+        // the members. Every `assignedDevices` connection already in the store —
+        // this page's two, the details tab's, one per narrowing each — is
+        // therefore stale, and none of them can be patched from what came back.
+        //
+        // Invalidating the schedule record marks all of them unusable at once,
+        // so the next read of any of them goes to the network instead of
+        // rendering the previous rule's machines. Without it the details tab
+        // shows the OLD devices: it reads `store-and-network`, so the stale
+        // store answer is what it paints while the request is in flight — and on
+        // a back navigation that restores the tab, that is the whole render.
+        updater: store => {
+          store.get(scheduleId)?.invalidateRecord();
+        },
         onCompleted: () => {
           toast({
             title: 'Criteria saved',
@@ -225,5 +242,14 @@ export function useScheduleDeviceAssignment({
     [commitSetCriteria, scheduleId, toast, errorHandler],
   );
 
-  return { busy, isSavingCriteria, addDevice, removeDevice, addAllDevices, removeAllDevices, saveCriteria };
+  return {
+    busy,
+    isSavingCriteria,
+    addDevice,
+    removeDevice,
+    addAllDevices,
+    removeAllDevices,
+    saveCriteria,
+    refreshLists,
+  };
 }
