@@ -20,6 +20,7 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { notFound } from 'next/navigation';
 import { Suspense, useCallback, useMemo, useState } from 'react';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { AssignedItemsView } from '@/components/assignments';
 import { formatDate } from '@/lib/format-date';
@@ -98,6 +99,8 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
     () => getFullImageUrl(article.author?.image?.imageUrl, article.author?.image?.hash),
     [article.author?.image?.imageUrl, article.author?.image?.hash],
   );
+
+  const isDeletedAuthor = isDeletedUserStatus(article.author?.status);
 
   const uiAttachments = useMemo(() => {
     if (!article.attachments) return [];
@@ -205,15 +208,21 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
       <Card className="px-[var(--spacing-system-mf)] py-0 border-ods-border">
         <div className="grid grid-cols-2 gap-x-[var(--spacing-system-mf)] lg:grid-cols-3">
           <div className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)] h-20">
-            <SquareAvatar
-              src={authorImageUrl}
-              fallback={authorName ?? 'A'}
-              alt={authorName ?? 'Author'}
-              size="md"
-              variant="round"
-            />
+            {isDeletedAuthor ? (
+              <DeletedUserAvatar size="md" />
+            ) : (
+              <SquareAvatar
+                src={authorImageUrl}
+                fallback={authorName ?? 'A'}
+                alt={authorName ?? 'Author'}
+                size="md"
+                variant="round"
+              />
+            )}
             <div className="flex flex-col min-w-0 flex-1">
-              <TruncateText>{authorName ?? 'Unknown'}</TruncateText>
+              <TruncateText className={isDeletedAuthor ? 'text-ods-error' : undefined}>
+                {authorName ?? 'Unknown'}
+              </TruncateText>
               <p className="text-heading-5 text-ods-text-secondary truncate">Author</p>
             </div>
           </div>

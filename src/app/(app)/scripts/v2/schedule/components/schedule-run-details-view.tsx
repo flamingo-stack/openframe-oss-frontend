@@ -8,6 +8,7 @@ import {
   SquareAvatar,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
@@ -15,6 +16,7 @@ import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPagina
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import {
   scheduleExecutionsRelayFragment,
@@ -88,6 +90,7 @@ function RunInfoBar({ run }: { run: RunNode }) {
   // raw one (same decode the execution-details page does).
   const rawInitiatorId = initiator?.id ? (decodeGlobalId(initiator.id)?.rawId ?? initiator.id) : '';
   const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
+  const isDeleted = isDeletedUserStatus(initiator?.status);
 
   return (
     <div className="flex flex-col gap-0 bg-ods-card border border-ods-border rounded-[6px] overflow-clip w-full">
@@ -102,23 +105,34 @@ function RunInfoBar({ run }: { run: RunNode }) {
         </RunInfoCell>
         <RunInfoCell label="Executed by" className="border-b md:border-b-0 border-ods-border">
           <div className="flex items-center gap-2 min-w-0">
-            <SquareAvatar
-              variant="round"
-              size="sm"
-              src={getFullImageUrl(initiator?.image?.imageUrl, initiator?.image?.hash)}
-              fallback={initiatorInitials(initiator)}
-              alt={initiatorName(initiator)}
-              initialsClassName="text-ods-text-secondary"
-            />
+            {isDeleted ? (
+              <DeletedUserAvatar size="sm" />
+            ) : (
+              <SquareAvatar
+                variant="round"
+                size="sm"
+                src={getFullImageUrl(initiator?.image?.imageUrl, initiator?.image?.hash)}
+                fallback={initiatorInitials(initiator)}
+                alt={initiatorName(initiator)}
+                initialsClassName="text-ods-text-secondary"
+              />
+            )}
             {initiatorHref ? (
               <a href={initiatorHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
-                <TruncateText className="text-ods-accent hover:text-ods-accent-hover underline">
+                <TruncateText
+                  className={cn(
+                    'underline',
+                    isDeleted ? 'text-ods-error' : 'text-ods-accent hover:text-ods-accent-hover',
+                  )}
+                >
                   {initiatorName(initiator)}
                 </TruncateText>
               </a>
             ) : (
               <div className="min-w-0 flex-1">
-                <TruncateText>{initiatorName(initiator)}</TruncateText>
+                <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
+                  {initiatorName(initiator)}
+                </TruncateText>
               </div>
             )}
           </div>

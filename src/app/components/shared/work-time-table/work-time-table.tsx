@@ -37,6 +37,7 @@ import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } fro
 import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { EmptyState } from '@/app/components/shared/empty-state';
 import { InfoCardSkeleton } from '@/app/components/shared/page-skeleton-primitives';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -95,6 +96,8 @@ interface WorkTimeRow {
   /** Raw user id (matches assignee-option values), for editing/reassigning the employee. */
   userId: string | null;
   userName: string | null;
+  /** Raw `User.status` from the payload (ACTIVE / DELETED / SELF_DELETED). */
+  userStatus: string | null;
   userEmail: string | null;
   userImageUrl?: string;
   organizationId: string | null;
@@ -117,22 +120,33 @@ interface QueryVars {
   after: string | null;
 }
 
-const employeeColumn: ColumnDef<WorkTimeRow> = {
-  id: 'employee',
-  header: 'EMPLOYEE',
-  cell: ({ row }) => (
+function EmployeeCell({ row }: { row: WorkTimeRow }) {
+  const isDeleted = isDeletedUserStatus(row.userStatus);
+
+  return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
-      <SquareAvatar src={row.original.userImageUrl} fallback={row.original.userName ?? '?'} size="sm" variant="round" />
+      {isDeleted ? (
+        <DeletedUserAvatar size="sm" />
+      ) : (
+        <SquareAvatar src={row.userImageUrl} fallback={row.userName ?? '?'} size="sm" variant="round" />
+      )}
       <div className="flex min-w-0 flex-col">
-        <TruncateText>{row.original.userName ?? '–'}</TruncateText>
-        {row.original.userEmail && (
+        <TruncateText>{row.userName ?? '–'}</TruncateText>
+        {/* SELF_DELETED emails are synthetic (`deleted-{id}@deleted.invalid`) — hidden. */}
+        {row.userEmail && !isSelfDeletedUserStatus(row.userStatus) && (
           <TruncateText variant="h6" tone="secondary" mono>
-            {row.original.userEmail}
+            {row.userEmail}
           </TruncateText>
         )}
       </div>
     </div>
-  ),
+  );
+}
+
+const employeeColumn: ColumnDef<WorkTimeRow> = {
+  id: 'employee',
+  header: 'EMPLOYEE',
+  cell: ({ row }) => <EmployeeCell row={row.original} />,
   enableSorting: false,
   meta: { width: 'min-w-0 flex-1' },
 };
@@ -323,6 +337,7 @@ function WorkTimeTableData({
             notes: edge.node.notes ?? null,
             userId: edge.node.user?.id ? (decodeGlobalId(edge.node.user.id)?.rawId ?? edge.node.user.id) : null,
             userName: mapUserName(edge.node.user),
+            userStatus: edge.node.user?.status ?? null,
             userEmail: edge.node.user?.email ?? null,
             userImageUrl: getFullImageUrl(edge.node.user?.image?.imageUrl, edge.node.user?.image?.hash),
             organizationId: org?.organizationId ?? null,

@@ -53,6 +53,7 @@ import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { type AiModel, useAiModel } from '@/app/hooks/use-ai-model';
 import { useFeatureFlag, useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
 import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation';
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
@@ -258,6 +259,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   const { download: downloadAttachment } = useDownloadTicketAttachment();
   const assignTicketMutation = useAssignTicket();
   const assigneeOptions = useAssigneeOptions();
+  const { isUserDeleted } = useUserStatusMap();
 
   const { isDirectMode, isStartingDirectChat, isSendingClientMessage, startDirectChat, sendClientMessage } =
     useDirectChat({
@@ -768,6 +770,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
               id: dialog.assignedTo!,
               name: dialog.assignedName,
               avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+              deleted: isUserDeleted(dialog.assignedTo),
             }
           : undefined,
         options: assigneeOptions.options.map(o => ({ ...o, imageUrl: getFullImageUrl(o.imageUrl) })),
@@ -1084,6 +1087,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                     id: dialog.assignedTo!,
                     name: dialog.assignedName,
                     avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+                    deleted: isUserDeleted(dialog.assignedTo),
                   }
                 : undefined,
               options: assigneeOptions.options.map(o => ({
@@ -1167,6 +1171,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                           id: dialog.assignedTo!,
                           name: dialog.assignedName,
                           avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+                          deleted: isUserDeleted(dialog.assignedTo),
                         }
                       : undefined,
                     options: assigneeOptions.options.map(o => ({

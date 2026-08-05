@@ -70,6 +70,7 @@ export const scriptsTableRelayFragment = graphql`
             firstName
             lastName
             email
+            status
             image {
               imageUrl
               hash

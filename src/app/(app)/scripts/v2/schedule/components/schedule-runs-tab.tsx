@@ -21,6 +21,7 @@ import type {
   scheduleRunsRelayQuery as RunsQueryType,
   ScheduleRunFilterInput,
 } from '@/__generated__/scheduleRunsRelayQuery.graphql';
+import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -123,6 +124,7 @@ function ScheduleRunsContent({
           initiatorName: initiatorName(node.initiator),
           initiatorInitials: initiatorInitials(node.initiator),
           initiatorImage: getFullImageUrl(node.initiator?.image?.imageUrl, node.initiator?.image?.hash),
+          initiatorDeleted: isDeletedUserStatus(node.initiator?.status),
           isScheduled: !node.initiator,
         },
       ];

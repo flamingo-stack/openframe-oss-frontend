@@ -38,6 +38,7 @@ export const employeeWorkTimeRelayFragment = graphql`
             firstName
             lastName
             email
+            status
             image {
               imageUrl
               hash

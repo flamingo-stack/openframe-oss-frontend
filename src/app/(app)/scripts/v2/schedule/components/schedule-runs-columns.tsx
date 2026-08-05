@@ -15,9 +15,11 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import {
   liveColumnMeta,
   skeletonColumnMeta,
@@ -80,6 +82,8 @@ export interface UiRun {
   initiatorName: string;
   initiatorInitials: string;
   initiatorImage?: string;
+  /** Initiator account is DELETED / SELF_DELETED — from `User.status` on the payload. */
+  initiatorDeleted: boolean;
   /** Scheduled fires carry no initiator — a person only fires a run manually. */
   isScheduled: boolean;
 }
@@ -104,8 +108,11 @@ function InitiatorCell({ run }: { run: UiRun }) {
   // only the user page opens.
   const rawInitiatorId = decodeGlobalId(run.initiatorId)?.rawId ?? run.initiatorId;
   const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
+  const isDeleted = run.initiatorDeleted;
 
-  const avatar = (
+  const avatar = isDeleted ? (
+    <DeletedUserAvatar size="md" />
+  ) : (
     <SquareAvatar
       variant="round"
       size="md"
@@ -121,7 +128,7 @@ function InitiatorCell({ run }: { run: UiRun }) {
       <div className="flex flex-1 items-center gap-[var(--spacing-system-xsf)] min-w-0">
         {avatar}
         <div className="min-w-0 flex-1">
-          <TruncateText>{run.initiatorName}</TruncateText>
+          <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>{run.initiatorName}</TruncateText>
         </div>
       </div>
     );
@@ -136,7 +143,9 @@ function InitiatorCell({ run }: { run: UiRun }) {
       >
         {avatar}
         <div className="min-w-0 flex-1">
-          <TruncateText className="text-ods-accent underline">{run.initiatorName}</TruncateText>
+          <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+            {run.initiatorName}
+          </TruncateText>
         </div>
       </button>
     </div>

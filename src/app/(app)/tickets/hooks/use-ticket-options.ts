@@ -6,6 +6,7 @@ import { GET_ORGANIZATIONS_MIN_QUERY } from '@/app/(app)/customers/queries/custo
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
+import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import type { Tag } from '@/app/components/shared/tags';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -112,11 +113,16 @@ async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
   if (!response.ok) throw new Error(response.error || 'Failed to fetch users');
 
   const items = response.data?.items ?? [];
-  return items.map((user: any) => ({
-    label: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
-    value: user.id,
-    imageUrl: getFullImageUrl(user.image?.imageUrl, user.image?.hash),
-  }));
+  // Deleted (DELETED / SELF_DELETED) users are not assignable and are kept out
+  // of assignee pickers/filters; existing assignments still render (marked as
+  // deleted) via useUserStatusMap on the display side.
+  return items
+    .filter((user: any) => !isDeletedUserStatus(user.status))
+    .map((user: any) => ({
+      label: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
+      value: user.id,
+      imageUrl: getFullImageUrl(user.image?.imageUrl, user.image?.hash),
+    }));
 }
 
 export function useAssigneeOptions(enabled = true) {

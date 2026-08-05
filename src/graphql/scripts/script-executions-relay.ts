@@ -83,6 +83,7 @@ export const scriptExecutionsRelayFragment = graphql`
             firstName
             lastName
             email
+            status
             image {
               imageUrl
               hash

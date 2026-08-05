@@ -16,6 +16,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -35,7 +36,9 @@ import { ConfirmRevokeInvitationModal } from '../confirm-revoke-invitation-modal
 
 const statusToLabel = {
   [UserStatus.Active]: 'ACTIVE',
+  // Same grey variant, distinct labels: admin-deleted vs self-deleted.
   [UserStatus.Deleted]: 'DELETED',
+  [UserStatus.SelfDeleted]: 'SELF DELETED',
   [InvitationStatus.Pending]: 'INVITE SENT',
   [InvitationStatus.Expired]: 'INVITE EXPIRED',
 } as const satisfies Record<UnifiedUserStatus, string>;
@@ -43,6 +46,7 @@ const statusToLabel = {
 const statusToVariant = {
   [UserStatus.Active]: 'success',
   [UserStatus.Deleted]: 'grey',
+  [UserStatus.SelfDeleted]: 'grey',
   [InvitationStatus.Pending]: 'warning',
   [InvitationStatus.Expired]: 'error',
 } as const satisfies Record<UnifiedUserStatus, 'success' | 'grey' | 'warning' | 'error'>;
@@ -138,17 +142,25 @@ export function CompanyAndUsersTab() {
 
           return (
             <div className="flex items-center gap-[var(--spacing-system-xs)] min-w-0">
-              <SquareAvatar
-                src={getFullImageUrl(row.original.image?.imageUrl, row.original.image?.hash)}
-                fallback={displayName}
-                size="sm"
-                variant="round"
-              />
+              {isDeletedUserStatus(row.original.status) ? (
+                <DeletedUserAvatar size="sm" />
+              ) : (
+                <SquareAvatar
+                  src={getFullImageUrl(row.original.image?.imageUrl, row.original.image?.hash)}
+                  fallback={displayName}
+                  size="sm"
+                  variant="round"
+                />
+              )}
               <div className="flex flex-col min-w-0">
                 <TruncateText>{displayName}</TruncateText>
-                <TruncateText variant="h6" tone="secondary" mono>
-                  {row.original.email}
-                </TruncateText>
+                {/* SELF_DELETED emails are synthetic (`deleted-{id}@deleted.invalid`) — hidden.
+                    Admin-DELETED users keep their real email (account is revivable). */}
+                {!isSelfDeletedUserStatus(row.original.status) && (
+                  <TruncateText variant="h6" tone="secondary" mono>
+                    {row.original.email}
+                  </TruncateText>
+                )}
               </div>
             </div>
           );

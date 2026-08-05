@@ -122,6 +122,13 @@ export const routes = {
   },
   worktime: '/worktime',
 
+  /**
+   * Standalone post-deletion page. Deliberately NOT under `/auth`: saas-tenant
+   * (web) blocks the whole `/auth` subtree, and the page must be reachable in
+   * every tenant mode right after the session is destroyed.
+   */
+  accountDeleted: '/account-deleted',
+
   auth: {
     root: '/auth',
     login: '/auth/login',

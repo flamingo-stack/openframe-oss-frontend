@@ -24,10 +24,12 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ScriptExecutionFilterInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import {
   liveColumnMeta,
   skeletonColumnMeta,
@@ -113,6 +115,8 @@ export interface UiExecution {
   initiatorName: string;
   initiatorInitials: string;
   initiatorImage?: string;
+  /** Initiator account is DELETED / SELF_DELETED — from `User.status` on the payload. */
+  initiatorDeleted: boolean;
   /**
    * Which script this execution ran — the second line under the initiator.
    * Empty unless the operation selects it: the schedule tab does (a schedule
@@ -146,6 +150,7 @@ export interface ExecutionNodeLike {
     readonly firstName?: string | null;
     readonly lastName?: string | null;
     readonly email?: string | null;
+    readonly status?: string | null;
     readonly image?: { readonly imageUrl?: string | null; readonly hash?: string | null } | null;
   } | null;
 }
@@ -163,6 +168,7 @@ export function toUiExecution(node: ExecutionNodeLike): UiExecution {
     initiatorName: initiatorName(node.initiator),
     initiatorInitials: initiatorInitials(node.initiator),
     initiatorImage: getFullImageUrl(node.initiator?.image?.imageUrl, node.initiator?.image?.hash),
+    initiatorDeleted: isDeletedUserStatus(node.initiator?.status),
     scriptName: node.scriptName ?? '',
     result: executionResultText(node),
   };
@@ -385,17 +391,22 @@ export function ExecutionsTable({
             ? (decodeGlobalId(row.original.initiatorId)?.rawId ?? row.original.initiatorId)
             : '';
           const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
+          const isDeleted = row.original.initiatorDeleted;
 
           return (
-            <div className="flex flex-1 items-center gap-2 min-w-0">
-              <SquareAvatar
-                variant="round"
-                size="md"
-                src={row.original.initiatorImage}
-                fallback={row.original.initiatorInitials}
-                alt={row.original.initiatorName}
-                initialsClassName="text-ods-text-secondary"
-              />
+            <div className="flex flex-1 items-center gap-[var(--spacing-system-xsf)] min-w-0">
+              {isDeleted ? (
+                <DeletedUserAvatar size="md" />
+              ) : (
+                <SquareAvatar
+                  variant="round"
+                  size="md"
+                  src={row.original.initiatorImage}
+                  fallback={row.original.initiatorInitials}
+                  alt={row.original.initiatorName}
+                  initialsClassName="text-ods-text-secondary"
+                />
+              )}
               {/* min-w-0 flex-1 so the FloatingTooltip's block div can shrink and the text ellipsizes. */}
               <div className="flex flex-col justify-center min-w-0 flex-1">
                 {href ? (
@@ -407,10 +418,14 @@ export function ExecutionsTable({
                     onClick={openInNewTab(href)}
                     className="min-w-0 text-left pointer-events-auto"
                   >
-                    <TruncateText className="text-ods-accent underline">{row.original.initiatorName}</TruncateText>
+                    <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+                      {row.original.initiatorName}
+                    </TruncateText>
                   </button>
                 ) : (
-                  <TruncateText>{row.original.initiatorName}</TruncateText>
+                  <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
+                    {row.original.initiatorName}
+                  </TruncateText>
                 )}
                 {row.original.scriptName && (
                   <TruncateText variant="h6" tone="secondary">
