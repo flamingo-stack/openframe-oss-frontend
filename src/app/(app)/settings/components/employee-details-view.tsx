@@ -45,7 +45,8 @@ function EmployeeSummarySkeleton() {
     <div className={CARD_CONTAINER}>
       <div className={CARD_ROW}>
         <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
-          <Skeleton className="size-12 shrink-0 rounded-full" />
+          {/* Mirrors the loaded avatar: 36px on mobile, 48px on md+. */}
+          <Skeleton className="size-9 md:size-12 shrink-0 rounded-full" />
           <ProfileFieldSkeleton valueClassName="h-6 w-32" />
         </div>
         <ProfileFieldSkeleton valueClassName="h-6 w-40" />
@@ -188,11 +189,15 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
         <div className={CARD_CONTAINER}>
           <div className={CARD_ROW}>
             <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
+              {/* Same responsive sizing as the deleted variant: 36px on mobile,
+                  48px on md+ — SquareAvatar's buckets are fixed, and its cn is
+                  tailwind-merge, so the className override wins. */}
               <SquareAvatar
                 src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
                 fallback={displayName}
                 size="lg"
                 variant="round"
+                className="h-9 w-9 md:h-12 md:w-12"
               />
               <InfoCell value={displayName} label="Name" />
             </div>
