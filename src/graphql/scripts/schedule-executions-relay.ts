@@ -12,17 +12,21 @@ import { graphql } from 'react-relay';
  * pagination never refetches it. Facet semantics match `scriptExecutionFilters`:
  * the backend excludes each facet's OWN group when narrowing, so a group's
  * options don't vanish while the user multi-selects within it.
+ *
+ * `sort` (`{ field: "dispatchedAt", direction }`) and the date range in `filter`
+ * come from the Execution column's calendar, exactly as on the per-script pair.
  */
 export const scheduleExecutionsRelayQuery = graphql`
   query scheduleExecutionsRelayQuery(
     $scheduleId: ID!
     $filter: ScriptExecutionFilterInput
     $search: String
+    $sort: SortInput
     $first: Int!
     $after: String
   ) {
     ...scheduleExecutionsRelay_query
-      @arguments(scheduleId: $scheduleId, filter: $filter, search: $search, first: $first, after: $after)
+      @arguments(scheduleId: $scheduleId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
     scheduleExecutionFilters(scheduleId: $scheduleId, filter: $filter, search: $search) {
       statuses {
         value
@@ -50,11 +54,18 @@ export const scheduleExecutionsRelayFragment = graphql`
       scheduleId: { type: "ID!" }
       filter: { type: "ScriptExecutionFilterInput" }
       search: { type: "String" }
+      sort: { type: "SortInput" }
       first: { type: "Int", defaultValue: 20 }
       after: { type: "String" }
     ) {
-    scheduleExecutions(scheduleId: $scheduleId, filter: $filter, search: $search, first: $first, after: $after)
-      @connection(key: "scheduleExecutionsRelay_scheduleExecutions") {
+    scheduleExecutions(
+      scheduleId: $scheduleId
+      filter: $filter
+      search: $search
+      sort: $sort
+      first: $first
+      after: $after
+    ) @connection(key: "scheduleExecutionsRelay_scheduleExecutions") {
       filteredCount
       edges {
         node {

@@ -1,7 +1,7 @@
 import type { ScriptArgument } from '@flamingo-stack/openframe-frontend-core';
 // Value import: the generated module exports each enum as both a `const` (values)
 // and a `type` under the same name, so these stand in for hardcoded literals.
-import { PrivilegeLevel, ScriptPlatform, ScriptShell } from '@/generated/schema-enums';
+import { OsType, PrivilegeLevel, ScriptShell } from '@/generated/schema-enums';
 import { EDIT_SCRIPT_DEFAULT_VALUES, type EditScriptFormData } from '../../../types/edit-script.types';
 import { parseKeyValues, serializeKeyValues } from '../../../utils/script-key-values';
 
@@ -31,28 +31,44 @@ export function shellToId(shell: ScriptShell | string | null | undefined): strin
 }
 
 // ---------------------------------------------------------------------------
-// Platform <-> ScriptPlatform enum (UI ids: windows / darwin / linux)
+// Platform <-> OsType enum (UI ids: windows / darwin / linux)
 // ---------------------------------------------------------------------------
 
-// UI ids mostly match the lowercased enum, except darwin <-> MACOS, so the
-// id->enum aliases stay explicit; the reverse map is derived from them.
-const PLATFORM_ID_TO_ENUM: Record<string, ScriptPlatform> = {
-  windows: ScriptPlatform.WINDOWS,
-  darwin: ScriptPlatform.MACOS,
-  linux: ScriptPlatform.LINUX,
+/**
+ * UI id per enum VALUE, keyed by the string rather than by `OsType.MAC_OS` &co.
+ *
+ * The backend has already renamed one member and dropped another in a single
+ * schema refresh (`MACOS` -> `MAC_OS`, `LINUX` gone), and a table keyed on the
+ * members would stop COMPILING on the next such refresh — turning a backend
+ * question into a frontend build break. Keyed on strings, an entry the server no
+ * longer offers is simply never reached, and one it brings back starts working
+ * again with no edit here.
+ *
+ * `darwin` is the odd id out; the rest are just the lowercased enum value.
+ */
+const UI_ID_BY_OS_TYPE: Record<string, string> = {
+  WINDOWS: 'windows',
+  MAC_OS: 'darwin',
+  MACOS: 'darwin',
+  LINUX: 'linux',
 };
 
-const PLATFORM_ENUM_TO_ID: Record<string, string> = Object.fromEntries(
-  Object.entries(PLATFORM_ID_TO_ENUM).map(([id, enumValue]) => [enumValue, id]),
+/**
+ * The reverse direction, derived from the enum ITSELF — so it only ever offers
+ * platforms this schema actually has, and a UI checkbox for one it doesn't
+ * cannot smuggle an unknown value into a query variable.
+ */
+const PLATFORM_ID_TO_ENUM: Record<string, OsType> = Object.fromEntries(
+  Object.values(OsType).map(value => [UI_ID_BY_OS_TYPE[value] ?? value.toLowerCase(), value]),
 );
 
-export function platformsToEnums(ids: string[]): ScriptPlatform[] {
-  return ids.map(id => PLATFORM_ID_TO_ENUM[id?.toLowerCase()]).filter((v): v is ScriptPlatform => !!v);
+export function platformsToEnums(ids: string[]): OsType[] {
+  return ids.map(id => PLATFORM_ID_TO_ENUM[id?.toLowerCase()]).filter((v): v is OsType => !!v);
 }
 
-export function platformsToIds(enums: ReadonlyArray<ScriptPlatform | string> | null | undefined): string[] {
+export function platformsToIds(enums: ReadonlyArray<OsType | string> | null | undefined): string[] {
   if (!enums) return [];
-  return enums.map(e => PLATFORM_ENUM_TO_ID[e as string]).filter((v): v is string => !!v);
+  return enums.map(e => UI_ID_BY_OS_TYPE[e as string]).filter((v): v is string => !!v);
 }
 
 // ---------------------------------------------------------------------------
@@ -96,7 +112,7 @@ export interface ScriptWriteInput {
   shell: ScriptShell;
   privilegeLevel: PrivilegeLevel;
   scriptBody: string;
-  supportedPlatforms: ScriptPlatform[];
+  supportedPlatforms: OsType[];
   defaultTimeoutSeconds: number;
   defaultArgs: string[];
   envVars: ScriptEnvVarInput[];
@@ -134,7 +150,7 @@ export interface ScriptDetailNode {
   privilegeLevel?: PrivilegeLevel | string | null;
   scriptBody: string;
   tags?: ReadonlyArray<{ id: string; key: string }> | null;
-  supportedPlatforms?: ReadonlyArray<ScriptPlatform | string> | null;
+  supportedPlatforms?: ReadonlyArray<OsType | string> | null;
   defaultTimeoutSeconds?: number | null;
   defaultArgs?: ReadonlyArray<string> | null;
   envVars?: ReadonlyArray<{ name: string; value?: string | null; secret?: boolean }> | null;

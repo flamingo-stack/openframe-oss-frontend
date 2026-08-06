@@ -12,7 +12,7 @@ import { graphql } from 'react-relay';
  * will actually run with instead of blank inputs.
  */
 export const scheduleScriptsPickerRelayQuery = graphql`
-  query scheduleScriptsPickerRelayQuery($search: String, $platforms: [ScriptPlatform!], $first: Int!) {
+  query scheduleScriptsPickerRelayQuery($search: String, $platforms: [OsType!], $first: Int!) {
     scripts(filter: { statuses: [ACTIVE], supportedPlatforms: $platforms }, search: $search, first: $first) {
       edges {
         node {

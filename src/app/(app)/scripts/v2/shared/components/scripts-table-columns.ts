@@ -25,7 +25,13 @@ const SCRIPT_COLUMNS = {
 const SCHEDULE_COLUMNS = {
   name: { id: 'name', header: 'Script', width: 'flex-1 min-w-0' },
   supportedPlatforms: { id: 'supportedPlatforms', header: 'OS', width: 'w-[90px]', hideAt: 'lg', filterable: true },
-  dateTime: { id: 'dateTime', header: 'Date & Time', width: 'w-[100px] md:w-[160px]', hideAt: 'md' },
+  dateTime: {
+    id: 'dateTime',
+    header: 'Date & Time',
+    width: 'w-[100px] md:w-[160px]',
+    hideAt: 'md',
+    dateFilterable: true,
+  },
   repeat: { id: 'repeat', header: 'Repeat', width: 'w-[120px]', hideAt: 'md', sortable: true },
   deviceCount: { id: 'deviceCount', header: 'Devices', width: 'w-[100px] md:w-[140px]', hideAt: 'lg' },
   actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
