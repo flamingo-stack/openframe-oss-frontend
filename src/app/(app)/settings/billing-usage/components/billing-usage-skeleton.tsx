@@ -97,14 +97,21 @@ export function BillingUsageSkeleton() {
     >
       <TestModeBanner />
 
-      <div className="grid gap-[var(--spacing-system-m)] md:grid-cols-2">
+      {/* Three cards unconditionally: the AI pair is dropped only for a
+          subscription that does not carry the AI product at all, which the
+          response has not said yet. Two cards reflowing into three on arrival is
+          the more disruptive of the two guesses. */}
+      <div className="grid gap-[var(--spacing-system-m)] md:grid-cols-3">
         <StatCardSkeleton title="Device Usage" />
-        <StatCardSkeleton title="AI Usage" caption="Pay as you go" />
+        <StatCardSkeleton title="Free AI Tokens" caption="Updated monthly" />
+        <StatCardSkeleton title="Paid AI Tokens" />
       </div>
 
       <SectionBlock title="Current Plan">
         <BillingRow label="Billing Cycle" value={<Value width="w-16" />} />
         <BillingRow label="Device Rate" value={<Value width="w-20" />} />
+        <BillingRow label="AI Tokens Rate" value={<Value width="w-24" />} />
+        <BillingRow label="Free AI Tokens" value={<Value width="w-20" />} />
         <BillingRow label="Next Payment" value={<Value width="w-16" />} />
         <BillingRow label="Next Billing Date" value={<Value width="w-20" />} />
       </SectionBlock>

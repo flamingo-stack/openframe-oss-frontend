@@ -2,6 +2,7 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useUpdateAiSpendCap } from '../../hooks/use-update-ai-spend-cap';
 import { type ProductCheckoutInput, useCreateCheckoutSession } from '../hooks/use-create-checkout-session';
 import { type PackageUpdateInput, useUpdateSubscription } from '../hooks/use-update-subscription';
 
@@ -17,6 +18,13 @@ interface SubscriptionSubmitButtonProps {
   checkoutProducts: ProductCheckoutInput[];
   /** True when a Custom Amount has an empty/invalid quantity (update flow only). */
   hasInvalidCustom: boolean;
+  /**
+   * The AI spending cap to store, when the user changed it: a USD figure, or
+   * `null` to remove the cap entirely. `undefined` means it was left alone and
+   * no cap mutation is issued — the distinction matters because `null` is itself
+   * a value the schema accepts (see `useUpdateAiSpendCap`).
+   */
+  aiSpendCapUsd?: number | null;
   /**
    * The update landed. Only the update flow can call this — the checkout flow
    * leaves for Stripe and never comes back to this component.
@@ -37,20 +45,28 @@ interface SubscriptionSubmitButtonProps {
  *   plan change in place and does NOT redirect to a payment page (an upgrade may
  *   raise an invoice afterwards). Disabled when the selection equals the current
  *   plan, validated on click.
+ *
+ * The AI spending cap rides along, because it is part of the same form: it is
+ * stored FIRST, and only a stored cap lets the payment proceed. Checkout leaves
+ * the app for Stripe, so there is no "afterwards" to save it in — and a payment
+ * that went through while the limit beside it silently did not is the one
+ * outcome worth refusing.
  */
 export function SubscriptionSubmitButton({
   needsCheckout,
   packageUpdates,
   checkoutProducts,
   hasInvalidCustom,
+  aiSpendCapUsd,
   onUpdated,
   className,
 }: SubscriptionSubmitButtonProps) {
   const updateSubscription = useUpdateSubscription();
   const createCheckout = useCreateCheckoutSession();
+  const updateAiSpendCap = useUpdateAiSpendCap();
   const { toast } = useToast();
 
-  const isPending = updateSubscription.isPending || createCheckout.isPending;
+  const isPending = updateSubscription.isPending || createCheckout.isPending || updateAiSpendCap.isPending;
 
   const rejectInvalidAmount = () => {
     toast({
@@ -58,6 +74,15 @@ export function SubscriptionSubmitButton({
       description: 'Enter a valid number for the custom package.',
       variant: 'destructive',
     });
+  };
+
+  /** Runs `action` behind the cap, when there is a cap change to store. */
+  const withAiSpendCap = (action: () => void) => {
+    if (aiSpendCapUsd === undefined) {
+      action();
+      return;
+    }
+    updateAiSpendCap.mutate(aiSpendCapUsd, { onSuccess: action });
   };
 
   if (needsCheckout) {
@@ -73,7 +98,7 @@ export function SubscriptionSubmitButton({
             return;
           }
           if (!checkoutProducts.length) return;
-          createCheckout.mutate({ products: checkoutProducts });
+          withAiSpendCap(() => createCheckout.mutate({ products: checkoutProducts }));
         }}
         loading={isPending}
         disabled={isPending}
@@ -89,7 +114,7 @@ export function SubscriptionSubmitButton({
       return;
     }
     if (!packageUpdates.length) return;
-    updateSubscription.mutate({ packageUpdates }, { onSuccess: onUpdated });
+    withAiSpendCap(() => updateSubscription.mutate({ packageUpdates }, { onSuccess: onUpdated }));
   };
 
   return (

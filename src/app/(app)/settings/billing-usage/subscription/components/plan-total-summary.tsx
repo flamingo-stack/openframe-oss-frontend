@@ -25,7 +25,7 @@ interface PlanTotalSummaryProps {
 export function PlanTotalSummary({ total, showAiNote, loading = false, className }: PlanTotalSummaryProps) {
   return (
     <div className={cn('flex flex-col text-h4 text-ods-text-secondary', className)}>
-      {showAiNote && <p>AI usage is billed pay as you go on top of your device plan.</p>}
+      {showAiNote && <p>Devices and AI are billed together at checkout.</p>}
       {loading && <Skeleton className="mt-1 h-5 w-56" />}
       {total && (
         <p>
