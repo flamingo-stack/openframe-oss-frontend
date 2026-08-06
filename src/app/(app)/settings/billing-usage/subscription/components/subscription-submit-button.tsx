@@ -3,6 +3,7 @@
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useUpdateAiSpendCap } from '../../hooks/use-update-ai-spend-cap';
+import { openDeferredTab } from '../../lib/stripe-window';
 import { type ProductCheckoutInput, useCreateCheckoutSession } from '../hooks/use-create-checkout-session';
 import { type PackageUpdateInput, useUpdateSubscription } from '../hooks/use-update-subscription';
 
@@ -77,12 +78,12 @@ export function SubscriptionSubmitButton({
   };
 
   /** Runs `action` behind the cap, when there is a cap change to store. */
-  const withAiSpendCap = (action: () => void) => {
+  const withAiSpendCap = (action: () => void, onRefused?: () => void) => {
     if (aiSpendCapUsd === undefined) {
       action();
       return;
     }
-    updateAiSpendCap.mutate(aiSpendCapUsd, { onSuccess: action });
+    updateAiSpendCap.mutate(aiSpendCapUsd, { onSuccess: action, onError: onRefused });
   };
 
   if (needsCheckout) {
@@ -98,7 +99,15 @@ export function SubscriptionSubmitButton({
             return;
           }
           if (!checkoutProducts.length) return;
-          withAiSpendCap(() => createCheckout.mutate({ products: checkoutProducts }));
+          // Opened from the click itself, and carried through both mutations:
+          // Stripe's URL only exists once the second answers, and a tab opened
+          // then has lost the user gesture that lets it through (see
+          // `openDeferredTab`). It is closed again if either step fails.
+          const tab = openDeferredTab();
+          withAiSpendCap(
+            () => createCheckout.mutate({ products: checkoutProducts }, { target: tab }),
+            () => tab.cancel(),
+          );
         }}
         loading={isPending}
         disabled={isPending}
