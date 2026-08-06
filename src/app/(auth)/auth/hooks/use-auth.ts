@@ -47,7 +47,7 @@ interface SsoRegisterRequest {
   tenantName: string;
   tenantDomain: string;
   email: string;
-  provider: 'google' | 'microsoft';
+  provider: 'google' | 'microsoft' | 'apple';
   redirectTo?: string;
 }
 
