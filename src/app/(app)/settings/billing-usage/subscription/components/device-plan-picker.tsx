@@ -2,7 +2,6 @@
 
 import { TagPercentIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Skeleton, TabSelector, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { devicePlanPickerProductFragment$key } from '@/__generated__/devicePlanPickerProductFragment.graphql';
@@ -48,8 +47,6 @@ interface DevicePlanPickerProps {
   /** `null` renders the picker's loading state — see the component docblock. */
   productRef: devicePlanPickerProductFragment$key | null;
   subscriptionProductRef: devicePlanPickerSubscriptionFragment$key | null;
-  /** Devices under management right now — the pay-as-you-go billing basis; `null` until counted. */
-  detectedDevices: number | null;
   onUpdatesChange: (updates: ProductUpdates) => void;
   /** Small print under the panels. The paywall card explains overage here; the modal shows none. */
   footerNote?: ReactNode;
@@ -63,11 +60,6 @@ function PriceValue({ amount, period }: { amount: number; period: string }) {
       <span className="text-ods-text-secondary">/ {period}</span>
     </>
   );
-}
-
-/** Stand-in for a figure the server has not sent yet, sized to the value it replaces. */
-function PendingValue({ className }: { className?: string }) {
-  return <Skeleton className={cn('h-5 w-20', className)} />;
 }
 
 /**
@@ -88,7 +80,6 @@ function PendingValue({ className }: { className?: string }) {
 export function DevicePlanPicker({
   productRef,
   subscriptionProductRef,
-  detectedDevices,
   onUpdatesChange,
   footerNote,
 }: DevicePlanPickerProps) {
@@ -100,14 +91,13 @@ export function DevicePlanPicker({
     mode,
     quantity,
     unitSize,
-    paygTotal,
     annualTotal,
     quantityTooSmall,
     quantityNotDivisible,
     setMode,
     setQuantity,
     commitQuantity,
-  } = useDevicePlanSelection({ product, subscriptionProduct, detectedDevices, onUpdatesChange });
+  } = useDevicePlanSelection({ product, subscriptionProduct, onUpdatesChange });
 
   const loading = product == null;
   // While loading, the toggle is shown (and inert): every catalog this ships with
@@ -169,32 +159,28 @@ export function DevicePlanPicker({
                 )
               )}
             </div>
-            <div className="flex flex-col gap-3 p-[var(--spacing-system-mf)]">
-              <BillingRow
-                label="Devices Detected"
-                value={detectedDevices != null ? formatCount(detectedDevices) : <PendingValue className="w-12" />}
-              />
-              {/* A row appears once its figure exists, or while one is on its way —
-                  never as an empty label for a price this catalog does not have. */}
-              {(catalog.paygUnitPrice != null || loading) && (
+            {/* No "Devices Detected" and no monthly total: both were computed from
+                a `devices()` count this screen no longer fetches (see `PaywallCopy`).
+                What is left is the rate itself, which is all the catalog knows —
+                a metered month has no total until it is billed anyway.
+
+                A row appears once its figure exists, or while one is on its way —
+                never as an empty label for a price this catalog does not have. */}
+            {(catalog.paygUnitPrice != null || loading) && (
+              <div className="flex flex-col gap-3 p-[var(--spacing-system-mf)]">
                 <BillingRow
                   label="Rate per Device"
                   value={
                     catalog.paygUnitPrice != null ? (
                       <PriceValue amount={catalog.paygUnitPrice} period="month" />
                     ) : (
-                      <PendingValue />
+                      // Stand-in for a figure the server has not sent yet, sized to the value it replaces.
+                      <Skeleton className="h-5 w-20" />
                     )
                   }
                 />
-              )}
-              {(paygTotal != null || loading) && (
-                <BillingRow
-                  label="Total"
-                  value={paygTotal != null ? <PriceValue amount={paygTotal} period="month" /> : <PendingValue />}
-                />
-              )}
-            </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex w-full flex-col gap-4 rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">

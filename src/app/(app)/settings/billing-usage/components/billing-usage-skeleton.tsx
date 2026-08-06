@@ -1,10 +1,12 @@
 'use client';
 
-import { ExternalLinkIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input, PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { InlineSkeleton, TableSkeleton } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { isBillingHidden } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
+import { INVOICES_TABLE_COLUMNS } from '../lib/invoices-table-columns';
 import { BillingRow, SectionBlock, TestModeBanner } from './billing-section';
 
 // A value placeholder sized to sit on the right of a BillingRow.
@@ -26,52 +28,35 @@ function InfoCardSkeleton({ title, withProgress = true }: { title: string; withP
   );
 }
 
-// Mirrors a UsageStatCard: real title and caption (both fixed copy), skeleton
-// value. Only the figure is waiting on the server, so only the figure is a bar.
-function StatCardSkeleton({ title, caption }: { title: string; caption: string }) {
+/**
+ * Mirrors a `UsageStatCard`: the title is fixed copy and stays real; the figure
+ * is a bar.
+ *
+ * So is the caption, unless the caller passes one. The device card's caption is
+ * as query-dependent as its figure — "Trial Period ends 12/15/26", "Annual
+ * Prepaid" and "Pay as you go" are three different answers to what the response
+ * says — so printing any of them here would be a guess that visibly rewrites
+ * itself on load. The AI card has only ever had the one caption, and passes it.
+ */
+function StatCardSkeleton({ title, caption }: { title: string; caption?: string }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xsf)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
       <div className="flex flex-col gap-1">
         <p className="truncate text-h5 text-ods-text-secondary">{title}</p>
         <Skeleton className="h-8 w-24" />
       </div>
-      <p className="truncate text-h6 text-ods-text-secondary">{caption}</p>
+      <p className="truncate text-h6 text-ods-text-secondary">{caption ?? <InlineSkeleton className="h-3 w-32" />}</p>
     </div>
   );
 }
 
-const INVOICE_COLUMNS = ['INVOICE', 'DUE DATE', 'AMOUNT', 'STATUS'] as const;
-const INVOICE_ROW_KEYS = ['a', 'b', 'c'] as const;
-
-// Mirrors the Invoices History table: real column headers, skeleton cells, and
-// the real (static) external-link action chrome.
-function InvoicesTableSkeleton() {
-  return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-4 px-3 py-3 border-b border-ods-border">
-        {INVOICE_COLUMNS.map(col => (
-          <p key={col} className="text-h5 text-ods-text-secondary flex-1">
-            {col}
-          </p>
-        ))}
-        <Skeleton className="h-3 w-16 shrink-0" />
-      </div>
-      {INVOICE_ROW_KEYS.map(key => (
-        <div key={key} className="flex items-center gap-4 px-3 py-3 border-b border-ods-border last:border-b-0">
-          <Skeleton className="h-4 w-24 flex-1" />
-          <Skeleton className="h-4 w-20 flex-1" />
-          <Skeleton className="h-4 w-16 flex-1" />
-          <div className="flex-1">
-            <Skeleton className="h-6 w-20 rounded-md" />
-          </div>
-          <div className="flex items-center justify-center p-3 bg-ods-card border border-ods-border rounded-md text-ods-text-secondary shrink-0">
-            <ExternalLinkIcon className="size-6" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+/**
+ * Rows drawn for the invoices table while it loads. Fewer than the list-page
+ * default of 10: this table sits at the bottom of a page that is mostly cards
+ * and rows, and a workspace's invoice history is short — ten bars would claim
+ * more of the page than the data usually fills.
+ */
+const INVOICE_SKELETON_ROWS = 3;
 
 export function BillingUsageSkeleton() {
   const handleBack = useSafeBack(routes.settings.root());
@@ -98,7 +83,6 @@ export function BillingUsageSkeleton() {
           </SectionBlock>
           <SectionBlock title="Workspace Limits">
             <BillingRow label="Devices included" value={<Value width="w-8" />} />
-            <BillingRow label="AI tokens included" value={<Value width="w-16" />} />
           </SectionBlock>
         </div>
       </PageLayout>
@@ -113,16 +97,14 @@ export function BillingUsageSkeleton() {
     >
       <TestModeBanner />
 
-      <div className="grid gap-[var(--spacing-system-m)] md:grid-cols-3">
-        <StatCardSkeleton title="Device Usage" caption="Pay as you go" />
-        <StatCardSkeleton title="Free AI Tokens" caption="Updated monthly" />
+      <div className="grid gap-[var(--spacing-system-m)] md:grid-cols-2">
+        <StatCardSkeleton title="Device Usage" />
         <StatCardSkeleton title="AI Usage" caption="Pay as you go" />
       </div>
 
       <SectionBlock title="Current Plan">
         <BillingRow label="Billing Cycle" value={<Value width="w-16" />} />
         <BillingRow label="Device Rate" value={<Value width="w-20" />} />
-        <BillingRow label="Free AI Tokens" value={<Value width="w-20" />} />
         <BillingRow label="Next Payment" value={<Value width="w-16" />} />
         <BillingRow label="Next Billing Date" value={<Value width="w-20" />} />
       </SectionBlock>
@@ -130,7 +112,7 @@ export function BillingUsageSkeleton() {
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <h2 className="text-h2 text-ods-text-primary">Invoices History</h2>
         <Input startAdornment={<SearchIcon />} placeholder="Search for Invoice" className="w-full" readOnly />
-        <InvoicesTableSkeleton />
+        <TableSkeleton columns={INVOICES_TABLE_COLUMNS} rows={INVOICE_SKELETON_ROWS} />
       </div>
     </PageLayout>
   );

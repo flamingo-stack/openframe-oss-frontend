@@ -47,9 +47,8 @@ import { CachedOnboardingTopBar, useCachedOnboardingTopBar } from './onboarding-
 import { OnboardingTourBar } from './onboarding-tour-bar';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { PresenceHeartbeat } from './presence-heartbeat';
-import { SubscriptionGuard } from './subscription-lock/subscription-guard';
+import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
-import { useSubscriptionLock } from './subscription-lock/subscription-lock-context';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
@@ -331,14 +330,21 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // loader marks them loaded on query error, and `fetchOnboardingProgress` does the
   // same on an error or a null payload.
   //
-  // That terminality is necessary but not sufficient, and this used to rely on it
-  // alone. It only covers the way IN — "every load eventually answers" — and says
-  // nothing about a store being emptied AFTER it answered, which is a reset away
-  // and is precisely what pinned this to `true` for whole sessions (see
+  // `isLocked` is excluded outright, and it is not an error case: a locked workspace
+  // has its app requests HELD at the network layer (`subscription-gate.ts`), so the
+  // onboarding progress request neither answers nor fails — it simply never settles,
+  // and waiting on it left the sidebar and header skeletons up forever behind the lock
+  // screen. There is no onboarding chrome to draw on a locked workspace anyway, which
+  // is why the hydrator below is not mounted there either.
+  //
+  // Terminality is necessary but not sufficient, and this used to rely on it alone.
+  // It only covers the way IN — "every load eventually answers" — and says nothing
+  // about a store being emptied AFTER it answered, which is a reset away and is
+  // precisely what pinned this to `true` for whole sessions (see
   // `onboarding-progress-hydrator.tsx`). `useFailOpen` bounds the wait regardless
   // of which of the two signals is stuck, or why.
   const flagsReady = useFeatureFlagsReady();
-  const chromeIncomplete = !flagsReady || (sessionReady && !onboardingLoaded);
+  const chromeIncomplete = !flagsReady || (sessionReady && !isLocked && !onboardingLoaded);
   const chromeLoading = useFailOpen(chromeIncomplete, CHROME_LOADING_FAIL_OPEN_MS);
 
   const tenantDone = countCompleted(TENANT_ONBOARDING_STEPS, tenantProgress?.completedSteps ?? []);
@@ -599,7 +605,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   return (
     <>
-      {notificationsEnabled && sessionReady && (
+      {/* `!isLocked`: the badge count is decorative, and on a locked workspace its
+          request is held by the subscription gate — the Suspense below would sit on
+          its fallback for the whole visit rather than resolving. */}
+      {notificationsEnabled && sessionReady && !isLocked && (
         // Two boundaries, two different failures, both of them real here.
         //
         // ErrorBoundary: a trial-expired GraphQL error makes the query return null data,
@@ -619,13 +628,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           </Suspense>
         </ErrorBoundary>
       )}
-      <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady}>
+      {/* Same reason as the onboarding hydrator: a locked workspace can't track
+          time, and its query would be held rather than answered. */}
+      <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady && !isLocked}>
         {/* Ticket live stream + unread indication (Help Center). Gated on the
             same feature flag as the surface it serves; wraps CoreAppLayout so
             BOTH the header's TicketAlertsButton and the /help-center/tickets
             page (children) read one provider. Without it every ticket-live
-            surface renders nothing and no stream/summary request fires. */}
-        <TicketLiveWhenEnabled enabled={helpCenterEnabled && sessionReady}>
+            surface renders nothing and no stream/summary request fires.
+            `!isLocked` for the same reason as the provider above: a locked
+            workspace has its app data refused, so the stream and summary
+            requests would be parked by the subscription gate rather than
+            answered. */}
+        <TicketLiveWhenEnabled enabled={helpCenterEnabled && sessionReady && !isLocked}>
           <CoreAppLayout
             // Hook for the native-shell safe-area CSS in globals.css: the layout
             // root owns the top inset (see `.app-shell-root`). Inert on the web.
@@ -663,8 +678,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       {/* Onboarding progress hydrator (fetches backend progress into the store)
           + coach-mark (shows only when a page was reached from an onboarding step
           via the `setupHint` query param). Gated on the session so the queries
-          never fire before `/me` has answered. */}
-      {sessionReady && (
+          never fire before `/me` has answered, and on the lock because a locked
+          workspace shows no onboarding — and its request would be held by the
+          subscription gate rather than answered (see `chromeLoading`). */}
+      {sessionReady && !isLocked && (
         <>
           <OnboardingProgressHydrator />
           <OnboardingCoachMark />

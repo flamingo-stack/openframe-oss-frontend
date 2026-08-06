@@ -13,35 +13,15 @@ import { SubscriptionStatus } from '@/generated/schema-enums';
 export interface PaywallCopy {
   title: string;
   /**
-   * Built from the devices found in this instance — what the page is really about
-   * is the fleet that has to be paid for, so the count leads. Falls back to a plain
-   * prompt when nothing is under management (or nothing is counted yet).
+   * Plain text, deliberately naming no device count.
+   *
+   * It used to open with "We've detected N devices…", built from a `devices()`
+   * query spread into the paywall's own query. That is app data: a locked
+   * workspace has it refused with `SUBSCRIPTION_TRIAL_EXPIRED`, and because
+   * `devices` is non-null the refusal nulled the whole payload — crashing the
+   * one screen that must render on a locked workspace. The count went with it.
    */
-  description: (detectedDevices: number) => string;
-}
-
-function devicesLine(detectedDevices: number, template: (count: string, noun: string) => string, fallback: string) {
-  if (detectedDevices <= 0) return fallback;
-  return template(detectedDevices.toLocaleString('en-US'), detectedDevices === 1 ? 'device' : 'devices');
-}
-
-/** Locked out, or on the way there: the fleet is what the subscription buys back. */
-function needsSubscriptionLine(detectedDevices: number, fallback: string): string {
-  return devicesLine(
-    detectedDevices,
-    (count, noun) =>
-      `We've detected ${count} ${noun} in your OpenFrame instance that require a subscription to continue management.`,
-    fallback,
-  );
-}
-
-/** Already paying: the same count, stated as a fact rather than a threat. */
-function underManagementLine(detectedDevices: number, fallback: string): string {
-  return devicesLine(
-    detectedDevices,
-    (count, noun) => `${count} ${noun} in your OpenFrame instance are under management on this plan.`,
-    fallback,
-  );
+  description: string;
 }
 
 /**
@@ -52,22 +32,21 @@ function underManagementLine(detectedDevices: number, fallback: string): string 
 const PAYWALL_COPY: Partial<Record<SubscriptionStatus, PaywallCopy>> = {
   [SubscriptionStatus.TRIAL_EXPIRED]: {
     title: 'Your trial has ended. We hope you loved it!',
-    description: devices => needsSubscriptionLine(devices, 'Pick a plan to keep using OpenFrame.'),
+    description: 'Pick a plan to keep using OpenFrame.',
   },
   [SubscriptionStatus.CANCELED]: {
     title: 'Subscribe to OpenFrame',
-    description: devices => needsSubscriptionLine(devices, 'Choose a plan to pick up where you left off.'),
+    description: 'Choose a plan to pick up where you left off.',
   },
   [SubscriptionStatus.TRIAL]: {
     title: 'Activate your subscription',
-    description: devices =>
-      needsSubscriptionLine(devices, 'Pick a plan now and keep everything running when the trial ends.'),
+    description: 'Pick a plan now and keep everything running when the trial ends.',
   },
 };
 
 const DEFAULT_COPY: PaywallCopy = {
   title: 'Your plan',
-  description: devices => underManagementLine(devices, 'Choose how you want to be billed for your fleet.'),
+  description: 'Choose how you want to be billed for your fleet.',
 };
 
 export function getPaywallCopy(status: SubscriptionStatus): PaywallCopy {

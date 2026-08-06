@@ -19,7 +19,7 @@ export type UpdateAction = 'ADD' | 'CANCEL';
  * mutually unassignable. A structural shape is what lets both feed one set of
  * helpers — every Relay type that selects these fields satisfies it.
  */
-export interface CatalogPriceTier {
+interface CatalogPriceTier {
   readonly from: number;
   readonly upTo?: number | null;
   readonly unitPrice: number;
@@ -42,7 +42,7 @@ export interface CatalogProduct {
   readonly payAsYouGoOption?: CatalogOption | null;
 }
 
-export interface SubscriptionOptionState {
+interface SubscriptionOptionState {
   readonly packageOptionId: string;
   readonly billingPeriod?: BillingPeriod | null;
   readonly quantity?: number | null;
