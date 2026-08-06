@@ -34,16 +34,32 @@ export function shellToId(shell: ScriptShell | string | null | undefined): strin
 // Platform <-> OsType enum (UI ids: windows / darwin / linux)
 // ---------------------------------------------------------------------------
 
-// UI ids mostly match the lowercased enum, except darwin <-> MACOS, so the
-// id->enum aliases stay explicit; the reverse map is derived from them.
-const PLATFORM_ID_TO_ENUM: Record<string, OsType> = {
-  windows: OsType.WINDOWS,
-  darwin: OsType.MACOS,
-  linux: OsType.LINUX,
+/**
+ * UI id per enum VALUE, keyed by the string rather than by `OsType.MAC_OS` &co.
+ *
+ * The backend has already renamed one member and dropped another in a single
+ * schema refresh (`MACOS` -> `MAC_OS`, `LINUX` gone), and a table keyed on the
+ * members would stop COMPILING on the next such refresh — turning a backend
+ * question into a frontend build break. Keyed on strings, an entry the server no
+ * longer offers is simply never reached, and one it brings back starts working
+ * again with no edit here.
+ *
+ * `darwin` is the odd id out; the rest are just the lowercased enum value.
+ */
+const UI_ID_BY_OS_TYPE: Record<string, string> = {
+  WINDOWS: 'windows',
+  MAC_OS: 'darwin',
+  MACOS: 'darwin',
+  LINUX: 'linux',
 };
 
-const PLATFORM_ENUM_TO_ID: Record<string, string> = Object.fromEntries(
-  Object.entries(PLATFORM_ID_TO_ENUM).map(([id, enumValue]) => [enumValue, id]),
+/**
+ * The reverse direction, derived from the enum ITSELF — so it only ever offers
+ * platforms this schema actually has, and a UI checkbox for one it doesn't
+ * cannot smuggle an unknown value into a query variable.
+ */
+const PLATFORM_ID_TO_ENUM: Record<string, OsType> = Object.fromEntries(
+  Object.values(OsType).map(value => [UI_ID_BY_OS_TYPE[value] ?? value.toLowerCase(), value]),
 );
 
 export function platformsToEnums(ids: string[]): OsType[] {
@@ -52,7 +68,7 @@ export function platformsToEnums(ids: string[]): OsType[] {
 
 export function platformsToIds(enums: ReadonlyArray<OsType | string> | null | undefined): string[] {
   if (!enums) return [];
-  return enums.map(e => PLATFORM_ENUM_TO_ID[e as string]).filter((v): v is string => !!v);
+  return enums.map(e => UI_ID_BY_OS_TYPE[e as string]).filter((v): v is string => !!v);
 }
 
 // ---------------------------------------------------------------------------

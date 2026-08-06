@@ -11,6 +11,7 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
+import { DateColumnHeader } from './date-column-header';
 import { skeletonColumnMeta, type TableSkeletonColumn } from './table-column-layout';
 
 /**
@@ -120,12 +121,18 @@ const EMPTY_SKELETON_ROWS: unknown[] = [];
  * one loading state and wrongly in the other.
  */
 export function skeletonColumnDefs<T>(columns: readonly TableSkeletonColumn[]): ColumnDef<T>[] {
-  return columns.map(column => ({
-    id: column.id,
-    header: column.header ?? '',
-    enableSorting: false,
-    meta: skeletonColumnMeta(column),
-  }));
+  return columns.map(column => {
+    const label = column.header ?? '';
+    return {
+      id: column.id,
+      // A date-filtered column keeps its calendar while loading, drawn inert:
+      // the popover needs no data, and a bare label would re-center the moment
+      // the real one replaced it. Same reasoning as `filterable` above.
+      header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
+      enableSorting: false,
+      meta: skeletonColumnMeta(column),
+    };
+  });
 }
 
 interface TableSkeletonProps {

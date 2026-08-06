@@ -81,7 +81,7 @@ export const EXECUTIONS_PAGE_SIZE = 20;
  * popped in with the facets, shifting every label. See `table-column-layout.ts`.
  */
 const EXECUTION_COLUMNS = {
-  executionId: { id: 'executionId', header: 'Execution', width: 'w-[160px]' },
+  executionId: { id: 'executionId', header: 'Execution', width: 'w-[160px]', dateFilterable: true },
   status: { id: 'status', header: 'Status', width: 'w-[120px]', filterable: true },
   machineId: { id: 'machineId', header: 'Device', width: 'w-[200px]', hideAt: 'lg', filterable: true },
   initiatorId: { id: 'initiatorId', header: 'Executed by', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
@@ -650,8 +650,7 @@ export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?
         const label = column.header;
         return {
           id: column.id,
-          header:
-            label && column.id === EXECUTION_COLUMNS.executionId.id ? () => <DateColumnHeader label={label} /> : label,
+          header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
           enableSorting: false,
           meta: skeletonColumnMeta(column),
         };
