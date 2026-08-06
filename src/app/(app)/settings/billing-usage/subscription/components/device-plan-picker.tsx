@@ -48,6 +48,12 @@ interface DevicePlanPickerProps {
   productRef: devicePlanPickerProductFragment$key | null;
   subscriptionProductRef: devicePlanPickerSubscriptionFragment$key | null;
   onUpdatesChange: (updates: ProductUpdates) => void;
+  /**
+   * Active devices, counted by billing (`usage.activeDevices`). Given, the
+   * pay-as-you-go panel can price the month it is actually about; `null` (the
+   * modal, and the wait) leaves it at the rate.
+   */
+  deviceCount?: number | null;
   /** Small print under the panels. The paywall card explains overage here; the modal shows none. */
   footerNote?: ReactNode;
 }
@@ -81,6 +87,7 @@ export function DevicePlanPicker({
   productRef,
   subscriptionProductRef,
   onUpdatesChange,
+  deviceCount = null,
   footerNote,
 }: DevicePlanPickerProps) {
   const product = useFragment(devicePlanPickerProductFragment, productRef) ?? null;
@@ -159,15 +166,14 @@ export function DevicePlanPicker({
                 )
               )}
             </div>
-            {/* No "Devices Detected" and no monthly total: both were computed from
-                a `devices()` count this screen no longer fetches (see `PaywallCopy`).
-                What is left is the rate itself, which is all the catalog knows —
-                a metered month has no total until it is billed anyway.
-
-                A row appears once its figure exists, or while one is on its way —
-                never as an empty label for a price this catalog does not have. */}
+            {/* The count and the total come from billing's own `usage.activeDevices`
+                — NOT from the `devices()` query these rows were dropped with, which
+                a locked workspace has refused (see the paywall's query). Each row
+                appears only once its own figure exists, or while one is on its way:
+                the modal passes no count, and there it stays at the rate. */}
             {(catalog.paygUnitPrice != null || loading) && (
               <div className="flex flex-col gap-3 p-[var(--spacing-system-mf)]">
+                {deviceCount != null && <BillingRow label="Active Devices Detected" value={formatCount(deviceCount)} />}
                 <BillingRow
                   label="Rate per Device"
                   value={
@@ -179,6 +185,12 @@ export function DevicePlanPicker({
                     )
                   }
                 />
+                {deviceCount != null && catalog.paygUnitPrice != null && (
+                  <BillingRow
+                    label="Total"
+                    value={<PriceValue amount={deviceCount * catalog.paygUnitPrice} period="month" />}
+                  />
+                )}
               </div>
             )}
           </div>

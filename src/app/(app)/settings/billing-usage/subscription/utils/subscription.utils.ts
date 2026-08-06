@@ -3,6 +3,7 @@ import type { PackageUpdateInput } from '../hooks/use-update-subscription';
 import type {
   BillingPeriod,
   CatalogProduct,
+  OpenframeProduct,
   ProductSelectionState,
   SubscriptionProductState,
 } from '../types/subscription.types';
@@ -16,70 +17,17 @@ export const PAYG_OPTION_ID = '__payg__';
 type ProductData = CatalogProduct;
 type SubscriptionProductData = SubscriptionProductState;
 
-export function formatMoney(value: number): string {
-  return value.toLocaleString('en-US', { maximumFractionDigits: 0 });
-}
-
-/** Compact count: 100000000 → "100M", 100000 → "100K", 100 → "100". */
-export { formatCompactCount as formatCompact } from '../../lib/format';
-
 /**
- * Topmost selectable radio for a billing period: PAYG sits first when present
- * (any period); otherwise the first tier; otherwise Custom.
+ * The catalog's product name, as the mutation inputs take it.
+ *
+ * Read back out of Relay data it is widened with `"%future added value"` (see
+ * `FromRelay` in the types module), while the INPUT enums carry no such member —
+ * a server that adds a product cannot make an old client send one. Narrowed once
+ * here rather than at each call site: this name came from the very catalog the
+ * input is addressed to, so it is a member by construction.
  */
-export function topmostSelectionId(product: ProductData, period: BillingPeriod): string {
-  if (product.payAsYouGoOption) return PAYG_OPTION_ID;
-  const periodOption = product.packageOptions.find(o => o.billingPeriod === period) ?? product.packageOptions[0];
-  const tiers = periodOption?.priceTiers?.slice(1) ?? [];
-  return tiers.length > 0 ? String(tiers[0].from) : CUSTOM_OPTION_ID;
-}
-
-export function formatPaygSubtitle(
-  option: { description?: string | null; name?: string | null } | null | undefined,
-): string {
-  if (!option) return '';
-  const { description, name } = option;
-  if (description && name) return `${description} (${name})`;
-  return description ?? name ?? '';
-}
-
-export function buildInitialSelection(
-  product: ProductData,
-  subscriptionProduct: SubscriptionProductData | null,
-): ProductSelectionState {
-  const activePackage = subscriptionProduct?.packageOptions.find(opt => opt.status === 'ACTIVE');
-  const availablePeriods = new Set(product.packageOptions.map(opt => opt.billingPeriod).filter(Boolean));
-  const fallbackPeriod = product.packageOptions[0]?.billingPeriod ?? 'YEARLY';
-  const desiredPeriod = activePackage?.billingPeriod ?? fallbackPeriod;
-  const billingPeriod = (availablePeriods.has(desiredPeriod) ? desiredPeriod : fallbackPeriod) as BillingPeriod;
-
-  const matchingProductOption =
-    product.packageOptions.find(opt => opt.billingPeriod === billingPeriod) ?? product.packageOptions[0];
-  const tiers = matchingProductOption?.priceTiers?.slice(1) ?? [];
-  const activeQuantity = activePackage?.quantity ?? null;
-  const matchedTier = activeQuantity != null ? tiers.find(t => t.from === activeQuantity) : null;
-
-  let selectedPackageId: string;
-  let customQuantity: number | null = null;
-  if (subscriptionProduct?.paygOnly) {
-    // Backend says this product only supports PAYG — no tier/custom choice.
-    selectedPackageId = PAYG_OPTION_ID;
-  } else if (matchedTier) {
-    selectedPackageId = String(matchedTier.from);
-  } else if (activeQuantity != null) {
-    selectedPackageId = CUSTOM_OPTION_ID;
-    customQuantity = activeQuantity;
-  } else {
-    // No active tier/custom package: default to PAYG (current PAYG state, or soft-default for trial/no-plan users).
-    selectedPackageId = PAYG_OPTION_ID;
-  }
-
-  return {
-    payAsYouGoEnabled: selectedPackageId === PAYG_OPTION_ID,
-    billingPeriod,
-    selectedPackageId,
-    customQuantity,
-  };
+function inputProductName(product: ProductData): OpenframeProduct {
+  return product.name as OpenframeProduct;
 }
 
 /**
@@ -156,7 +104,9 @@ export function diffPackageUpdates(
   const wantsPayg = currentSelection.selectedPackageId === PAYG_OPTION_ID;
 
   if (wantsPayg) {
-    return activeCancelId ? [{ productName: product.name, packageOptionId: activeCancelId, action: 'CANCEL' }] : [];
+    return activeCancelId
+      ? [{ productName: inputProductName(product), packageOptionId: activeCancelId, action: 'CANCEL' }]
+      : [];
   }
 
   const nextPackageId = committedOptionId(product, currentSelection.billingPeriod);
@@ -174,7 +124,9 @@ export function diffPackageUpdates(
   }
 
   if (nextPackageId && nextQuantity) {
-    return [{ productName: product.name, packageOptionId: nextPackageId, action: 'ADD', quantity: nextQuantity }];
+    return [
+      { productName: inputProductName(product), packageOptionId: nextPackageId, action: 'ADD', quantity: nextQuantity },
+    ];
   }
 
   return [];
@@ -190,7 +142,7 @@ export function buildCheckoutProduct(
   currentSelection: ProductSelectionState,
 ): ProductCheckoutInput {
   if (currentSelection.selectedPackageId === PAYG_OPTION_ID) {
-    return { productName: product.name, payAsYouGoEnabled: true };
+    return { productName: inputProductName(product), payAsYouGoEnabled: true };
   }
 
   let quantity: number | null = null;
@@ -202,7 +154,7 @@ export function buildCheckoutProduct(
   }
 
   return {
-    productName: product.name,
+    productName: inputProductName(product),
     packageOptionId: committedOptionId(product, currentSelection.billingPeriod),
     quantity,
     payAsYouGoEnabled: true,

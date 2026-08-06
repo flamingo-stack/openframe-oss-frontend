@@ -3,7 +3,7 @@
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useState } from 'react';
+import { Suspense, useCallback, useMemo, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
 import { PaywallHeader } from '@/app/components/subscription-lock/paywall-header';
@@ -13,35 +13,25 @@ import { SubscriptionStatus } from '@/app/components/subscription-lock/subscript
 import { WorkspaceInactiveScreen } from '@/app/components/subscription-lock/workspace-inactive-screen';
 import { OpenframeProduct } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import type { OpenframeProduct as OpenframeProductName, ProductUpdates } from '../types/subscription.types';
+import { useAiSpendLimit } from '../../hooks/use-ai-spend-limit';
+import { aiTokenPrice } from '../../lib/ai-token-price';
+import type { ProductCheckoutInput } from '../hooks/use-create-checkout-session';
+import type { ProductUpdates } from '../types/subscription.types';
 import { AiAssistantsIncludedNote } from './ai-assistants-included-note';
+import { AiTokensUsageCard } from './ai-tokens-usage-card';
 import { DeviceManagementCard } from './device-management-card';
-import { ModelTokenRates } from './model-token-rates';
 import { PlanTotalSummary } from './plan-total-summary';
-import { ProductSubscriptionCard } from './product-subscription-card';
 import { SubscriptionSubmitButton } from './subscription-submit-button';
-
-/**
- * The AI add-on keeps the package-list card: it is pay-as-you-go only, so there
- * is nothing to prepay and nothing to step through — see the note the plan
- * picker shows above the cards. Being PAYG-only is also why the card no longer
- * carries a Custom Amount option: nothing here ever offered one.
- */
-const AI_PRODUCT_DISPLAY = {
-  title: 'AI Assistant Add-on',
-  description: 'Buy OpenFrame tokens to power your AI assistants across all supported models. One unified balance.',
-  packageUnitLabel: 'OpenFrame tokens',
-};
 
 /**
  * Billing data ONLY.
  *
- * This query used to also spread a `devices()` count, to name the fleet in the
- * header and price the monthly panel. That is app data, and a locked workspace
- * has app data refused with `SUBSCRIPTION_TRIAL_EXPIRED` — `devices` being
- * non-null, the refusal nulled this whole payload and crashed the one screen a
- * locked workspace has to be able to render. Nothing here may reach outside
- * billing again for that reason.
+ * The fleet size is back in the header and in the device panel, and it comes
+ * from `subscription.usage` — NOT from the `devices()` query it used to be
+ * spread from. That is app data: a locked workspace has it refused with
+ * `SUBSCRIPTION_TRIAL_EXPIRED`, and because `devices` is non-null the refusal
+ * nulled this whole payload and crashed the one screen a locked workspace has to
+ * be able to render. The same count, counted by billing, carries no such risk.
  */
 const subscriptionSettingsViewQuery = graphql`
   query subscriptionSettingsViewQuery {
@@ -51,16 +41,27 @@ const subscriptionSettingsViewQuery = graphql`
         id
         name
         packageOptions { billingPeriod }
-        payAsYouGoOption { id }
-        ...productSubscriptionCardProductFragment
+        # AI's metered rate. Read here rather than inside the AI card because the
+        # spending limit it prices is owned by this page now — the card no longer
+        # saves anything of its own. unitSize is what price is quoted per (AI:
+        # a block of tokens), so both are needed to price one token.
+        unitSize
+        payAsYouGoOption { id price }
         ...devicePlanPickerProductFragment
       }
     }
     subscription {
       id
+      aiSpendCapUsd
+      # NOT aiTokensFree: that is the grant for the period the tenant is in
+      # (5M on a trial), and this page previews the plan they are about to buy.
+      # See FREE_TOKENS_BY_PLAN in the AI card for what stands in until a
+      # prospective figure exists.
+      usage {
+        activeDevices
+      }
       products {
         name
-        ...productSubscriptionCardSubscriptionFragment
         ...devicePlanPickerSubscriptionFragment
       }
     }
@@ -159,7 +160,6 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
   const deviceProduct = products.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;
   const aiProduct = products.find(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? null;
   const deviceSubscriptionProduct = subscriptionProducts.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;
-  const aiSubscriptionProduct = subscriptionProducts.find(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? null;
 
   // Both cards are drawn while loading: this plan has always had the two, and
   // opening on one column only to reflow into two is a worse wait than a card
@@ -167,32 +167,60 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
   const showDeviceCard = loading || deviceProduct != null;
   const showAiCard = loading || aiProduct != null;
 
-  // The devices card shows its Monthly/Annual toggle only when the catalog prices
-  // both ways; the AI card reserves the same height so the two stay aligned.
-  const deviceHasBillingToggle =
-    loading ||
-    (deviceProduct != null &&
-      deviceProduct.payAsYouGoOption != null &&
-      deviceProduct.packageOptions.some(opt => opt.billingPeriod === 'YEARLY'));
+  /**
+   * The devices this workspace is currently running — billing's own count
+   * (`usage.activeDevices`), NOT the `devices()` query the paywall used to spread
+   * (see the query above for why that one cannot come back).
+   *
+   * One number for the whole screen: the header names it, and the pay-as-you-go
+   * panel prices it. A panel that counted one fleet and totalled another would be
+   * two answers to the same question.
+   */
+  const deviceCount = data?.subscription?.usage?.activeDevices ?? null;
 
-  const [updatesMap, setUpdatesMap] = useState<Partial<Record<OpenframeProductName, ProductUpdates>>>({});
+  // Only the device card takes a plan selection. AI is metered — there is no
+  // package to choose (see `AiTokensUsageCard`).
+  const [deviceUpdates, setDeviceUpdates] = useState<ProductUpdates | null>(null);
 
-  const handleUpdatesChange = useCallback((productName: OpenframeProductName, updates: ProductUpdates) => {
-    setUpdatesMap(prev => ({ ...prev, [productName]: updates }));
-  }, []);
-
-  const packageUpdates = products.flatMap(p => updatesMap[p.name]?.packageUpdates ?? []);
-  const checkoutProducts = products.map(p => updatesMap[p.name]?.checkout).filter(c => c != null);
-  const hasInvalidCustom = products.some(p => {
-    const updates = updatesMap[p.name];
-    return updates != null && !updates.valid;
+  /**
+   * The AI spending limit, held HERE rather than in the card that draws it: it
+   * is part of the same form as the plan, and the page's one button is what
+   * stores it. The card used to write every click straight through, so simply
+   * unticking the box to see the options changed the subscription.
+   */
+  const aiLimit = useAiSpendLimit({
+    capUsd: data?.subscription?.aiSpendCapUsd ?? null,
+    tokenPrice: aiTokenPrice(aiProduct?.payAsYouGoOption?.price, aiProduct?.unitSize),
   });
-  // Only the devices product prices a total; AI is metered, so it contributes none.
-  const selectionTotal = products.map(p => updatesMap[p.name]?.total).find(total => total != null) ?? null;
+
+  /**
+   * Every non-device product, entered as pay-as-you-go. A checkout session
+   * describes the WHOLE target plan rather than a diff, so leaving these out
+   * would activate a subscription with the AI assistants switched off — the same
+   * entry the AI card used to contribute before it stopped selling packages.
+   */
+  const otherProducts = useMemo<ProductCheckoutInput[]>(
+    () =>
+      products
+        .filter(p => p.name !== OpenframeProduct.MANAGED_DEVICES)
+        .map(p => ({ productName: p.name, payAsYouGoEnabled: true })),
+    [products],
+  );
+
+  const packageUpdates = deviceUpdates?.packageUpdates ?? [];
+  const checkoutProducts = deviceUpdates?.checkout ? [deviceUpdates.checkout, ...otherProducts] : [];
+  const hasInvalidCustom = deviceUpdates != null && !deviceUpdates.valid;
+  const selectionTotal = deviceUpdates?.total ?? null;
+  /**
+   * `undefined` when the limit was left as the subscription already has it, so
+   * the submit issues no cap mutation at all. `null` is a real value there — it
+   * is how "no limit" is expressed — which is why this is not a falsy check.
+   */
+  const aiSpendCapUsd = aiLimit.changed ? aiLimit.capUsd : undefined;
 
   return (
     <>
-      <PaywallHeader copy={copy} />
+      <PaywallHeader copy={copy} deviceCount={deviceCount} />
 
       {showAiCard && <AiAssistantsIncludedNote />}
 
@@ -205,19 +233,11 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
           <DeviceManagementCard
             productRef={deviceProduct}
             subscriptionProductRef={deviceSubscriptionProduct}
-            onUpdatesChange={updates => handleUpdatesChange(OpenframeProduct.MANAGED_DEVICES, updates)}
+            deviceCount={deviceCount}
+            onUpdatesChange={setDeviceUpdates}
           />
         )}
-        {showAiCard && (
-          <ProductSubscriptionCard
-            productRef={aiProduct}
-            subscriptionProductRef={aiSubscriptionProduct}
-            reserveBillingPeriodSpace={deviceHasBillingToggle}
-            helpText={<ModelTokenRates />}
-            onUpdatesChange={updates => handleUpdatesChange(OpenframeProduct.AI_ASSISTANCE, updates)}
-            {...AI_PRODUCT_DISPLAY}
-          />
-        )}
+        {showAiCard && <AiTokensUsageCard loading={loading} deviceMode={deviceUpdates?.mode ?? null} limit={aiLimit} />}
       </div>
 
       {/* The mobile submit bar is fixed to the viewport, so the total it applies
@@ -237,6 +257,7 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
             packageUpdates={packageUpdates}
             checkoutProducts={checkoutProducts}
             hasInvalidCustom={hasInvalidCustom}
+            aiSpendCapUsd={aiSpendCapUsd}
             onUpdated={handleUpdated}
           />
         </div>
@@ -253,6 +274,7 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
             packageUpdates={packageUpdates}
             checkoutProducts={checkoutProducts}
             hasInvalidCustom={hasInvalidCustom}
+            aiSpendCapUsd={aiSpendCapUsd}
             onUpdated={handleUpdated}
             className="w-full"
           />

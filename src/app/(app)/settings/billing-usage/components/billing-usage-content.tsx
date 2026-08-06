@@ -1,6 +1,13 @@
 'use client';
 
-import { AlertTriangleIcon, ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  AlertTriangleIcon,
+  ExternalLinkIcon,
+  InfoCircleIcon,
+  PlusCircleIcon,
+  Settings02Icon,
+  TagPercentIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type ActionsMenuGroup, Button, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useState } from 'react';
@@ -11,12 +18,14 @@ import { SubscriptionStatus } from '@/app/components/subscription-lock/subscript
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
+import { TOKENS_PER_MILLION } from '../hooks/use-ai-spend-limit';
 import { useBillingPortalSession } from '../hooks/use-billing-portal-session';
 import { useBillingSummary } from '../hooks/use-billing-summary';
 import { useCancelSubscription } from '../hooks/use-cancel-subscription';
 import { useCancellationImpact } from '../hooks/use-cancellation-impact';
 import { useResumeSubscription } from '../hooks/use-resume-subscription';
-import { formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
+import { formatCompactCount, formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
+import { AiTokensLimitModal } from './ai-tokens-limit-modal';
 import { BillingRow, SectionBlock, TestModeBanner } from './billing-section';
 import { CancelOfferModal } from './cancel-offer-modal';
 import { type CancelReason, CancelSubscriptionModal } from './cancel-subscription-modal';
@@ -41,11 +50,15 @@ export function BillingUsageContent() {
   const resumeSubscription = useResumeSubscription();
   const billingPortal = useBillingPortalSession();
   const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [aiLimitModalOpen, setAiLimitModalOpen] = useState(false);
   const [cancelStep, setCancelStep] = useState<'idle' | 'reason' | 'offer' | 'cancelled'>('idle');
   const [cancelReason, setCancelReason] = useState<CancelReason | null>(null);
   const [cancelComment, setCancelComment] = useState<string>('');
 
-  const { status, flags, device, ai, plan, billing, updatedPlan } = useBillingSummary(data.subscription);
+  const { status, flags, device, ai, plan, billing, updatedPlan } = useBillingSummary(
+    data.subscription,
+    data.billingPlan,
+  );
   const { impact, isLoading: isImpactLoading } = useCancellationImpact({ enabled: cancelStep === 'reason' });
 
   // `Next Payment` comes straight from the backend's server-computed
@@ -68,15 +81,59 @@ export function BillingUsageContent() {
   // up reading "247/300" over "Pay as you go", or a bare count over "Prepaid".
   const devicePrepaid = !flags.isTrial && device.allocation > 0;
 
+  /**
+   * The header carries at most one of these two, and the menu carries the other
+   * — never both in both places. Repeating an action in the overflow menu that
+   * is already a button beside it makes the menu read as a different, second
+   * thing to do.
+   *
+   * The AI limit wins the header whenever one is set: it is the thing most
+   * likely to be in the user's way, and the only one of the two a paused
+   * assistant depends on. The plan gets the header only when there is something
+   * to move UP to — a monthly plan has the annual one; an annual plan has
+   * nothing above it, so its plan change (really a device-count change) belongs
+   * in the menu.
+   */
+  const aiLimitInHeader = flags.hasAi && ai.capUsd != null;
+  /**
+   * A scheduled cancellation drops the plan offer everywhere. The subscription
+   * is already on its way out, so a change would be bought into something that
+   * ends anyway; renewing is the move that makes the rest meaningful again.
+   */
+  const planOffered = !flags.isPendingCancellation;
+  const planInHeader = planOffered && !aiLimitInHeader && !plan.isAnnual;
+
   const menuActions: ActionsMenuGroup[] = [
     {
       items: [
+        // Only when the header does not already offer it — which is exactly when
+        // there is no limit yet, hence the label.
+        ...(flags.hasAi && !aiLimitInHeader
+          ? [
+              {
+                id: 'ai-limit',
+                label: 'Set AI Limit',
+                icon: <Settings02Icon className="w-6 h-6 text-ods-text-secondary" />,
+                onClick: () => setAiLimitModalOpen(true),
+              },
+            ]
+          : []),
+        ...(planOffered && !planInHeader
+          ? [
+              {
+                id: 'change-plan',
+                label: 'Change Plan',
+                icon: <TagPercentIcon className="w-6 h-6 text-ods-text-secondary" />,
+                onClick: () => setPlanModalOpen(true),
+              },
+            ]
+          : []),
         {
           id: 'customer-portal',
           // Stripe mints the portal session per click, so this runs a mutation
           // and then navigates — there is no stable URL to hang a link on.
           label: 'Customer Portal',
-          icon: <ExternalLinkIcon className="w-6 h-6" />,
+          icon: <ExternalLinkIcon className="w-6 h-6 text-ods-text-secondary" />,
           onClick: () => billingPortal.mutate(),
           disabled: billingPortal.isPending,
         },
@@ -139,28 +196,29 @@ export function BillingUsageContent() {
           }
         : null;
 
-  // Changing the plan no longer leaves the page — see `UpgradePlanModal`. It
-  // steps aside to `outline` whenever the state above has an accent action of
-  // its own, so exactly one button reads as the thing to press.
-  const upgradeAction = {
-    label: 'Upgrade Plan',
-    onClick: () => setPlanModalOpen(true),
-    variant: (statusAction ? 'outline' : 'accent') as 'accent' | 'outline',
-  };
+  /** The header's second, quieter action — see `aiLimitInHeader` for which one and why. */
+  const secondaryAction = aiLimitInHeader
+    ? {
+        label: 'Expand AI Limit',
+        // Secondary, like the menu's icons: the label carries the action, and a
+        // white glyph beside a white label reads as two emphases in one button.
+        icon: <PlusCircleIcon className="w-6 h-6 text-ods-text-secondary" />,
+        onClick: () => setAiLimitModalOpen(true),
+        variant: 'outline' as const,
+      }
+    : planInHeader
+      ? {
+          // Named for what it does: the only plan above a monthly one is the
+          // annual one. Changing the device count is not an upgrade and is
+          // offered as "Change Plan" in the menu instead.
+          label: 'Upgrade to Annual Plan',
+          onClick: () => setPlanModalOpen(true),
+          variant: 'outline' as const,
+        }
+      : null;
 
-  /**
-   * Rightmost is the accent one: the status action when there is one.
-   *
-   * A scheduled cancellation drops "Upgrade Plan" entirely. The subscription is
-   * already on its way out, so a plan change would be edited into something that
-   * ends anyway — renewing is the one move that makes the rest meaningful again,
-   * and offering both invites the user to pick the one that gets discarded.
-   */
-  const actions = statusAction
-    ? flags.isPendingCancellation
-      ? [statusAction]
-      : [upgradeAction, statusAction]
-    : [upgradeAction];
+  /** Rightmost is the accent one: the status action, when there is something to settle. */
+  const actions = [...(secondaryAction ? [secondaryAction] : []), ...(statusAction ? [statusAction] : [])];
 
   // No subscription record at all. Every figure below would be a zero or a dash
   // presented as this tenant's plan, and the header would offer to change a plan
@@ -196,10 +254,10 @@ export function BillingUsageContent() {
 
       <TestModeBanner />
 
-      <div className={cn('grid gap-[var(--spacing-system-m)]', flags.hasAi ? 'md:grid-cols-2' : 'md:grid-cols-1')}>
+      <div className={cn('grid gap-[var(--spacing-system-m)]', flags.hasAi ? 'md:grid-cols-3' : 'md:grid-cols-1')}>
         <UsageStatCard
           title="Device Usage"
-          warning={device.overLimit}
+          tone={device.overLimit ? 'warning' : 'default'}
           value={
             devicePrepaid ? (
               <>
@@ -219,13 +277,68 @@ export function BillingUsageContent() {
             />
           }
         />
-        {/* Plain consumption for the period. Where the design put a purchased
-            balance, and then a free-token allowance beside it, the product meters
-            instead — so this counts tokens spent, not tokens held. The free-token
-            card comes back when the backend serves those figures; nothing here
-            derives them. */}
-        {flags.hasAi && <UsageStatCard title="AI Usage" value={formatCount(ai.used)} caption="Pay as you go" />}
+        {/* Two counters, because AI is metered in two parts: what the period
+            gives away, and what is billed past it. Both are server figures — the
+            free grant and the tokens beyond it come from `usage`, and the paid
+            counter's denominator is the customer's own cap converted at the
+            metered rate. With no cap it has none, and none is invented. */}
+        {flags.hasAi && (
+          <>
+            <UsageStatCard
+              title="Free AI Tokens"
+              value={
+                <>
+                  {formatCompactCount(ai.freeUsed)}
+                  <StatSuffix>/{formatCompactCount(ai.free)}</StatSuffix>
+                </>
+              }
+              caption="Updated monthly"
+            />
+            <UsageStatCard
+              title="Paid AI Tokens"
+              tone={ai.tone}
+              value={
+                <>
+                  {formatCompactCount(ai.paid)}
+                  {ai.capTokens != null && <StatSuffix>/{formatCompactCount(ai.capTokens)}</StatSuffix>}
+                </>
+              }
+              caption={
+                <>
+                  <StatEmphasis>{formatCurrency(ai.spendUsd)}</StatEmphasis> on next invoice
+                </>
+              }
+            />
+          </>
+        )}
       </div>
+
+      {/* The cap the user set is being reached, so AI is about to stop — or has.
+          Only the icon carries the colour: the card above already states the
+          figure in full, and this block is the sentence explaining it.
+
+          The fix is in the header, where the primary button becomes "Expand AI
+          Limit" for exactly these two states. */}
+      {ai.tone !== 'default' && ai.capUsd != null && (
+        <div className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
+          <AlertTriangleIcon
+            className={cn('size-6 shrink-0', ai.tone === 'error' ? 'text-ods-error' : 'text-ods-warning')}
+          />
+          <div className="flex min-w-0 flex-col">
+            <p className="text-h3 font-bold text-ods-text-primary">
+              {ai.capReached ? 'AI agents are paused.' : 'AI agents will pause soon.'}
+            </p>
+            <p className="text-h4 text-ods-text-secondary">
+              {ai.capReached
+                ? `You've reached your ${formatCurrency(ai.capUsd)} monthly AI limit. Mingo and Fae stay paused until you raise it.`
+                : `You've used ${formatCurrency(ai.spendUsd)} of your ${formatCurrency(ai.capUsd)} monthly AI limit. Mingo and Fae stop responding when it's reached.`}
+              {/* Only when the period has a known end — the reset date is that
+                  date, not a separate fact this can guess at. */}
+              {billing.nextBillingDate && ` Free tokens reset on ${formatDateOrDash(billing.nextBillingDate)}.`}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* One block, one condition: the device count has passed what the plan
           covers. It states the fact, what it costs, when it will be charged, and
@@ -249,25 +362,29 @@ export function BillingUsageContent() {
               Upgrade Plan
             </Button>
           </div>
-          <div className="flex flex-col gap-3 p-[var(--spacing-system-m)]">
-            <BillingRow label="Device Overage" value={formatCount(device.overage)} />
+          {/* Figure over label, side by side — not the label-dash-value rows of
+              the plan blocks below. These three are read together as the size of
+              one problem, and a row layout buries each number at the end of its
+              own line. */}
+          <div className="flex flex-wrap gap-[var(--spacing-system-xl)] p-[var(--spacing-system-m)]">
+            <OverageStat value={`${formatCount(device.overage)} Devices`} label="Device Overage" />
             {billing.estimatedOverage != null && (
-              <BillingRow label="Overage Payment" value={formatCurrency(billing.estimatedOverage)} />
+              <OverageStat value={formatCurrency(billing.estimatedOverage)} label="Overage Payment" />
             )}
             {billing.nextBillingDate && (
-              <BillingRow label="Next Billing" value={formatDateOrDash(billing.nextBillingDate)} />
+              <OverageStat value={formatDateOrDash(billing.nextBillingDate)} label="Next Billing" />
             )}
           </div>
         </div>
       )}
 
-      {/* Side by side once a change is scheduled: the two plans are read against
-          each other, and the right column answers the same questions as the left
-          in the same order. On its own, Current Plan takes the full width. */}
+      {/* Side by side once there is a second block to read against the plan —
+          the plan it is changing to, or what its metered AI is costing. On its
+          own, Current Plan takes the full width. */}
       <div
         className={cn(
           'grid grid-cols-1 gap-[var(--spacing-system-l)] items-start',
-          flags.hasPendingPlan && 'md:grid-cols-2',
+          (flags.hasPendingPlan || ai.paid > 0) && 'md:grid-cols-2',
         )}
       >
         <SectionBlock title="Current Plan">
@@ -275,6 +392,12 @@ export function BillingUsageContent() {
           {plan.deviceRate != null && (
             <BillingRow label="Device Rate" value={<MonthlyRate amount={plan.deviceRate} />} />
           )}
+          {ai.tokenPrice != null && (
+            <BillingRow label="AI Tokens Rate" value={<TokenRate amount={ai.tokenPrice * TOKENS_PER_MILLION} />} />
+          )}
+          {/* The grant the tenant is actually on this period, served by the
+              backend — unlike the Updated Plan's, which has to be derived. */}
+          {flags.hasAi && <BillingRow label="Free AI Tokens" value={<MonthlyTokens tokens={ai.free} />} />}
           {!flags.isTrial && nextPaymentAmount > 0 && (
             <BillingRow label="Next Payment" value={formatCurrency(nextPaymentAmount)} />
           )}
@@ -299,20 +422,74 @@ export function BillingUsageContent() {
           )}
         </SectionBlock>
 
+        {/* The plan that takes over — a scheduled package, or the metered
+            billing a lapsing commitment falls back to. It answers the left
+            column's questions in the left column's order, so the two read as one
+            comparison; the AI rate is the same either way and is stated on both
+            sides rather than left to be assumed unchanged. */}
         {flags.hasPendingPlan && (
           <SectionBlock title="Updated Plan">
             <BillingRow label="Billing Cycle" value={updatedPlan.isAnnual ? 'Annual' : 'Monthly'} />
             {updatedPlan.deviceRate != null && (
               <BillingRow label="Device Rate" value={<MonthlyRate amount={updatedPlan.deviceRate} />} />
             )}
+            {ai.tokenPrice != null && (
+              <BillingRow label="AI Tokens Rate" value={<TokenRate amount={ai.tokenPrice * TOKENS_PER_MILLION} />} />
+            )}
+            {flags.hasAi && (
+              <BillingRow label="Free AI Tokens" value={<MonthlyTokens tokens={updatedPlan.freeTokens} />} />
+            )}
             {updatedPlan.startsOn && (
               <BillingRow label="Plan Starts on" warning value={<WarningDate iso={updatedPlan.startsOn} />} />
+            )}
+          </SectionBlock>
+        )}
+
+        {/* Metered AI, once any of it has actually been billed. Beside the plan
+            rather than under the cards: it is the plan's fine print — what the
+            surplus costs, what ceiling it is running into, and when the meter
+            resets — and the top card states only the count. */}
+        {ai.paid > 0 && (
+          <SectionBlock title="AI Usage Beyond Free Tokens">
+            <div className="flex items-start gap-[var(--spacing-system-xsf)] pb-[var(--spacing-system-xsf)]">
+              <InfoCircleIcon className="size-6 shrink-0 text-ods-accent" />
+              <p className="text-h4 text-ods-text-primary">
+                Extra token usage continues at pay-as-you-go rates and appears on your next invoice.
+              </p>
+            </div>
+            <BillingRow label="Token Overage" value={formatCompactCount(ai.paid)} />
+            <BillingRow label="Overage Payment" value={formatCurrency(ai.spendUsd)} />
+            {/* Stated in both units, because the limit is chosen in tokens and
+                charged in dollars — see the AI Tokens Limit modal. */}
+            {ai.capUsd != null && (
+              <BillingRow
+                label="Spending Limit"
+                value={
+                  <>
+                    {ai.capTokens != null && formatCompactCount(ai.capTokens)}
+                    <span className="text-ods-text-secondary">({formatCurrency(ai.capUsd)})</span>
+                  </>
+                }
+              />
+            )}
+            {billing.nextBillingDate && (
+              <BillingRow label="Next Billing" value={formatDateOrDash(billing.nextBillingDate)} />
             )}
           </SectionBlock>
         )}
       </div>
 
       <InvoicesHistory invoices={data.subscription?.pendingInvoices ?? []} />
+
+      {/* Writes through `updateAiSpendCap`, whose response carries the new cap
+          into the same subscription record this page reads — so nothing here
+          refetches when it saves. */}
+      <AiTokensLimitModal
+        isOpen={aiLimitModalOpen}
+        onClose={() => setAiLimitModalOpen(false)}
+        tokenPrice={ai.tokenPrice}
+        capUsd={ai.capUsd}
+      />
 
       <UpgradePlanModal
         isOpen={planModalOpen}
@@ -390,6 +567,36 @@ export function BillingUsageContent() {
 
 const billingUsageContentQuery = graphql`
   query billingUsageContentQuery {
+    # The catalog, for the two things the subscription does not state itself:
+    #
+    #  - what a price is quoted per. AI is priced by the block of tokens, so
+    #    without unitSize the metered rate cannot be turned into a per-token one
+    #    (see lib/ai-token-price.ts).
+    #  - what a billing period costs per device. A committed option on the
+    #    subscription leaves its own price empty, and this is where the plan
+    #    picker has always read the rate from (see useDevicePlanSelection).
+    billingPlan {
+      id
+      products {
+        id
+        name
+        unitSize
+        # The same two fields on both, so one helper can read either: an option
+        # states its rate as a flat price or as a price band, and which one is
+        # filled depends on the option (see catalogDeviceRate).
+        packageOptions {
+          id
+          billingPeriod
+          price
+          priceTiers { from upTo unitPrice }
+        }
+        payAsYouGoOption {
+          id
+          price
+          priceTiers { from upTo unitPrice }
+        }
+      }
+    }
     subscription {
       id
       status
@@ -402,6 +609,9 @@ const billingUsageContentQuery = graphql`
           id
           billingPeriod
           quantity
+          # Empty on a committed option, which is why the rate is read from the
+          # catalog above. Kept because a negotiated rate, if one is ever stated
+          # here, is what this tenant actually pays and must win.
           price
           status
           startDate
@@ -424,8 +634,18 @@ const billingUsageContentQuery = graphql`
       usage {
         devicesUsed
         activeDevices
-        aiTokensUsed
+        # The AI counters the top row is built from: the period's free grant and
+        # how much of it is gone, then the tokens billed past it and what they
+        # have cost so far. aiSpendUsd is what aiSpendCapUsd is measured against
+        # — the page compares those two and nothing else.
+        aiTokensFree
+        aiTokensFreeUsed
+        aiTokensOverage
+        aiSpendUsd
       }
+      # Customer-set ceiling on the AI overage one period may accrue, in USD.
+      # Null means uncapped; 0 is a real cap.
+      aiSpendCapUsd
       currentInvoice {
         estimatedOverage
       }
@@ -475,6 +695,39 @@ function MonthlyRate({ amount }: { amount: number }) {
       {formatCurrency(amount)}
       <span className="text-ods-text-secondary">/ month</span>
     </>
+  );
+}
+
+/**
+ * The AI rate, per million tokens — the unit every AI figure on this page is
+ * stated in. The catalog quotes it per token (see `lib/ai-token-price.ts`).
+ */
+function TokenRate({ amount }: { amount: number }) {
+  return (
+    <>
+      {formatCurrency(amount)}
+      <span className="text-ods-text-secondary">/ 1M tokens</span>
+    </>
+  );
+}
+
+/** A monthly token grant: the count, with its cadence trailing. */
+function MonthlyTokens({ tokens }: { tokens: number }) {
+  return (
+    <>
+      {formatCompactCount(tokens)}
+      <span className="text-ods-text-secondary">/ month</span>
+    </>
+  );
+}
+
+/** One figure of an overage, stated above what it counts. */
+function OverageStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-col">
+      <p className="text-h4 text-ods-text-primary">{value}</p>
+      <p className="text-h6 text-ods-text-secondary">{label}</p>
+    </div>
   );
 }
 
