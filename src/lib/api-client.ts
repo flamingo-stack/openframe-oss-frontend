@@ -7,10 +7,14 @@ interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;
   skipAuth?: boolean;
   /**
-   * Issue the request without waiting for the session latch (see
-   * `session-ready.ts`). ONLY for the two calls that establish the session —
+   * Issue the request without waiting for either bootstrap latch — the session
+   * one (`session-ready.ts`) or the subscription one (`subscription-gate.ts`).
+   *
+   * ONLY for the two calls that establish those answers in the first place:
    * `/me` and the feature-flags query. Anything else would fetch before `/me`
-   * has answered, or during server rendering where there is no user at all.
+   * has answered, or during server rendering where there is no user at all —
+   * and the feature-flags query is what tells the subscription guard whether to
+   * ask at all, so gating it on the guard's answer would deadlock both.
    */
   skipSessionGate?: boolean;
   /**
@@ -56,6 +60,7 @@ import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
 import { waitForSessionReady } from './session-ready';
+import { waitForSubscriptionGate } from './subscription-gate';
 import { refreshAccessToken } from './token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from './token-store';
 
@@ -122,6 +127,12 @@ class ApiClient {
     // whatever the first attempt decided (the latch is already open by then).
     if (!skipSessionGate && !isRetry) {
       await waitForSessionReady();
+      // ...and then for the subscription answer. Most of the app's GraphQL
+      // traffic still goes out through here rather than through Relay (customers,
+      // devices, logs, tickets, monitoring, dashboard), so gating only the Relay
+      // network layer left the larger half of the requests firing into a locked
+      // workspace. See `subscription-gate.ts`.
+      await waitForSubscriptionGate();
     }
 
     // Build headers

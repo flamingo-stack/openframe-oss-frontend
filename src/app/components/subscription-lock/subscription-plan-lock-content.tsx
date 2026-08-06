@@ -6,7 +6,7 @@ import {
 } from '@/app/(app)/settings/billing-usage/subscription/components/subscription-settings-view';
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { SubscriptionStatus } from '@/generated/schema-enums';
-import { useSubscriptionLock } from './subscription-lock-context';
+import { useSubscriptionLock } from './subscription-guard';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
 /**

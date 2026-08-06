@@ -18,8 +18,6 @@ interface DeviceManagementCardProps {
   /** `null` renders the loading state — the picker draws its own; see `DevicePlanPicker`. */
   productRef: devicePlanPickerProductFragment$key | null;
   subscriptionProductRef: devicePlanPickerSubscriptionFragment$key | null;
-  /** Devices under management right now — the pay-as-you-go billing basis; `null` until counted. */
-  detectedDevices: number | null;
   onUpdatesChange: (updates: ProductUpdates) => void;
 }
 
@@ -35,7 +33,6 @@ interface DeviceManagementCardProps {
 export function DeviceManagementCard({
   productRef,
   subscriptionProductRef,
-  detectedDevices,
   onUpdatesChange,
 }: DeviceManagementCardProps) {
   return (
@@ -50,7 +47,6 @@ export function DeviceManagementCard({
       <DevicePlanPicker
         productRef={productRef}
         subscriptionProductRef={subscriptionProductRef}
-        detectedDevices={detectedDevices}
         onUpdatesChange={onUpdatesChange}
         footerNote={ADDITIONAL_DEVICES_HELPER_TEXT}
       />

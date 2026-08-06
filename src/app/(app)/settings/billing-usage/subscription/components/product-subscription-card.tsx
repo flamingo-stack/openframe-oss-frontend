@@ -6,12 +6,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-  Input,
   RadioGroupBlock,
   Skeleton,
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { productSubscriptionCardProductFragment$key } from '@/__generated__/productSubscriptionCardProductFragment.graphql';
@@ -19,13 +17,7 @@ import type { productSubscriptionCardSubscriptionFragment$key } from '@/__genera
 import { useProductSelection } from '../hooks/use-product-selection';
 import type { ProductUpdates } from '../types/subscription.types';
 import { buildPackageRadioOptions } from '../utils/build-package-radio-options';
-import {
-  CUSTOM_OPTION_ID,
-  calculateCustomQuantityPrice,
-  formatCompact,
-  formatMoney,
-  PAYG_OPTION_ID,
-} from '../utils/subscription.utils';
+import { PAYG_OPTION_ID } from '../utils/subscription.utils';
 
 export const productSubscriptionCardProductFragment = graphql`
   fragment productSubscriptionCardProductFragment on Product {
@@ -72,12 +64,7 @@ interface ProductSubscriptionCardProps {
    */
   description: string | ((periodLabel: string) => string);
   packageUnitLabel: string;
-  customLabel: string;
-  customSubtitle: string;
   helpText?: ReactNode;
-  disabled?: boolean;
-  /** Whether the card offers a Custom Amount option. Defaults to true. */
-  allowCustom?: boolean;
   /**
    * Reserve vertical space for the billing-period toggle even when this card
    * has none, so cards stay aligned when a sibling card shows the toggle.
@@ -118,7 +105,7 @@ function HelpTooltip({ content }: { content: ReactNode }) {
 
 /**
  * A product's package picker: billing period, then a radio list of committed
- * packages (and an optional Custom Amount).
+ * packages.
  *
  * With a `null` productRef it renders its LOADING state — the real card with the
  * catalog-derived rows pending — so the page never has to keep a second,
@@ -130,11 +117,7 @@ export function ProductSubscriptionCard({
   title,
   description,
   packageUnitLabel,
-  customLabel,
-  customSubtitle,
   helpText,
-  disabled = false,
-  allowCustom = true,
   reserveBillingPeriodSpace = false,
   onUpdatesChange,
 }: ProductSubscriptionCardProps) {
@@ -144,29 +127,13 @@ export function ProductSubscriptionCard({
   const {
     selection,
     billingPeriodItems,
-    allTiers,
     tiers,
     baselineUnitPrice,
-    unitSize,
     months,
     periodSuffix,
     setBillingPeriod,
     setSelectedPackage,
-    setCustomQuantity,
   } = useProductSelection({ product, subscriptionProduct, onUpdatesChange });
-
-  // customQuantity is the real product count the user typed (same unit the
-  // backend stores and prices in); unitSize only constrains its granularity —
-  // it must be a positive whole multiple of unitSize.
-  const isCustom = selection.selectedPackageId === CUSTOM_OPTION_ID;
-  const customQty = selection.customQuantity;
-  const customDivisible = customQty != null && customQty > 0 && customQty % unitSize === 0;
-  const customNotDivisible = isCustom && customQty != null && customQty > 0 && !customDivisible;
-
-  const customPrice =
-    isCustom && customDivisible && customQty != null
-      ? calculateCustomQuantityPrice(customQty, allTiers, baselineUnitPrice, months)
-      : null;
 
   const loading = product == null;
 
@@ -181,10 +148,7 @@ export function ProductSubscriptionCard({
         months,
         periodSuffix,
         packageUnitLabel,
-        customLabel,
-        customSubtitle,
         payAsYouGoOption: product.payAsYouGoOption ?? null,
-        allowCustom,
       });
 
   // "MONTHLY" → "monthly" / "YEARLY" → "yearly", so period-aware copy matches
@@ -194,11 +158,7 @@ export function ProductSubscriptionCard({
 
   return (
     <Card
-      className={cn(
-        'relative flex flex-1 flex-col gap-6 p-6 bg-ods-bg border-ods-border transition-opacity',
-        disabled && 'opacity-50 pointer-events-none',
-      )}
-      aria-disabled={disabled}
+      className="relative flex flex-1 flex-col gap-6 p-6 bg-ods-bg border-ods-border"
       aria-busy={loading || undefined}
     >
       <div className="flex items-start justify-between gap-4">
@@ -229,50 +189,11 @@ export function ProductSubscriptionCard({
             name={`packages-${product?.id ?? 'pending'}`}
             variant="grouped"
             disabled={loading}
-            value={disabled ? '' : (selection.selectedPackageId ?? '')}
+            value={selection.selectedPackageId ?? ''}
             onValueChange={setSelectedPackage}
             options={radioOptions}
             className="[&>div]:!rounded-none [&>div]:!border-0"
           />
-          {allowCustom && (
-            <div
-              aria-hidden={disabled || selection.selectedPackageId !== CUSTOM_OPTION_ID}
-              className={cn(
-                'grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none',
-                !disabled && selection.selectedPackageId === CUSTOM_OPTION_ID
-                  ? 'grid-rows-[1fr] opacity-100'
-                  : 'grid-rows-[0fr] opacity-0 pointer-events-none',
-              )}
-            >
-              <div className="overflow-hidden">
-                <div className="flex flex-col gap-1 pl-12 pr-3 pb-2">
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    aria-label={`Number of ${packageUnitLabel}`}
-                    value={selection.customQuantity ?? ''}
-                    onChange={event => setCustomQuantity(event.target.value.replace(/\D/g, ''))}
-                    endAdornment={packageUnitLabel}
-                    tabIndex={!disabled && selection.selectedPackageId === CUSTOM_OPTION_ID ? undefined : -1}
-                  />
-                  {customNotDivisible ? (
-                    <p className="text-h6 text-ods-error">
-                      {`Must be a multiple of ${formatCompact(unitSize)} ${packageUnitLabel}`}
-                    </p>
-                  ) : (
-                    customPrice && (
-                      <p className="text-h6 text-ods-text-secondary">
-                        {`$${formatMoney(customPrice.total)}${periodSuffix}`}
-                        {customPrice.discountPercent > 0 && (
-                          <span className="text-ods-success"> (-{customPrice.discountPercent}%)</span>
-                        )}
-                      </p>
-                    )
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </Card>

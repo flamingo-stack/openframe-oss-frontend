@@ -17,6 +17,11 @@ interface SubscriptionSubmitButtonProps {
   checkoutProducts: ProductCheckoutInput[];
   /** True when a Custom Amount has an empty/invalid quantity (update flow only). */
   hasInvalidCustom: boolean;
+  /**
+   * The update landed. Only the update flow can call this — the checkout flow
+   * leaves for Stripe and never comes back to this component.
+   */
+  onUpdated?: () => void;
   /** Extra classes for the button (e.g. `w-full` for the mobile action bar). */
   className?: string;
 }
@@ -38,6 +43,7 @@ export function SubscriptionSubmitButton({
   packageUpdates,
   checkoutProducts,
   hasInvalidCustom,
+  onUpdated,
   className,
 }: SubscriptionSubmitButtonProps) {
   const updateSubscription = useUpdateSubscription();
@@ -83,7 +89,7 @@ export function SubscriptionSubmitButton({
       return;
     }
     if (!packageUpdates.length) return;
-    updateSubscription.mutate({ packageUpdates });
+    updateSubscription.mutate({ packageUpdates }, { onSuccess: onUpdated });
   };
 
   return (

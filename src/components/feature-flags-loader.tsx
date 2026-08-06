@@ -5,6 +5,7 @@ import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useFeatureFlagsQuery } from '@/app/hooks/use-feature-flags-query';
 import { isSaasSharedMode } from '@/lib/app-mode';
 import { markSessionReady, resetSessionReady } from '@/lib/session-ready';
+import { resetSubscriptionGate } from '@/lib/subscription-gate';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 
 interface FeatureFlagsLoaderProps {
@@ -51,6 +52,10 @@ export function FeatureFlagsLoader({ children }: FeatureFlagsLoaderProps) {
       markSessionReady();
     } else if (isReady && !isAuthenticated) {
       resetSessionReady();
+      // The subscription answer belonged to the session that just ended. Back to
+      // unresolved so the next sign-in re-asks — and so nobody stays parked on a
+      // lock that was another tenant's.
+      resetSubscriptionGate();
     }
   }, [isReady, isAuthenticated]);
 

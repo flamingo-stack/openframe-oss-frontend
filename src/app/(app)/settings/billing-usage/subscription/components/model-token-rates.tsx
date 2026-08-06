@@ -1,6 +1,8 @@
 'use client';
 
+import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
+  AlertTriangleIcon,
   AnthropicLogoIcon,
   GeminiLogoIcon,
   OpenaiLogoGreyIcon,
@@ -37,15 +39,47 @@ function formatRate(value: number): string {
 }
 
 /**
- * Self-contained Suspense boundary: the rates query is fetched lazily on tooltip
- * open, so it must not suspend the page-level boundary (that would flash the
- * full-page skeleton). Falls back to a local skeleton instead.
+ * Two self-contained boundaries, because this is a TOOLTIP: nothing it does may
+ * reach the page it is opened from.
+ *
+ * Suspense — the rates query is fetched lazily on open, so it must not suspend
+ * the page-level boundary (that would flash the full-page skeleton). It falls
+ * back to a local skeleton instead.
+ *
+ * ErrorBoundary — `aiModelRates` is `[AiModelRate!]!`, and a locked workspace has
+ * it refused with `SUBSCRIPTION_TRIAL_EXPIRED`. Non-null means the refusal nulls
+ * the whole payload, which Relay throws on; unbounded that throw reached the root
+ * and took down the paywall — the one screen a locked workspace must be able to
+ * use.
+ *
+ * The fallback keeps the tooltip's own frame and says what happened, rather than
+ * rendering nothing: this opens on a deliberate click, and a panel that flashes
+ * open empty reads as a broken control. It also says the part that matters — the
+ * rates are a reference, and not knowing them changes nothing about the plan the
+ * user is here to choose.
  */
 export function ModelTokenRates() {
   return (
-    <Suspense fallback={<ModelTokenRatesSkeleton />}>
-      <ModelTokenRatesContent />
-    </Suspense>
+    <ErrorBoundary fallback={<ModelTokenRatesUnavailable />}>
+      <Suspense fallback={<ModelTokenRatesSkeleton />}>
+        <ModelTokenRatesContent />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+/** Same panel, same chrome — only the rows are replaced by why they are missing. */
+function ModelTokenRatesUnavailable() {
+  return (
+    <div className="flex min-w-[260px] max-w-[320px] flex-col items-center gap-[var(--spacing-system-xs)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)] text-center">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-ods-bg text-ods-text-secondary">
+        <AlertTriangleIcon className="size-5" />
+      </div>
+      <p className="text-h3 text-ods-text-primary">Rates unavailable</p>
+      <p className="text-h6 text-ods-text-secondary">
+        We couldn't load the per-model token rates. They're a reference only — your plan and its price are unaffected.
+      </p>
+    </div>
   );
 }
 
@@ -53,7 +87,12 @@ function ModelTokenRatesContent() {
   const data = useLazyLoadQuery<ModelTokenRatesQueryType>(
     modelTokenRatesQuery,
     {},
-    { fetchPolicy: 'store-and-network' },
+    {
+      // Opened from the plan picker, which the lock screen shows — so it has to
+      // load on a locked workspace too (see `subscription-gate.ts`).
+      fetchPolicy: 'store-and-network',
+      networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
+    },
   );
   const rates = data.aiModelRates;
 

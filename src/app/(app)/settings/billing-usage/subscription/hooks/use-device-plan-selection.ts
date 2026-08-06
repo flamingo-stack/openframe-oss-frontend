@@ -81,8 +81,6 @@ interface UseDevicePlanSelectionArgs {
   /** `null` while the catalog is still loading — the card renders its own frame meanwhile. */
   product: CatalogProduct | null;
   subscriptionProduct: SubscriptionProductState | null;
-  /** Devices under management right now — the pay-as-you-go billing basis; `null` until counted. */
-  detectedDevices: number | null;
   onUpdatesChange: (updates: ProductUpdates) => void;
 }
 
@@ -110,7 +108,6 @@ function buildDevicePlanCatalog(product: CatalogProduct | null): DevicePlanCatal
 function buildInitialDevicePlan(
   catalog: DevicePlanCatalog,
   subscriptionProduct: SubscriptionProductState | null,
-  detectedDevices: number | null,
 ): DevicePlanState {
   const activePackage = subscriptionProduct?.packageOptions.find(opt => opt.status === 'ACTIVE') ?? null;
   const committedQuantity = activePackage?.quantity ?? null;
@@ -119,32 +116,21 @@ function buildInitialDevicePlan(
   const mode: DevicePlanMode =
     committedQuantity != null && catalog.annualOption ? 'ANNUAL' : catalog.paygOption ? 'PAYG' : 'ANNUAL';
 
+  // The already-committed count, or the floor. It used to seed from the devices
+  // found in the instance; that count is no longer fetched here (see `PaywallCopy`).
   return {
     mode,
-    quantity: Math.max(committedQuantity ?? detectedDevices ?? 0, catalog.minAnnualDevices),
+    quantity: Math.max(committedQuantity ?? 0, catalog.minAnnualDevices),
   };
 }
 
-export function useDevicePlanSelection({
-  product,
-  subscriptionProduct,
-  detectedDevices,
-  onUpdatesChange,
-}: UseDevicePlanSelectionArgs) {
+export function useDevicePlanSelection({ product, subscriptionProduct, onUpdatesChange }: UseDevicePlanSelectionArgs) {
   const catalog = useMemo(() => buildDevicePlanCatalog(product), [product]);
 
-  // Read at (re)initialisation only: the detected count is live data that can
-  // refetch under the user, and folding it into the reset effect would wipe a
-  // half-typed device count every time the number moved.
-  const detectedDevicesRef = useRef(detectedDevices);
-  detectedDevicesRef.current = detectedDevices;
-
-  const [state, setState] = useState<DevicePlanState>(() =>
-    buildInitialDevicePlan(catalog, subscriptionProduct, detectedDevices),
-  );
+  const [state, setState] = useState<DevicePlanState>(() => buildInitialDevicePlan(catalog, subscriptionProduct));
 
   useEffect(() => {
-    setState(buildInitialDevicePlan(catalog, subscriptionProduct, detectedDevicesRef.current));
+    setState(buildInitialDevicePlan(catalog, subscriptionProduct));
   }, [catalog, subscriptionProduct]);
 
   const unitSize = Number(product?.unitSize ?? 1) || 1;
@@ -163,12 +149,11 @@ export function useDevicePlanSelection({
     [mode, quantity],
   );
 
-  // Pay as you go bills the devices actually under management, never fewer than
-  // the catalog's floor — which is exactly what the minimum means.
-  const billedDevices = Math.max(detectedDevices ?? 0, catalog.minDevices);
-  const paygTotal =
-    catalog.paygUnitPrice != null && detectedDevices != null ? billedDevices * catalog.paygUnitPrice : null;
-
+  // Pay as you go prices no total: it bills the devices actually under
+  // management, and that count is no longer fetched here (see `PaywallCopy`).
+  // Nothing is guessed in its place — an "estimated total" built from the
+  // minimum would understate every fleet larger than the floor.
+  //
   // Both rates are per device per month; a prepaid year is × 12. One rate for the
   // whole fleet — quantity buys more devices, never a cheaper device.
   const annualTotal = catalog.annualUnitPrice != null ? quantity * catalog.annualUnitPrice * 12 : null;
@@ -187,14 +172,10 @@ export function useDevicePlanSelection({
     // selection would flicker the footer total to "nothing selected".
     if (!product) return;
 
+    // Only the annual commitment has a total to state up front; a metered month
+    // has none until it is invoiced.
     const total: SelectionTotal | null =
-      mode === 'PAYG'
-        ? paygTotal != null
-          ? { amount: paygTotal, period: 'month', prepaid: false }
-          : null
-        : annualTotal != null && valid
-          ? { amount: annualTotal, period: 'year', prepaid: true }
-          : null;
+      mode === 'ANNUAL' && annualTotal != null && valid ? { amount: annualTotal, period: 'year', prepaid: true } : null;
 
     onUpdatesChangeRef.current({
       packageUpdates: valid ? diffPackageUpdates(product, selection, subscriptionProduct) : [],
@@ -202,7 +183,7 @@ export function useDevicePlanSelection({
       valid,
       total,
     });
-  }, [product, subscriptionProduct, selection, mode, paygTotal, annualTotal, valid]);
+  }, [product, subscriptionProduct, selection, mode, annualTotal, valid]);
 
   const setMode = useCallback((next: DevicePlanMode) => setState(prev => ({ ...prev, mode: next })), []);
 
@@ -228,7 +209,6 @@ export function useDevicePlanSelection({
     mode,
     quantity,
     unitSize,
-    paygTotal,
     annualTotal,
     quantityTooSmall,
     quantityNotDivisible,
