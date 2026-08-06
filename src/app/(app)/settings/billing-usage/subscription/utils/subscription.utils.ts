@@ -2,7 +2,6 @@ import type { ProductCheckoutInput } from '../hooks/use-create-checkout-session'
 import type { PackageUpdateInput } from '../hooks/use-update-subscription';
 import type {
   BillingPeriod,
-  CatalogPriceTier,
   CatalogProduct,
   ProductSelectionState,
   SubscriptionProductState,
@@ -33,36 +32,6 @@ export function topmostSelectionId(product: ProductData, period: BillingPeriod):
   const periodOption = product.packageOptions.find(o => o.billingPeriod === period) ?? product.packageOptions[0];
   const tiers = periodOption?.priceTiers?.slice(1) ?? [];
   return tiers.length > 0 ? String(tiers[0].from) : CUSTOM_OPTION_ID;
-}
-
-type PriceTierInput = CatalogPriceTier;
-
-/**
- * Tier that prices `quantity`, or the last one when the quantity sits past the
- * final band. Tiers are whole-quantity bands (not marginal brackets): the
- * matching tier's `unitPrice` applies to every unit.
- */
-export function applicableTier(
-  quantity: number,
-  tiers: readonly PriceTierInput[] | null | undefined,
-): PriceTierInput | null {
-  if (!Number.isFinite(quantity) || quantity <= 0 || !tiers || tiers.length === 0) return null;
-  return (
-    tiers.find(t => quantity >= t.from && (t.upTo == null || quantity <= t.upTo)) ?? tiers[tiers.length - 1] ?? null
-  );
-}
-
-export function calculateCustomQuantityPrice(
-  quantity: number,
-  allTiers: readonly PriceTierInput[],
-  baselineUnitPrice: number | null,
-  months: number,
-): { total: number; discountPercent: number } | null {
-  const applicable = applicableTier(quantity, allTiers);
-  if (!applicable) return null;
-  const total = quantity * applicable.unitPrice * months;
-  const discountPercent = baselineUnitPrice ? Math.round((1 - applicable.unitPrice / baselineUnitPrice) * 100) : 0;
-  return { total, discountPercent };
 }
 
 export function formatPaygSubtitle(

@@ -78,7 +78,11 @@ export function useProductSelection({ product, subscriptionProduct, onUpdatesCha
   const packageOption =
     packageOptions?.find(opt => opt.billingPeriod === selection.billingPeriod) ?? packageOptions?.[0];
   const allTiers = packageOption?.priceTiers ?? [];
-  const baselineUnitPrice = allTiers[0]?.unitPrice ?? product?.payAsYouGoOption?.price ?? null;
+  // The entry tier IS the baseline a discount is measured against. No falling back
+  // to the pay-as-you-go rate: that is a different product option at a different
+  // rate, and comparing against it would announce a percentage the catalog never
+  // priced. Without a tier there is no baseline, so no discount is claimed.
+  const baselineUnitPrice = allTiers[0]?.unitPrice ?? null;
   const tiers = allTiers.slice(1);
   const isYearly = selection.billingPeriod === 'YEARLY';
   // Granularity for the Custom input (devices: 1, AI tokens: 100_000): the
@@ -88,10 +92,8 @@ export function useProductSelection({ product, subscriptionProduct, onUpdatesCha
   return {
     selection,
     billingPeriodItems,
-    allTiers,
     tiers,
     baselineUnitPrice,
-    unitSize,
     months: isYearly ? 12 : 1,
     periodSuffix: isYearly ? '/year' : '/month',
     setBillingPeriod: (period: string) =>
@@ -114,13 +116,6 @@ export function useProductSelection({ product, subscriptionProduct, onUpdatesCha
         payAsYouGoEnabled: isPayg,
         selectedPackageId: packageId,
         customQuantity: packageId === CUSTOM_OPTION_ID ? (prev.customQuantity ?? unitSize) : null,
-      }));
-    },
-    setCustomQuantity: (value: string) => {
-      const parsed = Number.parseInt(value, 10);
-      setSelection(prev => ({
-        ...prev,
-        customQuantity: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
       }));
     },
   };

@@ -20,7 +20,6 @@ interface QuantityStepperProps {
   onChange: (next: number) => void;
   /** Editing finished (blur or Enter): the owner clamps whatever was typed. */
   onCommit: () => void;
-  className?: string;
 }
 
 /** Everything the user can type that is not a digit. */
@@ -47,16 +46,7 @@ const NON_DIGIT = /\D/;
  * cannot be styled to this design, and reports an empty string for anything it
  * considers invalid — which hides what the user actually typed.
  */
-export function QuantityStepper({
-  value,
-  min,
-  step = 1,
-  label,
-  error,
-  onChange,
-  onCommit,
-  className,
-}: QuantityStepperProps) {
+export function QuantityStepper({ value, min, step = 1, label, error, onChange, onCommit }: QuantityStepperProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const errorId = useId();
 
@@ -113,7 +103,6 @@ export function QuantityStepper({
         className={cn(
           'flex shrink-0 items-center overflow-hidden rounded-md border bg-ods-card transition-colors',
           error ? 'border-ods-error' : 'border-ods-border focus-within:border-ods-accent',
-          className,
         )}
       >
         <Button

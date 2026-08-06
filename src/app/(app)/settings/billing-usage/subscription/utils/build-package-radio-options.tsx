@@ -1,6 +1,6 @@
 import { TagPercentIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { CUSTOM_OPTION_ID, formatCompact, formatMoney, formatPaygSubtitle, PAYG_OPTION_ID } from './subscription.utils';
+import { formatCompact, formatMoney, formatPaygSubtitle, PAYG_OPTION_ID } from './subscription.utils';
 
 interface PriceTier {
   readonly from: number;
@@ -18,11 +18,7 @@ interface BuildPackageRadioOptionsArgs {
   months: number;
   periodSuffix: string;
   packageUnitLabel: string;
-  customLabel: string;
-  customSubtitle: string;
   payAsYouGoOption: PayAsYouGoOption | null;
-  /** Whether to offer a Custom Amount option (false for PAYG-only products). */
-  allowCustom: boolean;
 }
 
 export function buildPackageRadioOptions({
@@ -31,10 +27,7 @@ export function buildPackageRadioOptions({
   months,
   periodSuffix,
   packageUnitLabel,
-  customLabel,
-  customSubtitle,
   payAsYouGoOption,
-  allowCustom,
 }: BuildPackageRadioOptionsArgs) {
   const paygOption = payAsYouGoOption
     ? [{ value: PAYG_OPTION_ID, label: 'Pay as you go', description: formatPaygSubtitle(payAsYouGoOption) }]
@@ -54,9 +47,5 @@ export function buildPackageRadioOptions({
     };
   });
 
-  const customOption = allowCustom
-    ? [{ value: CUSTOM_OPTION_ID, label: customLabel, description: customSubtitle }]
-    : [];
-
-  return [...paygOption, ...tierOptions, ...customOption];
+  return [...paygOption, ...tierOptions];
 }
