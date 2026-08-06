@@ -27,7 +27,7 @@ export interface TakeOverTicketTarget {
   >;
   /** Pre-selected status (e.g. the transition the user just picked); defaults to the first custom status. */
   initialStatusId?: string;
-  /** Pre-selected assignee (e.g. the user picked in an assign dropdown); defaults to the signed-in user. */
+  /** Pre-selected assignee (e.g. the user picked in an assign dropdown); defaults to the ticket's current assignee, then the signed-in user. */
   initialAssigneeId?: string;
 }
 
