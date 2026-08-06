@@ -13,6 +13,8 @@ import {
   Button,
   type ColumnDef,
   DataTable,
+  type DateFilterResult,
+  type DateRange,
   FilterModal,
   Input,
   multiSelectFilterFn,
@@ -27,8 +29,9 @@ import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import type { ScriptExecutionFilterInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
+import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import {
   liveColumnMeta,
@@ -38,6 +41,7 @@ import {
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
@@ -77,7 +81,7 @@ export const EXECUTIONS_PAGE_SIZE = 20;
  * popped in with the facets, shifting every label. See `table-column-layout.ts`.
  */
 const EXECUTION_COLUMNS = {
-  executionId: { id: 'executionId', header: 'Execution', width: 'w-[160px]' },
+  executionId: { id: 'executionId', header: 'Execution', width: 'w-[160px]', dateFilterable: true },
   status: { id: 'status', header: 'Status', width: 'w-[120px]', filterable: true },
   machineId: { id: 'machineId', header: 'Device', width: 'w-[200px]', hideAt: 'lg', filterable: true },
   initiatorId: { id: 'initiatorId', header: 'Executed by', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
@@ -101,7 +105,14 @@ const EXECUTION_COLUMN_ORDER: readonly TableSkeletonColumn[] = [
   EXECUTION_COLUMNS.open,
 ];
 
-export type { ScriptExecutionFilterInput };
+export type { ScriptExecutionFilterInput, SortInput };
+
+/**
+ * The one field these lists are ordered by — `ScriptExecution.dispatchedAt`, the
+ * timestamp the Execution column already shows on its first line. Named once so
+ * the calendar's direction and the query's `SortInput` cannot drift apart.
+ */
+const DISPATCHED_AT_SORT_FIELD = 'dispatchedAt';
 
 export interface UiExecution {
   id: string;
@@ -255,6 +266,8 @@ export interface ExecutionsTableProps {
   onLoadMore: () => void;
   /** The search term the rows on screen were fetched with (for the empty copy). */
   search: string;
+  /** Dispatched-date sort + range, hosted by the Execution column's header. */
+  dateFilter: TableDateFilter;
   /**
    * The empty state when nothing is searched or filtered — the design's
    * `data-placeholder` (icon / title / description), named for whatever list
@@ -280,6 +293,7 @@ export function ExecutionsTable({
   isLoadingNext,
   onLoadMore,
   search,
+  dateFilter,
   emptyState,
   stickyHeaderOffset,
   mobileFilterOpen,
@@ -320,7 +334,16 @@ export function ExecutionsTable({
     () => [
       {
         accessorKey: 'executionId',
-        header: 'Execution',
+        // The cell's first line IS the dispatched timestamp, so the calendar
+        // (date range + newest/oldest first) belongs on this header rather than
+        // on a column of its own.
+        header: () => (
+          <DateColumnHeader
+            label={EXECUTION_COLUMNS.executionId.header}
+            filter={dateFilter}
+            ariaLabel="Sort and filter by execution date"
+          />
+        ),
         cell: ({ row }: { row: Row<UiExecution> }) => (
           <div className="flex flex-col justify-center gap-1 min-w-0">
             <TruncateText>{row.original.timestamp}</TruncateText>
@@ -477,7 +500,7 @@ export function ExecutionsTable({
         meta: liveColumnMeta(EXECUTION_COLUMNS.open),
       },
     ],
-    [renderRowActions, router, executionHref, statusOptions, initiatorOptions, machineOptions],
+    [renderRowActions, router, executionHref, statusOptions, initiatorOptions, machineOptions, dateFilter],
   );
 
   const filterGroups = useMemo(
@@ -522,7 +545,11 @@ export function ExecutionsTable({
   // when a filter is active (so the dropdowns stay reachable to clear it) and
   // while a deferred refetch is pending (the rows on screen are stale — don't
   // tear the header down on them).
-  const hasActiveFilter = columnFilters.length > 0;
+  // The date range narrows the list exactly like a funnel does, so it counts as
+  // an active filter everywhere below — the header stays reachable, and an empty
+  // result reads as "nothing matched" instead of "this script never ran". The
+  // sort direction deliberately does NOT count: it reorders, it never excludes.
+  const hasActiveFilter = columnFilters.length > 0 || Boolean(dateFilter.range);
   const showHeader = executions.length > 0 || hasActiveFilter || isPending;
 
   // `emptyState` claims nothing ever ran — only true without an active
@@ -591,6 +618,14 @@ export function ExecutionsTable({
         filterGroups={filterGroups}
         onFilterChange={onFilterChange}
         currentFilters={tableFilters}
+        // The header calendar is a desktop control; on mobile the same sort +
+        // range lives in this modal, drafted alongside the funnels.
+        dateFilter={{
+          title: 'Execution Date',
+          sort: dateFilter.sortDirection,
+          range: dateFilter.range,
+          onChange: dateFilter.onApply,
+        }}
       />
     </>
   );
@@ -605,15 +640,21 @@ const EMPTY_ROWS: UiExecution[] = [];
 export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
   // The live table's own layout, with `skeletonColumnMeta` turning `filterable`
   // into a filter with no options yet — the header then draws the real control,
-  // funnel included, instead of growing one when the facets land.
+  // funnel included, instead of growing one when the facets land. The Execution
+  // header gets the same treatment by hand: its calendar needs no data, so
+  // drawing it inert here is what keeps the label from shifting when the rows
+  // arrive and the real popover replaces it.
   const columns = useMemo<ColumnDef<UiExecution>[]>(
     () =>
-      EXECUTION_COLUMN_ORDER.map(column => ({
-        id: column.id,
-        header: column.header,
-        enableSorting: false,
-        meta: skeletonColumnMeta(column),
-      })),
+      EXECUTION_COLUMN_ORDER.map(column => {
+        const label = column.header;
+        return {
+          id: column.id,
+          header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
+          enableSorting: false,
+          meta: skeletonColumnMeta(column),
+        };
+      }),
     [],
   );
 
@@ -639,6 +680,12 @@ export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?
 /** Everything the shell owns, handed to the tab's Relay content. */
 export interface ExecutionsTabState {
   backendFilters: ScriptExecutionFilterInput;
+  /**
+   * The `sort` argument for the query — always `dispatchedAt`, in the direction
+   * the calendar holds. Deferred in lockstep with `backendFilters`, so a
+   * direction flip keeps the current rows on screen while the refetch runs.
+   */
+  sort: SortInput;
   /** The `search` argument for the query. Empty under `clientSearch`, where the caller supplies its own scope. */
   querySearch: string;
   /**
@@ -651,6 +698,8 @@ export interface ExecutionsTabState {
   isPending: boolean;
   tableFilters: Record<string, string[]>;
   onFilterChange: (filters: Record<string, string[]>) => void;
+  /** Spread straight into {@link ExecutionsTable} — the header hosts the popover. */
+  dateFilter: TableDateFilter;
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
   stickyHeaderOffset: string;
@@ -697,6 +746,12 @@ export function ExecutionsTabShell({
     status: { type: 'array', default: [] },
     machineId: { type: 'array', default: [] },
     initiatorId: { type: 'array', default: [] },
+    // Dispatched-date range (local `yyyy-MM-dd`, inclusive) + its sort direction
+    // — the Execution column's calendar. `desc` (newest first) is the backend's
+    // own default order and stays out of the URL.
+    dateFrom: { type: 'string', default: '' },
+    dateTo: { type: 'string', default: '' },
+    sortDir: { type: 'string', default: 'desc' },
   });
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   // Set by the table below (the only thing that knows how many rows there are):
@@ -711,20 +766,41 @@ export function ExecutionsTabShell({
     debouncedSearch,
   } = useSearchParam(params.search, value => setParam('search', value), 300);
 
-  const backendFilters: ScriptExecutionFilterInput = useMemo(
-    () => ({
+  // Applied dispatched-date range, restored from the URL.
+  const dateRange: DateRange | undefined = useMemo(
+    () => dateRangeFromParams(params.dateFrom, params.dateTo),
+    [params.dateFrom, params.dateTo],
+  );
+  const sortDirection: 'asc' | 'desc' = params.sortDir === 'asc' ? 'asc' : 'desc';
+
+  // Filter + sort travel together as one deferred object so the query lags in
+  // lockstep and `isPending` covers both — the same shape the schedules table
+  // uses. The picked days become inclusive UTC instants (`00:00` → `23:59:59`
+  // local), so a day picked in the calendar is the whole day on the server.
+  const queryVars = useMemo(() => {
+    const bounds = dateRangeToInstantBounds(dateRange);
+    const filter: ScriptExecutionFilterInput = {
       ...(params.status.length > 0 && { statuses: params.status as ScriptExecutionFilterInput['statuses'] }),
       ...(params.machineId.length > 0 && { machineIds: params.machineId }),
       ...(params.initiatorId.length > 0 && { initiatorIds: params.initiatorId }),
-    }),
-    [params.status, params.machineId, params.initiatorId],
-  );
+      ...(bounds.from && { dispatchedAtFrom: bounds.from }),
+      ...(bounds.to && { dispatchedAtTo: bounds.to }),
+    };
+    // Always sent, both directions: the header indicator claims an order, and
+    // leaving `desc` implicit would rest that claim on an undocumented backend
+    // default instead of on what we asked for.
+    const sort: SortInput = {
+      field: DISPATCHED_AT_SORT_FIELD,
+      direction: sortDirection === 'asc' ? 'ASC' : 'DESC',
+    };
+    return { filter, sort };
+  }, [params.status, params.machineId, params.initiatorId, dateRange, sortDirection]);
 
   // Deferred query variables: on a filter/search interaction the table keeps
   // rendering the current rows while the refetch is in flight, instead of
   // dropping to the Suspense skeleton. The dropdown state (`tableFilters`) stays
   // live so the checkboxes respond instantly.
-  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(backendFilters, debouncedSearch);
+  const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
 
   const tableFilters = useMemo(
     () => ({ status: params.status, machineId: params.machineId, initiatorId: params.initiatorId }),
@@ -741,6 +817,27 @@ export function ExecutionsTabShell({
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
     [setParams],
+  );
+
+  // Apply (and Reset, which fires with the cleared selection). `sortDir: ''` —
+  // NOT `'desc'` — for the default direction: `useApiParams` drops a param only
+  // when the value is empty, so writing `'desc'` would leave `?sortDir=desc`
+  // behind on a list in its default order. Reading it back still yields `desc`.
+  const handleDateFilterApply = useCallback(
+    (result: DateFilterResult) => {
+      setParams({
+        sortDir: result.sort === 'desc' ? '' : result.sort,
+        dateFrom: result.range?.from ? toDayParam(result.range.from) : '',
+        dateTo: result.range?.to ? toDayParam(result.range.to) : '',
+      });
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+    },
+    [setParams],
+  );
+
+  const dateFilter: TableDateFilter = useMemo(
+    () => ({ sortDirection, range: dateRange, onApply: handleDateFilterApply }),
+    [sortDirection, dateRange, handleDateFilterApply],
   );
 
   return (
@@ -777,7 +874,8 @@ export function ExecutionsTabShell({
       )}
       <Suspense fallback={<ExecutionsSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
         {children({
-          backendFilters: deferredFilters,
+          backendFilters: deferredVars.filter,
+          sort: deferredVars.sort,
           // A caller whose `search` is spoken for gets the typed term as
           // client-side narrowing instead. Everywhere else it is the query's own
           // term and nothing is narrowed twice.
@@ -786,6 +884,7 @@ export function ExecutionsTabShell({
           isPending,
           tableFilters,
           onFilterChange: handleFilterChange,
+          dateFilter,
           mobileFilterOpen,
           onMobileFilterClose: () => setMobileFilterOpen(false),
           stickyHeaderOffset,

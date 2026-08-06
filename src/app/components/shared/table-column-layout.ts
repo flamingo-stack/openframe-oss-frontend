@@ -38,6 +38,13 @@ export interface TableSkeletonColumn {
   sortable?: boolean;
   /** Real column renders a filter dropdown, so its header survives below `lg`. */
   filterable?: boolean;
+  /**
+   * Real column's header hosts a `DateColumnHeader` (calendar popover). Like
+   * `filterable`, this is layout-affecting rather than cosmetic: the icon sits
+   * beside the label, so a skeleton without it draws a bare label that shifts
+   * the moment the rows arrive. The skeleton renders the same header inert.
+   */
+  dateFilterable?: boolean;
 }
 
 /** The `meta` fields a live column and its skeleton must agree on. */

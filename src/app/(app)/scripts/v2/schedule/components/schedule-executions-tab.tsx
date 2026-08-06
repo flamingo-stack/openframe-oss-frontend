@@ -33,13 +33,13 @@ interface ScheduleExecutionsTabProps {
 }
 
 function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; state: ExecutionsTabState }) {
-  const { backendFilters, querySearch, narrowSearch, ...tableState } = state;
+  const { backendFilters, sort, querySearch, narrowSearch, ...tableState } = state;
 
   // One round-trip per interaction: the facets (`scheduleExecutionFilters`)
   // ride the list operation — see the query docstring for the facet semantics.
   const queryData = useLazyLoadQuery<ScheduleExecutionsQueryType>(
     scheduleExecutionsRelayQuery,
-    { scheduleId, filter: backendFilters, search: querySearch || null, first: EXECUTIONS_PAGE_SIZE, after: null },
+    { scheduleId, filter: backendFilters, search: querySearch || null, sort, first: EXECUTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network' },
   );
 

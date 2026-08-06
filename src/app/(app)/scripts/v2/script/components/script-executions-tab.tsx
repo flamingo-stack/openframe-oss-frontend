@@ -34,13 +34,13 @@ interface ScriptExecutionsTabProps {
 // ----------------------------------------------------------------
 
 function ScriptExecutionsContent({ scriptId, state }: { scriptId: string; state: ExecutionsTabState }) {
-  const { backendFilters, querySearch, narrowSearch, ...tableState } = state;
+  const { backendFilters, sort, querySearch, narrowSearch, ...tableState } = state;
 
   // One round-trip per interaction: the filter facets (`scriptExecutionFilters`)
   // ride the list operation — see the query docstring for the facet semantics.
   const queryData = useLazyLoadQuery<ExecutionsQueryType>(
     scriptExecutionsRelayQuery,
-    { scriptId, filter: backendFilters, search: querySearch || null, first: EXECUTIONS_PAGE_SIZE, after: null },
+    { scriptId, filter: backendFilters, search: querySearch || null, sort, first: EXECUTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network' },
   );
 
