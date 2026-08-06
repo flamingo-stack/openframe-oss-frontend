@@ -1,7 +1,7 @@
 import type { ScriptArgument } from '@flamingo-stack/openframe-frontend-core';
 // Value import: the generated module exports each enum as both a `const` (values)
 // and a `type` under the same name, so these stand in for hardcoded literals.
-import { PrivilegeLevel, ScriptPlatform, ScriptShell } from '@/generated/schema-enums';
+import { OsType, PrivilegeLevel, ScriptShell } from '@/generated/schema-enums';
 import { EDIT_SCRIPT_DEFAULT_VALUES, type EditScriptFormData } from '../../../types/edit-script.types';
 import { parseKeyValues, serializeKeyValues } from '../../../utils/script-key-values';
 
@@ -31,26 +31,26 @@ export function shellToId(shell: ScriptShell | string | null | undefined): strin
 }
 
 // ---------------------------------------------------------------------------
-// Platform <-> ScriptPlatform enum (UI ids: windows / darwin / linux)
+// Platform <-> OsType enum (UI ids: windows / darwin / linux)
 // ---------------------------------------------------------------------------
 
 // UI ids mostly match the lowercased enum, except darwin <-> MACOS, so the
 // id->enum aliases stay explicit; the reverse map is derived from them.
-const PLATFORM_ID_TO_ENUM: Record<string, ScriptPlatform> = {
-  windows: ScriptPlatform.WINDOWS,
-  darwin: ScriptPlatform.MACOS,
-  linux: ScriptPlatform.LINUX,
+const PLATFORM_ID_TO_ENUM: Record<string, OsType> = {
+  windows: OsType.WINDOWS,
+  darwin: OsType.MACOS,
+  linux: OsType.LINUX,
 };
 
 const PLATFORM_ENUM_TO_ID: Record<string, string> = Object.fromEntries(
   Object.entries(PLATFORM_ID_TO_ENUM).map(([id, enumValue]) => [enumValue, id]),
 );
 
-export function platformsToEnums(ids: string[]): ScriptPlatform[] {
-  return ids.map(id => PLATFORM_ID_TO_ENUM[id?.toLowerCase()]).filter((v): v is ScriptPlatform => !!v);
+export function platformsToEnums(ids: string[]): OsType[] {
+  return ids.map(id => PLATFORM_ID_TO_ENUM[id?.toLowerCase()]).filter((v): v is OsType => !!v);
 }
 
-export function platformsToIds(enums: ReadonlyArray<ScriptPlatform | string> | null | undefined): string[] {
+export function platformsToIds(enums: ReadonlyArray<OsType | string> | null | undefined): string[] {
   if (!enums) return [];
   return enums.map(e => PLATFORM_ENUM_TO_ID[e as string]).filter((v): v is string => !!v);
 }
@@ -96,7 +96,7 @@ export interface ScriptWriteInput {
   shell: ScriptShell;
   privilegeLevel: PrivilegeLevel;
   scriptBody: string;
-  supportedPlatforms: ScriptPlatform[];
+  supportedPlatforms: OsType[];
   defaultTimeoutSeconds: number;
   defaultArgs: string[];
   envVars: ScriptEnvVarInput[];
@@ -134,7 +134,7 @@ export interface ScriptDetailNode {
   privilegeLevel?: PrivilegeLevel | string | null;
   scriptBody: string;
   tags?: ReadonlyArray<{ id: string; key: string }> | null;
-  supportedPlatforms?: ReadonlyArray<ScriptPlatform | string> | null;
+  supportedPlatforms?: ReadonlyArray<OsType | string> | null;
   defaultTimeoutSeconds?: number | null;
   defaultArgs?: ReadonlyArray<string> | null;
   envVars?: ReadonlyArray<{ name: string; value?: string | null; secret?: boolean }> | null;
