@@ -17,7 +17,11 @@ import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
 import { featureFlags } from '@/lib/feature-flags';
 import type { ApprovalStatus } from '../../tickets/constants';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, MESSAGE_TYPE } from '../../tickets/constants';
-import { GET_MINGO_DIALOG_QUERY, getMingoDialogMessagesQuery } from '../queries/dialogs-queries';
+import {
+  GET_MINGO_DIALOG_QUERY,
+  getMingoDialogMessagesQuery,
+  normalizeAskMessageData,
+} from '../queries/dialogs-queries';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage, MessagesResponse } from '../types';
@@ -188,7 +192,12 @@ export function useMingoDialogSelection() {
 
       const { edges, pageInfo } = response.data.data.messages;
       const allMessages = edges.map(edge => edge.node);
-      const adminMessages = allMessages.filter(msg => msg.chatType === CHAT_TYPE.ADMIN);
+      const adminMessages = allMessages
+        .filter(msg => msg.chatType === CHAT_TYPE.ADMIN)
+        // THE parse point for this query: the ASK intro comes back under an
+        // alias (nullability clash with the other `text` fields — see
+        // `ASK_INTRO_ALIAS`), and everything downstream expects `text`.
+        .map(msg => ({ ...msg, messageData: normalizeAskMessageData(msg.messageData) }));
 
       return { messages: adminMessages, pageInfo };
     },
