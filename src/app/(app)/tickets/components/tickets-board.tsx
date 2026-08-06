@@ -27,12 +27,14 @@ import {
   usesCanonicalStatusStyle,
 } from '../statuses/types/ticket-statuses.types';
 import type { Dialog } from '../types/dialog.types';
+import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
 import { type CachedBoardColumn, usePlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
+import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
 import { TicketTagFilter } from './ticket-label-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
@@ -183,6 +185,10 @@ export function TicketsBoard({
     return ids;
   }, [notifications?.notifications]);
   const [columnUpdates, setColumnUpdates] = useState<Record<string, BoardColumnUpdate>>({});
+  // Bumped when an intercepted drag is discarded (Take Over cancelled): nothing
+  // was persisted, but the Board's internal drag state still shows the card in
+  // the target column. A fresh `columns` array identity makes it resync from props.
+  const [boardResetNonce, setBoardResetNonce] = useState(0);
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
 
@@ -248,6 +254,9 @@ export function TicketsBoard({
     // skeleton is involved at all) has nothing to redraw.
     if (statusesLoading && statuses.length === 0) return placeholderColumns;
 
+    // Referenced so a nonce bump rebuilds the array identity (see boardResetNonce).
+    void boardResetNonce;
+
     return statuses.map(status => {
       const state = columnUpdates[status.id]?.state;
       return {
@@ -274,6 +283,7 @@ export function TicketsBoard({
     canArchiveResolved,
     ticketIdsWithUnread,
     isUserDeleted,
+    boardResetNonce,
   ]);
 
   // Remember the lane set so the route skeleton can lay out the same board on
@@ -295,8 +305,38 @@ export function TicketsBoard({
     loadMoreRef.current[columnId]?.();
   }, []);
 
+  // Full Dialog per card (board tickets carry only display fields) — used to
+  // detect AI-worked tickets and to feed the Take Over modal.
+  const dialogById = useMemo(() => {
+    const map = new Map<string, Dialog>();
+    for (const update of Object.values(columnUpdates)) {
+      for (const ticket of update.state?.tickets ?? []) {
+        map.set(ticket.id, ticket);
+      }
+    }
+    return map;
+  }, [columnUpdates]);
+
+  const [takeOverTarget, setTakeOverTarget] = useState<TakeOverTicketTarget | null>(null);
+
+  const handleTakeOverClose = useCallback(() => {
+    setTakeOverTarget(null);
+    setBoardResetNonce(nonce => nonce + 1);
+  }, []);
+
   const handleChange = useCallback(
     (change: BoardChange) => {
+      // Dragging an AI-worked ticket into another column is a take-over: ask
+      // for confirmation (status pre-set to the target column) instead of
+      // moving. Cancelling leaves the card where it was; reordering within a
+      // column never needs confirmation.
+      if (change.fromColumnId !== change.toColumnId) {
+        const dialog = dialogById.get(change.ticketId);
+        if (dialog && hasActiveAiDialog(dialog)) {
+          setTakeOverTarget({ ticket: dialog, initialStatusId: change.toColumnId });
+          return;
+        }
+      }
       moveTicket({
         ticketId: change.ticketId,
         sourceStatusId: change.fromColumnId,
@@ -305,7 +345,7 @@ export function TicketsBoard({
         beforeTicketId: change.beforeTicketId,
       });
     },
-    [moveTicket],
+    [moveTicket, dialogById],
   );
 
   const showEmptyState =
@@ -403,7 +443,16 @@ export function TicketsBoard({
               onLoadMore={loadMore}
               onArchiveColumn={openArchiveResolvedConfirm}
               getTicketHref={getTicketHref}
-              renderAssignSlot={ticket => <BoardAssigneePicker ticket={ticket} />}
+              renderAssignSlot={ticket => {
+                const dialog = dialogById.get(ticket.id);
+                const aiActive = !!dialog && hasActiveAiDialog(dialog);
+                return (
+                  <BoardAssigneePicker
+                    ticket={ticket}
+                    onTakeOver={aiActive ? () => setTakeOverTarget({ ticket: dialog }) : undefined}
+                  />
+                );
+              }}
               onApprove={(ticketId, requestId) => handleApprovalAction(ticketId, requestId, true)}
               onReject={(ticketId, requestId) => handleApprovalAction(ticketId, requestId, false)}
               collapseStorageKey="tickets-board"
@@ -413,6 +462,7 @@ export function TicketsBoard({
         )}
       </PageLayout>
       {ticketsActionsDialog}
+      <TakeOverTicketModal target={takeOverTarget} onClose={handleTakeOverClose} />
     </>
   );
 }
