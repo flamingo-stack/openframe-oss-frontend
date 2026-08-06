@@ -25,6 +25,7 @@ import { useCancelSubscription } from '../hooks/use-cancel-subscription';
 import { useCancellationImpact } from '../hooks/use-cancellation-impact';
 import { useResumeSubscription } from '../hooks/use-resume-subscription';
 import { formatCompactCount, formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
+import { openExternalTab } from '../lib/stripe-window';
 import { AiTokensLimitModal } from './ai-tokens-limit-modal';
 import { BillingRow, SectionBlock, TestModeBanner } from './billing-section';
 import { CancelOfferModal } from './cancel-offer-modal';
@@ -181,7 +182,8 @@ export function BillingUsageContent() {
           label: 'Pay Overage',
           onClick: () => {
             if (billing.latestPendingInvoice) {
-              window.location.href = billing.latestPendingInvoice.hostedInvoiceUrl;
+              // Stripe hosts the invoice; this page stays where it is behind it.
+              openExternalTab(billing.latestPendingInvoice.hostedInvoiceUrl);
             } else {
               setPlanModalOpen(true);
             }
