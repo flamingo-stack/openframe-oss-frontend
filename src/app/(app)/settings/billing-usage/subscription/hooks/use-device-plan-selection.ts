@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CatalogOption,
   CatalogProduct,
+  DevicePlanMode,
   ProductSelectionState,
   ProductUpdates,
   SelectionTotal,
@@ -16,16 +17,9 @@ import {
   PAYG_OPTION_ID,
 } from '../utils/subscription.utils';
 
-/**
- * The two ways devices can be paid for, as the design frames them:
- * - `PAYG`   — billed monthly for whatever is under management, nothing committed;
- * - `ANNUAL` — a device count prepaid for 12 months at the discounted yearly rate.
- *
- * They map onto the existing selection model (`ProductSelectionState`) as
- * "pay-as-you-go" and "custom quantity on the YEARLY package option", so the
- * update-diff / checkout / comparison helpers are shared with the other card.
- */
-export type DevicePlanMode = 'PAYG' | 'ANNUAL';
+// Declared with the rest of the selection model, since the choice is reported
+// out of this hook and read elsewhere (see `subscription.types.ts`).
+export type { DevicePlanMode } from '../types/subscription.types';
 
 /**
  * The smallest fleet a paid plan covers.
@@ -178,6 +172,7 @@ export function useDevicePlanSelection({ product, subscriptionProduct, onUpdates
       mode === 'ANNUAL' && annualTotal != null && valid ? { amount: annualTotal, period: 'year', prepaid: true } : null;
 
     onUpdatesChangeRef.current({
+      mode,
       packageUpdates: valid ? diffPackageUpdates(product, selection, subscriptionProduct) : [],
       checkout: buildCheckoutProduct(product, selection),
       valid,

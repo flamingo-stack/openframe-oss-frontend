@@ -1,13 +1,28 @@
-import type { BillingPeriod, OpenframeProduct } from '@/__generated__/productSubscriptionCardProductFragment.graphql';
-import type { SubscriptionProductStatus } from '@/__generated__/productSubscriptionCardSubscriptionFragment.graphql';
+// From the generated SDL enums, not from a Relay artifact: relay-compiler owns
+// `src/__generated__`, re-emits a copy per operation and prunes them, so an
+// import of one is stable only until the operation that carried it is renamed —
+// which is exactly what happened when the AI package card was removed.
+import type { BillingPeriod, OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
 import type { ProductCheckoutInput } from '../hooks/use-create-checkout-session';
 import type { PackageUpdateInput } from '../hooks/use-update-subscription';
 
-export type { BillingPeriod } from '@/__generated__/productSubscriptionCardProductFragment.graphql';
-export type { SubscriptionProductStatus } from '@/__generated__/productSubscriptionCardSubscriptionFragment.graphql';
-export type { OpenframeProduct } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
+export type { BillingPeriod, OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
 
 export type UpdateAction = 'ADD' | 'CANCEL';
+
+/**
+ * The two ways devices can be paid for, as the design frames them:
+ * - `PAYG`   — billed monthly for whatever is under management, nothing committed;
+ * - `ANNUAL` — a device count prepaid for 12 months at the discounted yearly rate.
+ *
+ * They map onto the selection model below (`ProductSelectionState`) as
+ * "pay-as-you-go" and "custom quantity on the YEARLY package option", so the
+ * update-diff / checkout / comparison helpers are shared between them.
+ *
+ * Declared here rather than beside the hook that owns the state, because the
+ * choice travels: what the AI card gives away for free follows it.
+ */
+export type DevicePlanMode = 'PAYG' | 'ANNUAL';
 
 /**
  * Structural catalog/subscription shapes the pricing + diff helpers work against.
@@ -25,17 +40,28 @@ interface CatalogPriceTier {
   readonly unitPrice: number;
 }
 
+/**
+ * An enum field as it arrives from Relay.
+ *
+ * relay-compiler widens every schema enum with `"%future added value"` so a
+ * server that gains a member cannot break a running client. The structural
+ * shapes below are fed straight from that data, so they have to accept it —
+ * while still naming the enum they are, which is what the intersection keeps
+ * (a bare `string` would lose the autocomplete and say nothing about the field).
+ */
+type FromRelay<T extends string> = T | (string & {});
+
 export interface CatalogOption {
   readonly id: string;
   readonly name?: string | null;
   readonly description?: string | null;
-  readonly billingPeriod?: BillingPeriod | null;
+  readonly billingPeriod?: FromRelay<BillingPeriod> | null;
   readonly price?: number | null;
   readonly priceTiers?: readonly CatalogPriceTier[] | null;
 }
 
 export interface CatalogProduct {
-  readonly name: OpenframeProduct;
+  readonly name: FromRelay<OpenframeProduct>;
   /** GraphQL `Long` — coerce with `Number()` before use. */
   readonly unitSize?: unknown;
   readonly packageOptions: readonly CatalogOption[];
@@ -44,9 +70,9 @@ export interface CatalogProduct {
 
 interface SubscriptionOptionState {
   readonly packageOptionId: string;
-  readonly billingPeriod?: BillingPeriod | null;
+  readonly billingPeriod?: FromRelay<BillingPeriod> | null;
   readonly quantity?: number | null;
-  readonly status?: SubscriptionProductStatus | null;
+  readonly status?: FromRelay<SubscriptionProductStatus> | null;
 }
 
 export interface SubscriptionProductState {
@@ -76,6 +102,8 @@ export interface SelectionTotal {
 }
 
 export interface ProductUpdates {
+  /** How the devices will be paid for. The AI free-token grant follows it. */
+  mode: DevicePlanMode;
   /** ADD/CANCEL diff for `updateSubscription` (active paid subscriptions). */
   packageUpdates: PackageUpdateInput[];
   /** Desired end-state for `createCheckoutSession` (TRIAL / TRIAL_EXPIRED / CANCELED). */
