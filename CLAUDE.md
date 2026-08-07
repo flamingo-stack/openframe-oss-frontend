@@ -101,10 +101,16 @@ CSS scopes on `html[data-shell="mobile"|"desktop"]`.
 - `isPaymentUiEnabled()` — `billings` server flag **and** payments allowed on this build
 
 When hidden: Settings shows a **Usage** card (`billing-usage/components/usage-view.tsx` — device/AI
-counters and workspace limits over its own price-free query),
-`/settings/billing-usage/subscription` and `/checkout/*` 404 and are blocked in
-`isRouteAllowedInCurrentMode()`, and the subscription lock screen renders `WorkspaceInactiveScreen`
-instead of the plan picker.
+counters and workspace limits over its own price-free query), `/checkout/*` 404s on its own
+`isPaymentUiEnabled()` check, and the subscription lock screen renders `WorkspaceInactiveScreen`
+instead of the plan picker. `isRouteAllowedInCurrentMode()` deliberately does NOT gate these: it
+answers from app mode alone, and consulting a server-loaded flag there once threw "Access restricted"
+over billing routes for as long as the flags query was in flight.
+
+There is no `/settings/billing-usage/subscription` route. The plan is changed in the **Upgrade Plan
+modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`), and the same picker
+(`subscription/components/device-plan-picker.tsx`) is what the subscription lock screen shows. The
+`subscription/` folder under `billing-usage/` holds those components/hooks and has no page of its own.
 
 **Any new payment-adjacent UI (price, plan, invoice, upgrade/pay CTA) must be gated on
 `isPaymentUiEnabled()` / `isBillingHidden()`.**

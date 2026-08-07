@@ -11,8 +11,10 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { InvoiceStatus } from '@/generated/schema-enums';
 import { formatCurrency, formatDateOrDash } from '../lib/format';
+import { INVOICE_COLUMNS } from '../lib/invoices-table-columns';
 
 interface InvoiceItem {
   id: string;
@@ -24,8 +26,10 @@ interface InvoiceItem {
    * cleanly; `statusTag` narrows it against the `InvoiceStatus` values.
    */
   status?: string | null;
-  amountDue: number; // major currency units (e.g. 11.92 USD)
-  currency: string;
+  // Major currency units (e.g. 11.92 USD). No `currency` beside it: `formatCurrency`
+  // prints USD, so carrying the code without reading it only looked like support
+  // for others. Re-select the field when a non-USD tenant is real.
+  amountDue: number;
   createdAt: string;
   dueDate?: string | null;
   hostedInvoiceUrl: string;
@@ -75,14 +79,14 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
   const columns = useMemo<ColumnDef<InvoiceItem>[]>(
     () => [
       {
-        // Human-readable Stripe invoice number; legacy entries have none, so the
-        // issue date stands in as the identifier.
+        // Human-readable Stripe invoice number. Legacy entries not yet reconciled
+        // have none, and the issue date used to stand in — a date under a header
+        // reading INVOICE is not a missing identifier, it is a wrong one. An em
+        // dash says what is true: this row has no number.
         accessorKey: 'invoiceNumber',
         header: 'INVOICE',
-        cell: ({ row }: { row: Row<InvoiceItem> }) => (
-          <TruncateText>{row.original.invoiceNumber ?? formatDateOrDash(row.original.createdAt)}</TruncateText>
-        ),
-        meta: { width: 'flex-1 min-w-0' },
+        cell: ({ row }: { row: Row<InvoiceItem> }) => <TruncateText>{row.original.invoiceNumber ?? '—'}</TruncateText>,
+        meta: liveColumnMeta(INVOICE_COLUMNS.invoiceNumber),
       },
       {
         accessorKey: 'dueDate',
@@ -90,7 +94,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
         cell: ({ row }: { row: Row<InvoiceItem> }) => (
           <TruncateText>{formatDateOrDash(row.original.dueDate)}</TruncateText>
         ),
-        meta: { width: 'flex-1 min-w-0' },
+        meta: liveColumnMeta(INVOICE_COLUMNS.dueDate),
       },
       {
         accessorKey: 'amountDue',
@@ -98,7 +102,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
         cell: ({ row }: { row: Row<InvoiceItem> }) => (
           <TruncateText>{formatCurrency(invoiceAmount(row.original))}</TruncateText>
         ),
-        meta: { width: 'flex-1 min-w-0' },
+        meta: liveColumnMeta(INVOICE_COLUMNS.amountDue),
       },
       {
         accessorKey: 'status',
@@ -110,7 +114,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
         enableSorting: false,
         // The body cell is a `flex-col` (default `align-items: stretch`), which stretches the
         // tag full-width. `items-start` keeps it at its natural width, left-aligned.
-        meta: { width: 'flex-1 min-w-0', cellClassName: 'items-start' },
+        meta: liveColumnMeta(INVOICE_COLUMNS.status, { cellClassName: 'items-start' }),
       },
       {
         id: 'actions',
@@ -128,9 +132,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
           </div>
         ),
         enableSorting: false,
-        // Fixed width reserved in BOTH header and body so the flex-1 columns line up
-        // (an empty `w-auto` header cell would collapse to 0 and shift every column).
-        meta: { width: 'w-14 shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(INVOICE_COLUMNS.actions),
       },
     ],
     [],

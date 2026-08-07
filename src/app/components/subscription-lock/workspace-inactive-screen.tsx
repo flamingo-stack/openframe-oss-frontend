@@ -19,7 +19,8 @@ interface WorkspaceInactiveScreenProps {
  * reasons (see `subscription-lock-content.tsx`):
  *   - the native app builds, where the payment UI is hidden for the whole build
  *     (`isBillingHidden()`, see `billing-visibility.ts`);
- *   - anyone who is not the workspace owner, on any build — renewing is owner-only.
+ *   - anyone whose role cannot open billing, on any build — renewing is for
+ *     owners and admins (see `use-billing-access-gate.ts`).
  *
  * Deliberately carries NO plans, prices, "choose a plan"/"pay" CTA, or link to
  * an external purchase flow: App Store Review Guideline 3.1.1 treats any of
@@ -29,8 +30,9 @@ interface WorkspaceInactiveScreenProps {
  *
  * The DEFAULT copy is the native one and is deliberately subscription-agnostic —
  * it stays well clear of that guideline by not naming a purchase at all. The
- * non-owner case overrides it, because on web there is nothing to stay clear of
- * and "contact the owner about the subscription" is the actionable message.
+ * no-access case overrides it, because on web there is nothing to stay clear of
+ * and "contact an owner or admin about the subscription" is the actionable
+ * message.
  */
 export function WorkspaceInactiveScreen({ title, description }: WorkspaceInactiveScreenProps = {}) {
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
