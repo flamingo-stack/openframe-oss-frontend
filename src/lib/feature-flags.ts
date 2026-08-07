@@ -6,6 +6,7 @@ import { runtimeEnv } from './runtime-config';
  * the backend only returns flags that are explicitly requested.
  */
 export const FEATURE_FLAG_NAMES = [
+  'ai-escalation',
   'billings',
   'help-center',
   'notifications',
@@ -93,6 +94,11 @@ export const featureFlags = {
   guideChunks: {
     enabled(): boolean {
       return getFlagValue('guide-chunks', () => false);
+    },
+  },
+  aiEscalation: {
+    enabled(): boolean {
+      return getFlagValue('ai-escalation', () => false);
     },
   },
   mingoAiChatSettings: {

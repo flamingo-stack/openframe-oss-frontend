@@ -1,8 +1,14 @@
 'use client';
 
 import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { DELETED_ACCOUNT_ORG_STORAGE_KEY } from '@/app/(app)/settings/hooks/use-account-deletion';
+import {
+  ACCOUNT_DELETED_PENDING_STORAGE_KEY,
+  DELETED_ACCOUNT_ORG_STORAGE_KEY,
+} from '@/app/(app)/settings/hooks/use-account-deletion';
+import { authSessionQueryKey } from '@/app/(auth)/auth/hooks/use-auth-session';
+import { forceLogout } from '@/lib/force-logout';
 
 /**
  * Full-screen terminal page shown right after successful account
@@ -15,6 +21,14 @@ import { DELETED_ACCOUNT_ORG_STORAGE_KEY } from '@/app/(app)/settings/hooks/use-
  * onto this URL, so Back lands on a guarded app route that bounces a
  * signed-out visitor to the mode's sign-in surface.
  *
+ * Local sign-out happens HERE, on mount, not in the deletion mutation:
+ * clearing the auth store/session cache while still on /settings re-rendered
+ * the app chrome signed-out ("Sign in required") for the beat before the
+ * navigation landed. The mutation revokes the server session, sets the
+ * pending flag and navigates; this page then clears tokens, the store and
+ * the session query. The flag gate keeps a stray direct visit from signing
+ * out a live session.
+ *
  * The organization name is handed over via sessionStorage (the session that
  * knew it is gone); read in an effect — not a state initializer — because the
  * page is prerendered (static export) and a server/client copy mismatch would
@@ -22,14 +36,28 @@ import { DELETED_ACCOUNT_ORG_STORAGE_KEY } from '@/app/(app)/settings/hooks/use-
  */
 export default function AccountDeletedPage() {
   const [organizationName, setOrganizationName] = useState('');
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     try {
       setOrganizationName(sessionStorage.getItem(DELETED_ACCOUNT_ORG_STORAGE_KEY) || '');
+      if (sessionStorage.getItem(ACCOUNT_DELETED_PENDING_STORAGE_KEY)) {
+        void forceLogout({ shouldRedirect: false }).then(() => {
+          queryClient.setQueryData(authSessionQueryKey, null);
+          // Removed only after the cleanup settles, so a reload that lands
+          // mid-cleanup re-runs it. forceLogout is idempotent — StrictMode's
+          // double mount just clears the same state twice.
+          try {
+            sessionStorage.removeItem(ACCOUNT_DELETED_PENDING_STORAGE_KEY);
+          } catch {
+            // Storage gone — nothing left to unset.
+          }
+        });
+      }
     } catch {
       // Storage unavailable — keep the generic copy.
     }
-  }, []);
+  }, [queryClient]);
 
   return (
     <div className="min-h-screen bg-ods-bg flex flex-col items-center justify-between p-[var(--spacing-system-xlf)]">
