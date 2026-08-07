@@ -20,6 +20,7 @@ const FORM_TO_SSO: Record<AuthSsoProvider, string> = {
   openframe: 'openframe-sso',
   google: 'google',
   microsoft: 'microsoft',
+  apple: 'apple',
 };
 const FORM_PROVIDER_ORDER: AuthSsoProvider[] = ['openframe', 'google', 'microsoft'];
 

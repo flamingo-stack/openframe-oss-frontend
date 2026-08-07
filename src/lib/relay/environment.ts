@@ -26,24 +26,54 @@ function getGraphqlUrl(): string {
   return `${baseUrl}/api/graphql`;
 }
 
+/**
+ * Ceiling on a single GraphQL request. Mirrors `REQUEST_TIMEOUT_MS` in
+ * `api-client.ts` and exists for the same reason, which bites harder here:
+ * `fetch` never times out on its own, and a Relay query that never settles keeps
+ * the `Suspense` boundary above it open forever. That is a page skeleton with no
+ * error, no retry and nothing logged — the exact failure this app has already
+ * shipped once. Timing out turns it into an ordinary query error, which every
+ * boundary and `useToast` path already handles.
+ */
+const RELAY_REQUEST_TIMEOUT_MS = 30_000;
+
 async function executeFetch(
   request: Parameters<FetchFunction>[0],
   variables: Parameters<FetchFunction>[1],
   headers: Record<string, string>,
 ): Promise<Response> {
-  return fetch(getGraphqlUrl(), {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      ...headers,
-    },
-    credentials: 'include',
-    body: JSON.stringify({
-      query: request.text,
-      variables,
-    }),
-  });
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, RELAY_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(getGraphqlUrl(), {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        query: request.text,
+        variables,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    // Rethrown as a plain Error on purpose: an `AbortError` reads as "someone
+    // cancelled this" everywhere it surfaces, and this abort is a failure.
+    if (timedOut) {
+      throw new Error(`Relay fetch timed out after ${RELAY_REQUEST_TIMEOUT_MS}ms: ${request.name}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**

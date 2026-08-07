@@ -13,6 +13,14 @@ interface DevicesGridFiltersProps {
   onFilterChange: (filters: Record<string, string[]>) => void;
   /** Server-side count for the "N results" tail. */
   totalCount?: number;
+  /**
+   * The facet query is still out. Keeps every filterable column in the row even
+   * though its options haven't arrived — the LABELS are static, so the row can
+   * be drawn at its real height instead of collapsing to nothing and pushing the
+   * grid down a row the moment the facets land. Used by the panel's Suspense
+   * fallback, which renders this inert.
+   */
+  isLoading?: boolean;
 }
 
 /**
@@ -25,8 +33,11 @@ export function DevicesGridFilters({
   currentFilters,
   onFilterChange,
   totalCount,
+  isLoading = false,
 }: DevicesGridFiltersProps) {
-  const filterableColumns = filterColumns.filter(c => c.filterable && c.filterOptions && c.filterOptions.length > 0);
+  const filterableColumns = filterColumns.filter(
+    c => c.filterable && (isLoading || (c.filterOptions && c.filterOptions.length > 0)),
+  );
 
   if (filterableColumns.length === 0 && totalCount === undefined) {
     return null;

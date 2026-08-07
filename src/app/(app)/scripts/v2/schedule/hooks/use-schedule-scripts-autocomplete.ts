@@ -68,6 +68,11 @@ export function useScheduleScriptsAutocomplete(supportedPlatforms: string[]) {
         setIsLoading(false);
       },
       error: () => setIsLoading(false),
+      // Third terminal outcome, and the only one that used to be unhandled: an
+      // observable may complete WITHOUT emitting, which left the picker spinning
+      // with no data and no error. Idempotent against `next` — completing after a
+      // result just re-clears a flag that is already false.
+      complete: () => setIsLoading(false),
     });
 
     return () => subscription.unsubscribe();

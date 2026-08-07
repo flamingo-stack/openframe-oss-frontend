@@ -19,8 +19,14 @@ export function RegenerateApiKeyModal({ isOpen, onClose, apiKeyName, onConfirm }
 
   const handleConfirm = async () => {
     setLoading(true);
-    await onConfirm();
-    setLoading(false);
+    try {
+      await onConfirm();
+    } finally {
+      // `finally`, because a rejected `onConfirm` used to skip the reset and
+      // leave the dialog stuck on "Regenerating…" with its confirm button dead —
+      // recoverable only by closing the dialog (the effect above).
+      setLoading(false);
+    }
   };
 
   return (
