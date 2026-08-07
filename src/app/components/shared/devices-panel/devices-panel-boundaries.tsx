@@ -1,14 +1,25 @@
 'use client';
 
-import { PageError, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageError, PageLayout, TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Component, type ReactNode } from 'react';
-import { DevicesTableBody } from '@/app/(app)/devices/components/devices-table-columns';
+import { DevicesGrid } from '@/app/(app)/devices/components/devices-grid';
+import { DevicesGridFilters } from '@/app/(app)/devices/components/devices-grid-filters';
+import { DevicesTableBody, getDeviceFilterColumns } from '@/app/(app)/devices/components/devices-table-columns';
 // Direct import, not the `@/app/components/shared` barrel: that barrel re-exports
 // `DevicesPanel`, which imports this file, and the cycle only resolves by luck.
-import { SearchBarSkeleton } from '../page-skeleton-primitives';
+import { DevicesFilterToolbar } from '../devices-filter-toolbar';
+import {
+  buildDevicePanelActions,
+  DEVICE_VIEW_MODE_ITEMS,
+  type DevicePanelActionsOptions,
+} from './devices-panel-header';
 
 const NO_DEVICES: never[] = [];
+const NO_FILTER_GROUPS: never[] = [];
+const NO_TAGS: never[] = [];
+const NO_FILTERS: Record<string, string[]> = {};
+const noop = () => {};
 
 export interface DevicesPanelChrome {
   title: string;
@@ -17,27 +28,109 @@ export interface DevicesPanelChrome {
   offsetClassName?: string;
 }
 
+export interface DevicesPanelSkeletonProps extends DevicesPanelChrome, DevicePanelActionsOptions {
+  /**
+   * Which half the loaded panel will render, straight from the `viewMode` URL
+   * param. Table and grid are different SHAPES — a header row over full-width
+   * rows versus a card grid — so a fallback that always drew the table replaced
+   * itself wholesale whenever the user's saved view was the grid.
+   */
+  viewMode: 'table' | 'grid';
+  /** Forwarded so the placeholder table has the loaded table's column set. */
+  hideColumns?: string[];
+}
+
 /**
  * Suspense fallback for `DevicesPanel`.
  *
- * Renders the REAL pieces the loaded panel uses — its `PageLayout` header, the
- * filter toolbar row, and `DevicesTableBody` in `isLoading` mode — so the column
- * set comes from the actual table definition and can't drift. Header actions are
- * omitted rather than faked: they depend on data this fallback doesn't have, and
- * a disabled button that shifts on load is worse than one that appears with it.
+ * The panel's own chrome, drawn from the real components and locked — the same
+ * approach the scripts pages take (`ScriptsPageSkeleton`, `SchedulePickerSkeleton`):
+ * a loading state made of the REAL controls cannot drift from the thing it stands
+ * in for, because it IS that thing with its data missing.
+ *
+ * Concretely, everything here is a prop or a URL value, none of it the device
+ * query: the header buttons come from the one declaration the loaded panel also
+ * reads (`devices-panel-header`), the view switch reflects `?viewMode`, and the
+ * filter toolbar is the actual toolbar with empty tags. What is skeletoned is
+ * only what the request answers — the rows.
+ *
+ * This replaced a fallback that omitted the header actions and the view switch
+ * entirely and stood a plain grey bar in for the toolbar. All three moved the
+ * page when the data landed: two controls appearing in the header, and a bar
+ * whose height and margins were nothing like the sticky toolbar's.
  */
-export function DevicesPanelSkeleton({ title, backButton, className, offsetClassName }: DevicesPanelChrome) {
+export function DevicesPanelSkeleton({
+  title,
+  backButton,
+  className,
+  offsetClassName,
+  viewMode,
+  hideColumns,
+  ...actionOptions
+}: DevicesPanelSkeletonProps) {
   return (
     <PageLayout
       title={title}
       backButton={backButton}
       actionsVariant="icon-buttons"
+      selector={<TabSelector value={viewMode} onValueChange={noop} items={DEVICE_VIEW_MODE_ITEMS} disabled />}
+      actions={buildDevicePanelActions({ ...actionOptions, disabled: true })}
       className={cn(offsetClassName, className)}
       contentClassName="flex flex-col"
     >
-      <div>
-        <SearchBarSkeleton />
-        <DevicesTableBody devices={NO_DEVICES} isLoading emptyMessage="" skeletonRows={10} deviceFilters={null} />
+      <span role="status" className="sr-only">
+        Loading devices…
+      </span>
+      {/* `inert` rather than per-control `disabled`: the toolbar's search field
+          and tag chips have no disabled state of their own, and a focusable
+          input that silently drops what is typed into it is worse than one that
+          cannot be reached at all. */}
+      <div inert>
+        <DevicesFilterToolbar
+          searchValue=""
+          onSearchChange={noop}
+          tags={NO_TAGS}
+          onTagRemove={noop}
+          onClearAll={noop}
+          onSubmit={noop}
+          onOpenFilterModal={noop}
+          isFilterModalOpen={false}
+          onCloseFilterModal={noop}
+          filterGroups={NO_FILTER_GROUPS}
+          onFilterChange={noop}
+          tagFilterKeys={NO_TAGS}
+          selectedTags={NO_TAGS}
+          onTagsChange={noop}
+          isLoading
+        />
+        {viewMode === 'table' ? (
+          <DevicesTableBody
+            devices={NO_DEVICES}
+            isLoading
+            emptyMessage=""
+            skeletonRows={10}
+            // Matches the loaded table: without it the header sticks at a
+            // different offset and jumps the moment the rows arrive.
+            stickyHeaderOffset="top-[96px]"
+            deviceFilters={null}
+            hideColumns={hideColumns}
+          />
+        ) : (
+          <>
+            {/* Same filter row the grid loads with. `getDeviceFilterColumns`
+                takes the facets, and with none it still yields every column with
+                its static label — which is all this row needs to hold its
+                height. `totalCount` is left off: it is the query's answer, and
+                its tail is absolutely positioned, so omitting it moves nothing. */}
+            <DevicesGridFilters
+              filterColumns={getDeviceFilterColumns(null)}
+              currentFilters={NO_FILTERS}
+              onFilterChange={noop}
+              isLoading
+            />
+            <DevicesGrid devices={NO_DEVICES} isLoading emptyMessage="" />
+          </>
+        )}
       </div>
     </PageLayout>
   );
