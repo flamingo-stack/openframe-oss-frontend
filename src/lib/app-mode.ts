@@ -40,6 +40,20 @@ export function isSaasSharedMode(): boolean {
 }
 
 /**
+ * Whether the auth screens should present the SaaS shared-auth sign-up UX
+ * (subdomain field with the SaaS suffix, live availability, trial copy).
+ *
+ * Not the same question as {@link isSaasSharedMode}: the native shell ships its
+ * own copy of the auth pages inside a `saas-tenant` bundle (see the isAppShell
+ * exception in isRouteAllowedInCurrentMode), so mode alone would render the
+ * bring-your-own-domain variant there — including submitting the domain
+ * unqualified instead of `<subdomain>.<SAAS_DOMAIN_SUFFIX>`.
+ */
+export function isSharedAuthUi(): boolean {
+  return isSaasSharedMode() || (isSaasTenantMode() && isAppShell());
+}
+
+/**
  * Check if the app is running in full application mode
  * @returns True if in full application mode
  */
