@@ -48,10 +48,10 @@ import type {
 } from '@/__generated__/scriptSchedulesTableRelayQuery.graphql';
 import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
 import {
-  askMingoButton,
   DateColumnHeader,
   EmptyState,
   liveColumnMeta,
+  onboardingGuideButton,
   skeletonColumnDefs,
   type TableDateFilter,
 } from '@/app/components/shared';
@@ -531,7 +531,7 @@ function SchedulesTableContent({
           { icon: <RadarIcon />, label: 'Target specific devices, Customers, or tags' },
           { icon: <ListBulletIcon />, label: 'View execution history and success rates' },
         ]}
-        {...askMingoButton('script-schedules', 'Ask Mingo about Script Schedules')}
+        {...onboardingGuideButton('script-schedules', 'Learn more about Script Schedules')}
       />
     );
   }
