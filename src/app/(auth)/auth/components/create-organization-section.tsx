@@ -13,7 +13,7 @@ import {
   useDomainAvailability,
   useEmailAvailability,
 } from '@/app/(auth)/auth/hooks/use-registration-availability';
-import { isSaasSharedMode } from '@/lib/app-mode';
+import { isSharedAuthUi } from '@/lib/app-mode';
 import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 
 interface CreateOrganizationSectionProps {
@@ -27,9 +27,10 @@ interface CreateOrganizationSectionProps {
 
 /**
  * Wires the shared CreateOrganizationForm to the sign-up flow. Owns field
- * state, client-side validation and live email availability; in saas-shared
- * mode also handles subdomain sanitizing, live/submit-time domain availability
- * and the tenant-registration capacity check. Delegates submission upward.
+ * state, client-side validation and live email availability; where auth is the
+ * SaaS shared-auth UX (isSharedAuthUi) also handles subdomain sanitizing,
+ * live/submit-time domain availability and the tenant-registration capacity
+ * check. Delegates submission upward.
  */
 export function CreateOrganizationSection({
   onCreateOrganization,
@@ -38,7 +39,7 @@ export function CreateOrganizationSection({
   isLoading,
 }: CreateOrganizationSectionProps) {
   const { toast } = useToast();
-  const isSaasShared = isSaasSharedMode();
+  const isSharedAuth = isSharedAuthUi();
 
   const [email, setEmail] = useState('');
   const [organizationName, setOrganizationName] = useState('');
@@ -55,13 +56,13 @@ export function CreateOrganizationSection({
   const emailStatus = useEmailAvailability(email);
   const isEmailBlocked = emailStatus === 'taken' || emailStatus === 'blocked' || emailStatus === 'checking';
 
-  // Live subdomain availability — saas-shared only.
+  // Live subdomain availability — shared-auth UX only.
   const { status: domainStatus, suggestions: liveDomainSuggestions } = useDomainAvailability(
     domain,
     organizationName,
-    isSaasShared,
+    isSharedAuth,
   );
-  const isDomainBlocked = isSaasShared && (domainStatus === 'taken' || domainStatus === 'checking');
+  const isDomainBlocked = isSharedAuth && (domainStatus === 'taken' || domainStatus === 'checking');
 
   // Prefer live suggestions from the real-time check; fall back to submit-time ones.
   const domainSuggestions = liveDomainSuggestions.length > 0 ? liveDomainSuggestions : suggestedDomains;
@@ -71,21 +72,21 @@ export function CreateOrganizationSection({
 
   const handleDomainChange = (value: string) => {
     // Subdomains allow only lowercase letters, digits and dashes.
-    setDomain(isSaasShared ? value.toLowerCase().replace(/[^a-z0-9-]/g, '') : value);
+    setDomain(isSharedAuth ? value.toLowerCase().replace(/[^a-z0-9-]/g, '') : value);
     setSuggestedDomains([]);
   };
 
   // Shared submit path for the primary button and the SSO alternatives: both
-  // need validated org details, and in saas-shared a submit-time domain check.
+  // need validated org details, plus a submit-time domain check in shared auth.
   const runWithValidatedOrg = async (action: (orgName: string, domain: string, email: string) => void) => {
     if (!isValid || isCheckingDomain) return;
 
-    if (!isSaasShared) {
+    if (!isSharedAuth) {
       action(organizationName.trim(), domain.trim(), email.trim());
       return;
     }
 
-    // saas-shared: re-check the subdomain at submit time before proceeding.
+    // Shared auth: re-check the subdomain at submit time before proceeding.
     setIsCheckingDomain(true);
     try {
       const subdomain = domain.trim();
@@ -152,7 +153,7 @@ export function CreateOrganizationSection({
             : undefined;
 
   const domainStatusMessage =
-    !isSaasShared || !domain.trim()
+    !isSharedAuth || !domain.trim()
       ? undefined
       : domainStatus === 'checking'
         ? { message: 'Checking availability…', variant: 'muted' as const }
@@ -163,7 +164,7 @@ export function CreateOrganizationSection({
             : undefined;
 
   const domainSuggestionsSlot =
-    isSaasShared && domainSuggestions.length > 0 ? (
+    isSharedAuth && domainSuggestions.length > 0 ? (
       <div className="flex flex-col gap-2 text-h6 text-ods-text-secondary">
         <p>Available suggestions:</p>
         <div className="flex flex-wrap gap-2">
@@ -202,7 +203,7 @@ export function CreateOrganizationSection({
       ssoProviders={ssoProviders}
       onSsoClick={handleSso}
       ssoDisabled={!isValid}
-      domainSuffix={isSaasShared ? `.${SAAS_DOMAIN_SUFFIX}` : undefined}
+      domainSuffix={isSharedAuth ? `.${SAAS_DOMAIN_SUFFIX}` : undefined}
       termsUrl="https://www.flamingo.run/terms-of-service"
       privacyPolicyUrl="https://www.flamingo.run/privacy-policy"
       emailStatus={emailStatusMessage}
