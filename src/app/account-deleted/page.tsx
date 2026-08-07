@@ -42,11 +42,16 @@ export default function AccountDeletedPage() {
     try {
       setOrganizationName(sessionStorage.getItem(DELETED_ACCOUNT_ORG_STORAGE_KEY) || '');
       if (sessionStorage.getItem(ACCOUNT_DELETED_PENDING_STORAGE_KEY)) {
-        // Removed before the async clear so a StrictMode double-mount (or a
-        // reload of this page) runs the sign-out exactly once.
-        sessionStorage.removeItem(ACCOUNT_DELETED_PENDING_STORAGE_KEY);
         void forceLogout({ shouldRedirect: false }).then(() => {
           queryClient.setQueryData(authSessionQueryKey, null);
+          // Removed only after the cleanup settles, so a reload that lands
+          // mid-cleanup re-runs it. forceLogout is idempotent — StrictMode's
+          // double mount just clears the same state twice.
+          try {
+            sessionStorage.removeItem(ACCOUNT_DELETED_PENDING_STORAGE_KEY);
+          } catch {
+            // Storage gone — nothing left to unset.
+          }
         });
       }
     } catch {

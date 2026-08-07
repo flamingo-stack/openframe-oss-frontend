@@ -8,6 +8,7 @@ import { authSessionQueryKey } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { authApiClient } from '@/lib/auth-api-client';
+import { forceLogout } from '@/lib/force-logout';
 import { handleApiError } from '@/lib/handle-api-error';
 import { unregisterNativePush } from '@/lib/native-push';
 import { isMobileShell } from '@/lib/platform';
@@ -81,11 +82,14 @@ export function useDeleteOwnAccount() {
       await deleteUserApi(user.id);
     },
     onSuccess: async () => {
+      let handoffStored = true;
       try {
         sessionStorage.setItem(DELETED_ACCOUNT_ORG_STORAGE_KEY, user?.organizationName ?? '');
         sessionStorage.setItem(ACCOUNT_DELETED_PENDING_STORAGE_KEY, '1');
       } catch {
-        // Storage unavailable (private mode quirks) — the page falls back to generic copy.
+        // Storage unavailable (private mode quirks) — the page falls back to
+        // generic copy, and the local sign-out runs inline below instead.
+        handoffStored = false;
       }
       // Mobile shell: drop this device's FCM registration while the bearer is
       // still usable (mirrors performLogout). Best-effort.
@@ -99,13 +103,25 @@ export function useDeleteOwnAccount() {
       // Revoke the gateway session server-side BEFORE leaving the page. This is
       // a pure network call — no client state changes, so nothing re-renders —
       // and it's what makes Back + reload land on sign-in instead of the app.
-      try {
-        const { tenantId, user: storeUser } = useAuthStore.getState();
-        await authApiClient.logoutAsync(tenantId || storeUser?.tenantId || storeUser?.organizationId);
-      } catch {
-        // Best-effort: the account is deleted server-side either way.
+      // `logoutAsync` resolves false on failure — retry once; beyond that it
+      // stays best-effort: the deleted account's credentials are wiped, so a
+      // surviving cookie dies at the access-token TTL (refresh fails
+      // server-side), and stranding a deleted user on an error would be worse.
+      const { tenantId, user: storeUser } = useAuthStore.getState();
+      const effectiveTenantId = tenantId || storeUser?.tenantId || storeUser?.organizationId;
+      if (!(await authApiClient.logoutAsync(effectiveTenantId))) {
+        await authApiClient.logoutAsync(effectiveTenantId);
       }
-      // No local sign-out here — the /account-deleted page does it on mount.
+      if (!handoffStored) {
+        // Without sessionStorage the /account-deleted page cannot run the
+        // deferred sign-out — clean up inline before navigating, accepting
+        // the brief signed-out flash in this degenerate case over leaving
+        // tokens behind.
+        await forceLogout({ shouldRedirect: false });
+        queryClient.setQueryData(authSessionQueryKey, null);
+      }
+      // Otherwise no local sign-out here — the /account-deleted page does it
+      // on mount (see ACCOUNT_DELETED_PENDING_STORAGE_KEY).
       router.replace(routes.accountDeleted);
     },
     onError: err => {
