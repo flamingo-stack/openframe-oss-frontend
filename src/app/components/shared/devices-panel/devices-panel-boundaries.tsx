@@ -5,7 +5,11 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Component, type ReactNode } from 'react';
 import { DevicesGrid } from '@/app/(app)/devices/components/devices-grid';
 import { DevicesGridFilters } from '@/app/(app)/devices/components/devices-grid-filters';
-import { DevicesTableBody, getDeviceFilterColumns } from '@/app/(app)/devices/components/devices-table-columns';
+import {
+  DevicesTableBody,
+  getDeviceActionsColumn,
+  getDeviceFilterColumns,
+} from '@/app/(app)/devices/components/devices-table-columns';
 // Direct import, not the `@/app/components/shared` barrel: that barrel re-exports
 // `DevicesPanel`, which imports this file, and the cycle only resolves by luck.
 import { DevicesFilterToolbar } from '../devices-filter-toolbar';
@@ -20,6 +24,8 @@ const NO_FILTER_GROUPS: never[] = [];
 const NO_TAGS: never[] = [];
 const NO_FILTERS: Record<string, string[]> = {};
 const noop = () => {};
+/** The loaded table's actions column, minus the actions — see `getDeviceActionsColumn`. */
+const SKELETON_ACTIONS_COLUMN = getDeviceActionsColumn();
 
 export interface DevicesPanelChrome {
   title: string;
@@ -38,6 +44,8 @@ export interface DevicesPanelSkeletonProps extends DevicesPanelChrome, DevicePan
   viewMode: 'table' | 'grid';
   /** Forwarded so the placeholder table has the loaded table's column set. */
   hideColumns?: string[];
+  /** Forwarded so the same column headers lose their funnel as in the loaded table. */
+  hideFilters?: string[];
 }
 
 /**
@@ -66,6 +74,7 @@ export function DevicesPanelSkeleton({
   offsetClassName,
   viewMode,
   hideColumns,
+  hideFilters,
   ...actionOptions
 }: DevicesPanelSkeletonProps) {
   return (
@@ -113,7 +122,17 @@ export function DevicesPanelSkeleton({
             // different offset and jumps the moment the rows arrive.
             stickyHeaderOffset="top-[96px]"
             deviceFilters={null}
+            // The facets have not answered, which is NOT the same as "this list
+            // has no facets". Without it `getDeviceTableColumns` reads the empty
+            // options as final and hides each column's funnel, so the header
+            // grew three of them the moment the query landed.
+            filtersPending
+            // The loaded table always carries a row-actions column, and it takes
+            // real width from the others. Rendering the header without it put
+            // every column at the wrong width.
+            actionsColumn={SKELETON_ACTIONS_COLUMN}
             hideColumns={hideColumns}
+            disableColumnFilters={hideFilters}
           />
         ) : (
           <>

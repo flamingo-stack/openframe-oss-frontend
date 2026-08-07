@@ -8,7 +8,6 @@ import {
   type OnChangeFn,
   type PageActionButton,
   PageLayout,
-  type Row,
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -19,6 +18,7 @@ import { DevicesGrid } from '@/app/(app)/devices/components/devices-grid';
 import { DevicesGridFilters } from '@/app/(app)/devices/components/devices-grid-filters';
 import {
   DevicesTableBody,
+  getDeviceActionsColumn,
   getDeviceFilterColumns,
   getDeviceTableRowActions,
 } from '@/app/(app)/devices/components/devices-table-columns';
@@ -188,19 +188,7 @@ function DevicesPanelContent({
     [columnFilters, handleFilterChange],
   );
 
-  const actionsColumn = useMemo<ColumnDef<Device>>(
-    () => ({
-      id: 'actions',
-      cell: ({ row }: { row: Row<Device> }) => (
-        <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
-          {renderRowActions(row.original)}
-        </div>
-      ),
-      enableSorting: false,
-      meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
-    }),
-    [renderRowActions],
-  );
+  const actionsColumn = useMemo<ColumnDef<Device>>(() => getDeviceActionsColumn(renderRowActions), [renderRowActions]);
 
   const {
     isOpen: filterModalOpen,
@@ -398,6 +386,7 @@ export function DevicesPanel(props: DevicesPanelProps) {
             {...chrome}
             viewMode={viewMode}
             hideColumns={props.hideColumns}
+            hideFilters={props.hideFilters}
             archiveHref={props.archiveHref}
             showAddDevice={props.showAddDevice}
             noOrganizations={props.noOrganizations}

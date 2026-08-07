@@ -38,6 +38,30 @@ export function getDeviceTableRowActions(onRefresh?: () => void): (device: Devic
 
 export const deviceRowHref = (device: Device): string => routes.devices.details(device.machineId || device.id);
 
+/**
+ * The row-actions column, declared here beside every other device column so the
+ * loaded table and its loading state can't disagree about the column set.
+ *
+ * `renderRowActions` is optional because a loading table has no rows to act on
+ * — omit it and the column keeps its width and alignment while drawing nothing,
+ * which is exactly what the skeleton needs. Leaving the column out instead
+ * shifted every other column, since it takes real width from them.
+ */
+export function getDeviceActionsColumn(renderRowActions?: (device: Device) => React.ReactNode): ColumnDef<Device> {
+  return {
+    id: 'actions',
+    cell: renderRowActions
+      ? ({ row }: { row: Row<Device> }) => (
+          <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+            {renderRowActions(row.original)}
+          </div>
+        )
+      : () => null,
+    enableSorting: false,
+    meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
+  };
+}
+
 export const DEVICE_OPEN_COLUMN: ColumnDef<Device> = {
   id: 'open',
   cell: ({ row }: { row: Row<Device> }) => (
