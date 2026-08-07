@@ -15,7 +15,7 @@ interface AssignTicketParams {
   assigneeId: string | null;
 }
 
-async function assignTicketApi({ ticketId, assigneeId }: AssignTicketParams) {
+export async function assignTicketApi({ ticketId, assigneeId }: AssignTicketParams) {
   if (assigneeId === null) {
     const response = await apiClient.post<GraphQlResponse<{ unassignTicket: TicketPayload }>>(API_ENDPOINTS.GRAPHQL, {
       query: UNASSIGN_TICKET_MUTATION,

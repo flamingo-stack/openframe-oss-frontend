@@ -282,6 +282,15 @@ const BOARD_CARD_TICKET_LIFECYCLE_FRAGMENT = `
       name
       color
     }
+    availableTransitions {
+      id
+      name
+      color
+    }
+    dialog {
+      id
+      currentMode
+    }
     owner {
       ... on ClientTicketOwner {
         type
