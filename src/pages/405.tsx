@@ -21,9 +21,14 @@
  * an `app/405/page.tsx` is invisible to the status-page lookup — verified, it
  * builds and serves at /405 while the 500 persists.
  *
- * Direct navigation to /405 is redirected by `src/proxy.ts` (it isn't in
- * `isAllowed`), and the proxy deliberately does not run on this internal render
- * (`invokeRender` sets `middlewareInvoke: false`), so both paths are correct.
+ * Direct navigation to /405 is NOT blocked by `src/proxy.ts`: `isAllowed` is a
+ * mode gate, not a page allowlist - in `oss-tenant` it returns true for every
+ * path, in `saas-tenant` for everything outside `/auth`, so the shim is
+ * reachable by URL and renders as a bare 200 page. That is cosmetic only -
+ * nothing links to it. The proxy deliberately does not run on the internal
+ * status-page render (`invokeRender` sets `middlewareInvoke: false`), so
+ * blocking /405 in the proxy would not break the 405 path if we ever want to
+ * hide it.
  *
  * Verified against Next 16.2.4 under `output: 'standalone'` and `'export'`.
  * Remove once upstream stops routing 405s through the error-page renderer.
