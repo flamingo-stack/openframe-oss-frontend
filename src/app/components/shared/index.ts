@@ -1,4 +1,5 @@
 export { type AskMingoSource, askMingoButton } from './ask-mingo-button';
+export { DateColumnHeader, type DateColumnHeaderProps, type TableDateFilter } from './date-column-header';
 export { DeviceInfoSection } from './device-info-section';
 export type { DeviceSelectorProps, InfiniteScrollConfig } from './device-selector';
 export { DeviceSelector } from './device-selector';

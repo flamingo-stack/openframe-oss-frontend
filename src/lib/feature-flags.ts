@@ -21,6 +21,7 @@ export const FEATURE_FLAG_NAMES = [
   'time-tracker',
   'scripts-v2',
   'script-schedules',
+  'script-schedule-device-online',
   'cancel-subscription',
   'test-clock',
 ] as const;
@@ -138,6 +139,19 @@ export const featureFlags = {
   scriptSchedules: {
     enabled(): boolean {
       return getFlagValue('script-schedules', () => false);
+    },
+  },
+  /**
+   * The DEVICE_ONLINE trigger on the schedule form — "Run when device comes
+   * online", the event-driven alternative to a date and time. Off → the form
+   * offers no trigger choice at all and every schedule it writes is DATE_TIME.
+   *
+   * Nested under `scriptSchedules`, which gates the module the form belongs to.
+   * Defaults off when unset.
+   */
+  scriptScheduleDeviceOnline: {
+    enabled(): boolean {
+      return getFlagValue('script-schedule-device-online', () => false);
     },
   },
   cancelSubscription: {

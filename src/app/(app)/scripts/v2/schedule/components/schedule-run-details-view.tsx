@@ -309,7 +309,7 @@ function RunExecutionRows({
   executionId: string;
   state: ExecutionsTabState;
 }) {
-  const { backendFilters, narrowSearch, ...tableState } = state;
+  const { backendFilters, sort, narrowSearch, ...tableState } = state;
 
   const queryData = useLazyLoadQuery<ScheduleExecutionsQueryType>(
     scheduleExecutionsRelayQuery,
@@ -317,7 +317,7 @@ function RunExecutionRows({
     // of a fire carries the run's executionId, and search is the only argument
     // that narrows on it (`ScriptExecutionFilterInput` has no execution-id field,
     // and `ScheduleRun` has no executions connection of its own).
-    { scheduleId, filter: backendFilters, search: executionId, first: EXECUTIONS_PAGE_SIZE, after: null },
+    { scheduleId, filter: backendFilters, search: executionId, sort, first: EXECUTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network' },
   );
 
