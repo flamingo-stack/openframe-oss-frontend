@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { type LoginDiscoveryResult, LoginSection } from '@/app/(auth)/auth/components/login-form-section';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 import { isAuthOnlyMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 
@@ -15,13 +16,15 @@ const SSO_TO_FORM: Record<string, AuthSsoProvider> = {
   'openframe-sso': 'openframe',
   google: 'google',
   microsoft: 'microsoft',
+  apple: 'apple',
 };
 const FORM_TO_SSO: Record<AuthSsoProvider, string> = {
   openframe: 'openframe-sso',
   google: 'google',
   microsoft: 'microsoft',
+  apple: 'apple',
 };
-const FORM_PROVIDER_ORDER: AuthSsoProvider[] = ['openframe', 'google', 'microsoft'];
+const FORM_PROVIDER_ORDER: AuthSsoProvider[] = ['openframe', 'google', 'microsoft', 'apple'];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,6 +34,10 @@ export default function LoginPage() {
   // Local flag for the SSO redirect only — useAuth's isLoading also toggles on
   // every background discovery and would flicker the whole form.
   const [ssoLoading, setSsoLoading] = useState(false);
+
+  // "Continue with Apple" is offered on Apple devices only.
+  const isApple = useIsApplePlatform();
+  const formProviders = FORM_PROVIDER_ORDER.filter(provider => provider !== 'apple' || isApple);
 
   useEffect(() => {
     if (isAuthenticated && !isAuthOnlyMode()) {
@@ -56,7 +63,7 @@ export default function LoginPage() {
     const backendProviders = result.auth_providers || ['openframe-sso'];
     return {
       found: result.has_existing_accounts,
-      providers: FORM_PROVIDER_ORDER.filter(provider => backendProviders.some(id => SSO_TO_FORM[id] === provider)),
+      providers: formProviders.filter(provider => backendProviders.some(id => SSO_TO_FORM[id] === provider)),
     };
   };
 
@@ -85,12 +92,7 @@ export default function LoginPage() {
 
   return (
     <AuthShell tabs={tabs}>
-      <LoginSection
-        onDiscover={handleDiscover}
-        onSso={handleSso}
-        allProviders={FORM_PROVIDER_ORDER}
-        isLoading={ssoLoading}
-      />
+      <LoginSection onDiscover={handleDiscover} onSso={handleSso} allProviders={formProviders} isLoading={ssoLoading} />
     </AuthShell>
   );
 }
