@@ -1,20 +1,13 @@
 'use client';
 
-import { QueryClient, QueryClientProvider as TanstackQueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider as TanstackQueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
+import { getQueryClient } from './query-client';
 
 export function QueryClientProvider({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 60 * 1000,
-            refetchOnWindowFocus: false,
-          },
-        },
-      }),
-  );
+  // Seeded through `useState` so a server render still gets its own client (see
+  // `query-client.ts`), while the browser reuses the one non-React callers hold.
+  const [queryClient] = useState(getQueryClient);
 
   return <TanstackQueryClientProvider client={queryClient}>{children}</TanstackQueryClientProvider>;
 }
