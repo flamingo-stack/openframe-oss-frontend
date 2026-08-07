@@ -26,24 +26,40 @@ export const HAS_ORGANIZATIONS_QUERY = `
 `;
 
 /**
- * Facet counts only — status + per-organization breakdowns and the total.
+ * Facet counts only — the numbers the counter surfaces need, and NOTHING else.
  *
- * The counter surfaces (dashboard stat cards, customer device counts, the
- * customers overview) need nothing but the numbers. The full facet set the
- * filter UI needs is a Relay document — `deviceFiltersRelayQuery`.
+ * Split into one document per counter on purpose: every field of `DeviceFilters`
+ * is a separate Pinot query on the backend, resolved from the SELECTION SET, so
+ * a document that asks for a facet nobody reads pays a full round trip for it.
+ * These two used to be one `GetDeviceCounts` selecting statuses + organizationIds
+ * + filteredCount, which meant the dashboard stat cards ran the per-organization
+ * GROUP BY they discard, and the customers overview ran the status breakdown it
+ * discards — on every load, three times over.
+ *
+ * Keep them narrow. If a new counter needs a different facet, add a third
+ * document rather than widening one of these. The full facet set the filter UI
+ * needs is a Relay document — `deviceFiltersRelayQuery`.
  */
-export const GET_DEVICE_COUNTS_QUERY = `
-  query GetDeviceCounts($filter: DeviceFilterInput) {
+export const GET_DEVICE_STATUS_COUNTS_QUERY = `
+  query GetDeviceStatusCounts($filter: DeviceFilterInput) {
     deviceFilters(filter: $filter) {
       statuses {
         value
         count
       }
+      filteredCount
+    }
+  }
+`;
+
+/** Per-organization device counts — the customers table and the dashboard overview. */
+export const GET_DEVICE_ORGANIZATION_COUNTS_QUERY = `
+  query GetDeviceOrganizationCounts($filter: DeviceFilterInput) {
+    deviceFilters(filter: $filter) {
       organizationIds {
         value
         count
       }
-      filteredCount
     }
   }
 `;

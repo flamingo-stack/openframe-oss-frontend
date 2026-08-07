@@ -40,7 +40,10 @@ RUN apk upgrade --no-cache && \
 COPY --from=builder --chown=nextjs:nodejs /app/dist/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/dist/static      ./dist/static
 COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
+# wraps server.js so non-GET/HEAD on an existing static file (_next/static or
+# public/) answers 405 instead of Next's 500 — see scripts/server-entry.js
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/server-entry.js ./server-entry.js
 
 USER nextjs
 EXPOSE 3000
-ENTRYPOINT ["node", "server.js"]
+ENTRYPOINT ["node", "server-entry.js"]

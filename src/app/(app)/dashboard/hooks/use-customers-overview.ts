@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { DEVICE_STATUS } from '../../devices/constants/device-statuses';
-import { fetchDeviceCounts } from '../../devices/queries/devices-api';
+import { fetchDeviceOrganizationCounts } from '../../devices/queries/devices-api';
 import type { GraphQlResponse } from '../../devices/types/device.types';
 import { dashboardQueryKeys } from '../utils/query-keys';
 
@@ -73,18 +73,45 @@ const NO_COUNTS: ReadonlyMap<string, number> = new Map();
  * The section's subject is the customer list; the device columns are a detail of
  * it. A counter request that fails should leave those columns at 0, not collapse
  * the whole section into its "No Customers added yet" empty state.
+ *
+ * No `organizationIds` argument: the backend's organization facet excludes that
+ * filter from its own WHERE clause, so the map already covers every organization
+ * (see `fetchDeviceOrganizationCounts`). Passing the list narrowed nothing and
+ * cost ~2.6KB of request body per call.
  */
-async function countsByOrganization(
-  organizationIds: string[],
-  statuses: string[],
-): Promise<ReadonlyMap<string, number>> {
+async function countsByStatus(statuses: string[]): Promise<ReadonlyMap<string, number>> {
   try {
-    const counts = await fetchDeviceCounts({ organizationIds, statuses });
-    return counts.byOrganization;
+    return await fetchDeviceOrganizationCounts({ statuses });
   } catch (error) {
     console.warn('Customer device counts fetch failed:', error);
     return NO_COUNTS;
   }
+}
+
+async function fetchOrganizations(): Promise<{
+  organizations: OrganizationNode[];
+  totalOrganizations: number;
+} | null> {
+  const orgsResponse = await apiClient.post<GraphQlResponse<OrganizationsResponse>>('/api/graphql', {
+    query: GET_ORGANIZATIONS_QUERY,
+    variables: { first: 100 },
+  });
+
+  if (!orgsResponse.ok) {
+    console.warn('Organizations overview API failed:', orgsResponse.error || orgsResponse.status);
+    return null;
+  }
+
+  const orgsData = orgsResponse.data?.data?.organizations;
+  if (!orgsData) {
+    console.warn('Invalid organizations overview response structure');
+    return null;
+  }
+
+  return {
+    organizations: orgsData.edges.map(edge => edge.node),
+    totalOrganizations: orgsData.filteredCount || 0,
+  };
 }
 
 async function fetchCustomersOverview(_limit: number): Promise<{
@@ -92,45 +119,37 @@ async function fetchCustomersOverview(_limit: number): Promise<{
   totalOrganizations: number;
 }> {
   try {
-    const orgsResponse = await apiClient.post<GraphQlResponse<OrganizationsResponse>>('/api/graphql', {
-      query: GET_ORGANIZATIONS_QUERY,
-      variables: { first: 100 },
-    });
+    // ONE round, not two. The counts used to be awaited AFTER the organization list, because
+    // they were passed `organizationIds` derived from it — an argument the backend discards.
+    // With the dependency gone the three requests are independent, which removes a full
+    // request-latency stage from the dashboard's critical path: this hook was the gate that
+    // turned a slow query into a two-stage page load (p90 page 19s against a 2.9s slowest
+    // request), and it fires while the rest of the dashboard is also loading.
+    //
+    // Two count queries, not three: `total` was a third call scoped to [ONLINE, OFFLINE],
+    // which is exactly the union of the other two — the backend's organization facet counts
+    // active devices only and the statuses partition it, so total === active + inactive by
+    // construction. Summing locally is not an approximation.
+    const [orgs, onlineCounts, offlineCounts] = await Promise.all([
+      fetchOrganizations(),
+      countsByStatus([DEVICE_STATUS.ONLINE]),
+      countsByStatus([DEVICE_STATUS.OFFLINE]),
+    ]);
 
-    if (!orgsResponse.ok) {
-      console.warn('Organizations overview API failed:', orgsResponse.error || orgsResponse.status);
+    if (!orgs) {
       return { rows: [], totalOrganizations: 0 };
     }
 
-    const orgsData = orgsResponse.data?.data?.organizations;
-    if (!orgsData) {
-      console.warn('Invalid organizations overview response structure');
-      return { rows: [], totalOrganizations: 0 };
-    }
-
-    const totalOrganizations = orgsData.filteredCount || 0;
-    const organizations = orgsData.edges.map(edge => edge.node);
-
+    const { organizations, totalOrganizations } = orgs;
     if (organizations.length === 0) {
       return { rows: [], totalOrganizations };
     }
 
-    const allOrgIds = organizations.map(org => org.organizationId);
-
-    // Three per-organization breakdowns: the total plus each half of it. The
-    // facet query returns one count per organization for the statuses it is
-    // scoped to, so online and offline need their own pass.
-    const [totalCounts, onlineCounts, offlineCounts] = await Promise.all([
-      countsByOrganization(allOrgIds, [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE]),
-      countsByOrganization(allOrgIds, [DEVICE_STATUS.ONLINE]),
-      countsByOrganization(allOrgIds, [DEVICE_STATUS.OFFLINE]),
-    ]);
-
     const rows: OrganizationOverviewRow[] = organizations
       .map(org => {
-        const total = totalCounts.get(org.organizationId) || 0;
         const active = onlineCounts.get(org.organizationId) || 0;
         const inactive = offlineCounts.get(org.organizationId) || 0;
+        const total = active + inactive;
         const activePct = total > 0 ? Math.round((active / total) * 100) : 0;
         const inactivePct = total > 0 ? Math.round((inactive / total) * 100) : 0;
 

@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { fetchDeviceCounts } from '@/app/(app)/devices/queries/devices-api';
+import { fetchDeviceOrganizationCounts } from '@/app/(app)/devices/queries/devices-api';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 
 const EMPTY_DEVICE_COUNTS: ReadonlyMap<string, number> = new Map();
@@ -16,13 +16,13 @@ export function useCustomerDeviceCounts(organizationIds: string[]): {
 
   const query = useQuery({
     queryKey: deviceQueryKeys.countsBy(filter),
-    queryFn: () => fetchDeviceCounts(filter),
+    queryFn: () => fetchDeviceOrganizationCounts(filter),
     enabled: filter.organizationIds.length > 0,
     staleTime: 30_000,
   });
 
   return {
-    deviceCounts: query.data?.byOrganization ?? EMPTY_DEVICE_COUNTS,
+    deviceCounts: query.data ?? EMPTY_DEVICE_COUNTS,
     isLoading: query.isLoading,
   };
 }
