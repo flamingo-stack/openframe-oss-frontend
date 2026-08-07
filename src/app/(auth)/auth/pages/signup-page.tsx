@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
-import { isAuthOnlyMode, isSaasSharedMode } from '@/lib/app-mode';
+import { isAuthOnlyMode, isSharedAuthUi } from '@/lib/app-mode';
 import { pushSignupStarted } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -132,7 +132,7 @@ export default function SignupPage() {
         onBack={() => router.push('/auth')}
         ssoProviders={formProviders}
         onSsoClick={handleSso}
-        submitLabel={isSaasSharedMode() ? 'Start Free Trial' : 'Create Organization'}
+        submitLabel={isSharedAuthUi() ? 'Start Free Trial' : 'Create Organization'}
         submitDisabled={!isValid}
         loading={isLoading || loadingProviders}
         errors={{
