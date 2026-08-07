@@ -11,7 +11,8 @@ import type { ApplicationTheme, ClientView, ClientViewInput } from '../types/ai-
 import type { GraphqlResponse } from './chat-graphql';
 
 export const clientViewQueryKeys = {
-  detail: (organizationId: string | null) => ['client-view', { organizationId }] as const,
+  all: ['client-view'] as const,
+  detail: (organizationId: string | null) => [...clientViewQueryKeys.all, { organizationId }] as const,
 };
 
 interface ClientViewGql {
@@ -111,7 +112,11 @@ export function useUpdateClientView(
       // invalidates once itself — auto-invalidating here would refetch the
       // pre-upload avatar and flicker the preview, so it opts out.
       if (invalidateOnSuccess) {
-        queryClient.invalidateQueries({ queryKey: clientViewQueryKeys.detail(organizationId) });
+        // A tenant-default save changes the effective appearance of every org
+        // without an override, so drop the whole family, not just this key.
+        queryClient.invalidateQueries({
+          queryKey: organizationId === null ? clientViewQueryKeys.all : clientViewQueryKeys.detail(organizationId),
+        });
       }
     },
   });
