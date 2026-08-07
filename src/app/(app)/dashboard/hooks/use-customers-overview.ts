@@ -79,7 +79,7 @@ const NO_COUNTS: ReadonlyMap<string, number> = new Map();
  * (see `fetchDeviceOrganizationCounts`). Passing the list narrowed nothing and
  * cost ~2.6KB of request body per call.
  */
-async function countsByStatus(statuses: string[]): Promise<ReadonlyMap<string, number>> {
+async function organizationCountsForStatuses(statuses: string[]): Promise<ReadonlyMap<string, number>> {
   try {
     return await fetchDeviceOrganizationCounts({ statuses });
   } catch (error) {
@@ -132,8 +132,8 @@ async function fetchCustomersOverview(_limit: number): Promise<{
     // construction. Summing locally is not an approximation.
     const [orgs, onlineCounts, offlineCounts] = await Promise.all([
       fetchOrganizations(),
-      countsByStatus([DEVICE_STATUS.ONLINE]),
-      countsByStatus([DEVICE_STATUS.OFFLINE]),
+      organizationCountsForStatuses([DEVICE_STATUS.ONLINE]),
+      organizationCountsForStatuses([DEVICE_STATUS.OFFLINE]),
     ]);
 
     if (!orgs) {

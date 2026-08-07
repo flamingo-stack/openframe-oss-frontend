@@ -28,17 +28,20 @@ export const HAS_ORGANIZATIONS_QUERY = `
 /**
  * Facet counts only — the numbers the counter surfaces need, and NOTHING else.
  *
- * Split into one document per counter on purpose: every field of `DeviceFilters`
- * is a separate Pinot query on the backend, resolved from the SELECTION SET, so
- * a document that asks for a facet nobody reads pays a full round trip for it.
- * These two used to be one `GetDeviceCounts` selecting statuses + organizationIds
- * + filteredCount, which meant the dashboard stat cards ran the per-organization
- * GROUP BY they discard, and the customers overview ran the status breakdown it
- * discards — on every load, three times over.
+ * One document per counter so each response carries only what its caller reads;
+ * `GetDeviceCounts` used to return all of statuses + organizationIds +
+ * filteredCount to callers that each used one of them.
  *
- * Keep them narrow. If a new counter needs a different facet, add a third
- * document rather than widening one of these. The full facet set the filter UI
- * needs is a Relay document — `deviceFiltersRelayQuery`.
+ * This narrows the RESPONSE, not the backend's work: `deviceFilters` is a single
+ * DGS query (`DeviceDataFetcher.deviceFilters` → `DeviceFilterService`) that runs
+ * all six Pinot facet queries in parallel and builds the whole `DeviceFilters`
+ * object before GraphQL trims it to the selection set. So a narrower document
+ * costs the backend exactly the same, and an ADDITIONAL document costs another
+ * full six-query resolution — when a new counter needs a facet one of these
+ * already fetches, widen that document rather than adding a third.
+ *
+ * The full facet set the filter UI needs is a Relay document —
+ * `deviceFiltersRelayQuery`.
  */
 export const GET_DEVICE_STATUS_COUNTS_QUERY = `
   query GetDeviceStatusCounts($filter: DeviceFilterInput) {

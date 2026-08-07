@@ -7,9 +7,23 @@
  * cannot satisfy, and its own catch downgrades the result to 500. Silent — the
  * wrapped build error skips `logError`.
  *
- * Keyed on the response, not the URL: only two places in Next set `Allow`, and
- * both set 405 immediately, so a 500 carrying `Allow` is unambiguously this bug.
- * That covers both static roots and leaves 404s for missing files intact.
+ * Keyed on the response, not the URL: only two places in Next set `Allow`
+ * server-side (`base-server.js`, `router-server.js`) and both set 405 in the
+ * same breath, so a 500 carrying `Allow` is unambiguously this bug. (App-route
+ * `auto-implement-methods.js` also emits `Allow`, but on a 204 OPTIONS
+ * response, so it cannot collide either.) That covers both static roots and
+ * leaves 404s for missing files intact.
+ *
+ * Rejected alternatives, all tested — do not retry them:
+ * - `src/app/405/page.tsx` — the status-page lookup passes `isAppPath: false`,
+ *   so the App Router is invisible to it.
+ * - `src/pages/405.tsx` — works at runtime, but a `pages/` directory flips
+ *   `next/navigation`'s `useSearchParams()` to `... | null` and breaks
+ *   type-check in 67 files.
+ * - Widening the `src/proxy.ts` matcher over static paths — roughly doubles
+ *   static-asset latency and puts every JS chunk behind `isAllowed()`.
+ * - Injecting `/405` into `pages-manifest.json` — no effect, different path.
+ * - Upgrading Next — reproduced unchanged on 16.2.12 and 16.3.0.
  *
  * Delete this file and restore `ENTRYPOINT ["node", "server.js"]` once upstream
  * fixes the 405 render path. Unfixed as of 16.3.0.
@@ -24,7 +38,7 @@ const originalCreateServer = http.createServer;
 let guardInstalled = false;
 
 http.createServer = function createServerWithStatusRepair(...args) {
-  const handlerIndex = args.findIndex((arg) => typeof arg === 'function');
+  const handlerIndex = args.findIndex(arg => typeof arg === 'function');
 
   if (handlerIndex !== -1) {
     const originalHandler = args[handlerIndex];
@@ -32,14 +46,19 @@ http.createServer = function createServerWithStatusRepair(...args) {
 
     args[handlerIndex] = function repairingHandler(req, res) {
       const originalWriteHead = res.writeHead;
+      const originalWrite = res.write;
       const originalEnd = res.end;
       let repairing = false;
+      let bodySent = false;
 
-      const isBotched405 = (status) => status === 500 && Boolean(res.getHeader('Allow'));
+      const isBotched405 = status => status === 500 && Boolean(res.getHeader('Allow'));
 
       const applyRepair = () => {
         repairing = true;
-        res.removeHeader('ETag'); // was computed for the asset, not for this body
+        // All three described the asset, not this body.
+        res.removeHeader('ETag');
+        res.removeHeader('Transfer-Encoding'); // would conflict with Content-Length
+        res.setHeader('Cache-Control', 'no-store');
         res.setHeader('Content-Type', 'text/plain');
         res.setHeader('Content-Length', String(BODY_LENGTH));
       };
@@ -47,11 +66,37 @@ http.createServer = function createServerWithStatusRepair(...args) {
       // Must hook writeHead: Next calls writeHead(500) explicitly, so by the
       // time end() runs the headers are already sent.
       res.writeHead = function patchedWriteHead(...headArgs) {
-        if (!repairing && isBotched405(headArgs[0])) {
-          headArgs[0] = 405;
+        if (repairing || isBotched405(headArgs[0])) {
           applyRepair();
+          // Status only — no forwarded arguments. A headers argument takes
+          // precedence over applyRepair's setHeader calls, so passing it on
+          // would re-attach the asset's Content-Length/ETag to an 18-byte body,
+          // and the 500's reason phrase would read "405 Internal Server Error".
+          // `repairing` is in the condition, not `!repairing`: a repair started
+          // from write() has not flushed headers, so a later writeHead() must
+          // stay repaired rather than fall through and re-open the response.
+          return originalWriteHead.call(this, 405);
         }
         return originalWriteHead.apply(this, headArgs);
+      };
+
+      // Everything the original response would have written is discarded: only
+      // BODY may reach the wire, or the bytes sent stop matching Content-Length
+      // and the surplus is parsed as the head of the next keep-alive response.
+      // The check has to run here rather than lean on writeHead: a first write()
+      // flushes the headers implicitly, so by the time writeHead repairs, this
+      // chunk is already going out.
+      res.write = function patchedWrite(...writeArgs) {
+        if (!repairing && !res.headersSent && isBotched405(res.statusCode)) {
+          res.statusCode = 405;
+          applyRepair();
+        }
+        if (!repairing) {
+          return originalWrite.apply(this, writeArgs);
+        }
+        const callback = writeArgs.find(arg => typeof arg === 'function');
+        if (callback) process.nextTick(callback);
+        return true;
       };
 
       res.end = function patchedEnd(...endArgs) {
@@ -60,7 +105,15 @@ http.createServer = function createServerWithStatusRepair(...args) {
           applyRepair();
         }
         if (repairing) {
-          const callback = endArgs.find((arg) => typeof arg === 'function');
+          const callback = endArgs.find(arg => typeof arg === 'function');
+          // BODY goes out once. A second end() must stay the no-op it is
+          // without this wrapper — passing a chunk after the stream finished
+          // emits ERR_STREAM_WRITE_AFTER_END on the response, which nothing
+          // listens for and which takes the process down.
+          if (bodySent) {
+            return callback ? originalEnd.call(this, callback) : originalEnd.call(this);
+          }
+          bodySent = true;
           return callback ? originalEnd.call(this, BODY, callback) : originalEnd.call(this, BODY);
         }
         return originalEnd.apply(this, endArgs);
