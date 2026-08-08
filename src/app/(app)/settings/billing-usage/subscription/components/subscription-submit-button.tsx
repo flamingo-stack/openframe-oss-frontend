@@ -12,7 +12,7 @@ interface SubscriptionSubmitButtonProps {
   packageUpdates: PackageUpdateInput[];
   /** Desired end-state for the checkout flow. */
   checkoutProducts: ProductCheckoutInput[];
-  /** True when a Custom Amount has an empty/invalid quantity (update flow only). */
+  /** True when a Custom Amount has an empty/invalid quantity — disables both flows. */
   hasInvalidCustom: boolean;
   /** Extra classes for the button (e.g. `w-full` for the mobile action bar). */
   className?: string;
@@ -21,7 +21,7 @@ interface SubscriptionSubmitButtonProps {
 /**
  * Renders the correct submit action for the current subscription state:
  * - no active paid subscription → "Create Subscription" (Stripe Checkout); no
- *   diff/validation gating — there is nothing to compare against.
+ *   diff gating — there is nothing to compare against.
  * - active paid subscription → "Update Subscription"; disabled when the
  *   selection equals the current plan, validated on click.
  */
@@ -48,7 +48,7 @@ export function SubscriptionSubmitButton({
           createCheckout.mutate({ products: checkoutProducts });
         }}
         loading={isPending}
-        disabled={isPending}
+        disabled={isPending || hasInvalidCustom}
       >
         Proceed to Payment
       </Button>
