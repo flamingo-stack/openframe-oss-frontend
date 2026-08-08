@@ -155,7 +155,9 @@ export function AiSettings() {
             variant: 'destructive',
           });
         } finally {
-          queryClient.invalidateQueries({ queryKey: clientViewQueryKeys.detail(null) });
+          // Tenant-default save: also drops per-org entries so customer pages
+          // inheriting the default appearance refresh without a reload.
+          queryClient.invalidateQueries({ queryKey: clientViewQueryKeys.all });
         }
       })();
     },
