@@ -39,6 +39,7 @@ export interface MachineLike {
   readonly machineId?: string | null;
   readonly hostname?: string | null;
   readonly displayName?: string | null;
+  readonly nickname?: string | null;
   readonly ip?: string | null;
   readonly macAddress?: string | null;
   readonly osUuid?: string | null;
@@ -132,6 +133,7 @@ export function machineToDevice(machine: MachineLike): Device {
     machineId: machine.machineId ?? '',
     hostname,
     displayName: machine.displayName || hostname,
+    nickname: machine.nickname ?? undefined,
 
     // Hardware - Identifiers
     hardware_serial: machine.serialNumber ?? undefined,

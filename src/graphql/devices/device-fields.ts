@@ -31,6 +31,7 @@ export const deviceFieldsFragment = graphql`
     machineId
     hostname
     displayName
+    nickname
     ip
     macAddress
     osUuid
