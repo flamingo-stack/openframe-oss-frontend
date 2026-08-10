@@ -19,6 +19,19 @@ const config: CapacitorConfig = {
     FirebaseMessaging: {
       presentationOptions: [],
     },
+    // `resize` is an iOS-only knob, and 'none' makes both platforms behave the
+    // same: the WebView is never resized, and the keyboard height reaches CSS
+    // only as `--of-keyboard-inset`, published from the plugin's
+    // keyboardWillShow/Hide events by the frontend's keyboard-inset.ts.
+    // Android has no resize option at all — it only emits those events — so
+    // any other value would leave the two platforms on different mechanisms.
+    // 'native' would also shrink the WKWebView out from under the safe-area
+    // insets this app publishes from UIKit, floating the home-indicator band
+    // above the keyboard. Leave resizeOnFullScreen off for the same reason:
+    // it exists to make Android resize, which is exactly what we avoid.
+    Keyboard: {
+      resize: 'none',
+    },
     // launchAutoHide:false keeps the splash up until the frontend calls
     // SplashScreen.hide() (NativeShellInitializer, after token hydration
     // settles — so it also covers a biometric unlock prompt). backgroundColor

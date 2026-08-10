@@ -89,10 +89,17 @@ Data safety declaration. Full analysis: vault note
   decrypted and strands the user in a broken auth state.
 - `minifyEnabled false` is intentional. Turning R8 on risks stripping the
   reflection Capacitor uses for plugin registration; it buys nothing for review.
-- Predictive back: the app targets SDK 36, where the legacy `onBackPressed`
-  path is no longer guaranteed. Verify hardware/gesture back still routes
-  through `native-back.ts` (close overlay → SPA `history.back()` →
-  `App.exitApp()`) on a device before submitting.
+- **Predictive back is fine** — verified 2026-07-27 on a Galaxy Z Flip 7
+  (Android 16 / API 36, gesture navigation): both `KEYCODE_BACK` and the
+  left-edge swipe reach the JS `backButton` listener. `@capacitor/app` registers
+  an `OnBackPressedCallback` on `getOnBackPressedDispatcher()` and
+  `androidx.activity` 1.11 bridges that to the platform
+  `OnBackInvokedDispatcher`, so targeting SDK 36 changes nothing — there is no
+  legacy `onBackPressed` override anywhere in the stack. Don't "fix" this by
+  adding `enableOnBackInvokedCallback`. Still unverified: the *navigate* branch
+  of `native-back.ts` (close overlay → `history.back()`), which needs a
+  logged-in session — every observed back reported `canGoBack=false` on `/auth/`
+  and correctly exited via `App.exitApp()`.
 - Fingerprint login is device-only to verify, and the `bio.v2` Keystore alias
   change means test devices that enabled biometrics on older builds need a
   clean reinstall (see CLAUDE.md).

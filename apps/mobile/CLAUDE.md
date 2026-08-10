@@ -97,13 +97,16 @@ block in `capacitor.config.ts` avoids a package-identity collision).
 
 ### Native chrome + navigation
 
-`@capacitor/splash-screen` + `@capacitor/status-bar` + `@capacitor/app`, all driven from
-`openframe-frontend`.
+`@capacitor/splash-screen` + `@capacitor/status-bar` + `@capacitor/app` +
+`@capacitor/keyboard`, all driven from `openframe-frontend`.
 
 - **Splash** — `launchAutoHide:false`, `#161616` bg; `hideSplashScreen()` fires after token
   hydration settles, so it covers a cold-start biometric prompt.
 - **Status bar** — overlays the WebView, light content on the `#161616` safe-area band
   (`initNativeChrome()` in `native-shell.ts`).
+- **Keyboard** — `resize: 'none'`; the height reaches CSS only as `--of-keyboard-inset`,
+  published from `keyboardWillShow`/`Hide` by frontend `keyboard-inset.ts`. See the
+  keyboard gotcha below for why `'none'` and not the default `'native'`.
 - **Back** — iOS uses the WKWebView edge-swipe (above); Android routes hardware/gesture back
   through `@capacitor/app` → `native-back.ts` (close topmost overlay → SPA `history.back()`
   → `App.exitApp()`).
@@ -196,6 +199,16 @@ swapped.
   `setInvalidatedByBiometricEnrollment`) → `BIOMETRIC_INVALIDATED` → frontend force-relogins.
 - **Biometric flows are device-only to verify.** The Simulator can enroll Face ID but won't
   exercise the gated Keychain/Keystore path fully.
+- **Nothing shrinks the layout viewport when the keyboard opens.** WKWebView keeps its frame
+  (Capacitor's iOS core has no keyboard code at all) and Android's window is edge-to-edge at
+  `targetSdk 36`, where `adjustResize` is inert and the IME is a `WindowInsets` type. So
+  `inset-0` / `100dvh` / `%` heights all keep reporting the full screen, and a bottom-anchored
+  or viewport-centered overlay opens **fully behind** the keyboard. The height reaches CSS
+  only via `--of-keyboard-inset` (frontend `keyboard-inset.ts`), consumed by the core-lib
+  overlay primitives. Keep `resize: 'none'`: it's an **iOS-only** knob — Android has no resize
+  option, only events — so any other value splits the two platforms across two mechanisms,
+  and `'native'` shrinks the WKWebView out from under the UIKit safe-area insets, floating
+  the home-indicator band above the keyboard.
 - **The WebView origin is `capacitor://localhost`** — the tenant gateway CORS must allow it
   (incl. **exposing** `Access-Token`/`Refresh-Token`) or the shell renders but every data
   call 401s. Cookies don't work cross-origin; bearer mode is mandatory. Configured on
