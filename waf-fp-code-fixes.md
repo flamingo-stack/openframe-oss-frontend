@@ -537,7 +537,11 @@ assuming it.)*
 
 ## 7. `POST {}` — an empty JSON body — 24 events (0.08%)
 
-**Fixed.** `openframe-oss-tenant` + `openframe-saas-tenant`, `waf-fp-remediation`.
+**Already fixed on `main`** in both tenant repos — `openframe-oss-tenant` PR #2231 and
+`openframe-saas-tenant` PR #2459, both titled "Non empty payload", landed after this document's
+2026-08-07 census. No work needed; the census will clear as the desktop client ships. Note the
+document's own evidence table never listed §7 as verified-unfixed at `HEAD` — only families 1–4
+and 8 were checked. Check `main`, not a feature branch, before starting on any remaining item.
 
 On `POST /chat/api/v1/dialogs`, Cloud Armor reports `matchedFieldType: ARG_NAMES`,
 `matchedFieldName: {}` — the entire raw body as a single argument name — and CRS `942432` scores
@@ -607,7 +611,7 @@ Status as of 2026-08-10. Code changes sit on a `waf-fp-remediation` branch in ea
 |---|---|---|---|---|---|
 | 1 | PostHog `persistence: 'localStorage'` + one-time cookie kill *(ends cross-subdomain continuity — §1)* | §1 | GTM `GTM-NR82B9WC` | **shipped** — container v19, 2026-08-10 | 42.0% |
 | 2 | Delete the `methodenforcement` rule at p205 | §8 | `openframe-saas-tf` | blocked — repo not checked out locally | 0.05% |
-| 3 | Non-empty body on the chat dialogs POST | §7 | `openframe-oss-tenant`, `openframe-saas-tenant` | **done** — branch, both copies | 0.08% |
+| 3 | Non-empty body on the chat dialogs POST | §7 | `openframe-oss-tenant`, `openframe-saas-tenant` | **already on `main`** — PR #2231 / #2459 | 0.08% |
 | 4 | `disableCookies` on the Mux player | §1 | `openframe-oss-lib` | **done** — branch | 0.77% |
 | 5 | Agent sends `Authorization` header on WS upgrade | §3a | `nats.rs` fork + gateway | blocked — static handshake headers, see §3a | ~1% |
 | 6 | Disable `certificates_darwin` + `scheduled_query_stats` *(if unused)* | §5 | Fleet app config | product decision, not code | 0.33% |
@@ -621,6 +625,11 @@ Status as of 2026-08-10. Code changes sit on a `waf-fp-remediation` branch in ea
 
 **Shipped or ready: 42.85%** (items 1, 3, 4). Everything remaining is blocked on a repo, a
 backend, or a product decision — none of it is frontend work that simply hasn't been done.
+
+One process note worth carrying forward: item 3 turned out to be already fixed on `main`, found
+only when a cherry-pick conflicted with the identical change. The census reflects what is
+**deployed**, so a family staying loud says nothing about whether the fix is merged. Diff against
+`origin/main` — not a feature branch, not the census — before starting on any item here.
 
 Not in this table: **§3b** (`tenantId` / `id` UUIDs in query strings, ~265 events) — lowest priority
 of everything here, and it rides along with items 5 and 7 when those touch the same clients.
