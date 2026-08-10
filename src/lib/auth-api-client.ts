@@ -111,9 +111,9 @@ class AuthApiClient {
     return null;
   }
 
-  refresh<T = any>(tenantId?: string) {
-    const query = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : '';
-    return requestRefresh<T>(`/oauth/refresh${query}`, { method: 'POST' });
+  /** No `tenantId` — the BFF resolves it from the refresh token. See `token-refresh-manager.ts`. */
+  refresh<T = any>() {
+    return requestRefresh<T>('/oauth/refresh', { method: 'POST' });
   }
 
   devExchange(ticket: string): Promise<Response> {

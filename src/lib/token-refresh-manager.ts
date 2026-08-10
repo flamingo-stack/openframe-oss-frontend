@@ -14,15 +14,24 @@ import { getRefreshToken, getTokenEpoch, isBearerAuthMode, markTokenRotation, se
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
-function buildRefreshUrl(tenantId?: string): string {
+/**
+ * No `tenantId` query param, deliberately. The BFF declares it
+ * `@RequestParam(required = false)` and resolves the tenant from the refresh
+ * token itself when it is absent (`refreshTokensByLookup`), so sending it is
+ * redundant — and it put a bare UUID in every refresh URL, where Cloud Armor's
+ * CRS 942431/942432 score its hyphens and deny the request in preview. The
+ * lookup is indexed (`MongoOAuth2Authorization.refreshTokenValue` is `@Indexed`
+ * and `auto-index-creation: true` is set in the tenant configs), so this is not
+ * trading a WAF hit for a collection scan.
+ */
+function buildRefreshUrl(): string {
   const base = runtimeEnv.sharedHostUrl();
-  const query = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : '';
-  const path = `/oauth/refresh${query}`;
+  const path = '/oauth/refresh';
   if (!base) return path;
   return `${base}${path}`;
 }
 
-async function executeRefresh(tenantId?: string): Promise<boolean> {
+async function executeRefresh(): Promise<boolean> {
   // Shells that implement refreshTokens own the refresh entirely: the shell
   // also refreshes for its own connections on its own schedule, and rotating
   // refresh tokens tolerate exactly one refresher. The shell resolves with the
@@ -44,7 +53,7 @@ async function executeRefresh(tenantId?: string): Promise<boolean> {
   }
 
   const bearerMode = isBearerAuthMode();
-  const url = buildRefreshUrl(tenantId);
+  const url = buildRefreshUrl();
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -166,12 +175,7 @@ export async function refreshAccessToken(observedEpoch?: number): Promise<boolea
 
   refreshPromise = (async () => {
     try {
-      const { useAuthStore } = await import('@/app/(auth)/auth/stores/auth-store');
-      const authState = useAuthStore.getState();
-      const tenantId =
-        authState.tenantId || (authState.user as any)?.organizationId || (authState.user as any)?.tenantId;
-
-      return await executeRefresh(tenantId || undefined);
+      return await executeRefresh();
     } catch {
       return false;
     } finally {

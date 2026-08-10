@@ -393,12 +393,33 @@ client-gateway websocket-storm issues. Worth looking at all three together.
 priority here. `meshcentral-tunnel.ts:64` and `meshcentral-control.ts:41` append
 `&authorization=<token>` and belong with 3a.
 
-**No part of 3b is a frontend-only change**, despite every listed file living in the frontend.
-`tenantId` goes to gateway BFF endpoints (`/oauth/login`, `/oauth/refresh`) that read it off the
-query string — moving it to a header means changing what those endpoints parse. And
-`deviceStatus?id=` is MeshCentral's own API shape, proxied through `/tools/meshcentral-server`;
-the frontend cannot rename a parameter the upstream product defines. Each one needs its server
-counterpart, so 3b rides along with items 5 and 7 rather than being pickable on its own.
+**`/oauth/refresh` — fixed, frontend-only.** The one piece of this document that needed no server
+change at all, and an earlier draft missed it by assuming the whole of 3b needs a counterpart.
+The BFF already declares the parameter optional and resolves the tenant from the refresh token
+when it is absent (`OAuthBffController.java:104`):
+
+```java
+Mono<TokenResponse> tokensMono = hasText(tenantId)
+        ? oauthBffService.refreshTokensPublic(tenantId, token, request)
+        : oauthBffService.refreshTokensByLookup(token, request);
+```
+
+So the frontend was volunteering a UUID the server never needed. Dropped from
+`token-refresh-manager.ts` (the only live path — `authApiClient.refresh()` has no callers) and
+from the dead method for consistency. The lookup is indexed:
+`MongoOAuth2Authorization.refreshTokenValue` carries `@Indexed`, and `auto-index-creation: true`
+is set in both tenant configs (`configs/base/application.yml`), so this is not trading a WAF hit
+for a collection scan. Worth checking that pair before copying the pattern elsewhere — a
+`@Indexed` annotation without auto-index-creation is decorative.
+
+**The rest of 3b is not frontend-only.** `/oauth/login` declares `tenantId` as a required
+`@RequestParam` — it routes the request before there is any session to look a tenant up from.
+And `deviceStatus?id=` is MeshCentral's own API shape, proxied through `/tools/meshcentral-server`;
+the frontend cannot rename a parameter the upstream product defines. Those two ride along with
+items 5 and 7.
+
+`logout` also sends `tenantId` and has the same `ByLookup` fallback, but it does not appear in the
+census — left alone rather than touched speculatively.
 
 ---
 
@@ -612,7 +633,8 @@ Status as of 2026-08-10. Code changes sit on a `waf-fp-remediation` branch in ea
 | 1 | PostHog `persistence: 'localStorage'` + one-time cookie kill *(ends cross-subdomain continuity — §1)* | §1 | GTM `GTM-NR82B9WC` | **shipped** — container v19, 2026-08-10 | 42.0% |
 | 2 | Delete the `methodenforcement` rule at p205 | §8 | `openframe-saas-tf` | blocked — repo not checked out locally | 0.05% |
 | 3 | Non-empty body on the chat dialogs POST | §7 | `openframe-oss-tenant`, `openframe-saas-tenant` | **already on `main`** — PR #2231 / #2459 | 0.08% |
-| 4 | `disableCookies` on the Mux player | §1 | `openframe-oss-lib` | **done** — branch | 0.77% |
+| 4 | `disableCookies` on the Mux player | §1 | `openframe-oss-lib` | **done** — PR #1701 | 0.77% |
+| 4b | Drop `?tenantId=` from `/oauth/refresh` | §3b | `openframe-oss-frontend` | **done** — frontend-only, no server change | part of 0.6% |
 | 5 | Agent sends `Authorization` header on WS upgrade | §3a | `nats.rs` fork + gateway | blocked — static handshake headers, see §3a | ~1% |
 | 6 | Disable `certificates_darwin` + `scheduled_query_stats` *(if unused)* | §5 | Fleet app config | product decision, not code | 0.33% |
 | 7 | WS ticket / subprotocol for browser clients | §3a | `openframe-oss-lib` + gateway | needs gateway | ~1% |
