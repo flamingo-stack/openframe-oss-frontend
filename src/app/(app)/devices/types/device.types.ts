@@ -324,7 +324,7 @@ export type DeviceGraphQlNode = {
   machineId: string;
   hostname: string;
   displayName?: string;
-  nickname?: string;
+  nickname?: string | null;
   ip?: string;
   macAddress?: string;
   osUuid?: string;

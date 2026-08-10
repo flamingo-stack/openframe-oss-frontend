@@ -168,7 +168,7 @@ function createDevice(
     machineId: node.machineId,
     hostname: node.hostname,
     displayName: node.displayName || node.hostname,
-    nickname: node.nickname,
+    nickname: node.nickname ?? undefined,
 
     // Hardware - CPU
     cpu_brand: fleetData?.cpu_brand,
