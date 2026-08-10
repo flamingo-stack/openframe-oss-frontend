@@ -139,6 +139,27 @@ export interface AppPlugin {
   exitApp(): Promise<void>;
 }
 
+/**
+ * Subset of @capacitor/keyboard. `keyboardHeight` is CSS px on both platforms:
+ * iOS reports the keyboard frame in points, and the Android plugin divides the
+ * `WindowInsets.Type.ime()` inset by display density before emitting.
+ *
+ * The shell configures `resize: 'none'`, so these events are the only notice
+ * the web layer gets that a keyboard exists — see keyboard-inset.ts. Same
+ * sync-or-Promise addListener return as AppPlugin.
+ */
+export interface KeyboardPlugin {
+  addListener(
+    eventName: 'keyboardWillShow',
+    listenerFunc: (info: { keyboardHeight: number }) => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
+  /** Hide carries no payload — iOS notifies with nil, Android with an empty object. */
+  addListener(
+    eventName: 'keyboardWillHide',
+    listenerFunc: () => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
+}
+
 function capacitorPlugins(): any {
   return typeof window !== 'undefined' ? (window as any).Capacitor?.Plugins : undefined;
 }
@@ -180,6 +201,11 @@ export function statusBarPlugin(): StatusBarPlugin | null {
 /** Mobile-only. Also null until @capacitor/app is present in the shell — callers no-op. */
 export function appPlugin(): AppPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.App ?? null) : null;
+}
+
+/** Mobile-only. Also null until @capacitor/keyboard is present in the shell — callers fall back to visualViewport. */
+export function keyboardPlugin(): KeyboardPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.Keyboard ?? null) : null;
 }
 
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';

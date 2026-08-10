@@ -504,7 +504,7 @@ export function DeviceSelector({
         },
         enableSorting: false,
         meta: {
-          width: 'w-[160px]',
+          width: 'w-[80px] md:w-[160px]',
           filter: { options: statusFilterOptions },
         },
       },
