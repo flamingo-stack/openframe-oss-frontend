@@ -28,7 +28,7 @@ export function DeviceActionsDropdown({ device, context, onActionComplete, onRun
     if (context === 'table') {
       actionItems.push(items.remoteShell, items.remoteControl, items.manageFiles);
     }
-    actionItems.push(items.runScript);
+    actionItems.push(items.runScript, items.editDisplayName);
     if (items.reboot) actionItems.push(items.reboot);
 
     if (actionItems.length > 0) {

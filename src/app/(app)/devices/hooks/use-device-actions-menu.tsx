@@ -6,12 +6,14 @@ import {
   BoxArchiveIcon,
   BracketCurlyIcon,
   InboxArrowUpIcon,
+  PenEditIcon,
   Refresh01LeftIcon,
   TrashIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useCallback, useMemo } from 'react';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { routes } from '@/lib/routes';
+import { EditDisplayNameModal } from '../components/edit-display-name-modal';
 import type { Device } from '../types/device.types';
 import { type DeviceActionAvailability, getDeviceActionAvailability } from '../utils/device-action-utils';
 import { buildDeviceMenuItems } from '../utils/device-menu-items';
@@ -38,6 +40,7 @@ export interface DeviceActionsMenuItems {
   remoteControl: ActionsMenuItem;
   manageFiles: ActionsMenuItem;
   runScript: ActionsMenuItem;
+  editDisplayName: ActionsMenuItem;
   reboot: ActionsMenuItem | null;
   deviceLogs: ActionsMenuItem;
   archive: ActionsMenuItem | null;
@@ -62,6 +65,7 @@ export function useDeviceActionsMenu(
   }: UseDeviceActionsMenuOptions = {},
 ): UseDeviceActionsMenuResult {
   const router = useRouter();
+  const [showEditDisplayName, setShowEditDisplayName] = useState(false);
 
   const deviceId = deviceIdOverride || device?.machineId || device?.id || '';
 
@@ -122,6 +126,13 @@ export function useDeviceActionsMenu(
       onClick: handleRunScript,
     };
 
+    const editDisplayName: ActionsMenuItem = {
+      id: 'edit-display-name',
+      label: 'Edit Display Name',
+      icon: <PenEditIcon className={`${iconSize} text-ods-text-secondary`} />,
+      onClick: () => setShowEditDisplayName(true),
+    };
+
     const reboot: ActionsMenuItem | null = actionAvailability?.rebootEnabled
       ? {
           id: 'reboot',
@@ -166,6 +177,7 @@ export function useDeviceActionsMenu(
       remoteControl: base.remoteControl,
       manageFiles: base.manageFiles,
       runScript,
+      editDisplayName,
       reboot,
       deviceLogs: base.deviceLogs,
       archive,
@@ -186,5 +198,17 @@ export function useDeviceActionsMenu(
     isUnarchiving,
   ]);
 
-  return { items, dialogs, actionAvailability };
+  const allDialogs = (
+    <>
+      {dialogs}
+      <EditDisplayNameModal
+        isOpen={showEditDisplayName}
+        onClose={() => setShowEditDisplayName(false)}
+        device={device ?? null}
+        onSaved={onActionComplete}
+      />
+    </>
+  );
+
+  return { items, dialogs: allDialogs, actionAvailability };
 }

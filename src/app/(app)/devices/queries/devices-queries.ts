@@ -74,6 +74,7 @@ export const GET_DEVICE_QUERY = `
       machineId
       hostname
       displayName
+      nickname
       ip
       macAddress
       osUuid

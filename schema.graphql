@@ -1107,6 +1107,9 @@ type Machine implements Node & AssignableTarget {
   organization: Organization
   hostname: String
   displayName: String
+
+  """User-defined nickname, separate from the agent-reported displayName."""
+  nickname: String
   serialNumber: String
   manufacturer: String
   model: String
@@ -1123,6 +1126,12 @@ type Machine implements Node & AssignableTarget {
 }
 
 type Mutation {
+  """
+  Set or clear a device's user-defined nickname. Passing null, "" or whitespace clears it.
+  Returns the updated Machine, so no refetch is needed.
+  """
+  updateDeviceNickname(machineId: String!, nickname: String): Machine!
+
   """Mark one Initial Setup step done. Idempotent."""
   completeTenantOnboardingStep(step: TenantOnboardingStep!): TenantOnboardingProgress!
 
