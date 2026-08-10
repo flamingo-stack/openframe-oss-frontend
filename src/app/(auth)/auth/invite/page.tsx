@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useInviteProviders } from '@/app/(auth)/auth/hooks/use-invite-providers';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { useIsIosPlatform } from '@/app/hooks/use-ios-platform';
 import { authApiClient } from '@/lib/auth-api-client';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -20,6 +21,7 @@ const MIN_PASSWORD_LENGTH = 8;
 const SSO_TO_FORM: Record<string, AuthSsoProvider> = {
   google: 'google',
   microsoft: 'microsoft',
+  apple: 'apple',
 };
 
 function isInvalidInviteError(error: string | null): boolean {
@@ -39,6 +41,9 @@ export default function InvitePage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTenantSwitch, setShowTenantSwitch] = useState(false);
+
+  // "Continue with Apple" is offered on iOS devices only.
+  const isIos = useIsIosPlatform();
 
   const handleBack = () => router.push('/auth');
 
@@ -95,7 +100,7 @@ export default function InvitePage() {
   };
 
   const handleSso = (provider: AuthSsoProvider) => {
-    if (!invitationId || (provider !== 'google' && provider !== 'microsoft')) return;
+    if (!invitationId || provider === 'openframe') return;
 
     setIsSubmitting(true);
     try {
@@ -122,8 +127,8 @@ export default function InvitePage() {
     return <InviteLinkInvalidModal onBackToLogin={handleBack} />;
   }
 
-  const formProviders: AuthSsoProvider[] = (['google', 'microsoft'] as const).filter(provider =>
-    providers.some(sp => SSO_TO_FORM[sp.provider] === provider),
+  const formProviders: AuthSsoProvider[] = (['google', 'microsoft', 'apple'] as const).filter(
+    provider => (provider !== 'apple' || isIos) && providers.some(sp => SSO_TO_FORM[sp.provider] === provider),
   );
 
   return (

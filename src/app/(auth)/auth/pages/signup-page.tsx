@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useIsIosPlatform } from '@/app/hooks/use-ios-platform';
 import { isAuthOnlyMode, isSharedAuthUi } from '@/lib/app-mode';
 import { pushSignupStarted } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
@@ -34,6 +35,9 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [prNumber, setPrNumber] = useState('');
   const showPrNumber = runtimeEnv.prNumberEnabled();
+
+  // "Continue with Apple" is offered on iOS devices only.
+  const isIos = useIsIosPlatform();
 
   const storedOrgName = typeof window !== 'undefined' ? sessionStorage.getItem('auth:org_name') || '' : '';
   const storedDomain = typeof window !== 'undefined' ? sessionStorage.getItem('auth:domain') || '' : '';
@@ -87,13 +91,13 @@ export default function SignupPage() {
     });
   };
 
-  // External providers offered by the backend for registration.
-  const formProviders: AuthSsoProvider[] = (['google', 'microsoft'] as const).filter(provider =>
-    providers.some(sp => sp.provider === provider),
+  // External providers offered by the backend for registration; Apple only on iOS devices.
+  const formProviders: AuthSsoProvider[] = (['google', 'microsoft', 'apple'] as const).filter(
+    provider => (provider !== 'apple' || isIos) && providers.some(sp => sp.provider === provider),
   );
 
   const handleSso = (provider: AuthSsoProvider) => {
-    if (provider !== 'google' && provider !== 'microsoft') return;
+    if (provider === 'openframe') return;
     void registerOrganizationSso({
       tenantName: storedOrgName,
       tenantDomain: storedDomain,
