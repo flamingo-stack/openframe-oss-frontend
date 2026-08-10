@@ -114,7 +114,10 @@ Since login happens only on the shared host (`NEXT_PUBLIC_SHARED_HOST_URL=https:
 `saas-shared` mode) and the cookie lives a year, every user acquires it before ever reaching a
 tenant. Gating the tenant-side mount changes nothing.
 
-### Fix — one line in the GTM container
+### Fix — two lines in the GTM container
+
+**Shipped 2026-08-10, container version 19.** The kill list covers `.openframe.build`,
+`.openframe.ai` and `.openframe.miami` plus the host-only variant.
 
 ```js
 posthog.init('phc_uAX…', { …, persistence: 'localStorage' });
@@ -200,22 +203,32 @@ section touches it.
 (observed on both auth and tenant hosts), so gating the mount won't reliably clear it either.
 Either drop the Reddit tag from the container or cover it with an exclusion.
 
-### Still gate the GTM mount — for a different reason
+### The privacy problem is real — but do NOT gate the mount in code
 
 `src/app/layout.tsx:122` mounts `<GoogleTagManager />` unconditionally, so Facebook pixel, Reddit
 pixel, Hotjar, Google Ads, DoubleClick and AdSense all load **inside the authenticated MSP
 product**, on pages listing customer device inventories. That is worth fixing on privacy and
 compliance grounds. It is not a WAF fix, and it should not be counted as one.
 
-The right gate is app mode, not auth state — the root layout is a server component and `RouteGuard`
-is mode-based, so `isAuthenticated` is not available there. The two deployments already differ
-(`NEXT_PUBLIC_APP_MODE`: `saas-tenant` vs `saas-shared`):
+> **Correction.** An earlier draft prescribed a one-line app-mode gate in the root layout:
+>
+> ```tsx
+> {isSaasSharedMode() && <GoogleTagManager />}   // do not ship this
+> ```
+>
+> **It throws out the product analytics with the ad tech.** This app bundles no `posthog-js` —
+> `posthog-events.ts:5` states it outright, and the container is the only thing that loads the SDK.
+> Gating the mount to `saas-shared` means PostHog does not load on the tenant host **at all**: no
+> pageviews, no session recording, no `identify`, nothing from inside the product. The
+> `dataLayer.push` calls in `PostHogAnalyticsBridge` would write into an array nobody reads.
+> The gate removes seven third parties and the one first-party tool the company actually uses.
 
-```tsx
-{isSaasSharedMode() && <GoogleTagManager />}
-```
+The separation wanted here is per-tag, not per-mount, and it belongs in the container: give the
+Facebook, Reddit, Hotjar, Google Ads, DoubleClick and AdSense tags a trigger condition on **Page
+Hostname** so they fire only on the marketing and auth hosts, and leave the PostHog tag firing
+everywhere. Same privacy outcome, no code change, and product analytics survives.
 
-⚠️ Check the funnel before shipping it. The container listens for exactly two dataLayer events —
+⚠️ Check the funnel either way. The container listens for exactly two dataLayer events —
 `openframe_registration` and `signup_completed` — and `signup_completed` is pushed from
 `PostHogAnalyticsBridge` in the root layout, i.e. on the *tenant* host. Gating GTM there drops it
 unless the trigger moves. (Separately, and independent of the WAF: `markPendingSignup()`
@@ -266,6 +279,14 @@ cache-miss fallback re-sends the full document and would still trip the WAF, so 
 That closes the FP *and* removes arbitrary-query execution as an attack surface.
 
 Persisted queries also cut request size on every GraphQL call.
+
+⚠️ **Neither end supports this today — the frontend line is not a standalone change.** Checked at
+`HEAD`: `relay.config.json` has no `persistConfig`, and nothing in `openframe-api-service-core` or
+the ai-agent service mentions `documentId`, `doc_id` or `persistedQuery`. Adding `persistConfig`
+alone makes Relay send `{"doc_id": …}` to a server that only knows how to read `query` — every
+`/api/graphql` call 400s. The server-side query-map lookup has to land **first**, or both ship
+together behind a flag. Sequencing these backwards takes the whole app down, which is why items 8
+and 9 are the two genuinely multi-week entries in the work order.
 
 ### Also: service-to-service traffic is hairpinning
 
@@ -335,8 +356,25 @@ standard workarounds:
 2. **`Sec-WebSocket-Protocol`** — pass the token as a subprotocol value; the gateway reads it off
    the handshake. Header, not URL, so it never reaches request logs.
 
-The Rust agent is **not** browser-constrained and should just send `Authorization: Bearer` on the
-upgrade. Do that one first — cheaper half.
+> **Correction — the Rust agent is not the cheap half.** An earlier draft said it is "not
+> browser-constrained and should just send `Authorization: Bearer` on the upgrade. Do that one
+> first — cheaper half." The agent's NATS client makes that harder than the browser's, not easier.
+>
+> The good news: the pinned fork already supports handshake headers. `Cargo.toml:79` points
+> `async-nats` at `flamingo-stack/nats.rs` with `features = ["websockets"]`, and
+> `nats_connection_manager.rs` already calls `.custom_header("X-MACHINE-ID", &machine_id)`.
+>
+> The blocker: those headers are **static**. `custom_header()` writes into a
+> `handshake_headers` map on `ConnectOptions`, fixed once at connect time. Token rotation is what
+> the query param is actually carrying — `auth_url_callback` fires on every reconnect and returns a
+> **freshly built URL** with a new token (`nats_connection_manager.rs:174`). Move the token into a
+> static header and the first post-expiry reconnect authenticates with a stale credential and 401s
+> forever.
+>
+> So this needs `handshake_headers` to become refreshable per reconnect — a change in the
+> `nats.rs` fork, not in the agent — plus the gateway reading the header. It belongs **with** item
+> 7, not ahead of it, and both should land behind a transition window where the query param is
+> still accepted.
 
 Gateway side is `openframe-oss-lib/openframe-gateway-service-core`
 (`WebSocketServiceSecurityDecorator`, which already maps `/ws/nats-api` → `nats-api`). Keep the
@@ -354,6 +392,13 @@ client-gateway websocket-storm issues. Worth looking at all three together.
 `tenantId` is a plain UUID and only fires because the anomaly rules count hyphens — lowest
 priority here. `meshcentral-tunnel.ts:64` and `meshcentral-control.ts:41` append
 `&authorization=<token>` and belong with 3a.
+
+**No part of 3b is a frontend-only change**, despite every listed file living in the frontend.
+`tenantId` goes to gateway BFF endpoints (`/oauth/login`, `/oauth/refresh`) that read it off the
+query string — moving it to a header means changing what those endpoints parse. And
+`deviceStatus?id=` is MeshCentral's own API shape, proxied through `/tools/meshcentral-server`;
+the frontend cannot rename a parameter the upstream product defines. Each one needs its server
+counterpart, so 3b rides along with items 5 and 7 rather than being pickable on its own.
 
 ---
 
@@ -490,22 +535,41 @@ assuming it.)*
 
 ---
 
-## 7. `POST {}` with no `Content-Type` — 24 events (0.08%)
+## 7. `POST {}` — an empty JSON body — 24 events (0.08%)
 
-**Same bug as the orbit family, different codebase.** On `POST /chat/api/v1/dialogs`, Cloud Armor
-reports `matchedFieldType: ARG_NAMES`, `matchedFieldName: {}` — the entire raw body as a single
-argument name. As with orbit, that only happens when the JSON parser doesn't engage, which means
-the request carries no `application/json` content type.
+**Fixed.** `openframe-oss-tenant` + `openframe-saas-tenant`, `waf-fp-remediation`.
 
-The body is literally `{}`, and CRS `942432` scores its two braces as special characters.
+On `POST /chat/api/v1/dialogs`, Cloud Armor reports `matchedFieldType: ARG_NAMES`,
+`matchedFieldName: {}` — the entire raw body as a single argument name — and CRS `942432` scores
+its two braces as special characters.
 
-Whichever client posts to `/chat/api/v1/dialogs` should set
-`Content-Type: application/json` on requests that carry a body. One line, and it fixes the
-category rather than this instance — the same client will be sending non-empty bodies elsewhere
-that are currently escaping JSON parsing too.
+> **Correction.** An earlier draft called this "the same bug as the orbit family" and prescribed
+> setting `Content-Type: application/json`, reasoning that Armor only reports a raw body when the
+> JSON parser doesn't engage. **The header was never missing.** The client is
+> `clients/openframe-chat/src/services/chatApiService.ts` (byte-identical in both tenant repos), and
+> its `getHeaders()` has always sent `Content-Type: application/json`. Every other candidate checked
+> clean too: this app's `apiClient` sets it centrally (`api-client.ts:129`), and the E2E suite gets
+> it from `RequestSpecHelper.prebuildRequestSpec()`.
 
-Worth grepping for the same omission across every HTTP client in the estate; it's the same mistake
-`fleetmdm` PR #93 just fixed.
+The real cause is the body itself. `createDialog()` posted `JSON.stringify({})` — an object with no
+fields. Armor's JSON parser engages fine; there is simply nothing in it to extract, so it falls
+back to scoring the raw body, and a raw body of `{}` is two special characters and nothing else.
+A parsed empty object and an unparsed body are indistinguishable in the logs, which is what made
+the header the obvious-looking culprit.
+
+Fix — send the field the server would have defaulted to anyway:
+
+```ts
+body: JSON.stringify({ agentType: 'CLIENT' }),
+```
+
+`CreateDialogRequest` declares `private AgentType agentType = AgentType.CLIENT`, so this is
+semantically identical to `{}` and changes no behaviour — it just gives the parser a field.
+
+**Generalise the right lesson.** "Grep for missing `Content-Type` across every HTTP client" was
+the wrong follow-up. The one worth doing is: *any request whose body is an empty JSON object will
+trip this*, regardless of headers. `POST {}` as a "create with defaults" idiom is common, and each
+occurrence is one field away from being invisible to the WAF.
 
 ---
 
@@ -537,21 +601,26 @@ link-preview bots on `/dashboard`, `/robots.txt`, `/auth`, `/settings/billing-us
 > and the section headings follow it); this table numbers *work items*. Order 3 is family §7, order
 > 2 is family §8. The `§` column below is the mapping — cite families as "§n", work as "item n".
 
-| Order | Change | § | Repo | Effort | FP reduction |
+Status as of 2026-08-10. Code changes sit on a `waf-fp-remediation` branch in each repo.
+
+| Order | Change | § | Repo | Status | FP reduction |
 |---|---|---|---|---|---|
-| 1 | PostHog `persistence: 'localStorage'` + one-time cookie kill *(ends cross-subdomain continuity — §1)* | §1 | GTM `GTM-NR82B9WC` | 2 lines, no deploy | 42.0% |
-| 2 | Delete the `methodenforcement` rule at p205 | §8 | `openframe-saas-tf` | 1 line | 0.05% |
-| 3 | `Content-Type: application/json` on the chat dialogs POST | §7 | chat client | 1 line | 0.08% |
-| 4 | `disable-cookies` on the Mux player | §1 | `openframe-oss-lib` | 1 line | 0.77% |
-| 5 | Rust agent sends `Authorization` header on WS upgrade | §3a | `openframe-oss-tenant` | small | ~1% |
-| 6 | Disable `certificates_darwin` + `scheduled_query_stats` *(if unused)* | §5 | Fleet app config | config | 0.33% |
-| 7 | WS ticket / subprotocol for browser clients | §3a | `openframe-oss-lib` + gateway | medium | ~1% |
-| 8 | Relay persisted queries (`/api/graphql`) | §2 | `openframe-oss-frontend` | medium | ~5% |
-| 9 | APQ allowlist for `/chat/graphql` | §2 | AI-agent + `openframe-oss-lib` | medium | ~24% |
-| 10 | Route internal `/chat/graphql` calls in-cluster | §2 | Java caller | small | — |
-| 11 | Opaque session id instead of JWT in `access_token` cookie | §4 | `openframe-oss-lib` | medium | 0.9% |
-| 12 | Scoped rule bands for `/chat/api/` and agent paths + residual exclusions | §6, §5 | `openframe-saas-tf` | small | ~1% |
-| — | Gate the GTM mount to `saas-shared` — **privacy, not WAF** | §1 | `openframe-oss-frontend` | small | 0% |
+| 1 | PostHog `persistence: 'localStorage'` + one-time cookie kill *(ends cross-subdomain continuity — §1)* | §1 | GTM `GTM-NR82B9WC` | **shipped** — container v19, 2026-08-10 | 42.0% |
+| 2 | Delete the `methodenforcement` rule at p205 | §8 | `openframe-saas-tf` | blocked — repo not checked out locally | 0.05% |
+| 3 | Non-empty body on the chat dialogs POST | §7 | `openframe-oss-tenant`, `openframe-saas-tenant` | **done** — branch, both copies | 0.08% |
+| 4 | `disableCookies` on the Mux player | §1 | `openframe-oss-lib` | **done** — branch | 0.77% |
+| 5 | Agent sends `Authorization` header on WS upgrade | §3a | `nats.rs` fork + gateway | blocked — static handshake headers, see §3a | ~1% |
+| 6 | Disable `certificates_darwin` + `scheduled_query_stats` *(if unused)* | §5 | Fleet app config | product decision, not code | 0.33% |
+| 7 | WS ticket / subprotocol for browser clients | §3a | `openframe-oss-lib` + gateway | needs gateway | ~1% |
+| 8 | Relay persisted queries (`/api/graphql`) | §2 | frontend **+ api service** | needs server-side query map first | ~5% |
+| 9 | APQ allowlist for `/chat/graphql` | §2 | AI-agent + `openframe-oss-lib` | needs both ends | ~24% |
+| 10 | Route internal `/chat/graphql` calls in-cluster | §2 | Java caller | not started | — |
+| 11 | Opaque session id instead of JWT in `access_token` cookie | §4 | `openframe-oss-lib` | not started, multi-service | 0.9% |
+| 12 | Scoped rule bands for `/chat/api/` and agent paths + residual exclusions | §6, §5 | `openframe-saas-tf` | blocked with item 2 | ~1% |
+| — | Per-tag hostname triggers instead of gating the GTM mount — **privacy, not WAF** | §1 | GTM container | not started — do **not** gate in code, see §1 | 0% |
+
+**Shipped or ready: 42.85%** (items 1, 3, 4). Everything remaining is blocked on a repo, a
+backend, or a product decision — none of it is frontend work that simply hasn't been done.
 
 Not in this table: **§3b** (`tenantId` / `id` UUIDs in query strings, ~265 events) — lowest priority
 of everything here, and it rides along with items 5 and 7 when those touch the same clients.
