@@ -1,6 +1,8 @@
 import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import type { TagEntry } from '@/app/components/shared/tags';
+import { isAppShell } from '@/lib/platform';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { buildInstallCommand } from '../utils/device-command-utils';
 import { useRegistrationSecret } from './use-registration-secret';
 import { useReleaseVersion } from './use-release-version';
@@ -16,15 +18,73 @@ function buildTagArgs(tags: TagEntry[], platform: OSPlatformId): string[] {
   return tags.flatMap(tag => tag.values.map(value => `--tag ${quote}${tag.key}=${value}${quote}`));
 }
 
+/**
+ * An agent pointed at the developer's own box needs to be told so. Takes a
+ * `host`, so the local test has to look past a port — `localhost:8443` is still
+ * the developer's own box.
+ */
+function withLocalMode(host: string): string {
+  const hostname = host.split(':')[0];
+  return hostname === 'localhost' || hostname === '127.0.0.1' ? 'localhost --localMode' : host;
+}
+
+/**
+ * Host of the tenant gateway this bundle talks to; '' when unresolvable.
+ * `host`, not `hostname`: a self-hosted gateway on a non-default port has to
+ * keep it or the agent calls the wrong endpoint.
+ */
+function tenantGatewayHost(): string {
+  const url = runtimeEnv.tenantHostUrl();
+  if (!url) return '';
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The host the enrolling agent must call home to.
+ *
+ * `window.location` answers that on the web only. Both native shells serve the
+ * bundle from their own origin — `capacitor://localhost` on the phone,
+ * `tauri://localhost` on the desktop — so reading it there produced
+ * `localhost --localMode`, an install command that points the agent at the
+ * device the console is running on and puts it in local mode. In a shell the
+ * tenant host is the one the app is already making every API call against:
+ * build-time `NEXT_PUBLIC_TENANT_HOST_URL`, else the host learned at login.
+ *
+ * Reads `window` unguarded: this is `useSyncExternalStore`'s `getSnapshot`, and
+ * React only calls it in the browser — `getServerSnapshot` owns the prerender.
+ */
+function currentServerUrl(): string {
+  if (isAppShell()) {
+    const host = tenantGatewayHost();
+    if (host) return withLocalMode(host);
+  }
+  return withLocalMode(window.location.host);
+}
+
+/** Nothing here changes mid-session — origin and tenant host are both fixed. */
+function subscribe(): () => void {
+  return () => {};
+}
+
+/** Server snapshot: the prerender has no `window`, then hydration corrects it. */
+function getServerSnapshot(): string {
+  return 'localhost';
+}
+
 export function useInstallCommand({ organizationId, platform, tags = [] }: UseInstallCommandOptions) {
   const { initialKey } = useRegistrationSecret();
   const { releaseVersion } = useReleaseVersion();
 
-  const serverUrl = useMemo(() => {
-    if (typeof window === 'undefined') return 'localhost';
-    const { hostname } = window.location;
-    return hostname === 'localhost' || hostname === '127.0.0.1' ? 'localhost --localMode' : hostname;
-  }, []);
+  // Read through the store rather than a `useMemo`: the prerender has no
+  // `window` and answers 'localhost', so computing this during the first client
+  // render put a different command in the HTML than the one React hydrated
+  // with. The server's answer carries through hydration and is corrected right
+  // after, which is also what makes the shell branch above safe to take.
+  const serverUrl = useSyncExternalStore(subscribe, currentServerUrl, getServerSnapshot);
 
   const command = useMemo(
     () =>
