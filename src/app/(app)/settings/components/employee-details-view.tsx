@@ -18,6 +18,7 @@ import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useUser } from '../hooks/use-user';
 import { UserStatus, useDeleteUser, useUpdateProfile } from '../hooks/use-users';
 import { ConfirmDeleteUserModal } from './confirm-delete-user-modal';
+import { DeleteAccountModal } from './delete-account-modal';
 import { EditProfileModal } from './edit-profile-modal';
 import { EmployeeWorkTime } from './employee-work-time';
 
@@ -69,6 +70,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
   const { deleteUser } = useDeleteUser();
   const updateProfile = useUpdateProfile();
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   // Register the open employee as the Mingo "open view". `user.id` is the raw db
@@ -105,7 +107,11 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
 
   const isOwner = (user?.roles || []).some(r => r?.toLowerCase?.() === 'owner');
   const isSelf = !!currentUser && user?.id === currentUser.id;
-  const disableDelete = isOwner || isSelf || isDeleted;
+  // Viewing YOURSELF routes into the self-deletion flow (the same
+  // DeleteAccountModal as the /settings kebab — owner-transfer variant
+  // included), so `isSelf` no longer disables the action. Deleting OTHERS
+  // stays blocked for owners (the backend refuses) and already-deleted users.
+  const disableDelete = isSelf ? isDeleted : isOwner || isDeleted;
 
   const handleConfirmDelete = () => {
     if (!user) return;
@@ -143,14 +149,23 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
                 : []),
               {
                 items: [
-                  {
-                    id: 'delete',
-                    label: 'Delete',
-                    icon: <TrashIcon className="w-5 h-5 text-ods-error" />,
-                    danger: true,
-                    disabled: disableDelete,
-                    onClick: () => setIsDeleteOpen(true),
-                  },
+                  isSelf
+                    ? {
+                        id: 'delete-account',
+                        label: 'Delete Account',
+                        icon: <TrashIcon className="w-5 h-5 text-ods-error" />,
+                        danger: true,
+                        disabled: disableDelete,
+                        onClick: () => setIsDeleteAccountOpen(true),
+                      }
+                    : {
+                        id: 'delete',
+                        label: 'Delete',
+                        icon: <TrashIcon className="w-5 h-5 text-ods-error" />,
+                        danger: true,
+                        disabled: disableDelete,
+                        onClick: () => setIsDeleteOpen(true),
+                      },
                 ],
               },
             ]
@@ -219,6 +234,9 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
         userName={displayName}
         onConfirm={handleConfirmDelete}
       />
+      {/* Self-deletion flow — the same modal the /settings profile kebab opens,
+          with the owner-transfer variant and the /account-deleted hand-off. */}
+      {isSelf && <DeleteAccountModal open={isDeleteAccountOpen} onOpenChange={setIsDeleteAccountOpen} />}
       <EditProfileModal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
