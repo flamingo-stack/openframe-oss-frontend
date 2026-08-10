@@ -19,9 +19,9 @@ import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { getFullImageUrl } from '@/lib/image-url';
-import { isMobileShell } from '@/lib/platform';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { DeleteAccountModal } from './delete-account-modal';
 import { NotificationSettingsModal } from './notification-settings-modal';
@@ -85,7 +85,17 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   // account-level `pushEnabled` setting that governs the user's FCM devices, so
   // offering it in the desktop app (which registers none) let a desktop user
   // silently turn off their phone's push.
-  const showNotificationSettings = useFeatureFlag('notifications') && isMobileShell();
+  //
+  // Through the hook, not the bare predicate: the predicate answers "web" during
+  // the prerender and "mobile" on the phone, which is a hydration mismatch the
+  // moment it can reach the output. Today it cannot — the flag store is
+  // unloaded at hydration, so the `&&` is false on both sides — but that is the
+  // flag's loading order masking it, not this line being safe.
+  // Both hooks are read before the `&&`: inlining the second one behind it would
+  // make it a conditional call.
+  const notificationsEnabled = useFeatureFlag('notifications');
+  const isMobile = useIsMobileShell();
+  const showNotificationSettings = notificationsEnabled && isMobile;
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
 
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
