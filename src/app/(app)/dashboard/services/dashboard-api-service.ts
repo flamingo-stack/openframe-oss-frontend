@@ -2,7 +2,7 @@
 
 import { apiClient } from '@/lib/api-client';
 import { DEFAULT_DASHBOARD_STATUSES, DEVICE_STATUS } from '../../devices/constants/device-statuses';
-import { fetchDeviceCounts } from '../../devices/queries/devices-api';
+import { fetchDeviceStatusCounts } from '../../devices/queries/devices-api';
 import type { GraphQlResponse } from '../../devices/types/device.types';
 import { API_ENDPOINTS, TICKET_STATUS } from '../../tickets/constants';
 import { GET_TICKET_STATISTICS_QUERY } from '../../tickets/queries/ticket-queries';
@@ -77,7 +77,7 @@ class DashboardApiService {
    */
   async fetchDeviceStats(): Promise<DashboardDeviceStats> {
     try {
-      const counts = await fetchDeviceCounts({ statuses: [...DEFAULT_DASHBOARD_STATUSES] });
+      const counts = await fetchDeviceStatusCounts({ statuses: [...DEFAULT_DASHBOARD_STATUSES] });
 
       const total = counts.filteredCount;
       const countFor = (value: string) => counts.byStatus.get(value) ?? 0;
