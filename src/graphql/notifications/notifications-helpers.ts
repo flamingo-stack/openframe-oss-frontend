@@ -227,6 +227,31 @@ export function contextTypeLabel(contextType: string | null | undefined): string
     .join(' ');
 }
 
+/**
+ * Defensive plain-text pass over notification title/description: strips common markdown
+ * and HTML artifacts so previews (drawer tiles, table rows, OS toasts) never show raw
+ * formatting. Canonical sanitization belongs on the BE at emission time (ClickUp 86ajn8hpg);
+ * this only guards records written before that fix and any stragglers.
+ */
+export function stripNotificationMarkup(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, '') // HTML tags
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1') // images -> alt text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links -> label
+    .replace(/(\*{1,3}|_{1,3}|~~)(\S(?:.*?\S)?)\1/g, '$2') // bold / italic / strikethrough
+    .replace(/`{1,3}([^`]*)`{1,3}/g, '$1') // inline / fenced code
+    .replace(/^[^\S\n]{0,3}#{1,6}[^\S\n]+/gm, '') // headings
+    .replace(/[^\S\n]#{2,6}[^\S\n]+/g, ' ') // stray mid-line heading markers ("text. ## Summary"); 2+ hashes so "#238" survives
+    .replace(/^[^\S\n]{0,3}>[^\S\n]?/gm, '') // blockquotes
+    .replace(/^[^\S\n]{0,3}(?:[-*+]|\d+\.)[^\S\n]+/gm, '') // list markers
+    // Collapse whitespace within lines only — newlines survive so the full-text
+    // hover/tooltip keeps its paragraph structure (clamped previews ignore them anyway).
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const EPOCH_MS_THRESHOLD = 1e12;
 
 function toEpochMs(value: number): number {
@@ -317,8 +342,8 @@ export function mapNotificationNode(node: NotificationNodeShape): Notification {
   return {
     id: node.id,
     type: contextTypeLabel(context.type),
-    title: node.title,
-    description: node.description ?? undefined,
+    title: stripNotificationMarkup(node.title),
+    description: node.description == null ? undefined : stripNotificationMarkup(node.description),
     createdAt: parseCreatedAt(node.createdAt),
     read: node.read,
     severity,
