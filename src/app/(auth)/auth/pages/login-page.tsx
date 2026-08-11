@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { type LoginDiscoveryResult, LoginSection } from '@/app/(auth)/auth/components/login-form-section';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
-import { useIsIosPlatform } from '@/app/hooks/use-ios-platform';
+import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 import { isAuthOnlyMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 
@@ -35,9 +35,9 @@ export default function LoginPage() {
   // every background discovery and would flicker the whole form.
   const [ssoLoading, setSsoLoading] = useState(false);
 
-  // "Continue with Apple" is offered on iOS devices only.
-  const isIos = useIsIosPlatform();
-  const formProviders = FORM_PROVIDER_ORDER.filter(provider => provider !== 'apple' || isIos);
+  // "Continue with Apple" is offered on Apple devices only.
+  const isApple = useIsApplePlatform();
+  const formProviders = FORM_PROVIDER_ORDER.filter(provider => provider !== 'apple' || isApple);
 
   useEffect(() => {
     if (isAuthenticated && !isAuthOnlyMode()) {

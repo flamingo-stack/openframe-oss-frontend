@@ -8,7 +8,7 @@ import { CreateOrganizationSection } from '@/app/(auth)/auth/components/create-o
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
-import { useIsIosPlatform } from '@/app/hooks/use-ios-platform';
+import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 import { isAuthOnlyMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 
@@ -42,10 +42,10 @@ export default function AuthPage() {
     router.push('/auth/signup/');
   };
 
-  // External providers offered by the backend for registration; Apple only on iOS devices.
-  const isIos = useIsIosPlatform();
+  // External providers offered by the backend for registration; Apple only on Apple devices.
+  const isApple = useIsApplePlatform();
   const ssoProviders: AuthSsoProvider[] = (['google', 'microsoft', 'apple'] as const).filter(
-    provider => (provider !== 'apple' || isIos) && providers.some(sp => sp.provider === provider),
+    provider => (provider !== 'apple' || isApple) && providers.some(sp => sp.provider === provider),
   );
 
   const handleSsoRegister = (orgName: string, domain: string, email: string, provider: AuthSsoProvider) => {

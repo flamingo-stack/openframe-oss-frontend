@@ -12,7 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useInviteProviders } from '@/app/(auth)/auth/hooks/use-invite-providers';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { useIsIosPlatform } from '@/app/hooks/use-ios-platform';
+import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 import { authApiClient } from '@/lib/auth-api-client';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -42,8 +42,8 @@ export default function InvitePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTenantSwitch, setShowTenantSwitch] = useState(false);
 
-  // "Continue with Apple" is offered on iOS devices only.
-  const isIos = useIsIosPlatform();
+  // "Continue with Apple" is offered on Apple devices only.
+  const isApple = useIsApplePlatform();
 
   const handleBack = () => router.push('/auth');
 
@@ -128,7 +128,7 @@ export default function InvitePage() {
   }
 
   const formProviders: AuthSsoProvider[] = (['google', 'microsoft', 'apple'] as const).filter(
-    provider => (provider !== 'apple' || isIos) && providers.some(sp => SSO_TO_FORM[sp.provider] === provider),
+    provider => (provider !== 'apple' || isApple) && providers.some(sp => SSO_TO_FORM[sp.provider] === provider),
   );
 
   return (
