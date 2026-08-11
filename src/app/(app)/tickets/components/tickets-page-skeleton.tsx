@@ -17,8 +17,9 @@ import {
   PageLayout,
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useState } from 'react';
 import { TableSkeleton, type TableSkeletonColumn, TagFilterBarSkeleton } from '@/app/components/shared';
+import { useIsMobileViewport } from '@/app/hooks/use-is-mobile-viewport';
+import { resolveTicketsViewMode } from '../utils/resolve-view-mode';
 import { usePlaceholderBoardColumns } from './board-columns-cache';
 import { ticketTableColumns } from './ticket-table-layout';
 
@@ -87,12 +88,12 @@ const mobileFilterButton = (
 );
 
 export function TicketsPageSkeleton({ viewMode }: { viewMode?: string }) {
-  // Mirrors how `TicketsView` resolves the mode: `useApiParams` declares
-  // `viewMode` with `default: 'board'` and falls back to that default for any
-  // FALSY raw value, then treats everything else that isn't `board` as the
-  // table. So an absent param and an empty `?viewMode=` are both the board,
-  // while a stray `?viewMode=grid` is the table on both sides.
-  const isTable = !!viewMode && viewMode !== 'board';
+  // Same resolver the live view runs, so the skeleton can't draw the mode that
+  // is about to be replaced: an absent (or empty) `?viewMode=` is the board on
+  // md and up and the table below it, a stray `?viewMode=grid` is the table on
+  // both sides.
+  const isMobileViewport = useIsMobileViewport();
+  const isTable = resolveTicketsViewMode(viewMode, isMobileViewport) === 'table';
   // Read once, on mount: the lane set must not shift while the skeleton is up.
   const boardColumns = usePlaceholderBoardColumns();
 

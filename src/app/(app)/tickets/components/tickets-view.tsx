@@ -4,11 +4,11 @@ import { TableCellIcon, TableColIcon } from '@flamingo-stack/openframe-frontend-
 import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
+import { useIsMobileViewport } from '@/app/hooks/use-is-mobile-viewport';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { resolveTicketsViewMode, type TicketsViewMode } from '../utils/resolve-view-mode';
 import { TicketsBoard } from './tickets-board';
 import { CurrentTickets } from './tickets-table';
-
-type ViewMode = 'table' | 'board';
 
 export function TicketsView() {
   const { params, setParam, setParams } = useApiParams({
@@ -17,10 +17,13 @@ export function TicketsView() {
     assigneeIds: { type: 'array', default: [] },
     labelIds: { type: 'array', default: [] },
     search: { type: 'string', default: '' },
-    viewMode: { type: 'string', default: 'board' },
+    // No default: an absent param has to stay distinguishable from an explicit
+    // `viewMode=board` for `resolveTicketsViewMode` to know when it may pick.
+    viewMode: { type: 'string', default: '' },
   });
 
-  const viewMode: ViewMode = params.viewMode === 'board' ? 'board' : 'table';
+  const isMobileViewport = useIsMobileViewport();
+  const viewMode = resolveTicketsViewMode(params.viewMode, isMobileViewport);
 
   // Local search keeps typing responsive; the shared hook debounces the write to
   // the URL param so we don't navigate the router (and re-render the board) on
@@ -41,7 +44,7 @@ export function TicketsView() {
     () => (
       <TabSelector
         value={viewMode}
-        onValueChange={v => setParam('viewMode', v as ViewMode)}
+        onValueChange={v => setParam('viewMode', v as TicketsViewMode)}
         items={[
           { id: 'table', icon: <TableCellIcon className="w-6 h-6" /> },
           { id: 'board', icon: <TableColIcon className="w-6 h-6" /> },
