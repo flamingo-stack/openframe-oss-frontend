@@ -37,7 +37,9 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "isBiometricLoginEnabled", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "enableBiometricLogin", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disableBiometricLogin", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getSafeAreaInsets", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "getSafeAreaInsets", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "signInWithApple", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "exchangeApple", returnType: CAPPluginReturnPromise)
     ]
 
     // Not auth-related, but this is the shell's only local plugin: WKWebView
@@ -59,6 +61,8 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private static let callbackScheme = "com.openframe.app"
     private var authSession: ASWebAuthenticationSession?
+    private var appleCall: CAPPluginCall?
+    private var appleController: ASAuthorizationController?
 
     @objc func start(_ call: CAPPluginCall) {
         guard let urlString = call.getString("url"), let url = URL(string: urlString) else {
@@ -116,6 +120,83 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
             }
             guard (200..<300).contains(http.statusCode) else {
                 call.reject("Ticket exchange failed with status \(http.statusCode)")
+                return
+            }
+            var result = JSObject()
+            if let accessToken = http.value(forHTTPHeaderField: "Access-Token") {
+                result["accessToken"] = accessToken
+            }
+            if let refreshToken = http.value(forHTTPHeaderField: "Refresh-Token") {
+                result["refreshToken"] = refreshToken
+            }
+            call.resolve(result)
+        }.resume()
+    }
+
+    // MARK: - Native Sign in with Apple
+
+    /**
+     * The native Sign in with Apple sheet (ASAuthorizationController). `nonce`
+     * arrives pre-hashed (SHA-256 hex of the raw nonce the JS side keeps);
+     * Apple embeds it into the identity token's `nonce` claim, and the backend
+     * re-hashes the raw nonce to bind the token to this attempt.
+     */
+    @objc func signInWithApple(_ call: CAPPluginCall) {
+        guard let nonce = call.getString("nonce"), !nonce.isEmpty else {
+            call.reject("Missing 'nonce'")
+            return
+        }
+        DispatchQueue.main.async {
+            guard self.appleCall == nil else {
+                call.reject("A sign-in session is already open", "ALREADY_PRESENTING")
+                return
+            }
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = nonce
+
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = self
+            controller.presentationContextProvider = self
+            self.appleCall = call
+            self.appleController = controller
+            controller.performRequests()
+        }
+    }
+
+    /**
+     * POSTs the Apple credential to the gateway BFF's native-exchange endpoint
+     * over native HTTP — same rationale as exchangeTicket: the WebView never
+     * fights CORS for the Access-Token/Refresh-Token response headers.
+     */
+    @objc func exchangeApple(_ call: CAPPluginCall) {
+        guard let urlString = call.getString("url"), let url = URL(string: urlString) else {
+            call.reject("Missing or invalid 'url'")
+            return
+        }
+        guard let body = call.getObject("body"),
+              let payload = try? JSONSerialization.data(withJSONObject: body) else {
+            call.reject("Missing or invalid 'body'")
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = payload
+
+        URLSession.shared.dataTask(with: request) { _, response, error in
+            if let error {
+                call.reject("Apple exchange failed: \(error.localizedDescription)")
+                return
+            }
+            guard let http = response as? HTTPURLResponse else {
+                call.reject("Apple exchange failed: no HTTP response")
+                return
+            }
+            guard (200..<300).contains(http.statusCode) else {
+                call.reject("Apple exchange failed with status \(http.statusCode)")
                 return
             }
             var result = JSObject()
@@ -487,6 +568,51 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
         } else {
             keychainDelete(account: biometricMarkerAccount)
         }
+    }
+}
+
+extension NativeAuthPlugin: ASAuthorizationControllerDelegate {
+    public func authorizationController(controller: ASAuthorizationController,
+                                        didCompleteWithAuthorization authorization: ASAuthorization) {
+        let call = appleCall
+        appleCall = nil
+        appleController = nil
+        guard let call else { return }
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let tokenData = credential.identityToken,
+              let identityToken = String(data: tokenData, encoding: .utf8),
+              let codeData = credential.authorizationCode,
+              let authorizationCode = String(data: codeData, encoding: .utf8) else {
+            call.reject("Apple sign-in returned no usable credential")
+            return
+        }
+        var result = JSObject()
+        result["identityToken"] = identityToken
+        result["authorizationCode"] = authorizationCode
+        // Present only on the very first authorization for this Apple ID.
+        if let firstName = credential.fullName?.givenName { result["firstName"] = firstName }
+        if let lastName = credential.fullName?.familyName { result["lastName"] = lastName }
+        if let email = credential.email { result["email"] = email }
+        call.resolve(result)
+    }
+
+    public func authorizationController(controller: ASAuthorizationController,
+                                        didCompleteWithError error: Error) {
+        let call = appleCall
+        appleCall = nil
+        appleController = nil
+        guard let call else { return }
+        if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+            call.reject("USER_CANCELED", "USER_CANCELED")
+        } else {
+            call.reject("Apple sign-in failed: \(error.localizedDescription)")
+        }
+    }
+}
+
+extension NativeAuthPlugin: ASAuthorizationControllerPresentationContextProviding {
+    public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        bridge?.viewController?.view.window ?? ASPresentationAnchor()
     }
 }
 

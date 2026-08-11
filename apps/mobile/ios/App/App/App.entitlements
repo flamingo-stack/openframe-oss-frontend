@@ -9,5 +9,12 @@
 	       codesign -d --entitlements - <archive>/Products/Applications/App.app -->
 	<key>aps-environment</key>
 	<string>$(APS_ENVIRONMENT)</string>
+	<!-- Native Sign in with Apple (ASAuthorizationController in NativeAuthPlugin).
+	     Device builds need the capability enabled on the App ID (paid team); the
+	     Simulator works without provisioning. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>
