@@ -5,17 +5,65 @@
 # about through its last command.
 set -eu
 
-STAGED=$(git diff --cached --name-only --diff-filter=ACMR \
-  | grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$' || true)
+# NUL-delimited, and the extension filter lives in a git pathspec rather than a
+# grep: `git diff --name-only` quotes any path containing a non-ASCII byte
+# ("src/caf\303\251.ts"), so such a file matched neither the `$`-anchored
+# extension pattern nor a real file on disk and was silently skipped by both
+# checks below. `-z` turns quoting off, and nothing line-oriented touches the list.
+staged_files() {
+  git diff --cached --name-only -z --diff-filter=ACMR \
+    -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs'
+}
+
+# A shell variable cannot hold NUL, so this newline-joined copy is only for the
+# emptiness check and the awk filter below; the Biome call re-reads the NUL list.
+STAGED=$(staged_files | tr '\0' '\n')
 
 if [ -z "$STAGED" ]; then
   exit 0
 fi
 
-printf '%s\n' "$STAGED" | tr '\n' '\0' \
-  | xargs -0 npx @biomejs/biome check --no-errors-on-unmatched
+# Both checks below read the working tree, so a file that is staged AND carries
+# further unstaged edits (or was deleted after staging) would be validated as
+# content that is not what gets committed. Materializing the index instead would
+# mean a full checkout-index tree plus a node_modules symlink for tsc to resolve
+# `@/*` — too much machinery for a pre-commit hook, so refuse the ambiguity.
+PARTIAL=$(git diff --name-only -z \
+  -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' \
+  | tr '\0' '\n' | STAGED="$STAGED" awk '
+    BEGIN { n = split(ENVIRON["STAGED"], f, "\n") }
+    {
+      for (i = 1; i <= n; i++)
+        if (f[i] != "" && $0 == f[i]) { print; next }
+    }
+  ')
 
-TSC_OUTPUT=$(npx tsc --noEmit 2>&1 || true)
+if [ -n "$PARTIAL" ]; then
+  printf '%s\n\n' "$PARTIAL"
+  echo "Staged with further unstaged edits — the checks would run on working-tree"
+  echo "content, not on what would be committed. Stage the rest (git add <file>)"
+  echo "or commit those files separately."
+  exit 1
+fi
+
+staged_files | xargs -0 npx @biomejs/biome check --no-errors-on-unmatched
+
+TSC_STATUS=0
+# --pretty false is load-bearing, not cosmetic: pretty output prefixes each path
+# with an ANSI escape and switches the anchor to "path:line:col - error", which
+# defeats both the guard below and the staged-file filter — silently, by passing.
+TSC_OUTPUT=$(npx tsc --noEmit --pretty false 2>&1) || TSC_STATUS=$?
+
+# tsc exits non-zero both for ordinary type errors (2) and for never having run:
+# with no tsconfig it prints its help text and exits 1, a missing binary yields
+# npm noise, an OOM kill yields none. Only file-anchored "path(line,col): error
+# TS…" lines can be scoped to staged files, so a non-zero exit without a single
+# one of them means the check did not happen — swallowing it would pass the commit.
+if [ "$TSC_STATUS" -ne 0 ] && ! printf '%s\n' "$TSC_OUTPUT" | grep -q ': error TS'; then
+  printf '%s\n\n' "$TSC_OUTPUT"
+  echo "tsc produced no diagnostics but exited $TSC_STATUS — the type check did not run."
+  exit 1
+fi
 
 # The list reaches awk through the environment, not `-v files="$STAGED"`: BSD awk
 # (the macOS system awk) rejects a literal newline inside a -v assignment, so that
@@ -24,7 +72,12 @@ FILTERED=$(printf '%s\n' "$TSC_OUTPUT" | STAGED="$STAGED" awk '
   BEGIN { n = split(ENVIRON["STAGED"], f, "\n") }
   {
     for (i = 1; i <= n; i++)
-      if (f[i] != "" && index($0, f[i]) == 1) { print; next }
+      if (f[i] != "" && index($0, f[i]) == 1) {
+        # The path must end where the diagnostic starts, or staged "a.ts" claims
+        # an error belonging to an unstaged "a.tsx" and aborts an innocent commit.
+        c = substr($0, length(f[i]) + 1, 1)
+        if (c == "(" || c == ":") { print; next }
+      }
   }
 ')
 

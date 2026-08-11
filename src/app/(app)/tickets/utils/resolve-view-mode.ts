@@ -11,9 +11,19 @@ export type TicketsViewMode = 'table' | 'board';
  * Shared with `TicketsPageSkeleton` so the two cannot answer differently. That
  * skeleton draws whichever mode is about to appear and is written to mirror this
  * view exactly, which is the whole reason the rule is a function rather than an
- * expression inlined in each — note it is not mounted by a route yet.
+ * expression inlined in each.
+ *
+ * `undefined` means "not yet". Only the viewport-derived default can be
+ * unknown, so an explicit `?viewMode=` still answers during hydration and never
+ * makes the caller draw a loading state.
  */
-export function resolveTicketsViewMode(rawViewMode: string | undefined, isMobileViewport: boolean): TicketsViewMode {
-  if (!rawViewMode) return isMobileViewport ? 'table' : 'board';
+export function resolveTicketsViewMode(
+  rawViewMode: string | undefined,
+  isMobileViewport: boolean | undefined,
+): TicketsViewMode | undefined {
+  if (!rawViewMode) {
+    if (isMobileViewport === undefined) return undefined;
+    return isMobileViewport ? 'table' : 'board';
+  }
   return rawViewMode === 'board' ? 'board' : 'table';
 }

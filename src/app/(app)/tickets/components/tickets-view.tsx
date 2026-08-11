@@ -8,6 +8,7 @@ import { useIsMobileViewport } from '@/app/hooks/use-is-mobile-viewport';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { resolveTicketsViewMode, type TicketsViewMode } from '../utils/resolve-view-mode';
 import { TicketsBoard } from './tickets-board';
+import { TicketsPageSkeleton } from './tickets-page-skeleton';
 import { CurrentTickets } from './tickets-table';
 
 export function TicketsView() {
@@ -43,7 +44,9 @@ export function TicketsView() {
   const tabs = useMemo(
     () => (
       <TabSelector
-        value={viewMode}
+        // Never rendered before `viewMode` resolves — the guard below returns
+        // the skeleton first — so the fallback here is only to satisfy the type.
+        value={viewMode ?? 'board'}
         onValueChange={v => setParam('viewMode', v as TicketsViewMode)}
         items={[
           { id: 'table', icon: <TableCellIcon className="w-6 h-6" /> },
@@ -53,6 +56,13 @@ export function TicketsView() {
     ),
     [viewMode, setParam],
   );
+
+  // The viewport is unknown for the first renders after hydration. Guessing a
+  // mode would mount the wrong subtree and run its fetches before swapping it
+  // out — the exact cost this split exists to avoid.
+  if (!viewMode) {
+    return <TicketsPageSkeleton viewMode={params.viewMode} />;
+  }
 
   if (viewMode === 'board') {
     return (

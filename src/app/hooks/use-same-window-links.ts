@@ -40,5 +40,7 @@ function getServerSnapshot(): boolean {
 export function useSameWindowLinks(): boolean {
   const isMobileViewport = useIsMobileViewport();
   const appShell = useSyncExternalStore(subscribe, isAppShell, getServerSnapshot);
-  return appShell || isMobileViewport;
+  // A link target has no "still loading" state, so an unknown viewport keeps the
+  // wide-screen answer — the same thing this returned before it could be unknown.
+  return appShell || isMobileViewport === true;
 }

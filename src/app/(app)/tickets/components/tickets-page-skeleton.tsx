@@ -92,8 +92,11 @@ export function TicketsPageSkeleton({ viewMode }: { viewMode?: string }) {
   // is about to be replaced: an absent (or empty) `?viewMode=` is the board on
   // md and up and the table below it, a stray `?viewMode=grid` is the table on
   // both sides.
+  // `undefined` until the client viewport is known — draw the page chrome and
+  // nothing mode-specific rather than flashing the mode we are about to drop.
   const isMobileViewport = useIsMobileViewport();
-  const isTable = resolveTicketsViewMode(viewMode, isMobileViewport) === 'table';
+  const resolvedViewMode = resolveTicketsViewMode(viewMode, isMobileViewport);
+  const isTable = resolvedViewMode === 'table';
   // Read once, on mount: the lane set must not shift while the skeleton is up.
   const boardColumns = usePlaceholderBoardColumns();
 
@@ -118,7 +121,7 @@ export function TicketsPageSkeleton({ viewMode }: { viewMode?: string }) {
       className="h-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       contentClassName="flex flex-col min-h-0"
     >
-      {isTable ? (
+      {resolvedViewMode === 'table' && (
         <div className="sticky top-0 z-20 flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg -mx-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]">
           <TagFilterBarSkeleton
             search=""
@@ -127,7 +130,8 @@ export function TicketsPageSkeleton({ viewMode }: { viewMode?: string }) {
             filterButton={mobileFilterButton}
           />
         </div>
-      ) : (
+      )}
+      {resolvedViewMode === 'board' && (
         <div className="flex flex-col gap-[var(--spacing-system-l)]">
           <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
             <TagFilterBarSkeleton
@@ -163,9 +167,8 @@ export function TicketsPageSkeleton({ viewMode }: { viewMode?: string }) {
         </div>
       )}
 
-      {isTable ? (
-        <TableSkeleton columns={COLUMNS} />
-      ) : (
+      {resolvedViewMode === 'table' && <TableSkeleton columns={COLUMNS} />}
+      {resolvedViewMode === 'board' && (
         <div aria-busy className="flex-1 min-h-0 -mx-[var(--spacing-system-l)]">
           <Board columns={boardColumns} onChange={noop} className="h-full px-[var(--spacing-system-l)]" />
         </div>
