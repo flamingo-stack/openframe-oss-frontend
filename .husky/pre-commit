@@ -1,29 +1,35 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env sh
+# POSIX sh, not bash: husky's shim invokes this as `sh -e <this file>`, so the
+# shebang is never honored and `set -o pipefail` (a bashism) aborts the hook on
+# any dash-based runner. Every pipeline below already reports the status we care
+# about through its last command.
+set -eu
 
-FRONTEND_DIR="openframe/services/openframe-frontend"
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR \
+  | grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$' || true)
 
-STAGED_ROOT=$(git diff --cached --name-only --diff-filter=ACMR \
-  | grep -E "^${FRONTEND_DIR}/.*\.(ts|tsx|js|jsx|mjs|cjs)$" || true)
-
-if [ -z "$STAGED_ROOT" ]; then
+if [ -z "$STAGED" ]; then
   exit 0
 fi
 
-STAGED_REL=$(echo "$STAGED_ROOT" | sed "s|^${FRONTEND_DIR}/||")
-
-cd "$FRONTEND_DIR"
-
-echo "$STAGED_REL" | xargs npx @biomejs/biome check --no-errors-on-unmatched
+printf '%s\n' "$STAGED" | tr '\n' '\0' \
+  | xargs -0 npx @biomejs/biome check --no-errors-on-unmatched
 
 TSC_OUTPUT=$(npx tsc --noEmit 2>&1 || true)
 
-GREP_PATTERN=$(echo "$STAGED_REL" | tr '\n' '|' | sed 's/|$//')
-FILTERED=$(echo "$TSC_OUTPUT" | grep -E "^(${GREP_PATTERN})" || true)
+# The list reaches awk through the environment, not `-v files="$STAGED"`: BSD awk
+# (the macOS system awk) rejects a literal newline inside a -v assignment, so that
+# form aborted the hook on every commit touching more than one file.
+FILTERED=$(printf '%s\n' "$TSC_OUTPUT" | STAGED="$STAGED" awk '
+  BEGIN { n = split(ENVIRON["STAGED"], f, "\n") }
+  {
+    for (i = 1; i <= n; i++)
+      if (f[i] != "" && index($0, f[i]) == 1) { print; next }
+  }
+')
 
 if [ -n "$FILTERED" ]; then
-  echo "$FILTERED"
-  echo ""
+  printf '%s\n\n' "$FILTERED"
   echo "Type errors in staged files — commit aborted."
   exit 1
 fi

@@ -5,7 +5,6 @@ import { ExpandSquareIcon } from '@flamingo-stack/openframe-frontend-core/compon
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useCallback, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import type { ApplicationTheme } from '../../types/ai-settings';
 import { AiSettingsPreviewModal, type PreviewPane } from './ai-settings-preview-modal';
@@ -51,13 +50,9 @@ export function AiSettingsPreviews({
   // 200ms exit animation.
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewPane, setPreviewPane] = useState<PreviewPane>('welcome');
-  // Gates the portal so nothing mounts until the user asks for a preview, while
-  // still keeping the modal mounted through its exit animation after close.
-  const [hasOpenedPreview, setHasOpenedPreview] = useState(false);
 
   const openPreview = (pane: PreviewPane) => {
     setPreviewPane(pane);
-    setHasOpenedPreview(true);
     setIsPreviewOpen(true);
   };
 
@@ -114,26 +109,18 @@ export function AiSettingsPreviews({
         </ThumbnailTrigger>
       </div>
 
-      {/* Portaled to <body> because ModalV2 does NOT portal itself: its
-          `RemoveScroll` wrapper is an in-flow div, so rendered here it becomes
-          an extra item in the consumer's `flex flex-col gap-*` and opening the
-          modal pushed everything below it down by one gap. */}
-      {hasOpenedPreview &&
-        createPortal(
-          <AiSettingsPreviewModal
-            isOpen={isPreviewOpen}
-            onClose={closePreview}
-            activePane={previewPane}
-            onPaneChange={setPreviewPane}
-            assistantName={assistantName}
-            avatarUrl={resolvedAvatarUrl}
-            accentColor={accentColor}
-            theme={theme}
-            providerName={providerName}
-            modelDisplayName={modelDisplayName}
-          />,
-          document.body,
-        )}
+      <AiSettingsPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={closePreview}
+        activePane={previewPane}
+        onPaneChange={setPreviewPane}
+        assistantName={assistantName}
+        avatarUrl={resolvedAvatarUrl}
+        accentColor={accentColor}
+        theme={theme}
+        providerName={providerName}
+        modelDisplayName={modelDisplayName}
+      />
     </>
   );
 }

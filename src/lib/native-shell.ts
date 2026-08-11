@@ -131,6 +131,34 @@ export interface FirebaseMessagingPlugin {
   ): Promise<unknown>;
 }
 
+/** A picked file as the NativeFiles plugin returns it, before `mimeType` is normalized to `type`. */
+export interface NativePickedFilePayload {
+  path: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+/**
+ * Subset of the shell's local NativeFiles plugin (openframe-mobile:
+ * NativeFilesPlugin.swift / NativeFilesPlugin.java; ships with the shell, not
+ * npm). Attachment bytes move through here instead of the WebView — native-files.ts
+ * owns the reasons and is the only module that should call these.
+ */
+export interface NativeFilesPlugin {
+  /** Resolves with an empty array when the user cancels. */
+  pickFiles(options: { multiple?: boolean }): Promise<{ files: NativePickedFilePayload[] }>;
+  /** Streams a picked file to a presigned URL; rejects on a non-2xx status. */
+  uploadFile(options: { path: string; url: string; contentType?: string }): Promise<{ status: number }>;
+  /**
+   * Fetches natively, then saves (Android Downloads) or shares (iOS, and Android
+   * below API 29) the result. `savedToDownloads` distinguishes the two: a share
+   * sheet is its own confirmation, a silent save is not, and the caller has to
+   * say so itself.
+   */
+  downloadFile(options: { url: string; fileName: string }): Promise<{ savedToDownloads: boolean }>;
+}
+
 /** Subset of @capacitor/splash-screen (plugin ships with the shell, not npm). */
 export interface SplashScreenPlugin {
   hide(options?: { fadeOutDuration?: number }): Promise<void>;
@@ -210,6 +238,11 @@ export function nativeAuthPlugin(): NativeAuthPlugin | null {
 /** Mobile-only. Also null until @capacitor-firebase/messaging is present in the shell — callers no-op. */
 export function firebaseMessagingPlugin(): FirebaseMessagingPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.FirebaseMessaging ?? null) : null;
+}
+
+/** Mobile-only. Also null on shell binaries that predate the NativeFiles plugin — callers fall back to the web path. */
+export function nativeFilesPlugin(): NativeFilesPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.NativeFiles ?? null) : null;
 }
 
 /** Mobile-only. Also null until @capacitor/splash-screen is present in the shell — callers no-op. */
