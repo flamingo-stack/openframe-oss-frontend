@@ -147,9 +147,21 @@ export function getMingoDialogMessagesQuery() {
   //
   // The ask intro is fetched under `ASK_INTRO_ALIAS`, not as `text` — see the
   // alias' doc-comment. `normalizeAskMessageData` undoes it on the way in.
+  //
+  // `payload` carries a persisted Product Guide frame (an approval card, so it
+  // survives a reload) and is decoded by the core lib through the SAME mapper as
+  // the live chunk. No `FieldsConflict` risk — `payload` exists only on
+  // `GuideData`.
+  //
+  // NOTE for the producer side: `GuideData.text` is `String!` (see
+  // `ASK_INTRO_ALIAS` above). A persisted frame row must therefore carry an
+  // EMPTY STRING, never null — a null there does not blank one card, it
+  // nullifies the field and takes the whole `messages` query down with it, so
+  // the entire dialog history renders empty.
   const guideFragment = featureFlags.guideChunks.enabled()
     ? `... on GuideData {
               text
+              payload
             }
 
             ... on AskData {
