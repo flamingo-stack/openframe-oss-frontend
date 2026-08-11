@@ -7,11 +7,10 @@ import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import type { Device } from '../types/device.types';
 import { getDeviceActionAvailability } from '../utils/device-action-utils';
-import { buildUninstallCommand, normalizeDevicePlatform } from '../utils/device-command-utils';
+import { assetsDownloadBase, buildUninstallCommand, normalizeDevicePlatform } from '../utils/device-command-utils';
 import { getDeviceName } from '../utils/device-name';
 import { useDeviceActions } from './use-device-actions';
 import { useRebootDevice } from './use-reboot-device';
-import { useReleaseVersion } from './use-release-version';
 
 interface UseDeviceConfirmationDialogsOptions {
   onArchived?: () => void;
@@ -46,7 +45,6 @@ export function useDeviceConfirmationDialogs(
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRebootConfirm, setShowRebootConfirm] = useState(false);
-  const { releaseVersion } = useReleaseVersion({ enabled: showDeleteConfirm });
 
   const deviceName = getDeviceName(device) || 'this device';
   const deviceId = device?.machineId || device?.id || '';
@@ -58,8 +56,10 @@ export function useDeviceConfirmationDialogs(
 
   const uninstallCommand = useMemo(() => {
     if (!showDeleteConfirm || !device) return '';
-    return buildUninstallCommand({ platform: devicePlatform, releaseVersion });
-  }, [devicePlatform, releaseVersion, showDeleteConfirm, device]);
+    // Dialog content only exists after a click, so `window` is there and the
+    // base needs no hydration-safe store like the install page's.
+    return buildUninstallCommand({ platform: devicePlatform, downloadBaseUrl: assetsDownloadBase() });
+  }, [devicePlatform, showDeleteConfirm, device]);
 
   const copyUninstallCommand = useCallback(() => copyCommand(uninstallCommand), [copyCommand, uninstallCommand]);
 
