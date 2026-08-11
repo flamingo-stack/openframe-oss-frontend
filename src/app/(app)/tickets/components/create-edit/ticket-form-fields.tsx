@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { AssignmentsField } from '@/components/assignments';
+import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
 import type { useTempAttachments } from '../../hooks/use-temp-attachments';
 import { useAssigneeOptions, useDeviceOptions, useOrganizationOptions } from '../../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../../statuses/hooks/use-ticket-statuses-query';
@@ -96,7 +97,7 @@ export function TicketFormFields({
     [],
   );
 
-  const handleFilesAdded = (files: File | File[] | undefined) => {
+  const handleFilesAdded = (files: UploadSource | UploadSource[] | undefined) => {
     if (!files) return;
     const fileArray = Array.isArray(files) ? files : [files];
     for (const file of fileArray) {
@@ -245,6 +246,7 @@ export function TicketFormFields({
       {/* File Upload — managed mode with temp attachments */}
       <FileUpload
         onChange={handleFilesAdded}
+        pickFiles={nativeFilePicker({ multiple: true })}
         managedFiles={managedFiles}
         onRemoveManagedFile={tempAttachments.removeFile}
         multiple

@@ -3,6 +3,7 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import type { UploadSource } from '@/lib/native-files';
 import { API_ENDPOINTS } from '../constants';
 import { DELETE_TICKET_ATTACHMENT, UPDATE_TICKET_MUTATION } from '../queries/ticket-queries';
 import type { Ticket, TicketPayload, UpdateTicketInput } from '../types/ticket.types';
@@ -56,7 +57,7 @@ export function useAddTicketAttachments(ticketId: string) {
   const { toast } = useToast();
   const invalidate = useTicketCacheInvalidation(ticketId);
   return useMutation({
-    mutationFn: async (files: File[]) => {
+    mutationFn: async (files: UploadSource[]) => {
       const uploaded = await Promise.all(files.map(createTempAttachment));
       return updateTicket({ id: ticketId, tempAttachmentIds: uploaded.map(u => u.id) });
     },
