@@ -47,6 +47,30 @@ export interface NativeAuthPlugin {
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
   exchangeTicket(options: { url: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
   /**
+   * Native Sign in with Apple (ASAuthorizationController) — iOS-only, and
+   * absent on binaries that predate it; callers must feature-check and fall
+   * back to `start`. `nonce` is the SHA-256 hex of the raw nonce the JS side
+   * generated (Apple embeds it into the identity token's `nonce` claim).
+   * Rejects with USER_CANCELED when the user dismisses the sheet.
+   */
+  signInWithApple?(options: { nonce: string }): Promise<{
+    identityToken: string;
+    authorizationCode: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }>;
+  /**
+   * POSTs the Apple credential to the gateway's native-exchange endpoint over
+   * native HTTP (same no-CORS rationale as exchangeTicket) and returns tokens
+   * from the Access-Token / Refresh-Token response headers. Paired with
+   * `signInWithApple`; same availability caveat.
+   */
+  exchangeApple?(options: {
+    url: string;
+    body: Record<string, string>;
+  }): Promise<{ accessToken?: string; refreshToken?: string }>;
+  /**
    * Reads the stored tokens. When biometric login is enabled the shell gates
    * this behind a biometric prompt, so it may reject with `BIOMETRIC_CANCELED`
    * (user dismissed the prompt) or `BIOMETRIC_INVALIDATED` (enrollment changed —

@@ -180,7 +180,7 @@ class AuthApiClient {
     tenantName: string;
     tenantDomain: string;
     email: string;
-    provider: 'google' | 'microsoft';
+    provider: 'google' | 'microsoft' | 'apple';
     redirectTo?: string;
     /** Defaults to whatever is capturable right now; pass explicitly to reuse an existing set. */
     attribution?: RegistrationAttribution;
@@ -241,7 +241,7 @@ class AuthApiClient {
 
   acceptInvitationSso(payload: {
     invitationId: string;
-    provider: 'openframe-sso' | 'google' | 'microsoft';
+    provider: 'openframe-sso' | 'google' | 'microsoft' | 'apple';
     switchTenant?: boolean;
     redirectTo?: string;
   }) {

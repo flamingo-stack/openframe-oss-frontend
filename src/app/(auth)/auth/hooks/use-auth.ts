@@ -47,7 +47,7 @@ interface SsoRegisterRequest {
   tenantName: string;
   tenantDomain: string;
   email: string;
-  provider: 'google' | 'microsoft';
+  provider: 'google' | 'microsoft' | 'apple';
   redirectTo?: string;
 }
 
@@ -266,11 +266,19 @@ export function useAuth() {
         throw new Error('No tenant information available for SSO login');
       }
     } catch (error) {
-      toast({
-        title: 'Login Failed',
-        description: error instanceof Error ? error.message : 'Unable to sign in with SSO',
-        variant: 'destructive',
-      });
+      // Dismissing the native sign-in surface (the Apple sheet or the
+      // ASWebAuthenticationSession browser) is a deliberate user action, not a
+      // failure — the shell rejects it with USER_CANCELED; no toast for that.
+      const canceled =
+        (error as { code?: string } | null)?.code === 'USER_CANCELED' ||
+        (error instanceof Error && error.message === 'USER_CANCELED');
+      if (!canceled) {
+        toast({
+          title: 'Login Failed',
+          description: error instanceof Error ? error.message : 'Unable to sign in with SSO',
+          variant: 'destructive',
+        });
+      }
       setIsLoading(false);
     }
   };
