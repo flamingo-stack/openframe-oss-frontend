@@ -62,8 +62,16 @@ interface OpenframeEmbeddableChatEntryProps {
 }
 
 export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEmbeddableChatEntryProps) {
-  const { state, subscription, sendInNewDialog, searchQuery, setSearchQuery, fetchArchivedDialogs, unarchiveDialog } =
-    useMingoUnifiedChatState();
+  const {
+    state,
+    subscription,
+    pendingApprovals,
+    sendInNewDialog,
+    searchQuery,
+    setSearchQuery,
+    fetchArchivedDialogs,
+    unarchiveDialog,
+  } = useMingoUnifiedChatState();
 
   // Signed-in user's display name for the chat header sub-line. The lib prefers
   // its server-resolved chat identity; this is the reliable host fallback (the
@@ -190,6 +198,14 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         // the uncontrolled active mode defaults to 'mingo'.
         modes={{}}
         mingoState={state}
+        // PENDING approval cards are FILTERED OUT of their bubble by
+        // `useMingoChat` (dedupe for interrupted retries), so a card that the
+        // reducer built renders nowhere unless it is handed back here — the
+        // standalone `/mingo` page has always done this, the drawer never did.
+        // That gap hid every pending approval in this panel, including the
+        // Product Guide's "create a support ticket" card whose own preamble
+        // tells the user to click Approve.
+        pendingApprovals={pendingApprovals}
         // Dialog management for the host-injected Mingo state:
         //  - search: the chat-history search bar emits the debounced term into
         //    `setSearchQuery`, which rides the `useMingoDialogs` query key.
