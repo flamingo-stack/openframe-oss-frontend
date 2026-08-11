@@ -58,6 +58,12 @@ The lane refuses to proceed when any of these hold:
   name, and user ID as linked, non-tracking, App Functionality. If the
   questionnaire answers differ, fix whichever one is wrong; a mismatch is its
   own problem.
+- **Camera and microphone** — `NSCameraUsageDescription` and
+  `NSMicrophoneUsageDescription` are in Info.plist because attachment pickers
+  offer "Take Photo or Video" (iOS terminates the app on capture without them).
+  Reviewers look for a feature behind every declared permission, so the review
+  notes must point at attaching a photo to a ticket or KB article. Drop the
+  option from both pickers before dropping the keys — never the reverse.
 - **Privacy policy URL** and **support URL** — both required.
 - **Age rating** questionnaire and primary category.
 - **App Review Information** — a demo account on a tenant with an **active

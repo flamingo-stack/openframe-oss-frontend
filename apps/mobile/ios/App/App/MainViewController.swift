@@ -6,6 +6,7 @@ import UIKit
 class MainViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(NativeAuthPlugin())
+        bridge?.registerPluginInstance(NativeFilesPlugin())
         // Native left-edge swipe navigates WKWebView history back/forward. The
         // WebKit back-forward list includes History API (pushState) entries, so
         // this drives the frontend SPA router via popstate. Non-interceptable

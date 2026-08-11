@@ -37,6 +37,16 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Attachment capture. WKWebView's own file picker offers "Take Photo or
+	     Video" for any input that accepts media, and iOS TERMINATES the app the
+	     moment that reaches the camera without NSCameraUsageDescription — the
+	     video arm records audio, so the microphone key is required for the same
+	     reason. NativeFilesPlugin's picker offers the same option. Removing
+	     either key brings the crash back. -->
+	<key>NSCameraUsageDescription</key>
+	<string>OpenFrame uses the camera so you can attach a photo to a ticket or knowledge base article.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OpenFrame uses the microphone to record audio when you attach a video to a ticket or knowledge base article.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>OpenFrame uses Face ID to unlock your saved sign-in and keep your session secure.</string>
 	<key>UIBackgroundModes</key>

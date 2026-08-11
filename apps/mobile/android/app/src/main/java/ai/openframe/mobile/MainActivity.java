@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
         // Register app-local plugins before the bridge initializes (mirrors iOS
         // MainViewController.capacitorDidLoad registering NativeAuthPlugin).
         registerPlugin(NativeAuthPlugin.class);
+        registerPlugin(NativeFilesPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

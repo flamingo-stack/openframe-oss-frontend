@@ -50,6 +50,16 @@ exists.**
   `enableBiometricLogin` / `disableBiometricLogin`. The callback scheme is registered in
   **Info.plist `CFBundleURLTypes`** (iOS) and **`strings.xml` + the manifest intent-filter**
   (Android).
+- **`NativeFilesPlugin`** — `ios/App/App/NativeFilesPlugin.swift`, mirrored on Android by
+  `android/app/src/main/java/ai/openframe/mobile/NativeFilesPlugin.java` (same jsName +
+  method surface). Backs frontend `src/lib/native-files.ts`. Methods: `downloadFile`
+  (fetch a URL natively → iOS share sheet / Android `MediaStore.Downloads`, share chooser
+  below API 29; resolves `{savedToDownloads}` so the caller knows whether the landing was
+  visible to the user or silent), `pickFiles`
+  (OS picker → native **paths**, not `File`s), `uploadFile` (stream a path to a presigned
+  URL). See the attachments gotcha below for why none of this can happen in the WebView.
+  `uploadFile` refuses a `path` outside its staging dir on both platforms — it streams
+  that file out and then deletes it, and the path arrives from JS.
 - **`MainViewController.swift`** — registers local plugins with the bridge; enables WKWebView
   **edge-swipe back** (`allowsBackForwardNavigationGestures` → WebKit history incl.
   `pushState` → SPA `popstate`).
@@ -209,6 +219,38 @@ swapped.
   option, only events — so any other value splits the two platforms across two mechanisms,
   and `'native'` shrinks the WKWebView out from under the UIKit safe-area insets, floating
   the home-indicator band above the keyboard.
+- **Attachment capture needs BOTH camera and microphone usage strings.** WKWebView's
+  own file picker offers "Take Photo or Video" for any input accepting media, and iOS
+  **terminates** the app the instant that reaches the camera without
+  `NSCameraUsageDescription` — not an error, a crash. The video arm records audio, so
+  `NSMicrophoneUsageDescription` is required for the same reason.
+  `NativeFilesPlugin.pickFiles` offers the same option. Removing either key brings the
+  crash back; remove the option from both pickers first if the permission is unwanted.
+- **Nothing downloads from the WebView.** Neither shell has a download handler — Capacitor
+  implements no `WKDownloadDelegate`/`didBecome download:` on iOS (its `decidePolicyFor`
+  hands non-app top-level navs to `UIApplication.open`, which can't open `blob:`) and never
+  calls `setDownloadListener` on Android. So `URL.createObjectURL` + `<a download>.click()`
+  — the web idiom — **silently does nothing**: the click returns, no error is thrown, and no
+  `catch`/toast ever fires, which is why it reads as "the button is dead". Verified on the
+  simulator: `a.click()` returns clean, `window.open(blobUrl)` returns `null`, `data:` URLs
+  likewise. A file fetched from a URL must go through `NativeFiles.downloadFile`
+  (frontend `downloadFileToDevice`). Still on the broken idiom, all of them saving a
+  locally-generated blob rather than a URL, so `downloadFile` cannot serve them as-is:
+  core-lib `query-report-table/utils.ts` (CSV export), `devices/new` (installer script),
+  `lib/meshcentral/file-downloader.ts`. Fixing those needs a base64 `saveFile` method —
+  written once, then removed as dead code when nothing called it.
+- **Attachment uploads PUT straight to `storage.googleapis.com`** (presigned GCS URLs from
+  `GcsPresignedUrlService`), so the bucket's CORS policy — not the gateway's — governs them,
+  and it must name `capacitor://localhost` **and** `https://localhost` (Android) or every
+  upload fails preflight. `NativeFiles.pickFiles` + `uploadFile` sidestep it by streaming
+  from a native path, and every attachment surface now routes through them — the core-lib
+  `FileUpload` dropzone takes a `pickFiles` override as of
+  `@flamingo-stack/openframe-frontend-core` **0.0.532**. Device-verified: picker opens,
+  photo upload succeeds. Two paths deliberately stay on the WebView: the device
+  file-manager upload (`file-manager-container.tsx`, uploads over the MeshCentral
+  WebSocket, not GCS) and **KB inline article images** (`use-article-image-upload.ts`) —
+  that one IS a presigned GCS `PUT` from the WebView, so it's the last place bucket CORS
+  can still bite, and it can't use `pickFiles` (the MarkdownEditor hands it a `File`).
 - **The WebView origin is `capacitor://localhost`** — the tenant gateway CORS must allow it
   (incl. **exposing** `Access-Token`/`Refresh-Token`) or the shell renders but every data
   call 401s. Cookies don't work cross-origin; bearer mode is mandatory. Configured on
