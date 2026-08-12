@@ -9,15 +9,15 @@ import { runtimeEnv } from '@/lib/runtime-config';
 const ASSETS_DOWNLOAD_PATH = '/v0/api/assets/download';
 
 /**
- * Origin the assets endpoint lives on. The binaries are served by the shared
- * host (same source as `auth-api-client`), not the tenant subdomain the
- * browser is on; local dev has no shared host, and there the browser origin
- * fronts the same gateway. '' during prerender — the hydrated client corrects
- * it, which is why `use-install-command` reads this through its store.
+ * Origin the assets endpoint lives on: the tenant gateway this bundle talks
+ * to (`NEXT_PUBLIC_TENANT_HOST_URL`, backed by the host a native shell
+ * learned at login). When unset the browser origin fronts the same gateway.
+ * '' during prerender — the hydrated client corrects it, which is why
+ * `use-install-command` reads this through its store.
  */
 export function assetsDownloadBase(): string {
-  const shared = runtimeEnv.sharedHostUrl();
-  if (shared) return shared.replace(/\/+$/, '');
+  const tenantHost = runtimeEnv.tenantHostUrl();
+  if (tenantHost) return tenantHost.replace(/\/+$/, '');
   return typeof window !== 'undefined' ? window.location.origin : '';
 }
 
