@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
+import { queryState } from '@/lib/query-state';
 import { useTenantInfo, useUpdateTenantInfo } from '../hooks/use-tenant-info';
 import type { UpdateTenantInfoInput } from '../types/tenant-info';
 import { EditOrganizationModal } from './edit-organization-modal';
@@ -19,7 +20,13 @@ interface AccountSettingsCardProps {
  * and corner radius; the inner rows are borderless and separated by a divider.
  */
 export function AccountSettingsCard({ onEditProfile, onVerifyEmail }: AccountSettingsCardProps) {
-  const { data: tenantInfo, isLoading } = useTenantInfo();
+  const tenantQuery = useTenantInfo();
+  const tenantInfo = tenantQuery.data;
+  // `hasData`, not `isLoading`: a PAUSED query reports not-loading with no
+  // data, which let the card fall back to the fabricated name "Your Organization"
+  // and let Edit open a modal seeded from nothing — Save then wrote
+  // `{ name: '', website: '' }` over the real organization.
+  const { hasData: tenantLoaded } = queryState(tenantQuery);
   const updateTenantInfo = useUpdateTenantInfo();
   const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
 
@@ -40,8 +47,8 @@ export function AccountSettingsCard({ onEditProfile, onVerifyEmail }: AccountSet
           name={orgName}
           website={orgWebsite}
           logoUrl={orgLogoUrl}
-          isLoading={isLoading && !tenantInfo}
-          onEditOrganization={() => setIsOrgModalOpen(true)}
+          isLoading={!tenantLoaded}
+          onEditOrganization={tenantLoaded ? () => setIsOrgModalOpen(true) : undefined}
         />
       </div>
 

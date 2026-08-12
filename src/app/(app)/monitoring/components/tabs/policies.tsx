@@ -5,7 +5,6 @@ import {
   DashboardInfoCard,
   DataTable,
   Input,
-  PageError,
   PageLayout,
   Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -13,9 +12,10 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
-import { PoliciesTable, type PolicyTableRow, type PolicyTableStatus } from '@/app/components/shared';
+import { PoliciesTable, type PolicyTableRow, type PolicyTableStatus, SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
 import { usePolicies } from '../../hooks/use-policies';
@@ -37,6 +37,10 @@ const PAGE_SIZE = 20;
 //     .map(p => p.trim())
 //     .filter(Boolean);
 // }
+
+// One literal for both the strip above the table and the table's own empty
+// slot — they say the same thing and must not drift apart.
+const LOAD_ERROR_MESSAGE = "Couldn't load policies.";
 
 export function Policies() {
   const router = useRouter();
@@ -64,12 +68,14 @@ export function Policies() {
     [setSearch],
   );
 
-  const { policies, isLoading, error, deletePolicy } = usePolicies();
+  const { policies, isLoading, isOffline, hasData, canClaimEmpty, error, refetch, deletePolicy } = usePolicies();
   const summary = useMemo(() => computePolicySummary(policies), [policies]);
 
-  // Show the empty state instead of the search bar + table only when there is
-  // genuinely no data: loading finished, no active search, and no policies.
-  const showEmptyState = !isLoading && !debouncedSearch.trim() && policies.length === 0;
+  // `canClaimEmpty` is the shared precondition (see `lib/query-state.ts`): data
+  // arrived and nothing is obscuring it. Without it a failed or offline load —
+  // both of which leave the list at length zero — renders "no policies yet"
+  // underneath the error strip.
+  const showEmptyState = canClaimEmpty && !debouncedSearch.trim() && policies.length === 0;
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null);
 
   const filteredPolicies = useMemo(() => {
@@ -154,16 +160,13 @@ export function Policies() {
     [handleAddPolicy, showEmptyState],
   );
 
-  if (error) {
-    return <PageError message={error} />;
-  }
-
   return (
     <PageLayout
       title="Policies"
       actions={actions}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
+      {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading ? (
@@ -177,27 +180,38 @@ export function Policies() {
             <Skeleton className="h-16 w-full md:h-[104px]" />
           </>
         ) : (
+          // `hasData` decides the VALUES, never whether the cards render: with no
+          // data there is nothing to skeleton towards — the strip above already
+          // says the load failed — and a placeholder that never resolves is the
+          // exact lie this contract exists to remove. `—` for the same reason the
+          // dashboard counters use it: `computePolicySummary` of an empty list
+          // reports "Total Policies 0 / Failed 0", an all-clear a compliance
+          // console has not earned.
           <>
-            <DashboardInfoCard title="Total Policies" value={summary.totalPolicies} />
+            <DashboardInfoCard title="Total Policies" value={hasData ? summary.totalPolicies : '—'} />
             <DashboardInfoCard
               title="Compliance Rate"
-              value={`${summary.compliantPolicies}/${summary.compliantPolicies + summary.failingPolicies}`}
-              percentage={summary.compliantPoliciesPercentage}
-              showProgress
+              value={
+                hasData ? `${summary.compliantPolicies}/${summary.compliantPolicies + summary.failingPolicies}` : '—'
+              }
+              percentage={hasData ? summary.compliantPoliciesPercentage : undefined}
+              showProgress={hasData}
             />
             <DashboardInfoCard
               title="Failed Policies"
-              value={summary.failingPolicies}
-              percentage={summary.failingPoliciesPercentage}
-              showProgress
+              value={hasData ? summary.failingPolicies : '—'}
+              percentage={hasData ? summary.failingPoliciesPercentage : undefined}
+              showProgress={hasData}
               progressVariant="error"
             />
             <DashboardInfoCard
               title="Updated"
               value={
-                summary.lastUpdatedAt
-                  ? formatDistanceToNow(new Date(summary.lastUpdatedAt), { addSuffix: true })
-                  : 'N/A'
+                !hasData
+                  ? '—'
+                  : summary.lastUpdatedAt
+                    ? formatDistanceToNow(new Date(summary.lastUpdatedAt), { addSuffix: true })
+                    : 'N/A'
               }
               valueClassName="!text-h3"
               tooltip="Policy compliance stats are updated hourly. View a policy's devices for real-time status."
@@ -233,10 +247,15 @@ export function Policies() {
             stickyHeaderOffset={stickyHeaderOffset}
             rightSlot={<DataTable.RowCount />}
             skeletonRows={PAGE_SIZE}
+            // The table has its own emptiness claim, and zero rows after a failed
+            // or offline load would print "No policies found." under the strip
+            // above. Same rule, one component down.
             emptyMessage={
-              debouncedSearch
-                ? `No policies found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No policies found.'
+              canClaimEmpty
+                ? debouncedSearch
+                  ? `No policies found matching "${debouncedSearch}". Try adjusting your search.`
+                  : 'No policies found.'
+                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
             }
             hasMore={visibleCount < filteredPolicies.length}
             onLoadMore={handleLoadMore}

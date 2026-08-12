@@ -10,7 +10,7 @@ import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPagina
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineToDevice } from '@/app/(app)/devices/utils/device-transform';
-import { DevicesList, type DevicesListNarrowing, EMPTY_DEVICES_NARROWING } from '@/app/components/shared';
+import { DevicesList, type DevicesListNarrowing, EMPTY_DEVICES_NARROWING, useRetryKey } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -83,10 +83,11 @@ function toDeviceFilter(narrowing: Omit<DevicesListNarrowing, 'search'>): Assign
  * fleet-fed; see `useScheduleDeviceFilters`.
  */
 function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
+  const retryKey = useRetryKey();
   const detail = useLazyLoadQuery<ScheduleDetailQueryType>(
     scriptScheduleDetailRelayQuery,
     { id: scheduleId },
-    { fetchPolicy: 'store-or-network' },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
   const [narrowing, setNarrowing] = useState<DevicesListNarrowing>(EMPTY_DEVICES_NARROWING);
@@ -113,7 +114,7 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
   const queryData = useLazyLoadQuery<ScheduleDevicesQueryType>(
     scriptScheduleDevicesRelayQuery,
     { id: scheduleId, first: PAGE_SIZE, after: null, filter: deferredFilters, search: deferredSearch || null },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<

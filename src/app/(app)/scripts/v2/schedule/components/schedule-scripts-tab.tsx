@@ -3,6 +3,7 @@
 import { memo, Suspense } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
 import { customParamsByScriptId } from '../utils/schedule-script-params';
 import { ScheduleScriptCard, ScheduleScriptCardSkeleton } from './schedule-script-card';
@@ -15,10 +16,11 @@ import { ScheduleScriptCard, ScheduleScriptCardSkeleton } from './schedule-scrip
  * whole schedule every time the user comes back to this tab.
  */
 function ScheduleScriptsTabContent({ scheduleId }: { scheduleId: string }) {
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScheduleDetailQueryType>(
     scriptScheduleDetailRelayQuery,
     { id: scheduleId },
-    { fetchPolicy: 'store-or-network' },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
   const schedule = data.scriptSchedule;
 

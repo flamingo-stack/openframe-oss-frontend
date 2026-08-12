@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { queryState } from '@/lib/query-state';
 import { rejectScriptsMigrationPending } from '../lib/scripts-migration';
 import type {
   ScriptScheduleAgent,
@@ -76,8 +77,8 @@ export function useScriptSchedule(id: string) {
 
   return {
     schedule: query.data ?? null,
-    isLoading: query.isFetching,
-    error: query.error?.message ?? null,
+    // Was `isFetching` — false while PAUSED, and true on background refetch.
+    ...queryState(query, id ? 'open' : 'closed'),
     refetch: query.refetch,
   };
 }

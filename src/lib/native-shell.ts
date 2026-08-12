@@ -212,6 +212,27 @@ export interface KeyboardPlugin {
   ): Promise<{ remove: () => void }> | { remove: () => void };
 }
 
+/**
+ * Subset of @capacitor/network, used because `navigator.onLine` in WKWebView lags
+ * the OS by up to minutes — see `lib/connectivity.ts` for the device
+ * measurements and why that matters to react-query.
+ *
+ * Same sync-or-Promise `addListener` union as `AppPlugin`/`KeyboardPlugin`, and
+ * for the same reason: this reads `window.Capacitor.Plugins.Network`, the
+ * document-start bridge shim, NOT the npm package's `registerPlugin` proxy whose
+ * types promise a Promise. The shim hands the handle back synchronously.
+ * Normalize with `Promise.resolve()` before chaining.
+ *
+ * Payload fields are optional because they arrive from that bridge untyped.
+ */
+export interface NetworkPlugin {
+  getStatus(): Promise<{ connected?: boolean; connectionType?: string }>;
+  addListener(
+    eventName: 'networkStatusChange',
+    listenerFunc: (status: { connected?: boolean; connectionType?: string }) => void,
+  ): Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
+}
+
 function capacitorPlugins(): any {
   return typeof window !== 'undefined' ? (window as any).Capacitor?.Plugins : undefined;
 }
@@ -263,6 +284,11 @@ export function appPlugin(): AppPlugin | null {
 /** Mobile-only. Also null until @capacitor/keyboard is present in the shell — callers fall back to visualViewport. */
 export function keyboardPlugin(): KeyboardPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.Keyboard ?? null) : null;
+}
+
+/** Mobile-only. Also null on shell binaries that predate the plugin — callers fall back to `navigator.onLine`. */
+export function networkPlugin(): NetworkPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.Network ?? null) : null;
 }
 
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';
@@ -352,6 +378,17 @@ export async function takeNativeStartupNotificationClick(): Promise<unknown> {
 }
 
 /**
+ * The current fullscreen element across both halves of the Fullscreen API. The
+ * shell's deployment target is iOS 15.0 and WebKit only went unprefixed in 16.4,
+ * so 15.4–16.3 expose `webkitFullscreenElement` alone. (media-chrome — what the
+ * Mux player is built on — probes the same pair.)
+ */
+function fullscreenElement(): Element | null {
+  const doc = document as Document & { webkitFullscreenElement?: Element | null };
+  return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+}
+
+/**
  * Publish the native safe-area insets as CSS variables consumed by the
  * mobile-scoped rules in globals.css
  * (`--native-safe-top/-bottom/-left/-right`). All four are set so landscape and
@@ -362,6 +399,18 @@ export async function takeNativeStartupNotificationClick(): Promise<unknown> {
  */
 export async function applyNativeSafeAreas(): Promise<void> {
   if (!isMobileShell()) return;
+  // Never publish insets while an element is fullscreen — the numbers are wrong
+  // AND unused. Capacitor turns on WKWebView element fullscreen
+  // (`isElementFullscreenEnabled`), which is the path the Mux player's fullscreen
+  // button takes, and WebKit services it by reparenting the WKWebView — which IS
+  // the bridge view controller's root view (`view = webView`) — into its own
+  // fullscreen window, whose view controller hides the status bar. So
+  // `getSafeAreaInsets` reads back ~0 there. Entering fires a `resize`, which used
+  // to publish those zeros; exiting restores the same viewport size and fires NO
+  // second resize, so the zeros stuck and the app chrome came back sitting under
+  // the Dynamic Island. Nothing needs the values meanwhile: the fullscreen element
+  // renders in the top layer, above the safe-area band.
+  if (fullscreenElement()) return;
   try {
     const insets = await nativeAuthPlugin()?.getSafeAreaInsets?.();
     if (!insets) return;
@@ -423,9 +472,16 @@ export async function initNativeChrome(): Promise<void> {
     // Rotation resizes the WebView and swaps which edges carry insets. iOS can
     // still report the pre-rotation safeAreaInsets in the same frame as the
     // resize event, so take a trailing read once the transition settles.
-    window.addEventListener('resize', () => {
+    const refresh = () => {
       void applyNativeSafeAreas();
       window.setTimeout(() => void applyNativeSafeAreas(), 350);
-    });
+    };
+    window.addEventListener('resize', refresh);
+    // Leaving element fullscreen is the one transition `resize` does NOT cover:
+    // the viewport comes back the size it already was, so no resize fires and the
+    // insets `applyNativeSafeAreas` skipped during fullscreen would never be
+    // republished. Both spellings — see `fullscreenElement`.
+    document.addEventListener('fullscreenchange', refresh);
+    document.addEventListener('webkitfullscreenchange', refresh);
   }
 }

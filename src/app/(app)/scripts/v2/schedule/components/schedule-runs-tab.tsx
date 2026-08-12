@@ -24,6 +24,7 @@ import type {
   ScheduleRunFilterInput,
   SortInput,
 } from '@/__generated__/scheduleRunsRelayQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -99,10 +100,11 @@ function ScheduleRunsContent({
   stickyHeaderOffset,
   onEmptyChange,
 }: ContentProps) {
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<RunsQueryType>(
     scheduleRunsRelayQuery,
     { scheduleId, filter: backendFilters, search: debouncedSearch || null, sort, first: RUNS_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<RunsPaginationQueryType, RunsFragmentKey>(

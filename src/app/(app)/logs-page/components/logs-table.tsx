@@ -46,7 +46,13 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { logsTableRelay_query$key as LogsFragmentKey } from '@/__generated__/logsTableRelay_query.graphql';
 import type { logsTableRelayPaginationQuery as LogsPaginationQueryType } from '@/__generated__/logsTableRelayPaginationQuery.graphql';
 import type { logsTableRelayQuery as LogsQueryType } from '@/__generated__/logsTableRelayQuery.graphql';
-import { EMBEDDED_PAGE_OFFSET, EmptyState, LogDrawer, onboardingGuideButton } from '@/app/components/shared';
+import {
+  EMBEDDED_PAGE_OFFSET,
+  EmptyState,
+  LogDrawer,
+  onboardingGuideButton,
+  useRetryKey,
+} from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { LogSortField, SortDirection } from '@/generated/schema-enums';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -219,6 +225,7 @@ function LogsTableContent({
   const [isPending, startTransition] = useTransition();
   const [selectedLog, setSelectedLog] = useState<UiLogEntry | null>(null);
 
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<LogsQueryType>(
     logsTableRelayQuery,
     {
@@ -228,7 +235,7 @@ function LogsTableContent({
       search: debouncedSearch || null,
       sort,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext, refetch } = usePaginationFragment<

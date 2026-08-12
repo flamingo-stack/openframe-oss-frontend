@@ -1,6 +1,7 @@
 'use client';
 
 import { notFound, useSearchParams } from 'next/navigation';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { KnowledgeBaseView } from '../components/knowledge-base-view';
 
 export default function FolderPage() {
@@ -8,5 +9,9 @@ export default function FolderPage() {
   if (!id) {
     notFound();
   }
-  return <KnowledgeBaseView folderId={id} />;
+  return (
+    <ContentErrorBoundary title="Knowledge Base" message="Couldn't load this folder.">
+      <KnowledgeBaseView folderId={id} />
+    </ContentErrorBoundary>
+  );
 }

@@ -54,6 +54,7 @@ import {
   onboardingGuideButton,
   skeletonColumnDefs,
   type TableDateFilter,
+  useRetryKey,
 } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -162,6 +163,7 @@ function SchedulesTableContent({
 
   // One round-trip per interaction: the filter facets (`scriptScheduleFilters`)
   // ride the list operation — see the query docstring.
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SchedulesTableQueryType>(
     scriptSchedulesTableRelayQuery,
     {
@@ -171,7 +173,7 @@ function SchedulesTableContent({
       first: PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<

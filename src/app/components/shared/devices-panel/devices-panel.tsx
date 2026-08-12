@@ -7,6 +7,7 @@ import {
   DataTable,
   type OnChangeFn,
   type PageActionButton,
+  PageError,
   PageLayout,
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -28,11 +29,14 @@ import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-p
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { useTagFilterModal } from '@/app/(app)/devices/hooks/use-tag-filter-modal';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import { bumpDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
+import { ContentErrorBoundary } from '../content-error-boundary';
 import { DevicesFilterToolbar } from '../devices-filter-toolbar';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
-import { DevicesPanelErrorBoundary, DevicesPanelSkeleton } from './devices-panel-boundaries';
+import { DevicesPanelSkeleton } from './devices-panel-boundaries';
 import { buildDevicePanelActions, DEVICE_VIEW_MODE_ITEMS } from './devices-panel-header';
 
 export interface DevicesPanelProps {
@@ -379,7 +383,30 @@ export function DevicesPanel(props: DevicesPanelProps) {
   const viewMode = searchParams.get('viewMode') === 'grid' ? 'grid' : 'table';
 
   return (
-    <DevicesPanelErrorBoundary {...chrome} resetKey={resetKey}>
+    <ContentErrorBoundary
+      resetKey={resetKey}
+      label="DevicesPanel"
+      // Relay caches a failed query for five minutes, so clearing the boundary
+      // alone would rethrow; the device epoch is this surface's `fetchKey`.
+      onRetry={bumpDeviceEpoch}
+      // The panel's header, back button and view switch are rendered by
+      // `DevicesPanelContent`, i.e. inside what just threw — so the fallback
+      // redraws that chrome rather than leaving a bare error where a page was.
+      fallback={(retry, { isOffline }) => (
+        <PageLayout
+          title={chrome.title}
+          backButton={chrome.backButton}
+          actionsVariant="icon-buttons"
+          className={cn(chrome.offsetClassName, chrome.className)}
+          contentClassName="flex flex-col"
+        >
+          {/* `PageError`, not `LoadError`: this fallback has already redrawn the
+              whole page, so the failure is page-weight here rather than a card
+              inside surviving content. */}
+          <PageError {...loadErrorProps(isOffline, "Couldn't load devices.", retry)} />
+        </PageLayout>
+      )}
+    >
       <Suspense
         fallback={
           <DevicesPanelSkeleton
@@ -396,6 +423,6 @@ export function DevicesPanel(props: DevicesPanelProps) {
       >
         <DevicesPanelContent {...props} />
       </Suspense>
-    </DevicesPanelErrorBoundary>
+    </ContentErrorBoundary>
   );
 }
