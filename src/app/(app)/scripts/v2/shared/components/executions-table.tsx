@@ -42,6 +42,7 @@ import {
   type TableSkeletonColumn,
 } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { executionFacetsFragment } from '@/graphql/scripts/execution-facets';
@@ -322,13 +323,7 @@ export function ExecutionsTable({
         // The cell's first line IS the dispatched timestamp, so the calendar
         // (date range + newest/oldest first) belongs on this header rather than
         // on a column of its own.
-        header: () => (
-          <DateColumnHeader
-            label={EXECUTION_COLUMNS.executionId.header}
-            filter={dateFilter}
-            ariaLabel="Sort and filter by execution date"
-          />
-        ),
+        header: () => <DateColumnHeader label={EXECUTION_COLUMNS.executionId.header} filter={dateFilter} />,
         cell: ({ row }: { row: Row<UiExecution> }) => (
           <div className="flex flex-col justify-center gap-1 min-w-0">
             <TruncateText>{row.original.timestamp}</TruncateText>
@@ -799,16 +794,21 @@ export function ExecutionsTabShell({
     [params.status, params.machineId, params.initiatorId],
   );
 
+  // The mobile FilterModal commits the funnels and the date section as two
+  // callbacks in the same tick; the shared writer merges them into a single URL
+  // write (sequential setParams calls each re-read the stale URL and clobber, so
+  // the funnel selection would be lost whenever a date is applied beside it).
+  const queueParamsWrite = useQueuedParamsWrite(setParams);
+
   const handleFilterChange = useCallback(
     (columnFilters: Record<string, string[]>) => {
-      setParams({
+      queueParamsWrite({
         status: columnFilters.status || [],
         machineId: columnFilters.machineId || [],
         initiatorId: columnFilters.initiatorId || [],
       });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [setParams],
+    [queueParamsWrite],
   );
 
   // Apply (and Reset, which fires with the cleared selection). `sortDir: ''` —
@@ -817,14 +817,13 @@ export function ExecutionsTabShell({
   // behind on a list in its default order. Reading it back still yields `desc`.
   const handleDateFilterApply = useCallback(
     (result: DateFilterResult) => {
-      setParams({
+      queueParamsWrite({
         sortDir: result.sort === 'desc' ? '' : result.sort,
         dateFrom: result.range?.from ? toDayParam(result.range.from) : '',
         dateTo: result.range?.to ? toDayParam(result.range.to) : '',
       });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [setParams],
+    [queueParamsWrite],
   );
 
   const dateFilter: TableDateFilter = useMemo(
