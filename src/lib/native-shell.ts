@@ -47,6 +47,30 @@ export interface NativeAuthPlugin {
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
   exchangeTicket(options: { url: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
   /**
+   * Native Sign in with Apple (ASAuthorizationController) — iOS-only, and
+   * absent on binaries that predate it; callers must feature-check and fall
+   * back to `start`. `nonce` is the SHA-256 hex of the raw nonce the JS side
+   * generated (Apple embeds it into the identity token's `nonce` claim).
+   * Rejects with USER_CANCELED when the user dismisses the sheet.
+   */
+  signInWithApple?(options: { nonce: string }): Promise<{
+    identityToken: string;
+    authorizationCode: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }>;
+  /**
+   * POSTs the Apple credential to the gateway's native-exchange endpoint over
+   * native HTTP (same no-CORS rationale as exchangeTicket) and returns tokens
+   * from the Access-Token / Refresh-Token response headers. Paired with
+   * `signInWithApple`; same availability caveat.
+   */
+  exchangeApple?(options: {
+    url: string;
+    body: Record<string, string>;
+  }): Promise<{ accessToken?: string; refreshToken?: string }>;
+  /**
    * Reads the stored tokens. When biometric login is enabled the shell gates
    * this behind a biometric prompt, so it may reject with `BIOMETRIC_CANCELED`
    * (user dismissed the prompt) or `BIOMETRIC_INVALIDATED` (enrollment changed —
@@ -107,6 +131,34 @@ export interface FirebaseMessagingPlugin {
   ): Promise<unknown>;
 }
 
+/** A picked file as the NativeFiles plugin returns it, before `mimeType` is normalized to `type`. */
+export interface NativePickedFilePayload {
+  path: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+/**
+ * Subset of the shell's local NativeFiles plugin (openframe-mobile:
+ * NativeFilesPlugin.swift / NativeFilesPlugin.java; ships with the shell, not
+ * npm). Attachment bytes move through here instead of the WebView — native-files.ts
+ * owns the reasons and is the only module that should call these.
+ */
+export interface NativeFilesPlugin {
+  /** Resolves with an empty array when the user cancels. */
+  pickFiles(options: { multiple?: boolean }): Promise<{ files: NativePickedFilePayload[] }>;
+  /** Streams a picked file to a presigned URL; rejects on a non-2xx status. */
+  uploadFile(options: { path: string; url: string; contentType?: string }): Promise<{ status: number }>;
+  /**
+   * Fetches natively, then saves (Android Downloads) or shares (iOS, and Android
+   * below API 29) the result. `savedToDownloads` distinguishes the two: a share
+   * sheet is its own confirmation, a silent save is not, and the caller has to
+   * say so itself.
+   */
+  downloadFile(options: { url: string; fileName: string }): Promise<{ savedToDownloads: boolean }>;
+}
+
 /** Subset of @capacitor/splash-screen (plugin ships with the shell, not npm). */
 export interface SplashScreenPlugin {
   hide(options?: { fadeOutDuration?: number }): Promise<void>;
@@ -139,6 +191,27 @@ export interface AppPlugin {
   exitApp(): Promise<void>;
 }
 
+/**
+ * Subset of @capacitor/keyboard. `keyboardHeight` is CSS px on both platforms:
+ * iOS reports the keyboard frame in points, and the Android plugin divides the
+ * `WindowInsets.Type.ime()` inset by display density before emitting.
+ *
+ * The shell configures `resize: 'none'`, so these events are the only notice
+ * the web layer gets that a keyboard exists — see keyboard-inset.ts. Same
+ * sync-or-Promise addListener return as AppPlugin.
+ */
+export interface KeyboardPlugin {
+  addListener(
+    eventName: 'keyboardWillShow',
+    listenerFunc: (info: { keyboardHeight: number }) => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
+  /** Hide carries no payload — iOS notifies with nil, Android with an empty object. */
+  addListener(
+    eventName: 'keyboardWillHide',
+    listenerFunc: () => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
+}
+
 function capacitorPlugins(): any {
   return typeof window !== 'undefined' ? (window as any).Capacitor?.Plugins : undefined;
 }
@@ -167,6 +240,11 @@ export function firebaseMessagingPlugin(): FirebaseMessagingPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.FirebaseMessaging ?? null) : null;
 }
 
+/** Mobile-only. Also null on shell binaries that predate the NativeFiles plugin — callers fall back to the web path. */
+export function nativeFilesPlugin(): NativeFilesPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.NativeFiles ?? null) : null;
+}
+
 /** Mobile-only. Also null until @capacitor/splash-screen is present in the shell — callers no-op. */
 export function splashScreenPlugin(): SplashScreenPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.SplashScreen ?? null) : null;
@@ -180,6 +258,11 @@ export function statusBarPlugin(): StatusBarPlugin | null {
 /** Mobile-only. Also null until @capacitor/app is present in the shell — callers no-op. */
 export function appPlugin(): AppPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.App ?? null) : null;
+}
+
+/** Mobile-only. Also null until @capacitor/keyboard is present in the shell — callers fall back to visualViewport. */
+export function keyboardPlugin(): KeyboardPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.Keyboard ?? null) : null;
 }
 
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';

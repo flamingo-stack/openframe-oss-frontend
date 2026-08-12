@@ -4,33 +4,31 @@
  */
 
 import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
+import { runtimeEnv } from '@/lib/runtime-config';
 
-const RELEASES_BASE_URL = 'https://github.com/flamingo-stack/openframe-oss-tenant/releases';
-const MACOS_BINARY_NAME = 'openframe-client_macos.tar.gz';
-const WINDOWS_BINARY_NAME = 'openframe-client_windows.zip';
+const ASSETS_DOWNLOAD_PATH = '/v0/api/assets/download';
 
 /**
- * Build the binary download URL for a given version and asset
+ * Origin the assets endpoint lives on: the tenant gateway this bundle talks
+ * to (`NEXT_PUBLIC_TENANT_HOST_URL`, backed by the host a native shell
+ * learned at login). When unset the browser origin fronts the same gateway.
+ * '' during prerender — the hydrated client corrects it, which is why
+ * `use-install-command` reads this through its store.
  */
-export function buildBinaryUrl(version: string, assetName: string): string {
-  if (!version) {
-    return `${RELEASES_BASE_URL}/latest/download/${assetName}`;
-  }
-  return `${RELEASES_BASE_URL}/download/${version}/${assetName}`;
+export function assetsDownloadBase(): string {
+  const tenantHost = runtimeEnv.tenantHostUrl();
+  if (tenantHost) return tenantHost.replace(/\/+$/, '');
+  return typeof window !== 'undefined' ? window.location.origin : '';
 }
 
 /**
- * Get macOS binary URL
+ * The endpoint publishes exactly two bundles, so every non-Windows platform
+ * (darwin and linux alike) downloads the macos one. No version in the URL —
+ * the endpoint always redirects to the latest release.
  */
-export function getMacBinaryUrl(version: string): string {
-  return buildBinaryUrl(version, MACOS_BINARY_NAME);
-}
-
-/**
- * Get Windows binary URL
- */
-export function getWindowsBinaryUrl(version: string): string {
-  return buildBinaryUrl(version, WINDOWS_BINARY_NAME);
+export function buildAssetsDownloadUrl(baseUrl: string, platform: OSPlatformId): string {
+  const assetPlatform = platform === 'windows' ? 'windows' : 'macos';
+  return `${baseUrl}${ASSETS_DOWNLOAD_PATH}?agent=client&platform=${assetPlatform}`;
 }
 
 export interface InstallCommandOptions {
@@ -38,7 +36,7 @@ export interface InstallCommandOptions {
   serverUrl: string;
   initialKey: string;
   orgId: string;
-  releaseVersion: string;
+  downloadBaseUrl: string;
   additionalArgs?: string[];
 }
 
@@ -46,41 +44,41 @@ export interface InstallCommandOptions {
  * Build the device installation command
  */
 export function buildInstallCommand(options: InstallCommandOptions): string {
-  const { platform, serverUrl, initialKey, orgId, releaseVersion, additionalArgs = [] } = options;
+  const { platform, serverUrl, initialKey, orgId, downloadBaseUrl, additionalArgs = [] } = options;
 
   const baseArgs = `install --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}`;
   const extras = additionalArgs.length ? ' ' + additionalArgs.join(' ') : '';
 
   if (platform === 'windows') {
-    const windowsBinaryUrl = getWindowsBinaryUrl(releaseVersion);
+    const windowsBinaryUrl = buildAssetsDownloadUrl(downloadBaseUrl, platform);
     const argString = `${baseArgs}${extras}`;
     return `Set-Location ~; Remove-Item -Path 'openframe-client.zip','openframe-client.exe' -Force -ErrorAction SilentlyContinue; Invoke-WebRequest -Uri '${windowsBinaryUrl}' -OutFile 'openframe-client.zip'; Expand-Archive -Path 'openframe-client.zip' -DestinationPath '.' -Force; & '.\\openframe-client.exe' ${argString}`;
   }
 
   // macOS / darwin
-  const macBinaryUrl = getMacBinaryUrl(releaseVersion);
-  return `cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -L -o openframe-client_macos.tar.gz '${macBinaryUrl}' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client ${baseArgs}${extras}`;
+  const macBinaryUrl = buildAssetsDownloadUrl(downloadBaseUrl, platform);
+  return `cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -fL -o openframe-client_macos.tar.gz '${macBinaryUrl}' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client ${baseArgs}${extras}`;
 }
 
 export interface UninstallCommandOptions {
   platform: OSPlatformId;
-  releaseVersion: string;
+  downloadBaseUrl: string;
 }
 
 /**
  * Build the device uninstallation command
  */
 export function buildUninstallCommand(options: UninstallCommandOptions): string {
-  const { platform, releaseVersion } = options;
+  const { platform, downloadBaseUrl } = options;
 
   if (platform === 'windows') {
-    const windowsBinaryUrl = getWindowsBinaryUrl(releaseVersion);
+    const windowsBinaryUrl = buildAssetsDownloadUrl(downloadBaseUrl, platform);
     return `Set-Location ~; Remove-Item -Path 'openframe-client.zip','openframe-client.exe' -Force -ErrorAction SilentlyContinue; Invoke-WebRequest -Uri '${windowsBinaryUrl}' -OutFile 'openframe-client.zip'; Expand-Archive -Path 'openframe-client.zip' -DestinationPath '.' -Force; Start-Process -FilePath '.\\openframe-client.exe' -ArgumentList 'uninstall' -Verb RunAs -Wait`;
   }
 
   // macOS / darwin
-  const macBinaryUrl = getMacBinaryUrl(releaseVersion);
-  return `cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -L -o openframe-client_macos.tar.gz '${macBinaryUrl}' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client uninstall`;
+  const macBinaryUrl = buildAssetsDownloadUrl(downloadBaseUrl, platform);
+  return `cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -fL -o openframe-client_macos.tar.gz '${macBinaryUrl}' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client uninstall`;
 }
 
 /**

@@ -34,6 +34,7 @@ import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-
 import { type ChatStreamEvent, decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { useCallback, useEffect, useRef } from 'react';
 import type { BoundMirror } from '@/lib/chat-stream-thread';
+import { featureFlags } from '@/lib/feature-flags';
 
 export type { ChatModelMetadata } from '@/lib/chat-stream-thread';
 
@@ -117,10 +118,35 @@ export function useChatChunkProcessor({
 
   return useCallback((chunk: unknown) => {
     const event = decodeNatsChunk(chunk);
+    // The decode seam is the only place both halves are visible at once. The
+    // raw-chunk log upstream shows what the backend sent; this one shows what
+    // it BECAME — and, crucially, what it did not: a chunk the decoder returns
+    // `null` for (an unknown type, or a guide frame kind that deliberately does
+    // not cross over into the NATS kernel) is invisible everywhere else.
+    if (featureFlags.debugNatsChunks.enabled()) {
+      const type = (chunk as { type?: unknown } | null)?.type;
+      console.log(`[chat-chunk] ${String(type)} → ${event?.type ?? 'DROPPED'}`, { chunk, event });
+    }
     if (!event) return;
 
     if (interceptEventRef.current?.(event)) return;
 
     boundMirrorRef.current.apply(event);
+
+    // Approval events only, and only under the debug flag: read the reducer
+    // back so the log says whether the event became a SEGMENT. Without this the
+    // trail dead-ends at "decoded fine, nothing on screen" and the two very
+    // different causes — the reducer refusing the card (its `approvalType` is
+    // not in `displayApprovalTypes`) and the card being created but later
+    // dropped by the history merge — look identical from outside.
+    if (event.type === 'approval-request' && featureFlags.debugNatsChunks.enabled()) {
+      boundMirrorRef.current.mutate(reducer => {
+        const messages = reducer.state.messages as Array<{ segments?: Array<{ type: string }> }>;
+        const last = messages[messages.length - 1];
+        console.log(
+          `[chat-chunk] after apply → segments: ${JSON.stringify((last?.segments ?? []).map(s => s.type))}`,
+        );
+      });
+    }
   }, []);
 }

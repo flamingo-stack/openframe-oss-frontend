@@ -790,6 +790,23 @@ type EventFilters {
   eventTypes: [String!]!
 }
 
+"""
+Where the execution was triggered from. Stamped server-side at dispatch — the client can't
+forge it via the API. Powers the "via Mingo" label in History for AI-initiated runs.
+"""
+enum ExecutionSource {
+  """Technician clicked Run in the dashboard."""
+  MANUAL
+
+  """
+  A schedule fire — time-driven, DEVICE_ONLINE trigger, or dashboard Run Now on a schedule.
+  """
+  SCHEDULED
+
+  """The Mingo AI runner invoked the dispatch on the technician's behalf."""
+  AI_ASSISTANT
+}
+
 type FeFeatureFlag {
   name: String!
   enabled: Boolean!
@@ -1107,6 +1124,9 @@ type Machine implements Node & AssignableTarget {
   organization: Organization
   hostname: String
   displayName: String
+
+  """User-defined nickname, separate from the agent-reported displayName."""
+  nickname: String
   serialNumber: String
   manufacturer: String
   model: String
@@ -1123,6 +1143,12 @@ type Machine implements Node & AssignableTarget {
 }
 
 type Mutation {
+  """
+  Set or clear a device's user-defined nickname. Passing null, "" or whitespace clears it.
+  Returns the updated Machine, so no refetch is needed.
+  """
+  updateDeviceNickname(machineId: String!, nickname: String): Machine!
+
   """Mark one Initial Setup step done. Idempotent."""
   completeTenantOnboardingStep(step: TenantOnboardingStep!): TenantOnboardingProgress!
 
@@ -2092,6 +2118,7 @@ type ScriptExecution implements Node {
   machine: Machine
   privilegeLevel: PrivilegeLevel!
   initiator: User
+  source: ExecutionSource!
   status: ScriptExecutionStatus!
   dispatchedAt: Instant!
   statusChangedAt: Instant

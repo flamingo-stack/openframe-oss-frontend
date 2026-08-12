@@ -34,21 +34,7 @@ export const scriptExecutionsRelayQuery = graphql`
     ...scriptExecutionsRelay_query
       @arguments(scriptId: $scriptId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
     scriptExecutionFilters(scriptId: $scriptId, filter: $filter, search: $search) {
-      statuses {
-        value
-        label
-        count
-      }
-      initiators {
-        value
-        label
-        count
-      }
-      machines {
-        value
-        label
-        count
-      }
+      ...executionFacets_filters
     }
   }
 `;
@@ -69,34 +55,9 @@ export const scriptExecutionsRelayFragment = graphql`
       filteredCount
       edges {
         node {
-          id
-          executionId
-          status
-          dispatchedAt
-          stdout
-          stderr
-          error
-          machine {
-            id
-            machineId
-            hostname
-            displayName
-            organization {
-              id
-              name
-            }
-          }
-          initiator {
-            id
-            firstName
-            lastName
-            email
-            status
-            image {
-              imageUrl
-              hash
-            }
-          }
+          # The shared row selection (execution-fields.ts). This list shows no
+          # script name, so it spreads that fragment and nothing else.
+          ...executionFields_execution
         }
       }
       pageInfo {

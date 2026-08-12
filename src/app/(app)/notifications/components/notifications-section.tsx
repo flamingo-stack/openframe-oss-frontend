@@ -18,7 +18,11 @@ import type { notificationsSectionRelayPaginationQuery as NotificationsSectionPa
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
 import { EmptyState } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { mapNotificationNode, parseCreatedAt } from '@/graphql/notifications/notifications-helpers';
+import {
+  mapNotificationNode,
+  parseCreatedAt,
+  readNotificationNode,
+} from '@/graphql/notifications/notifications-helpers';
 import {
   notificationsSectionRelayFragment,
   notificationsSectionRelayQuery,
@@ -127,14 +131,19 @@ function SectionTable({
 
   const rows = useMemo<NotificationRow[]>(
     () =>
-      data.notifications.edges.map(edge => ({
-        id: edge.node.id,
-        title: edge.node.title,
-        description: edge.node.description ?? null,
-        createdAt: parseCreatedAt(edge.node.createdAt),
-        read: edge.node.read,
-        notification: mapNotificationNode(edge.node),
-      })),
+      data.notifications.edges.map(edge => {
+        // Read once: the table's own columns take the raw fields, the sub-row
+        // and actions take the mapped notification.
+        const node = readNotificationNode(edge.node);
+        return {
+          id: node.id,
+          title: node.title,
+          description: node.description ?? null,
+          createdAt: parseCreatedAt(node.createdAt),
+          read: node.read,
+          notification: mapNotificationNode(node),
+        };
+      }),
     [data.notifications.edges],
   );
 

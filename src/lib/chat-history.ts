@@ -1,4 +1,7 @@
 import type { Message as ChatMessage, MessageSegment } from '@flamingo-stack/openframe-frontend-core';
+// Whether a card is the hub's is decided by the core lib, not re-derived here:
+// the same predicate the stream kernels and the history replay use.
+import { isGuideApprovalSegment } from '@flamingo-stack/openframe-frontend-core/components/chat';
 
 // Newest-to-oldest scan for the latest pending approval (single or batch).
 // Returns its requestId / approvalRequestId, or undefined if none. Used by
@@ -80,6 +83,11 @@ export function extractPendingApprovals<M extends ChatMessage>(
     if (!Array.isArray(msg.content)) continue;
     for (const segment of msg.content) {
       if (segment.type !== 'approval_request' || segment.status !== 'pending') continue;
+      // A Product Guide card is NOT ours to pin: it stays where `stripPendingApprovals`
+      // leaves it — inline in its turn, under the guide's own "click Approve below"
+      // preamble, exactly as the hub renders it. Collecting it here would show the
+      // same card twice, in the flow and in the footer.
+      if (isGuideApprovalSegment(segment)) continue;
       const requestId = segment.data?.requestId;
       if (requestId) {
         if (resolved.has(requestId) || seen.has(requestId)) continue;
@@ -108,7 +116,15 @@ export function stripPendingApprovals<M extends ChatMessage>(messages: M[]): M[]
       continue;
     }
     const filteredContent = msg.content.filter(segment => {
-      if (segment.type === 'approval_request' && segment.status === 'pending') return false;
+      // A pending Product Guide card is the ONE kind that stays inline: the
+      // hub's chat renders it in the flow, right under the guide's own "click
+      // Approve on the card below" preamble, and the footer treatment would
+      // separate the two. It still goes through the dedupe below — a guide card
+      // can appear twice (persisted copy plus its realtime copy) just like any
+      // other, and one proposal must render once.
+      if (!isGuideApprovalSegment(segment) && segment.type === 'approval_request' && segment.status === 'pending') {
+        return false;
+      }
 
       if (segment.type === 'approval_request') {
         const id = segment.data?.requestId;

@@ -56,7 +56,9 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   const iconSize = 'w-4 h-4 md:w-6 md:h-6';
   const typeIcon = renderDeviceTypeIcon(device.type, `${iconSize} text-ods-text-secondary`);
 
-  const hostnameCell = <InfoCell value={getDeviceName(device)} label="Hostname" />;
+  // The original device name — with a nickname in the page title, this cell is
+  // where the hostname stays visible alongside the custom name.
+  const hostnameCell = <InfoCell value={device.hostname || getDeviceName(device)} label="Hostname" />;
   const typeCell = <InfoCell value={device.type || 'Unknown'} label="Type" icon={typeIcon} />;
   const deviceCell = (
     <InfoCell

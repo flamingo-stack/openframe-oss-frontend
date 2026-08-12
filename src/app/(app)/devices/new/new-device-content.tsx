@@ -16,6 +16,7 @@ import { OrgAvatar } from '@/app/components/shared';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { isValidTag, type TagEntryWithId, TagsEditor } from '@/app/components/shared/tags';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
+import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 import { routes } from '@/lib/routes';
@@ -35,6 +36,7 @@ type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
 export function NewDeviceContent() {
   const handleBack = useSafeBack(routes.devices.list);
   const { toast } = useToast();
+  const isMobile = useIsMobileShell();
 
   // Customer context passed by "Add Device" launched from a customer's section
   // (e.g. `/devices/new?organizationId=<id>`), used to pre-select the dropdown.
@@ -274,12 +276,20 @@ export function NewDeviceContent() {
             ),
             variant: 'accent',
           }}
-          secondaryAction={{
-            label: 'Run on Current Machine',
-            onClick: runOnCurrentMachine,
-            icon: <PlayIcon className="w-5 h-5" />,
-            variant: 'outline',
-          }}
+          // "Run on Current Machine" writes the install script to a Blob and
+          // clicks an `<a download>`. There is no download manager behind the
+          // WebView on a phone, so the click is a no-op — and the phone is not
+          // a machine anyone enrolls anyway. Offer it only where it works.
+          secondaryAction={
+            isMobile
+              ? undefined
+              : {
+                  label: 'Run on Current Machine',
+                  onClick: runOnCurrentMachine,
+                  icon: <PlayIcon className="w-5 h-5" />,
+                  variant: 'outline',
+                }
+          }
         />
 
         <AdminPrivilegesWarning platform={platform} />

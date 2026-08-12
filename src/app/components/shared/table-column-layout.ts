@@ -43,6 +43,13 @@ export interface TableSkeletonColumn {
    * `filterable`, this is layout-affecting rather than cosmetic: the icon sits
    * beside the label, so a skeleton without it draws a bare label that shifts
    * the moment the rows arrive. The skeleton renders the same header inert.
+   *
+   * It also keeps the header cell alive below `lg` (see `alwaysShowHeader`
+   * below): `DataTable.Header` only does that on its own for columns with a
+   * `meta.filter`, and the calendar is not one. Without the opt-in the control
+   * vanishes between `md` and `lg` — exactly the window where the toolbar's
+   * mobile filter button (`md:hidden`) is gone too, leaving no way at all to
+   * reach the date filter.
    */
   dateFilterable?: boolean;
 }
@@ -53,6 +60,7 @@ interface SharedColumnMeta {
   hideAt?: TableBreakpoint;
   align?: 'right';
   sortable?: boolean;
+  alwaysShowHeader?: boolean;
 }
 
 function sharedMeta(column: TableSkeletonColumn): SharedColumnMeta {
@@ -61,6 +69,10 @@ function sharedMeta(column: TableSkeletonColumn): SharedColumnMeta {
     hideAt: column.hideAt,
     align: column.align,
     sortable: column.sortable,
+    // A date-filtered header is a control the user can act on, so it earns its
+    // space below `lg` the same way the funnels do — the table keeps those on
+    // its own, but knows nothing about the calendar.
+    alwaysShowHeader: column.dateFilterable,
   };
 }
 

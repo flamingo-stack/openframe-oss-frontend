@@ -50,6 +50,7 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
+import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
 
 /**
@@ -196,6 +197,26 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
     [],
   );
 
+  // How a link the rule above sent to a "new tab" actually opens. The lib's
+  // default is `window.open(href, '_blank')`, which the app shell's WebView drops
+  // on the floor — the link is a dead click there. Same window instead wherever
+  // that is the case (`useSameWindowLinks`); in the shell an off-origin
+  // `location.assign` is handed to the system browser, so external content still
+  // leaves the app rather than replacing it.
+  //
+  // Only ever fed CROSS-ORIGIN hrefs: `decideNewTab` above is origin-based, so
+  // everything on our origin already resolves to `navigate` (a `router.push`).
+  // Synchronous, as the runtime requires — a deferred `window.open` is a blocked
+  // popup on Safari.
+  const sameWindow = useSameWindowLinks();
+  const openExternal = useCallback<NonNullable<ChatRuntime['navigation']['openExternal']>>(
+    href => {
+      if (sameWindow) window.location.assign(href);
+      else window.open(href, '_blank', 'noopener,noreferrer');
+    },
+    [sameWindow],
+  );
+
   const runtime = useMemo<ChatRuntime>(() => {
     // On the WEB, Guide-mode endpoints are SAME-ORIGIN relative `/content/*`
     // paths. The lib's `embedAuthedFetch` rejects cross-origin URLs in
@@ -285,6 +306,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         mode: 'host',
         navigate,
         decideNewTab,
+        openExternal,
       },
       // Unified content-href seam (shared with Help Center pages): the hosted
       // types and the Help Center overrides soft-nav into `/help-center/...`;
@@ -293,9 +315,11 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       composeContentUrl: composeOpenframeInAppContentUrl,
       source: CHAT_SOURCE,
     };
-    // `navigate` / `decideNewTab` are the only reactive deps; both are stable
-    // `useCallback`s, so the runtime object is effectively built once.
-  }, [navigate, decideNewTab]);
+    // `navigate` / `decideNewTab` / `openExternal` are the only reactive deps.
+    // The first two are stable `useCallback`s; `openExternal` changes only on a
+    // resize across the md breakpoint, so the runtime object is rebuilt about as
+    // often as never.
+  }, [navigate, decideNewTab, openExternal]);
 
   return <ChatRuntimeContext.Provider value={runtime}>{children}</ChatRuntimeContext.Provider>;
 }

@@ -25,6 +25,7 @@ import {
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage, MessagesResponse } from '../types';
+import { useGuideApproval } from './use-guide-approval';
 
 export function useMingoDialogSelection() {
   const { toast } = useToast();
@@ -47,6 +48,27 @@ export function useMingoDialogSelection() {
 
   const approveRequestMutation = useApproveRequestMutation();
   const rejectRequestMutation = useRejectRequestMutation();
+  const resolveGuideApproval = useGuideApproval();
+
+  /**
+   * Whether this request id belongs to a Product Guide card. Read off the
+   * SEGMENT (`data.origin`), which the chunk decoder stamps — not guessed from
+   * the id or the approval type, so a new hub tool needs no change here.
+   */
+  const isGuideApproval = useCallback(
+    (dialogId: string, requestId: string): boolean =>
+      getMessages(dialogId).some(
+        message =>
+          Array.isArray(message.content) &&
+          message.content.some(
+            segment =>
+              segment.type === 'approval_request' &&
+              segment.data?.requestId === requestId &&
+              segment.data?.origin === 'guide',
+          ),
+      ),
+    [getMessages],
+  );
 
   const handleApprove = useCallback(
     async (requestId?: string) => {
@@ -74,7 +96,13 @@ export function useMingoDialogSelection() {
       setTyping(activeDialogId, true);
 
       try {
-        await approveRequestMutation.mutateAsync(requestId);
+        // A Product Guide proposal is settled by the hub, not by the agent —
+        // same route the Guide chat uses. See `useGuideApproval`.
+        if (isGuideApproval(activeDialogId, requestId)) {
+          await resolveGuideApproval(activeDialogId, requestId, 'approve');
+        } else {
+          await approveRequestMutation.mutateAsync(requestId);
+        }
         trackDashboardActivity(EVENT_SUBTYPE.APPROVE_MINGO_COMMAND);
       } catch (error) {
         if (!wasTyping) setTyping(activeDialogId, false);
@@ -86,7 +114,16 @@ export function useMingoDialogSelection() {
         });
       }
     },
-    [approveRequestMutation, toast, activeDialogId, updateApprovalStatusInMessages, setTyping, getTyping],
+    [
+      approveRequestMutation,
+      toast,
+      activeDialogId,
+      updateApprovalStatusInMessages,
+      setTyping,
+      getTyping,
+      isGuideApproval,
+      resolveGuideApproval,
+    ],
   );
 
   const handleReject = useCallback(
@@ -108,7 +145,11 @@ export function useMingoDialogSelection() {
       setTyping(activeDialogId, true);
 
       try {
-        await rejectRequestMutation.mutateAsync(requestId);
+        if (isGuideApproval(activeDialogId, requestId)) {
+          await resolveGuideApproval(activeDialogId, requestId, 'reject');
+        } else {
+          await rejectRequestMutation.mutateAsync(requestId);
+        }
         trackDashboardActivity(EVENT_SUBTYPE.REJECT_MINGO_COMMAND);
       } catch (error) {
         if (!wasTyping) setTyping(activeDialogId, false);
@@ -120,7 +161,16 @@ export function useMingoDialogSelection() {
         });
       }
     },
-    [rejectRequestMutation, toast, activeDialogId, updateApprovalStatusInMessages, setTyping, getTyping],
+    [
+      rejectRequestMutation,
+      toast,
+      activeDialogId,
+      updateApprovalStatusInMessages,
+      setTyping,
+      getTyping,
+      isGuideApproval,
+      resolveGuideApproval,
+    ],
   );
 
   const handleApproveRef = useRef(handleApprove);
@@ -398,6 +448,7 @@ export function useMingoDialogSelection() {
         );
       }
     } else {
+      const realtimeSeen = getHighestStreamSeq(activeDialogId);
       const merged = mergeHistoryWithRealtime({
         processedHistory: allProcessedMessages,
         rawHistoryIds: new Set(chronologicalMessages.map(msg => msg.id)),
@@ -405,8 +456,23 @@ export function useMingoDialogSelection() {
         streamingMessageId: streamingExemptId,
         historyFetchedAt: dataUpdatedAt,
         historyMaxStreamSeq: initialOptStartSeq,
-        realtimeSeenStreamSeq: getHighestStreamSeq(activeDialogId),
+        realtimeSeenStreamSeq: realtimeSeen,
       });
+      // Debug-only: this merge is where a realtime-only segment can vanish —
+      // history is the persisted truth, and the backend does NOT persist guide
+      // frames, so a card the reducer built lives ONLY in the realtime copy.
+      // Counting approvals on both sides names the culprit instead of leaving
+      // "the reducer had it, the screen didn't" unexplained.
+      if (featureFlags.debugNatsChunks.enabled()) {
+        const approvals = (list: Message[]) =>
+          list.reduce(
+            (n, m) => n + (Array.isArray(m.content) ? m.content.filter(s => s.type === 'approval_request').length : 0),
+            0,
+          );
+        console.log(
+          `[mingo-merge] approvals before=${approvals(existingMessages)} after=${approvals(merged)} | historyMaxSeq=${initialOptStartSeq} realtimeSeen=${realtimeSeen} streamingExempt=${streamingExemptId ?? 'none'}`,
+        );
+      }
       setMessages(activeDialogId, merged);
     }
 

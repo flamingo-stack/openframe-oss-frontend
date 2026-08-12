@@ -330,7 +330,7 @@ function RunExecutionRows({
 
   const executions: UiExecution[] = useMemo(() => {
     const edges = data.scheduleExecutions?.edges ?? [];
-    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
+    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node, edge.node.scriptName)] : []));
     // The query's `search` is spent on the scope above, so the user's term
     // narrows the rows we hold instead. It converges on the whole run rather
     // than the first page: an empty result keeps the infinite-scroll sentinel
