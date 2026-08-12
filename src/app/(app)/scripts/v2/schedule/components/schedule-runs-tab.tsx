@@ -28,6 +28,7 @@ import { useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
@@ -338,12 +339,17 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTab({ scheduleId }: { s
 
   const tableFilters = useMemo(() => ({ status: params.runStatus }), [params.runStatus]);
 
+  // The mobile FilterModal commits the funnels and the date section as two
+  // callbacks in the same tick; the shared writer merges them into a single URL
+  // write (sequential setParams calls each re-read the stale URL and clobber, so
+  // the status selection would be lost whenever a date is applied beside it).
+  const queueParamsWrite = useQueuedParamsWrite(setParams);
+
   const handleFilterChange = useCallback(
     (columnFilters: Record<string, string[]>) => {
-      setParams({ runStatus: columnFilters.status || [] });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+      queueParamsWrite({ runStatus: columnFilters.status || [] });
     },
-    [setParams],
+    [queueParamsWrite],
   );
 
   // Apply (and Reset, which fires with the cleared selection). `runSortDir: ''`
@@ -352,14 +358,13 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTab({ scheduleId }: { s
   // `?runSortDir=desc` on a list that is in its default order anyway.
   const handleDateFilterApply = useCallback(
     (result: DateFilterResult) => {
-      setParams({
+      queueParamsWrite({
         runSortDir: result.sort === 'desc' ? '' : result.sort,
         runDateFrom: result.range?.from ? toDayParam(result.range.from) : '',
         runDateTo: result.range?.to ? toDayParam(result.range.to) : '',
       });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [setParams],
+    [queueParamsWrite],
   );
 
   const dateFilter: TableDateFilter = useMemo(
