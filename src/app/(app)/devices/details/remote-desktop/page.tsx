@@ -26,6 +26,7 @@ import { MeshControlClient } from '@/lib/meshcentral/meshcentral-control';
 import { type DisplayInfo, MeshDesktop } from '@/lib/meshcentral/meshcentral-desktop';
 import { MeshTunnel, type TunnelState } from '@/lib/meshcentral/meshcentral-tunnel';
 import { DEFAULT_SETTINGS, RemoteDesktopSettings, type RemoteSettingsConfig } from '@/lib/meshcentral/remote-settings';
+import { captureException } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
 import { type ActionHandlers, createActionsMenuGroups } from './actions-menu-config';
 import { RemoteSettingsModal } from './remote-settings-modal';
@@ -36,6 +37,13 @@ interface LegacyDeviceData {
   hostname?: string;
   organization?: string | { name?: string };
 }
+
+// A connected tunnel (state 3) that never streams a first frame, or a relay
+// socket that drops before one arrives, both leave the viewer blank. Surface a
+// failure after this wait instead of an endless spinner or a black rectangle.
+const FIRST_FRAME_TIMEOUT_MS = 10000;
+
+type ConnectionFailure = { reason: string };
 
 export default function RemoteDesktopPage() {
   const searchParams = useSearchParams();
@@ -112,6 +120,9 @@ export default function RemoteDesktopPage() {
   const [currentDisplay, setCurrentDisplay] = useState(0);
   const currentDisplayRef = useRef(currentDisplay);
   const [firstFrameReceived, setFirstFrameReceived] = useState(false);
+  const firstFrameReceivedRef = useRef(false);
+  const [failure, setFailure] = useState<ConnectionFailure | null>(null);
+  const [connectNonce, setConnectNonce] = useState(0);
   const [clipboardEnabled, setClipboardEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -146,7 +157,12 @@ export default function RemoteDesktopPage() {
     const desktop = new MeshDesktop();
     desktopRef.current = desktop;
 
-    desktop.onFirstFrame?.(() => setFirstFrameReceived(true));
+    desktop.onFirstFrame?.(() => {
+      firstFrameReceivedRef.current = true;
+      setFirstFrameReceived(true);
+      // A late frame recovers a session the watchdog already gave up on.
+      setFailure(null);
+    });
 
     // Set up display list change callback
     desktop.onDisplayListChange?.(newDisplays => {
@@ -171,11 +187,14 @@ export default function RemoteDesktopPage() {
     };
   }, [isPageReady]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: connectNonce is the intentional re-run trigger for retry, not read in the body.
   useEffect(() => {
     if (!isPageReady || !meshcentralAgentId || initializingRef.current) return;
 
     initializingRef.current = true;
+    firstFrameReceivedRef.current = false;
     setFirstFrameReceived(false);
+    setFailure(null);
     let cancelled = false;
     let control: MeshControlClient | undefined;
     let tunnel: MeshTunnel | undefined;
@@ -218,6 +237,9 @@ export default function RemoteDesktopPage() {
             } catch {}
           },
           onStateChange: s => {
+            // Ignore the state 0 that the teardown stop() emits — otherwise a
+            // retry would re-raise the failure it just cleared.
+            if (cancelled) return;
             setState(s);
             if (s === 1 && tunnelRef.current?.getState() === 0) {
               isReconnectingRef.current = true;
@@ -233,13 +255,25 @@ export default function RemoteDesktopPage() {
                 description: 'Connection restored successfully',
                 variant: 'success',
               });
-            } else if (s === 0 && isReconnectingRef.current) {
-              isReconnectingRef.current = false;
-              toastRef.current({
-                title: 'Reconnection Failed',
-                description: 'Unable to restore connection. Please try again.',
-                variant: 'destructive',
-              });
+            } else if (s === 0) {
+              if (isReconnectingRef.current) {
+                isReconnectingRef.current = false;
+                toastRef.current({
+                  title: 'Reconnection Failed',
+                  description: 'Unable to restore connection. Please try again.',
+                  variant: 'destructive',
+                });
+              }
+              // The relay socket dropped before any frame — surface a retryable
+              // failure rather than a blank canvas. Once a frame has drawn the
+              // canvas keeps the last image and the reconnect toasts apply.
+              if (!firstFrameReceivedRef.current) {
+                setFailure({ reason: 'The remote desktop connection dropped.' });
+                captureException(new Error('Remote desktop: connection dropped before first frame'), {
+                  tunnelState: s,
+                  nodeId: meshcentralAgentId,
+                });
+              }
             }
           },
         });
@@ -255,6 +289,8 @@ export default function RemoteDesktopPage() {
         tunnel.start();
       } catch (e) {
         if (cancelled) return;
+        captureException(e, { context: 'remote-desktop-connect', nodeId: meshcentralAgentId });
+        setFailure({ reason: (e as Error).message || 'Could not start the remote desktop connection.' });
         toastRef.current({ title: 'Remote Desktop failed', description: (e as Error).message, variant: 'destructive' });
       }
     })();
@@ -267,21 +303,53 @@ export default function RemoteDesktopPage() {
       tunnel?.stop();
       tunnelRef.current = null;
     };
-  }, [isPageReady, meshcentralAgentId]);
+  }, [isPageReady, meshcentralAgentId, connectNonce]);
 
   useEffect(() => {
     if (state !== 3) return;
     const tunnel = tunnelRef.current;
     if (!tunnel) return;
 
-    try {
-      const settingsManager = new RemoteDesktopSettings(remoteSettingsRef.current);
-      settingsManager.setWebSocket(tunnel);
-      settingsManager.applySettings();
-    } catch (error) {
-      console.error('Failed to apply initial settings:', error);
-    }
-  }, [state]);
+    // Applying compression settings is what starts the JPEG stream.
+    const startStream = () => {
+      try {
+        const settingsManager = new RemoteDesktopSettings(remoteSettingsRef.current);
+        settingsManager.setWebSocket(tunnel);
+        settingsManager.applySettings();
+        desktopRef.current?.requestRefresh();
+      } catch (error) {
+        captureException(error, { context: 'remote-desktop-start-stream', nodeId: meshcentralAgentId });
+      }
+    };
+
+    startStream();
+
+    // The handshake is complete but a frame may already be drawing; only a
+    // still-blank viewer needs the watchdog.
+    if (firstFrameReceivedRef.current) return;
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    // A silent agent gets one nudge — re-send the start message and ask for a
+    // key frame — before we declare the stream dead.
+    timers.push(
+      setTimeout(() => {
+        if (firstFrameReceivedRef.current) return;
+        startStream();
+        timers.push(
+          setTimeout(() => {
+            if (firstFrameReceivedRef.current) return;
+            setFailure({ reason: 'The desktop stream did not start.' });
+            captureException(new Error('Remote desktop: stream did not start'), {
+              tunnelState: tunnel.getState(),
+              nodeId: meshcentralAgentId,
+            });
+          }, FIRST_FRAME_TIMEOUT_MS),
+        );
+      }, FIRST_FRAME_TIMEOUT_MS),
+    );
+
+    return () => timers.forEach(clearTimeout);
+  }, [state, meshcentralAgentId]);
 
   // Clipboard interceptor
   useEffect(() => {
@@ -330,6 +398,13 @@ export default function RemoteDesktopPage() {
   const handleBack = () => {
     tunnelRef.current?.stop();
     safeBackToDevice();
+  };
+
+  // Tear down the current tunnel and re-run the connect effect, which resets the
+  // frame state, stops the dead tunnel, and reconnects.
+  const handleRetry = () => {
+    setFailure(null);
+    setConnectNonce(n => n + 1);
   };
 
   const enterFullscreen = async () => {
@@ -564,14 +639,22 @@ export default function RemoteDesktopPage() {
         style={{ visibility: firstFrameReceived ? 'visible' : 'hidden' }}
         onContextMenu={e => e.preventDefault()}
       />
-      {!firstFrameReceived && state >= 1 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)]">
-          <Loader2 className="w-8 h-8 text-ods-text-secondary animate-spin" />
-          <span className="text-ods-text-secondary text-h6">
-            {state === 3 ? 'Waiting for desktop stream...' : 'Connecting to desktop...'}
-          </span>
-        </div>
-      )}
+      {!firstFrameReceived &&
+        (failure ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-l)] text-center">
+            <MonitorIcon className="w-8 h-8 text-ods-text-secondary" />
+            <div className="text-ods-text-primary text-h5">Remote desktop unavailable</div>
+            <span className="text-ods-text-secondary text-h6">{failure.reason}</span>
+            <Button onClick={handleRetry}>Retry</Button>
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)]">
+            <Loader2 className="w-8 h-8 text-ods-text-secondary animate-spin" />
+            <span className="text-ods-text-secondary text-h6">
+              {state === 3 ? 'Waiting for desktop stream...' : 'Connecting to desktop...'}
+            </span>
+          </div>
+        ))}
     </div>
   );
 
