@@ -56,7 +56,9 @@ function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; 
     const edges = data.scheduleExecutions?.edges ?? [];
     // Defensive null-node guard: skip any dangling edge instead of crashing the
     // tab on a store-evicted record.
-    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
+    // `scriptName` rides beside the shared row fragment on this list only — a
+    // schedule runs several scripts, so the rows say which one they were.
+    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node, edge.node.scriptName)] : []));
     // A no-op here — this list's search reaches the server, so `narrowSearch` is
     // always empty. Kept so every caller of the shell honours the same contract.
     return narrowExecutions(rows, narrowSearch);

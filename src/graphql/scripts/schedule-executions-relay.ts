@@ -28,21 +28,7 @@ export const scheduleExecutionsRelayQuery = graphql`
     ...scheduleExecutionsRelay_query
       @arguments(scheduleId: $scheduleId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
     scheduleExecutionFilters(scheduleId: $scheduleId, filter: $filter, search: $search) {
-      statuses {
-        value
-        label
-        count
-      }
-      initiators {
-        value
-        label
-        count
-      }
-      machines {
-        value
-        label
-        count
-      }
+      ...executionFacets_filters
     }
   }
 `;
@@ -69,40 +55,15 @@ export const scheduleExecutionsRelayFragment = graphql`
       filteredCount
       edges {
         node {
-          id
-          executionId
-          status
-          dispatchedAt
-          stdout
-          stderr
-          error
-          # The second line of the "Executed by" cell. A schedule runs SEVERAL
-          # scripts, so which one this row is stays the open question here — the
-          # schedule itself is already the page title. The per-script tab does
-          # not select it (there it would repeat its own page title), which is
-          # what keeps that line off those rows.
+          # The shared row selection (execution-fields.ts).
+          ...executionFields_execution
+          # The second line of the "Executed by" cell, and the one field this
+          # list adds to that fragment. A schedule runs SEVERAL scripts, so
+          # which one this row is stays the open question here — the schedule
+          # itself is already the page title. The per-script tab does not select
+          # it (there it would repeat its own page title), which is what keeps
+          # that line off those rows.
           scriptName
-          machine {
-            id
-            machineId
-            hostname
-            displayName
-            organization {
-              id
-              name
-            }
-          }
-          initiator {
-            id
-            firstName
-            lastName
-            email
-            status
-            image {
-              imageUrl
-              hash
-            }
-          }
         }
       }
       pageInfo {

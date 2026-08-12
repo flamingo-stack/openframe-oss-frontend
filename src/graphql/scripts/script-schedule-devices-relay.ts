@@ -49,34 +49,11 @@ export const scriptScheduleDevicesRelayFragment = graphql`
       filteredCount
       edges {
         node {
-          id
-          machineId
-          hostname
-          displayName
-          osType
-          status
-          # type picks the DEVICE column's row icon; lastSeen is the line
-          # under the status tag.
-          lastSeen
-          type
-          # The CUSTOMER column: logo + name. This is the per-machine fan-out
-          # the docstring warns about.
-          organization {
-            id
-            organizationId
-            name
-            image {
-              imageUrl
-              hash
-            }
-          }
-          # Feeds the "Device Tags" filter, which narrows client-side over the
-          # pages loaded so far. Plain field on the machine — no extra lookup.
-          tags {
-            id
-            key
-            values
-          }
+          # The narrowest step of the device field ladder (device-row-fields.ts)
+          # — a table row and nothing more, which is the whole point here: it
+          # carries the CUSTOMER column's per-machine fan-out the docstring
+          # warns about and stops before the heavier steps above it.
+          ...deviceRowFields_machine
         }
       }
       pageInfo {
