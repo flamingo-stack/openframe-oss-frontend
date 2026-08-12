@@ -9,7 +9,7 @@ import type { scriptScheduleDevicesRelay_schedule$key as ScheduleDevicesFragment
 import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPaginationQueryType } from '@/__generated__/scriptScheduleDevicesRelayPaginationQuery.graphql';
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { machineToDevice } from '@/app/(app)/devices/utils/device-transform';
+import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
 import { DevicesList, type DevicesListNarrowing, EMPTY_DEVICES_NARROWING } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
@@ -130,7 +130,7 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
     const edges = data?.assignedDevices?.edges ?? [];
     // Defensive null-node guard: skip any dangling edge instead of crashing the
     // tab on a store-evicted record.
-    return edges.flatMap(edge => (edge?.node ? [machineToDevice(edge.node)] : []));
+    return edges.flatMap(edge => (edge?.node ? [machineRowToDevice(edge.node)] : []));
   }, [data?.assignedDevices?.edges]);
 
   const fetchNextPage = useCallback(() => {

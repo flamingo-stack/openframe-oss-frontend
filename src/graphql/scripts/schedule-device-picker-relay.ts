@@ -52,36 +52,14 @@ export const scheduleDevicePickerRelayFragment = graphql`
       edges {
         assigned
         node {
+          # Step 2 of the device field ladder (device-selector-fields.ts) — a row
+          # plus the hardware ids and customer contact DeviceSelector shows.
+          ...deviceSelectorFields_machine
+          # Read straight off the edge, not through the transform: these two are
+          # the key the picker holds its selection marks by, and it needs them
+          # per edge without flattening a Device first.
           id
           machineId
-          hostname
-          displayName
-          osType
-          status
-          lastSeen
-          type
-          manufacturer
-          model
-          serialNumber
-          organization {
-            id
-            organizationId
-            name
-            image {
-              imageUrl
-              hash
-            }
-            contactInformation {
-              contacts {
-                email
-              }
-            }
-          }
-          tags {
-            id
-            key
-            values
-          }
         }
       }
       pageInfo {
@@ -139,36 +117,14 @@ export const scheduleDevicePickerRelayAssignedFragment = graphql`
       filteredCount
       edges {
         node {
+          # Step 2 of the device field ladder (device-selector-fields.ts) — a row
+          # plus the hardware ids and customer contact DeviceSelector shows.
+          ...deviceSelectorFields_machine
+          # Read straight off the edge, not through the transform: these two are
+          # the key the picker holds its selection marks by, and it needs them
+          # per edge without flattening a Device first.
           id
           machineId
-          hostname
-          displayName
-          osType
-          status
-          lastSeen
-          type
-          manufacturer
-          model
-          serialNumber
-          organization {
-            id
-            organizationId
-            name
-            image {
-              imageUrl
-              hash
-            }
-            contactInformation {
-              contacts {
-                email
-              }
-            }
-          }
-          tags {
-            id
-            key
-            values
-          }
         }
       }
       pageInfo {
