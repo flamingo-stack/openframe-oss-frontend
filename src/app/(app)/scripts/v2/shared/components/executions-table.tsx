@@ -29,6 +29,9 @@ import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { readInlineData } from 'relay-runtime';
+import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__generated__/executionFacets_filters.graphql';
+import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__generated__/executionFields_execution.graphql';
 import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
@@ -41,6 +44,8 @@ import {
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { executionFacetsFragment } from '@/graphql/scripts/execution-facets';
+import { executionFieldsFragment } from '@/graphql/scripts/execution-fields';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -57,6 +62,7 @@ import {
   organizationLabel,
 } from '../utils/execution-helpers';
 import { type FacetOption, facetToSortedOptions } from '../utils/facet-options';
+import { ExecutionSourceBadge } from './execution-source-badge';
 
 /**
  * The Execution History table, shared by the per-SCRIPT tab
@@ -130,43 +136,25 @@ export interface UiExecution {
   initiatorDeleted: boolean;
   /**
    * Which script this execution ran — the second line under the initiator.
-   * Empty unless the operation selects it: the schedule tab does (a schedule
-   * runs several scripts), the script tab doesn't (it would repeat its title).
+   * Empty unless the list passes it: the schedule lists do (a schedule runs
+   * several scripts), the script tab doesn't (it would repeat its title).
    */
   scriptName: string;
+  /** `ExecutionSource` — SCHEDULED / AI_ASSISTANT render a chip, MANUAL nothing. */
+  source: string;
   result: string;
 }
 
 /**
- * A `ScriptExecution` node as selected by either operation — typed
- * structurally so one mapper serves both generated artifacts.
+ * Flattens one execution row — an `executionFields_execution` spread off any of
+ * the three lists' edges — into what the table renders.
+ *
+ * `scriptName` is passed in rather than read: it is the only field the lists
+ * disagree on (see the fragment's docstring), so the schedule lists hand over
+ * the value they selected and the script tab omits it.
  */
-export interface ExecutionNodeLike {
-  readonly id: string;
-  readonly executionId: string;
-  readonly status: string;
-  readonly dispatchedAt: unknown;
-  readonly scriptName?: string | null;
-  readonly stdout?: string | null;
-  readonly stderr?: string | null;
-  readonly error?: string | null;
-  readonly machine?: {
-    readonly machineId?: string | null;
-    readonly hostname?: string | null;
-    readonly displayName?: string | null;
-    readonly organization?: { readonly name?: string | null } | null;
-  } | null;
-  readonly initiator?: {
-    readonly id: string;
-    readonly firstName?: string | null;
-    readonly lastName?: string | null;
-    readonly email?: string | null;
-    readonly status?: string | null;
-    readonly image?: { readonly imageUrl?: string | null; readonly hash?: string | null } | null;
-  } | null;
-}
-
-export function toUiExecution(node: ExecutionNodeLike): UiExecution {
+export function toUiExecution(ref: ExecutionFieldsKey, scriptName?: string | null): UiExecution {
+  const node = readInlineData(executionFieldsFragment, ref);
   return {
     id: node.id,
     executionId: node.executionId,
@@ -180,7 +168,8 @@ export function toUiExecution(node: ExecutionNodeLike): UiExecution {
     initiatorInitials: initiatorInitials(node.initiator),
     initiatorImage: getFullImageUrl(node.initiator?.image?.imageUrl, node.initiator?.image?.hash),
     initiatorDeleted: isDeletedUserStatus(node.initiator?.status),
-    scriptName: node.scriptName ?? '',
+    scriptName: scriptName ?? '',
+    source: node.source,
     result: executionResultText(node),
   };
 }
@@ -211,15 +200,6 @@ export function narrowExecutions(executions: UiExecution[], term: string): UiExe
   );
 }
 
-/** Server facet entry (`ScriptFilterOption`), typed structurally for both artifacts. */
-type FacetEntries = ReadonlyArray<{ readonly value: string; readonly label: string }> | null | undefined;
-
-export interface ExecutionFacets {
-  readonly statuses?: FacetEntries;
-  readonly initiators?: FacetEntries;
-  readonly machines?: FacetEntries;
-}
-
 export interface ExecutionFacetOptions {
   statusOptions: FacetOption[];
   machineOptions: FacetOption[];
@@ -227,11 +207,16 @@ export interface ExecutionFacetOptions {
 }
 
 /**
- * Server facets → dropdown options. Status values are raw enums, mapped through
- * the shared label helper ("SUCCESS" → "Completed") and kept in the backend's
+ * Server facets → dropdown options, from an `executionFacets_filters` spread off
+ * either list's filters field. Status values are raw enums, mapped through the
+ * shared label helper ("SUCCESS" → "Completed") and kept in the backend's
  * by-count order; the other two are label-sorted.
  */
-export function useExecutionFacetOptions(facets: ExecutionFacets | null | undefined): ExecutionFacetOptions {
+export function useExecutionFacetOptions(ref: ExecutionFacetsKey | null | undefined): ExecutionFacetOptions {
+  // Not a hook — an `@inline` read is a plain lookup in data the parent query
+  // already fetched, so the conditional is fine and the useMemos below still run
+  // unconditionally.
+  const facets = ref ? readInlineData(executionFacetsFragment, ref) : null;
   const statuses = facets?.statuses;
   const initiators = facets?.initiators;
   const machines = facets?.machines;
@@ -432,24 +417,31 @@ export function ExecutionsTable({
               )}
               {/* min-w-0 flex-1 so the FloatingTooltip's block div can shrink and the text ellipsizes. */}
               <div className="flex flex-col justify-center min-w-0 flex-1">
-                {href ? (
-                  // Only the NAME opts out of the row link — the rest of the cell
-                  // still navigates to the execution, like every other cell.
-                  <button
-                    data-no-row-click
-                    type="button"
-                    onClick={openInNewTab(href)}
-                    className="min-w-0 text-left pointer-events-auto"
-                  >
-                    <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+                {/* Name and the source chip share the first line: a schedule or
+                    Mingo dispatches on a technician's behalf, so the chip
+                    qualifies the name instead of standing in for it. The name is
+                    the part that ellipsizes — the chip keeps its width. */}
+                <div className="flex items-center gap-[var(--spacing-system-xxs)] min-w-0">
+                  {href ? (
+                    // Only the NAME opts out of the row link — the rest of the cell
+                    // still navigates to the execution, like every other cell.
+                    <button
+                      data-no-row-click
+                      type="button"
+                      onClick={openInNewTab(href)}
+                      className="min-w-0 text-left pointer-events-auto"
+                    >
+                      <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+                        {row.original.initiatorName}
+                      </TruncateText>
+                    </button>
+                  ) : (
+                    <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
                       {row.original.initiatorName}
                     </TruncateText>
-                  </button>
-                ) : (
-                  <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
-                    {row.original.initiatorName}
-                  </TruncateText>
-                )}
+                  )}
+                  <ExecutionSourceBadge source={row.original.source} />
+                </div>
                 {row.original.scriptName && (
                   <TruncateText variant="h6" tone="secondary">
                     {row.original.scriptName}

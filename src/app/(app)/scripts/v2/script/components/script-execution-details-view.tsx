@@ -16,6 +16,7 @@ import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execut
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { ExecutionSourceBadge } from '../../shared/components/execution-source-badge';
 import {
   executionResultText,
   executionStatusLabel,
@@ -169,31 +170,35 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
                   initialsClassName="text-ods-text-secondary"
                 />
               );
-              if (!initiatorHref) {
-                return (
-                  <div className="flex items-center gap-2 min-w-0">
-                    {avatar}
-                    <TruncateText variant="h4" className={isDeletedInitiator ? 'text-ods-error' : undefined}>
-                      {initiatorName(execution.initiator)}
-                    </TruncateText>
-                  </div>
-                );
-              }
+              // The chip sits OUTSIDE the initiator link — inside it, clicking
+              // "Mingo" would open the technician's employee page.
               return (
-                <a
-                  href={initiatorHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 min-w-0 no-underline"
-                >
-                  {avatar}
-                  <TruncateText
-                    variant="h4"
-                    className={cn('underline', isDeletedInitiator ? 'text-ods-error' : 'text-ods-accent')}
-                  >
-                    {initiatorName(execution.initiator)}
-                  </TruncateText>
-                </a>
+                <div className="flex items-center gap-[var(--spacing-system-xxs)] min-w-0">
+                  {initiatorHref ? (
+                    <a
+                      href={initiatorHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 min-w-0 no-underline"
+                    >
+                      {avatar}
+                      <TruncateText
+                        variant="h4"
+                        className={cn('underline', isDeletedInitiator ? 'text-ods-error' : 'text-ods-accent')}
+                      >
+                        {initiatorName(execution.initiator)}
+                      </TruncateText>
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-2 min-w-0">
+                      {avatar}
+                      <TruncateText variant="h4" className={isDeletedInitiator ? 'text-ods-error' : undefined}>
+                        {initiatorName(execution.initiator)}
+                      </TruncateText>
+                    </div>
+                  )}
+                  <ExecutionSourceBadge source={execution.source} />
+                </div>
               );
             })()}
             label="Executed by"
