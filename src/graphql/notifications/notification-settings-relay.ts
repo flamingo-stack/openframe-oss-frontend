@@ -4,6 +4,7 @@ export const notificationSettingsRelayQuery = graphql`
   query notificationSettingsRelayQuery {
     notificationSettings {
       pushEnabled
+      contentSuppressed
     }
   }
 `;

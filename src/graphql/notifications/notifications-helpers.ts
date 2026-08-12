@@ -302,6 +302,7 @@ export interface NotificationNodeShape {
     readonly dialogId?: string;
     readonly ticketId?: string | null;
     readonly approvalTicketId?: string | null;
+    readonly clientTicketId?: string | null;
     readonly resolution?: string | null;
     readonly resolvedByName?: string | null;
     readonly toolCalls?: ReadonlyArray<ApprovalToolCallShape>;
@@ -318,7 +319,7 @@ export function mapNotificationNode(node: NotificationNodeShape): Notification {
 
   // Entity ids drive navigation/auto-read uniformly across context types (see
   // resolveNotificationAction); every context that carries one selects it in the query fragment.
-  const ticketId = context.ticketId ?? context.approvalTicketId ?? undefined;
+  const ticketId = context.ticketId ?? context.approvalTicketId ?? context.clientTicketId ?? undefined;
   if (context.dialogId) meta.dialogId = context.dialogId;
   if (ticketId) meta.ticketId = ticketId;
 

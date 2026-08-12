@@ -49,6 +49,9 @@ type AdminAiTicketMessageContext implements NotificationContext {
   type: String!
   ticketId: ID!
   ticketNumber: Int
+
+  """ Ticket title snapshotted at emission, so attribution needs no extra fetch."""
+  ticketTitle: String
   dialogId: ID!
 }
 
@@ -69,6 +72,9 @@ type AdminApprovalRequestContext implements NotificationContext {
 type AdminMessagePublishedContext implements NotificationContext {
   type: String!
   ticketId: ID!
+
+  """ Ticket title snapshotted at emission, so attribution needs no extra fetch."""
+  ticketTitle: String
 }
 
 """
@@ -289,6 +295,13 @@ type CheckoutResult {
 type ClientAiMessageContext implements NotificationContext {
   type: String!
   dialogId: ID!
+
+  """ Set when the client dialog belongs to a ticket; a Fae chat can also run without one."""
+  ticketId: ID
+  ticketNumber: Int
+
+  """ Ticket title snapshotted at emission, so attribution needs no extra fetch."""
+  ticketTitle: String
 }
 
 enum ConnectionStatus {
@@ -395,6 +408,9 @@ input CreateTimeEntryInput {
 type CustomerMessagePublishedContext implements NotificationContext {
   type: String!
   ticketId: ID!
+
+  """ Ticket title snapshotted at emission, so attribution needs no extra fetch."""
+  ticketTitle: String
 }
 
 """"""
@@ -1301,6 +1317,12 @@ type Mutation {
   updateNotificationSettings(pushEnabled: Boolean!): NotificationSettings!
 
   """
+  Tenant-wide privacy switch, restricted to ADMIN/OWNER. Every recipient in the tenant reads the
+  result, unlike updateNotificationSettings, which is the caller's own preference.
+  """
+  updateNotificationContentSuppression(suppressed: Boolean!): NotificationSettings!
+
+  """
   Create a new script. Returns the created script with its server-assigned id.
   """
   createScript(input: CreateScriptInput!): Script!
@@ -1456,6 +1478,12 @@ input NotificationFilterInput {
 """
 type NotificationSettings {
   pushEnabled: Boolean!
+
+  """
+  Tenant-wide privacy policy, not a per-user preference. When true, descriptions are replaced by a
+  neutral line in-app, on the live socket and in push bodies; titles keep entity attribution.
+  """
+  contentSuppressed: Boolean!
 }
 
 enum NotificationSeverity {
@@ -2649,6 +2677,9 @@ type TicketAssignedContext implements NotificationContext {
   type: String!
   ticketId: ID!
   ticketNumber: Int
+
+  """ Ticket title snapshotted at emission, so attribution needs no extra fetch."""
+  ticketTitle: String
   assigneeUserId: ID!
   assignedByUserId: ID
   assigneeName: String
@@ -2659,6 +2690,9 @@ type TicketStatusChangedContext implements NotificationContext {
   type: String!
   ticketId: ID!
   ticketNumber: Int
+
+  """ Ticket title snapshotted at emission, so attribution needs no extra fetch."""
+  ticketTitle: String
   previousStatus: String
   newStatus: String
 

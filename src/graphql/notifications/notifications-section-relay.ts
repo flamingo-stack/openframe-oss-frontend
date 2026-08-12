@@ -43,6 +43,10 @@ export const notificationsSectionRelayFragment = graphql`
               ticketId
               dialogId
             }
+            ... on ClientAiMessageContext {
+              dialogId
+              clientTicketId: ticketId
+            }
             ... on TicketStatusChangedContext {
               ticketId
             }

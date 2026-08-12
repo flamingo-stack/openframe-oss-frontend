@@ -4,10 +4,14 @@ import { Button, Skeleton, Switch } from '@flamingo-stack/openframe-frontend-cor
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useId, useState } from 'react';
 import { fetchQuery, useMutation, useRelayEnvironment } from 'react-relay';
+import type { RecordSourceSelectorProxy } from 'relay-runtime';
 import type { notificationSettingsRelayQuery as NotificationSettingsRelayQueryType } from '@/__generated__/notificationSettingsRelayQuery.graphql';
+import type { updateNotificationContentSuppressionMutation as UpdateContentSuppressionMutationType } from '@/__generated__/updateNotificationContentSuppressionMutation.graphql';
 import type { updateNotificationSettingsMutation as UpdateNotificationSettingsMutationType } from '@/__generated__/updateNotificationSettingsMutation.graphql';
+import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { notificationSettingsRelayQuery } from '@/graphql/notifications/notification-settings-relay';
+import { updateNotificationContentSuppressionMutation } from '@/graphql/notifications/update-notification-content-suppression-mutation';
 import { updateNotificationSettingsMutation } from '@/graphql/notifications/update-notification-settings-mutation';
 import { getErrorMessage } from '@/lib/handle-api-error';
 
@@ -16,19 +20,44 @@ interface NotificationSettingsModalProps {
   onClose: () => void;
 }
 
+// Roles are plain gateway strings with no schema enum; compare case-insensitively
+// (same convention as use-owner-gate / employee-details-view).
+const SUPPRESSION_MANAGER_ROLES = new Set(['admin', 'owner']);
+
+/** NotificationSettings has no id, so mutation payloads don't auto-merge into the query root. */
+const relinkNotificationSettings = (rootField: string) => (store: RecordSourceSelectorProxy) => {
+  const payload = store.getRootField(rootField);
+  if (payload) store.getRoot().setLinkedRecord(payload, 'notificationSettings');
+};
+
 export function NotificationSettingsModal({ isOpen, onClose }: NotificationSettingsModalProps) {
   const { toast } = useToast();
-  const switchId = useId();
+  const pushSwitchId = useId();
+  const suppressionSwitchId = useId();
   const environment = useRelayEnvironment();
+  const { user } = useAuthSession();
+
+  const canManageSuppression = (user?.roles ?? []).some(role =>
+    SUPPRESSION_MANAGER_ROLES.has(role?.toLowerCase() ?? ''),
+  );
 
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
-  const [commitUpdate, isSaving] = useMutation<UpdateNotificationSettingsMutationType>(
+  const [contentSuppressed, setContentSuppressed] = useState<boolean | null>(null);
+  const [savedContentSuppressed, setSavedContentSuppressed] = useState<boolean | null>(null);
+
+  const [commitSettings, isSavingSettings] = useMutation<UpdateNotificationSettingsMutationType>(
     updateNotificationSettingsMutation,
   );
+  const [commitSuppression, isSavingSuppression] = useMutation<UpdateContentSuppressionMutationType>(
+    updateNotificationContentSuppressionMutation,
+  );
+  const isSaving = isSavingSettings || isSavingSuppression;
 
   useEffect(() => {
     if (!isOpen) {
       setPushEnabled(null);
+      setContentSuppressed(null);
+      setSavedContentSuppressed(null);
       return;
     }
 
@@ -38,7 +67,11 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
       {},
       { fetchPolicy: 'store-or-network' },
     ).subscribe({
-      next: data => setPushEnabled(data.notificationSettings.pushEnabled),
+      next: data => {
+        setPushEnabled(data.notificationSettings.pushEnabled);
+        setContentSuppressed(data.notificationSettings.contentSuppressed);
+        setSavedContentSuppressed(data.notificationSettings.contentSuppressed);
+      },
       error: (error: unknown) => {
         toast({
           title: 'Error',
@@ -54,30 +87,49 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
 
   const handleSave = () => {
     if (pushEnabled === null) return;
-    commitUpdate({
-      variables: { pushEnabled },
-      // NotificationSettings has no id, so the payload doesn't auto-merge into the
-      // query root — relink it manually to keep `notificationSettings` fresh.
-      updater: store => {
-        const payload = store.getRootField('updateNotificationSettings');
-        if (payload) store.getRoot().setLinkedRecord(payload, 'notificationSettings');
-      },
-      onCompleted: () => {
+
+    const commits: Promise<void>[] = [
+      new Promise((resolve, reject) => {
+        commitSettings({
+          variables: { pushEnabled },
+          updater: relinkNotificationSettings('updateNotificationSettings'),
+          onCompleted: () => resolve(),
+          onError: reject,
+        });
+      }),
+    ];
+
+    // The tenant-wide switch is a separate, admin-only mutation — commit it only
+    // when the value actually changed so non-privileged saves never touch it.
+    if (canManageSuppression && contentSuppressed !== null && contentSuppressed !== savedContentSuppressed) {
+      commits.push(
+        new Promise((resolve, reject) => {
+          commitSuppression({
+            variables: { suppressed: contentSuppressed },
+            updater: relinkNotificationSettings('updateNotificationContentSuppression'),
+            onCompleted: () => resolve(),
+            onError: reject,
+          });
+        }),
+      );
+    }
+
+    Promise.all(commits)
+      .then(() => {
         toast({
           title: 'Notifications Updated',
           description: 'Your notification settings have been saved.',
           variant: 'success',
         });
         onClose();
-      },
-      onError: error => {
+      })
+      .catch((error: unknown) => {
         toast({
           title: 'Error',
           description: getErrorMessage(error) || 'Failed to update notification settings',
           variant: 'destructive',
         });
-      },
-    });
+      });
   };
 
   return (
@@ -110,11 +162,31 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
       {isLoading ? (
         <Skeleton className="h-12 w-full rounded-md" />
       ) : (
-        <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-sf)] flex items-center gap-[var(--spacing-system-s)]">
-          <Switch id={switchId} checked={pushEnabled} onCheckedChange={setPushEnabled} disabled={isSaving} />
-          <label htmlFor={switchId} className="flex-1 min-w-0 truncate text-h4 text-ods-text-primary">
-            Enable Notifications
-          </label>
+        <div className="flex flex-col gap-[var(--spacing-system-s)]">
+          <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-sf)] flex items-center gap-[var(--spacing-system-s)]">
+            <Switch id={pushSwitchId} checked={pushEnabled} onCheckedChange={setPushEnabled} disabled={isSaving} />
+            <label htmlFor={pushSwitchId} className="flex-1 min-w-0 truncate text-h4 text-ods-text-primary">
+              Enable Notifications
+            </label>
+          </div>
+          {canManageSuppression && contentSuppressed !== null && (
+            <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-sf)] flex items-center gap-[var(--spacing-system-s)]">
+              <Switch
+                id={suppressionSwitchId}
+                checked={contentSuppressed}
+                onCheckedChange={setContentSuppressed}
+                disabled={isSaving}
+              />
+              <div className="flex-1 min-w-0 flex flex-col">
+                <label htmlFor={suppressionSwitchId} className="truncate text-h4 text-ods-text-primary">
+                  Hide Message Content
+                </label>
+                <span className="text-h6 text-ods-text-secondary">
+                  Tenant-wide privacy mode: notifications show a neutral line instead of message content for everyone.
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </SimpleModal>
