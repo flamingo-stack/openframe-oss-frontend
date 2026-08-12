@@ -2,9 +2,10 @@
 
 import { AuthShell, type AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { type LoginDiscoveryResult, LoginSection } from '@/app/(auth)/auth/components/login-form-section';
+import { resolveAuthError } from '@/app/(auth)/auth/constants/auth-error-codes';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
@@ -28,8 +29,14 @@ const FORM_PROVIDER_ORDER: AuthSsoProvider[] = ['openframe', 'google', 'microsof
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isAuthenticated } = useAuthStore();
   const { loginWithSso, discoverTenants } = useAuth();
+
+  // A failed SSO callback can bounce back here with the raw code as `?error=`.
+  // Surface it so the return is not silent.
+  const rawCallbackError = searchParams.get('error');
+  const callbackError = rawCallbackError ? resolveAuthError(rawCallbackError).description : undefined;
 
   // Local flag for the SSO redirect only — useAuth's isLoading also toggles on
   // every background discovery and would flicker the whole form.
@@ -92,7 +99,13 @@ export default function LoginPage() {
 
   return (
     <AuthShell tabs={tabs}>
-      <LoginSection onDiscover={handleDiscover} onSso={handleSso} allProviders={formProviders} isLoading={ssoLoading} />
+      <LoginSection
+        onDiscover={handleDiscover}
+        onSso={handleSso}
+        allProviders={formProviders}
+        isLoading={ssoLoading}
+        callbackError={callbackError}
+      />
     </AuthShell>
   );
 }

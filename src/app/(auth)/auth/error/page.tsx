@@ -3,21 +3,15 @@
 import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
-
-const DEFAULT_ERROR = {
-  title: 'Oops, Something Went Wrong',
-  description: 'An unexpected error occurred. Please try again or contact support if the problem persists.',
-};
+import { resolveAuthError } from '@/app/(auth)/auth/constants/auth-error-codes';
+import { routes } from '@/lib/routes';
 
 export default function AuthErrorPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const errorCode = searchParams.get('error') || '';
-  const { title, description } = {
-    title: DEFAULT_ERROR.title,
-    description: errorCode || DEFAULT_ERROR.description,
-  };
+  const rawError = searchParams.get('error') || '';
+  const { title, description } = resolveAuthError(rawError);
 
   return (
     <div className="min-h-screen bg-ods-bg flex flex-col items-center justify-between p-10">
@@ -36,6 +30,7 @@ export default function AuthErrorPage() {
         <div className="flex flex-col gap-2">
           <h1 className="text-h2 text-ods-text-primary">{title}</h1>
           <p className="text-h4 text-ods-text-secondary">{description}</p>
+          {rawError && <p className="text-code text-ods-text-tertiary break-words">{rawError}</p>}
         </div>
 
         <div className="flex gap-4">
@@ -45,7 +40,7 @@ export default function AuthErrorPage() {
           >
             Contact Support
           </Button>
-          <Button variant="accent" onClick={() => router.push('/auth')}>
+          <Button variant="accent" onClick={() => router.push(routes.auth.login)}>
             Go to Login
           </Button>
         </div>
