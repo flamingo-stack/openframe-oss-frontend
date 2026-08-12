@@ -98,11 +98,7 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
     accessorKey: 'lastActivityDate',
     // With a date filter wired: label + calendar popover (timestamp sort +
     // range filter), the shared header the execution lists use too.
-    header: dateFilter
-      ? () => (
-          <DateColumnHeader label="Last Activity" filter={dateFilter} ariaLabel="Sort and filter by last activity" />
-        )
-      : 'Last Activity',
+    header: dateFilter ? () => <DateColumnHeader label="Last Activity" filter={dateFilter} /> : 'Last Activity',
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => (
       <div className="flex flex-col justify-center min-w-0">
         <TruncateText>{row.original.lastActivityDate}</TruncateText>
