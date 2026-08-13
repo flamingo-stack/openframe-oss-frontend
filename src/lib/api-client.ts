@@ -13,7 +13,37 @@ interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
    * has answered, or during server rendering where there is no user at all.
    */
   skipSessionGate?: boolean;
+  /**
+   * Ceiling on this request, in ms. `0` disables it. Defaults to
+   * {@link REQUEST_TIMEOUT_MS}.
+   */
+  timeoutMs?: number;
 }
+
+/**
+ * How long a single request may run before it is aborted as failed.
+ *
+ * `fetch` has no timeout of its own, and neither React Query nor Relay adds one:
+ * a connection the server accepts and then never answers on stays pending for as
+ * long as the OS keeps the socket — minutes, or until the tab is closed. Every
+ * loading state in the app is downstream of a request settling, so "never
+ * settles" surfaces as a skeleton that never resolves, with no error, no retry
+ * and nothing in the console. That failure mode is not hypothetical here: it is
+ * the same shape as the chrome skeleton that outlived its own cause, and it can
+ * appear behind ANY spinner in the app rather than one specific one.
+ *
+ * A timeout converts it into an ordinary failed request — which every caller
+ * already handles, because that is the same path a 500 takes: React Query
+ * retries and then reports an error, Relay's observable errors into the nearest
+ * boundary, and `useToast` says so.
+ *
+ * 30s is chosen to sit above the slowest healthy request here (the wide Fleet and
+ * device queries) and well below a user's patience. Long-running transfers do NOT
+ * ride this client — uploads and attachment downloads use raw `fetch`, and
+ * MeshCentral streams over WebSockets with its own per-operation timeouts — so
+ * this ceiling never truncates one.
+ */
+export const REQUEST_TIMEOUT_MS = 30_000;
 
 interface ApiResponse<T = any> {
   data?: T;
@@ -22,6 +52,7 @@ interface ApiResponse<T = any> {
   ok: boolean;
 }
 
+import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
 import { waitForSessionReady } from './session-ready';
@@ -79,7 +110,13 @@ class ApiClient {
     options: ApiRequestOptions = {},
     isRetry: boolean = false,
   ): Promise<ApiResponse<T>> {
-    const { skipAuth = false, skipSessionGate = false, headers = {}, ...fetchOptions } = options;
+    const {
+      skipAuth = false,
+      skipSessionGate = false,
+      timeoutMs = REQUEST_TIMEOUT_MS,
+      headers = {},
+      ...fetchOptions
+    } = options;
 
     // App data waits for the session; the bootstrap pair opts out. Retries keep
     // whatever the first attempt decided (the latch is already open by then).
@@ -106,11 +143,34 @@ class ApiClient {
     // credential has already rotated needs a retry, not another rotation.
     const sentAtEpoch = getTokenEpoch();
 
+    // Own controller rather than `AbortSignal.timeout()`, for two reasons: a
+    // caller-supplied signal still has to be honored (chained below), and the
+    // `timedOut` flag is what lets the catch tell a timeout apart from a
+    // deliberate cancellation — they abort identically but mean opposite things
+    // to the caller.
+    const timeoutController = timeoutMs > 0 ? new AbortController() : undefined;
+    let timedOut = false;
+    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+
+    if (timeoutController) {
+      timeoutTimer = setTimeout(() => {
+        timedOut = true;
+        timeoutController.abort();
+      }, timeoutMs);
+
+      const callerSignal = fetchOptions.signal;
+      if (callerSignal) {
+        if (callerSignal.aborted) timeoutController.abort();
+        else callerSignal.addEventListener('abort', () => timeoutController.abort(), { once: true });
+      }
+    }
+
     try {
       const response = await fetch(url, {
         ...fetchOptions,
         headers: requestHeaders,
         credentials: 'include', // Always include cookies for cookie-based auth
+        signal: timeoutController?.signal ?? fetchOptions.signal,
       });
 
       // Handle 401 Unauthorized - attempt token refresh ONLY ONCE
@@ -140,6 +200,17 @@ class ApiClient {
 
         if (refreshSuccess) {
           return this.request<T>(path, options, true);
+        }
+
+        // A link that dropped between the 401 and the refresh POST is NOT a
+        // rejected credential: `refreshAccessToken` catches the transport error
+        // and returns false the same way it does for a refused refresh, so
+        // logging out here destroys a valid session over a transient outage.
+        // The mirror of the guard in `relay/environment.ts` — both halves of the
+        // data layer have to agree, or one of them logs the user out while the
+        // other is quietly waiting for the link.
+        if (!isOnline()) {
+          return { error: 'Offline', status: 0, ok: false };
         }
 
         await this.forceLogout();
@@ -179,8 +250,11 @@ class ApiClient {
     } catch (error) {
       // Aborted requests should never trigger auth refresh or logout
       if (error instanceof DOMException && error.name === 'AbortError') {
+        // Our own ceiling fired: report it as the failure it is, so the caller
+        // shows an error and React Query retries. A caller-driven cancellation
+        // keeps the quieter message — nobody is waiting on it.
         return {
-          error: 'Request aborted',
+          error: timedOut ? `Request timed out after ${timeoutMs}ms` : 'Request aborted',
           status: 0,
           ok: false,
         };
@@ -191,6 +265,8 @@ class ApiClient {
         status: 0,
         ok: false,
       };
+    } finally {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
     }
   }
 

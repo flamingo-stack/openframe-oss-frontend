@@ -6,11 +6,11 @@ import {
   Hierarchy02Icon,
   RadarIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { askMingoButton, EmptyState } from '@/app/components/shared';
+import { EmptyState, onboardingGuideButton } from '@/app/components/shared';
 
 /**
  * The policies default empty state: folder-shield icon + message, three
- * feature tiles, and the "Ask Mingo about Policies" footer button. Shared
+ * feature tiles, and the Help-Center onboarding guide footer button. Shared
  * verbatim by the Monitoring page's Policies tab and the device-details
  * Policies tab.
  */
@@ -25,7 +25,7 @@ export function PoliciesEmptyState() {
         { icon: <RadarIcon />, label: 'Target devices by Customer, OS, or tag' },
         { icon: <BellCheckIcon />, label: 'Get alerts when devices fall out of compliance' },
       ]}
-      {...askMingoButton('policies', 'Ask Mingo about Policies')}
+      {...onboardingGuideButton('policies', 'Learn more about Policies')}
     />
   );
 }

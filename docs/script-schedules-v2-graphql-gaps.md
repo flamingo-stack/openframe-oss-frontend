@@ -20,12 +20,21 @@ frontend consumes it, because the shape that landed rarely matched the ask.
 write them. Frontend: `schedule-timing.ts` + the timing block of
 `edit-schedule-page.tsx`.
 
-Still open, both minor:
+Both former gaps here are now **CLOSED** (schema refresh 2026-08-07):
 
-- **No `startAt` sort**, so the DATE & TIME column cannot be sorted.
-- **No date-range filter** on `ScriptScheduleFilterInput` (`ScheduleRunFilterInput`
-  has `dispatchedAtFrom`/`dispatchedAtTo`; the schedules list has no equivalent),
-  so the logs-style date filter cannot be offered on the list.
+- `scriptSchedules(sort:)` accepts `startAt`, with `DEVICE_ONLINE` schedules
+  always ordered last (they are event-driven and have none).
+- `ScriptScheduleFilterInput` has `startAtFrom` / `startAtTo`. Same caveat, and
+  it is the sharper one: a start-date range EXCLUDES `DEVICE_ONLINE` schedules
+  outright, since a null `startAt` falls in no range.
+
+Both are wired to the DATE & TIME column's calendar (`DateColumnHeader` →
+`DateFilterMenu`), which owns the range and the direction together; the same
+pair lives in the mobile `FilterModal`, since that column is `hideAt: 'md'`.
+
+The refresh replaced the `createdAtFrom/To` + `updatedAtFrom/To` filter fields
+and the `createdAt` / `updatedAt` sort fields with these — nothing on the
+frontend had reached for them.
 
 Notes for the UI, not the backend:
 
@@ -208,9 +217,11 @@ Still open, and the reason the mode is one-way in the UI: see §10.
 
 ## 8. Sorting & search (minor) — **PARTLY DELIVERED**
 
-- `scriptSchedules(sort:)` accepts `_id`, `name`, `createdAt`, `updatedAt`,
-  `repeat` and `deviceCount`. The UI offers only REPEAT and clamps `?sortBy` to
-  that, so a stale link cannot reach `SortInput.field` with anything else.
+- `scriptSchedules(sort:)` accepts `_id`, `name`, `startAt`, `repeat` and
+  `deviceCount`. The UI offers REPEAT (header toggle) and `startAt` (the DATE &
+  TIME calendar) and clamps `?sortBy` to those two, so a stale link cannot reach
+  `SortInput.field` with anything else. `createdAt` / `updatedAt` were dropped in
+  the same refresh that added `startAt`.
 - Still no `statusChangedAt`, so the archive page cannot sort "recently archived
   first".
 - `search` is a name-only substring match; the list also shows `description`,

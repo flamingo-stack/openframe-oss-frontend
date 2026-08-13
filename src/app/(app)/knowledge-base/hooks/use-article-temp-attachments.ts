@@ -7,6 +7,7 @@ import { commitMutation, type Environment } from 'relay-runtime';
 import type { useArticleTempAttachmentsCreateMutation } from '@/__generated__/useArticleTempAttachmentsCreateMutation.graphql';
 import type { useArticleTempAttachmentsDeleteAttachmentMutation } from '@/__generated__/useArticleTempAttachmentsDeleteAttachmentMutation.graphql';
 import type { useArticleTempAttachmentsDeleteTempMutation } from '@/__generated__/useArticleTempAttachmentsDeleteTempMutation.graphql';
+import { putUploadSource, type UploadSource, uploadSourceMeta } from '@/lib/native-files';
 
 const createTempAttachmentMutation = graphql`
   mutation useArticleTempAttachmentsCreateMutation($input: CreateKnowledgeBaseTempAttachmentInput!) {
@@ -62,14 +63,14 @@ export interface TempFileEntry {
 
 async function createTempAttachment(
   environment: Environment,
-  file: File,
+  source: UploadSource,
 ): Promise<{ id: string; fileName: string; fileSize: number; contentType: string }> {
-  const contentType = file.type || 'application/octet-stream';
+  const { fileName, contentType, fileSize } = uploadSourceMeta(source);
 
   const response = await new Promise<useArticleTempAttachmentsCreateMutation['response']>((resolve, reject) => {
     commitMutation<useArticleTempAttachmentsCreateMutation>(environment, {
       mutation: createTempAttachmentMutation,
-      variables: { input: { fileName: file.name, contentType: file.type || null, fileSize: file.size } },
+      variables: { input: { fileName, contentType, fileSize } },
       onCompleted: (data, errors) => {
         if (errors?.length) {
           reject(new Error(errors[0].message));
@@ -89,19 +90,9 @@ async function createTempAttachment(
     throw new Error('No attachment data returned');
   }
 
-  const { id, uploadUrl } = payload.tempAttachment;
+  await putUploadSource(source, payload.tempAttachment.uploadUrl);
 
-  const uploadResponse = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: file,
-  });
-
-  if (!uploadResponse.ok) {
-    throw new Error(`Upload failed with status ${uploadResponse.status}`);
-  }
-
-  return { id, fileName: file.name, fileSize: file.size, contentType };
+  return { id: payload.tempAttachment.id, fileName, fileSize, contentType };
 }
 
 async function deleteTempAttachment(environment: Environment, id: string): Promise<void> {
@@ -145,20 +136,18 @@ export function useArticleTempAttachments() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
 
   const uploadFile = useCallback(
-    (file: File) => {
+    (source: UploadSource) => {
       const placeholderId = `pending-${crypto.randomUUID()}`;
       setFiles(prev => [
         ...prev,
         {
           id: placeholderId,
-          fileName: file.name,
-          fileSize: file.size,
-          contentType: file.type || 'application/octet-stream',
+          ...uploadSourceMeta(source),
           status: 'uploading',
         },
       ]);
 
-      createTempAttachment(environment, file)
+      createTempAttachment(environment, source)
         .then(result => {
           setFiles(prev =>
             prev.map(f => (f.id === placeholderId ? { ...f, id: result.id, status: 'uploaded' as const } : f)),

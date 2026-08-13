@@ -8,6 +8,8 @@ import {
 import {
   Button,
   DataTable,
+  type DateFilterResult,
+  type DateRange,
   FilterModal,
   Input,
   useDataTable,
@@ -20,13 +22,18 @@ import type { scheduleRunsRelayPaginationQuery as RunsPaginationQueryType } from
 import type {
   scheduleRunsRelayQuery as RunsQueryType,
   ScheduleRunFilterInput,
+  SortInput,
 } from '@/__generated__/scheduleRunsRelayQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
+import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scheduleRunsRelayFragment, scheduleRunsRelayQuery } from '@/graphql/scripts/schedule-runs-relay';
+import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { getFullImageUrl } from '@/lib/image-url';
 import {
   executionStatusLabel,
@@ -55,11 +62,21 @@ const FALLBACK_STATUS_OPTIONS = Object.values(ScriptExecutionStatus).map(value =
   value,
 }));
 
+/**
+ * The one field the runs list is ordered by — `ScheduleRun.dispatchedAt`, the
+ * timestamp the Execution column shows on its first line.
+ */
+const DISPATCHED_AT_SORT_FIELD = 'dispatchedAt';
+
 interface ContentProps {
   scheduleId: string;
   backendFilters: ScheduleRunFilterInput;
+  /** Dispatched-date order behind the Execution header's calendar. */
+  sort: SortInput;
   debouncedSearch: string;
   tableFilters: Record<string, string[]>;
+  /** Dispatched-date sort + range, hosted by the Execution column's header. */
+  dateFilter: TableDateFilter;
   /** True while a deferred refetch is in flight and the rows on screen are stale. */
   isPending: boolean;
   onFilterChange: (filters: Record<string, string[]>) => void;
@@ -73,8 +90,10 @@ interface ContentProps {
 function ScheduleRunsContent({
   scheduleId,
   backendFilters,
+  sort,
   debouncedSearch,
   tableFilters,
+  dateFilter,
   isPending,
   onFilterChange,
   mobileFilterOpen,
@@ -82,10 +101,11 @@ function ScheduleRunsContent({
   stickyHeaderOffset,
   onEmptyChange,
 }: ContentProps) {
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<RunsQueryType>(
     scheduleRunsRelayQuery,
-    { scheduleId, filter: backendFilters, search: debouncedSearch || null, first: RUNS_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network' },
+    { scheduleId, filter: backendFilters, search: debouncedSearch || null, sort, first: RUNS_PAGE_SIZE, after: null },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<RunsPaginationQueryType, RunsFragmentKey>(
@@ -135,7 +155,7 @@ function ScheduleRunsContent({
     if (hasNext && !isLoadingNext) loadNext(RUNS_PAGE_SIZE);
   }, [hasNext, isLoadingNext, loadNext]);
 
-  const columns = useScheduleRunColumns(statusOptions);
+  const columns = useScheduleRunColumns(statusOptions, dateFilter);
 
   // The SAME options the desktop column funnel gets — the server facet, not the
   // whole enum, so the mobile modal cannot offer a status these runs never
@@ -171,7 +191,11 @@ function ScheduleRunsContent({
     onColumnFiltersChange: handleColumnFiltersChange,
   });
 
-  const hasActiveFilter = columnFilters.length > 0;
+  // The date range narrows like a funnel does, so it counts as an active filter:
+  // the header stays reachable to clear it, and an empty result reads as
+  // "nothing matched" rather than "this schedule never fired". The sort
+  // direction does NOT count — it reorders, it never excludes.
+  const hasActiveFilter = columnFilters.length > 0 || Boolean(dateFilter.range);
   const showHeader = runs.length > 0 || hasActiveFilter || isPending;
 
   // Narrowed vs genuinely empty. Only the second is a design state (566:25741);
@@ -232,6 +256,14 @@ function ScheduleRunsContent({
         filterGroups={filterGroups}
         onFilterChange={onFilterChange}
         currentFilters={tableFilters}
+        // The header calendar is a desktop control; on mobile the same sort +
+        // range lives in this modal, drafted alongside the status funnel.
+        dateFilter={{
+          title: 'Run Date',
+          sort: dateFilter.sortDirection,
+          range: dateFilter.range,
+          onChange: dateFilter.onApply,
+        }}
       />
     </>
   );
@@ -256,6 +288,14 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTab({ scheduleId }: { s
   const { params, setParam, setParams } = useApiParams({
     runSearch: { type: 'string', default: '' },
     runStatus: { type: 'array', default: [] },
+    // Prefixed for the same reason as the two above: the Execution History tab
+    // on this page owns the unprefixed `dateFrom`/`dateTo`/`sortDir`, and a
+    // shared key would carry this table's date narrowing into that one on a tab
+    // switch. `desc` (newest first) is the backend default and stays out of the
+    // URL.
+    runDateFrom: { type: 'string', default: '' },
+    runDateTo: { type: 'string', default: '' },
+    runSortDir: { type: 'string', default: 'desc' },
   });
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   // Set by the content below (the only thing that knows how many rows there are):
@@ -269,23 +309,67 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTab({ scheduleId }: { s
     debouncedSearch,
   } = useSearchParam(params.runSearch, value => setParam('runSearch', value), 300);
 
-  const backendFilters: ScheduleRunFilterInput = useMemo(
-    () => ({
-      ...(params.runStatus.length > 0 && { statuses: params.runStatus as ScheduleRunFilterInput['statuses'] }),
-    }),
-    [params.runStatus],
+  // Applied dispatched-date range, restored from the URL.
+  const dateRange: DateRange | undefined = useMemo(
+    () => dateRangeFromParams(params.runDateFrom, params.runDateTo),
+    [params.runDateFrom, params.runDateTo],
   );
+  const sortDirection: 'asc' | 'desc' = params.runSortDir === 'asc' ? 'asc' : 'desc';
 
-  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(backendFilters, debouncedSearch);
+  // Filter + sort travel together as one deferred object so the query lags in
+  // lockstep and `isPending` covers both. The picked days become inclusive UTC
+  // instants, so a day picked in the calendar is that whole local day.
+  const queryVars = useMemo(() => {
+    const bounds = dateRangeToInstantBounds(dateRange);
+    const filter: ScheduleRunFilterInput = {
+      ...(params.runStatus.length > 0 && { statuses: params.runStatus as ScheduleRunFilterInput['statuses'] }),
+      ...(bounds.from && { dispatchedAtFrom: bounds.from }),
+      ...(bounds.to && { dispatchedAtTo: bounds.to }),
+    };
+    // Always sent, both directions — the header indicator claims an order, and
+    // that claim should rest on what we asked for, not on a backend default.
+    const sort: SortInput = {
+      field: DISPATCHED_AT_SORT_FIELD,
+      direction: sortDirection === 'asc' ? 'ASC' : 'DESC',
+    };
+    return { filter, sort };
+  }, [params.runStatus, dateRange, sortDirection]);
+
+  const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
 
   const tableFilters = useMemo(() => ({ status: params.runStatus }), [params.runStatus]);
 
+  // The mobile FilterModal commits the funnels and the date section as two
+  // callbacks in the same tick; the shared writer merges them into a single URL
+  // write (sequential setParams calls each re-read the stale URL and clobber, so
+  // the status selection would be lost whenever a date is applied beside it).
+  const queueParamsWrite = useQueuedParamsWrite(setParams);
+
   const handleFilterChange = useCallback(
     (columnFilters: Record<string, string[]>) => {
-      setParams({ runStatus: columnFilters.status || [] });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+      queueParamsWrite({ runStatus: columnFilters.status || [] });
     },
-    [setParams],
+    [queueParamsWrite],
+  );
+
+  // Apply (and Reset, which fires with the cleared selection). `runSortDir: ''`
+  // — not `'desc'` — for the default direction: `useApiParams` drops a param
+  // only when the value is empty, so writing the default would leave a stale
+  // `?runSortDir=desc` on a list that is in its default order anyway.
+  const handleDateFilterApply = useCallback(
+    (result: DateFilterResult) => {
+      queueParamsWrite({
+        runSortDir: result.sort === 'desc' ? '' : result.sort,
+        runDateFrom: result.range?.from ? toDayParam(result.range.from) : '',
+        runDateTo: result.range?.to ? toDayParam(result.range.to) : '',
+      });
+    },
+    [queueParamsWrite],
+  );
+
+  const dateFilter: TableDateFilter = useMemo(
+    () => ({ sortDirection, range: dateRange, onApply: handleDateFilterApply }),
+    [sortDirection, dateRange, handleDateFilterApply],
   );
 
   return (
@@ -320,9 +404,11 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTab({ scheduleId }: { s
         <ScheduleRunsContent
           scheduleId={scheduleId}
           debouncedSearch={deferredSearch}
-          backendFilters={deferredFilters}
+          backendFilters={deferredVars.filter}
+          sort={deferredVars.sort}
           isPending={isPending}
           tableFilters={tableFilters}
+          dateFilter={dateFilter}
           onFilterChange={handleFilterChange}
           mobileFilterOpen={mobileFilterOpen}
           onMobileFilterClose={() => setMobileFilterOpen(false)}

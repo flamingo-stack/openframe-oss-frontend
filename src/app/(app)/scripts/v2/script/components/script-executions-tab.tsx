@@ -6,6 +6,7 @@ import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scriptExecutionsRelay_query$key as ExecutionsFragmentKey } from '@/__generated__/scriptExecutionsRelay_query.graphql';
 import type { scriptExecutionsRelayPaginationQuery as ExecutionsPaginationQueryType } from '@/__generated__/scriptExecutionsRelayPaginationQuery.graphql';
 import type { scriptExecutionsRelayQuery as ExecutionsQueryType } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
 import { scriptExecutionsRelayFragment, scriptExecutionsRelayQuery } from '@/graphql/scripts/script-executions-relay';
 import {
   EXECUTIONS_PAGE_SIZE,
@@ -34,14 +35,15 @@ interface ScriptExecutionsTabProps {
 // ----------------------------------------------------------------
 
 function ScriptExecutionsContent({ scriptId, state }: { scriptId: string; state: ExecutionsTabState }) {
-  const { backendFilters, querySearch, narrowSearch, ...tableState } = state;
+  const { backendFilters, sort, querySearch, narrowSearch, ...tableState } = state;
 
   // One round-trip per interaction: the filter facets (`scriptExecutionFilters`)
   // ride the list operation — see the query docstring for the facet semantics.
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<ExecutionsQueryType>(
     scriptExecutionsRelayQuery,
-    { scriptId, filter: backendFilters, search: querySearch || null, first: EXECUTIONS_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network' },
+    { scriptId, filter: backendFilters, search: querySearch || null, sort, first: EXECUTIONS_PAGE_SIZE, after: null },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const facetOptions = useExecutionFacetOptions(queryData.scriptExecutionFilters);

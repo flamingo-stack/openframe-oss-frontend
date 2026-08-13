@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { useKnowledgeBaseTagsQuery as UseKnowledgeBaseTagsQueryType } from '@/__generated__/useKnowledgeBaseTagsQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
 
 /**
  * Tags actually assigned to knowledge-base articles, scoped by folder / archived
@@ -31,10 +32,11 @@ interface UseKnowledgeBaseTagsOptions {
 }
 
 export function useKnowledgeBaseTags({ folderId, archived }: UseKnowledgeBaseTagsOptions = {}) {
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<UseKnowledgeBaseTagsQueryType>(
     knowledgeBaseTagsQuery,
     { folderId: folderId ?? null, archived: archived ?? null },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   return useMemo(() => data.knowledgeBaseTags.filter(Boolean), [data.knowledgeBaseTags]);
 }

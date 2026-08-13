@@ -1,29 +1,88 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env sh
+# POSIX sh, not bash: husky's shim invokes this as `sh -e <this file>`, so the
+# shebang is never honored and `set -o pipefail` (a bashism) aborts the hook on
+# any dash-based runner. Every pipeline below already reports the status we care
+# about through its last command.
+set -eu
 
-FRONTEND_DIR="openframe/services/openframe-frontend"
+# NUL-delimited, and the extension filter lives in a git pathspec rather than a
+# grep: `git diff --name-only` quotes any path containing a non-ASCII byte
+# ("src/caf\303\251.ts"), so such a file matched neither the `$`-anchored
+# extension pattern nor a real file on disk and was silently skipped by both
+# checks below. `-z` turns quoting off, and nothing line-oriented touches the list.
+staged_files() {
+  git diff --cached --name-only -z --diff-filter=ACMR \
+    -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs'
+}
 
-STAGED_ROOT=$(git diff --cached --name-only --diff-filter=ACMR \
-  | grep -E "^${FRONTEND_DIR}/.*\.(ts|tsx|js|jsx|mjs|cjs)$" || true)
+# A shell variable cannot hold NUL, so this newline-joined copy is only for the
+# emptiness check and the awk filter below; the Biome call re-reads the NUL list.
+STAGED=$(staged_files | tr '\0' '\n')
 
-if [ -z "$STAGED_ROOT" ]; then
+if [ -z "$STAGED" ]; then
   exit 0
 fi
 
-STAGED_REL=$(echo "$STAGED_ROOT" | sed "s|^${FRONTEND_DIR}/||")
+# Both checks below read the working tree, so a file that is staged AND carries
+# further unstaged edits (or was deleted after staging) would be validated as
+# content that is not what gets committed. Materializing the index instead would
+# mean a full checkout-index tree plus a node_modules symlink for tsc to resolve
+# `@/*` — too much machinery for a pre-commit hook, so refuse the ambiguity.
+PARTIAL=$(git diff --name-only -z \
+  -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' \
+  | tr '\0' '\n' | STAGED="$STAGED" awk '
+    BEGIN { n = split(ENVIRON["STAGED"], f, "\n") }
+    {
+      for (i = 1; i <= n; i++)
+        if (f[i] != "" && $0 == f[i]) { print; next }
+    }
+  ')
 
-cd "$FRONTEND_DIR"
+if [ -n "$PARTIAL" ]; then
+  printf '%s\n\n' "$PARTIAL"
+  echo "Staged with further unstaged edits — the checks would run on working-tree"
+  echo "content, not on what would be committed. Stage the rest (git add <file>)"
+  echo "or commit those files separately."
+  exit 1
+fi
 
-echo "$STAGED_REL" | xargs npx @biomejs/biome check --no-errors-on-unmatched
+staged_files | xargs -0 npx @biomejs/biome check --no-errors-on-unmatched
 
-TSC_OUTPUT=$(npx tsc --noEmit 2>&1 || true)
+TSC_STATUS=0
+# --pretty false is load-bearing, not cosmetic: pretty output prefixes each path
+# with an ANSI escape and switches the anchor to "path:line:col - error", which
+# defeats both the guard below and the staged-file filter — silently, by passing.
+TSC_OUTPUT=$(npx tsc --noEmit --pretty false 2>&1) || TSC_STATUS=$?
 
-GREP_PATTERN=$(echo "$STAGED_REL" | tr '\n' '|' | sed 's/|$//')
-FILTERED=$(echo "$TSC_OUTPUT" | grep -E "^(${GREP_PATTERN})" || true)
+# tsc exits non-zero both for ordinary type errors (2) and for never having run:
+# with no tsconfig it prints its help text and exits 1, a missing binary yields
+# npm noise, an OOM kill yields none. Only file-anchored "path(line,col): error
+# TS…" lines can be scoped to staged files, so a non-zero exit without a single
+# one of them means the check did not happen — swallowing it would pass the commit.
+if [ "$TSC_STATUS" -ne 0 ] && ! printf '%s\n' "$TSC_OUTPUT" | grep -q ': error TS'; then
+  printf '%s\n\n' "$TSC_OUTPUT"
+  echo "tsc produced no diagnostics but exited $TSC_STATUS — the type check did not run."
+  exit 1
+fi
+
+# The list reaches awk through the environment, not `-v files="$STAGED"`: BSD awk
+# (the macOS system awk) rejects a literal newline inside a -v assignment, so that
+# form aborted the hook on every commit touching more than one file.
+FILTERED=$(printf '%s\n' "$TSC_OUTPUT" | STAGED="$STAGED" awk '
+  BEGIN { n = split(ENVIRON["STAGED"], f, "\n") }
+  {
+    for (i = 1; i <= n; i++)
+      if (f[i] != "" && index($0, f[i]) == 1) {
+        # The path must end where the diagnostic starts, or staged "a.ts" claims
+        # an error belonging to an unstaged "a.tsx" and aborts an innocent commit.
+        c = substr($0, length(f[i]) + 1, 1)
+        if (c == "(" || c == ":") { print; next }
+      }
+  }
+')
 
 if [ -n "$FILTERED" ]; then
-  echo "$FILTERED"
-  echo ""
+  printf '%s\n\n' "$FILTERED"
   echo "Type errors in staged files — commit aborted."
   exit 1
 fi

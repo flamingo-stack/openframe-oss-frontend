@@ -124,6 +124,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     const destructiveItems: ActionsMenuItem[] = [];
 
     if (actionAvailability?.runScriptEnabled) primaryItems.push(deviceMenuItems.runScript);
+    primaryItems.push(deviceMenuItems.editDisplayName);
     if (actionAvailability?.manageFilesEnabled) primaryItems.push(deviceMenuItems.manageFiles);
     if (deviceMenuItems.reboot) primaryItems.push(deviceMenuItems.reboot);
     if (deviceMenuItems.archive) destructiveItems.push(deviceMenuItems.archive);

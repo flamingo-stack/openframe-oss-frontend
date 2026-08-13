@@ -111,6 +111,7 @@ function dialogToBoardTicket(
     createdAt: dialog.createdAt,
     hasNewMessage,
     pendingApproval: dialog.pendingApproval,
+    escalatedByUser: dialog.escalatedByUser === true,
   };
 }
 

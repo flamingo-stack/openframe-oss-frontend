@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { queryState } from '@/lib/query-state';
 import { rejectScriptsMigrationPending } from '../lib/scripts-migration';
 
 export interface ScriptDetails {
@@ -47,8 +48,10 @@ export function useScriptDetails(scriptId: string) {
 
   return {
     scriptDetails: query.data ?? null,
-    isLoading: query.isFetching,
-    error: query.error?.message ?? null,
+    // Was `isFetching`, which is wrong twice: false while PAUSED (so an offline
+    // edit form rendered blank), and true on every background refetch (so a
+    // cached page re-skeletoned itself).
+    ...queryState(query, scriptId ? 'open' : 'closed'),
     refetch: query.refetch,
   };
 }

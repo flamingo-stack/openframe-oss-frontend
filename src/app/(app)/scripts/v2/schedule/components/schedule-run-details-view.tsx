@@ -309,7 +309,7 @@ function RunExecutionRows({
   executionId: string;
   state: ExecutionsTabState;
 }) {
-  const { backendFilters, narrowSearch, ...tableState } = state;
+  const { backendFilters, sort, narrowSearch, ...tableState } = state;
 
   const queryData = useLazyLoadQuery<ScheduleExecutionsQueryType>(
     scheduleExecutionsRelayQuery,
@@ -317,7 +317,7 @@ function RunExecutionRows({
     // of a fire carries the run's executionId, and search is the only argument
     // that narrows on it (`ScriptExecutionFilterInput` has no execution-id field,
     // and `ScheduleRun` has no executions connection of its own).
-    { scheduleId, filter: backendFilters, search: executionId, first: EXECUTIONS_PAGE_SIZE, after: null },
+    { scheduleId, filter: backendFilters, search: executionId, sort, first: EXECUTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network' },
   );
 
@@ -330,7 +330,7 @@ function RunExecutionRows({
 
   const executions: UiExecution[] = useMemo(() => {
     const edges = data.scheduleExecutions?.edges ?? [];
-    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
+    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node, edge.node.scriptName)] : []));
     // The query's `search` is spent on the scope above, so the user's term
     // narrows the rows we hold instead. It converges on the whole run rather
     // than the first page: an empty result keeps the infinite-scroll sentinel

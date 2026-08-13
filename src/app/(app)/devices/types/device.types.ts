@@ -153,6 +153,8 @@ export interface Device {
   machineId: string;
   hostname: string;
   displayName: string;
+  /** User-defined nickname — preferred over displayName/hostname when set. */
+  nickname?: string;
 
   // Hardware - CPU
   cpu_brand?: string;
@@ -322,6 +324,7 @@ export type DeviceGraphQlNode = {
   machineId: string;
   hostname: string;
   displayName?: string;
+  nickname?: string | null;
   ip?: string;
   macAddress?: string;
   osUuid?: string;

@@ -1,10 +1,10 @@
 'use client';
 
-import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { DeleteAccountModal } from '@/app/(app)/settings/components/delete-account-modal';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
-import { LockedScreen } from '@/app/components/shared/locked-screen';
 
 interface WorkspaceInactiveScreenProps {
   /** Overrides the default heading. See `SubscriptionLockContent`. */
@@ -21,11 +21,17 @@ interface WorkspaceInactiveScreenProps {
  *     (`isBillingHidden()`, see `billing-visibility.ts`);
  *   - anyone who is not the workspace owner, on any build — renewing is owner-only.
  *
+ * Renders inside the app shell's `<main>`, with the header and nav sidebar still up
+ * (`disabled`, since nothing they lead to is reachable while the lock holds). Hence
+ * `min-h-full` rather than `min-h-screen`: the three bands distribute over the
+ * content area's height, not the viewport's, and the shell root keeps owning the
+ * native safe-area insets.
+ *
  * Deliberately carries NO plans, prices, "choose a plan"/"pay" CTA, or link to
  * an external purchase flow: App Store Review Guideline 3.1.1 treats any of
  * those as steering the user to a non-IAP purchasing mechanism. It states the
  * account state, points at who can act, and keeps the user out of a dead end
- * with a re-check and a sign-out action.
+ * with a re-check, a sign-out and a way to delete the account outright.
  *
  * The DEFAULT copy is the native one and is deliberately subscription-agnostic —
  * it stays well clear of that guideline by not naming a purchase at all. The
@@ -34,6 +40,7 @@ interface WorkspaceInactiveScreenProps {
  */
 export function WorkspaceInactiveScreen({ title, description }: WorkspaceInactiveScreenProps = {}) {
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   // The lock state comes from the subscription query resolved in the app shell;
   // a full reload is the simplest way to re-resolve it once an admin has
@@ -43,26 +50,62 @@ export function WorkspaceInactiveScreen({ title, description }: WorkspaceInactiv
   }, []);
 
   return (
-    <LockedScreen
-      title={title ?? 'Workspace access is inactive'}
-      description={
-        description ??
-        "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team."
-      }
-      actions={
-        <>
-          <Button
-            variant="outline"
-            onClick={handleRecheck}
-            leftIcon={<Refresh01RightIcon className="size-6 text-ods-text-secondary" />}
+    <>
+      <div className="flex min-h-full flex-col items-center justify-between p-[var(--spacing-system-xl)]">
+        <div className="flex items-center gap-[var(--spacing-system-xsf)]">
+          <OpenFrameLogo
+            className="h-10 w-auto"
+            lowerPathColor="var(--color-accent-primary)"
+            upperPathColor="var(--color-text-primary)"
+          />
+          <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
+        </div>
+
+        <div className="flex w-full max-w-[600px] flex-col items-center gap-[var(--spacing-system-xl)]">
+          <div className="flex flex-col gap-[var(--spacing-system-xs)] text-center">
+            <h1 className="text-h2 text-ods-text-primary">{title ?? 'Workspace access is inactive'}</h1>
+            <p className="text-h4 text-ods-text-secondary">
+              {description ??
+                "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team."}
+            </p>
+          </div>
+
+          <div className="flex w-full flex-col gap-[var(--spacing-system-m)] sm:w-auto sm:flex-row">
+            <Button variant="outline" className="sm:w-[200px]" onClick={handleRecheck}>
+              Check Again
+            </Button>
+            <Button variant="outline" className="sm:w-[200px]" onClick={openLogoutConfirm}>
+              Log Out
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-[var(--spacing-system-xxs)]">
+          {/* Self-deletion is the one account action left to a user whose workspace
+              will not come back — without it the only way out of a dead tenant is
+              to write to support. */}
+          <button
+            type="button"
+            onClick={() => setDeleteAccountOpen(true)}
+            className="text-h4 text-ods-text-secondary underline transition-colors hover:text-ods-text-primary"
           >
-            Check Again
-          </Button>
-          <Button variant="outline" onClick={openLogoutConfirm}>
-            Log Out
-          </Button>
-        </>
-      }
-    />
+            Delete My Account
+          </button>
+
+          <a
+            href="https://flamingo.run"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-[var(--spacing-system-xs)] rounded-md bg-transparent p-[var(--spacing-system-m)] text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
+          >
+            <span className="text-h6">Powered by</span>
+            <FlamingoLogo className="h-5 w-5" fill="currentColor" />
+            <span className="text-code font-semibold">Flamingo</span>
+          </a>
+        </div>
+      </div>
+
+      <DeleteAccountModal open={deleteAccountOpen} onOpenChange={setDeleteAccountOpen} />
+    </>
   );
 }

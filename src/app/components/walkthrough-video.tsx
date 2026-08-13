@@ -18,7 +18,7 @@
  * sends `credentials: 'include'`, sanctions the native shell's gateway origin,
  * and refresh-retries a 401 — all off the SAME `EmbedAuthAdapter` the chat
  * registers at module load in `openframe-chat-runtime-provider`. Precedent:
- * `useRelease` in `help-center/releases/[slug]/release-detail-client.tsx`.
+ * `useRelease` in `help-center/releases/detail/release-detail-client.tsx`.
  *
  * Feeding `video` in directly is the lib's supported host path (it's what the
  * hub's SSR mount does); only client-only embedders with no auth to attach need

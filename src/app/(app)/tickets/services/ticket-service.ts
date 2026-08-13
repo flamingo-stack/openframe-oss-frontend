@@ -2,14 +2,14 @@ import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
 import { apiClient } from '@/lib/api-client';
 import type { ChatType } from '../constants';
 import { API_ENDPOINTS } from '../constants';
-import { getDialogMessagesQuery } from '../queries/dialogs-queries';
+import { getDialogMessagesQuery, normalizeEscalationMessageData } from '../queries/dialogs-queries';
 import {
   ARCHIVE_TICKET_MUTATION,
-  GET_BOARD_COLUMN_TICKETS_QUERY,
   GET_TICKET_QUERY,
   GET_TICKET_STATUS_TRANSITION_RULES_QUERY,
   GET_TICKET_STATUS_TRANSITIONS_QUERY,
   GET_TICKETS_QUERY,
+  getBoardColumnTicketsQuery,
   PUT_TICKET_ON_HOLD_MUTATION,
   REOPEN_TICKET_MUTATION,
   REORDER_TICKET_MUTATION,
@@ -54,6 +54,7 @@ interface TicketNode {
   assignedName?: string;
   assigneeImage?: { imageUrl: string; hash?: string };
   labels?: Array<{ id: string; key: string; color?: string }>;
+  escalatedByUser?: boolean | null;
   pendingApproval?: {
     id: string;
     approvalType?: string;
@@ -190,6 +191,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     assigneeImageUrl: ticket.assigneeImage?.imageUrl,
     assigneeImageHash: ticket.assigneeImage?.hash,
     labels: ticket.labels,
+    escalatedByUser: ticket.escalatedByUser,
     pendingApproval: ticket.pendingApproval ?? undefined,
     attachments: ticket.attachments,
     tokenUsage: ticket.dialog?.tokenUsage ?? undefined,
@@ -276,7 +278,7 @@ export class TicketService implements TicketServiceInterface {
 
   async fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage> {
     const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
-      query: GET_BOARD_COLUMN_TICKETS_QUERY,
+      query: getBoardColumnTicketsQuery(),
       variables: {
         statusId: params.statusId,
         limit: params.limit,
@@ -336,7 +338,12 @@ export class TicketService implements TicketServiceInterface {
     const { edges, pageInfo } = data.messages;
 
     return {
-      messages: edges.map(edge => edge.node),
+      // Single parse point for the escalation body aliases — see
+      // `normalizeEscalationMessageData`.
+      messages: edges.map(edge => ({
+        ...edge.node,
+        messageData: normalizeEscalationMessageData(edge.node.messageData),
+      })),
       pageInfo,
     };
   }

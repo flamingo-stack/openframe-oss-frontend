@@ -1,3 +1,5 @@
+import { featureFlags } from '@/lib/feature-flags';
+
 // Ticket GraphQL queries and mutations (openframe-saas-ai-agent service via /chat/graphql)
 
 export const CREATE_TICKET_MUTATION = `
@@ -271,7 +273,14 @@ export const GET_TICKETS_QUERY = `
 
 // ===== Lifecycle board (custom statuses) =====
 
-const BOARD_CARD_TICKET_LIFECYCLE_FRAGMENT = `
+/**
+ * `escalatedByUser` ships with the escalation backend, so it rides the
+ * `ai-escalation` flag: a field the server's schema does not declare fails
+ * validation for the entire document, and `extractGraphQlData` throws on the
+ * first GraphQL error — every board column would come back empty rather than
+ * merely missing a badge.
+ */
+const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
     id
     ticketNumber
@@ -327,6 +336,7 @@ const BOARD_CARD_TICKET_LIFECYCLE_FRAGMENT = `
       key
       color
     }
+    ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
     pendingApproval {
       id
       approvalType
@@ -351,7 +361,7 @@ const BOARD_CARD_TICKET_LIFECYCLE_FRAGMENT = `
   }
 `;
 
-export const GET_BOARD_COLUMN_TICKETS_QUERY = `
+export const getBoardColumnTicketsQuery = () => `
   query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $labelIds: [ID!]) {
     tickets(
       filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, labelIds: $labelIds }
@@ -374,7 +384,7 @@ export const GET_BOARD_COLUMN_TICKETS_QUERY = `
       filteredCount
     }
   }
-  ${BOARD_CARD_TICKET_LIFECYCLE_FRAGMENT}
+  ${boardCardTicketFragment()}
 `;
 
 export const GET_TICKET_STATUS_TRANSITION_RULES_QUERY = `

@@ -11,7 +11,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
-import { isAuthOnlyMode, isSaasSharedMode } from '@/lib/app-mode';
+import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
+import { isAuthOnlyMode, isSharedAuthUi } from '@/lib/app-mode';
 import { pushSignupStarted } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -34,6 +35,9 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [prNumber, setPrNumber] = useState('');
   const showPrNumber = runtimeEnv.prNumberEnabled();
+
+  // "Continue with Apple" is offered on Apple devices only.
+  const isApple = useIsApplePlatform();
 
   const storedOrgName = typeof window !== 'undefined' ? sessionStorage.getItem('auth:org_name') || '' : '';
   const storedDomain = typeof window !== 'undefined' ? sessionStorage.getItem('auth:domain') || '' : '';
@@ -87,13 +91,13 @@ export default function SignupPage() {
     });
   };
 
-  // External providers offered by the backend for registration.
-  const formProviders: AuthSsoProvider[] = (['google', 'microsoft'] as const).filter(provider =>
-    providers.some(sp => sp.provider === provider),
+  // External providers offered by the backend for registration; Apple only on Apple devices.
+  const formProviders: AuthSsoProvider[] = (['google', 'microsoft', 'apple'] as const).filter(
+    provider => (provider !== 'apple' || isApple) && providers.some(sp => sp.provider === provider),
   );
 
   const handleSso = (provider: AuthSsoProvider) => {
-    if (provider !== 'google' && provider !== 'microsoft') return;
+    if (provider === 'openframe') return;
     void registerOrganizationSso({
       tenantName: storedOrgName,
       tenantDomain: storedDomain,
@@ -132,7 +136,7 @@ export default function SignupPage() {
         onBack={() => router.push('/auth')}
         ssoProviders={formProviders}
         onSsoClick={handleSso}
-        submitLabel={isSaasSharedMode() ? 'Start Free Trial' : 'Create Organization'}
+        submitLabel={isSharedAuthUi() ? 'Start Free Trial' : 'Create Organization'}
         submitDisabled={!isValid}
         loading={isLoading || loadingProviders}
         errors={{

@@ -5,7 +5,7 @@ import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/co
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
-import { findLatestPendingApprovalId } from '@/lib/chat-history';
+import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
 import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
 import { selectUser, useAuthStore } from '@/stores';
@@ -133,53 +133,16 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
     }
 
     const currentMessages = messagesByDialog.get(dialogId) || [];
-    // Dedupe approval cards across bubbles: the agent re-asks for the same
-    // approval (same requestId) when the user interrupts. After MESSAGE_START
-    // resets the accumulator, the retry pushes a fresh segment into a new
-    // bubble, and the cross-message status updater flips *every* matching
-    // segment — so a single rejected approval would render twice. First
-    // occurrence wins; later duplicates are hidden.
-    const seenApprovalIds = new Set<string>();
+    // Which approval cards render in the flow, which are lifted into the sticky
+    // footer, and how duplicates are deduped is `@/lib/chat-history` — shared
+    // with tickets, which consumes the same stream and must sort cards the same
+    // way. This hook only maps what survives into `ProcessedMessage`.
     const processed: ProcessedMessage[] = [];
 
-    for (const msg of currentMessages) {
-      let filteredContent = msg.content;
-
-      if (Array.isArray(msg.content)) {
-        const filtered = (msg.content as MessageSegment[]).filter(segment => {
-          if (segment.type === 'approval_request' && segment.status === 'pending') return false;
-
-          if (segment.type === 'approval_request') {
-            const id = segment.data?.requestId;
-            if (id) {
-              if (seenApprovalIds.has(id)) return false;
-              seenApprovalIds.add(id);
-            }
-          } else if (segment.type === 'approval_batch') {
-            const id = segment.data?.approvalRequestId;
-            if (id) {
-              if (seenApprovalIds.has(id)) return false;
-              seenApprovalIds.add(id);
-            }
-          }
-
-          return true;
-        });
-        // Reuse the original array reference when nothing was removed, so
-        // `content` stays referentially stable for unchanged messages.
-        filteredContent = filtered.length === msg.content.length ? msg.content : filtered;
-      }
-
-      // Skip assistant bubbles that are empty after filtering (only held
-      // pending/duplicate approval segments). User and error messages render
-      // even when content is empty — that's their own concern.
-      if (msg.role === 'assistant' && Array.isArray(filteredContent) && filteredContent.length === 0) {
-        continue;
-      }
-
+    for (const msg of stripPendingApprovals(currentMessages)) {
       processed.push({
         id: msg.id,
-        content: filteredContent,
+        content: msg.content,
         role: msg.role,
         authorType: msg.authorType,
         name: msg.name || 'Unknown',
@@ -216,28 +179,12 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
     return reconciled;
   }, [dialogId, messagesByDialog]);
 
-  // Extract pending approvals from messages, deduplicated by requestId
+  // The exact complement of `stripPendingApprovals` above — same module, so a
+  // card can never be dropped from the flow AND skipped by the footer (which is
+  // how a guide card managed to render nowhere at all).
   const approvals = useMemo(() => {
     if (!dialogId) return [];
-
-    const currentMessages = messagesByDialog.get(dialogId) || [];
-    const seenRequestIds = new Set<string>();
-    const pendingApprovalSegments: MessageSegment[] = [];
-
-    currentMessages.forEach(msg => {
-      if (Array.isArray(msg.content)) {
-        msg.content.forEach(segment => {
-          if (segment.type === 'approval_request' && segment.status === 'pending') {
-            const requestId = segment.data?.requestId;
-            if (requestId && seenRequestIds.has(requestId)) return;
-            if (requestId) seenRequestIds.add(requestId);
-            pendingApprovalSegments.push(segment as MessageSegment);
-          }
-        });
-      }
-    });
-
-    return pendingApprovalSegments;
+    return extractPendingApprovals(messagesByDialog.get(dialogId) || []);
   }, [dialogId, messagesByDialog]);
 
   const isCompacting = useMemo(() => {
