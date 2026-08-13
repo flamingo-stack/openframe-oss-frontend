@@ -122,6 +122,24 @@ html[data-shell="mobile"] .of-auth-shell {
   padding-top: var(--native-safe-top, env(safe-area-inset-top));
 }
 
+/* The software keyboard is the app's bottom inset while it is up, and nothing
+   else applies it: the WebView keeps its frame (iOS runs the Keyboard plugin at
+   `resize: 'none'`; Android's window is edge-to-edge, where the IME is only a
+   WindowInsets type), so `h-screen` keeps reporting the full height and every
+   bottom-anchored composer — the Mingo drawer's and the ticket client-chat's —
+   opens UNDER the keyboard with no way to scroll to it. Absorbing it on the
+   layout root is what `adjustResize` would do: `h-screen` is border-box, so
+   this shrinks the content box and every `flex-1` descendant with it, including
+   the AppLayoutDrawer's portal container. `--of-keyboard-inset` is published by
+   keyboard-inset.ts (0 while closed) and already includes the home-indicator
+   band, which the keyboard covers. Deliberately no transition: this reflows the
+   whole app, and the composer landing a beat before the keyboard finishes its
+   slide is what every native list does. Viewport-`fixed` overlays escape this
+   root and compensate themselves — see modal-v2/dialog in the core lib. */
+html[data-shell="mobile"] .app-shell-root {
+  padding-bottom: var(--of-keyboard-inset, 0px);
+}
+
 /* Markdown editor (KB article + ticket create/edit forms). Absorbing the keyboard
    inset on the layout root is only half the answer for it: the library sizes
    `.w-md-editor` from a fixed pixel `height` prop — 400px/500px here, a desktop drag-to-resize
