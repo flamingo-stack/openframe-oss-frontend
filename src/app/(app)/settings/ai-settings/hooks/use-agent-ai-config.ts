@@ -12,6 +12,7 @@ import {
 } from '../queries/ai-settings-queries';
 import type { AgentAiConfig, AgentAiConfigInput, AgentType, AnswerStyle } from '../types/ai-settings';
 import type { GraphqlResponse } from './chat-graphql';
+import { organizationAiConfigQueryKeys } from './use-organization-ai-config';
 
 export const agentAiConfigQueryKeys = {
   detail: (agentType: AgentType) => ['agent-ai-config', agentType] as const,
@@ -128,6 +129,12 @@ function useUpdateAiConfig(agentType: AgentType, mutation: string, responseKey: 
     mutationFn: (input: AgentAiConfigInput) => postUpdateAiConfig(mutation, responseKey, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: agentAiConfigQueryKeys.detail(agentType) });
+      // The tenant CLIENT config is the EFFECTIVE config for every org still on
+      // `inheritDefault` — drop all org-scoped caches so mounted customer pages
+      // pick up the new values without a reload.
+      if (agentType === 'CLIENT') {
+        queryClient.invalidateQueries({ queryKey: organizationAiConfigQueryKeys.all });
+      }
     },
   });
 
