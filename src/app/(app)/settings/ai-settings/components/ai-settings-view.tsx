@@ -138,7 +138,19 @@ export function AiSettings() {
       // The CLIENT screen writes two collections; surface one combined toast.
       void (async () => {
         try {
-          const [, savedView] = await Promise.all([updateClientAiConfig(payload.ai), updateClientView(payload.view)]);
+          // allSettled, not all: the `finally` invalidation below must not run
+          // while one save is still pending (a fast-failing sibling would let
+          // the refetch race the in-flight write and cache the pre-save view).
+          const [aiResult, viewResult] = await Promise.allSettled([
+            updateClientAiConfig(payload.ai),
+            updateClientView(payload.view),
+          ]);
+          const failure = [aiResult, viewResult].find(result => result.status === 'rejected');
+          if (failure) {
+            const reason = (failure as PromiseRejectedResult).reason;
+            throw reason instanceof Error ? reason : new Error(String(reason));
+          }
+          const savedView = viewResult.status === 'fulfilled' ? viewResult.value : null;
           syncAiConfiguration(payload.ai, clientAiConfig);
 
           // Attach the staged avatar to the SAVED view id — on a fresh tenant
