@@ -7,21 +7,19 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback } from 'react';
-import { Policies } from './policies';
-import { Queries } from './queries';
 
+// The tab bodies take page-owned search props, so the page renders them directly
+// rather than through `getTabComponent`; this list drives only the nav buttons.
 export const MONITORING_TABS: TabItem[] = [
   {
     id: 'policies',
     label: 'Policies',
     icon: FolderShieldIcon,
-    component: Policies,
   },
   {
     id: 'queries',
     label: 'Queries',
     icon: BracketCurlyEllipsisVrIcon,
-    component: Queries,
   },
 ];
 

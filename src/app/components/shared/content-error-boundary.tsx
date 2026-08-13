@@ -3,7 +3,7 @@
 import { LoadError, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Component, createContext, type ReactNode, useContext } from 'react';
 import { isOnline, subscribeConnectivity } from '@/lib/connectivity';
-import { isOfflineError, loadErrorProps } from '@/lib/query-state';
+import { isForbiddenError, isOfflineError, loadErrorProps } from '@/lib/query-state';
 
 /**
  * The retry counter a tripped `ContentErrorBoundary` publishes to its subtree.
@@ -243,6 +243,10 @@ export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, C
       // that cannot work is the thing react-query surfaces as `paused`; this is
       // the Relay equivalent.
       const offline = isOfflineError(this.state.error);
+      // A thrown 403 is terminal like offline: the same rejection returns on a
+      // second attempt, so drop the Retry and show the "not available" copy
+      // instead of the raw transport string.
+      const forbidden = isForbiddenError(this.state.error);
 
       // Passed the phase rather than skipped when offline: the fallback exists to
       // redraw page chrome, and losing that chrome precisely when the network is
@@ -251,7 +255,13 @@ export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, C
       if (custom) return custom;
 
       const body = (
-        <LoadError {...loadErrorProps(offline, this.props.message ?? "Couldn't load this content.", this.retry)} />
+        <LoadError
+          {...loadErrorProps(
+            { isOffline: offline, isForbidden: forbidden },
+            this.props.message ?? "Couldn't load this content.",
+            this.retry,
+          )}
+        />
       );
       return this.props.title ? (
         <PageLayout title={this.props.title} contentClassName="flex flex-col">
