@@ -49,8 +49,8 @@ import {
   EMBEDDED_PAGE_OFFSET,
   EmptyState,
   LogDrawer,
-  onboardingGuideButton,
   type TableDateFilter,
+  useOnboardingGuideButton,
   useRetryKey,
 } from '@/app/components/shared';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -576,6 +576,8 @@ function LogsTableContent({
     onEmptyChange(hideSearch);
   }, [hideSearch, onEmptyChange]);
 
+  const guideButton = useOnboardingGuideButton('logs');
+
   if (showEmptyState) {
     return (
       <EmptyState
@@ -587,7 +589,7 @@ function LogsTableContent({
           { icon: <Filter01ListIcon />, label: 'Filter by user, action type, Customer, or date range' },
           { icon: <SearchIcon />, label: 'Investigate incidents and audit security events' },
         ]}
-        {...onboardingGuideButton('logs', 'Learn more about Logs')}
+        {...guideButton}
       />
     );
   }

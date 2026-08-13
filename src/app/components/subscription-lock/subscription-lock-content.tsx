@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useOwnerGate } from '@/app/hooks/use-owner-gate';
+import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { SubscriptionStatus } from '@/generated/schema-enums';
 import { isBillingHidden } from '@/lib/billing-visibility';
 import { useSubscriptionLock } from './subscription-lock-context';
@@ -26,9 +26,9 @@ const SubscriptionPlanLockContent = dynamic(() => import('./subscription-plan-lo
  * wording, kept out of every non-purchasing bundle on purpose, and this path is
  * exactly a non-purchasing one.
  */
-function nonOwnerCopy(status: SubscriptionStatus): { title: string; description: string } {
+function noAccessCopy(status: SubscriptionStatus): { title: string; description: string } {
   const description =
-    'Only the workspace owner can restore it. Contact them to bring the workspace back for your team.';
+    'Only the workspace owner or an admin can restore it. Contact one of them to bring the workspace back for your team.';
 
   return status === SubscriptionStatus.TRIAL_EXPIRED
     ? { title: 'The free trial has ended.', description }
@@ -44,28 +44,29 @@ function nonOwnerCopy(status: SubscriptionStatus): { title: string; description:
  * tenant. Only the REMEDY is role-shaped, so this picks between three screens:
  *
  *   - payment UI hidden for the build (native) → `WorkspaceInactiveScreen`;
- *   - not the workspace owner → the same screen, with subscription wording,
- *     because every route that could fix this is owner-only (`use-owner-gate.ts`)
- *     and a plan picker leading to a 404 is worse than a plain explanation;
- *   - the owner on a paying build → the plan picker, same cards as the
+ *   - a role that cannot open billing → the same screen, with subscription
+ *     wording, because every route that could fix this is owner-or-admin only
+ *     (`use-billing-access-gate.ts`) and a plan picker leading to a refusal is
+ *     worse than a plain explanation;
+ *   - an owner or admin on a paying build → the plan picker, same cards as the
  *     subscription settings page.
  *
- * `'loading'` is grouped with "not the owner" deliberately. It should be
+ * `'loading'` is grouped with "cannot open billing" deliberately. It should be
  * unreachable — every query that can produce a lock waits on the session latch,
  * which `/me` opens, so the role is known by the time a lock renders — and if that
  * ever stops holding, erring toward the screen with no prices on it is the safe
  * direction, not the one that flashes a purchase flow at someone.
  */
 export function SubscriptionLockContent() {
-  const owner = useOwnerGate();
+  const access = useBillingAccessGate();
   const { status } = useSubscriptionLock();
 
   if (isBillingHidden()) {
     return <WorkspaceInactiveScreen />;
   }
 
-  if (owner !== 'owner') {
-    return <WorkspaceInactiveScreen {...nonOwnerCopy(status)} />;
+  if (access !== 'allowed') {
+    return <WorkspaceInactiveScreen {...noAccessCopy(status)} />;
   }
 
   return <SubscriptionPlanLockContent />;

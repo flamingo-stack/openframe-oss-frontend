@@ -15,7 +15,8 @@ import type { PolicyRule } from './guardrails.types';
  */
 
 export const organizationGuardrailsQueryKeys = {
-  detail: (organizationId: string) => ['organization-guardrails', { organizationId }] as const,
+  all: ['organization-guardrails'] as const,
+  detail: (organizationId: string) => [...organizationGuardrailsQueryKeys.all, { organizationId }] as const,
 };
 
 const GUARDRAIL_RULE_FIELDS = `

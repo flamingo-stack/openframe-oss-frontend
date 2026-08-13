@@ -41,7 +41,7 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { getOSLabel, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EmptyState, onboardingGuideButton } from '@/app/components/shared';
+import { EmptyState, useOnboardingGuideButton } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -434,6 +434,8 @@ export function ScriptsTable() {
 
   const hasMobileFilter = filterGroups.length > 0;
 
+  const guideButton = useOnboardingGuideButton('scripts');
+
   if (error) {
     return <PageError message={error} />;
   }
@@ -459,7 +461,7 @@ export function ScriptsTable() {
               label: 'Let Mingo suggest or generate scripts for you',
             },
           ]}
-          {...onboardingGuideButton('scripts', 'Learn more about Scripts')}
+          {...guideButton}
         />
       ) : (
         <div className="flex flex-col" style={containerStyle}>

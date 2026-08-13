@@ -17,8 +17,8 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
+import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { useOwnerGate } from '@/app/hooks/use-owner-gate';
 import { apiClient } from '@/lib/api-client';
 import { isOssTenantMode } from '@/lib/app-mode';
 import { authApiClient } from '@/lib/auth-api-client';
@@ -90,17 +90,17 @@ export function SettingsHub() {
   // is the first one, so treating "not answered yet" as "hide it" dropped a cell and
   // re-flowed every card after it the moment the answers landed.
   const billingsGate = useFeatureFlagGate('billings');
-  // Billing & Usage is the workspace's money — owners only, admins included in "no".
-  const ownerGate = useOwnerGate();
+  // Billing & Usage is the workspace's money — owners and admins, nobody else.
+  const billingAccessGate = useBillingAccessGate();
 
   // The app mode is a build constant, so this list — every card this build can ever show
   // — is known on the first render. It is what the loading grid draws.
   const defaultItems = SETTINGS_NAV_ITEMS.filter(
     item => item.href !== routes.settings.architecture || isOssTenantMode(),
   );
-  const gatesResolved = billingsGate !== 'loading' && ownerGate !== 'loading';
+  const gatesResolved = billingsGate !== 'loading' && billingAccessGate !== 'loading';
   const visibleItems = defaultItems.filter(
-    item => item.href !== routes.settings.billingUsage || (billingsGate === 'on' && ownerGate === 'owner'),
+    item => item.href !== routes.settings.billingUsage || (billingsGate === 'on' && billingAccessGate === 'allowed'),
   );
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
   const user = useAuthStore(state => state.user);

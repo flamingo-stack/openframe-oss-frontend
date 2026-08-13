@@ -14,10 +14,10 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   EmptyState,
   formatQueryInterval,
-  onboardingGuideButton,
   QueriesTable,
   type QueryTableRow,
   SectionLoadError,
+  useOnboardingGuideButton,
 } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -130,6 +130,8 @@ export function Queries() {
     [handleAddQuery, showEmptyState],
   );
 
+  const guideButton = useOnboardingGuideButton('queries');
+
   return (
     <PageLayout title="Queries" actions={actions} className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
       {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
@@ -143,7 +145,7 @@ export function Queries() {
             { icon: <DatabaseIcon />, label: 'Use SQL-like syntax or natural language via Mingo' },
             { icon: <HourglassClockIcon />, label: 'Save queries to rerun later or schedule them' },
           ]}
-          {...onboardingGuideButton('queries', 'Learn more about Queries')}
+          {...guideButton}
         />
       ) : (
         <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
