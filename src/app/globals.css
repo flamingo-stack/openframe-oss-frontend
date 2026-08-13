@@ -112,7 +112,7 @@ html[data-shell="mobile"] body::before {
 
 /* Full-screen view roots: `app-shell-root` (core AppLayout root) and
    `of-auth-shell` (core AuthShell — the auth pages render outside
-   AppLayout). The top inset lives HERE, not on the
+   AppLayout); `of-standalone-shell` below is the third. The top inset lives HERE, not on the
    header: with the inset on the header, a `topBar` banner rendered above it
    started at y=0 under the status bar (clipped by the band), the header
    double-padded, and the burger menu's below-header offset (top: 48px = the
@@ -120,6 +120,20 @@ html[data-shell="mobile"] body::before {
 html[data-shell="mobile"] .app-shell-root,
 html[data-shell="mobile"] .of-auth-shell {
   padding-top: var(--native-safe-top, env(safe-area-inset-top));
+}
+
+/* Standalone full-screen pages — rendered outside BOTH of the roots above, i.e.
+   with no chrome to hand the remaining edges to, so this root owns all four.
+   Currently just /account-deleted, which the deletion flow `replace`s onto once
+   the session is gone. Unlike those roots it has design padding of its own, so
+   the insets go through `max()` (the shape `.app-top-bar` below uses): the inset
+   wins where it is larger — the status bar was cropping the logo — and the page's
+   40px survives everywhere it is not, e.g. the portrait sides. */
+html[data-shell="mobile"] .of-standalone-shell {
+  padding-top: max(var(--native-safe-top, env(safe-area-inset-top)), var(--spacing-system-xlf));
+  padding-bottom: max(var(--native-safe-bottom, env(safe-area-inset-bottom)), var(--spacing-system-xlf));
+  padding-left: max(var(--native-safe-left, env(safe-area-inset-left)), var(--spacing-system-xlf));
+  padding-right: max(var(--native-safe-right, env(safe-area-inset-right)), var(--spacing-system-xlf));
 }
 
 /* The software keyboard is the app's bottom inset while it is up, and nothing
