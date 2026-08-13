@@ -41,7 +41,7 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
     SUPPRESSION_MANAGER_ROLES.has(role?.toLowerCase() ?? ''),
   );
 
-  const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
   const [contentSuppressed, setContentSuppressed] = useState<boolean | null>(null);
   const [savedContentSuppressed, setSavedContentSuppressed] = useState<boolean | null>(null);
 
@@ -55,7 +55,7 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
 
   useEffect(() => {
     if (!isOpen) {
-      setPushEnabled(null);
+      setEnabled(null);
       setContentSuppressed(null);
       setSavedContentSuppressed(null);
       return;
@@ -68,7 +68,7 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
       { fetchPolicy: 'store-or-network' },
     ).subscribe({
       next: data => {
-        setPushEnabled(data.notificationSettings.pushEnabled);
+        setEnabled(data.notificationSettings.enabled);
         setContentSuppressed(data.notificationSettings.contentSuppressed);
         setSavedContentSuppressed(data.notificationSettings.contentSuppressed);
       },
@@ -83,15 +83,15 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
     return () => subscription.unsubscribe();
   }, [isOpen, environment, toast]);
 
-  const isLoading = pushEnabled === null;
+  const isLoading = enabled === null;
 
   const handleSave = () => {
-    if (pushEnabled === null) return;
+    if (enabled === null) return;
 
     const commits: Promise<void>[] = [
       new Promise((resolve, reject) => {
         commitSettings({
-          variables: { pushEnabled },
+          variables: { enabled },
           updater: relinkNotificationSettings('updateNotificationSettings'),
           onCompleted: () => resolve(),
           onError: reject,
@@ -164,7 +164,7 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
       ) : (
         <div className="flex flex-col gap-[var(--spacing-system-s)]">
           <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-sf)] flex items-center gap-[var(--spacing-system-s)]">
-            <Switch id={pushSwitchId} checked={pushEnabled} onCheckedChange={setPushEnabled} disabled={isSaving} />
+            <Switch id={pushSwitchId} checked={enabled} onCheckedChange={setEnabled} disabled={isSaving} />
             <label htmlFor={pushSwitchId} className="flex-1 min-w-0 truncate text-h4 text-ods-text-primary">
               Enable Notifications
             </label>

@@ -8,7 +8,7 @@ import { graphql } from 'react-relay';
 export const updateNotificationContentSuppressionMutation = graphql`
   mutation updateNotificationContentSuppressionMutation($suppressed: Boolean!) {
     updateNotificationContentSuppression(suppressed: $suppressed) {
-      pushEnabled
+      enabled
       contentSuppressed
     }
   }
