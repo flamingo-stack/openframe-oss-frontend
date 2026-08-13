@@ -27,6 +27,26 @@ let initialized = false;
 let publishedInset = 0;
 let pendingReassert = 0;
 
+/**
+ * What the re-assert below should reveal. Normally the focused control itself —
+ * but `scrollIntoView` measures the LAYOUT box, and a control laid out at
+ * content height inside its own scroller can be several screens tall: the
+ * markdown editor's textarea is `position:absolute; height:100%` of a <pre> that
+ * grows with the article. Asking for that box is worse than asking for nothing,
+ * because `block: 'nearest'` resolves a box taller than the scrollport by
+ * aligning its FAR edge — scrolling the editor clean off the top of the screen.
+ * So walk up to the first ancestor that fits: at the scroller which clips it,
+ * the box stops being the document and starts being the frame on screen.
+ */
+function revealTarget(focused: HTMLElement): HTMLElement {
+  const keyboardFree = window.innerHeight - publishedInset;
+  let node = focused;
+  while (node.getBoundingClientRect().height > keyboardFree && node.parentElement) {
+    node = node.parentElement;
+  }
+  return node;
+}
+
 function publish(height: number): void {
   const inset = Math.max(0, Math.round(height));
   if (inset === publishedInset) return;
@@ -52,7 +72,7 @@ function publish(height: number): void {
   // nothing. Re-assert once that transition has settled.
   pendingReassert = window.setTimeout(() => {
     const focused = document.activeElement;
-    if (focused instanceof HTMLElement) focused.scrollIntoView({ block: 'nearest' });
+    if (focused instanceof HTMLElement) revealTarget(focused).scrollIntoView({ block: 'nearest' });
   }, INSET_TRANSITION_MS + 50);
 }
 

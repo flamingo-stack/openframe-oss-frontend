@@ -9,11 +9,10 @@ import {
   SelectValue,
 } from '@flamingo-stack/openframe-frontend-core';
 import { SelectButton } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { CheckCircleIcon, ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, CheckboxBlock, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { useMutation } from 'react-relay';
@@ -29,6 +28,7 @@ import { formToWriteInput } from '../../scripts/v2/shared/utils/script-mappers';
 import { SCRIPT_V2_SHELL_TYPES } from '../../scripts/v2/shared/utils/shell-types';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 import { useStepActionState } from '../use-step-action-state';
+import { FullFormLink } from './full-form-link';
 
 // Trimmed subset of the full add-script form (`edit-script.types.ts`): the fields
 // the onboarding step exposes. The rest are filled from EDIT_SCRIPT_DEFAULT_VALUES
@@ -257,15 +257,7 @@ export function ScriptingStep({
 
       {/* Footer: full-form link (left) + Mark as Complete + Add Script (right) */}
       <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
-        <Link
-          href={routes.scriptsV2.new}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex flex-1 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary transition-colors hover:text-ods-text-primary"
-        >
-          <ExternalLinkIcon size={24} className="shrink-0" />
-          <span className="text-h4 underline">Full Script Form</span>
-        </Link>
+        <FullFormLink href={routes.scriptsV2.new} label="Full Script Form" />
         <div className="flex flex-1 flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
           {!completed ? (
             <Button

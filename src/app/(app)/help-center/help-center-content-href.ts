@@ -4,7 +4,7 @@
  * SINGLE SOURCE OF TRUTH for "where does a content entity card go in OpenFrame".
  *
  * OpenFrame hosts part of the hub's content in-app under `/help-center`, by two
- * different mechanisms: `hostedTypes` for the types with their own slugged
+ * different mechanisms: `hostedTypes` for the types with their own
  * detail route (product releases, onboarding guides), and `overrides` for the
  * ones that land on an EXISTING in-app route instead — roadmap and
  * delivery/bug-fixes deep-link into their list views, HubSpot tickets open the
@@ -35,6 +35,7 @@ import {
   faqItemAnchor,
   makeComposeContentUrl,
 } from '@flamingo-stack/openframe-frontend-core/utils';
+import { routes } from '@/lib/routes';
 import { HELP_CENTER_BASE } from './endpoints';
 
 /** Public origin of the Flamingo content hub — fallback for content types Help
@@ -44,10 +45,37 @@ const CONTENT_HUB_ORIGIN = 'https://www.flamingo.run';
 /** Slash-less section base (`'help-center'`) — content suffixes are slash-less. */
 const HC = HELP_CENTER_BASE.replace(/^\//, '');
 
-/** Types Help Center hosts on its own slugged detail routes → relative in-app
- *  href `/<suffix>/<slug>` (soft-nav). The list-filter types (roadmap, delivery)
- *  are NOT here — they have no detail route and use `overrides` instead. */
+/** Types Help Center hosts on their own detail route → relative in-app href
+ *  (soft-nav). The lib's hosted branch emits `/<suffix>/<slug>`; {@link toDetailRoute}
+ *  then rewrites that into this app's query-param detail route. The list-filter
+ *  types (roadmap, delivery) are NOT here — they have no detail route and use
+ *  `overrides` instead. */
 const HOSTED_TYPES = new Set(['onboarding_guide', 'product_release']);
+
+/** List path the lib composes into → this app's detail-route builder for that
+ *  type. Keyed on the composed href rather than the content type because the lib
+ *  canonicalizes rail-vocab aliases internally, so the emitted path is the one
+ *  thing both hosted types are guaranteed to agree on. */
+const DETAIL_ROUTE_BY_LIST_PATH: Record<string, (slug: string) => string> = {
+  [routes.helpCenter.onboardingGuides]: routes.helpCenter.onboardingGuide,
+  [routes.helpCenter.releases]: routes.helpCenter.release,
+};
+
+/**
+ * `/help-center/releases/v1-2-0` → `/help-center/releases/detail?slug=v1-2-0`.
+ *
+ * The lib hardcodes `/<suffix>/<slug>` for hosted types, but a slugged SEGMENT is
+ * unroutable in this app: guide/release slugs are CMS content, so `output: 'export'`
+ * cannot prerender them, and the native shell answers every unprerendered path with
+ * the root `index.html` — the nav failed its RSC fetch and hard-reloaded the app at
+ * `/` instead of opening the guide. Non-hosted (absolute hub) hrefs and the
+ * `overrides` deep-links miss the map and pass through untouched.
+ */
+function toDetailRoute(href: string): string {
+  const cut = href.lastIndexOf('/');
+  const build = DETAIL_ROUTE_BY_LIST_PATH[href.slice(0, cut)];
+  return build ? build(href.slice(cut + 1)) : href;
+}
 
 /** In-app href for a HubSpot-ticket card → the Help Center tickets list with the
  *  ticket pre-opened. `?ticket=<external_id>` is the deep-link param `HelpCenterList`
@@ -58,14 +86,10 @@ const helpCenterTicketHref = (id: string): { href: string; targetPlatform: strin
   targetPlatform: null,
 });
 
-/**
- * Base composer: RELATIVE in-app hrefs for the hosted types and the Help Center
- * `overrides`, the RAG `externalUrl` (or the hub origin) for everything else.
- * Not wired directly —
- * {@link composeOpenframeInAppContentUrl} wraps it to force non-hosted hrefs
- * absolute, which is what BOTH runtimes register.
- */
-export const composeOpenframeContentUrl: ComposeContentUrl = makeComposeContentUrl({
+/** The lib's raw resolution, still carrying `/<suffix>/<slug>` for hosted types.
+ *  Wrapped by {@link composeOpenframeContentUrl}, which rewrites those into this
+ *  app's detail routes — nothing outside this module should read it. */
+const composeLibContentUrl = makeComposeContentUrl({
   hostedTypes: HOSTED_TYPES,
   // Prefix the two hosted types' suffixes with the section base so their in-app
   // href is `/help-center/onboarding-guides/<slug>` etc.; keep the lib defaults
@@ -100,6 +124,17 @@ export const composeOpenframeContentUrl: ComposeContentUrl = makeComposeContentU
     faq: id => ({ href: `${HELP_CENTER_BASE}/faqs#${faqItemAnchor(id)}`, targetPlatform: null }),
   },
 });
+
+/**
+ * Base composer: RELATIVE in-app hrefs for the hosted types and the Help Center
+ * `overrides`, the RAG `externalUrl` (or the hub origin) for everything else.
+ * Not wired directly — {@link composeOpenframeInAppContentUrl} wraps it to force
+ * non-hosted hrefs absolute, which is what BOTH runtimes register.
+ */
+export const composeOpenframeContentUrl: ComposeContentUrl = input => {
+  const resolved = composeLibContentUrl(input);
+  return { ...resolved, href: toDetailRoute(resolved.href) };
+};
 
 /** True when a composed href points at an in-app `/help-center` route (i.e. the
  *  relative-same-origin branch of {@link composeOpenframeContentUrl}). Every
