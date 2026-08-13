@@ -16,6 +16,7 @@ import { memo, Suspense, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
+import { useRetryKey } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -46,10 +47,11 @@ interface ScriptDetailsViewProps {
  */
 function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
   const { toast } = useToast();
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
     { id: scriptId },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const script = data.script;
 
@@ -164,10 +166,18 @@ function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
  * says it once.
  */
 function ScriptSummary({ scriptId }: ScriptDetailsViewProps) {
+  // Shares the header's key deliberately. NOT for network dedupe — that is keyed
+  // on `operation.request.identifier` (`loadQuery.js`), which does not contain
+  // `fetchKey`, so mismatched keys still share one in-flight request. The reason
+  // is `QueryResource`: it retains a REJECTION for 5 minutes keyed by
+  // cacheIdentifier, which DOES contain `fetchKey`. A sibling left unkeyed
+  // replays that retained error on remount and re-trips the boundary the Retry
+  // just cleared.
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
     { id: scriptId },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const script = data.script;
 

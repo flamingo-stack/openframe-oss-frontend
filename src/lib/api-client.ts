@@ -43,7 +43,7 @@ interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
  * MeshCentral streams over WebSockets with its own per-operation timeouts — so
  * this ceiling never truncates one.
  */
-const REQUEST_TIMEOUT_MS = 30_000;
+export const REQUEST_TIMEOUT_MS = 30_000;
 
 interface ApiResponse<T = any> {
   data?: T;
@@ -52,6 +52,7 @@ interface ApiResponse<T = any> {
   ok: boolean;
 }
 
+import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
 import { waitForSessionReady } from './session-ready';
@@ -199,6 +200,17 @@ class ApiClient {
 
         if (refreshSuccess) {
           return this.request<T>(path, options, true);
+        }
+
+        // A link that dropped between the 401 and the refresh POST is NOT a
+        // rejected credential: `refreshAccessToken` catches the transport error
+        // and returns false the same way it does for a refused refresh, so
+        // logging out here destroys a valid session over a transient outage.
+        // The mirror of the guard in `relay/environment.ts` — both halves of the
+        // data layer have to agree, or one of them logs the user out while the
+        // other is quietly waiting for the link.
+        if (!isOnline()) {
+          return { error: 'Offline', status: 0, ok: false };
         }
 
         await this.forceLogout();

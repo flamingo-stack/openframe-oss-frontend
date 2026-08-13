@@ -238,6 +238,20 @@ function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Erro
       out.isLoading = true;
       out.isReady = false;
     }
+    // `isLoading` alone is not enough for `isReady`, which callers treat as "the
+    // answer is in" and use to prefill forms. A PAUSED query (offline) reports
+    // `isLoading: false` with no data, so `isReady` went true with an EMPTY
+    // assignment set — and `use-edit-article-form.ts` then reset the form to
+    // `assignments: []`, making Save delete every assignment on the article.
+    // `fetchStatus === 'idle'` keeps a deliberately disabled query (create mode)
+    // ready, since it has nothing to wait for.
+    // `isError` as well as pending: a FAILED assignments fetch also leaves `value`
+    // empty with `isPending` false, and `use-edit-article-form.ts` would reset the
+    // form to `assignments: []` and let Save delete them. Guarding only the paused
+    // half closed only the offline half of the data loss.
+    if ((result.isPending && result.fetchStatus !== 'idle') || result.isError) {
+      out.isReady = false;
+    }
     const payload = result.data;
     if (!payload) return;
     if (payload.refs.length) value[type] = payload.refs;

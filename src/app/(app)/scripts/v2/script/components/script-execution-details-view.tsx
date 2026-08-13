@@ -9,6 +9,7 @@ import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { useRetryKey } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
@@ -55,10 +56,11 @@ function DetailCell({ value, label }: { value: ReactNode; label: string }) {
 function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsViewProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptExecutionDetailQueryType>(
     scriptExecutionDetailRelayQuery,
     { id: executionId },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const execution = data.node;
 

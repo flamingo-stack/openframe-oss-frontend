@@ -16,6 +16,7 @@ import { memo, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scheduleTriggerRelayQuery as ScheduleTriggerQueryType } from '@/__generated__/scheduleTriggerRelayQuery.graphql';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scheduleTriggerRelayQuery } from '@/graphql/scripts/schedule-trigger-relay';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -50,10 +51,11 @@ interface ScheduleDetailsViewProps {
  * out has to survive a bad id, and the timing bar below reports the miss once.
  */
 function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScheduleDetailQueryType>(
     scriptScheduleDetailRelayQuery,
     { id: scheduleId },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const schedule = data.scriptSchedule;
 
@@ -154,10 +156,18 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
  * page says it once.
  */
 function ScheduleInfoBar({ scheduleId }: ScheduleDetailsViewProps) {
+  // Shares the header's key deliberately. NOT for network dedupe — that is keyed
+  // on `operation.request.identifier` (`loadQuery.js`), which does not contain
+  // `fetchKey`, so mismatched keys still share one in-flight request. The reason
+  // is `QueryResource`: it retains a REJECTION for 5 minutes keyed by
+  // cacheIdentifier, which DOES contain `fetchKey`. A sibling left unkeyed
+  // replays that retained error on remount and re-trips the boundary the Retry
+  // just cleared.
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScheduleDetailQueryType>(
     scriptScheduleDetailRelayQuery,
     { id: scheduleId },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const schedule = data.scriptSchedule;
 
@@ -223,10 +233,11 @@ function ScheduleTabs({ scheduleId, tabs }: ScheduleDetailsViewProps & { tabs: T
  * that has since become event-driven lands on Scheduled Scripts.
  */
 function ScheduleTabsIsland({ scheduleId }: ScheduleDetailsViewProps) {
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScheduleTriggerQueryType>(
     scheduleTriggerRelayQuery,
     { id: scheduleId },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   return <ScheduleTabs scheduleId={scheduleId} tabs={scheduleDetailTabs(data.scriptSchedule?.trigger)} />;
