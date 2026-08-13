@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  LoadError,
   PageLayout,
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo } from 'react';
 import { Controller, FormProvider, useFieldArray, useForm } from 'react-hook-form';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useScriptSchedule } from '../../hooks/use-script-schedule';
 import { useCreateScriptSchedule, useUpdateScriptSchedule } from '../../hooks/use-script-schedule-mutations';
@@ -47,7 +49,13 @@ export function ScheduleCreateView({ scheduleId }: ScheduleCreateViewProps = {})
   const { toast } = useToast();
   const isMdUp = useMdUp();
   const isEditMode = Boolean(scheduleId);
-  const { schedule, isLoading: isLoadingSchedule } = useScriptSchedule(scheduleId ?? '');
+  const {
+    schedule,
+    isLoading: isLoadingSchedule,
+    isOffline: isScheduleOffline,
+    hasData: scheduleLoaded,
+    refetch: refetchSchedule,
+  } = useScriptSchedule(scheduleId ?? '');
   const createMutation = useCreateScriptSchedule();
   const updateMutation = useUpdateScriptSchedule();
 
@@ -182,6 +190,19 @@ export function ScheduleCreateView({ scheduleId }: ScheduleCreateViewProps = {})
 
   if (isEditMode && isLoadingSchedule) {
     return <ScheduleCreateSkeleton />;
+  }
+
+  // Edit mode with no record: the form below would render at its create defaults
+  // and Save would still call the UPDATE mutation, writing those defaults over
+  // the real schedule. Same guard as `edit-script-page.tsx`, and the raw
+  // `scheduleError` text is deliberately not shown — it is an exception message,
+  // not copy.
+  if (isEditMode && !scheduleLoaded) {
+    return (
+      <PageLayout title="Edit Script Schedule">
+        <LoadError {...loadErrorProps(isScheduleOffline, "Couldn't load this schedule.", () => refetchSchedule())} />
+      </PageLayout>
+    );
   }
 
   return (

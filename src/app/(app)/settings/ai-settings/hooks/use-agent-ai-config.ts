@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AIProvider } from '@/generated/schema-enums';
 import { apiClient } from '@/lib/api-client';
+import { queryState } from '@/lib/query-state';
 import {
   GET_ADMIN_AI_CONFIG_QUERY,
   GET_CLIENT_AI_CONFIG_QUERY,
@@ -80,8 +81,9 @@ function useAiConfigQuery(
 
   return {
     config: result.data ?? null,
-    isLoading: result.isLoading,
-    error: result.error,
+    // `gate` reflects the tab: an inactive tab's query never runs, so it must
+    // report idle rather than loading.
+    ...queryState(result, enabled ? 'open' : 'closed'),
     refetch: result.refetch,
   };
 }

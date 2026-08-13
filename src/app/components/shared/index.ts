@@ -1,3 +1,4 @@
+export { ContentErrorBoundary, useRetryKey } from './content-error-boundary';
 export { DateColumnHeader, type DateColumnHeaderProps, type TableDateFilter } from './date-column-header';
 export { DeviceInfoSection } from './device-info-section';
 export type { DeviceSelectorProps, InfiniteScrollConfig } from './device-selector';
@@ -39,6 +40,7 @@ export type {
 } from './policies-table/policy-table-row';
 export { formatQueryInterval, QueriesTable, type QueriesTableProps } from './queries-table/queries-table';
 export type { QueryTableAction, QueryTableRow } from './queries-table/query-table-row';
+export { SectionLoadError, type SectionLoadErrorProps } from './section-load-error';
 export { type SelectableTag, SelectableTagsRow, SelectableTagsRowSkeleton } from './selectable-tags-row';
 export {
   liveColumnMeta,

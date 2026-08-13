@@ -5,6 +5,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { loadErrorProps } from '@/lib/query-state';
 import {
   useAdminAiConfig,
   useClientAiConfig,
@@ -80,9 +81,18 @@ export function AiSettings() {
   const customerError = (!clientAi.config && clientAi.error) || (!clientView.view && clientView.error);
   const mingoLoading = adminAi.isLoading && !adminAi.config;
   const mingoError = !adminAi.config && adminAi.error;
+  // Offline is neither loading nor error: the query is PAUSED, so `isLoading` and
+  // `error` are both false with no data. Without this branch the screen falls
+  // through to `getDefaultAgentAiConfig`/`getDefaultClientView` below, renders an
+  // editable form seeded from those defaults, and Save writes them over the
+  // tenant's real settings — the exact overwrite the `hasLoadError` guard says it
+  // prevents.
+  const customerOffline = (!clientAi.config && clientAi.isOffline) || (!clientView.view && clientView.isOffline);
+  const mingoOffline = !adminAi.config && adminAi.isOffline;
 
   const isLoading = isCustomer ? customerLoading : isMingo ? mingoLoading : false;
   const hasLoadError = isCustomer ? Boolean(customerError) : isMingo ? Boolean(mingoError) : false;
+  const isOffline = isCustomer ? customerOffline : isMingo ? mingoOffline : false;
 
   const refetchActive = useCallback(() => {
     if (isCustomer) {
@@ -190,12 +200,16 @@ export function AiSettings() {
     onSave: handleSave,
   });
 
-  // Disabled (not hidden) while loading to avoid a flash; hidden on load error.
-  const headerActions = hasLoadError
-    ? undefined
-    : isLoading
-      ? actions.map(action => ({ ...action, disabled: true }))
-      : actions;
+  // Disabled (not hidden) while loading to avoid a flash; hidden once the body
+  // has given up on rendering a form at all. Offline hides them for the same
+  // reason as an error: there is no config below to edit, so Edit would open an
+  // empty form and Save would write it over the tenant's real settings.
+  const headerActions =
+    hasLoadError || isOffline
+      ? undefined
+      : isLoading
+        ? actions.map(action => ({ ...action, disabled: true }))
+        : actions;
 
   return (
     <AiSettingsLayout actions={headerActions} mobileBottomActions={isEditMode}>
@@ -211,13 +225,16 @@ export function AiSettings() {
             );
           }
 
-          // Load failed with nothing cached: error + retry instead of editable
-          // defaults, so real settings can't be overwritten on save.
-          if (hasLoadError) {
+          // Nothing cached: the failure copy instead of editable defaults, so real
+          // settings can't be overwritten on save.
+          if (isOffline || hasLoadError) {
             return (
               <LoadError
-                message="Couldn't load AI settings. The service may be temporarily unavailable."
-                onRetry={refetchActive}
+                {...loadErrorProps(
+                  isOffline,
+                  "Couldn't load AI settings. The service may be temporarily unavailable.",
+                  refetchActive,
+                )}
               />
             );
           }

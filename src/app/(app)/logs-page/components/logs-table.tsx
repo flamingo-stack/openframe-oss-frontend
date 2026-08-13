@@ -51,6 +51,7 @@ import {
   LogDrawer,
   onboardingGuideButton,
   type TableDateFilter,
+  useRetryKey,
 } from '@/app/components/shared';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -221,6 +222,7 @@ function LogsTableContent({
   const [isPending, startTransition] = useTransition();
   const [selectedLog, setSelectedLog] = useState<UiLogEntry | null>(null);
 
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<LogsQueryType>(
     logsTableRelayQuery,
     {
@@ -230,7 +232,7 @@ function LogsTableContent({
       search: debouncedSearch || null,
       sort,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext, refetch } = usePaginationFragment<

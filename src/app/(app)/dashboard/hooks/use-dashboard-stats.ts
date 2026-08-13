@@ -4,24 +4,35 @@ import { useQuery } from '@tanstack/react-query';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { isSaasTenantMode } from '@/lib/app-mode';
+import { queryState } from '@/lib/query-state';
 import { dashboardApiService } from '../services/dashboard-api-service';
 import { dashboardQueryKeys } from '../utils/query-keys';
 
 /**
  * These queries are `enabled: isAuthenticated`, and the auth store is populated by
  * `useAuthSession`'s effect — i.e. AFTER first paint, now that nothing blocks the
- * app while the session resolves. So on the first render the query is disabled.
+ * app while the session resolves. So on the first render the query is disabled,
+ * and `useTicketsOverview` is additionally gated on a mode that may never open at
+ * all. Both readings come from `queryState` (see `lib/query-state.ts`), which is
+ * the one place that knows a disabled query is not "loaded", a paused one is not
+ * "loading", and a shut gate is neither.
  *
- * `isLoading` is the wrong flag for that window. In react-query v5 it is
- * `isPending && isFetching`, and a disabled query is pending but NOT fetching — so
- * `isLoading` reads `false` while there is no data at all, and consumers render
- * their loaded state over empty data: zeroes in the stat cards, "No Customers added
- * yet" on a tenant that has customers, onboarding steps shown as not-done.
+ * ## Counters are `number | null`, and `null` means "we don't know"
  *
- * `isPending` is the honest flag: true whenever the query has no data, disabled
- * included. It must still be combined with any PERMANENT gate (see
- * `useTicketsOverview`), or a query that is never meant to run in this mode would
- * report "loading" forever.
+ * These used to coalesce to `0`, which is a different claim entirely. In the
+ * ERROR state — where `isPending` is false, so no skeleton renders — the whole
+ * dashboard drew `ONLINE DEVICES 0 (0%)`, `OFFLINE DEVICES 0 (0%)` and every
+ * ticket count at 0, with no error anywhere on screen. On an RMM console that
+ * reads as "all clear" when the truth is "nothing loaded", and it was observed
+ * persisting long after connectivity returned.
+ *
+ * Consumers must render `null` as unavailable (`—`), never as a number, and must
+ * not feed it to a progress ring — see `devices-overview.tsx`.
+ *
+ * That `| null` IS this layer's "unknown" encoding, which is why these hooks pick
+ * fields off `queryState` instead of spreading it the way the nine list hooks do:
+ * a counter already says whether it knows its own value, so `hasData` would be a
+ * second answer to the same question.
  */
 
 export function useDevicesOverview() {
@@ -32,7 +43,12 @@ export function useDevicesOverview() {
   // other device surface (see `invalidateDeviceQueries`).
   const query = useQuery({
     queryKey: deviceQueryKeys.stats(),
-    queryFn: dashboardApiService.fetchDeviceStats,
+    // Called, not passed: React Query invokes `queryFn` as a bare function, so a
+    // method reference arrives with `this === undefined` and the service's own
+    // `catch { throw this.handleApiError(...) }` throws a TypeError that REPLACES
+    // the real failure. Every error path — 500, timeout, offline — reported
+    // "undefined is not an object (evaluating 'this.handleApiError')" instead.
+    queryFn: () => dashboardApiService.fetchDeviceStats(),
     enabled: isAuthenticated,
     staleTime: 1 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
@@ -40,19 +56,21 @@ export function useDevicesOverview() {
     retryDelay: 1000,
   });
 
+  const state = queryState(query);
+
   return {
-    total: query.data?.total ?? 0,
-    active: query.data?.active ?? 0,
-    inactive: query.data?.inactive ?? 0,
-    pending: query.data?.pending ?? 0,
-    archived: query.data?.archived ?? 0,
-    activePercentage: query.data?.activePercentage ?? 0,
-    inactivePercentage: query.data?.inactivePercentage ?? 0,
-    pendingPercentage: query.data?.pendingPercentage ?? 0,
-    archivedPercentage: query.data?.archivedPercentage ?? 0,
-    // `isPending`, not `isLoading` — see the note above.
-    isLoading: query.isPending,
-    error: query.error?.message ?? null,
+    total: query.data?.total ?? null,
+    active: query.data?.active ?? null,
+    inactive: query.data?.inactive ?? null,
+    pending: query.data?.pending ?? null,
+    archived: query.data?.archived ?? null,
+    activePercentage: query.data?.activePercentage ?? null,
+    inactivePercentage: query.data?.inactivePercentage ?? null,
+    pendingPercentage: query.data?.pendingPercentage ?? null,
+    archivedPercentage: query.data?.archivedPercentage ?? null,
+    isLoading: state.isLoading,
+    isOffline: state.isOffline,
+    error: state.error,
     refetch: query.refetch,
   };
 }
@@ -63,7 +81,8 @@ export function useTicketsOverview() {
 
   const query = useQuery({
     queryKey: dashboardQueryKeys.ticketStats(),
-    queryFn: dashboardApiService.fetchTicketStats,
+    // Same unbound-`this` trap as `fetchDeviceStats` above.
+    queryFn: () => dashboardApiService.fetchTicketStats(),
     enabled: isSaasMode && isAuthenticated,
     staleTime: 3 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
@@ -71,22 +90,26 @@ export function useTicketsOverview() {
     retryDelay: 1000,
   });
 
+  // `'closed'` in OSS mode: this query never runs there, and a gate that will not
+  // open is idle, not loading — read as loading it would skeleton for the life of
+  // the page.
+  const state = queryState(query, isSaasMode ? 'open' : 'closed');
+
   return {
-    total: query.data?.total ?? 0,
-    active: query.data?.active ?? 0,
-    resolved: query.data?.resolved ?? 0,
+    total: query.data?.total ?? null,
+    active: query.data?.active ?? null,
+    resolved: query.data?.resolved ?? null,
     avgResolveTime: query.data?.avgResolveTime ?? '—',
-    avgFaeRate: query.data?.avgFaeRate ?? 0,
-    activePercentage: query.data?.activePercentage ?? 0,
-    resolvedPercentage: query.data?.resolvedPercentage ?? 0,
-    aiAssistance: query.data?.aiAssistance ?? 0,
-    techRequired: query.data?.techRequired ?? 0,
-    otherStatuses: query.data?.otherStatuses ?? 0,
+    avgFaeRate: query.data?.avgFaeRate ?? null,
+    activePercentage: query.data?.activePercentage ?? null,
+    resolvedPercentage: query.data?.resolvedPercentage ?? null,
+    aiAssistance: query.data?.aiAssistance ?? null,
+    techRequired: query.data?.techRequired ?? null,
+    otherStatuses: query.data?.otherStatuses ?? null,
     techRequiredColor: query.data?.techRequiredColor,
-    // `isSaasMode` is the PERMANENT half of the gate: in OSS mode this query never
-    // runs, so a bare `isPending` would report "loading" for the life of the page.
-    isLoading: isSaasMode && query.isPending,
-    error: query.error?.message ?? null,
+    isLoading: state.isLoading,
+    isOffline: state.isOffline,
+    error: state.error,
     refetch: query.refetch,
   };
 }

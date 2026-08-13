@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { useApplyAssignmentsDiff, useAssignedItems } from '@/components/assignments';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
+import { queryState } from '@/lib/query-state';
 import { API_ENDPOINTS, CREATION_SOURCE } from '../constants';
 import { GET_TICKET_QUERY } from '../queries/ticket-queries';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
@@ -34,7 +35,7 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
   const tempAttachments = useTempAttachments();
   const { mutateAsync: applyAssignmentsDiff } = useApplyAssignmentsDiff();
 
-  const { data: ticket, isLoading: isLoadingTicket } = useQuery({
+  const ticketQuery = useQuery({
     queryKey: ticketsQueryKeys.editForm(ticketId || ''),
     queryFn: async () => {
       const response = await apiClient.post<GraphQlResponse<{ ticket: Ticket }>>(API_ENDPOINTS.GRAPHQL, {
@@ -48,6 +49,11 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
     // (the edit-form key isn't covered by every detail-only invalidation).
     staleTime: 0,
   });
+  const ticket = ticketQuery.data;
+  // `gate: 'closed'` outside edit mode — the query never runs there, so it must
+  // not report loading.
+  const ticketState = queryState(ticketQuery, isEditMode ? 'open' : 'closed');
+  const isLoadingTicket = ticketState.isLoading;
 
   // Resolve the ticket's current status (statusDefinition, or the legacy-status fallback
   // for tickets with no statusId) so edit mode can prefill it.
@@ -179,6 +185,10 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
     ticket,
     isEditMode,
     isLoadingTicket,
+    // Gates Save in edit mode. `isLoadingTicket` cannot: offline the query PAUSES
+    // and reports false with no data, so the form renders blank and Save writes
+    // those blanks over the real ticket.
+    ticketLoaded: ticketState.hasData,
     isSubmitting:
       createTicketMutation.isPending || updateTicketMutation.isPending || transitionTicketMutation.isPending,
     handleSave,

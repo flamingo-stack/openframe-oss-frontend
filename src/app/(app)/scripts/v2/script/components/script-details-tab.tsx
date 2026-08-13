@@ -3,6 +3,7 @@
 import { memo, Suspense, useLayoutEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
 import { ScriptArgumentsCard } from '../../../components/script/script-arguments-card';
 import { ScriptEditor } from '../../../components/script/script-editor';
@@ -31,10 +32,11 @@ const SOURCE_LOADING: SourceState = { status: 'loading' };
  * whole script every time the user comes back to this tab.
  */
 function ScriptParamCards({ scriptId, onResolved }: { scriptId: string; onResolved: (state: SourceState) => void }) {
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
     { id: scriptId },
-    { fetchPolicy: 'store-or-network' },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
   const script = data.script;
 

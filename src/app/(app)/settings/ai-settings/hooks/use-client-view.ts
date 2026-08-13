@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { queryState } from '@/lib/query-state';
 import {
   GET_CLIENT_VIEW_QUERY,
   RESET_CLIENT_VIEW_MUTATION,
@@ -72,7 +73,7 @@ export function useClientView(organizationId: string | null = null, { enabled = 
     enabled,
   });
 
-  return { view: result.data ?? null, isLoading: result.isLoading, error: result.error, refetch: result.refetch };
+  return { view: result.data ?? null, ...queryState(result, enabled ? 'open' : 'closed'), refetch: result.refetch };
 }
 
 /**
