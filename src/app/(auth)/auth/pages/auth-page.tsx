@@ -27,11 +27,13 @@ export default function AuthPage() {
     }
   }, [isAuthenticated, router]);
 
-  // Warm the Login tab's chunk so switching tabs (a router.replace, which unlike
-  // <Link> isn't auto-prefetched) swaps the form instantly instead of flashing
-  // the route loading skeleton.
+  // Warm the Login tab and the Sign Up step. Neither is a <Link> (the tab is a
+  // router.replace, the CTA a router.push), so neither is auto-prefetched;
+  // warming their chunks swaps the form instantly instead of flashing the route
+  // loading skeleton. Signup is the primary CTA target, so it must be warmed too.
   useEffect(() => {
     router.prefetch(routes.auth.login);
+    router.prefetch(routes.auth.signup);
   }, [router]);
 
   const handleCreateOrganization = (orgName: string, domain: string, email: string) => {
@@ -39,7 +41,7 @@ export default function AuthPage() {
     sessionStorage.setItem('auth:org_name', orgName);
     sessionStorage.setItem('auth:domain', domain);
     sessionStorage.setItem('auth:email', email);
-    router.push('/auth/signup/');
+    router.push(routes.auth.signup);
   };
 
   // External providers offered by the backend for registration; Apple only on Apple devices.

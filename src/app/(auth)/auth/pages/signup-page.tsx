@@ -67,7 +67,7 @@ export default function SignupPage() {
   // nothing to register, so send the user back to the form.
   useEffect(() => {
     if (!storedOrgName || !storedDomain || !storedEmail) {
-      router.replace('/auth');
+      router.replace(routes.auth.root);
     }
   }, [storedOrgName, storedDomain, storedEmail, router]);
 
@@ -133,7 +133,7 @@ export default function SignupPage() {
         onPasswordChange={setPassword}
         onConfirmPasswordChange={setConfirmPassword}
         onSubmit={handleSubmit}
-        onBack={() => router.push('/auth')}
+        onBack={() => router.push(routes.auth.root)}
         ssoProviders={formProviders}
         onSsoClick={handleSso}
         submitLabel={isSharedAuthUi() ? 'Start Free Trial' : 'Create Organization'}
