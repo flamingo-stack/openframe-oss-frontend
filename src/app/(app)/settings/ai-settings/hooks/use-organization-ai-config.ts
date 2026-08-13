@@ -14,7 +14,8 @@ import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from './
  */
 
 export const organizationAiConfigQueryKeys = {
-  detail: (organizationId: string) => ['organization-client-ai-config', { organizationId }] as const,
+  all: ['organization-client-ai-config'] as const,
+  detail: (organizationId: string) => [...organizationAiConfigQueryKeys.all, { organizationId }] as const,
 };
 
 const ORGANIZATION_CLIENT_AI_CONFIG_FIELDS = `
