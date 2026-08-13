@@ -112,7 +112,7 @@ html[data-shell="mobile"] body::before {
 
 /* Full-screen view roots: `app-shell-root` (core AppLayout root) and
    `of-auth-shell` (core AuthShell — the auth pages render outside
-   AppLayout). The top inset lives HERE, not on the
+   AppLayout); `of-standalone-shell` below is the third. The top inset lives HERE, not on the
    header: with the inset on the header, a `topBar` banner rendered above it
    started at y=0 under the status bar (clipped by the band), the header
    double-padded, and the burger menu's below-header offset (top: 48px = the
@@ -120,6 +120,67 @@ html[data-shell="mobile"] body::before {
 html[data-shell="mobile"] .app-shell-root,
 html[data-shell="mobile"] .of-auth-shell {
   padding-top: var(--native-safe-top, env(safe-area-inset-top));
+}
+
+/* Standalone full-screen pages — rendered outside BOTH of the roots above, i.e.
+   with no chrome to hand the remaining edges to, so this root owns all four.
+   Currently just /account-deleted, which the deletion flow `replace`s onto once
+   the session is gone. Unlike those roots it has design padding of its own, so
+   the insets go through `max()` (the shape `.app-top-bar` below uses): the inset
+   wins where it is larger — the status bar was cropping the logo — and the page's
+   40px survives everywhere it is not, e.g. the portrait sides. */
+html[data-shell="mobile"] .of-standalone-shell {
+  padding-top: max(var(--native-safe-top, env(safe-area-inset-top)), var(--spacing-system-xlf));
+  padding-bottom: max(var(--native-safe-bottom, env(safe-area-inset-bottom)), var(--spacing-system-xlf));
+  padding-left: max(var(--native-safe-left, env(safe-area-inset-left)), var(--spacing-system-xlf));
+  padding-right: max(var(--native-safe-right, env(safe-area-inset-right)), var(--spacing-system-xlf));
+}
+
+/* The software keyboard is the app's bottom inset while it is up, and nothing
+   else applies it: the WebView keeps its frame (iOS runs the Keyboard plugin at
+   `resize: 'none'`; Android's window is edge-to-edge, where the IME is only a
+   WindowInsets type), so `h-screen` keeps reporting the full height and every
+   bottom-anchored composer — the Mingo drawer's and the ticket client-chat's —
+   opens UNDER the keyboard with no way to scroll to it. Absorbing it on the
+   layout root is what `adjustResize` would do: `h-screen` is border-box, so
+   this shrinks the content box and every `flex-1` descendant with it, including
+   the AppLayoutDrawer's portal container. `--of-keyboard-inset` is published by
+   keyboard-inset.ts (0 while closed) and already includes the home-indicator
+   band, which the keyboard covers. Deliberately no transition: this reflows the
+   whole app, and the composer landing a beat before the keyboard finishes its
+   slide is what every native list does. Viewport-`fixed` overlays escape this
+   root and compensate themselves — see modal-v2/dialog in the core lib. */
+html[data-shell="mobile"] .app-shell-root {
+  padding-bottom: var(--of-keyboard-inset, 0px);
+}
+
+/* Markdown editor (KB article + ticket create/edit forms). Absorbing the keyboard
+   inset on the layout root is only half the answer for it: the library sizes
+   `.w-md-editor` from a fixed pixel `height` prop — 400px/500px here, a desktop drag-to-resize
+   default — which is MORE than the strip a phone keyboard leaves, so the frame
+   and the caret in it stay covered no matter where <main> is scrolled, and the
+   editor's own scroller can't help because it scrolls WITHIN that covered frame.
+   Cap the frame to the keyboard-free viewport instead: `max-height` outranks the
+   library's inline `height` whatever the specificity, and `.w-md-editor` is a
+   flex column, so the toolbar keeps its size (below) and the text/preview
+   scroller absorbs the difference. 48px is the app header — the only chrome
+   between the viewport top and <main> — and the rest is breathing room; the
+   floor keeps the editor usable in landscape, where the free strip is barely
+   taller than the toolbar. Both numbers are approximations on purpose: the cap
+   only has to come out no taller than <main>'s scrollport for the browser's
+   scroll-on-focus to be ABLE to reveal the whole frame. */
+html[data-shell="mobile"] .advanced-blog-editor .w-md-editor {
+  max-height: max(
+    calc(100vh - var(--native-safe-top, env(safe-area-inset-top)) - var(--of-keyboard-inset, 0px) - 72px),
+    9rem
+  );
+}
+
+/* The toolbar is the one part that must not pay for the cap: it is `height:
+   fit-content` with a default `flex-shrink`, so the flex column takes its cut
+   out of the toolbar's 36px buttons too and clips them. */
+html[data-shell="mobile"] .advanced-blog-editor .w-md-editor-toolbar {
+  flex-shrink: 0;
 }
 
 /* Header contents clear the notch/rounded corners in landscape. No top
