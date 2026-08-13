@@ -122,6 +122,35 @@ html[data-shell="mobile"] .of-auth-shell {
   padding-top: var(--native-safe-top, env(safe-area-inset-top));
 }
 
+/* Markdown editor (KB article + ticket create/edit forms). Absorbing the keyboard
+   inset on the layout root is only half the answer for it: the library sizes
+   `.w-md-editor` from a fixed pixel `height` prop — 400px/500px here, a desktop drag-to-resize
+   default — which is MORE than the strip a phone keyboard leaves, so the frame
+   and the caret in it stay covered no matter where <main> is scrolled, and the
+   editor's own scroller can't help because it scrolls WITHIN that covered frame.
+   Cap the frame to the keyboard-free viewport instead: `max-height` outranks the
+   library's inline `height` whatever the specificity, and `.w-md-editor` is a
+   flex column, so the toolbar keeps its size (below) and the text/preview
+   scroller absorbs the difference. 48px is the app header — the only chrome
+   between the viewport top and <main> — and the rest is breathing room; the
+   floor keeps the editor usable in landscape, where the free strip is barely
+   taller than the toolbar. Both numbers are approximations on purpose: the cap
+   only has to come out no taller than <main>'s scrollport for the browser's
+   scroll-on-focus to be ABLE to reveal the whole frame. */
+html[data-shell="mobile"] .advanced-blog-editor .w-md-editor {
+  max-height: max(
+    calc(100vh - var(--native-safe-top, env(safe-area-inset-top)) - var(--of-keyboard-inset, 0px) - 72px),
+    9rem
+  );
+}
+
+/* The toolbar is the one part that must not pay for the cap: it is `height:
+   fit-content` with a default `flex-shrink`, so the flex column takes its cut
+   out of the toolbar's 36px buttons too and clips them. */
+html[data-shell="mobile"] .advanced-blog-editor .w-md-editor-toolbar {
+  flex-shrink: 0;
+}
+
 /* Header contents clear the notch/rounded corners in landscape. No top
    padding — the top inset is owned by .app-shell-root above. */
 html[data-shell="mobile"] header.sticky {
