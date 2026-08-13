@@ -51,9 +51,9 @@ import {
   DateColumnHeader,
   EmptyState,
   liveColumnMeta,
-  onboardingGuideButton,
   skeletonColumnDefs,
   type TableDateFilter,
+  useOnboardingGuideButton,
   useRetryKey,
 } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -507,6 +507,8 @@ function SchedulesTableContent({
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
+  const guideButton = useOnboardingGuideButton('script-schedules');
+
   if (showEmptyState && archived) {
     return (
       <EmptyState
@@ -528,7 +530,7 @@ function SchedulesTableContent({
           { icon: <RadarIcon />, label: 'Target specific devices, Customers, or tags' },
           { icon: <ListBulletIcon />, label: 'View execution history and success rates' },
         ]}
-        {...onboardingGuideButton('script-schedules', 'Learn more about Script Schedules')}
+        {...guideButton}
       />
     );
   }
