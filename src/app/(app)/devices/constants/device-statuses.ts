@@ -17,6 +17,10 @@ export const DEVICE_STATUS = {
   MAINTENANCE: 'MAINTENANCE',
   DECOMMISSIONED: 'DECOMMISSIONED',
   PENDING: 'PENDING',
+  // Filter values are sanitized against the generated `DeviceStatus` enum
+  // (`toRelayDeviceFilter`) before hitting GraphQL, so PENDING_DELETION is
+  // silently dropped from queries until the backend adds it to the schema and
+  // `schema.graphql` / schema-enums are refreshed. Safe to ship ahead of BE.
   PENDING_DELETION: 'PENDING_DELETION',
   ARCHIVED: 'ARCHIVED',
   DELETED: 'DELETED',
