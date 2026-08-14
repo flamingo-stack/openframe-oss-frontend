@@ -127,6 +127,7 @@ export type MessageDataType =
   | 'APPROVAL_REQUEST'
   | 'APPROVAL_RESULT'
   | 'SYSTEM'
+  | 'TICKET_EVENT'
   | 'CONTEXT_COMPACTION_START'
   | 'CONTEXT_COMPACTION_END';
 
@@ -212,6 +213,18 @@ export interface SystemData extends MessageData {
   text: string;
 }
 
+/** Ticket lifecycle receipt — same field names as the live `TICKET_EVENT`
+ *  NATS chunk, so one core-lib mapper covers both paths. `kind` is an open
+ *  vocabulary (RESOLVED/REOPENED today); unknown kinds still render. */
+export interface TicketEventData extends MessageData {
+  type: 'TICKET_EVENT';
+  kind: string;
+  actorId?: string | null;
+  actorName?: string | null;
+  actorType?: string | null;
+  reason?: string | null;
+}
+
 export interface Message {
   id: string;
   dialogId: string;
@@ -228,6 +241,7 @@ export interface Message {
     | ApprovalRequestData
     | ApprovalResultData
     | SystemData
+    | TicketEventData
     | MessageData;
 }
 
