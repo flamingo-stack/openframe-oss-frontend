@@ -100,12 +100,15 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
     [toast, options, invalidateDevices],
   );
 
+  // Triggers a remote uninstall: the backend marks the device PENDING_DELETION
+  // and the agent uninstalls itself the next time the device comes online. The
+  // device stays visible in lists until the uninstall completes.
   const deleteDevice = useCallback(
     async (deviceId: string, deviceName?: string): Promise<boolean> => {
       setIsDeleting(true);
       try {
-        const response = await apiClient.patch(`/api/devices/${deviceId}`, {
-          status: DEVICE_STATUS.DELETED,
+        const response = await apiClient.post('/api/force/client/uninstall', {
+          machineIds: [deviceId],
         });
 
         if (!response.ok) {
@@ -113,8 +116,8 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
         }
 
         toast({
-          title: 'Device deleted',
-          description: `${deviceName || deviceId} has been deleted`,
+          title: 'Device deletion scheduled',
+          description: `OpenFrame will be uninstalled from ${deviceName || deviceId} when it comes online`,
         });
 
         invalidateDevices();
