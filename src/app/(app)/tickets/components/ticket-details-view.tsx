@@ -967,7 +967,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     <>
       <InfoSection title="Ticket Details" rows={infoRows} />
       <TicketAttachmentsSection ticketId={dialog.id} attachments={dialog.attachments ?? []} />
-      <TicketTagsSection ticketId={dialog.id} labels={dialog.labels ?? []} />
+      <TicketTagsSection ticketId={dialog.id} tags={dialog.tags ?? []} />
       <TicketNotesSection
         notes={uiNotes}
         isAddingNote={addNoteMutation.isPending}
@@ -1111,7 +1111,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
             createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
             description={dialog.description || dialog.title || ''}
             attachments={uiAttachments}
-            tags={(dialog.labels || []).map(l => l.key)}
+            tags={(dialog.tags || []).map(t => t.key)}
             notes={uiNotes}
             isAddingNote={addNoteMutation.isPending}
             onAddNote={text => {
@@ -1200,7 +1200,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                   createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
                   description={dialog.description || dialog.title || ''}
                   attachments={uiAttachments}
-                  tags={(dialog.labels || []).map(l => l.key)}
+                  tags={(dialog.tags || []).map(t => t.key)}
                   notes={uiNotes}
                   onAddNote={text => {
                     if (dialog?.id) addNoteMutation.mutate({ content: text });

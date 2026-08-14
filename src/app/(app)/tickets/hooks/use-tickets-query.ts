@@ -18,7 +18,7 @@ export function useTicketsQuery({
   statusFilters,
   organizationIds,
   assigneeIds,
-  labelIds,
+  tagIds,
   pageSize = TICKETS_PAGE_SIZE,
 }: DialogsQueryParams) {
   const { toast } = useToast();
@@ -47,7 +47,7 @@ export function useTicketsQuery({
       statusIds,
       organizationIds,
       assigneeIds,
-      labelIds,
+      tagIds,
       pageSize,
     }),
     enabled: !waitingForStatusIds,
@@ -68,7 +68,7 @@ export function useTicketsQuery({
         search: search || undefined,
         organizationIds: organizationIds?.length ? organizationIds : undefined,
         assigneeIds: assigneeIds?.length ? assigneeIds : undefined,
-        labelIds: labelIds?.length ? labelIds : undefined,
+        tagIds: tagIds?.length ? tagIds : undefined,
         cursor: pageParam as string | undefined,
         limit: pageSize,
       });
@@ -102,11 +102,11 @@ export function useTicketsQuery({
         statusIds,
         organizationIds,
         assigneeIds,
-        labelIds,
+        tagIds,
         pageSize,
       }),
     });
-  }, [queryClient, archived, search, statusFilters, statusIds, organizationIds, assigneeIds, labelIds, pageSize]);
+  }, [queryClient, archived, search, statusFilters, statusIds, organizationIds, assigneeIds, tagIds, pageSize]);
 
   return {
     dialogs,

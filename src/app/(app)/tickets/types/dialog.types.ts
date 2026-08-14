@@ -63,7 +63,7 @@ export interface Dialog {
   assignedName?: string;
   assigneeImageUrl?: string;
   assigneeImageHash?: string;
-  labels?: Array<{ id: string; key: string; color?: string }>;
+  tags?: Array<{ id: string; key: string; color?: string }>;
   escalatedByUser?: boolean | null;
   // Latest pending tool-approval request for this ticket's dialog (from Ticket.pendingApproval).
   pendingApproval?: BoardTicketPendingApproval;
