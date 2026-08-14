@@ -21,7 +21,9 @@
 import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
+import { navigatesCurrentWindow } from '@/lib/link-click';
 
 // Tweaks on top of Tag's `badge` skin so the mention matches the canonical
 // context chip (`ChatContextChipStrip`). We KEEP Tag's natural height (h-8 =
@@ -55,12 +57,21 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   if (!href) return chip;
 
   // Same-window: soft-nav rather than let the anchor do a full document load —
-  // every chip href is an in-app route, and the drawer this chip lives in closes
-  // itself on the resulting `pathname` change (see `AppLayout`). The `href` stays
-  // on the element regardless, so it is still a real link to copy or long-press.
+  // every chip href is an in-app route. The `href` stays on the element
+  // regardless, so it is still a real link to copy or long-press.
+  //
+  // The drawer is closed HERE rather than left to `AppShell`'s pathname-change
+  // effect, which cannot see most of these navigations: detail pages carry their
+  // entity in `?id=`, so a chip pointing at the record already on screen changes
+  // no URL at all, and one pointing at a sibling record changes only the query —
+  // both leave `pathname` untouched, the effect never runs, and the drawer stays
+  // put. Below md that drawer covers the whole viewport, so the click reads as
+  // dead. Only in same-window mode: a new-tab chip leaves this page alone, and
+  // the conversation should still be here when the user comes back.
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (!sameWindow || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (!sameWindow || !navigatesCurrentWindow(e)) return;
     e.preventDefault();
+    useMingoLauncherStore.getState().close();
     router.push(href);
   };
 
