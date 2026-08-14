@@ -22,7 +22,9 @@ import {
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
+import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
+import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
@@ -359,6 +361,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // Monitoring, Logs, Tickets) and 2 secondary (Knowledge Base, Settings).
       loadingRows: { primary: 7, secondary: 2 },
       onNavigate: handleNavigate,
+      // Desktop shell only: renders nothing until the shell reports an update
+      // waiting. The slot is a render prop because the same node also draws in
+      // the mobile burger menu, where there is no rail to collapse into.
+      topSlot: ({ minimized }) => <SidebarUpdateButton minimized={minimized} />,
       // `h-full` (not `h-screen`) so the sidebar fills the layout row below the
       // optional top bar rather than overflowing the viewport by its height.
       className: 'h-full',
@@ -634,6 +640,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       {/* Logout confirmation modal — opened from the nav user menu and the
           Settings "Log Out" button via `useLogoutConfirmStore`. */}
       <LogoutConfirmModal />
+      {/* Desktop shell update offer. Also owns the mount-time availability
+          check that the sidebar's update button reads. No-op elsewhere. */}
+      <DesktopUpdateModal />
       {/* Floating walkthrough/demo video — the same widget every other Flamingo
           platform ships, mounted ONCE for the whole app next to the chat
           drawer. Which bottom corner it pins to is content-managed (the hub
