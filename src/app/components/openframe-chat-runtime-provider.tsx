@@ -50,6 +50,7 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
 
@@ -166,14 +167,26 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   // `openframe-docs` chips / cards / search results navigate identically here.
   const navigate = useCallback<NonNullable<ChatRuntime['navigation']['navigate']>>(
     ({ href, path }) => {
+      // Every branch that moves THIS window also dismisses the Mingo drawer the
+      // chat may be sitting in. `AppShell` closes it on a `pathname` change, but
+      // that misses exactly the links a chat emits most: a doc swap and a hash
+      // jump change no path at all, and `?id=`/`?slug=` targets change only the
+      // query — so the drawer stayed over the page it had just navigated, which
+      // below md is the entire viewport. A no-op when the drawer is closed, i.e.
+      // for the Help Center / knowledge-base surfaces sharing this runtime.
+      const navigated = () => {
+        useMingoLauncherStore.getState().close();
+        return true;
+      };
+
       // 1. In-page doc-tree swap when `path` matches a mounted viewer.
-      if (path != null && docNav.navigate(path)) return true;
+      if (path != null && docNav.navigate(path)) return navigated();
       // 2. Same-origin URL → soft-nav (hash targets get the smooth same-page tween
       //    + synthetic `hashchange` so FAQ auto-expand / scroll-to-hash still fire).
       if (!isCrossOriginUrl(href)) {
         const target = stripSameOriginToPath(href);
         if (!navigateSamePageHash(target)) router.push(target);
-        return true;
+        return navigated();
       }
       // 3. Cross-origin → let the lib open it (new tab).
       return false;
