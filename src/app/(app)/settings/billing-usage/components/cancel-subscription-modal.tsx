@@ -36,7 +36,7 @@ const REASON_OPTIONS: ReadonlyArray<{ value: CancelReason; label: string }> = [
   { value: 'OTHER', label: 'Other' },
 ];
 
-export interface DataLossStats {
+interface DataLossStats {
   activeDevices: number;
   tickets: number;
   kbArticles: number;

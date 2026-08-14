@@ -42,7 +42,7 @@ interface GraphQlEnvelope<T> {
   errors?: Array<{ message: string }>;
 }
 
-export interface CancellationImpact {
+interface CancellationImpact {
   /** Total tickets across every status (active, on-hold, resolved, …). */
   tickets: number;
   kbArticles: number;

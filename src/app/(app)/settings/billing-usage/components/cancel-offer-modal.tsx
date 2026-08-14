@@ -9,7 +9,6 @@ import {
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ComponentType } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
-import { routes } from '@/lib/routes';
 import type { CancelReason } from './cancel-subscription-modal';
 
 interface OfferPreset {
@@ -28,7 +27,8 @@ const OFFER_PRESETS: Record<CancelReason, OfferPreset> = {
     ctaTitle: 'Find a Plan that Fits',
     ctaDescription: `Keep everything you've built at a lower cost.`,
     ctaIcon: LayersMinusIcon,
-    ctaHref: routes.settings.billingSubscription,
+    // No href: the plan picker is a modal on the page this opens from, so the
+    // caller handles it (`onCtaClick`) rather than navigating anywhere.
   },
   NOT_USING_ENOUGH: {
     title: 'Compare Plans',
@@ -36,7 +36,8 @@ const OFFER_PRESETS: Record<CancelReason, OfferPreset> = {
     ctaTitle: 'Find a Plan that Fits',
     ctaDescription: `Keep everything you've built at a lower cost.`,
     ctaIcon: LayersMinusIcon,
-    ctaHref: routes.settings.billingSubscription,
+    // No href: the plan picker is a modal on the page this opens from, so the
+    // caller handles it (`onCtaClick`) rather than navigating anywhere.
   },
   MISSING_FEATURE: {
     title: 'Check the Roadmap',
@@ -86,14 +87,14 @@ export function CancelOfferModal({
   const preset = OFFER_PRESETS[reason];
   const CtaIcon = preset.ctaIcon;
 
+  // An href is an outside destination (roadmap, support mail) and always wins;
+  // a preset without one is asking the page to do something in place.
   const handleCtaClick = () => {
-    if (onCtaClick) {
-      onCtaClick();
-      return;
-    }
     if (preset.ctaHref) {
       window.open(preset.ctaHref, '_blank', 'noopener,noreferrer');
+      return;
     }
+    onCtaClick?.();
   };
 
   return (
