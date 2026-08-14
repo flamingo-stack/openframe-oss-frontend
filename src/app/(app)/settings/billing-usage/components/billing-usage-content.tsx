@@ -322,18 +322,25 @@ export function BillingUsageContent() {
           The fix is in the header, where the primary button becomes "Expand AI
           Limit" for exactly these two states. */}
       {ai.tone !== 'default' && ai.capUsd != null && (
-        <div className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
+        <div className="flex items-center gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
           <AlertTriangleIcon
             className={cn('size-6 shrink-0', ai.tone === 'error' ? 'text-ods-error' : 'text-ods-warning')}
           />
           <div className="flex min-w-0 flex-col">
             <p className="text-h3 font-bold text-ods-text-primary">
-              {ai.capReached ? 'AI agents are paused.' : 'AI agents will pause soon.'}
+              {ai.capReached ? 'AI agents are paused. Your AI balance is empty.' : 'AI agents will pause soon.'}
             </p>
+            {/* No figures: the card above states the spend and the limit in full,
+                and a block that repeats them turns one fact into two to compare.
+                The "balance" here is the headroom left under the cap the user set
+                — not the token bank this product stopped selling. */}
             <p className="text-h4 text-ods-text-secondary">
               {ai.capReached
-                ? `You've reached your ${formatCurrency(ai.capUsd)} monthly AI limit. Mingo and Fae stay paused until you raise it.`
-                : `You've used ${formatCurrency(ai.spendUsd)} of your ${formatCurrency(ai.capUsd)} monthly AI limit. Mingo and Fae stop responding when it's reached.`}
+                ? // Not "top up": nothing can be bought to resume. The cap is
+                  // self-imposed and raising it is the only way out, which is
+                  // exactly what the header button does.
+                  'Mingo and Fae stopped responding until you raise the limit.'
+                : 'Your AI balance is running low. Mingo and Fae stop responding when it hits zero.'}
               {/* Only when the period has a known end — the reset date is that
                   date, not a separate fact this can guess at. */}
               {billing.nextBillingDate && ` Free tokens reset on ${formatDateOrDash(billing.nextBillingDate)}.`}
