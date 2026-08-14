@@ -32,10 +32,20 @@ const SOFTWARE_COLUMNS = {
   lastUsed: { id: 'last_opened_at', header: 'LAST USED', width: 'w-[140px] shrink-0', hideAt: 'md' },
 } satisfies Record<string, TableSkeletonColumn>;
 
+/**
+ * Below `md` the row is CVE + severity + the details button only. The percentage
+ * widths this table uses on desktop are unusable there — on a 375px viewport the
+ * row's inner width is ~310px, so `20%`/`16%` resolve to ~62px/~50px and the row
+ * (which is `overflow-hidden`) clipped both the CVE id and the severity tag.
+ * So CVE takes the leftover space, severity gets the fixed width its tag needs,
+ * and SOFTWARE drops out of the row — `VulnerabilitiesTab` folds the package name
+ * into the CVE cell as a second line there, which DISCOVERED has no equivalent of
+ * and is the least useful of the three for mobile triage anyway.
+ */
 const VULNERABILITY_COLUMNS = {
-  cve: { id: 'cve', header: 'CVE ID', width: 'w-[20%]' },
-  severity: { id: 'severity', header: 'SEVERITY', width: 'w-[16%]', sortable: true },
-  software: { id: 'software_name', header: 'SOFTWARE', width: 'flex-1 min-w-0' },
+  cve: { id: 'cve', header: 'CVE ID', width: 'flex-1 min-w-0 md:flex-none md:w-[20%]' },
+  severity: { id: 'severity', header: 'SEVERITY', width: 'w-[88px] md:w-[16%]', sortable: true },
+  software: { id: 'software_name', header: 'SOFTWARE', width: 'flex-1 min-w-0', hideAt: 'md' },
   discovered: { id: 'created_at', header: 'DISCOVERED', width: 'w-[18%]', sortable: true, hideAt: 'md' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
