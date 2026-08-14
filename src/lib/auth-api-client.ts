@@ -14,7 +14,7 @@ import {
   type RegistrationAttribution,
 } from './registration-attribution';
 import { runtimeEnv } from './runtime-config';
-import { refreshAccessToken } from './token-refresh-manager';
+import { refreshTokens } from './token-refresh-manager';
 import { getAccessTokenSync, getRefreshToken, getTokenEpoch, isBearerAuthMode } from './token-store';
 
 function getDomainSuffix(): string {
@@ -75,9 +75,15 @@ class AuthApiClient {
       return null;
     }
 
-    const refreshSuccess = await refreshAccessToken(sentAtEpoch);
+    const outcome = await refreshTokens(sentAtEpoch);
 
-    if (refreshSuccess) {
+    if (outcome === 'transient') {
+      // Not a rejected credential (5xx, WAF 403, dropped link, timeout) — fail
+      // this request rather than ending a working session.
+      return { data: undefined, error: 'Authentication temporarily unavailable', status: 0, ok: false };
+    }
+
+    if (outcome === 'refreshed') {
       if (isBearerAuthMode()) {
         const newToken = getAccessTokenSync();
         if (newToken) {

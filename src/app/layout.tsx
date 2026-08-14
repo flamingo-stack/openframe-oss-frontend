@@ -22,6 +22,7 @@ import { NativeShellInitializer } from './components/native-shell-initializer';
 import { NotificationsDataProvider } from './components/notifications/notifications-data-provider';
 import { OfflineBanner } from './components/offline-banner';
 import { RegistrationAttributionCapture } from './components/registration-attribution-capture';
+import { TokenFreshnessWatcher } from './components/token-freshness-watcher';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://openframe.ai'),
@@ -124,6 +125,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <EmbedShimRegistration />
         <DeploymentInitializer />
         <NativeShellInitializer />
+        <TokenFreshnessWatcher />
         <PostHogAnalyticsBridge />
         <RelayProvider>
           <QueryClientProvider>
