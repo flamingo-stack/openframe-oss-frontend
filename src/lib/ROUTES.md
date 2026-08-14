@@ -73,6 +73,20 @@ These mirror the app-router constraints (static-export build):
 
 - **No dynamic path segments.** Detail pages take the entity id as a query
   param, always named `id`: `/customers/details?id=…`, `/monitoring/policy?id=…`.
+  This is a hard constraint, not a style preference. `output: 'export'` can only
+  serve paths it prerendered, and the native shell answers every *un*prerendered
+  path with the ROOT `index.html` (Capacitor's `CapacitorRouter` maps any
+  extensionless path to `basePath + "/index.html"`) — so a nav to one fails its
+  RSC-payload fetch, falls back to a hard navigation, and silently reloads the app
+  at `/` instead of 404ing visibly. A `[slug]` route with a placeholder
+  `generateStaticParams` does **not** buy an escape hatch: it prerenders the
+  placeholder and nothing else.
+  A dynamic segment is allowed *only* when its params are fully enumerable at
+  build time — `/help-center/legal/[docType]` prerenders both of its values.
+  The Help Center content routes are the one naming variation:
+  `/help-center/onboarding-guides/detail?slug=…` and
+  `/help-center/releases/detail?slug=…` use `slug`, not `id`, because the content
+  endpoints resolve by slug only and 404 on an id.
 - **Create pages are dedicated `/new` segments** (`/customers/new`,
   `/monitoring/policy/new`, `/scripts-v2/new`), not an `?id=new` sentinel.
 - **Multi-param routes** compose through the options object:

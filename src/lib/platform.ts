@@ -79,3 +79,18 @@ export function mobilePlatform(): 'ios' | 'android' | null {
   const platform = (window as any).Capacitor?.getPlatform?.();
   return platform === 'ios' || platform === 'android' ? platform : null;
 }
+
+/**
+ * Running on an Apple device — the iOS Capacitor shell, or a browser on
+ * iOS/iPadOS/macOS (the desktop shell on a Mac included). Gates Apple-only
+ * auth surfaces (the "Continue with Apple" button): the iOS shell gets the
+ * native sheet, everything else in this set uses the web OAuth flow. UA
+ * sniffing is the only non-Capacitor signal; iPadOS Safari reports
+ * "Macintosh", which lands in the allowed set either way. The Android shell
+ * and non-Apple desktops stay excluded via the shell check / UA.
+ */
+export function isApplePlatform(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (isMobileShell()) return mobilePlatform() === 'ios';
+  return /Mac|iPhone|iPad|iPod/.test(window.navigator.userAgent);
+}

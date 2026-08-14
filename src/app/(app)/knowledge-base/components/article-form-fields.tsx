@@ -13,6 +13,7 @@ import { Controller, type UseFormReturn } from 'react-hook-form';
 import { EntityTagPicker } from '@/app/components/shared/tags';
 import { AssignmentsField } from '@/components/assignments';
 import { TagEntityType } from '@/generated/schema-enums';
+import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
 import { useArticleImageUpload } from '../hooks/use-article-image-upload';
 import type { useArticleTempAttachments } from '../hooks/use-article-temp-attachments';
 import { buildFolderTree, KNOWLEDGE_BASE_ROOT_LABEL, useKnowledgeBaseFolders } from '../hooks/use-knowledge-base-items';
@@ -33,7 +34,7 @@ export function ArticleFormFields({ form, initialTags, tempAttachments }: Articl
   const uploadArticleImage = useArticleImageUpload();
   const tree = useMemo(() => buildFolderTree(folders), [folders]);
 
-  const handleFilesAdded = (incoming: File | File[] | undefined) => {
+  const handleFilesAdded = (incoming: UploadSource | UploadSource[] | undefined) => {
     if (!incoming) return;
     const fileArray = Array.isArray(incoming) ? incoming : [incoming];
     for (const file of fileArray) {
@@ -152,6 +153,7 @@ export function ArticleFormFields({ form, initialTags, tempAttachments }: Articl
 
       <FileUpload
         onChange={handleFilesAdded}
+        pickFiles={nativeFilePicker({ multiple: true })}
         managedFiles={managedFiles}
         onRemoveManagedFile={tempAttachments.removeFile}
         multiple

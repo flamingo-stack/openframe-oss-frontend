@@ -1,6 +1,8 @@
 'use client';
 
 import { DashboardInfoCard, TicketStatusTag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { SectionLoadError } from '@/app/components/shared';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useTicketsOverview } from '../hooks/use-dashboard-stats';
 import { TicketsOverviewSkeleton } from './dashboard-skeletons';
@@ -16,27 +18,33 @@ export function TicketsOverviewSection() {
     <div>
       <TitleBlock title="Tickets Overview" />
 
+      {(tickets.error || tickets.isOffline) && (
+        <SectionLoadError
+          {...loadErrorProps(tickets.isOffline, "Couldn't load ticket counts.", () => tickets.refetch())}
+        />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-mf)]">
         <DashboardInfoCard
           titleSlot={<TicketStatusTag status="AI_ASSISTANCE" />}
-          value={tickets.aiAssistance}
+          value={tickets.aiAssistance ?? '—'}
           href={routes.tickets.list}
         />
         <DashboardInfoCard
           titleSlot={<TicketStatusTag status="TECH_REQUIRED" color={tickets.techRequiredColor} />}
-          value={tickets.techRequired}
+          value={tickets.techRequired ?? '—'}
           href={routes.tickets.list}
         />
         <DashboardInfoCard
           titleSlot={<TicketStatusTag status="RESOLVED" />}
-          value={tickets.resolved}
+          value={tickets.resolved ?? '—'}
           href={routes.tickets.list}
         />
         <DashboardInfoCard
           titleSlot={
             <span className="text-h5 uppercase text-ods-text-secondary flex items-center h-8">Other Statuses</span>
           }
-          value={tickets.otherStatuses}
+          value={tickets.otherStatuses ?? '—'}
           href={routes.tickets.list}
         />
       </div>

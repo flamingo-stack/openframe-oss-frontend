@@ -22,6 +22,10 @@ export type OwnerGate = 'loading' | 'owner' | 'not-owner';
  * enum for them, so the comparison is case-insensitive, matching the existing check in
  * `employee-details-view.tsx`.
  *
+ * Ownership only — the questions where handing the workspace over is the point, such
+ * as self-deletion. Billing is NOT one of them: it is open to admins too, and asks
+ * `use-billing-access-gate.ts` instead.
+ *
  * Signed out answers `'loading'`, not `'not-owner'`: `AppLayoutInner` is already
  * redirecting (OSS) or replacing the app (SaaS), and a 404 flashed on the way out is
  * worse than the placeholder the page shows while it leaves.

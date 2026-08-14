@@ -6,12 +6,13 @@ import {
   MonitorIcon,
   TerminalIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { DevicesPanel, EmptyState, onboardingGuideButton } from '@/app/components/shared';
+import { DevicesPanel, EmptyState, useOnboardingGuideButton } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
 import { useHasOrganizations } from './hooks/use-has-organizations';
 
 export default function Devices() {
   const { hasOrganizations, isLoading } = useHasOrganizations();
+  const guideButton = useOnboardingGuideButton('devices');
 
   return (
     <DevicesPanel
@@ -32,7 +33,7 @@ export default function Devices() {
             { icon: <BracketCurlyIcon />, label: 'Run scripts, policies, and queries across one or many devices' },
             { icon: <TerminalIcon />, label: 'Launch remote sessions and view full software inventory' },
           ]}
-          {...onboardingGuideButton('devices', 'Learn more about Devices')}
+          {...guideButton}
         />
       }
     />

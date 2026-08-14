@@ -47,6 +47,30 @@ export interface NativeAuthPlugin {
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
   exchangeTicket(options: { url: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
   /**
+   * Native Sign in with Apple (ASAuthorizationController) — iOS-only, and
+   * absent on binaries that predate it; callers must feature-check and fall
+   * back to `start`. `nonce` is the SHA-256 hex of the raw nonce the JS side
+   * generated (Apple embeds it into the identity token's `nonce` claim).
+   * Rejects with USER_CANCELED when the user dismisses the sheet.
+   */
+  signInWithApple?(options: { nonce: string }): Promise<{
+    identityToken: string;
+    authorizationCode: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }>;
+  /**
+   * POSTs the Apple credential to the gateway's native-exchange endpoint over
+   * native HTTP (same no-CORS rationale as exchangeTicket) and returns tokens
+   * from the Access-Token / Refresh-Token response headers. Paired with
+   * `signInWithApple`; same availability caveat.
+   */
+  exchangeApple?(options: {
+    url: string;
+    body: Record<string, string>;
+  }): Promise<{ accessToken?: string; refreshToken?: string }>;
+  /**
    * Reads the stored tokens. When biometric login is enabled the shell gates
    * this behind a biometric prompt, so it may reject with `BIOMETRIC_CANCELED`
    * (user dismissed the prompt) or `BIOMETRIC_INVALIDATED` (enrollment changed —
@@ -107,6 +131,34 @@ export interface FirebaseMessagingPlugin {
   ): Promise<unknown>;
 }
 
+/** A picked file as the NativeFiles plugin returns it, before `mimeType` is normalized to `type`. */
+export interface NativePickedFilePayload {
+  path: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+/**
+ * Subset of the shell's local NativeFiles plugin (openframe-mobile:
+ * NativeFilesPlugin.swift / NativeFilesPlugin.java; ships with the shell, not
+ * npm). Attachment bytes move through here instead of the WebView — native-files.ts
+ * owns the reasons and is the only module that should call these.
+ */
+export interface NativeFilesPlugin {
+  /** Resolves with an empty array when the user cancels. */
+  pickFiles(options: { multiple?: boolean }): Promise<{ files: NativePickedFilePayload[] }>;
+  /** Streams a picked file to a presigned URL; rejects on a non-2xx status. */
+  uploadFile(options: { path: string; url: string; contentType?: string }): Promise<{ status: number }>;
+  /**
+   * Fetches natively, then saves (Android Downloads) or shares (iOS, and Android
+   * below API 29) the result. `savedToDownloads` distinguishes the two: a share
+   * sheet is its own confirmation, a silent save is not, and the caller has to
+   * say so itself.
+   */
+  downloadFile(options: { url: string; fileName: string }): Promise<{ savedToDownloads: boolean }>;
+}
+
 /** Subset of @capacitor/splash-screen (plugin ships with the shell, not npm). */
 export interface SplashScreenPlugin {
   hide(options?: { fadeOutDuration?: number }): Promise<void>;
@@ -160,6 +212,27 @@ export interface KeyboardPlugin {
   ): Promise<{ remove: () => void }> | { remove: () => void };
 }
 
+/**
+ * Subset of @capacitor/network, used because `navigator.onLine` in WKWebView lags
+ * the OS by up to minutes — see `lib/connectivity.ts` for the device
+ * measurements and why that matters to react-query.
+ *
+ * Same sync-or-Promise `addListener` union as `AppPlugin`/`KeyboardPlugin`, and
+ * for the same reason: this reads `window.Capacitor.Plugins.Network`, the
+ * document-start bridge shim, NOT the npm package's `registerPlugin` proxy whose
+ * types promise a Promise. The shim hands the handle back synchronously.
+ * Normalize with `Promise.resolve()` before chaining.
+ *
+ * Payload fields are optional because they arrive from that bridge untyped.
+ */
+export interface NetworkPlugin {
+  getStatus(): Promise<{ connected?: boolean; connectionType?: string }>;
+  addListener(
+    eventName: 'networkStatusChange',
+    listenerFunc: (status: { connected?: boolean; connectionType?: string }) => void,
+  ): Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
+}
+
 function capacitorPlugins(): any {
   return typeof window !== 'undefined' ? (window as any).Capacitor?.Plugins : undefined;
 }
@@ -188,6 +261,11 @@ export function firebaseMessagingPlugin(): FirebaseMessagingPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.FirebaseMessaging ?? null) : null;
 }
 
+/** Mobile-only. Also null on shell binaries that predate the NativeFiles plugin — callers fall back to the web path. */
+export function nativeFilesPlugin(): NativeFilesPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.NativeFiles ?? null) : null;
+}
+
 /** Mobile-only. Also null until @capacitor/splash-screen is present in the shell — callers no-op. */
 export function splashScreenPlugin(): SplashScreenPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.SplashScreen ?? null) : null;
@@ -206,6 +284,11 @@ export function appPlugin(): AppPlugin | null {
 /** Mobile-only. Also null until @capacitor/keyboard is present in the shell — callers fall back to visualViewport. */
 export function keyboardPlugin(): KeyboardPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.Keyboard ?? null) : null;
+}
+
+/** Mobile-only. Also null on shell binaries that predate the plugin — callers fall back to `navigator.onLine`. */
+export function networkPlugin(): NetworkPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.Network ?? null) : null;
 }
 
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';
@@ -295,6 +378,17 @@ export async function takeNativeStartupNotificationClick(): Promise<unknown> {
 }
 
 /**
+ * The current fullscreen element across both halves of the Fullscreen API. The
+ * shell's deployment target is iOS 15.0 and WebKit only went unprefixed in 16.4,
+ * so 15.4–16.3 expose `webkitFullscreenElement` alone. (media-chrome — what the
+ * Mux player is built on — probes the same pair.)
+ */
+function fullscreenElement(): Element | null {
+  const doc = document as Document & { webkitFullscreenElement?: Element | null };
+  return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+}
+
+/**
  * Publish the native safe-area insets as CSS variables consumed by the
  * mobile-scoped rules in globals.css
  * (`--native-safe-top/-bottom/-left/-right`). All four are set so landscape and
@@ -305,6 +399,18 @@ export async function takeNativeStartupNotificationClick(): Promise<unknown> {
  */
 export async function applyNativeSafeAreas(): Promise<void> {
   if (!isMobileShell()) return;
+  // Never publish insets while an element is fullscreen — the numbers are wrong
+  // AND unused. Capacitor turns on WKWebView element fullscreen
+  // (`isElementFullscreenEnabled`), which is the path the Mux player's fullscreen
+  // button takes, and WebKit services it by reparenting the WKWebView — which IS
+  // the bridge view controller's root view (`view = webView`) — into its own
+  // fullscreen window, whose view controller hides the status bar. So
+  // `getSafeAreaInsets` reads back ~0 there. Entering fires a `resize`, which used
+  // to publish those zeros; exiting restores the same viewport size and fires NO
+  // second resize, so the zeros stuck and the app chrome came back sitting under
+  // the Dynamic Island. Nothing needs the values meanwhile: the fullscreen element
+  // renders in the top layer, above the safe-area band.
+  if (fullscreenElement()) return;
   try {
     const insets = await nativeAuthPlugin()?.getSafeAreaInsets?.();
     if (!insets) return;
@@ -366,9 +472,16 @@ export async function initNativeChrome(): Promise<void> {
     // Rotation resizes the WebView and swaps which edges carry insets. iOS can
     // still report the pre-rotation safeAreaInsets in the same frame as the
     // resize event, so take a trailing read once the transition settles.
-    window.addEventListener('resize', () => {
+    const refresh = () => {
       void applyNativeSafeAreas();
       window.setTimeout(() => void applyNativeSafeAreas(), 350);
-    });
+    };
+    window.addEventListener('resize', refresh);
+    // Leaving element fullscreen is the one transition `resize` does NOT cover:
+    // the viewport comes back the size it already was, so no resize fires and the
+    // insets `applyNativeSafeAreas` skipped during fullscreen would never be
+    // republished. Both spellings — see `fullscreenElement`.
+    document.addEventListener('fullscreenchange', refresh);
+    document.addEventListener('webkitfullscreenchange', refresh);
   }
 }

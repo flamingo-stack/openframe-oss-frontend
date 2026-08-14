@@ -2,30 +2,26 @@
 
 import { WifiOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { subscribeConnectivity } from '@/lib/connectivity';
 
 /**
- * Non-intrusive connectivity banner: watches `navigator.onLine` and the
- * `online`/`offline` window events, showing a small pill when the network drops
- * and hiding it when it returns. `navigator.onLine` only guarantees "no network
- * interface", not reachability, so this is a hint — not a substitute for the
+ * Non-intrusive connectivity banner: a small pill while the network is down,
+ * gone once it returns. Reachability is only ever a hint — it means "no network
+ * interface", not "the gateway answers" — so this is not a substitute for the
  * per-request 401/refresh/retry paths. Web and native shell alike.
+ *
+ * Reads `connectivity.ts` rather than `navigator.onLine` directly. On device that
+ * is the difference between a pill that clears promptly and one that sits on top
+ * of live, already-recovered data — WKWebView's `online` event trails the real
+ * reconnect badly (measurements in `connectivity.ts`).
  */
 export function OfflineBanner() {
   // Start online: `navigator` is undefined during SSR/static export, and a
   // false-positive "offline" flash on first paint is worse than a one-tick
-  // delay before the effect corrects a genuinely-offline load.
+  // delay before the first real reading arrives.
   const [offline, setOffline] = useState(false);
 
-  useEffect(() => {
-    const sync = () => setOffline(!navigator.onLine);
-    sync();
-    window.addEventListener('online', sync);
-    window.addEventListener('offline', sync);
-    return () => {
-      window.removeEventListener('online', sync);
-      window.removeEventListener('offline', sync);
-    };
-  }, []);
+  useEffect(() => subscribeConnectivity(online => setOffline(!online)), []);
 
   if (!offline) return null;
 

@@ -1,10 +1,9 @@
 'use client';
 
-import { Button, Label, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { Card } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { ArrowLeft } from 'lucide-react';
+import { Label, LoadError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useEditScriptForm } from '../../hooks/use-edit-script-form';
 import { useScriptDetails } from '../../hooks/use-script-details';
@@ -27,7 +26,14 @@ export function EditScriptPage({ scriptId }: EditScriptPageProps) {
     [isEditMode, handleBackToDetails, handleBackToList],
   );
 
-  const { scriptDetails, isLoading: isLoadingScript, error: scriptError } = useScriptDetails(scriptId || '');
+  const {
+    scriptDetails,
+    isLoading: isLoadingScript,
+    isOffline: isScriptOffline,
+    hasData: scriptLoaded,
+    error: scriptError,
+    refetch: refetchScript,
+  } = useScriptDetails(scriptId || '');
   const { form, isSubmitting, handleSave } = useEditScriptForm({ scriptId, scriptDetails, isEditMode });
   const { testRun, handleRunTest, handleStopRun, clearTestRun } = useTestRuns(form.getValues);
 
@@ -61,26 +67,21 @@ export function EditScriptPage({ scriptId }: EditScriptPageProps) {
     return <EditScriptSkeleton />;
   }
 
-  if (scriptError && isEditMode) {
+  // Edit mode with no record: the form below would render at `useForm` defaults,
+  // the title would flip to "New Script", and Save would still dispatch the
+  // UPDATE path over the real script. `scriptError` already means "failed with no
+  // data", so it implies `!scriptLoaded` — the two failures share one exit.
+  if (isEditMode && !scriptLoaded && (isScriptOffline || scriptError)) {
     return (
-      <div className="min-h-screen bg-ods-bg p-6">
-        <div className="max-w-7xl mx-auto">
-          <Card className="bg-ods-error/20 border border-ods-error p-6">
-            <h2 className="text-h3 text-ods-error mb-2">Error Loading Script</h2>
-            <p className="text-ods-error">{scriptError}</p>
-            <Button onClick={handleBackToList} variant="destructive" className="mt-4">
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </Button>
-          </Card>
-        </div>
-      </div>
+      <PageLayout title="Edit Script" backButton={backButton}>
+        <LoadError {...loadErrorProps(isScriptOffline, "Couldn't load this script.", () => refetchScript())} />
+      </PageLayout>
     );
   }
 
   return (
     <PageLayout
-      title={isEditMode && scriptDetails ? 'Edit Script' : 'New Script'}
+      title={isEditMode ? 'Edit Script' : 'New Script'}
       backButton={backButton}
       actions={actions}
       actionsVariant="primary-buttons"

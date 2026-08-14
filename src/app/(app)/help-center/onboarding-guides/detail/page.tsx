@@ -1,15 +1,18 @@
 'use client';
 
 import { OnboardingGuideDetailView } from '@flamingo-stack/openframe-frontend-core/components/onboarding-guides';
-import { useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
 
 /**
  * Onboarding guide detail — config-only. The lib view self-fetches the guide
- * from `EP.onboardingBySlug`; this page supplies only the route slug + base path.
+ * from `EP.onboardingBySlug`; this page supplies only the slug + base path.
+ *
+ * The slug is a QUERY param, not a path segment: guide slugs are CMS content, so
+ * `output: 'export'` cannot prerender them (see `routes.helpCenter.onboardingGuide`).
  */
-export function OnboardingGuideDetailClient() {
-  const { slug = '' } = useParams<{ slug: string }>();
+export default function OnboardingGuideDetailRoute() {
+  const slug = useSearchParams().get('slug') ?? '';
   return (
     <OnboardingGuideDetailView
       shell={false}

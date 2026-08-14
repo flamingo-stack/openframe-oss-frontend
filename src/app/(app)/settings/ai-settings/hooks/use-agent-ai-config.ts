@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AIProvider } from '@/generated/schema-enums';
 import { apiClient } from '@/lib/api-client';
+import { queryState } from '@/lib/query-state';
 import {
   GET_ADMIN_AI_CONFIG_QUERY,
   GET_CLIENT_AI_CONFIG_QUERY,
@@ -11,6 +12,7 @@ import {
 } from '../queries/ai-settings-queries';
 import type { AgentAiConfig, AgentAiConfigInput, AgentType, AnswerStyle } from '../types/ai-settings';
 import type { GraphqlResponse } from './chat-graphql';
+import { organizationAiConfigQueryKeys } from './use-organization-ai-config';
 
 export const agentAiConfigQueryKeys = {
   detail: (agentType: AgentType) => ['agent-ai-config', agentType] as const,
@@ -79,8 +81,9 @@ function useAiConfigQuery(
 
   return {
     config: result.data ?? null,
-    isLoading: result.isLoading,
-    error: result.error,
+    // `gate` reflects the tab: an inactive tab's query never runs, so it must
+    // report idle rather than loading.
+    ...queryState(result, enabled ? 'open' : 'closed'),
     refetch: result.refetch,
   };
 }
@@ -126,6 +129,12 @@ function useUpdateAiConfig(agentType: AgentType, mutation: string, responseKey: 
     mutationFn: (input: AgentAiConfigInput) => postUpdateAiConfig(mutation, responseKey, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: agentAiConfigQueryKeys.detail(agentType) });
+      // The tenant CLIENT config is the EFFECTIVE config for every org still on
+      // `inheritDefault` — drop all org-scoped caches so mounted customer pages
+      // pick up the new values without a reload.
+      if (agentType === 'CLIENT') {
+        queryClient.invalidateQueries({ queryKey: organizationAiConfigQueryKeys.all });
+      }
     },
   });
 

@@ -10,7 +10,8 @@ interface MspOrganizationCardProps {
   website: string;
   logoUrl?: string;
   isLoading?: boolean;
-  onEditOrganization: () => void;
+  /** Omitted until the org has actually loaded — see `account-settings-card`. */
+  onEditOrganization?: () => void;
 }
 
 export function MspOrganizationCard({
@@ -61,6 +62,7 @@ export function MspOrganizationCard({
           label="Edit Organization"
           icon={<PenEditIcon className="w-5 h-5 text-ods-text-secondary" />}
           onClick={onEditOrganization}
+          disabled={!onEditOrganization}
         />
       </div>
     </div>

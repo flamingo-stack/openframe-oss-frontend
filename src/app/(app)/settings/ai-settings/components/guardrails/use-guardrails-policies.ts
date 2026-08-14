@@ -10,6 +10,7 @@ import {
   type PolicyTemplateDetail,
   type PolicyTemplateSummary,
 } from './guardrails.types';
+import { organizationGuardrailsQueryKeys } from './use-organization-guardrails';
 
 /**
  * React-query data layer for guardrails policy templates
@@ -84,6 +85,9 @@ export function useActivateGuardrailsTemplate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: guardrailsQueryKeys.all });
+      // Orgs on `inheritDefault` see the activated template as their EFFECTIVE
+      // guardrails — drop their caches so customer pages update live.
+      queryClient.invalidateQueries({ queryKey: organizationGuardrailsQueryKeys.all });
       toast({
         title: 'Guardrails Saved',
         description: 'Policy template activated successfully',
@@ -115,6 +119,9 @@ export function useSaveCustomGuardrailsPolicy() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: guardrailsQueryKeys.all });
+      // Same as activation: a changed custom policy may be the active tenant
+      // default that inheriting orgs resolve to.
+      queryClient.invalidateQueries({ queryKey: organizationGuardrailsQueryKeys.all });
       toast({
         title: 'Custom Policy Saved',
         description: 'Your custom policy has been saved successfully',

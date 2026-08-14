@@ -3,9 +3,8 @@ import { useMemo, useSyncExternalStore } from 'react';
 import type { TagEntry } from '@/app/components/shared/tags';
 import { isAppShell } from '@/lib/platform';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { buildInstallCommand } from '../utils/device-command-utils';
+import { assetsDownloadBase, buildInstallCommand } from '../utils/device-command-utils';
 import { useRegistrationSecret } from './use-registration-secret';
-import { useReleaseVersion } from './use-release-version';
 
 interface UseInstallCommandOptions {
   organizationId: string;
@@ -75,9 +74,13 @@ function getServerSnapshot(): string {
   return 'localhost';
 }
 
+/** Same deal for the download base — its local-dev fallback reads `window`. */
+function getServerDownloadBaseSnapshot(): string {
+  return '';
+}
+
 export function useInstallCommand({ organizationId, platform, tags = [] }: UseInstallCommandOptions) {
   const { initialKey } = useRegistrationSecret();
-  const { releaseVersion } = useReleaseVersion();
 
   // Read through the store rather than a `useMemo`: the prerender has no
   // `window` and answers 'localhost', so computing this during the first client
@@ -85,6 +88,7 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
   // with. The server's answer carries through hydration and is corrected right
   // after, which is also what makes the shell branch above safe to take.
   const serverUrl = useSyncExternalStore(subscribe, currentServerUrl, getServerSnapshot);
+  const downloadBaseUrl = useSyncExternalStore(subscribe, assetsDownloadBase, getServerDownloadBaseSnapshot);
 
   const command = useMemo(
     () =>
@@ -93,10 +97,10 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
         serverUrl,
         initialKey,
         orgId: organizationId,
-        releaseVersion,
+        downloadBaseUrl,
         additionalArgs: buildTagArgs(tags, platform),
       }),
-    [initialKey, tags, platform, organizationId, serverUrl, releaseVersion],
+    [initialKey, tags, platform, organizationId, serverUrl, downloadBaseUrl],
   );
 
   return { command, initialKey };

@@ -204,7 +204,29 @@ export function useAuthSession() {
     queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
   };
 
-  const isReady = !query.isLoading && !(query.isError && query.data === undefined);
+  /**
+   * "The session question has been ANSWERED" — not "no request is in flight".
+   *
+   * `isLoading` is `isPending && isFetching`, so it reads false for a query that
+   * is pending but not fetching. The case that matters is a PAUSED query: with a
+   * real connectivity signal (see `lib/connectivity.ts`) react-query pauses `/me`
+   * while offline instead of failing it, and paused reports
+   * `isPending: true, isFetching: false`. `isReady` therefore came out TRUE with
+   * `data === undefined`, `isAuthenticated` false — and the app concluded
+   * "signed out" from a request it had never sent.
+   *
+   * On a cold start in airplane mode that put a signed-in user with valid tokens
+   * in the Keychain behind the "Sign in required" overlay, whose only action
+   * needs the very network that is missing: tapping Sign In flashed `/auth` and
+   * bounced straight back.
+   *
+   * `isPending` is the honest flag — the same distinction `use-dashboard-stats.ts`
+   * documents for the stat cards. Being unable to ask is not an answer, so the
+   * overlay and the OSS redirect now wait, and the shell renders from the
+   * persisted auth store meanwhile (`app-layout.tsx`'s `storeAuthenticated`).
+   * A definitive 401/403 still resolves to `null` and still signs the user out.
+   */
+  const isReady = !query.isPending && !(query.isError && query.data === undefined);
 
   return {
     isReady,
