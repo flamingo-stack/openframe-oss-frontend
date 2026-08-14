@@ -82,7 +82,8 @@ export function ReopenTicketModal({ target, onClose, onSuccess }: ReopenTicketMo
       assigneeOptions={assigneeOptions.options.map(o => ({ label: o.label, value: o.value, imageUrl: o.imageUrl }))}
       assigneesLoading={assigneeOptions.isLoading}
       initialStatusId={initialStatusId}
-      // AC default: restore the previous assignee (the admin can clear it).
+      // Design default: restore the previous assignee. Both Status and
+      // Assigned are required — with no assignee the CTA stays locked.
       initialAssigneeId={ticket?.assignedTo ?? null}
       isPending={reopen.isPending}
       onConfirm={selection => {

@@ -4,76 +4,50 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { API_ENDPOINTS } from '../constants';
-import {
-  ASSIGN_TICKET_MUTATION,
-  REQUEST_TICKET_REOPEN_MUTATION,
-  UNASSIGN_TICKET_MUTATION,
-} from '../queries/ticket-queries';
+import { ASSIGN_TICKET_MUTATION, UNASSIGN_TICKET_MUTATION } from '../queries/ticket-queries';
 import { ticketService } from '../services';
 import type { TicketPayload } from '../types/ticket.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import { dialogsQueryKeys, invalidateAllDialogs, ticketsQueryKeys } from '../utils/query-keys';
-import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 
 export interface ReopenTicketInput {
   ticketId: string;
   /** Target status the admin picked in the modal. */
   toStatusId: string;
-  /** Kind-token of `toStatusId` (from the statuses snapshot) — lets the hook
-   *  skip the follow-up transition when the backend already reopened into a
-   *  status of the same SYSTEM kind. */
+  /** Kind-token of `toStatusId` (from the statuses snapshot). Unused today;
+   *  kept so the modal keeps passing it for when the backend grows an
+   *  admin reopen verb that wants it. */
   toStatusKind?: string;
   /** Desired assignee; `null` — leave/make the ticket unassigned. */
   assigneeId: string | null;
   /** The ticket's assignee before the modal opened, to diff against. */
   currentAssigneeId: string | null;
-  /** Trimmed modal reason; `null` when left blank. */
+  /** Trimmed modal reason; `null` when left blank. See the note on
+   *  `reopenTicketApi` — no admin-side wire accepts it yet. */
   reason: string | null;
 }
 
-interface TicketReopenPayload {
-  ticketId: string;
-  targetStatusKind?: string | null;
-  userErrors?: Array<{ field?: string[]; message: string }>;
-}
-
 /**
- * Composite admin reopen (documented BE contract, ClickUp 86ajnyctz):
+ * Admin reopen (ClickUp 86ajnyctz):
  *
- * 1. `requestTicketReopen` — THE reopen verb. Reopens the ticket into the
- *    backend's default target, records the reason, fires the TICKET_EVENT
- *    chat card and the TICKET_REOPENED notification.
- * 2. `transitionTicket` — only when the admin picked a status the backend
- *    didn't reopen into. Kinds are compared, not ids, because the payload
- *    carries a kind-token; two CUSTOM statuses share a kind, so a CUSTOM
- *    pick always transitions.
- * 3. Assignment — only when the modal selection differs from the ticket's
+ * 1. `transitionTicket` out of the terminal status. The backend treats a
+ *    terminal→open transition as THE admin reopen: it fires the TICKET_EVENT
+ *    chat card and the TICKET_REOPENED notification server-side.
+ *    `requestTicketReopen` is deliberately NOT called here — it is the
+ *    CLIENT-chat verb and the backend rejects admins with "Only the client
+ *    can reopen through the chat".
+ * 2. Assignment — only when the modal selection differs from the ticket's
  *    previous assignee (the design default restores it).
  *
- * The input has no target/assignee fields today; if the backend later folds
- * them into `TicketReopenInput`, steps 2-3 collapse into step 1.
+ * `reason` currently has no admin-side wire: the design's modal collects it,
+ * but neither `transitionTicket` nor any admin mutation accepts it yet —
+ * raised with BE; plumb it through here once a field exists.
  */
 async function reopenTicketApi(input: ReopenTicketInput): Promise<void> {
-  const { ticketId, toStatusId, toStatusKind, assigneeId, currentAssigneeId, reason } = input;
+  const { ticketId, toStatusId, assigneeId, currentAssigneeId } = input;
 
-  const response = await apiClient.post<GraphQlResponse<{ requestTicketReopen: TicketReopenPayload }>>(
-    API_ENDPOINTS.GRAPHQL,
-    {
-      query: REQUEST_TICKET_REOPEN_MUTATION,
-      variables: { input: { id: ticketId, ...(reason ? { reason } : {}) } },
-    },
-  );
-  const payload = extractGraphQlData(response).requestTicketReopen;
-  if (payload.userErrors?.length) {
-    throw new Error(payload.userErrors[0].message);
-  }
-
-  const reopenedIntoPickedKind =
-    !!toStatusKind && toStatusKind !== TICKET_STATUS_KIND.CUSTOM && payload.targetStatusKind === toStatusKind;
-  if (!reopenedIntoPickedKind) {
-    await ticketService.transitionTicket(ticketId, toStatusId);
-  }
+  await ticketService.transitionTicket(ticketId, toStatusId);
 
   if (assigneeId !== currentAssigneeId) {
     const isUnassign = assigneeId === null;
