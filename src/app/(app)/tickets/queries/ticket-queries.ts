@@ -581,6 +581,24 @@ export const REOPEN_TICKET_MUTATION = `
   }
 `;
 
+/**
+ * The reopen verb (ClickUp 86ajnyctz): flips a Resolved/Archived ticket back
+ * open, records the optional reason (backend trims, <=1000 chars), and fires
+ * the TICKET_EVENT chat card + the TICKET_REOPENED notification. Idempotent:
+ * on an already-open ticket it returns success with the current kind.
+ * `targetStatusKind` is the kind-token the backend reopened into
+ * (AI_ASSISTANCE / TECH_REQUIRED / ...), same vocabulary as the chat event.
+ */
+export const REQUEST_TICKET_REOPEN_MUTATION = `
+  mutation RequestTicketReopen($input: TicketReopenInput!) {
+    requestTicketReopen(input: $input) {
+      ticketId
+      targetStatusKind
+      userErrors { field message }
+    }
+  }
+`;
+
 export const REORDER_TICKET_MUTATION = `
   mutation ReorderTicket($input: ReorderTicketInput!) {
     reorderTicket(input: $input) {

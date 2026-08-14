@@ -2684,6 +2684,21 @@ type TicketStatusChangedContext implements NotificationContext {
   changedByUserId: ID
 }
 
+"""
+Hand-added ahead of the BE deploy from the documented reopen contract
+(ClickUp 86ajnyctz) — re-sync with `npm run fetch-schema` once the reopen
+backend ships. A reopen transition emits THIS instead of the generic
+TicketStatusChangedContext.
+"""
+type TicketReopenedContext implements NotificationContext {
+  type: String!
+  ticketId: ID!
+  ticketNumber: Int
+  dialogId: ID
+  targetStatusKind: String
+  reason: String
+}
+
 type TimeEntry implements Node {
   id: ID!
   userId: ID!
