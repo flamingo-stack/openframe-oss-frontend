@@ -48,6 +48,25 @@ export function pushIdentify(userId: string, email?: string): void {
   pushDataLayer({ event: FUNNEL_EVENTS.IDENTIFY, user_id: userId, ...(email ? { email } : {}) });
 }
 
+/**
+ * Report an exception to PostHog error tracking via the GTM-loaded
+ * `window.posthog`. Fire-and-forget: never throws into the surface it reports
+ * on, and no-op when PostHog is not loaded. `properties` are attached to the
+ * `$exception` event (e.g. tunnel state, node id) so a failure is diagnosable
+ * without a session recording.
+ */
+export function captureException(error: unknown, properties?: Record<string, unknown>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const ph = (window as unknown as Record<string, unknown>).posthog as
+      | { captureException?: (error: unknown, properties?: Record<string, unknown>) => void }
+      | undefined;
+    ph?.captureException?.(error instanceof Error ? error : new Error(String(error)), properties);
+  } catch {
+    // Error tracking is best-effort — never break the surface it reports on.
+  }
+}
+
 const PENDING_SIGNUP_KEY = 'posthog:pending_signup';
 
 /**
