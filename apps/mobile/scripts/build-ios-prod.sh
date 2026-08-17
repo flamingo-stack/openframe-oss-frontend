@@ -69,23 +69,28 @@ xcodebuild archive \
   -allowProvisioningUpdates \
   ${BUILD_NUMBER:+CURRENT_PROJECT_VERSION=$BUILD_NUMBER}
 
-# aps-environment comes from the APS_ENVIRONMENT build setting (production in
-# Release*). A `development` value here means push silently dies in the App
-# Store build — cheaper to catch now than after a review cycle.
-APS="$(codesign -d --entitlements - --xml "$ARCHIVE/Products/Applications/App.app" 2>/dev/null \
-  | plutil -extract aps-environment raw -o - - 2>/dev/null || true)"
-if [ "$APS" != "production" ]; then
-  echo "✗ archive has aps-environment='${APS:-<none>}', expected 'production' — push would not work in the shipped build." >&2
-  exit 1
-fi
-echo "✓ aps-environment: production"
-
 echo "▸ Exporting .ipa for App Store Connect…"
+rm -rf "$EXPORT_DIR"
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \
   -exportOptionsPlist "$HERE/ios/App/exportOptions-appstore.plist" \
   -exportPath "$EXPORT_DIR" \
   -allowProvisioningUpdates
+
+# aps-environment must be checked on the EXPORTED ipa, not the archive: with
+# cloud-managed automatic signing the archive is signed with the local Apple
+# Development identity (aps-environment=development, get-task-allow=true) and
+# only -exportArchive re-signs it with the Apple Distribution cert + App Store
+# profile. A `development` value here would ship a binary whose push silently
+# dies — cheaper to catch now than after a review cycle.
+IPA="$(basename "$(ls "$EXPORT_DIR"/*.ipa)")"
+APS="$(/usr/libexec/PlistBuddy -c "Print :${IPA}:0:entitlements:aps-environment" \
+  "$EXPORT_DIR/DistributionSummary.plist" 2>/dev/null || true)"
+if [ "$APS" != "production" ]; then
+  echo "✗ $IPA has aps-environment='${APS:-<none>}', expected 'production' — push would not work in the shipped build. Do not upload it." >&2
+  exit 1
+fi
+echo "✓ aps-environment: production"
 
 echo "✓ Exported: $EXPORT_DIR"
 echo "  Upload with the Transporter app, or:"

@@ -12,6 +12,7 @@ the "Select Firebase config" build phase `exit 0`s and the committed-path
 | Xcode | `App` scheme, `Debug` / `Release` |
 | team | `F7LDSU8JPJ` |
 | device family | iPhone only (`TARGETED_DEVICE_FAMILY = 1`) |
+| minimum iOS | 16.4 (`IPHONEOS_DEPLOYMENT_TARGET`) — set by the web bundle, see gotchas |
 
 ## Build + export
 
@@ -34,7 +35,13 @@ The lane refuses to proceed when any of these hold:
 - `ios/App/App/GoogleService-Info.plist` is missing (it's gitignored — without
   the guard the archive would succeed and ship a push-less binary, because the
   Firebase build phase deliberately does nothing for non-suffixed configs)
-- the archive's `aps-environment` is not `production`
+- the exported `.ipa`'s `aps-environment` is not `production` (read from
+  `build/prod/DistributionSummary.plist`). It is checked **after** the export, not
+  on the archive: with cloud-managed signing there is no Apple Distribution cert
+  in the local keychain, so `xcodebuild archive` always signs with the Apple
+  Development identity — the archived app reads `aps-environment=development`
+  even for a correct Release build, and `-exportArchive` is what re-signs it with
+  the distribution cert + Store profile
 
 ## One-time setup (manual, outside the repo)
 
@@ -97,3 +104,26 @@ analysis: vault note `Releases/Mobile App - Store Review Readiness Plan`.
   in Info.plist for exactly this reason.
 - SPM dependencies build in release mode under the custom configuration names;
   expected, no functional difference.
+- **The minimum iOS version is dictated by the web bundle, not by anything
+  native.** `IPHONEOS_DEPLOYMENT_TARGET = 16.4` mirrors Next 16's default
+  browserslist floor (`chrome 111, edge 111, firefox 111, safari 16.4`). Below
+  it the boot chunks fail to **parse**: Next's own client runtime emits class
+  `static {}` blocks, and the bundle carries regex lookbehind (core-lib
+  `validation-utils.ts` domain regex; `mdast-util-gfm-autolink-literal` email
+  autolink, via `remark-gfm`) — all Safari 16.4 syntax. The app then installs,
+  shows the splash and hangs there forever, because nothing evaluates, so
+  `SplashScreen.hide()` is never called and `launchAutoHide: false` keeps it up.
+  Reported on an iPhone 13 / iOS 16.3.
+  Re-check this floor on every Next major, and treat it as one-way: lookbehind
+  is **untranspilable** (SWC, Babel and esbuild all pass it through untouched),
+  so a browserslist override cannot lower it, and nothing fails at build time —
+  the only signal is a frozen splash on an old device. An
+  `esbuild --target=safari<min>` pass over the built bundle is the cheap CI guard.
+- **There is no App Store Connect field for supported OS versions.** Apple
+  derives "Requires iOS X.X or later" from the built Info.plist's
+  `MinimumOSVersion`, which Xcode injects from `IPHONEOS_DEPLOYMENT_TARGET` (no
+  source plist sets it) — so the build setting *is* the store declaration, and a
+  stale value silently advertises compatibility the binary doesn't have. Raising
+  it does not rescue existing installs: the device keeps the app, and Apple's
+  "last compatible version" flow offers those users the newest build whose
+  minimum is ≤ their OS — i.e. the broken one. Only an iOS update fixes them.

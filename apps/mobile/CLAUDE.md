@@ -195,11 +195,23 @@ build configurations.
   (`bundleProdRelease`) — Play rejects APKs and unsigned bundles, so it hard-fails when the
   `OF_UPLOAD_*` keystore vars are absent rather than letting Gradle log-and-continue. Bump
   per upload with `VERSION_CODE=`/`VERSION_NAME=` (wired to `-PofVersionCode`/`-PofVersionName`).
-  `build-ios-prod.sh` takes `BUILD_NUMBER=` and asserts the archive's `aps-environment` is
-  `production` before exporting.
+  `build-ios-prod.sh` takes `BUILD_NUMBER=` and asserts the exported **.ipa**'s
+  `aps-environment` is `production` (see the signing gotcha below).
 - `aps-environment` comes from the per-configuration **`APS_ENVIRONMENT` build setting**
   (`development` in Debug\*, `production` in Release\*), which `App.entitlements` references.
   Don't hardcode it back — a `development` value ships a binary whose push silently dies.
+- **The archive is dev-signed; only the export is distribution-signed.** This team uses
+  **cloud-managed** signing — there is no Apple Distribution cert in the local keychain
+  (`security find-identity -v -p codesigning` lists Apple Development only). So
+  `xcodebuild archive` signs with the local Apple Development identity + the team
+  *development* profile, and the archived `App.app` reads `aps-environment=development`,
+  `get-task-allow=true`, **regardless of the Release configuration**. `-exportArchive
+  -allowProvisioningUpdates` is what fetches the Cloud Managed Apple Distribution cert +
+  "iOS Team Store Provisioning Profile" and re-signs — the exported `.ipa` reads
+  `production` / `get-task-allow=false`. Verified on both lanes (prod + stage). Any
+  entitlement assertion must therefore run on `build/<env>/DistributionSummary.plist` (or
+  the ipa itself) **after** the export; the same check on the archive fails 100% of the
+  time on a correct build.
 - **iPhone-only**: `TARGETED_DEVICE_FAMILY = 1`. The console layout has never been validated
   at iPad width, and claiming iPad means Apple reviews it there.
 
