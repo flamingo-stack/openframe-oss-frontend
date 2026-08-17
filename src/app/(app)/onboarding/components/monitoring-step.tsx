@@ -1,11 +1,10 @@
 'use client';
 
 import { Input, Label } from '@flamingo-stack/openframe-frontend-core';
-import { CheckCircleIcon, ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -20,6 +19,7 @@ import { useReplacePolicyHosts } from '../../monitoring/policy/hooks/use-policy-
 import { ScriptEditor } from '../../scripts/components/script/script-editor';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 import { useStepActionState } from '../use-step-action-state';
+import { FullFormLink } from './full-form-link';
 
 const monitoringPolicySchema = z.object({
   name: z.string().min(1, 'Please enter a policy name'),
@@ -165,15 +165,7 @@ export function MonitoringStep({
 
       {/* Footer: full-form link (left) + Mark as Complete + Add Policy (right) */}
       <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
-        <Link
-          href={routes.monitoring.policyNew}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex flex-1 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary transition-colors hover:text-ods-text-primary"
-        >
-          <ExternalLinkIcon size={24} className="shrink-0" />
-          <span className="text-h4 underline">Full Policy Form</span>
-        </Link>
+        <FullFormLink href={routes.monitoring.policyNew} label="Full Policy Form" />
         <div className="flex flex-1 flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
           {!completed ? (
             <Button

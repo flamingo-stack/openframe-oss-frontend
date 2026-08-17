@@ -44,7 +44,13 @@ import type {
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { EmptyState, liveColumnMeta, onboardingGuideButton, skeletonColumnDefs } from '@/app/components/shared';
+import {
+  EmptyState,
+  liveColumnMeta,
+  skeletonColumnDefs,
+  useOnboardingGuideButton,
+  useRetryKey,
+} from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -136,6 +142,7 @@ function ScriptsTableContent({
 
   // One round-trip per interaction: the filter facets (`scriptFilters`) ride the
   // list operation — see the query docstring for the facet semantics.
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<ScriptsTableQueryType>(
     scriptsTableRelayQuery,
     {
@@ -144,7 +151,7 @@ function ScriptsTableContent({
       first: PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -546,6 +553,8 @@ function ScriptsTableContent({
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
+  const guideButton = useOnboardingGuideButton('scripts');
+
   if (showEmptyState && archived) {
     return (
       <EmptyState
@@ -576,7 +585,7 @@ function ScriptsTableContent({
             label: 'Let Mingo suggest or generate scripts for you',
           },
         ]}
-        {...onboardingGuideButton('scripts', 'Learn more about Scripts')}
+        {...guideButton}
       />
     );
   }

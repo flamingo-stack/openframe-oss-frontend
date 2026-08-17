@@ -53,7 +53,7 @@ interface TicketNode {
   assignedTo?: string;
   assignedName?: string;
   assigneeImage?: { imageUrl: string; hash?: string };
-  labels?: Array<{ id: string; key: string; color?: string }>;
+  tags?: Array<{ id: string; key: string; color?: string }>;
   escalatedByUser?: boolean | null;
   pendingApproval?: {
     id: string;
@@ -190,7 +190,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     assignedName: ticket.assignedName,
     assigneeImageUrl: ticket.assigneeImage?.imageUrl,
     assigneeImageHash: ticket.assigneeImage?.hash,
-    labels: ticket.labels,
+    tags: ticket.tags,
     escalatedByUser: ticket.escalatedByUser,
     pendingApproval: ticket.pendingApproval ?? undefined,
     attachments: ticket.attachments,
@@ -248,8 +248,8 @@ export class TicketService implements TicketServiceInterface {
     if (params.assigneeIds?.length) {
       filter.assigneeIds = params.assigneeIds;
     }
-    if (params.labelIds?.length) {
-      filter.labelIds = params.labelIds;
+    if (params.tagIds?.length) {
+      filter.tagIds = params.tagIds;
     }
 
     const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
@@ -286,7 +286,7 @@ export class TicketService implements TicketServiceInterface {
         search: params.search || undefined,
         organizationIds: params.organizationIds?.length ? params.organizationIds : undefined,
         assigneeIds: params.assigneeIds?.length ? params.assigneeIds : undefined,
-        labelIds: params.labelIds?.length ? params.labelIds : undefined,
+        tagIds: params.tagIds?.length ? params.tagIds : undefined,
       },
     });
 

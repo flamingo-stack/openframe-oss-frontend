@@ -60,7 +60,10 @@ export default function AccountDeletedPage() {
   }, [queryClient]);
 
   return (
-    <div className="min-h-screen bg-ods-bg flex flex-col items-center justify-between p-[var(--spacing-system-xlf)]">
+    // `of-standalone-shell` is what the native safe-area CSS keys off (globals.css):
+    // this page renders outside AppLayout and AuthShell, so nothing else applies the
+    // insets and the status bar cropped the logo.
+    <div className="of-standalone-shell min-h-screen bg-ods-bg flex flex-col items-center justify-between p-[var(--spacing-system-xlf)]">
       {/* Logo */}
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
         <OpenFrameLogo

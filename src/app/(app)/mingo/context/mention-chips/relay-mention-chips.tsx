@@ -37,6 +37,7 @@ import type { relayMentionChipsKbQuery } from '@/__generated__/relayMentionChips
 import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChipsNodeQuery.graphql';
 import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentionChipsScheduleQuery.graphql';
 import type { relayMentionChipsScriptQuery } from '@/__generated__/relayMentionChipsScriptQuery.graphql';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
 import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
@@ -53,7 +54,9 @@ interface GraphqlMentionChipProps {
   fallbackLabel?: string;
 }
 
-/** device + organization — both are in the backend `NodeType` enum. */
+/** device + organization — both are in the backend `NodeType` enum.
+ *  The Machine selection is exactly what `getDeviceName` reads, so a chip shows
+ *  the same name as the device page (nickname → displayName → hostname). */
 const NODE_QUERY = graphql`
   query relayMentionChipsNodeQuery($id: ID!) {
     node(id: $id) {
@@ -61,6 +64,7 @@ const NODE_QUERY = graphql`
       ... on Machine {
         hostname
         displayName
+        nickname
       }
       ... on Organization {
         name
@@ -131,7 +135,9 @@ function NodeInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
   if (node) {
     switch (node.__typename) {
       case 'Machine':
-        label = node.displayName || node.hostname || label;
+        // Same helper the device page/list use — a device with a user-set
+        // nickname must not read as its hostname here and as the nickname there.
+        label = getDeviceName(node) || label;
         break;
       case 'Organization':
         label = node.name || label;

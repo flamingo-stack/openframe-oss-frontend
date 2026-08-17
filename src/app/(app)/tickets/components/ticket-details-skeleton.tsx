@@ -241,8 +241,12 @@ function ClassicChatSkeleton() {
         </div>
       </div>
 
-      {/* Chat section — two columns on desktop, matching the loaded layout */}
-      <div className="flex-1 flex flex-col min-h-[500px]">
+      {/* Chat section — two columns on desktop, matching the loaded layout.
+          The 500px floor is `lg:` for the same reason it is in the loaded view:
+          below that width the section is the only flexible child, so keeping the
+          floor here would draw a taller skeleton than the content that replaces
+          it and jump the page on load. */}
+      <div className="flex-1 flex flex-col min-h-0 lg:min-h-[500px]">
         <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
           <div className="flex-1 lg:basis-1/2 min-w-0 flex flex-col gap-1 min-h-0">
             <Skeleton className="hidden lg:block h-5 w-24" />

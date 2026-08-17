@@ -20,10 +20,11 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EmptyState, onboardingGuideButton } from '@/app/components/shared';
+import { EmptyState, SectionLoadError, useOnboardingGuideButton } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { type CustomersDateQuery, useCustomers } from '../hooks/use-customers';
 import { type CustomersDateFilter, CustomersSearchInput, CustomersTableBody } from './customers-table-columns';
@@ -34,6 +35,10 @@ const noopFilterChange = () => {};
 interface CustomersTableProps {
   status?: string;
 }
+
+// One literal for both the strip above the table and the table's own empty
+// slot — they say the same thing and must not drift apart.
+const LOAD_ERROR_MESSAGE = "Couldn't load customers.";
 
 export function CustomersTable({ status }: CustomersTableProps) {
   const router = useRouter();
@@ -85,11 +90,17 @@ export function CustomersTable({ status }: CustomersTableProps) {
     [sortDirection, dateRange, handleDateFilterApply],
   );
 
-  const { customers, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, error } = useCustomers(
-    debouncedSearch,
-    status,
-    dateQuery,
-  );
+  const {
+    customers,
+    isLoading,
+    isOffline,
+    canClaimEmpty,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    error,
+    refetch,
+  } = useCustomers(debouncedSearch, status, dateQuery);
 
   const isInitialMountRef = useRef(true);
   useEffect(() => {
@@ -106,7 +117,10 @@ export function CustomersTable({ status }: CustomersTableProps) {
     router.push(routes.customers.new);
   }, [router]);
 
-  const showEmptyState = !isLoading && !debouncedSearch && !dateRange && customers.length === 0;
+  // `canClaimEmpty`, not `!isLoading`: the query must have answered WITH data
+  // before an empty list may be reported as "no customers" — offline and on a
+  // failure it has not, and this also drives the Add Customer button's variant.
+  const showEmptyState = canClaimEmpty && !debouncedSearch && !dateRange && customers.length === 0;
 
   const actions = useMemo(
     () => [
@@ -125,6 +139,8 @@ export function CustomersTable({ status }: CustomersTableProps) {
     [handleAddCustomer, showEmptyState],
   );
 
+  const guideButton = useOnboardingGuideButton('customers');
+
   return (
     <PageLayout
       title="Customers"
@@ -133,9 +149,8 @@ export function CustomersTable({ status }: CustomersTableProps) {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       contentClassName="flex flex-col"
     >
-      {error ? (
-        <div className="text-ods-error">{error}</div>
-      ) : showEmptyState ? (
+      {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
+      {showEmptyState ? (
         <EmptyState
           icon={<IdCardIcon />}
           title="No Customers yet"
@@ -145,7 +160,7 @@ export function CustomersTable({ status }: CustomersTableProps) {
             { icon: <GraphMixSquareIcon />, label: 'Track tickets, SLAs, and activity per Customer' },
             { icon: <ShieldCheckIcon />, label: 'Monitor security posture per Customer' },
           ]}
-          {...onboardingGuideButton('customers', 'Learn more about Customers')}
+          {...guideButton}
         />
       ) : (
         <div style={containerStyle}>
@@ -172,7 +187,13 @@ export function CustomersTable({ status }: CustomersTableProps) {
           <CustomersTableBody
             customers={customers}
             isLoading={isLoading}
-            emptyMessage="No customers found. Try adjusting your search or filters."
+            // Same rule as `showEmptyState`, one component down: zero rows after a
+            // failed or offline load must not read as "you have no customers".
+            emptyMessage={
+              canClaimEmpty
+                ? 'No customers found. Try adjusting your search or filters.'
+                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
+            }
             skeletonRows={10}
             stickyHeaderOffset={stickyHeaderOffset}
             dateFilter={dateFilter}

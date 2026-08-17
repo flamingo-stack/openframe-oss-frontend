@@ -9,7 +9,7 @@ export interface DialogsQueryParams {
   statusIds?: string[];
   organizationIds?: string[];
   assigneeIds?: string[];
-  labelIds?: string[];
+  tagIds?: string[];
   /** Page size override (default 20). Part of the query key — lists fetched
    *  with different page sizes must not share a cache entry. */
   pageSize?: number;
@@ -33,7 +33,7 @@ export const dialogsQueryKeys = {
         statusIds: params.statusIds || [],
         organizationIds: params.organizationIds || [],
         assigneeIds: params.assigneeIds || [],
-        labelIds: params.labelIds || [],
+        tagIds: params.tagIds || [],
         pageSize: params.pageSize ?? 20,
       },
     ] as const,
@@ -44,7 +44,7 @@ export const dialogsQueryKeys = {
   // Specific board column keyed by statusId + search + filters
   boardColumn: (
     statusId: string,
-    params: { search?: string; organizationIds?: string[]; assigneeIds?: string[]; labelIds?: string[] },
+    params: { search?: string; organizationIds?: string[]; assigneeIds?: string[]; tagIds?: string[] },
   ) =>
     [
       ...dialogsQueryKeys.boardColumns(),
@@ -53,7 +53,7 @@ export const dialogsQueryKeys = {
         search: params.search || '',
         organizationIds: params.organizationIds || [],
         assigneeIds: params.assigneeIds || [],
-        labelIds: params.labelIds || [],
+        tagIds: params.tagIds || [],
       },
     ] as const,
 } as const;
@@ -70,7 +70,7 @@ export const invalidateAllDialogs = (queryClient: any) => {
  */
 export const ticketsQueryKeys = {
   all: ['tickets'] as const,
-  labels: () => [...ticketsQueryKeys.all, 'labels'] as const,
+  tags: () => [...ticketsQueryKeys.all, 'tags'] as const,
   detail: (id: string) => [...ticketsQueryKeys.all, 'detail', id] as const,
   // Edit-form ticket fetch. Distinct from `detail` (which caches a Dialog) so the
   // full Ticket shape (statusDefinition, availableTransitions) isn't clobbered by — or read from — the Dialog cache.

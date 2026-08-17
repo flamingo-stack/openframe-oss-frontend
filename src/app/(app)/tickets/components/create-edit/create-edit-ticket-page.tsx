@@ -12,7 +12,7 @@ export function CreateEditTicketPage() {
   const searchParams = useSearchParams();
   const ticketId = searchParams.get('edit');
 
-  const { form, ticket, isEditMode, isLoadingTicket, isSubmitting, handleSave, tempAttachments, isFaeForm } =
+  const { form, ticket, isEditMode, ticketLoaded, isSubmitting, handleSave, tempAttachments, isFaeForm } =
     useCreateTicketForm({
       ticketId,
     });
@@ -40,11 +40,13 @@ export function CreateEditTicketPage() {
         label: isEditMode ? 'Save Changes' : 'Save Ticket',
         onClick: handleSave,
         variant: 'accent' as const,
-        disabled: isSubmitting || isLoadingTicket,
+        // `ticketLoaded`, not `isLoadingTicket`: a paused query reports not-loading
+        // with no data, which would let Save write a blank form over the ticket.
+        disabled: isSubmitting || (isEditMode && !ticketLoaded),
         loading: isSubmitting,
       },
     ],
-    [backButton, handleSave, isSubmitting, isLoadingTicket, isEditMode],
+    [backButton, handleSave, isSubmitting, ticketLoaded, isEditMode],
   );
 
   return (

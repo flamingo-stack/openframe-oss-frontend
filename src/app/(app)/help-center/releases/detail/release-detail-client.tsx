@@ -11,7 +11,6 @@ import type { RoadmapItem } from '@flamingo-stack/openframe-frontend-core/compon
 import { EntityVideoSection } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { embedAuthedFetch } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'next/navigation';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
 
 /**
@@ -83,8 +82,7 @@ function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; i
   );
 }
 
-export function ReleaseDetailClient() {
-  const { slug = '' } = useParams<{ slug: string }>();
+export function ReleaseDetailClient({ slug }: { slug: string }) {
   return (
     <ReleaseDetailPage
       shell={false}

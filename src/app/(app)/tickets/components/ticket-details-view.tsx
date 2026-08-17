@@ -61,6 +61,7 @@ import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
@@ -195,7 +196,13 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   }, []);
 
   const queryClient = useQueryClient();
-  const { ticket: dialog, isPending: isLoading, error: dialogError } = useTicketDetail(ticketId);
+  const {
+    ticket: dialog,
+    isLoading,
+    isOffline,
+    error: dialogError,
+    refetch: refetchTicket,
+  } = useTicketDetail(ticketId);
 
   // Register the open ticket as the Mingo "open view" so it rides on the sidebar
   // chat's context. `dialog.id` is the raw db id the backend TICKET resolver /
@@ -685,8 +692,11 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     return <TicketDetailsSkeleton onBack={handleBackToTickets} showTechnicianChat={isTechnicianChatEnabled} />;
   }
 
-  if (dialogError) {
-    return <LoadError message={`Error loading ticket: ${dialogError.message}`} />;
+  // Before the not-found below, and not showing `dialogError` raw: offline the
+  // query PAUSES with no data, and this route answered that by telling the user
+  // their ticket does not exist.
+  if (dialogError || isOffline) {
+    return <LoadError {...loadErrorProps(isOffline, "Couldn't load this ticket.", () => refetchTicket())} />;
   }
 
   if (!dialog) {
@@ -957,7 +967,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     <>
       <InfoSection title="Ticket Details" rows={infoRows} />
       <TicketAttachmentsSection ticketId={dialog.id} attachments={dialog.attachments ?? []} />
-      <TicketTagsSection ticketId={dialog.id} labels={dialog.labels ?? []} />
+      <TicketTagsSection ticketId={dialog.id} tags={dialog.tags ?? []} />
       <TicketNotesSection
         notes={uiNotes}
         isAddingNote={addNoteMutation.isPending}
@@ -1101,7 +1111,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
             createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
             description={dialog.description || dialog.title || ''}
             attachments={uiAttachments}
-            tags={(dialog.labels || []).map(l => l.key)}
+            tags={(dialog.tags || []).map(t => t.key)}
             notes={uiNotes}
             isAddingNote={addNoteMutation.isPending}
             onAddNote={text => {
@@ -1121,7 +1131,12 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
           )}
 
           {/* Chat Section */}
-          <div className="flex-1 flex flex-col min-h-[500px]">
+          {/* The 500px floor is a desktop rule: below `lg` this section IS the
+              page (the info blocks above it are `hidden lg:block`), so `flex-1`
+              already fills the pane — while on a phone with the keyboard up the
+              floor exceeds what's left and pushes the composer past the bottom
+              of a pane that only the browser's scroll-on-focus can recover. */}
+          <div className="flex-1 flex flex-col min-h-0 lg:min-h-[500px]">
             {/* Tab bar — visible only on mobile/tablet */}
             <Tabs value={activeChatTab} onValueChange={setActiveChatTab} className="lg:hidden mb-2">
               <TabsList className="w-full">
@@ -1185,7 +1200,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                   createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
                   description={dialog.description || dialog.title || ''}
                   attachments={uiAttachments}
-                  tags={(dialog.labels || []).map(l => l.key)}
+                  tags={(dialog.tags || []).map(t => t.key)}
                   notes={uiNotes}
                   onAddNote={text => {
                     if (dialog?.id) addNoteMutation.mutate({ content: text });

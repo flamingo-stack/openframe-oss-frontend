@@ -4,6 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { queryState } from '@/lib/query-state';
 import { GET_LOG_FILTERS_QUERY, GET_LOGS_QUERY } from '../queries/logs-queries';
 import type { LogEdge, LogEntry, LogFilterInput, LogFilters } from '../types/log.types';
 
@@ -122,11 +123,10 @@ export function useLogs(filters: LogFilterInput = {}, search = '') {
 
   return {
     logs,
-    isLoading: query.isLoading,
+    ...queryState(query),
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage ?? false,
     fetchNextPage: query.fetchNextPage,
-    error: query.error?.message ?? null,
     resetToFirstPage,
   };
 }
@@ -174,7 +174,6 @@ export function useLogFilters(filter: LogFilterInput = {}) {
 
   return {
     logFilters: query.data ?? null,
-    isLoading: query.isLoading,
-    error: query.error?.message ?? null,
+    ...queryState(query),
   };
 }

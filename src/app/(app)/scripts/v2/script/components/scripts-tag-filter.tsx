@@ -3,7 +3,7 @@
 import { type ReactNode, useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
-import { TagFilterBar, TagFilterBarSkeleton } from '@/app/components/shared';
+import { TagFilterBar, TagFilterBarSkeleton, useRetryKey } from '@/app/components/shared';
 import { scriptTagsRelayFilterQuery } from '@/graphql/scripts/script-tags-relay';
 
 const SEARCH_PLACEHOLDER = 'Search for Scripts';
@@ -35,10 +35,11 @@ export function ScriptsTagFilter({
   filterButton,
   archived = false,
 }: ScriptsTagFilterProps) {
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptTagsFilterQueryType>(
     scriptTagsRelayFilterQuery,
     { archived: archived ? true : null },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const tags = useMemo(() => data.scriptsTags.map(t => ({ id: t.id, key: t.key })), [data.scriptsTags]);
 

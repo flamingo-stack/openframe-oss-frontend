@@ -7,25 +7,31 @@ import {
   PlusCircleIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { DataTable, Input, PageError, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import {
   EmptyState,
   formatQueryInterval,
-  onboardingGuideButton,
   QueriesTable,
   type QueryTableRow,
+  SectionLoadError,
+  useOnboardingGuideButton,
 } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
 import { useQueries } from '../../hooks/use-queries';
 import type { Query } from '../../types/queries.types';
 
 const PAGE_SIZE = 20;
+
+// One literal for both the strip above the table and the table's own empty
+// slot — they say the same thing and must not drift apart.
+const LOAD_ERROR_MESSAGE = "Couldn't load queries.";
 
 export function Queries() {
   const router = useRouter();
@@ -53,7 +59,7 @@ export function Queries() {
     [setSearch],
   );
 
-  const { queries, isLoading, error, deleteQuery } = useQueries();
+  const { queries, isLoading, isOffline, canClaimEmpty, error, refetch, deleteQuery } = useQueries();
   const [queryToDelete, setQueryToDelete] = useState<Query | null>(null);
 
   const filteredQueries = useMemo(() => {
@@ -101,9 +107,11 @@ export function Queries() {
     router.push(routes.monitoring.queryNew);
   }, [router]);
 
-  // Show the empty state instead of the search bar + table only when there is
-  // genuinely no data: loading finished, no active search, and no queries.
-  const showEmptyState = !isLoading && !debouncedSearch.trim() && queries.length === 0;
+  // `canClaimEmpty` is the shared precondition (see `lib/query-state.ts`): data
+  // arrived and nothing is obscuring it. Without it a failed or offline load —
+  // both of which leave the list at length zero — renders "no queries yet"
+  // underneath the error strip.
+  const showEmptyState = canClaimEmpty && !debouncedSearch.trim() && queries.length === 0;
 
   const actions = useMemo(
     () => [
@@ -122,12 +130,11 @@ export function Queries() {
     [handleAddQuery, showEmptyState],
   );
 
-  if (error) {
-    return <PageError message={error} />;
-  }
+  const guideButton = useOnboardingGuideButton('queries');
 
   return (
     <PageLayout title="Queries" actions={actions} className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+      {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
       {showEmptyState ? (
         <EmptyState
           icon={<BracketCurlyEllipsisVrIcon />}
@@ -138,7 +145,7 @@ export function Queries() {
             { icon: <DatabaseIcon />, label: 'Use SQL-like syntax or natural language via Mingo' },
             { icon: <HourglassClockIcon />, label: 'Save queries to rerun later or schedule them' },
           ]}
-          {...onboardingGuideButton('queries', 'Learn more about Queries')}
+          {...guideButton}
         />
       ) : (
         <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
@@ -162,10 +169,15 @@ export function Queries() {
             stickyHeaderOffset={stickyHeaderOffset}
             rightSlot={<DataTable.RowCount />}
             skeletonRows={PAGE_SIZE}
+            // The table has its own emptiness claim, and zero rows after a failed
+            // or offline load would print "No queries found." under the strip
+            // above. Same rule, one component down.
             emptyMessage={
-              debouncedSearch
-                ? `No queries found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No queries found.'
+              canClaimEmpty
+                ? debouncedSearch
+                  ? `No queries found matching "${debouncedSearch}". Try adjusting your search.`
+                  : 'No queries found.'
+                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
             }
             hasMore={visibleCount < filteredQueries.length}
             onLoadMore={handleLoadMore}

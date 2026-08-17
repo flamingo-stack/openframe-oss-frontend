@@ -57,6 +57,11 @@ function severityFromScore(score: number): Severity {
   return 'low';
 }
 
+/** Affected package for the mobile fold — name and version are separate lines from `md`. */
+function softwareLabel(vuln: VulnerabilityWithSoftware): string {
+  return vuln.software_version ? `${vuln.software_name} · ${vuln.software_version}` : vuln.software_name;
+}
+
 // Prefer the real Fleet CVSS score; fall back to a year-based heuristic when it's absent.
 function getSeverity(vuln: { cve: string; cvss_score?: number | null }): Severity {
   if (typeof vuln.cvss_score === 'number') return severityFromScore(vuln.cvss_score);
@@ -107,7 +112,18 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
       {
         accessorKey: 'cve',
         header: VULNERABILITY_COLUMNS.cve.header,
-        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => <span className="text-h4">{row.original.cve}</span>,
+        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
+          <div className="flex flex-col justify-center min-w-0">
+            <TruncateText>{row.original.cve}</TruncateText>
+            {/* SOFTWARE has a column of its own from `md` up; below that it is folded
+                in here, so a mobile row still says which package the CVE is in. */}
+            <div className="min-w-0 md:hidden">
+              <TruncateText variant="h6" tone="secondary">
+                {softwareLabel(row.original)}
+              </TruncateText>
+            </div>
+          </div>
+        ),
         meta: liveColumnMeta(VULNERABILITY_COLUMNS.cve),
       },
       {
@@ -163,7 +179,8 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
           );
         },
         enableSorting: true,
-        // Least-needed column for mobile triage — hidden below md, CVE/Severity/Software stay.
+        // Least-needed column for mobile triage — hidden below md, where the row keeps
+        // CVE (+ the folded-in package), severity and the details button.
         meta: liveColumnMeta(VULNERABILITY_COLUMNS.discovered),
       },
       {

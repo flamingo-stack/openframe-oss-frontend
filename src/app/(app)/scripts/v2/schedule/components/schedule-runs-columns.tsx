@@ -42,7 +42,7 @@ export const RUNS_PAGE_SIZE = 20;
  * the facets, shifting the label. See `table-column-layout.ts`.
  */
 const RUN_COLUMNS = {
-  executionId: { id: 'executionId', header: 'Execution', width: 'flex-1 min-w-0' },
+  executionId: { id: 'executionId', header: 'Execution', width: 'flex-1 min-w-0', dateFilterable: true },
   status: { id: 'status', header: 'Status', width: 'w-[120px]', filterable: true },
   responded: { id: 'responded', header: 'Devices', width: 'w-[120px]', hideAt: 'lg' },
   initiatorId: { id: 'initiatorId', header: 'Executed by', width: 'flex-1 min-w-0', hideAt: 'md' },
@@ -197,13 +197,7 @@ export function useScheduleRunColumns(
         accessorKey: 'executionId',
         // The cell's first line is the fire's dispatchedAt, which is what the
         // calendar (range + newest/oldest first) narrows and orders.
-        header: () => (
-          <DateColumnHeader
-            label={RUN_COLUMNS.executionId.header}
-            filter={dateFilter}
-            ariaLabel="Sort and filter by run date"
-          />
-        ),
+        header: () => <DateColumnHeader label={RUN_COLUMNS.executionId.header} filter={dateFilter} />,
         // Stretch column: the execution id is a full uuid and this is the one
         // place it is shown in full (it is what the Execution History drill-down
         // and "Copy Execution ID" key on).
@@ -307,7 +301,7 @@ export function ScheduleRunsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffse
         const label = column.header;
         return {
           id: column.id,
-          header: label && column.id === RUN_COLUMNS.executionId.id ? () => <DateColumnHeader label={label} /> : label,
+          header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
           enableSorting: false,
           meta: skeletonColumnMeta(column),
         };

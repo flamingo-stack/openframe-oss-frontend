@@ -33,7 +33,7 @@ import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
 import { type CachedBoardColumn, usePlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
-import { TicketTagFilter } from './ticket-label-filter';
+import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
 
@@ -68,8 +68,8 @@ interface TicketsBoardProps {
   onOrganizationIdsChange?: (ids: string[]) => void;
   assigneeIds?: string[];
   onAssigneeIdsChange?: (ids: string[]) => void;
-  labelIds?: string[];
-  onLabelIdsChange?: (ids: string[]) => void;
+  tagIds?: string[];
+  onTagIdsChange?: (ids: string[]) => void;
   /** Applies organization+assignee filters atomically (mobile filter modal). */
   onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[] }) => void;
   search: string;
@@ -105,7 +105,7 @@ function dialogToBoardTicket(
           },
         ]
       : undefined,
-    tags: dialog.labels?.map(l => l.key),
+    tags: dialog.tags?.map(t => t.key),
     createdAt: dialog.createdAt,
     hasNewMessage,
     pendingApproval: dialog.pendingApproval,
@@ -119,8 +119,8 @@ export function TicketsBoard({
   onOrganizationIdsChange,
   assigneeIds,
   onAssigneeIdsChange,
-  labelIds,
-  onLabelIdsChange,
+  tagIds,
+  onTagIdsChange,
   onFiltersChange,
   search,
   onSearchChange,
@@ -188,8 +188,8 @@ export function TicketsBoard({
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
 
   const archiveFilter = useMemo(
-    () => ({ organizationIds, assigneeIds, labelIds }),
-    [organizationIds, assigneeIds, labelIds],
+    () => ({ organizationIds, assigneeIds, tagIds }),
+    [organizationIds, assigneeIds, tagIds],
   );
   const filteredResolvedTotal = useMemo(() => {
     const resolvedId = statuses.find(s => s.kind === 'RESOLVED')?.id;
@@ -218,8 +218,8 @@ export function TicketsBoard({
   }, []);
 
   const params = useMemo(
-    () => ({ search: debouncedSearch, organizationIds, assigneeIds, labelIds }),
-    [debouncedSearch, organizationIds, assigneeIds, labelIds],
+    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds }),
+    [debouncedSearch, organizationIds, assigneeIds, tagIds],
   );
 
   const allowedFromByStatusId = useMemo<Record<string, string[]>>(() => {
@@ -314,7 +314,7 @@ export function TicketsBoard({
     !debouncedSearch &&
     (organizationIds?.length ?? 0) === 0 &&
     (assigneeIds?.length ?? 0) === 0 &&
-    (labelIds?.length ?? 0) === 0 &&
+    (tagIds?.length ?? 0) === 0 &&
     boardColumns.length > 0 &&
     boardColumns.every(column => column.tickets.length === 0);
 
@@ -356,8 +356,8 @@ export function TicketsBoard({
               <TicketTagFilter
                 search={search}
                 onSearchChange={onSearchChange}
-                labelIds={labelIds ?? []}
-                onLabelIdsChange={ids => onLabelIdsChange?.(ids)}
+                tagIds={tagIds ?? []}
+                onTagIdsChange={ids => onTagIdsChange?.(ids)}
                 filterButton={
                   <Button
                     variant="outline"
