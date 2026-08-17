@@ -59,6 +59,7 @@ import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation'
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
+import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { loadErrorProps } from '@/lib/query-state';
@@ -500,8 +501,12 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       if (!dialog || transitionTicket.isPending) return;
       // Leaving a terminal status is a REOPEN, not a plain move: it goes
       // through the confirmation modal (target status + assignee + reason)
-      // instead of firing the transition directly.
-      if (dialog.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED) {
+      // instead of firing the transition directly. Gated on `ai-resolution` —
+      // with the flag off the legacy direct transition below still applies.
+      if (
+        featureFlags.aiResolution.enabled() &&
+        (dialog.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED)
+      ) {
         setReopenTarget({ ticketId, initialStatusId: toStatusId });
         return;
       }

@@ -13,6 +13,7 @@ import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/h
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
@@ -303,8 +304,9 @@ export function TicketsBoard({
       // Dragging OUT of the Resolved lane is a REOPEN, not a plain move: it
       // goes through the confirmation modal (target status + assignee +
       // reason) instead of committing the drop. The optimistic move never
-      // runs, so the card snaps back until the modal confirms.
-      if (change.fromColumnId !== change.toColumnId) {
+      // runs, so the card snaps back until the modal confirms. Gated on
+      // `ai-resolution` — with the flag off the drop commits directly (legacy).
+      if (change.fromColumnId !== change.toColumnId && featureFlags.aiResolution.enabled()) {
         const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
         if (sourceKind === 'RESOLVED') {
           setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
