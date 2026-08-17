@@ -2685,10 +2685,13 @@ type TicketStatusChangedContext implements NotificationContext {
 }
 
 """
-Hand-added ahead of the BE deploy from the documented reopen contract
-(ClickUp 86ajnyctz) — re-sync with `npm run fetch-schema` once the reopen
-backend ships. A reopen transition emits THIS instead of the generic
-TicketStatusChangedContext.
+Hand-added from the documented reopen contract (ClickUp 86ajnyctz) and since
+verified 1:1 against the deployed backend (fetch-schema introspection of
+tenant test1011, 2026-08-17 — the server declaration is byte-identical). Kept
+hand-maintained because a WHOLESALE re-sync from that tenant imports unrelated
+qa/dev schema drift (e.g. NotificationSettings.pushEnabled vs enabled) that
+breaks relay compilation; re-sync fully once environments align. A reopen
+transition emits THIS instead of the generic TicketStatusChangedContext.
 """
 type TicketReopenedContext implements NotificationContext {
   type: String!
