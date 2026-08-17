@@ -10,35 +10,39 @@ import { featureFlags } from '@/lib/feature-flags';
  * Aliasing gives each body its own response name. Mirrors `ASK_INTRO_ALIAS`.
  *
  * Everything downstream — the core lib's history decoder included — reads
- * `text`, so `normalizeEscalationMessageData` maps them back at the single
+ * `text`, so `normalizeMessageDataAliases` maps them back at the single
  * parse point. Change one of the two and you must change the other.
  */
 export const OFFER_TEXT_ALIAS = 'offerText';
 export const ESCALATED_TEXT_ALIAS = 'escalatedText';
+/** `TicketEventData.reason` (`String`) vs `TicketEscalatedData.reason` — same
+ *  merge hazard as the `text` fields above, same cure. */
+export const TICKET_EVENT_REASON_ALIAS = 'ticketEventReason';
 
-const ESCALATION_TEXT_ALIASES: Record<string, string> = {
-  ESCALATION_OFFER: OFFER_TEXT_ALIAS,
-  TICKET_ESCALATED: ESCALATED_TEXT_ALIAS,
+const MESSAGE_DATA_FIELD_ALIASES: Record<string, { alias: string; field: string }> = {
+  ESCALATION_OFFER: { alias: OFFER_TEXT_ALIAS, field: 'text' },
+  TICKET_ESCALATED: { alias: ESCALATED_TEXT_ALIAS, field: 'text' },
+  TICKET_EVENT: { alias: TICKET_EVENT_REASON_ALIAS, field: 'reason' },
 };
 
 type RawMessageData = Record<string, unknown>;
 
 /**
- * Undo the escalation body aliases so persisted rows reach the core lib in the
- * SAME shape the live NATS chunk has. Untouched entries pass through by
+ * Undo the field aliases so persisted rows reach the core lib in the SAME
+ * shape the live NATS chunk has. Untouched entries pass through by
  * reference — no copy, no reordering.
  */
-export function normalizeEscalationMessageData<T>(messageData: T): T {
+export function normalizeMessageDataAliases<T>(messageData: T): T {
   if (!Array.isArray(messageData)) return messageData;
   let changed = false;
   const normalized = messageData.map(item => {
     if (!item || typeof item !== 'object') return item;
     const row = item as RawMessageData;
-    const alias = ESCALATION_TEXT_ALIASES[String(row.type)];
-    if (!alias || !(alias in row)) return item;
+    const mapping = MESSAGE_DATA_FIELD_ALIASES[String(row.type)];
+    if (!mapping || !(mapping.alias in row)) return item;
     changed = true;
-    const { [alias]: body, ...rest } = row;
-    return typeof body === 'string' && body ? { ...rest, text: body } : rest;
+    const { [mapping.alias]: body, ...rest } = row;
+    return typeof body === 'string' && body ? { ...rest, [mapping.field]: body } : rest;
   });
   return (changed ? normalized : messageData) as T;
 }
@@ -78,6 +82,22 @@ export function getDialogMessagesQuery() {
               ticketNumber
               reason
               ${ESCALATED_TEXT_ALIAS}: text
+            }
+`
+    : '';
+  // Gated on `ai-resolution` for the same reason as the escalation types:
+  // `TicketEventData` ships with the ticket-resolution backend (the same flag
+  // gates the assistant's closure tools server-side).
+  const ticketEventFragment = featureFlags.aiResolution.enabled()
+    ? `
+            ... on TicketEventData {
+              type
+              kind
+              actorId
+              actorName
+              actorType
+              targetStatusKind
+              ${TICKET_EVENT_REASON_ALIAS}: reason
             }
 `
     : '';
@@ -176,6 +196,7 @@ export function getDialogMessagesQuery() {
             }
 
             ${escalationFragments}
+            ${ticketEventFragment}
             ... on ContextCompactionStartData {
               type
             }

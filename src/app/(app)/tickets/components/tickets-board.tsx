@@ -13,6 +13,7 @@ import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/h
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
@@ -33,6 +34,7 @@ import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
 import { type CachedBoardColumn, usePlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
+import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
 import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
@@ -184,6 +186,7 @@ export function TicketsBoard({
     return ids;
   }, [notifications?.notifications]);
   const [columnUpdates, setColumnUpdates] = useState<Record<string, BoardColumnUpdate>>({});
+  const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
 
@@ -298,6 +301,18 @@ export function TicketsBoard({
 
   const handleChange = useCallback(
     (change: BoardChange) => {
+      // Dragging OUT of the Resolved lane is a REOPEN, not a plain move: it
+      // goes through the confirmation modal (target status + assignee +
+      // reason) instead of committing the drop. The optimistic move never
+      // runs, so the card snaps back until the modal confirms. Gated on
+      // `ai-resolution` — with the flag off the drop commits directly (legacy).
+      if (change.fromColumnId !== change.toColumnId && featureFlags.aiResolution.enabled()) {
+        const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
+        if (sourceKind === 'RESOLVED') {
+          setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
+          return;
+        }
+      }
       moveTicket({
         ticketId: change.ticketId,
         sourceStatusId: change.fromColumnId,
@@ -306,7 +321,7 @@ export function TicketsBoard({
         beforeTicketId: change.beforeTicketId,
       });
     },
-    [moveTicket],
+    [moveTicket, statuses],
   );
 
   const showEmptyState =
@@ -414,6 +429,7 @@ export function TicketsBoard({
         )}
       </PageLayout>
       {ticketsActionsDialog}
+      <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
     </>
   );
 }
