@@ -96,6 +96,7 @@ export function getDialogMessagesQuery() {
               actorId
               actorName
               actorType
+              targetStatusKind
               ${TICKET_EVENT_REASON_ALIAS}: reason
             }
 `
