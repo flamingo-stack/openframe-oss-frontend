@@ -43,11 +43,21 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     // Not auth-related, but this is the shell's only local plugin: WKWebView
-    // reports env(safe-area-inset-*) as 0 here, so the frontend asks the
-    // native layer for the real insets and sets CSS variables from them.
+    // reports env(safe-area-inset-*) as 0 until it has laid out, so the frontend
+    // asks the native layer for the real insets and sets CSS variables from them.
+    //
+    // Read the WINDOW, not the web view. WebKit strands the web view's own
+    // `safeAreaInsets` at its fullscreen container's values after an element
+    // fullscreen round trip (bottom 34 -> 42pt on an iPhone 17 Pro) and no public
+    // UIKit call recomputes them — not `layoutIfNeeded`, not a frame cycle, not
+    // `additionalSafeAreaInsets`, not remove/re-add. The window's stay correct in
+    // every state, including DURING fullscreen, where the web view reports zeros
+    // because WebKit has reparented it into its own status-bar-less window.
+    // The two are the same rectangle here: the status bar overlays the WebView.
     @objc func getSafeAreaInsets(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            let insets = self.bridge?.viewController?.view.safeAreaInsets ?? .zero
+            let view = self.bridge?.viewController?.view
+            let insets = view?.window?.safeAreaInsets ?? view?.safeAreaInsets ?? .zero
             call.resolve([
                 "top": insets.top,
                 "bottom": insets.bottom,

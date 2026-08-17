@@ -45,8 +45,10 @@ exists.**
   `android/app/src/main/java/ai/openframe/mobile/NativeAuthPlugin.java` (same jsName +
   method surface). Backs frontend `src/lib/native-shell.ts`. Methods: `start` (system-browser
   login), `exchangeTicket` (dev-ticket → tokens, reads `Access-Token`/`Refresh-Token`
-  headers), `get`/`set`/`clearTokens`, `getSafeAreaInsets` (WKWebView/`WindowInsets` report
-  `env()` insets as 0), and `isBiometricAvailable` / `isBiometricLoginEnabled` /
+  headers), `get`/`set`/`clearTokens`, `getSafeAreaInsets` (reads the **window**, not the
+  web view — see the fullscreen gotcha below; `env()` insets read 0 only for the first
+  ~100ms after load, measured on iOS 26.5 — not permanently), and
+  `isBiometricAvailable` / `isBiometricLoginEnabled` /
   `enableBiometricLogin` / `disableBiometricLogin`. The callback scheme is registered in
   **Info.plist `CFBundleURLTypes`** (iOS) and **`strings.xml` + the manifest intent-filter**
   (Android).
@@ -253,6 +255,25 @@ swapped.
   `NSMicrophoneUsageDescription` is required for the same reason.
   `NativeFilesPlugin.pickFiles` offers the same option. Removing either key brings the
   crash back; remove the option from both pickers first if the permission is unwanted.
+- **Leaving iOS element fullscreen breaks the safe areas, and no JS can fix it.** WebKit
+  hands the WKWebView back with its scroll view's `contentInsetAdjustmentBehavior` reset
+  from Capacitor's `.never` to `.automatic`, and nothing restores it until a rotation. The
+  scroll view then insets the page by the safe area, so the **layout viewport** loses it
+  (measured 874 → 770pt, iPhone 17 Pro / iOS 26.5) while `env()` and `getSafeAreaInsets`
+  keep reporting the full inset — every `--native-safe-*` consumer pads a second time
+  inside a viewport that already excludes the band, so the app comes back with a doubled
+  top band and ~84pt of dead space at the bottom. Republishing insets from JS cannot help:
+  the values are correct reads of a broken viewport. `MainViewController` KVOs
+  `WKWebView.fullscreenState` (iOS 16+) and restores the configured behavior on
+  `notInFullscreen`. WebKit ALSO strands the web view's own `safeAreaInsets` at its
+  fullscreen container's values (bottom 34 → 42pt) and no public UIKit call recomputes
+  them — not `layoutIfNeeded`, not a frame cycle, not `additionalSafeAreaInsets`, not
+  remove/re-add — which is why `getSafeAreaInsets` measures the **window** instead. Both
+  fullscreen entry points are affected: the walkthrough video's Mux player (media-chrome
+  calls `requestFullscreen()`, since Capacitor sets `isElementFullscreenEnabled`) and the
+  remote-desktop canvas. Raw `env(safe-area-inset-bottom)` — the core lib's floating
+  walkthrough card — still reads the stranded 42 until a rotation; prefer
+  `--native-safe-*`.
 - **Nothing downloads from the WebView.** Neither shell has a download handler — Capacitor
   implements no `WKDownloadDelegate`/`didBecome download:` on iOS (its `decidePolicyFor`
   hands non-app top-level navs to `UIApplication.open`, which can't open `blob:`) and never
