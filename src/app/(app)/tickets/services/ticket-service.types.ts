@@ -19,7 +19,7 @@ export interface FetchTicketsParams {
   search?: string;
   organizationIds?: string[];
   assigneeIds?: string[];
-  labelIds?: string[];
+  tagIds?: string[];
   cursor?: string;
   limit: number;
 }
@@ -29,7 +29,7 @@ export interface FetchBoardColumnByStatusIdParams {
   search?: string;
   organizationIds?: string[];
   assigneeIds?: string[];
-  labelIds?: string[];
+  tagIds?: string[];
   cursor?: string;
   limit: number;
 }

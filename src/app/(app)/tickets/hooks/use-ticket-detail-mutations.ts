@@ -36,12 +36,12 @@ function useTicketCacheInvalidation(ticketId: string) {
   };
 }
 
-/** Replaces the ticket's full label set (add/remove tags). */
-export function useSetTicketLabels(ticketId: string) {
+/** Replaces the ticket's full tag set (add/remove tags). */
+export function useSetTicketTags(ticketId: string) {
   const { toast } = useToast();
   const invalidate = useTicketCacheInvalidation(ticketId);
   return useMutation({
-    mutationFn: (labelIds: string[]) => updateTicket({ id: ticketId, labelIds }),
+    mutationFn: (tagIds: string[]) => updateTicket({ id: ticketId, tagIds }),
     onSuccess: invalidate,
     onError: err =>
       toast({
