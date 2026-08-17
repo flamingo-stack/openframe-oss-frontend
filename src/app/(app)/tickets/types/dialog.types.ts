@@ -223,6 +223,8 @@ export interface TicketEventData extends MessageData {
   actorName?: string | null;
   actorType?: string | null;
   reason?: string | null;
+  /** Kind-token the ticket reopened INTO (AI_ASSISTANCE / TECH_REQUIRED / ...). */
+  targetStatusKind?: string | null;
 }
 
 export interface Message {
