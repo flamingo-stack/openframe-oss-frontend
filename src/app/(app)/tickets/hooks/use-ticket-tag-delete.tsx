@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { TagDeleteConfirmDialog, useDeleteTagMutation } from '@/app/components/shared/tags';
-import { useTicketLabels } from './use-ticket-labels';
+import { useTicketTags } from './use-ticket-tags';
 
 /**
  * Tag-delete flow shared by the ticket detail tags section and the create/edit
@@ -11,7 +11,7 @@ import { useTicketLabels } from './use-ticket-labels';
  * selection (live ticket vs. form state). Returns a ready-to-render dialog.
  */
 export function useTicketTagDelete(onTagDeleted: (id: string) => void) {
-  const { data: tags = [], refetch } = useTicketLabels();
+  const { data: tags = [], refetch } = useTicketTags();
   const { deleteTag, isInFlight: isDeleting } = useDeleteTagMutation();
   const [tagToDelete, setTagToDelete] = useState<string | null>(null);
 

@@ -27,7 +27,7 @@ export const CREATE_TICKET_MUTATION = `
         organizationName
         assignedTo
         assignedName
-        labels {
+        tags {
           id
           key
           color
@@ -148,7 +148,7 @@ export const GET_TICKET_QUERY = `
         imageUrl
         hash
       }
-      labels {
+      tags {
         id
         key
         color
@@ -249,7 +249,7 @@ export const GET_TICKETS_QUERY = `
             imageUrl
             hash
           }
-          labels {
+          tags {
             id
             key
             color
@@ -322,7 +322,7 @@ const boardCardTicketFragment = () => `
       imageUrl
       hash
     }
-    labels {
+    tags {
       id
       key
       color
@@ -353,9 +353,9 @@ const boardCardTicketFragment = () => `
 `;
 
 export const getBoardColumnTicketsQuery = () => `
-  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $labelIds: [ID!]) {
+  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!]) {
     tickets(
-      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, labelIds: $labelIds }
+      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds }
       pagination: { limit: $limit, cursor: $cursor }
       search: $search
       sort: { field: "order", direction: ASC }
@@ -409,9 +409,9 @@ export const TRANSITION_TICKET_MUTATION = `
   }
 `;
 
-export const GET_TICKET_LABELS_QUERY = `
-  query TicketLabels {
-    ticketLabels {
+export const GET_TICKET_TAGS_QUERY = `
+  query TicketTags {
+    ticketTags {
       id
       key
       description
@@ -520,7 +520,7 @@ export const UPDATE_TICKET_MUTATION = `
         organizationName
         assignedTo
         assignedName
-        labels {
+        tags {
           id
           key
           color

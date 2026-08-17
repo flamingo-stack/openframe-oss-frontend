@@ -2,27 +2,27 @@
 
 import { type ReactNode, useMemo } from 'react';
 import { TagFilterBar } from '@/app/components/shared';
-import { useTicketLabels } from '../hooks/use-ticket-labels';
+import { useTicketTags } from '../hooks/use-ticket-tags';
 
 interface TicketTagFilterProps {
   search: string;
   onSearchChange: (value: string) => void;
-  labelIds: string[];
-  onLabelIdsChange: (ids: string[]) => void;
+  tagIds: string[];
+  onTagIdsChange: (ids: string[]) => void;
   /** Mobile filter button rendered next to the search input. */
   filterButton?: ReactNode;
 }
 
-/** Ticket label filter — the shared `TagFilterBar` fed by the tenant ticket labels. */
+/** Ticket tag filter — the shared `TagFilterBar` fed by the tenant ticket tags. */
 export function TicketTagFilter({
   search,
   onSearchChange,
-  labelIds,
-  onLabelIdsChange,
+  tagIds,
+  onTagIdsChange,
   filterButton,
 }: TicketTagFilterProps) {
-  const { data: labels, isLoading } = useTicketLabels();
-  const tags = useMemo(() => (labels ?? []).map(label => ({ id: label.id, key: label.key })), [labels]);
+  const { data: allTags, isLoading } = useTicketTags();
+  const tags = useMemo(() => (allTags ?? []).map(tag => ({ id: tag.id, key: tag.key })), [allTags]);
 
   return (
     <TagFilterBar
@@ -30,8 +30,8 @@ export function TicketTagFilter({
       loading={isLoading}
       search={search}
       onSearchChange={onSearchChange}
-      selectedIds={labelIds}
-      onSelectedIdsChange={onLabelIdsChange}
+      selectedIds={tagIds}
+      onSelectedIdsChange={onTagIdsChange}
       placeholder="Search for Ticket"
       filterButton={filterButton}
     />
