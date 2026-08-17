@@ -14,10 +14,10 @@ export default function TicketsArchive() {
   const handleBack = useSafeBack(routes.tickets.list);
   const { params, setParam } = useApiParams({
     search: { type: 'string', default: '' },
-    labelIds: { type: 'array', default: [] },
+    tagIds: { type: 'array', default: [] },
   });
   const { search, setSearch } = useSearchParam(params.search, value => setParam('search', value), 300);
-  const handleLabelIdsChange = useCallback((ids: string[]) => setParam('labelIds', ids), [setParam]);
+  const handleTagIdsChange = useCallback((ids: string[]) => setParam('tagIds', ids), [setParam]);
 
   useEffect(() => {
     if (!isSaasTenantMode()) {
@@ -35,8 +35,8 @@ export default function TicketsArchive() {
       backButton={{ label: 'Back', onClick: handleBack }}
       search={search}
       onSearchChange={setSearch}
-      labelIds={params.labelIds}
-      onLabelIdsChange={handleLabelIdsChange}
+      tagIds={params.tagIds}
+      onTagIdsChange={handleTagIdsChange}
     />
   );
 }

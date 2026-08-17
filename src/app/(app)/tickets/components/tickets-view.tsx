@@ -16,7 +16,7 @@ export function TicketsView() {
     status: { type: 'array', default: [] },
     organizationIds: { type: 'array', default: [] },
     assigneeIds: { type: 'array', default: [] },
-    labelIds: { type: 'array', default: [] },
+    tagIds: { type: 'array', default: [] },
     search: { type: 'string', default: '' },
     // No default: an absent param has to stay distinguishable from an explicit
     // `viewMode=board` for `resolveTicketsViewMode` to know when it may pick.
@@ -34,7 +34,7 @@ export function TicketsView() {
   const handleStatusFilterChange = useCallback((status: string[]) => setParam('status', status), [setParam]);
   const handleOrganizationIdsChange = useCallback((ids: string[]) => setParam('organizationIds', ids), [setParam]);
   const handleAssigneeIdsChange = useCallback((ids: string[]) => setParam('assigneeIds', ids), [setParam]);
-  const handleLabelIdsChange = useCallback((ids: string[]) => setParam('labelIds', ids), [setParam]);
+  const handleTagIdsChange = useCallback((ids: string[]) => setParam('tagIds', ids), [setParam]);
   // Single URL write: two sequential setParam calls read the same snapshot and clobber each other.
   const handleFiltersChange = useCallback(
     (filters: { organizationIds: string[]; assigneeIds: string[] }) => setParams(filters),
@@ -72,8 +72,8 @@ export function TicketsView() {
         onOrganizationIdsChange={handleOrganizationIdsChange}
         assigneeIds={params.assigneeIds}
         onAssigneeIdsChange={handleAssigneeIdsChange}
-        labelIds={params.labelIds}
-        onLabelIdsChange={handleLabelIdsChange}
+        tagIds={params.tagIds}
+        onTagIdsChange={handleTagIdsChange}
         onFiltersChange={handleFiltersChange}
         search={search}
         onSearchChange={setSearch}
@@ -86,8 +86,8 @@ export function TicketsView() {
       statusFilters={params.status}
       onStatusFilterChange={handleStatusFilterChange}
       selector={tabs}
-      labelIds={params.labelIds}
-      onLabelIdsChange={handleLabelIdsChange}
+      tagIds={params.tagIds}
+      onTagIdsChange={handleTagIdsChange}
       search={search}
       onSearchChange={setSearch}
     />

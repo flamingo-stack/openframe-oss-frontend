@@ -11,7 +11,7 @@ import type { Tag } from '@/app/components/shared/tags';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { API_ENDPOINTS } from '../constants';
-import { GET_TICKET_LABELS_QUERY, GET_TICKETS_QUERY } from '../queries/ticket-queries';
+import { GET_TICKET_TAGS_QUERY, GET_TICKETS_QUERY } from '../queries/ticket-queries';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
@@ -135,23 +135,23 @@ export function useAssigneeOptions(enabled = true) {
   return { options: query.data ?? EMPTY_AVATAR_OPTIONS, isLoading: query.isLoading };
 }
 
-// --- Labels (ticket-specific, via /chat/graphql) ---
+// --- Tags (ticket-specific, via /chat/graphql) ---
 
-async function fetchLabelOptions(): Promise<AutocompleteOption[]> {
-  const response = await apiClient.post<GraphQlResponse<{ ticketLabels: Tag[] }>>(API_ENDPOINTS.GRAPHQL, {
-    query: GET_TICKET_LABELS_QUERY,
+async function fetchTagOptions(): Promise<AutocompleteOption[]> {
+  const response = await apiClient.post<GraphQlResponse<{ ticketTags: Tag[] }>>(API_ENDPOINTS.GRAPHQL, {
+    query: GET_TICKET_TAGS_QUERY,
   });
   const data = extractGraphQlData(response);
-  return (data.ticketLabels ?? []).map(label => ({
-    label: label.key,
-    value: label.id,
+  return (data.ticketTags ?? []).map(tag => ({
+    label: tag.key,
+    value: tag.id,
   }));
 }
 
-export function useTicketLabelOptions() {
+export function useTicketTagOptions() {
   const query = useQuery({
-    queryKey: ticketsQueryKeys.labels(),
-    queryFn: fetchLabelOptions,
+    queryKey: ticketsQueryKeys.tags(),
+    queryFn: fetchTagOptions,
   });
 
   return { options: query.data ?? EMPTY_AUTOCOMPLETE_OPTIONS, isLoading: query.isLoading };
