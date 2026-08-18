@@ -6,12 +6,14 @@ import {
   type BoardChange,
   type BoardColumnDef,
   type BoardTicket,
+  type BoardTicketActivity,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, PageError, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNow } from '@/app/hooks/use-now';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
@@ -28,6 +30,7 @@ import {
   usesCanonicalStatusStyle,
 } from '../statuses/types/ticket-statuses.types';
 import type { Dialog } from '../types/dialog.types';
+import { resolveStaleActivity } from '../utils/board-activity';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
@@ -88,6 +91,7 @@ function dialogToBoardTicket(
   dialog: Dialog,
   hasNewMessage = false,
   isUserDeleted?: (id?: string | null) => boolean,
+  activity?: BoardTicketActivity,
 ): BoardTicket {
   return {
     id: dialog.id,
@@ -112,6 +116,7 @@ function dialogToBoardTicket(
     hasNewMessage,
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
+    activity,
   };
 }
 
@@ -129,6 +134,8 @@ export function TicketsBoard({
 }: TicketsBoardProps) {
   const debouncedSearch = useDebounce(search, 300);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  // Keeps staleness labels ticking between the 15s column polls.
+  const now = useNow(60_000);
 
   const { data: statusesData, isLoading: statusesLoading, error: statusesError } = useTicketStatusesQuery();
   const { data: transitionRules } = useTicketStatusTransitionRules();
@@ -256,9 +263,15 @@ export function TicketsBoard({
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
-        tickets: (state?.tickets ?? []).map(ticket =>
-          dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
-        ),
+        tickets: (state?.tickets ?? []).map(ticket => {
+          const hasUnread = ticketIdsWithUnread.has(ticket.id);
+          return dialogToBoardTicket(
+            ticket,
+            hasUnread,
+            isUserDeleted,
+            resolveStaleActivity(ticket, status.kind, hasUnread, now),
+          );
+        }),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
@@ -278,6 +291,7 @@ export function TicketsBoard({
     canArchiveResolved,
     ticketIdsWithUnread,
     isUserDeleted,
+    now,
   ]);
 
   // Remember the lane set so the route skeleton can lay out the same board on
