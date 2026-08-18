@@ -37,7 +37,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      - name: Trivy scan (dependencies + Dockerfile base images)
+      - name: Scan code
         uses: ./.github/steps/trivy
         with:
           scan: code
@@ -97,7 +97,7 @@ jobs:
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" .
 
-      - name: Trivy scan built image
+      - name: Scan image
         continue-on-error: true
         uses: ./.github/steps/trivy
         with:
