@@ -39,6 +39,7 @@ import {
   useRelayEnvironment,
 } from 'react-relay';
 import type { RecordProxy, RecordSourceSelectorProxy } from 'relay-runtime';
+import type { cancelPendingPushMutation as CancelPendingPushMutationType } from '@/__generated__/cancelPendingPushMutation.graphql';
 import type { markNotificationReadMutation as MarkReadMutationType } from '@/__generated__/markNotificationReadMutation.graphql';
 import type { notificationsDrawerRelay_query$key as NotificationsDrawerFragmentKey } from '@/__generated__/notificationsDrawerRelay_query.graphql';
 import type { notificationsDrawerRelayPaginationQuery as NotificationsDrawerPaginationQueryType } from '@/__generated__/notificationsDrawerRelayPaginationQuery.graphql';
@@ -46,6 +47,7 @@ import type { notificationsDrawerRelayQuery as NotificationsDrawerRelayQueryType
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import type { NotificationSeverity } from '@/generated/schema-enums';
+import { cancelPendingPushMutation } from '@/graphql/notifications/cancel-pending-push-mutation';
 import { markNotificationReadMutation } from '@/graphql/notifications/mark-notification-read-mutation';
 import {
   notificationsDrawerRelayFragment,
@@ -688,6 +690,22 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
           onError: () => refreshUnreadCounts(environmentRef.current),
         });
         return;
+      }
+
+      // A visible client means the user is looking at this notification right now — the
+      // drawer tile and popup are rendering it — so kill its pending OS push before the
+      // outbox grace expires, rather than buzzing a phone about something already on
+      // screen. Exactly complementary to the desktop mirror below, which fires only when
+      // the tab is HIDDEN. Best-effort: the mutation is a tombstone that also wins when it
+      // outraces the enqueue, and losing it just means the push lands.
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        commitMutation<CancelPendingPushMutationType>(environmentRef.current, {
+          mutation: cancelPendingPushMutation,
+          variables: { notificationId: rawId },
+          onError: error => {
+            console.warn('[notifications] cancelPendingPush failed:', error);
+          },
+        });
       }
 
       if (showDesktopPopupsRef.current) {

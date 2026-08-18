@@ -1,10 +1,12 @@
 /**
  * Mobile-shell push notifications: permission → FCM registration token handed
- * to the backend, and notification taps deep-linked to the `route` key of the
- * push payload (contract: openframe-mobile dev/push-sample.apns). All push
- * flows through Firebase/FCM on both platforms (@capacitor-firebase/messaging,
- * shipped with the shell — not an npm dep here). Mobile-only: no-ops on the
- * web, in the desktop shell, and in shells without the plugin.
+ * to the backend, and notification taps forwarded to the host as the raw FCM
+ * `data` map. Routing is deliberately NOT done here — the caller resolves it
+ * with the same table the in-app drawer uses, so the backend never has to know
+ * a frontend route. All push flows through Firebase/FCM on both platforms
+ * (@capacitor-firebase/messaging, shipped with the shell — not an npm dep
+ * here). Mobile-only: no-ops on the web, in the desktop shell, and in shells
+ * without the plugin.
  *
  * Init runs post-login (registration is an authenticated call; the permission
  * prompt belongs after sign-in, not at launch).
@@ -18,6 +20,7 @@ import { registerPushDeviceMutation } from '@/graphql/notifications/register-pus
 import { unregisterPushDeviceMutation } from '@/graphql/notifications/unregister-push-device-mutation';
 import { firebaseMessagingPlugin } from './native-shell';
 import { mobilePlatform } from './platform';
+import { removeRetracted, retractedIds } from './push-retraction';
 import { getRelayEnvironment } from './relay';
 
 const PUSH_TOKEN_STORAGE_KEY = 'native:push-token';
@@ -77,7 +80,13 @@ async function unregisterPushDevice(token: string): Promise<void> {
   }
 }
 
-export async function initNativePush(navigate: (route: string) => void): Promise<void> {
+/**
+ * @param onNotificationTap receives the tapped notification's FCM `data` map
+ *   verbatim (a flat string map; see resolvePushNotificationRoute). Fires for a
+ *   cold-start tap too — the plugin retains the event until a listener consumes
+ *   it, so mounting after launch does not lose it.
+ */
+export async function initNativePush(onNotificationTap: (data: unknown) => void): Promise<void> {
   const plugin = firebaseMessagingPlugin();
   if (!plugin || initialized) return;
   initialized = true;
@@ -86,11 +95,16 @@ export async function initNativePush(navigate: (route: string) => void): Promise
   // and iOS replays the launching notification's tap to a fresh listener on
   // cold start.
   await plugin.addListener('notificationActionPerformed', ({ notification }) => {
-    const route = notification?.data?.route;
-    // Only app-internal routes — never navigate to arbitrary payload URLs.
-    if (typeof route === 'string' && route.startsWith('/')) {
-      navigate(route);
-    }
+    onNotificationTap(notification?.data);
+  });
+
+  // Retraction rides in on both the data-only retraction push and the piggybacked
+  // list on every regular push; either way it only reaches us while the app is alive.
+  await plugin.addListener('notificationReceived', ({ notification }) => {
+    void removeRetracted(plugin, retractedIds(notification?.data)).catch(error => {
+      // Cosmetic cleanup — never let it break notification handling.
+      console.warn('[native-push] retraction cleanup failed:', error);
+    });
   });
 
   // FCM issues the token here and re-emits it on rotation — re-register each time.

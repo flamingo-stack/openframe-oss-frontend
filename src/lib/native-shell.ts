@@ -129,6 +129,24 @@ export interface FirebaseMessagingPlugin {
     eventName: 'notificationActionPerformed',
     listenerFunc: (event: { notification: { data?: Record<string, unknown> } }) => void,
   ): Promise<unknown>;
+  /**
+   * Fires for a push that arrives while the app is alive. Includes the data-only
+   * retraction push, which carries no notification block and so renders nothing —
+   * it exists purely to tell the client to clear a banner.
+   */
+  addListener(
+    eventName: 'notificationReceived',
+    listenerFunc: (event: { notification: { data?: Record<string, unknown> } }) => void,
+  ): Promise<unknown>;
+  getDeliveredNotifications(): Promise<{ notifications: DeliveredNotification[] }>;
+  /** Takes the objects `getDeliveredNotifications` returned, not ids. */
+  removeDeliveredNotifications(options: { notifications: DeliveredNotification[] }): Promise<void>;
+}
+
+/** A notification sitting in the OS tray, as the plugin reports it. */
+export interface DeliveredNotification {
+  id?: string;
+  data?: Record<string, unknown>;
 }
 
 /** A picked file as the NativeFiles plugin returns it, before `mimeType` is normalized to `type`. */

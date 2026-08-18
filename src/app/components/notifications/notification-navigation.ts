@@ -120,17 +120,47 @@ export function resolveNotificationAction(notification: Notification): Notificat
   );
 }
 
+const nonEmptyString = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
+
+/**
+ * Route for a bag of wire fields, whatever transport carried them. Both shells hand over
+ * untyped payloads, so every field is narrowed rather than trusted. Drawer-only actions
+ * (mingoDialogId) have no URL and resolve to null — callers fall back.
+ *
+ * The returned route is always BUILT by a `routes.*` builder from those narrowed ids, never
+ * echoed from the payload, so a forged push cannot name its own destination. That is what
+ * replaced the old `startsWith('/')` check on a server-supplied route string.
+ */
+function routeFromWireFields(fields: Record<string, unknown>): string | null {
+  const action = resolveAction(
+    nonEmptyString(fields.type),
+    nonEmptyString(fields.ticketId),
+    nonEmptyString(fields.dialogId),
+  );
+  return action && 'route' in action ? action.route : null;
+}
+
 /**
  * Route for a raw NATS notification envelope (`context.type/ticketId/dialogId`), before it has
- * been shaped into a store record — the native shell's OS-toast click path (`notification:click`
- * from the Rust notification plane) hands the wire payload over as-is. Drawer-only actions
- * (mingoDialogId) have no URL and resolve to null — callers fall back.
+ * been shaped into a store record — the desktop shell's OS-toast click path
+ * (`notification:click` from the Rust notification plane) hands the wire payload over as-is.
  */
 export function resolveNatsNotificationRoute(payload: unknown): string | null {
-  const context = (payload as { context?: Record<string, unknown> } | null | undefined)?.context ?? {};
-  const str = (value: unknown) => (typeof value === 'string' && value ? value : null);
-  const action = resolveAction(str(context.type), str(context.ticketId), str(context.dialogId));
-  return action && 'route' in action ? action.route : null;
+  return routeFromWireFields((payload as { context?: Record<string, unknown> } | null | undefined)?.context ?? {});
+}
+
+/**
+ * Route for a push notification's FCM `data` payload — a FLAT string map, not the nested NATS
+ * envelope, and the mobile shell's tap path.
+ *
+ * Reads the top-level keys only, never the serialized `context`: the backend
+ * (`FcmPushSender.buildData`) DROPS that blob whole when the payload would exceed FCM's size
+ * budget, and writes `type` plus the `PushActionable` ids (`ticketId`/`dialogId`) as flat keys
+ * for exactly that reason. Every notification context implements `PushActionable`, so the flat
+ * ids are the guaranteed half of the payload and the only half worth routing on.
+ */
+export function resolvePushNotificationRoute(data: unknown): string | null {
+  return routeFromWireFields((data ?? {}) as Record<string, unknown>);
 }
 
 /** Convenience for callers that only need a router route (drawer actions yield null). */
