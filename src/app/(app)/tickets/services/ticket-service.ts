@@ -2,7 +2,7 @@ import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
 import { apiClient } from '@/lib/api-client';
 import type { ChatType } from '../constants';
 import { API_ENDPOINTS } from '../constants';
-import { getDialogMessagesQuery, normalizeEscalationMessageData } from '../queries/dialogs-queries';
+import { getDialogMessagesQuery, normalizeMessageDataAliases } from '../queries/dialogs-queries';
 import {
   ARCHIVE_TICKET_MUTATION,
   GET_TICKET_QUERY,
@@ -338,11 +338,11 @@ export class TicketService implements TicketServiceInterface {
     const { edges, pageInfo } = data.messages;
 
     return {
-      // Single parse point for the escalation body aliases — see
-      // `normalizeEscalationMessageData`.
+      // Single parse point for the messageData field aliases — see
+      // `normalizeMessageDataAliases`.
       messages: edges.map(edge => ({
         ...edge.node,
-        messageData: normalizeEscalationMessageData(edge.node.messageData),
+        messageData: normalizeMessageDataAliases(edge.node.messageData),
       })),
       pageInfo,
     };
