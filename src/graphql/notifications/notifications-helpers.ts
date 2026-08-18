@@ -1,6 +1,11 @@
 import type { Notification, NotificationVariant } from '@flamingo-stack/openframe-frontend-core';
-import { ConnectionHandler, type RecordSourceSelectorProxy } from 'relay-runtime';
-import type { NotificationSeverity } from '@/__generated__/notificationsDrawerRelay_query.graphql';
+import { ConnectionHandler, type RecordSourceSelectorProxy, readInlineData } from 'relay-runtime';
+import type {
+  notificationFields_notification$data as NotificationFieldsData,
+  notificationFields_notification$key as NotificationFieldsKey,
+} from '@/__generated__/notificationFields_notification.graphql';
+import type { NotificationSeverity } from '@/generated/schema-enums';
+import { notificationFieldsFragment } from './notification-fields';
 
 export const NOTIFICATIONS_CONNECTION_KEY = 'NotificationsList_notifications';
 const NOTIFICATION_EDGE_TYPENAME = 'NotificationEdge';
@@ -185,7 +190,10 @@ type KnownSeverity = 'INFO' | 'SUCCESS' | 'WARNING' | 'DANGER';
 
 const KNOWN_SEVERITIES: ReadonlySet<string> = new Set<KnownSeverity>(['INFO', 'SUCCESS', 'WARNING', 'DANGER']);
 
-function normalizeSeverity(value: NotificationSeverity | undefined): KnownSeverity | undefined {
+// Takes a plain string: the fragment's severity is an enum union that also
+// carries Relay's `"%future added value"`, and dropping an unknown value is
+// exactly what this does.
+function normalizeSeverity(value: string | undefined): KnownSeverity | undefined {
   return value && KNOWN_SEVERITIES.has(value) ? (value as KnownSeverity) : undefined;
 }
 
@@ -244,46 +252,17 @@ export function parseCreatedAt(value: unknown): number {
   return Date.now();
 }
 
-interface ApprovalToolCallShape {
-  readonly toolExecutionRequestId: string | null | undefined;
-  readonly toolName: string;
-  readonly toolTitle: string | null | undefined;
-  readonly toolExplanation: string | null | undefined;
-  readonly toolType: string | null | undefined;
-  readonly requiresApproval: boolean;
-  readonly approvalType: string | null | undefined;
-  readonly toolCallArguments: unknown;
+/** Reads a `notificationFields_notification` spread off either list's edges. */
+export function readNotificationNode(ref: NotificationFieldsKey): NotificationFieldsData {
+  return readInlineData(notificationFieldsFragment, ref);
 }
 
 /**
- * Structural shape shared by the drawer and section fragments. Relay emits `context`
- * as a flat object keyed by `__typename` with all inline-fragment fields optional, so
- * both generated node types are assignable to this one mapper input.
+ * Flattens a notification row into the core lib's `Notification`. Takes the read
+ * data rather than the fragment reference, so a caller that also needs the raw
+ * fields (the section table's own columns) reads the node once.
  */
-export interface NotificationNodeShape {
-  readonly id: string;
-  readonly severity: NotificationSeverity;
-  readonly title: string;
-  readonly description: string | null | undefined;
-  readonly createdAt: unknown;
-  readonly read: boolean;
-  readonly category?: string | null;
-  readonly context: {
-    // biome-ignore lint/style/useNamingConvention: GraphQL __typename discriminator
-    readonly __typename: string;
-    readonly type: string;
-    readonly approvalRequestId?: string;
-    readonly approvalType?: string;
-    readonly dialogId?: string;
-    readonly ticketId?: string | null;
-    readonly approvalTicketId?: string | null;
-    readonly resolution?: string | null;
-    readonly resolvedByName?: string | null;
-    readonly toolCalls?: ReadonlyArray<ApprovalToolCallShape>;
-  };
-}
-
-export function mapNotificationNode(node: NotificationNodeShape): Notification {
+export function mapNotificationNode(node: NotificationFieldsData): Notification {
   const severity = normalizeSeverity(node.severity);
   const { context } = node;
   const meta: Record<string, unknown> = {

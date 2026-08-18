@@ -1,6 +1,8 @@
 'use client';
 
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { SectionLoadError } from '@/app/components/shared';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { DEVICE_STATUS } from '../../devices/constants/device-statuses';
 import { useDevicesOverview } from '../hooks/use-dashboard-stats';
@@ -9,8 +11,9 @@ import { DevicesOverviewSkeleton } from './dashboard-skeletons';
 type DeviceStatusCard = {
   status: string;
   title: string;
-  value: number;
-  percentage: number;
+  /** `null` = the stats request failed; render unavailable, not zero. */
+  value: number | null;
+  percentage: number | null;
   progressVariant: 'success' | 'error' | 'warning' | 'info';
 };
 
@@ -56,14 +59,22 @@ export function DevicesOverviewSection() {
     <div>
       <TitleBlock title="Devices Overview" />
 
+      {(devices.error || devices.isOffline) && (
+        <SectionLoadError
+          {...loadErrorProps(devices.isOffline, "Couldn't load device counts.", () => devices.refetch())}
+        />
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-mf)]">
         {statusCards.map(card => (
           <DashboardInfoCard
             key={card.status}
             title={card.title}
-            value={card.value}
-            percentage={card.percentage}
-            showProgress
+            // `—` rather than a number: the request failed, so any digit here
+            // would be invented. See the null contract in `use-dashboard-stats`.
+            value={card.value ?? '—'}
+            percentage={card.percentage ?? undefined}
+            showProgress={card.percentage != null}
             progressVariant={card.progressVariant}
             percentageDisplay="plain"
             progressSize={{ base: 24, md: 56 }}

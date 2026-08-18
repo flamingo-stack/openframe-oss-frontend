@@ -790,6 +790,23 @@ type EventFilters {
   eventTypes: [String!]!
 }
 
+"""
+Where the execution was triggered from. Stamped server-side at dispatch — the client can't
+forge it via the API. Powers the "via Mingo" label in History for AI-initiated runs.
+"""
+enum ExecutionSource {
+  """Technician clicked Run in the dashboard."""
+  MANUAL
+
+  """
+  A schedule fire — time-driven, DEVICE_ONLINE trigger, or dashboard Run Now on a schedule.
+  """
+  SCHEDULED
+
+  """The Mingo AI runner invoked the dispatch on the technician's behalf."""
+  AI_ASSISTANT
+}
+
 type FeFeatureFlag {
   name: String!
   enabled: Boolean!
@@ -2101,6 +2118,7 @@ type ScriptExecution implements Node {
   machine: Machine
   privilegeLevel: PrivilegeLevel!
   initiator: User
+  source: ExecutionSource!
   status: ScriptExecutionStatus!
   dispatchedAt: Instant!
   statusChangedAt: Instant
@@ -2664,6 +2682,24 @@ type TicketStatusChangedContext implements NotificationContext {
 
   """ nullable: system-driven status transitions have no acting principal"""
   changedByUserId: ID
+}
+
+"""
+Hand-added from the documented reopen contract (ClickUp 86ajnyctz) and since
+verified 1:1 against the deployed backend (fetch-schema introspection of
+tenant test1011, 2026-08-17 — the server declaration is byte-identical). Kept
+hand-maintained because a WHOLESALE re-sync from that tenant imports unrelated
+qa/dev schema drift (e.g. NotificationSettings.pushEnabled vs enabled) that
+breaks relay compilation; re-sync fully once environments align. A reopen
+transition emits THIS instead of the generic TicketStatusChangedContext.
+"""
+type TicketReopenedContext implements NotificationContext {
+  type: String!
+  ticketId: ID!
+  ticketNumber: Int
+  dialogId: ID
+  targetStatusKind: String
+  reason: String
 }
 
 type TimeEntry implements Node {

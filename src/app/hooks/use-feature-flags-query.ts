@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { subscribeConnectivity } from '@/lib/connectivity';
 import { FEATURE_FLAG_NAMES } from '@/lib/feature-flags';
 import { detectTrialExpiredFromGraphqlErrors } from '@/lib/subscription-lock-signal';
 import { type FeatureFlag, useFeatureFlagsStore } from '@/stores/feature-flags-store';
@@ -70,6 +71,30 @@ export function useFeatureFlagsQuery({ enabled }: { enabled: boolean }) {
       setLoaded();
     }
   }, [query.isError, query.error, setLoaded]);
+
+  // Offline counts as "answered with defaults" too.
+  //
+  // This gate is a hard dependency for `useFeatureFlagGate`, and four routes
+  // render nothing but a skeleton until it resolves — /notifications,
+  // /settings/billing-usage, its /subscription child, and /mingo. It used to
+  // resolve offline by accident: the query FAILED, so the `isError` branch above
+  // fired. With a real connectivity signal it no longer fails, and those routes
+  // skeletoned forever.
+  //
+  // Keyed off CONNECTIVITY, not `query.isPaused`: this query is `enabled`-gated on
+  // the session, `/me` is itself paused offline, and query-core only assigns
+  // `fetchStatus: 'paused'` to a query that was allowed to start
+  // (`shouldLoadOnMount` requires `enabled !== false`). A disabled query is never
+  // paused, so reading `isPaused` here would never fire.
+  //
+  // Flags have safe defaults; not knowing them is no reason to withhold the page.
+  useEffect(
+    () =>
+      subscribeConnectivity(online => {
+        if (!online) setLoaded();
+      }),
+    [setLoaded],
+  );
 
   return query;
 }

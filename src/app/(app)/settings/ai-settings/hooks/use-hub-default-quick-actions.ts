@@ -2,6 +2,7 @@
 
 import { useEmptyStateConfig } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useMemo } from 'react';
+import { CONTENT_BASE } from '@/app/(app)/help-center/endpoints';
 import type { AiQuickAction } from '../types/ai-settings';
 
 /**
@@ -12,8 +13,15 @@ import type { AiQuickAction } from '../types/ai-settings';
  * Shown/seeded while `quickActionsIsDefault` is on — the tenant BE stores
  * only the org's customized list, never the hub defaults.
  * `useEmptyStateConfig` caches per URL for the whole session (one request).
+ *
+ * Built on `CONTENT_BASE`, not a hand-written `/content/…` literal: in the
+ * native shell that relative path resolves against `capacitor://localhost`,
+ * and the lib's `embedAuthedFetch` refuses non-http(s) URLs — the fetch threw,
+ * `useEmptyStateConfig` swallowed it into its neutral fallback, and the
+ * defaults list rendered empty on mobile. `CONTENT_BASE` absolutizes to the
+ * tenant gateway there (and stays relative on the web).
  */
-const hubAgentConfigUrl = (slug: string) => `/content/api/ai-agents/${encodeURIComponent(slug)}`;
+const hubAgentConfigUrl = (slug: string) => `${CONTENT_BASE}/api/ai-agents/${encodeURIComponent(slug)}`;
 
 export function useHubDefaultQuickActions(agentSlug: string, options: { enabled?: boolean } = {}) {
   const { config, loading, loaded } = useEmptyStateConfig(hubAgentConfigUrl(agentSlug), options);

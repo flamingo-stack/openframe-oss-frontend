@@ -109,7 +109,11 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
 
   const { createOrganization } = useCreateCustomer();
   const { updateOrganization } = useUpdateCustomer();
-  const { organization } = useCustomerDetails(organizationId);
+  // `hasData` gates Save: offline the query PAUSES, so `organization` is null
+  // for a reason that has nothing to do with the record being empty. Without it
+  // the edit form renders blank and Save PATCHes those blanks over the real
+  // customer — website, notes, addresses, contacts.
+  const { organization, hasData: customerLoaded } = useCustomerDetails(organizationId);
 
   const handleBack = useSafeBack(organizationId ? routes.customers.details(organizationId) : routes.customers.list());
 
@@ -416,7 +420,9 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
     }
   };
 
-  const saveDisabled = !form.name.trim() || isSubmitting;
+  // Editing an existing customer requires its record to have actually arrived.
+  // Creating one does not — there is nothing to overwrite.
+  const saveDisabled = !form.name.trim() || isSubmitting || (!!organizationId && !customerLoaded);
 
   const detailsForm = (
     <div className="flex flex-col gap-6 w-full">

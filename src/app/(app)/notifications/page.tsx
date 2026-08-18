@@ -1,6 +1,7 @@
 'use client';
 
 import { notFound } from 'next/navigation';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { NotificationsPageSkeleton } from './components/notifications-page-skeleton';
 import { NotificationsPageView } from './components/notifications-page-view';
@@ -19,5 +20,9 @@ export default function NotificationsPage() {
     return <NotificationsPageSkeleton />;
   }
 
-  return <NotificationsPageView />;
+  return (
+    <ContentErrorBoundary title="Notifications" message="Couldn't load notifications.">
+      <NotificationsPageView />
+    </ContentErrorBoundary>
+  );
 }

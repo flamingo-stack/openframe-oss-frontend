@@ -51,11 +51,13 @@ import {
   DateColumnHeader,
   EmptyState,
   liveColumnMeta,
-  onboardingGuideButton,
   skeletonColumnDefs,
   type TableDateFilter,
+  useOnboardingGuideButton,
+  useRetryKey,
 } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -162,6 +164,7 @@ function SchedulesTableContent({
 
   // One round-trip per interaction: the filter facets (`scriptScheduleFilters`)
   // ride the list operation — see the query docstring.
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SchedulesTableQueryType>(
     scriptSchedulesTableRelayQuery,
     {
@@ -171,7 +174,7 @@ function SchedulesTableContent({
       first: PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -379,13 +382,7 @@ function SchedulesTableContent({
         id: 'dateTime',
         // The cell IS `startAt`, the field the calendar filters and orders by —
         // so the popover sits on this header rather than on a column of its own.
-        header: () => (
-          <DateColumnHeader
-            label={SCHEDULE_COLUMNS.dateTime.header}
-            filter={dateFilter}
-            ariaLabel="Sort and filter by date and time"
-          />
-        ),
+        header: () => <DateColumnHeader label={SCHEDULE_COLUMNS.dateTime.header} filter={dateFilter} />,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => {
           // Event-driven schedules have no date/time — name the trigger instead
           // of showing an em dash that reads as "not configured yet".
@@ -510,6 +507,8 @@ function SchedulesTableContent({
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
+  const guideButton = useOnboardingGuideButton('script-schedules');
+
   if (showEmptyState && archived) {
     return (
       <EmptyState
@@ -531,7 +530,7 @@ function SchedulesTableContent({
           { icon: <RadarIcon />, label: 'Target specific devices, Customers, or tags' },
           { icon: <ListBulletIcon />, label: 'View execution history and success rates' },
         ]}
-        {...onboardingGuideButton('script-schedules', 'Learn more about Script Schedules')}
+        {...guideButton}
       />
     );
   }
@@ -719,6 +718,12 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
   // by REPEAT leaves it on its default rather than claiming that order too.
   const dateSortDirection: 'asc' | 'desc' = sortBy === START_AT_SORT_FIELD && params.sortDir === 'asc' ? 'asc' : 'desc';
 
+  // The mobile FilterModal commits the funnels and the date section as two
+  // callbacks in the same tick; the shared writer merges them into a single URL
+  // write (sequential setParams calls each re-read the stale URL and clobber, so
+  // the platform selection would be lost whenever a date is applied beside it).
+  const queueParamsWrite = useQueuedParamsWrite(setParams);
+
   // Apply, and Reset (which fires with the selection cleared).
   const handleDateFilterApply = useCallback(
     (result: DateFilterResult) => {
@@ -731,7 +736,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
       // REPEAT keeps its own sort through all of this.
       const ownsSort = result.sort === 'asc' || Boolean(dateFrom || dateTo);
       const leavesOtherSortAlone = !ownsSort && sortBy !== START_AT_SORT_FIELD;
-      setParams({
+      queueParamsWrite({
         ...(leavesOtherSortAlone
           ? {}
           : // `sortDir: ''` — NOT `'desc'` — for the default direction, per the
@@ -740,9 +745,8 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
         dateFrom,
         dateTo,
       });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [setParams, sortBy],
+    [queueParamsWrite, sortBy],
   );
 
   const dateFilter: TableDateFilter = useMemo(
@@ -760,10 +764,9 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
 
   const handleFilterChange = useCallback(
     (columnFilters: Record<string, any[]>) => {
-      setParams({ supportedPlatforms: columnFilters.supportedPlatforms || [] });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+      queueParamsWrite({ supportedPlatforms: columnFilters.supportedPlatforms || [] });
     },
-    [setParams],
+    [queueParamsWrite],
   );
 
   // 3-state toggle owned by the consumer (per DataTable.Header contract):

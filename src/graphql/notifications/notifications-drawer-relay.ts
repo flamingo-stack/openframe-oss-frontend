@@ -18,54 +18,9 @@ export const notificationsDrawerRelayFragment = graphql`
       edges {
         cursor
         node {
-          id
-          severity
-          title
-          description
-          createdAt
-          read
-          category
-          context {
-            __typename
-            type
-            ... on AdminAiMessageContext {
-              dialogId
-            }
-            ... on AdminAiTicketMessageContext {
-              ticketId
-              dialogId
-            }
-            ... on TicketStatusChangedContext {
-              ticketId
-            }
-            ... on TicketAssignedContext {
-              ticketId
-            }
-            ... on CustomerMessagePublishedContext {
-              ticketId
-            }
-            ... on AdminMessagePublishedContext {
-              ticketId
-            }
-            ... on AdminApprovalRequestContext {
-              approvalRequestId
-              dialogId
-              approvalTicketId: ticketId
-              approvalType
-              resolution
-              resolvedByName
-              toolCalls {
-                toolExecutionRequestId
-                toolName
-                toolTitle
-                toolExplanation
-                toolType
-                requiresApproval
-                approvalType
-                toolCallArguments
-              }
-            }
-          }
+          # The shared row selection (notification-fields.ts) — identical to the
+          # section list's, so both read the same rows out of the same store.
+          ...notificationFields_notification
         }
       }
       pageInfo {

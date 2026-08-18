@@ -20,7 +20,7 @@
     "relay": "relay-compiler",
     "relay:watch": "relay-compiler --watch",
     "type-check": "tsc --noEmit",
-    "prepare": "cd ../../.. && husky openframe/services/openframe-frontend/.husky || true",
+    "prepare": "husky || true",
     "core:link": "yalc add @flamingo-stack/openframe-frontend-core",
     "core:unlink": "yalc remove @flamingo-stack/openframe-frontend-core",
     "test:node": "node --test src/lib/*.test.mjs",

@@ -38,9 +38,15 @@ export function useSsoConfig() {
 
   const fetchProviderConfig = useCallback(async (provider: string): Promise<ProviderConfig | undefined> => {
     const res = await apiClient.get<ProviderConfig>(`api/sso/${encodeURIComponent(provider)}`);
-    if (!res.ok) {
-      // If no config exists, treat as undefined rather than throwing
+    // 404 is the only failure that MEANS "not configured". Everything else — 5xx,
+    // or `status: 0` for a network failure — means we do not know, and returning
+    // `undefined` for those made the two indistinguishable: the edit form then
+    // seeded a blank client id/secret and Save wrote them over a working IdP.
+    if (res.status === 404) {
       return undefined;
+    }
+    if (!res.ok) {
+      throw new Error(res.error || `Failed to load ${provider} configuration (${res.status})`);
     }
     return res.data;
   }, []);

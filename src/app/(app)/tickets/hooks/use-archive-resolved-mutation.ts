@@ -20,7 +20,7 @@ interface ArchiveResolvedPayload {
 export interface ArchiveResolvedFilter {
   organizationIds?: string[];
   assigneeIds?: string[];
-  labelIds?: string[];
+  tagIds?: string[];
 }
 
 export function useArchiveResolvedMutation() {
@@ -35,7 +35,7 @@ export function useArchiveResolvedMutation() {
           filter: {
             organizationIds: filter.organizationIds?.length ? filter.organizationIds : undefined,
             assigneeIds: filter.assigneeIds?.length ? filter.assigneeIds : undefined,
-            labelIds: filter.labelIds?.length ? filter.labelIds : undefined,
+            tagIds: filter.tagIds?.length ? filter.tagIds : undefined,
           },
         },
       });

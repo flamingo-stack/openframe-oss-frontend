@@ -1,8 +1,7 @@
 'use client';
 
-import { PageError, PageLayout, TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageLayout, TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Component, type ReactNode } from 'react';
 import { DevicesGrid } from '@/app/(app)/devices/components/devices-grid';
 import { DevicesGridFilters } from '@/app/(app)/devices/components/devices-grid-filters';
 import {
@@ -153,62 +152,4 @@ export function DevicesPanelSkeleton({
       </div>
     </PageLayout>
   );
-}
-
-interface BoundaryProps extends DevicesPanelChrome {
-  /**
-   * Changing this clears a tripped boundary. The panel feeds it the active
-   * filter + search, so retrying is "narrow the list differently" — the same
-   * gesture that would have refetched before, rather than a dead end that only
-   * a remount escapes.
-   */
-  resetKey: string;
-  children: ReactNode;
-}
-
-interface BoundaryState {
-  message: string | null;
-  resetKey: string;
-}
-
-/**
- * Keeps a failed device query inside the panel.
- *
- * The Relay hooks throw on failure instead of returning an `error` string, and
- * without a boundary that throw reaches Next's route-level `error.tsx` and
- * replaces the whole page. This preserves the previous behaviour: the page
- * chrome stays, the list area shows the error.
- */
-export class DevicesPanelErrorBoundary extends Component<BoundaryProps, BoundaryState> {
-  state: BoundaryState = { message: null, resetKey: this.props.resetKey };
-
-  static getDerivedStateFromError(error: unknown) {
-    return { message: error instanceof Error ? error.message : 'Failed to load devices' };
-  }
-
-  static getDerivedStateFromProps(props: BoundaryProps, state: BoundaryState): Partial<BoundaryState> | null {
-    if (props.resetKey === state.resetKey) return null;
-    return { message: null, resetKey: props.resetKey };
-  }
-
-  componentDidCatch(error: unknown) {
-    console.error('[DevicesPanel] device query failed:', error);
-  }
-
-  render() {
-    const { children, title, backButton, className, offsetClassName } = this.props;
-    if (this.state.message === null) return children;
-
-    return (
-      <PageLayout
-        title={title}
-        backButton={backButton}
-        actionsVariant="icon-buttons"
-        className={cn(offsetClassName, className)}
-        contentClassName="flex flex-col"
-      >
-        <PageError message={this.state.message} />
-      </PageLayout>
-    );
-  }
 }

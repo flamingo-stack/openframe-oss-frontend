@@ -5,6 +5,7 @@ import {
   type RadioGroupBlockOption,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import type { DeviceSelectionMode } from './device-selector.types';
 
 /**
@@ -28,7 +29,8 @@ const CRITERIA_MODE_DESCRIPTION =
  * i.e. where `value` / `onChange` are wired up. Everywhere else it keeps the
  * design's "Coming Soon" treatment: a tag rather than a dimmed row is how the
  * design says so, and `disabled` is what keeps it unselectable and out of the
- * tab order.
+ * tab order. In the mobile shell that row is dropped entirely, which leaves
+ * this list with a single option and the block renders nothing at all.
  */
 const SELECTION_MODE_OPTIONS: RadioGroupBlockOption[] = [
   SPECIFIC_MODE_OPTION,
@@ -70,6 +72,9 @@ export interface DeviceSelectionModeRadioProps {
  * subtree that swaps: mounted inside, the radio unmounts and remounts with the
  * content, restarting its own transitions — the switch you just clicked blinks.
  * Such a page renders this directly and passes `showSelectionModeRadio={false}`.
+ *
+ * Renders nothing when fewer than two modes survive — which is the mobile
+ * shell's uncontrolled case, where the only other mode is "Coming Soon".
  */
 export function DeviceSelectionModeRadio({ value, onChange, disabled }: DeviceSelectionModeRadioProps) {
   // Controlled whenever the consumer PASSES a value — including `''`, which is a
@@ -77,6 +82,18 @@ export function DeviceSelectionModeRadio({ value, onChange, disabled }: DeviceSe
   // prop means "decorative", which is what keeps the old criteria-disabled
   // block for the pages that cannot store a rule.
   const isControlled = value !== undefined;
+  const isMobile = useIsMobileShell();
+
+  const allOptions = isControlled ? SELECTION_MODE_OPTIONS_ENABLED : SELECTION_MODE_OPTIONS;
+  // A disabled option is one nobody can pick — on a phone it is a row of screen
+  // spent announcing a feature. Dropping it costs nothing there, and it leaves
+  // the controlled block (where criteria IS selectable) untouched.
+  const options = isMobile ? allOptions.filter(option => !option.disabled) : allOptions;
+
+  // One option is not a choice. The mode that survived is what the picker below
+  // already does, so the group would only be asking a question with a single
+  // answer.
+  if (options.length < 2) return null;
 
   return (
     <RadioGroupBlock
@@ -84,7 +101,7 @@ export function DeviceSelectionModeRadio({ value, onChange, disabled }: DeviceSe
       variant="grouped"
       {...(isControlled ? { value, onValueChange: onChange } : { defaultValue: 'specific' })}
       disabled={disabled}
-      options={isControlled ? SELECTION_MODE_OPTIONS_ENABLED : SELECTION_MODE_OPTIONS}
+      options={options}
       // Design 460:71430 rows are 68px — a 24px title over a 20px description
       // with 12px above and below. The grouped variant pads `py-xs` (8px on
       // desktop) by default, which would come out 8px short.

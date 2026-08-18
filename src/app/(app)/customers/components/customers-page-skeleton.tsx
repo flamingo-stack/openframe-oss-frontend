@@ -24,7 +24,9 @@ const ACTIONS: PageActionButton[] = [
 const COLUMNS: readonly TableSkeletonColumn[] = [
   { id: 'name', header: 'Name', width: 'flex-1 min-w-0' },
   { id: 'deviceCount', header: 'Devices', width: 'w-[200px] shrink-0', hideAt: 'md' },
-  { id: 'lastActivityDate', header: 'Last Activity', width: 'w-[200px] shrink-0', hideAt: 'md' },
+  // Carries the calendar (drawn inert) and stays reachable on tablet, exactly as
+  // the loaded column does — a bare label here would shift when the rows land.
+  { id: 'lastActivityDate', header: 'Last Activity', width: 'w-[200px] shrink-0', hideAt: 'md', dateFilterable: true },
   { id: 'open', width: 'w-12 shrink-0 flex-none ml-auto', hideAt: 'md', align: 'right' },
 ];
 

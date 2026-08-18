@@ -3,7 +3,7 @@
 import { type UseQueryResult, useQueries } from '@tanstack/react-query';
 import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app/(app)/customers/hooks/use-customers';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { type MachineLike, machineToDevice } from '@/app/(app)/devices/utils/device-transform';
+import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { KnowledgeBaseRow } from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
 import type { Dialog, DialogStatus } from '@/app/(app)/tickets/types/dialog.types';
 import { postGraphQl } from './graphql';
@@ -39,29 +39,20 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               contactInformation { contacts { contactName email } }
               image { imageUrl hash }
             }
+            # The row fields of deviceRowFields_machine — this list renders
+            # DevicesTableBody, which draws no more than that. status, type and
+            # tags are aliased because the union's other members declare the
+            # same names with different types.
             ... on Machine {
               machineId
               hostname
               displayName
-              ip
-              macAddress
-              osUuid
-              agentVersion
               machineStatus: status
               lastSeen
-              organization { id organizationId name image { imageUrl hash } }
-              serialNumber
-              manufacturer
-              model
               machineType: type
               osType
-              osVersion
-              osBuild
-              timezone
-              registeredAt
-              updatedAt
+              organization { id organizationId name image { imageUrl hash } }
               machineTags: tags { id key description color values createdAt }
-              toolConnections { id machineId toolType agentToolId status metadata connectedAt lastSyncAt disconnectedAt }
             }
             ... on KnowledgeBaseItem {
               articleType: type
@@ -123,6 +114,31 @@ function unaliasFields(target: AssignedTargetNode): Record<string, unknown> {
   };
 }
 
+/**
+ * The machine half of a target, in the shape the device transforms read.
+ *
+ * This query is raw POST over a union, so it has no Relay fragment reference to
+ * hand `machineRowToDevice` and aliases the fields that collide across the
+ * union's members. Building `DeviceRowFields` by hand is what bridges that — and
+ * because that type is generated from `deviceRowFields_machine`, dropping a
+ * field from this list is a compile error rather than an empty column.
+ */
+function toMachineRowFields(target: AssignedTargetNode): DeviceRowFields {
+  const t = unaliasFields(target);
+  return {
+    id: target.id,
+    machineId: t.machineId as string,
+    hostname: t.hostname as string | null,
+    displayName: t.displayName as string | null,
+    osType: t.osType as DeviceRowFields['osType'],
+    status: t.status as DeviceRowFields['status'],
+    lastSeen: t.lastSeen ?? null,
+    type: t.type as DeviceRowFields['type'],
+    organization: t.organization as DeviceRowFields['organization'],
+    tags: t.tags as DeviceRowFields['tags'],
+  };
+}
+
 function toDialog(target: AssignedTargetNode): Dialog {
   const t = unaliasFields(target);
   return {
@@ -174,7 +190,7 @@ async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetTy
         customers.push(mapOrganizationNode(unaliasFields(target) as unknown as OrganizationNode));
         break;
       case 'Machine':
-        devices.push(machineToDevice(unaliasFields(target) as unknown as MachineLike));
+        devices.push(rowFieldsToDevice(toMachineRowFields(target)));
         break;
       case 'KnowledgeBaseItem':
         articles.push(unaliasFields(target) as unknown as KnowledgeBaseRow);
@@ -220,6 +236,20 @@ function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Erro
     const result = results[i];
     if (result.isLoading) {
       out.isLoading = true;
+      out.isReady = false;
+    }
+    // `isLoading` alone is not enough for `isReady`, which callers treat as "the
+    // answer is in" and use to prefill forms. A PAUSED query (offline) reports
+    // `isLoading: false` with no data, so `isReady` went true with an EMPTY
+    // assignment set — and `use-edit-article-form.ts` then reset the form to
+    // `assignments: []`, making Save delete every assignment on the article.
+    // `fetchStatus === 'idle'` keeps a deliberately disabled query (create mode)
+    // ready, since it has nothing to wait for.
+    // `isError` as well as pending: a FAILED assignments fetch also leaves `value`
+    // empty with `isPending` false, and `use-edit-article-form.ts` would reset the
+    // form to `assignments: []` and let Save delete them. Guarding only the paused
+    // half closed only the offline half of the data loss.
+    if ((result.isPending && result.fetchStatus !== 'idle') || result.isError) {
       out.isReady = false;
     }
     const payload = result.data;
