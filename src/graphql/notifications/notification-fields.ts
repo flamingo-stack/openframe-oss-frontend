@@ -39,6 +39,13 @@ export const notificationFieldsFragment = graphql`
       ... on TicketStatusChangedContext {
         ticketId
       }
+      # dialogId is deliberately NOT selected: the wire declares it nullable while
+      # the message contexts declare dialogId: ID!, and same-named fields of
+      # different nullability cannot merge into one selection set. Navigation
+      # needs only ticketId.
+      ... on TicketReopenedContext {
+        ticketId
+      }
       ... on TicketAssignedContext {
         ticketId
       }
