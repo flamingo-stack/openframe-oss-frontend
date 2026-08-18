@@ -21,6 +21,27 @@ interface BoardColumnSubscriberProps {
 }
 
 /**
+ * Pages are fetched by cursor, and the order they are cut from moves under us —
+ * a ticket reordered or transitioned between two `fetchNextPage` calls, or
+ * arriving on a live update, can come back on a page that already carried it.
+ * One ticket appearing twice in a lane then hands React two children with the
+ * same key, which it explicitly treats as unsupported: it may drop or duplicate
+ * the DOM, and a duplicated card is also a second drag source for one ticket.
+ *
+ * First occurrence wins, so the earliest page keeps the position it had.
+ */
+function dedupeById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+  }
+  return unique;
+}
+
+/**
  * Owns one column's infinite query so the board can host a dynamic number of
  * columns (rules of hooks forbid a variable hook count in a single component).
  * Pages accumulate in the react-query cache under boardColumn(statusId),
@@ -64,7 +85,7 @@ export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoad
     const lastPage = pages[pages.length - 1];
     onUpdate(statusId, {
       state: {
-        tickets: pages.flatMap(p => p.dialogs),
+        tickets: dedupeById(pages.flatMap(p => p.dialogs)),
         total: lastPage?.filteredCount ?? 0,
         endCursor: lastPage?.pageInfo.endCursor ?? null,
         hasMore: !!lastPage?.pageInfo.hasNextPage,
