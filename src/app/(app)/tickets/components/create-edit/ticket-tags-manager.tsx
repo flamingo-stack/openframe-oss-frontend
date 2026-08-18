@@ -3,8 +3,8 @@
 import { Autocomplete } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { useCreateTagMutation } from '@/app/components/shared/tags';
-import { useTicketLabels } from '../../hooks/use-ticket-labels';
 import { useTicketTagDelete } from '../../hooks/use-ticket-tag-delete';
+import { useTicketTags } from '../../hooks/use-ticket-tags';
 
 interface TicketTagsManagerProps {
   selectedIds: string[];
@@ -13,7 +13,7 @@ interface TicketTagsManagerProps {
 }
 
 export function TicketTagsManager({ selectedIds, onChange, disabled }: TicketTagsManagerProps) {
-  const { data: tags = [], refetch } = useTicketLabels();
+  const { data: tags = [], refetch } = useTicketTags();
   const { createTag, isInFlight: isCreating } = useCreateTagMutation();
 
   const [optimisticTags, setOptimisticTags] = useState<Array<{ key: string; tempId: string }>>([]);

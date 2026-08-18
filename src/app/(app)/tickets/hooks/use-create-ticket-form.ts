@@ -70,7 +70,7 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
       userId: undefined,
       assignedTo: undefined,
       type: 'text',
-      labelIds: [],
+      tagIds: [],
       description: '',
       assignKnowledgeBase: false,
       assignments: {},
@@ -95,7 +95,7 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
         assignedTo: ticket.assignedTo || undefined,
         userId: undefined,
         type: 'text',
-        labelIds: ticket.labels?.map(l => l.id) || [],
+        tagIds: ticket.tags?.map(t => t.id) || [],
         assignKnowledgeBase: false,
         assignments: assignedItems.value,
       });
@@ -143,7 +143,7 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
         organizationId: data.organizationId ?? null,
         deviceId: data.deviceId ?? null,
         assigneeId: data.assignedTo ?? null,
-        labelIds: data.labelIds,
+        tagIds: data.tagIds,
         tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
       });
 
@@ -163,7 +163,7 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
         organizationId: data.organizationId || undefined,
         deviceId: data.deviceId || undefined,
         assigneeId: data.assignedTo || undefined,
-        labelIds: data.labelIds.length ? data.labelIds : undefined,
+        tagIds: data.tagIds.length ? data.tagIds : undefined,
         tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
       });
 

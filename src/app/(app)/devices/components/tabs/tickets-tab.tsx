@@ -28,7 +28,7 @@ interface TicketsTabProps {
 }
 
 // TEMPORARY: the tickets API has no device filter (TicketFilterInput only
-// supports statuses/organizations/assignees/labels), so we fetch the largest
+// supports statuses/organizations/assignees/tags), so we fetch the largest
 // page the backend allows (100) and match tickets to this device client-side.
 // Replace with a server-side `filter: { machineIds }` once the backend
 // supports it.

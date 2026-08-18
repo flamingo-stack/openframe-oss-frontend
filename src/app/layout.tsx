@@ -9,6 +9,7 @@ import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
 import { sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
 import { Toaster } from '@/lib/openframe-core-ui';
 import { PostHogAnalyticsBridge } from '@/lib/posthog/posthog-analytics-bridge';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { FeatureFlagsLoader } from '../components/feature-flags-loader';
 import { RouteGuard } from '../components/route-guard';
 import { isAuthEnabled } from '../lib/app-mode';
@@ -137,7 +138,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 EVERY statically generated page rather than on anything that looks
                 related to dev tickets. Only a production build raises it; a dev
                 build renders nothing statically and stays quiet. */}
-            {isAuthEnabled() && (
+            {/* The env flag mounts it even when auth pages are off (saas-tenant):
+                dev-ticket login exists precisely to point a local tenant build at
+                a remote tenant, and that mode has no auth pages of its own. */}
+            {(isAuthEnabled() || runtimeEnv.enableDevTicketObserver()) && (
               <Suspense fallback={null}>
                 <DevTicketObserver />
               </Suspense>

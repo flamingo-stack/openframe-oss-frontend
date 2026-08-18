@@ -7,7 +7,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { routes } from '@/lib/routes';
-import { prewarmScriptEditor, ScriptEditor, scheduleEditorWarmup } from '../../../components/script/script-editor';
+import { prewarmScriptEditor, ScriptEditor } from '../../../components/script/script-editor';
 import {
   argsToParamRows,
   envPairsToParamRows,
@@ -33,11 +33,8 @@ const DEFAULT_TIMEOUT_SECONDS = 90;
 /** The card's two parameter panels, in order — titles are static, so they are real. */
 const SKELETON_PANELS = ['Script Arguments', 'Environment Vars'] as const;
 
-/** The source editor's height — and the height of the box that holds its place. */
+/** The source editor's height. */
 const SOURCE_HEIGHT = '400px';
-
-/** Matches the `duration-300` of the row that opens the source (see below). */
-const SOURCE_REVEAL_DELAY_MS = 300;
 
 /**
  * One half of a script card's footer: a titled list of `key ——— value` lines.
@@ -79,42 +76,6 @@ function ScriptParamsPanel({
 }
 
 /**
- * Builds the card's Monaco instance ahead of the click that reveals it, and
- * reports when it is ready.
- *
- * Opening the source is the card's only animation, and paying for Monaco inside
- * that click spends the whole of it frozen: ~4 MB over the network, ~3.6 MB
- * parsed on the main thread. So the module is prefetched while the card is still
- * shut (`prewarmScriptEditor` is idle-scheduled and idempotent — every card on
- * the page calling it costs one background request) and the editor is built in
- * the next idle slot, inside the clipped-but-real region below.
- *
- * `isExpanded` is the fallback path: opened before idle ever came around, the
- * build waits for the row to stop moving rather than landing as a dropped frame
- * mid-transition. Collapsing before the delay is up cancels it.
- *
- * A phone never shows the source, so it prefetches and builds nothing.
- */
-function useScriptSourceReady(isExpanded: boolean): boolean {
-  const isMdUp = useMdUp();
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    if (isMdUp) prewarmScriptEditor();
-  }, [isMdUp]);
-
-  useEffect(() => {
-    if (!isMdUp || isReady) return;
-    if (!isExpanded) return scheduleEditorWarmup(() => setIsReady(true));
-
-    const timer = window.setTimeout(() => setIsReady(true), SOURCE_REVEAL_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [isMdUp, isReady, isExpanded]);
-
-  return isReady;
-}
-
-/**
  * One script of the schedule. The chevron opens a different thing per
  * breakpoint, and that is the design's intent, not a shortcut:
  *
@@ -133,7 +94,16 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
   // The editor is kept once built, so re-opening a card is instant and a closed
   // one costs nothing beyond memory.
   const [hasExpanded, setHasExpanded] = useState(false);
-  const isSourceReady = useScriptSourceReady(isExpanded);
+
+  // Fetch the editor's CHUNK while the card is still shut — only the chunk.
+  // Building the view is a few milliseconds and happens on the first open, under
+  // the placeholder; what is not cheap is pulling the code over the network
+  // inside the click that starts the card's one animation. `prewarmScriptEditor`
+  // is idle-scheduled and idempotent, so every card on the page calling it costs
+  // one background request. A phone never shows the source, so it fetches nothing.
+  useEffect(() => {
+    if (isMdUp) prewarmScriptEditor();
+  }, [isMdUp]);
 
   const handleToggle = useCallback(() => {
     setIsExpanded(prev => !prev);
@@ -208,36 +178,30 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
       </div>
 
       {/* The source: desktop only, and what the chevron opens there. Closed, the
-          region is CLIPPED rather than unmounted — which is what lets the editor
-          be built ahead of the open, out of sight but at its real size, so
-          Monaco measures correctly instead of laying out 0×0 in a hidden box.
-          `inert` because clipping alone still leaves it in the tab order. */}
+          region is CLIPPED rather than unmounted, so an editor built on the
+          first open survives every later close with its scroll position and
+          undo history. `inert` because clipping alone still leaves it in the tab
+          order. */}
       <div
         className="hidden md:grid transition-[grid-template-rows] duration-300 ease-in-out"
         style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
         inert={!isExpanded}
       >
         <div className="overflow-hidden min-h-0">
-          {isMdUp && (isSourceReady || hasExpanded) && (
-            // The tone lives HERE rather than on either child: it is what Monaco
-            // itself paints (`editor.background`), so the placeholder and the
-            // editor read as one surface — no flash of the card's lighter
-            // background through the swap.
+          {isMdUp && hasExpanded && (
+            // The tone lives HERE rather than on either child: it is what the
+            // editor's own theme paints, so the placeholder and the editor read
+            // as one surface — no flash of the card's lighter background through
+            // the swap.
             <div className="border-t border-ods-border bg-ods-bg">
-              {isSourceReady ? (
-                <ScriptEditor
-                  value={script.scriptBody}
-                  shell={shellToId(script.shell)}
-                  readOnly
-                  height={SOURCE_HEIGHT}
-                  // The card already draws the edges around this block.
-                  className="rounded-none border-0"
-                />
-              ) : (
-                // The editor's box before the editor exists — its exact height,
-                // so the row animates to where it will actually stop.
-                <div style={{ height: SOURCE_HEIGHT }} />
-              )}
+              <ScriptEditor
+                value={script.scriptBody}
+                shell={shellToId(script.shell)}
+                readOnly
+                height={SOURCE_HEIGHT}
+                // The card already draws the edges around this block.
+                className="rounded-none border-0"
+              />
             </div>
           )}
         </div>

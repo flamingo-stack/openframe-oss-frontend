@@ -88,7 +88,7 @@ export interface Ticket {
   assigneeImage?: TicketImage;
   reporterImage?: TicketImage;
   organizationImage?: TicketImage;
-  labels: Array<{ id: string; key: string; color?: string }>;
+  tags: Array<{ id: string; key: string; color?: string }>;
   attachments: TicketAttachment[];
   notes: TicketNote[];
   linkedArticles?: KnowledgeBaseArticle[];
@@ -131,7 +131,7 @@ export interface CreateTicketInput {
   deviceId?: string;
   organizationId?: string;
   assigneeId?: string;
-  labelIds?: string[];
+  tagIds?: string[];
   linkedArticleIds?: string[];
   tempAttachmentIds?: string[];
 }
@@ -143,7 +143,7 @@ export interface UpdateTicketInput {
   deviceId?: string | null;
   organizationId?: string | null;
   assigneeId?: string | null;
-  labelIds?: string[];
+  tagIds?: string[];
   tempAttachmentIds?: string[];
 }
 

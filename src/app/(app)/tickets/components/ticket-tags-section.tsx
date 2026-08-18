@@ -3,34 +3,34 @@
 import { Tag, TagSelectDropdown } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo } from 'react';
 import { useCreateTagMutation } from '@/app/components/shared/tags';
-import { useSetTicketLabels } from '../hooks/use-ticket-detail-mutations';
-import { useTicketLabels } from '../hooks/use-ticket-labels';
+import { useSetTicketTags } from '../hooks/use-ticket-detail-mutations';
 import { useTicketTagDelete } from '../hooks/use-ticket-tag-delete';
+import { useTicketTags } from '../hooks/use-ticket-tags';
 import type { Dialog } from '../types/dialog.types';
 
 interface TicketTagsSectionProps {
   ticketId: string;
-  labels: NonNullable<Dialog['labels']>;
+  tags: NonNullable<Dialog['tags']>;
 }
 
-export function TicketTagsSection({ ticketId, labels }: TicketTagsSectionProps) {
-  const { data: allLabels = [], refetch } = useTicketLabels();
+export function TicketTagsSection({ ticketId, tags }: TicketTagsSectionProps) {
+  const { data: allTags = [], refetch } = useTicketTags();
   const { createTag, isInFlight: isCreating } = useCreateTagMutation();
-  const setLabels = useSetTicketLabels(ticketId);
+  const setTags = useSetTicketTags(ticketId);
 
-  const options = useMemo(() => allLabels.map(t => ({ id: t.id, label: t.key })), [allLabels]);
-  const selectedIds = useMemo(() => labels.map(l => l.id), [labels]);
+  const options = useMemo(() => allTags.map(t => ({ id: t.id, label: t.key })), [allTags]);
+  const selectedIds = useMemo(() => tags.map(t => t.id), [tags]);
 
   const { requestDelete, isDeleting, dialog } = useTicketTagDelete(id => {
-    if (selectedIds.includes(id)) setLabels.mutate(selectedIds.filter(cid => cid !== id));
+    if (selectedIds.includes(id)) setTags.mutate(selectedIds.filter(cid => cid !== id));
   });
 
-  const handleChange = (ids: string[]) => setLabels.mutate(ids);
-  const removeTag = (id: string) => setLabels.mutate(selectedIds.filter(cid => cid !== id));
+  const handleChange = (ids: string[]) => setTags.mutate(ids);
+  const removeTag = (id: string) => setTags.mutate(selectedIds.filter(cid => cid !== id));
   const handleCreate = (name: string) => {
     createTag({ key: name, entityType: 'TICKET' }, realId => {
       refetch().then(() => {
-        if (realId) setLabels.mutate([...selectedIds, realId]);
+        if (realId) setTags.mutate([...selectedIds, realId]);
       });
     });
   };
@@ -38,15 +38,15 @@ export function TicketTagsSection({ ticketId, labels }: TicketTagsSectionProps) 
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <p className="text-h5 text-ods-text-secondary">Tags</p>
-      {labels.length > 0 && (
+      {tags.length > 0 && (
         <div className="flex flex-wrap gap-[var(--spacing-system-xxs)]">
-          {labels.map(l => (
+          {tags.map(t => (
             <Tag
-              key={l.id}
-              label={l.key}
+              key={t.id}
+              label={t.key}
               variant="outline"
-              onClose={() => removeTag(l.id)}
-              disabled={setLabels.isPending}
+              onClose={() => removeTag(t.id)}
+              disabled={setTags.isPending}
               className="max-w-full min-w-0"
               labelClassName="min-w-0"
             />
