@@ -294,7 +294,7 @@ export function ScriptFormFields({
         name="script_body"
         control={control}
         render={({ field, fieldState }) => (
-          // Monaco is not a focusable control the marker can sit on, so the
+          // The editor is not a focusable control the marker can sit on, so the
           // wrapper carries it (the scroll helper falls back to scrolling).
           <div data-invalid={(showErrors && !!fieldState.error) || undefined}>
             <Label className="text-h4 text-ods-text-primary">Syntax</Label>
