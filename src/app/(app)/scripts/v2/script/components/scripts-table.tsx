@@ -28,6 +28,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
@@ -43,7 +44,14 @@ import type {
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { askMingoButton, EmptyState, liveColumnMeta, skeletonColumnDefs } from '@/app/components/shared';
+import {
+  EmptyState,
+  liveColumnMeta,
+  skeletonColumnDefs,
+  useOnboardingGuideButton,
+  useRetryKey,
+} from '@/app/components/shared';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -81,6 +89,8 @@ interface UiScriptEntry {
   authorName: string;
   authorInitials: string;
   authorImage?: string;
+  /** Author account is DELETED / SELF_DELETED — from `User.status` on the payload. */
+  authorDeleted: boolean;
   hasAuthor: boolean;
 }
 
@@ -132,6 +142,7 @@ function ScriptsTableContent({
 
   // One round-trip per interaction: the filter facets (`scriptFilters`) ride the
   // list operation — see the query docstring for the facet semantics.
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<ScriptsTableQueryType>(
     scriptsTableRelayQuery,
     {
@@ -140,7 +151,7 @@ function ScriptsTableContent({
       first: PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -173,6 +184,7 @@ function ScriptsTableContent({
           authorName: initiatorName(node.author),
           authorInitials: initiatorInitials(node.author),
           authorImage: getFullImageUrl(node.author?.image?.imageUrl, node.author?.image?.hash),
+          authorDeleted: isDeletedUserStatus(node.author?.status),
           hasAuthor: Boolean(node.author),
         },
       ];
@@ -409,7 +421,10 @@ function ScriptsTableContent({
             ? (decodeGlobalId(row.original.authorId)?.rawId ?? row.original.authorId)
             : '';
           const href = rawAuthorId ? employeeDetailHref(rawAuthorId) : null;
-          const avatar = (
+          const isDeleted = row.original.authorDeleted;
+          const avatar = isDeleted ? (
+            <DeletedUserAvatar size="sm" />
+          ) : (
             <SquareAvatar
               variant="round"
               size="sm"
@@ -425,7 +440,9 @@ function ScriptsTableContent({
                 {avatar}
                 {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
                 <div className="min-w-0 flex-1">
-                  <TruncateText>{row.original.authorName}</TruncateText>
+                  <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
+                    {row.original.authorName}
+                  </TruncateText>
                 </div>
               </div>
             );
@@ -440,7 +457,9 @@ function ScriptsTableContent({
                 {avatar}
                 {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
                 <div className="min-w-0 flex-1">
-                  <TruncateText className="text-ods-accent underline">{row.original.authorName}</TruncateText>
+                  <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+                    {row.original.authorName}
+                  </TruncateText>
                 </div>
               </button>
             </div>
@@ -534,6 +553,8 @@ function ScriptsTableContent({
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
+  const guideButton = useOnboardingGuideButton('scripts');
+
   if (showEmptyState && archived) {
     return (
       <EmptyState
@@ -564,7 +585,7 @@ function ScriptsTableContent({
             label: 'Let Mingo suggest or generate scripts for you',
           },
         ]}
-        {...askMingoButton('scripts', 'Ask Mingo about Scripts')}
+        {...guideButton}
       />
     );
   }

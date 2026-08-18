@@ -14,6 +14,8 @@ export const scriptExecutionDetailRelayQuery = graphql`
         scriptId
         scriptName
         status
+        # Backs the chip beside "Executed by", same as in the history lists.
+        source
         privilegeLevel
         dispatchedAt
         statusChangedAt
@@ -39,6 +41,7 @@ export const scriptExecutionDetailRelayQuery = graphql`
           firstName
           lastName
           email
+          status
           image {
             imageUrl
             hash

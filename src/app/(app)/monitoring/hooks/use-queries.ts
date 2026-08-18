@@ -4,6 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
+import { queryState } from '@/lib/query-state';
 import type { Query } from '../types/queries.types';
 
 // ============ Types ============
@@ -190,8 +191,7 @@ export function useQueries(params?: ListQueriesParams) {
     queries: queriesQuery.data ?? EMPTY_QUERIES,
 
     // Loading & error states
-    isLoading: queriesQuery.isLoading,
-    error: queriesQuery.error?.message ?? null,
+    ...queryState(queriesQuery),
 
     // Refetch
     refetch: queriesQuery.refetch,

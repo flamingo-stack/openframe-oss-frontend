@@ -6,11 +6,12 @@ import { GET_ORGANIZATIONS_MIN_QUERY } from '@/app/(app)/customers/queries/custo
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
+import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import type { Tag } from '@/app/components/shared/tags';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { API_ENDPOINTS } from '../constants';
-import { GET_TICKET_LABELS_QUERY, GET_TICKETS_QUERY } from '../queries/ticket-queries';
+import { GET_TICKET_TAGS_QUERY, GET_TICKETS_QUERY } from '../queries/ticket-queries';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
@@ -112,11 +113,16 @@ async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
   if (!response.ok) throw new Error(response.error || 'Failed to fetch users');
 
   const items = response.data?.items ?? [];
-  return items.map((user: any) => ({
-    label: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
-    value: user.id,
-    imageUrl: getFullImageUrl(user.image?.imageUrl, user.image?.hash),
-  }));
+  // Deleted (DELETED / SELF_DELETED) users are not assignable and are kept out
+  // of assignee pickers/filters; existing assignments still render (marked as
+  // deleted) via useUserStatusMap on the display side.
+  return items
+    .filter((user: any) => !isDeletedUserStatus(user.status))
+    .map((user: any) => ({
+      label: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
+      value: user.id,
+      imageUrl: getFullImageUrl(user.image?.imageUrl, user.image?.hash),
+    }));
 }
 
 export function useAssigneeOptions(enabled = true) {
@@ -129,23 +135,23 @@ export function useAssigneeOptions(enabled = true) {
   return { options: query.data ?? EMPTY_AVATAR_OPTIONS, isLoading: query.isLoading };
 }
 
-// --- Labels (ticket-specific, via /chat/graphql) ---
+// --- Tags (ticket-specific, via /chat/graphql) ---
 
-async function fetchLabelOptions(): Promise<AutocompleteOption[]> {
-  const response = await apiClient.post<GraphQlResponse<{ ticketLabels: Tag[] }>>(API_ENDPOINTS.GRAPHQL, {
-    query: GET_TICKET_LABELS_QUERY,
+async function fetchTagOptions(): Promise<AutocompleteOption[]> {
+  const response = await apiClient.post<GraphQlResponse<{ ticketTags: Tag[] }>>(API_ENDPOINTS.GRAPHQL, {
+    query: GET_TICKET_TAGS_QUERY,
   });
   const data = extractGraphQlData(response);
-  return (data.ticketLabels ?? []).map(label => ({
-    label: label.key,
-    value: label.id,
+  return (data.ticketTags ?? []).map(tag => ({
+    label: tag.key,
+    value: tag.id,
   }));
 }
 
-export function useTicketLabelOptions() {
+export function useTicketTagOptions() {
   const query = useQuery({
-    queryKey: ticketsQueryKeys.labels(),
-    queryFn: fetchLabelOptions,
+    queryKey: ticketsQueryKeys.tags(),
+    queryFn: fetchTagOptions,
   });
 
   return { options: query.data ?? EMPTY_AUTOCOMPLETE_OPTIONS, isLoading: query.isLoading };

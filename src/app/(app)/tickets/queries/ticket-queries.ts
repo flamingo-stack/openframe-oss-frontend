@@ -1,3 +1,5 @@
+import { featureFlags } from '@/lib/feature-flags';
+
 // Ticket GraphQL queries and mutations (openframe-saas-ai-agent service via /chat/graphql)
 
 export const CREATE_TICKET_MUTATION = `
@@ -25,7 +27,7 @@ export const CREATE_TICKET_MUTATION = `
         organizationName
         assignedTo
         assignedName
-        labels {
+        tags {
           id
           key
           color
@@ -146,7 +148,7 @@ export const GET_TICKET_QUERY = `
         imageUrl
         hash
       }
-      labels {
+      tags {
         id
         key
         color
@@ -247,7 +249,7 @@ export const GET_TICKETS_QUERY = `
             imageUrl
             hash
           }
-          labels {
+          tags {
             id
             key
             color
@@ -271,7 +273,14 @@ export const GET_TICKETS_QUERY = `
 
 // ===== Lifecycle board (custom statuses) =====
 
-const BOARD_CARD_TICKET_LIFECYCLE_FRAGMENT = `
+/**
+ * `escalatedByUser` ships with the escalation backend, so it rides the
+ * `ai-escalation` flag: a field the server's schema does not declare fails
+ * validation for the entire document, and `extractGraphQlData` throws on the
+ * first GraphQL error — every board column would come back empty rather than
+ * merely missing a badge.
+ */
+const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
     id
     ticketNumber
@@ -313,11 +322,12 @@ const BOARD_CARD_TICKET_LIFECYCLE_FRAGMENT = `
       imageUrl
       hash
     }
-    labels {
+    tags {
       id
       key
       color
     }
+    ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
     pendingApproval {
       id
       approvalType
@@ -342,10 +352,10 @@ const BOARD_CARD_TICKET_LIFECYCLE_FRAGMENT = `
   }
 `;
 
-export const GET_BOARD_COLUMN_TICKETS_QUERY = `
-  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $labelIds: [ID!]) {
+export const getBoardColumnTicketsQuery = () => `
+  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!]) {
     tickets(
-      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, labelIds: $labelIds }
+      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds }
       pagination: { limit: $limit, cursor: $cursor }
       search: $search
       sort: { field: "order", direction: ASC }
@@ -365,7 +375,7 @@ export const GET_BOARD_COLUMN_TICKETS_QUERY = `
       filteredCount
     }
   }
-  ${BOARD_CARD_TICKET_LIFECYCLE_FRAGMENT}
+  ${boardCardTicketFragment()}
 `;
 
 export const GET_TICKET_STATUS_TRANSITION_RULES_QUERY = `
@@ -399,9 +409,9 @@ export const TRANSITION_TICKET_MUTATION = `
   }
 `;
 
-export const GET_TICKET_LABELS_QUERY = `
-  query TicketLabels {
-    ticketLabels {
+export const GET_TICKET_TAGS_QUERY = `
+  query TicketTags {
+    ticketTags {
       id
       key
       description
@@ -510,7 +520,7 @@ export const UPDATE_TICKET_MUTATION = `
         organizationName
         assignedTo
         assignedName
-        labels {
+        tags {
           id
           key
           color
@@ -566,6 +576,24 @@ export const REOPEN_TICKET_MUTATION = `
   mutation ReopenTicket($input: TicketIdInput!) {
     reopenTicket(input: $input) {
       ticket { id status }
+      userErrors { field message }
+    }
+  }
+`;
+
+/**
+ * The reopen verb (ClickUp 86ajnyctz): flips a Resolved/Archived ticket back
+ * open, records the optional reason (backend trims, <=1000 chars), and fires
+ * the TICKET_EVENT chat card + the TICKET_REOPENED notification. Idempotent:
+ * on an already-open ticket it returns success with the current kind.
+ * `targetStatusKind` is the kind-token the backend reopened into
+ * (AI_ASSISTANCE / TECH_REQUIRED / ...), same vocabulary as the chat event.
+ */
+export const REQUEST_TICKET_REOPEN_MUTATION = `
+  mutation RequestTicketReopen($input: TicketReopenInput!) {
+    requestTicketReopen(input: $input) {
+      ticketId
+      targetStatusKind
       userErrors { field message }
     }
   }

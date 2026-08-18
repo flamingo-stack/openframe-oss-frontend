@@ -15,7 +15,7 @@ export interface BoardColumnUpdate {
 
 interface BoardColumnSubscriberProps {
   statusId: string;
-  params: { search?: string; organizationIds?: string[]; assigneeIds?: string[]; labelIds?: string[] };
+  params: { search?: string; organizationIds?: string[]; assigneeIds?: string[]; tagIds?: string[] };
   onUpdate: (statusId: string, update: BoardColumnUpdate) => void;
   registerLoadMore: (statusId: string, loadMore: () => void) => void;
 }
@@ -27,7 +27,7 @@ interface BoardColumnSubscriberProps {
  * which is exactly what applyOptimisticMove mutates. Renders nothing.
  */
 export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoadMore }: BoardColumnSubscriberProps) {
-  const { search, organizationIds, assigneeIds, labelIds } = params;
+  const { search, organizationIds, assigneeIds, tagIds } = params;
 
   const query = useInfiniteQuery<
     TicketsPage,
@@ -36,14 +36,14 @@ export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoad
     ReturnType<typeof dialogsQueryKeys.boardColumn>,
     string | undefined
   >({
-    queryKey: dialogsQueryKeys.boardColumn(statusId, { search, organizationIds, assigneeIds, labelIds }),
+    queryKey: dialogsQueryKeys.boardColumn(statusId, { search, organizationIds, assigneeIds, tagIds }),
     queryFn: ({ pageParam }) =>
       ticketService.fetchBoardColumnByStatusId({
         statusId,
         search: search || undefined,
         organizationIds: organizationIds?.length ? organizationIds : undefined,
         assigneeIds: assigneeIds?.length ? assigneeIds : undefined,
-        labelIds: labelIds?.length ? labelIds : undefined,
+        tagIds: tagIds?.length ? tagIds : undefined,
         cursor: pageParam,
         limit: BOARD_PAGE_SIZE,
       }),

@@ -22,6 +22,8 @@ import {
   type ColumnDef,
   DataTable,
   type DataTableSortState,
+  type DateFilterResult,
+  type DateRange,
   FilterModal,
   Input,
   multiSelectFilterFn,
@@ -45,8 +47,17 @@ import type {
   SortInput,
 } from '@/__generated__/scriptSchedulesTableRelayQuery.graphql';
 import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
-import { askMingoButton, EmptyState, liveColumnMeta, skeletonColumnDefs } from '@/app/components/shared';
+import {
+  DateColumnHeader,
+  EmptyState,
+  liveColumnMeta,
+  skeletonColumnDefs,
+  type TableDateFilter,
+  useOnboardingGuideButton,
+  useRetryKey,
+} from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -58,6 +69,7 @@ import {
   scriptSchedulesTableRelayQuery,
 } from '@/graphql/scripts/script-schedules-table-relay';
 import { unarchiveScriptScheduleMutation } from '@/graphql/scripts/unarchive-script-schedule-mutation';
+import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
@@ -70,13 +82,19 @@ import { RestoreScheduleModal } from './restore-schedule-modal';
 const PAGE_SIZE = 20;
 
 /**
- * Columns whose header offers a sort toggle — and therefore the only values
- * allowed to reach `SortInput.field`. Each id doubles as the backend sort field.
- * `scriptSchedules(sort:)` also accepts `deviceCount`, `name`, `createdAt` and
- * `updatedAt`; they are not offered here, so they are not accepted from the URL
- * either (see `docs/script-schedules-v2-graphql-gaps.md` §7).
+ * The only values allowed to reach `SortInput.field` — everything else in the
+ * URL falls back to the backend's own order.
+ *
+ * `repeat` is the REPEAT header's own toggle (id = backend field). `startAt` has
+ * no header toggle: it is the direction inside the DATE & TIME calendar, which
+ * writes the same `sortBy`/`sortDir` params so the two controls can't claim
+ * conflicting orders at once. `scriptSchedules(sort:)` also accepts `name` and
+ * `deviceCount`, which no control offers, so they stay unaccepted from the URL.
  */
-const SORTABLE_COLUMN_IDS = ['repeat'] as const;
+const SORTABLE_COLUMN_IDS = ['repeat', 'startAt'] as const;
+
+/** Backend sort field behind the DATE & TIME calendar (`ScriptSchedule.startAt`). */
+const START_AT_SORT_FIELD = 'startAt';
 
 interface UiScheduleEntry {
   id: string;
@@ -110,6 +128,8 @@ interface SchedulesTableContentProps {
    */
   isPending: boolean;
   onFilterChange: (filters: Record<string, any[]>) => void;
+  /** First-run date sort + range, hosted by the DATE & TIME column header. */
+  dateFilter: TableDateFilter;
   onEmptyChange: (isEmpty: boolean) => void;
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
@@ -126,6 +146,7 @@ function SchedulesTableContent({
   onSortChange,
   isPending,
   onFilterChange,
+  dateFilter,
   onEmptyChange,
   mobileFilterOpen,
   onMobileFilterClose,
@@ -143,6 +164,7 @@ function SchedulesTableContent({
 
   // One round-trip per interaction: the filter facets (`scriptScheduleFilters`)
   // ride the list operation — see the query docstring.
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SchedulesTableQueryType>(
     scriptSchedulesTableRelayQuery,
     {
@@ -152,7 +174,7 @@ function SchedulesTableContent({
       first: PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -358,7 +380,9 @@ function SchedulesTableContent({
       },
       {
         id: 'dateTime',
-        header: SCHEDULE_COLUMNS.dateTime.header,
+        // The cell IS `startAt`, the field the calendar filters and orders by —
+        // so the popover sits on this header rather than on a column of its own.
+        header: () => <DateColumnHeader label={SCHEDULE_COLUMNS.dateTime.header} filter={dateFilter} />,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => {
           // Event-driven schedules have no date/time — name the trigger instead
           // of showing an em dash that reads as "not configured yet".
@@ -430,7 +454,7 @@ function SchedulesTableContent({
         meta: liveColumnMeta(SCHEDULE_COLUMNS.open),
       },
     ],
-    [renderRowActions, platformOptions],
+    [renderRowActions, platformOptions, dateFilter],
   );
 
   const filterGroups = useMemo(
@@ -472,12 +496,18 @@ function SchedulesTableContent({
     [],
   );
 
-  const hasActiveFilters = Object.values(tableFilters).some(values => values.length > 0);
+  // The date range narrows the list exactly like the OS funnel does, so it
+  // counts as an active filter: an empty result then reads as "nothing matched"
+  // instead of "no schedules yet" — and the placeholder, which replaces the
+  // whole table, would take the calendar down with it and strand the user.
+  const hasActiveFilters = Object.values(tableFilters).some(values => values.length > 0) || Boolean(dateFilter.range);
   const showEmptyState = !debouncedSearch && !hasActiveFilters && !isPending && transformedSchedules.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
+
+  const guideButton = useOnboardingGuideButton('script-schedules');
 
   if (showEmptyState && archived) {
     return (
@@ -500,7 +530,7 @@ function SchedulesTableContent({
           { icon: <RadarIcon />, label: 'Target specific devices, Customers, or tags' },
           { icon: <ListBulletIcon />, label: 'View execution history and success rates' },
         ]}
-        {...askMingoButton('script-schedules', 'Ask Mingo about Script Schedules')}
+        {...guideButton}
       />
     );
   }
@@ -543,6 +573,15 @@ function SchedulesTableContent({
         filterGroups={filterGroups}
         onFilterChange={onFilterChange}
         currentFilters={tableFilters}
+        // DATE & TIME is a `hideAt: 'md'` column, so below that breakpoint its
+        // header calendar isn't on screen at all — this modal is where the same
+        // sort + range lives, drafted alongside the OS funnel.
+        dateFilter={{
+          title: 'Date & Time',
+          sort: dateFilter.sortDirection,
+          range: dateFilter.range,
+          onChange: dateFilter.onApply,
+        }}
       />
 
       {archived ? (
@@ -609,11 +648,15 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
     supportedPlatforms: { type: 'array', default: [] },
-    // Server-side sort: column id (backend sort field — 'repeat' is the only
-    // sortable column) + direction. Empty sortBy = backend default order
-    // (newest-first by _id).
+    // Server-side sort: backend sort field ('repeat' from the REPEAT header,
+    // 'startAt' from the DATE & TIME calendar) + direction. Empty sortBy =
+    // backend default order (newest-first by _id).
     sortBy: { type: 'string', default: '' },
     sortDir: { type: 'string', default: 'desc' },
+    // First-run date range (local `yyyy-MM-dd`, inclusive) — the DATE & TIME
+    // calendar. Sent as `startAtFrom` / `startAtTo`.
+    dateFrom: { type: 'string', default: '' },
+    dateTo: { type: 'string', default: '' },
   });
 
   // Local search input keeps typing responsive; the shared hook debounces it to
@@ -628,15 +671,26 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
+  // Applied first-run range, restored from the URL.
+  const dateRange: DateRange | undefined = useMemo(
+    () => dateRangeFromParams(params.dateFrom, params.dateTo),
+    [params.dateFrom, params.dateTo],
+  );
+
   const backendFilters: ScriptScheduleFilterInput = useMemo(() => {
     const supportedPlatforms = platformsToEnums(params.supportedPlatforms);
+    // The picked days become inclusive UTC instants (local `00:00` → `23:59:59`),
+    // so a day picked in the calendar is that whole day on the server.
+    const bounds = dateRangeToInstantBounds(dateRange);
     // Default scriptSchedules() (null statuses) returns ACTIVE + ARCHIVED
     // together; scope each page explicitly so the archive lives on its own list.
     return {
       statuses: [archived ? ScriptStatus.ARCHIVED : ScriptStatus.ACTIVE],
       ...(supportedPlatforms.length > 0 && { supportedPlatforms }),
+      ...(bounds.from && { startAtFrom: bounds.from }),
+      ...(bounds.to && { startAtTo: bounds.to }),
     };
-  }, [archived, params.supportedPlatforms]);
+  }, [archived, params.supportedPlatforms, dateRange]);
 
   // `sortBy` arrives from the URL, so it is user input: a hand-edited or stale
   // link (`?sortBy=deviceCount` from before DEVICES lost its toggle) would
@@ -651,10 +705,53 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
     [sortBy, params.sortDir],
   );
 
-  // Live descriptor the header renders its indicator from (flips instantly on click).
+  // Live descriptor the header renders its indicator from (flips instantly on
+  // click). Only for the COLUMN toggles: `startAt` is the calendar's direction
+  // and no column carries that id, so handing it over would have the header
+  // hunting for a column that isn't there.
   const sortState = useMemo<DataTableSortState | null>(
-    () => (sortBy ? { id: sortBy, desc: params.sortDir !== 'asc' } : null),
+    () => (sortBy && sortBy !== START_AT_SORT_FIELD ? { id: sortBy, desc: params.sortDir !== 'asc' } : null),
     [sortBy, params.sortDir],
+  );
+
+  // The calendar shows a direction only while it OWNS the sort; a list ordered
+  // by REPEAT leaves it on its default rather than claiming that order too.
+  const dateSortDirection: 'asc' | 'desc' = sortBy === START_AT_SORT_FIELD && params.sortDir === 'asc' ? 'asc' : 'desc';
+
+  // The mobile FilterModal commits the funnels and the date section as two
+  // callbacks in the same tick; the shared writer merges them into a single URL
+  // write (sequential setParams calls each re-read the stale URL and clobber, so
+  // the platform selection would be lost whenever a date is applied beside it).
+  const queueParamsWrite = useQueuedParamsWrite(setParams);
+
+  // Apply, and Reset (which fires with the selection cleared).
+  const handleDateFilterApply = useCallback(
+    (result: DateFilterResult) => {
+      const dateFrom = result.range?.from ? toDayParam(result.range.from) : '';
+      const dateTo = result.range?.to ? toDayParam(result.range.to) : '';
+      // The calendar takes the sort when it has something to order by — a range,
+      // or an explicit oldest-first. Cleared back to its defaults it gives the
+      // sort up again, so Reset returns the list (and the URL) to the backend
+      // order — but only if the calendar is what took it: a list sorted by
+      // REPEAT keeps its own sort through all of this.
+      const ownsSort = result.sort === 'asc' || Boolean(dateFrom || dateTo);
+      const leavesOtherSortAlone = !ownsSort && sortBy !== START_AT_SORT_FIELD;
+      queueParamsWrite({
+        ...(leavesOtherSortAlone
+          ? {}
+          : // `sortDir: ''` — NOT `'desc'` — for the default direction, per the
+            // note on `handleSortChange` below.
+            { sortBy: ownsSort ? START_AT_SORT_FIELD : '', sortDir: result.sort === 'desc' ? '' : result.sort }),
+        dateFrom,
+        dateTo,
+      });
+    },
+    [queueParamsWrite, sortBy],
+  );
+
+  const dateFilter: TableDateFilter = useMemo(
+    () => ({ sortDirection: dateSortDirection, range: dateRange, onApply: handleDateFilterApply }),
+    [dateSortDirection, dateRange, handleDateFilterApply],
   );
 
   // Filter + sort travel together as one deferred object so the query lags in
@@ -667,10 +764,9 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
 
   const handleFilterChange = useCallback(
     (columnFilters: Record<string, any[]>) => {
-      setParams({ supportedPlatforms: columnFilters.supportedPlatforms || [] });
-      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+      queueParamsWrite({ supportedPlatforms: columnFilters.supportedPlatforms || [] });
     },
-    [setParams],
+    [queueParamsWrite],
   );
 
   // 3-state toggle owned by the consumer (per DataTable.Header contract):
@@ -776,6 +872,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
             onSortChange={handleSortChange}
             isPending={isPending}
             onFilterChange={handleFilterChange}
+            dateFilter={dateFilter}
             onEmptyChange={setIsEmpty}
             mobileFilterOpen={mobileFilterOpen}
             onMobileFilterClose={() => setMobileFilterOpen(false)}

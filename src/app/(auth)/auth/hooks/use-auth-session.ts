@@ -14,6 +14,43 @@ import { useAuthStore } from '../stores/auth-store';
 
 export const authSessionQueryKey = ['auth', 'session'] as const;
 
+/**
+ * How often to re-ask `/me` after it has failed OUTRIGHT — every retry spent and
+ * still no answer either way.
+ *
+ * That state used to be terminal. `retry: 2` + `retryDelay: 1000` spends all
+ * three attempts inside ~3 seconds — a gateway pod restarting mid-load loses all
+ * of them — and afterwards nothing re-asked: the poll below returned `false`
+ * without `data.authenticated`, `refetchOnWindowFocus` is off app-wide, and
+ * `staleTime` alone never triggers a fetch. `isReady` stayed false for the life
+ * of the tab, and only a reload could clear it.
+ *
+ * What that cost is bigger than a missing user menu, because "the session hasn't
+ * resolved" is an input to things that CAN'T then resolve either:
+ *   - the feature-flags query is `enabled` on it, so no flag ever loaded and the
+ *     sidebar + header sat in their skeleton (`components/app-layout.tsx`);
+ *   - `OnboardingProgressHydrator` mounts on it, so onboarding progress was
+ *     never fetched — a tenant mid-setup saw no Initial Setup bar at all;
+ *   - the request latch in `lib/session-ready.ts` was left neither opened nor
+ *     released, so page data went out only once its 10-second fail-open elapsed.
+ * The page then WORKED — the session cookie was fine all along, only our answer
+ * about it was missing — which is exactly what made the chrome look broken while
+ * the content behind it did not.
+ *
+ * Backed off rather than fixed, because the two cases it has to serve pull in
+ * opposite directions. The first recheck is deliberately quicker than the
+ * 10-second chrome fail-open in `components/app-layout.tsx`, so a gateway blip is
+ * recovered while the shell is still legitimately loading and the user never sees
+ * the degraded nav that fail-open draws. A backend that is genuinely down then
+ * doubles its way out to a minute, so a tab left open on a dead deployment costs
+ * one cheap request a minute instead of twelve.
+ *
+ * A definite "no user" (401/403 → `null`) is NOT this case: that resolves the
+ * session, and the poll below stays off for it.
+ */
+const AUTH_RECHECK_BASE_MS = 5_000;
+const AUTH_RECHECK_MAX_MS = 60_000;
+
 interface MeResponse {
   authenticated: boolean;
   user?: {
@@ -93,8 +130,23 @@ export function useAuthSession() {
     },
     staleTime: 4 * 60 * 1000, // 4 minutes
     refetchInterval: query => {
-      return query.state.data?.authenticated ? runtimeEnv.authCheckIntervalMs() : false;
+      if (query.state.data?.authenticated) return runtimeEnv.authCheckIntervalMs();
+      // Failed outright — keep asking, backing off per consecutive failure (see
+      // AUTH_RECHECK_BASE_MS). Checked AFTER the signed-in branch so a live
+      // session that hits one bad refetch keeps its normal cadence instead of
+      // dropping to this one.
+      if (query.state.status === 'error') {
+        const failures = Math.max(query.state.errorUpdateCount, 1);
+        return Math.min(AUTH_RECHECK_BASE_MS * 2 ** (failures - 1), AUTH_RECHECK_MAX_MS);
+      }
+      // Resolved as "no user": answered, nothing to poll for.
+      return false;
     },
+    // Same recovery, taken sooner: a user coming back to the tab gets the recheck
+    // immediately rather than waiting out the interval. Narrowed to the failed
+    // case on purpose — the app-wide default is off, and re-asking `/me` on every
+    // focus of an already-resolved session is what that default exists to avoid.
+    refetchOnWindowFocus: query => query.state.status === 'error',
     retry: 2,
     retryDelay: 1000,
   });
@@ -152,7 +204,29 @@ export function useAuthSession() {
     queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
   };
 
-  const isReady = !query.isLoading && !(query.isError && query.data === undefined);
+  /**
+   * "The session question has been ANSWERED" — not "no request is in flight".
+   *
+   * `isLoading` is `isPending && isFetching`, so it reads false for a query that
+   * is pending but not fetching. The case that matters is a PAUSED query: with a
+   * real connectivity signal (see `lib/connectivity.ts`) react-query pauses `/me`
+   * while offline instead of failing it, and paused reports
+   * `isPending: true, isFetching: false`. `isReady` therefore came out TRUE with
+   * `data === undefined`, `isAuthenticated` false — and the app concluded
+   * "signed out" from a request it had never sent.
+   *
+   * On a cold start in airplane mode that put a signed-in user with valid tokens
+   * in the Keychain behind the "Sign in required" overlay, whose only action
+   * needs the very network that is missing: tapping Sign In flashed `/auth` and
+   * bounced straight back.
+   *
+   * `isPending` is the honest flag — the same distinction `use-dashboard-stats.ts`
+   * documents for the stat cards. Being unable to ask is not an answer, so the
+   * overlay and the OSS redirect now wait, and the shell renders from the
+   * persisted auth store meanwhile (`app-layout.tsx`'s `storeAuthenticated`).
+   * A definitive 401/403 still resolves to `null` and still signs the user out.
+   */
+  const isReady = !query.isPending && !(query.isError && query.data === undefined);
 
   return {
     isReady,

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { initKeyboardInset } from '@/lib/keyboard-inset';
 import { initNativeBack } from '@/lib/native-back';
 import {
   hideSplashScreen,
@@ -31,12 +32,18 @@ let nativeClickHandlingInitialized = false;
  *   the envelope context maps to the same route the in-app drawer would use,
  *   falling back to the notifications page.
  *
- * No-op on the web.
+ * The keyboard inset also runs on the touch web; every other step below is a
+ * no-op outside a shell.
  */
 export function NativeShellInitializer() {
   const router = useRouter();
 
   useEffect(() => {
+    // Above the shell gate on purpose: the keyboard inset has a visualViewport
+    // path that a touch browser / PWA needs just as much as the shells do. It
+    // picks its own signal and no-ops on desktop pointers.
+    initKeyboardInset();
+
     if (!isAppShell()) return;
     // Scopes the shell-only CSS in globals.css. Carries the KIND, not a bare
     // flag: the safe-area rules it gates are a phone contract (insets, notch,

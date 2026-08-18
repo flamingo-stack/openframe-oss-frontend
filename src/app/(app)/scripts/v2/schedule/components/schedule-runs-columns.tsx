@@ -15,9 +15,12 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
+import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import {
   liveColumnMeta,
   skeletonColumnMeta,
@@ -39,7 +42,7 @@ export const RUNS_PAGE_SIZE = 20;
  * the facets, shifting the label. See `table-column-layout.ts`.
  */
 const RUN_COLUMNS = {
-  executionId: { id: 'executionId', header: 'Execution', width: 'flex-1 min-w-0' },
+  executionId: { id: 'executionId', header: 'Execution', width: 'flex-1 min-w-0', dateFilterable: true },
   status: { id: 'status', header: 'Status', width: 'w-[120px]', filterable: true },
   responded: { id: 'responded', header: 'Devices', width: 'w-[120px]', hideAt: 'lg' },
   initiatorId: { id: 'initiatorId', header: 'Executed by', width: 'flex-1 min-w-0', hideAt: 'md' },
@@ -80,6 +83,8 @@ export interface UiRun {
   initiatorName: string;
   initiatorInitials: string;
   initiatorImage?: string;
+  /** Initiator account is DELETED / SELF_DELETED — from `User.status` on the payload. */
+  initiatorDeleted: boolean;
   /** Scheduled fires carry no initiator — a person only fires a run manually. */
   isScheduled: boolean;
 }
@@ -104,8 +109,11 @@ function InitiatorCell({ run }: { run: UiRun }) {
   // only the user page opens.
   const rawInitiatorId = decodeGlobalId(run.initiatorId)?.rawId ?? run.initiatorId;
   const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
+  const isDeleted = run.initiatorDeleted;
 
-  const avatar = (
+  const avatar = isDeleted ? (
+    <DeletedUserAvatar size="md" />
+  ) : (
     <SquareAvatar
       variant="round"
       size="md"
@@ -121,7 +129,7 @@ function InitiatorCell({ run }: { run: UiRun }) {
       <div className="flex flex-1 items-center gap-[var(--spacing-system-xsf)] min-w-0">
         {avatar}
         <div className="min-w-0 flex-1">
-          <TruncateText>{run.initiatorName}</TruncateText>
+          <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>{run.initiatorName}</TruncateText>
         </div>
       </div>
     );
@@ -136,7 +144,9 @@ function InitiatorCell({ run }: { run: UiRun }) {
       >
         {avatar}
         <div className="min-w-0 flex-1">
-          <TruncateText className="text-ods-accent underline">{run.initiatorName}</TruncateText>
+          <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+            {run.initiatorName}
+          </TruncateText>
         </div>
       </button>
     </div>
@@ -146,9 +156,14 @@ function InitiatorCell({ run }: { run: UiRun }) {
 /**
  * The Schedule Runs columns. `statusOptions` is the server facet scoped to the
  * current narrowing, so the funnel offers the states these runs actually
- * reached rather than every state the enum can name.
+ * reached rather than every state the enum can name. `dateFilter` is the
+ * dispatched-date sort + range the Execution header hosts — the same control the
+ * two Execution History lists carry, on the timestamp that column already shows.
  */
-export function useScheduleRunColumns(statusOptions: RunStatusOption[]): ColumnDef<UiRun>[] {
+export function useScheduleRunColumns(
+  statusOptions: RunStatusOption[],
+  dateFilter: TableDateFilter,
+): ColumnDef<UiRun>[] {
   const router = useRouter();
   const { toast } = useToast();
 
@@ -180,7 +195,9 @@ export function useScheduleRunColumns(statusOptions: RunStatusOption[]): ColumnD
     () => [
       {
         accessorKey: 'executionId',
-        header: 'Execution',
+        // The cell's first line is the fire's dispatchedAt, which is what the
+        // calendar (range + newest/oldest first) narrows and orders.
+        header: () => <DateColumnHeader label={RUN_COLUMNS.executionId.header} filter={dateFilter} />,
         // Stretch column: the execution id is a full uuid and this is the one
         // place it is shown in full (it is what the Execution History drill-down
         // and "Copy Execution ID" key on).
@@ -266,7 +283,7 @@ export function useScheduleRunColumns(statusOptions: RunStatusOption[]): ColumnD
         meta: liveColumnMeta(RUN_COLUMNS.open),
       },
     ],
-    [renderRowActions, router, statusOptions],
+    [renderRowActions, router, statusOptions, dateFilter],
   );
 }
 
@@ -275,15 +292,20 @@ const EMPTY_ROWS: UiRun[] = [];
 export function ScheduleRunsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
   // The live table's own layout, with `skeletonColumnMeta` turning `filterable`
   // into a filter with no options yet — the header then draws the real control,
-  // funnel included, instead of growing one when the facets land.
+  // funnel included, instead of growing one when the facets land. The Execution
+  // header's calendar needs no data at all, so it is drawn inert here for the
+  // same reason: a bare label would shift when the popover replaced it.
   const columns = useMemo<ColumnDef<UiRun>[]>(
     () =>
-      RUN_COLUMN_ORDER.map(column => ({
-        id: column.id,
-        header: column.header,
-        enableSorting: false,
-        meta: skeletonColumnMeta(column),
-      })),
+      RUN_COLUMN_ORDER.map(column => {
+        const label = column.header;
+        return {
+          id: column.id,
+          header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
+          enableSorting: false,
+          meta: skeletonColumnMeta(column),
+        };
+      }),
     [],
   );
 

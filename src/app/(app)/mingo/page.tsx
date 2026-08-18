@@ -406,6 +406,19 @@ function MingoChat() {
     ],
   );
 
+  // Picking an option on a clarification (ASK) card sends its label as an
+  // ordinary message — the same path the composer uses, so the backend sees a
+  // normal reply and resolves it against the labels it offered. Its own
+  // `useCallback` rather than an inline arrow: the lib's message memo compares
+  // this prop BY REFERENCE, and a fresh function per render would re-render
+  // every bubble on every streaming chunk.
+  const handleAskSelect = useCallback(
+    (label: string) => {
+      handleSendMessage(label);
+    },
+    [handleSendMessage],
+  );
+
   return (
     <PageLayout showHeader={false} className="h-full" contentClassName="h-full flex flex-col">
       {activeDialogId && subscribedDialogs.has(activeDialogId) && (
@@ -472,6 +485,9 @@ function MingoChat() {
               hasNextPage={effectiveDraft ? false : hasNextMessagePage}
               isFetchingNextPage={effectiveDraft ? false : isFetchingNextMessagePage}
               onLoadMore={effectiveDraft ? undefined : fetchNextMessagePage}
+              // Gated the same way the composer is: no second send while a turn
+              // is in flight (the card renders read-only meanwhile).
+              onAskSelect={isComposerBusy ? undefined : handleAskSelect}
               contentClassName="!max-w-3xl px-[var(--spacing-system-mf)]"
             />
           </div>

@@ -58,6 +58,12 @@ export function getDeviceStatusConfig(status: string): DeviceStatusConfig {
         variant: 'warning',
         cardStatus: 'warning',
       };
+    case 'PENDING_DELETION':
+      return {
+        label: 'PENDING DELETION',
+        variant: 'error',
+        cardStatus: 'error',
+      };
     case 'ARCHIVED':
       return {
         label: 'ARCHIVED',

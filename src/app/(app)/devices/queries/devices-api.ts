@@ -22,7 +22,11 @@ import { apiClient } from '@/lib/api-client';
 import { getRelayEnvironment } from '@/lib/relay/environment';
 import type { Device, DeviceFilterInput, DeviceGraphQlNode, GraphQlResponse } from '../types/device.types';
 import { readMachineEdges } from '../utils/read-machine';
-import { GET_DEVICE_COUNTS_QUERY, GET_DEVICE_QUERY } from './devices-queries';
+import {
+  GET_DEVICE_ORGANIZATION_COUNTS_QUERY,
+  GET_DEVICE_QUERY,
+  GET_DEVICE_STATUS_COUNTS_QUERY,
+} from './devices-queries';
 
 /**
  * Page size of the scrolled list. Lives here rather than in the hook because the
@@ -55,17 +59,24 @@ export interface DevicesQueryVariables {
   after?: string | null;
 }
 
-/** Status value → device count, and organization id → device count. */
-export interface DeviceCounts {
+/** Status value → device count, plus the total matching the same filter. */
+export interface DeviceStatusCounts {
   filteredCount: number;
   byStatus: ReadonlyMap<string, number>;
-  byOrganization: ReadonlyMap<string, number>;
 }
 
-interface DeviceCountsResponse {
+/** Organization id → device count. */
+export type DeviceOrganizationCounts = ReadonlyMap<string, number>;
+
+interface DeviceStatusCountsResponse {
   deviceFilters: {
     filteredCount: number;
     statuses?: Array<{ value: string; count: number }>;
+  };
+}
+
+interface DeviceOrganizationCountsResponse {
+  deviceFilters: {
     organizationIds?: Array<{ value: string; count: number }>;
   };
 }
@@ -160,15 +171,32 @@ export async function fetchAllDevices({
   }
 }
 
-/** Device counters only — the facet subset the stat cards and counters need. */
-export async function fetchDeviceCounts(filter: DeviceFilterInput = {}): Promise<DeviceCounts> {
-  const data = await postDeviceQuery<DeviceCountsResponse>(GET_DEVICE_COUNTS_QUERY, { filter });
+/** Status breakdown + total — the dashboard stat cards. One backend facet query each. */
+export async function fetchDeviceStatusCounts(filter: DeviceFilterInput = {}): Promise<DeviceStatusCounts> {
+  const data = await postDeviceQuery<DeviceStatusCountsResponse>(GET_DEVICE_STATUS_COUNTS_QUERY, {
+    filter: toRelayDeviceFilter(filter),
+  });
 
   return {
     filteredCount: data.deviceFilters.filteredCount ?? 0,
     byStatus: new Map((data.deviceFilters.statuses ?? []).map(entry => [entry.value, entry.count])),
-    byOrganization: new Map((data.deviceFilters.organizationIds ?? []).map(entry => [entry.value, entry.count])),
   };
+}
+
+/**
+ * Per-organization device counts.
+ *
+ * NOTE: the backend's organization facet EXCLUDES the `organizationIds` filter from its own
+ * WHERE clause (self-exclusion faceting — see `PinotClientDeviceRepository.getOrganizationFilterOptions`),
+ * so passing one narrows nothing: the map always covers every organization in the tenant.
+ * Callers key their cache on it and read the ids they care about; extra entries are harmless.
+ */
+export async function fetchDeviceOrganizationCounts(filter: DeviceFilterInput = {}): Promise<DeviceOrganizationCounts> {
+  const data = await postDeviceQuery<DeviceOrganizationCountsResponse>(GET_DEVICE_ORGANIZATION_COUNTS_QUERY, {
+    filter: toRelayDeviceFilter(filter),
+  });
+
+  return new Map((data.deviceFilters.organizationIds ?? []).map(entry => [entry.value, entry.count]));
 }
 
 /**

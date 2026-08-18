@@ -28,7 +28,7 @@ import {
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { askMingoButton, EmptyState } from '@/app/components/shared';
+import { EmptyState, useOnboardingGuideButton } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -248,6 +248,8 @@ export function ScriptSchedulesTable() {
     [handleAddSchedule, showEmptyState],
   );
 
+  const guideButton = useOnboardingGuideButton('script-schedules');
+
   if (error) {
     return <PageError message={error} />;
   }
@@ -268,7 +270,7 @@ export function ScriptSchedulesTable() {
             { icon: <RadarIcon />, label: 'Target specific devices, Customers, or tags' },
             { icon: <ListBulletIcon />, label: 'View execution history and success rates' },
           ]}
-          {...askMingoButton('script-schedules', 'Ask Mingo about Script Schedules')}
+          {...guideButton}
         />
       ) : (
         <div className="flex flex-col" style={containerStyle}>

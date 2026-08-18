@@ -19,12 +19,17 @@ import { graphql } from 'react-relay';
  * `ScheduleRunFilterInput` has no field to apply it — see §11 of
  * docs/script-schedules-v2-graphql-gaps.md — so selecting from it could not
  * narrow anything, and it is not offered.
+ *
+ * `sort` (`{ field: "dispatchedAt", direction }`) and `dispatchedAtFrom` /
+ * `dispatchedAtTo` inside `filter` are the Execution column's calendar — the
+ * same pair the two Execution History lists use, on the field a run is keyed by.
  */
 export const scheduleRunsRelayQuery = graphql`
   query scheduleRunsRelayQuery(
     $scheduleId: ID!
     $filter: ScheduleRunFilterInput
     $search: String
+    $sort: SortInput
     $first: Int!
     $after: String
   ) {
@@ -36,7 +41,7 @@ export const scheduleRunsRelayQuery = graphql`
       }
     }
     ...scheduleRunsRelay_query
-      @arguments(scheduleId: $scheduleId, filter: $filter, search: $search, first: $first, after: $after)
+      @arguments(scheduleId: $scheduleId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
   }
 `;
 
@@ -47,10 +52,11 @@ export const scheduleRunsRelayFragment = graphql`
       scheduleId: { type: "ID!" }
       filter: { type: "ScheduleRunFilterInput" }
       search: { type: "String" }
+      sort: { type: "SortInput" }
       first: { type: "Int", defaultValue: 20 }
       after: { type: "String" }
     ) {
-    scheduleRuns(scheduleId: $scheduleId, filter: $filter, search: $search, first: $first, after: $after)
+    scheduleRuns(scheduleId: $scheduleId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
       @connection(key: "scheduleRunsRelay_scheduleRuns") {
       filteredCount
       edges {
@@ -66,6 +72,7 @@ export const scheduleRunsRelayFragment = graphql`
             firstName
             lastName
             email
+            status
             image {
               imageUrl
               hash

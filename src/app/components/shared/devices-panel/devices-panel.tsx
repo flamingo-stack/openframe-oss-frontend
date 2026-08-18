@@ -1,20 +1,14 @@
 'use client';
 
 import {
-  BoxArchiveIcon,
-  GridIcon,
-  PlusCircleIcon,
-  TableCellIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
   Alert,
   type ColumnDef,
   type ColumnFiltersState,
   DataTable,
   type OnChangeFn,
   type PageActionButton,
+  PageError,
   PageLayout,
-  type Row,
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -25,6 +19,7 @@ import { DevicesGrid } from '@/app/(app)/devices/components/devices-grid';
 import { DevicesGridFilters } from '@/app/(app)/devices/components/devices-grid-filters';
 import {
   DevicesTableBody,
+  getDeviceActionsColumn,
   getDeviceFilterColumns,
   getDeviceTableRowActions,
 } from '@/app/(app)/devices/components/devices-table-columns';
@@ -34,11 +29,15 @@ import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-p
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { useTagFilterModal } from '@/app/(app)/devices/hooks/use-tag-filter-modal';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import { bumpDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
+import { ContentErrorBoundary } from '../content-error-boundary';
 import { DevicesFilterToolbar } from '../devices-filter-toolbar';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
-import { DevicesPanelErrorBoundary, DevicesPanelSkeleton } from './devices-panel-boundaries';
+import { DevicesPanelSkeleton } from './devices-panel-boundaries';
+import { buildDevicePanelActions, DEVICE_VIEW_MODE_ITEMS } from './devices-panel-header';
 
 export interface DevicesPanelProps {
   /** Page title shown in the PageLayout header. */
@@ -193,19 +192,7 @@ function DevicesPanelContent({
     [columnFilters, handleFilterChange],
   );
 
-  const actionsColumn = useMemo<ColumnDef<Device>>(
-    () => ({
-      id: 'actions',
-      cell: ({ row }: { row: Row<Device> }) => (
-        <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
-          {renderRowActions(row.original)}
-        </div>
-      ),
-      enableSorting: false,
-      meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
-    }),
-    [renderRowActions],
-  );
+  const actionsColumn = useMemo<ColumnDef<Device>>(() => getDeviceActionsColumn(renderRowActions), [renderRowActions]);
 
   const {
     isOpen: filterModalOpen,
@@ -237,38 +224,20 @@ function DevicesPanelContent({
     }
   }, [isMdUp, params.viewMode, setParam]);
 
-  // A device must belong to an organization. With none, disable "Add Device"
-  // and surface an "Add Customer" action that routes to the new-customer form.
-  // While the org check is still in flight, keep "Add Device" disabled too.
-  const actions = useMemo<PageActionButton[]>(() => {
-    const result: PageActionButton[] = [];
-    if (archiveHref) {
-      result.push({
-        label: 'Archive',
-        href: archiveHref,
-        icon: <BoxArchiveIcon className="w-5 h-5 text-ods-text-secondary" />,
-        variant: 'outline',
-      });
-    }
-    if (!showAddDevice) return result;
-    const accent = showEmptyState && !noOrganizations;
-    if (noOrganizations) {
-      result.push({
-        label: 'Add Customer',
-        href: routes.customers.new,
-        icon: <PlusCircleIcon className="w-5 h-5 text-ods-text-secondary" />,
-        variant: 'outline',
-      });
-    }
-    result.push({
-      label: 'Add Device',
-      onClick: () => router.push(addDeviceHref),
-      disabled: noOrganizations || isCheckingOrganizations,
-      icon: <PlusCircleIcon className={`w-5 h-5 ${accent ? 'text-ods-text-on-accent' : 'text-ods-text-secondary'}`} />,
-      variant: accent ? 'accent' : 'outline',
-    });
-    return result;
-  }, [archiveHref, showAddDevice, showEmptyState, noOrganizations, isCheckingOrganizations, router, addDeviceHref]);
+  // Built from the declaration the Suspense fallback also reads, so the loading
+  // header and the loaded one can't drift apart (see `devices-panel-header`).
+  const actions = useMemo<PageActionButton[]>(
+    () =>
+      buildDevicePanelActions({
+        archiveHref,
+        showAddDevice,
+        noOrganizations,
+        isCheckingOrganizations,
+        accent: showEmptyState && !noOrganizations,
+        onAddDevice: () => router.push(addDeviceHref),
+      }),
+    [archiveHref, showAddDevice, showEmptyState, noOrganizations, isCheckingOrganizations, router, addDeviceHref],
+  );
 
   const handleLoadMore = useCallback(() => fetchNextPage(), [fetchNextPage]);
 
@@ -290,10 +259,7 @@ function DevicesPanelContent({
           <TabSelector
             value={params.viewMode}
             onValueChange={v => setParam('viewMode', v as 'table' | 'grid')}
-            items={[
-              { id: 'table', icon: <TableCellIcon className="w-6 h-6" /> },
-              { id: 'grid', icon: <GridIcon className="w-6 h-6" /> },
-            ]}
+            items={DEVICE_VIEW_MODE_ITEMS}
           />
         }
         actions={actions}
@@ -400,7 +366,8 @@ export function DevicesPanel(props: DevicesPanelProps) {
   // The list's whole query surface lives in the URL, so the query string is the
   // honest "the user asked for something different" signal — it clears a tripped
   // error boundary without the panel having to reach inside the content that threw.
-  const resetKey = useSearchParams().toString();
+  const searchParams = useSearchParams();
+  const resetKey = searchParams.toString();
 
   const chrome = {
     title: props.title ?? 'Devices',
@@ -409,11 +376,53 @@ export function DevicesPanel(props: DevicesPanelProps) {
     offsetClassName: props.embedded ? EMBEDDED_PAGE_OFFSET : undefined,
   };
 
+  // Read straight off the URL rather than through `useDevicesUrlParams`: this
+  // component sits OUTSIDE the boundary, and the fallback only needs to know
+  // which of the two shapes to draw. Anything but 'grid' is the 'table' default
+  // the params hook applies.
+  const viewMode = searchParams.get('viewMode') === 'grid' ? 'grid' : 'table';
+
   return (
-    <DevicesPanelErrorBoundary {...chrome} resetKey={resetKey}>
-      <Suspense fallback={<DevicesPanelSkeleton {...chrome} />}>
+    <ContentErrorBoundary
+      resetKey={resetKey}
+      label="DevicesPanel"
+      // Relay caches a failed query for five minutes, so clearing the boundary
+      // alone would rethrow; the device epoch is this surface's `fetchKey`.
+      onRetry={bumpDeviceEpoch}
+      // The panel's header, back button and view switch are rendered by
+      // `DevicesPanelContent`, i.e. inside what just threw — so the fallback
+      // redraws that chrome rather than leaving a bare error where a page was.
+      fallback={(retry, { isOffline }) => (
+        <PageLayout
+          title={chrome.title}
+          backButton={chrome.backButton}
+          actionsVariant="icon-buttons"
+          className={cn(chrome.offsetClassName, chrome.className)}
+          contentClassName="flex flex-col"
+        >
+          {/* `PageError`, not `LoadError`: this fallback has already redrawn the
+              whole page, so the failure is page-weight here rather than a card
+              inside surviving content. */}
+          <PageError {...loadErrorProps(isOffline, "Couldn't load devices.", retry)} />
+        </PageLayout>
+      )}
+    >
+      <Suspense
+        fallback={
+          <DevicesPanelSkeleton
+            {...chrome}
+            viewMode={viewMode}
+            hideColumns={props.hideColumns}
+            hideFilters={props.hideFilters}
+            archiveHref={props.archiveHref}
+            showAddDevice={props.showAddDevice}
+            noOrganizations={props.noOrganizations}
+            isCheckingOrganizations={props.isCheckingOrganizations}
+          />
+        }
+      >
         <DevicesPanelContent {...props} />
       </Suspense>
-    </DevicesPanelErrorBoundary>
+    </ContentErrorBoundary>
   );
 }

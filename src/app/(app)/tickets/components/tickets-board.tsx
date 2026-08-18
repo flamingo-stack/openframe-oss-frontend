@@ -12,6 +12,8 @@ import { Button, PageError, PageLayout } from '@flamingo-stack/openframe-fronten
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
@@ -32,7 +34,8 @@ import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
 import { type CachedBoardColumn, usePlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
-import { TicketTagFilter } from './ticket-label-filter';
+import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
+import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
 
@@ -67,8 +70,8 @@ interface TicketsBoardProps {
   onOrganizationIdsChange?: (ids: string[]) => void;
   assigneeIds?: string[];
   onAssigneeIdsChange?: (ids: string[]) => void;
-  labelIds?: string[];
-  onLabelIdsChange?: (ids: string[]) => void;
+  tagIds?: string[];
+  onTagIdsChange?: (ids: string[]) => void;
   /** Applies organization+assignee filters atomically (mobile filter modal). */
   onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[] }) => void;
   search: string;
@@ -81,7 +84,11 @@ function initialsOf(name?: string): string | undefined {
   return parts.map(p => p.charAt(0).toUpperCase()).join('') || undefined;
 }
 
-function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false): BoardTicket {
+function dialogToBoardTicket(
+  dialog: Dialog,
+  hasNewMessage = false,
+  isUserDeleted?: (id?: string | null) => boolean,
+): BoardTicket {
   return {
     id: dialog.id,
     title: dialog.title,
@@ -96,13 +103,15 @@ function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false): BoardTicket
             name: dialog.assignedName,
             initials: initialsOf(dialog.assignedName),
             avatarUrl: appendImageHash(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+            deleted: isUserDeleted?.(dialog.assignedTo) || undefined,
           },
         ]
       : undefined,
-    tags: dialog.labels?.map(l => l.key),
+    tags: dialog.tags?.map(t => t.key),
     createdAt: dialog.createdAt,
     hasNewMessage,
     pendingApproval: dialog.pendingApproval,
+    escalatedByUser: dialog.escalatedByUser === true,
   };
 }
 
@@ -112,8 +121,8 @@ export function TicketsBoard({
   onOrganizationIdsChange,
   assigneeIds,
   onAssigneeIdsChange,
-  labelIds,
-  onLabelIdsChange,
+  tagIds,
+  onTagIdsChange,
   onFiltersChange,
   search,
   onSearchChange,
@@ -128,6 +137,7 @@ export function TicketsBoard({
   const notifications = useOptionalNotifications();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isUserDeleted } = useUserStatusMap();
   const { handleApproveRequest, handleRejectRequest } = useApprovalRequests();
 
   const handleApprovalAction = useCallback(
@@ -176,12 +186,13 @@ export function TicketsBoard({
     return ids;
   }, [notifications?.notifications]);
   const [columnUpdates, setColumnUpdates] = useState<Record<string, BoardColumnUpdate>>({});
+  const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
 
   const archiveFilter = useMemo(
-    () => ({ organizationIds, assigneeIds, labelIds }),
-    [organizationIds, assigneeIds, labelIds],
+    () => ({ organizationIds, assigneeIds, tagIds }),
+    [organizationIds, assigneeIds, tagIds],
   );
   const filteredResolvedTotal = useMemo(() => {
     const resolvedId = statuses.find(s => s.kind === 'RESOLVED')?.id;
@@ -210,8 +221,8 @@ export function TicketsBoard({
   }, []);
 
   const params = useMemo(
-    () => ({ search: debouncedSearch, organizationIds, assigneeIds, labelIds }),
-    [debouncedSearch, organizationIds, assigneeIds, labelIds],
+    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds }),
+    [debouncedSearch, organizationIds, assigneeIds, tagIds],
   );
 
   const allowedFromByStatusId = useMemo<Record<string, string[]>>(() => {
@@ -245,7 +256,9 @@ export function TicketsBoard({
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
-        tickets: (state?.tickets ?? []).map(ticket => dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id))),
+        tickets: (state?.tickets ?? []).map(ticket =>
+          dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
+        ),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
@@ -264,6 +277,7 @@ export function TicketsBoard({
     isLoading,
     canArchiveResolved,
     ticketIdsWithUnread,
+    isUserDeleted,
   ]);
 
   // Remember the lane set so the route skeleton can lay out the same board on
@@ -287,6 +301,18 @@ export function TicketsBoard({
 
   const handleChange = useCallback(
     (change: BoardChange) => {
+      // Dragging OUT of the Resolved lane is a REOPEN, not a plain move: it
+      // goes through the confirmation modal (target status + assignee +
+      // reason) instead of committing the drop. The optimistic move never
+      // runs, so the card snaps back until the modal confirms. Gated on
+      // `ai-resolution` — with the flag off the drop commits directly (legacy).
+      if (change.fromColumnId !== change.toColumnId && featureFlags.aiResolution.enabled()) {
+        const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
+        if (sourceKind === 'RESOLVED') {
+          setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
+          return;
+        }
+      }
       moveTicket({
         ticketId: change.ticketId,
         sourceStatusId: change.fromColumnId,
@@ -295,7 +321,7 @@ export function TicketsBoard({
         beforeTicketId: change.beforeTicketId,
       });
     },
-    [moveTicket],
+    [moveTicket, statuses],
   );
 
   const showEmptyState =
@@ -303,7 +329,7 @@ export function TicketsBoard({
     !debouncedSearch &&
     (organizationIds?.length ?? 0) === 0 &&
     (assigneeIds?.length ?? 0) === 0 &&
-    (labelIds?.length ?? 0) === 0 &&
+    (tagIds?.length ?? 0) === 0 &&
     boardColumns.length > 0 &&
     boardColumns.every(column => column.tickets.length === 0);
 
@@ -345,8 +371,8 @@ export function TicketsBoard({
               <TicketTagFilter
                 search={search}
                 onSearchChange={onSearchChange}
-                labelIds={labelIds ?? []}
-                onLabelIdsChange={ids => onLabelIdsChange?.(ids)}
+                tagIds={tagIds ?? []}
+                onTagIdsChange={ids => onTagIdsChange?.(ids)}
                 filterButton={
                   <Button
                     variant="outline"
@@ -403,6 +429,7 @@ export function TicketsBoard({
         )}
       </PageLayout>
       {ticketsActionsDialog}
+      <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
     </>
   );
 }

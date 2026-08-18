@@ -1,25 +1,19 @@
 'use client';
 
-import {
-  ArrowRightUpIcon,
-  CalendarIcon,
-  SearchIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnDef,
   DataTable,
-  DateFilterMenu,
-  type DateFilterResult,
-  type DateRange,
   EntityImage,
   Input,
   type Row,
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn, formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
+import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo } from 'react';
+import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -74,11 +68,7 @@ export function transformCustomerToEntry(org: Customer, deviceCount: number | nu
 }
 
 /** Last Activity sort + date-range filter wiring (desktop/tablet header popover). */
-export interface CustomersDateFilter {
-  sortDirection: 'asc' | 'desc';
-  range: DateRange | undefined;
-  onApply: (result: DateFilterResult) => void;
-}
+export type CustomersDateFilter = TableDateFilter;
 
 export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnDef<UiCustomerEntry>[] => [
   {
@@ -107,37 +97,8 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
   {
     accessorKey: 'lastActivityDate',
     // With a date filter wired: label + calendar popover (timestamp sort +
-    // range filter). No own vertical padding — the HeaderCell wrapper pads.
-    header: dateFilter
-      ? () => (
-          <div className="group flex items-center gap-[var(--spacing-system-xsf)] select-none">
-            <span className="text-h5 text-ods-text-secondary whitespace-nowrap transition-colors duration-200 group-hover:text-ods-text-primary">
-              Last Activity
-            </span>
-            <DateFilterMenu
-              mode="range"
-              sort={dateFilter.sortDirection}
-              range={dateFilter.range}
-              onApply={dateFilter.onApply}
-              // Compact inline trigger — keeps the header row height identical
-              // to the other columns (the default lib trigger is a 48px Button).
-              trigger={
-                <button type="button" aria-label="Sort and filter by last activity" className="flex items-center">
-                  <CalendarIcon
-                    className={cn(
-                      'w-4 h-4 transition-colors duration-200',
-                      // Active when a date range or a non-default sort is applied
-                      dateFilter.range || dateFilter.sortDirection !== 'desc'
-                        ? 'text-ods-accent'
-                        : 'text-ods-text-secondary group-hover:text-ods-text-primary',
-                    )}
-                  />
-                </button>
-              }
-            />
-          </div>
-        )
-      : 'Last Activity',
+    // range filter), the shared header the execution lists use too.
+    header: dateFilter ? () => <DateColumnHeader label="Last Activity" filter={dateFilter} /> : 'Last Activity',
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => (
       <div className="flex flex-col justify-center min-w-0">
         <TruncateText>{row.original.lastActivityDate}</TruncateText>

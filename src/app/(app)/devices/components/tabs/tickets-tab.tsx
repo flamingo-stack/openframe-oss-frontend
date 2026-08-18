@@ -11,6 +11,7 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import {
   getTicketOpenColumn,
   getTicketTableColumns,
@@ -27,7 +28,7 @@ interface TicketsTabProps {
 }
 
 // TEMPORARY: the tickets API has no device filter (TicketFilterInput only
-// supports statuses/organizations/assignees/labels), so we fetch the largest
+// supports statuses/organizations/assignees/tags), so we fetch the largest
 // page the backend allows (100) and match tickets to this device client-side.
 // Replace with a server-side `filter: { machineIds }` once the backend
 // supports it.
@@ -84,9 +85,11 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // widths. Those widths live in `DEVICE_TICKET_COLUMNS`, which `DeviceDetailsSkeleton` reads
   // too — the page-level skeleton, the tab's own loading skeleton and the loaded table then
   // share one declaration (no header jump between loading phases).
+  const { isUserDeleted } = useUserStatusMap();
+
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {
     const widthById = new Map(DEVICE_TICKET_COLUMNS.map(column => [column.id, column.width]));
-    const base = getTicketTableColumns({ isArchived: false })
+    const base = getTicketTableColumns({ isArchived: false, isUserDeleted })
       .filter(column => (column as { accessorKey?: string }).accessorKey !== 'source')
       .map(column => {
         const key = (column as { accessorKey?: string }).accessorKey;
@@ -106,7 +109,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
         return width ? { ...column, meta: { ...column.meta, width } } : column;
       });
     return [...base, getTicketOpenColumn()];
-  }, []);
+  }, [isUserDeleted]);
 
   const table = useDataTable<Dialog>({
     data: deviceTickets,

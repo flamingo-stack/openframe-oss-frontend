@@ -15,7 +15,9 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useMemo } from 'react';
+import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -41,6 +43,13 @@ interface TicketTableColumnsOptions {
   isArchived?: boolean;
   // Lifecycle status options (value = status id). Falls back to the legacy enum options when omitted.
   statusOptions?: StatusFilterOption[];
+  /**
+   * Deleted-user probe from `useUserStatusMap` — the ticket payload only
+   * carries a denormalized assignee snapshot (id + name), no status. When it
+   * answers true for `assignedTo`, the assignee cell renders the deleted
+   * treatment (red user-x avatar + red name).
+   */
+  isUserDeleted?: (id?: string | null) => boolean;
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -50,7 +59,7 @@ function formatTimestamp(timestamp: string): string {
 }
 
 export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): ColumnDef<Dialog>[] {
-  const { isArchived = false, statusOptions } = options;
+  const { isArchived = false, statusOptions, isUserDeleted } = options;
 
   const titleColumn: ColumnDef<Dialog> = {
     accessorKey: 'title',
@@ -89,17 +98,24 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
     header: TICKET_COLUMNS.assignee.header,
     cell: ({ row }: { row: Row<Dialog> }) => {
       const ticket = row.original;
+      const isDeletedAssignee = isUserDeleted?.(ticket.assignedTo) ?? false;
       return ticket.assignedName ? (
         <div className="flex items-center gap-2 min-w-0">
-          <SquareAvatar
-            src={getFullImageUrl(ticket.assigneeImageUrl, ticket.assigneeImageHash)}
-            alt={ticket.assignedName}
-            fallback={ticket.assignedName}
-            size="sm"
-            variant="round"
-            className="shrink-0"
-          />
-          <TruncateText>{ticket.assignedName}</TruncateText>
+          {isDeletedAssignee ? (
+            <DeletedUserAvatar size="sm" />
+          ) : (
+            <SquareAvatar
+              src={getFullImageUrl(ticket.assigneeImageUrl, ticket.assigneeImageHash)}
+              alt={ticket.assignedName}
+              fallback={ticket.assignedName}
+              size="sm"
+              variant="round"
+              className="shrink-0"
+            />
+          )}
+          <TruncateText className={isDeletedAssignee ? 'text-ods-error' : undefined}>
+            {ticket.assignedName}
+          </TruncateText>
         </div>
       ) : (
         <span className="text-h4 text-ods-text-secondary">{'—'}</span>
@@ -190,11 +206,13 @@ export function TicketTableBody({
   statusOptions,
   getUnreadCount,
 }: TicketTableBodyProps) {
+  const { isUserDeleted } = useUserStatusMap();
+
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {
-    const base = getTicketTableColumns({ isArchived, statusOptions });
+    const base = getTicketTableColumns({ isArchived, statusOptions, isUserDeleted });
     const openColumn = getTicketOpenColumn(getUnreadCount);
     return actionsColumn ? [...base, actionsColumn, openColumn] : [...base, openColumn];
-  }, [isArchived, actionsColumn, statusOptions, getUnreadCount]);
+  }, [isArchived, actionsColumn, statusOptions, getUnreadCount, isUserDeleted]);
 
   const table = useDataTable<Dialog>({
     data: tickets,

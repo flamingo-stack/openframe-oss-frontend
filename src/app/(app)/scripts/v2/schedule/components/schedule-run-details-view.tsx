@@ -8,6 +8,7 @@ import {
   SquareAvatar,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
@@ -15,6 +16,7 @@ import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPagina
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import {
   scheduleExecutionsRelayFragment,
@@ -88,6 +90,7 @@ function RunInfoBar({ run }: { run: RunNode }) {
   // raw one (same decode the execution-details page does).
   const rawInitiatorId = initiator?.id ? (decodeGlobalId(initiator.id)?.rawId ?? initiator.id) : '';
   const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
+  const isDeleted = isDeletedUserStatus(initiator?.status);
 
   return (
     <div className="flex flex-col gap-0 bg-ods-card border border-ods-border rounded-[6px] overflow-clip w-full">
@@ -102,23 +105,34 @@ function RunInfoBar({ run }: { run: RunNode }) {
         </RunInfoCell>
         <RunInfoCell label="Executed by" className="border-b md:border-b-0 border-ods-border">
           <div className="flex items-center gap-2 min-w-0">
-            <SquareAvatar
-              variant="round"
-              size="sm"
-              src={getFullImageUrl(initiator?.image?.imageUrl, initiator?.image?.hash)}
-              fallback={initiatorInitials(initiator)}
-              alt={initiatorName(initiator)}
-              initialsClassName="text-ods-text-secondary"
-            />
+            {isDeleted ? (
+              <DeletedUserAvatar size="sm" />
+            ) : (
+              <SquareAvatar
+                variant="round"
+                size="sm"
+                src={getFullImageUrl(initiator?.image?.imageUrl, initiator?.image?.hash)}
+                fallback={initiatorInitials(initiator)}
+                alt={initiatorName(initiator)}
+                initialsClassName="text-ods-text-secondary"
+              />
+            )}
             {initiatorHref ? (
               <a href={initiatorHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
-                <TruncateText className="text-ods-accent hover:text-ods-accent-hover underline">
+                <TruncateText
+                  className={cn(
+                    'underline',
+                    isDeleted ? 'text-ods-error' : 'text-ods-accent hover:text-ods-accent-hover',
+                  )}
+                >
                   {initiatorName(initiator)}
                 </TruncateText>
               </a>
             ) : (
               <div className="min-w-0 flex-1">
-                <TruncateText>{initiatorName(initiator)}</TruncateText>
+                <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
+                  {initiatorName(initiator)}
+                </TruncateText>
               </div>
             )}
           </div>
@@ -295,7 +309,7 @@ function RunExecutionRows({
   executionId: string;
   state: ExecutionsTabState;
 }) {
-  const { backendFilters, narrowSearch, ...tableState } = state;
+  const { backendFilters, sort, narrowSearch, ...tableState } = state;
 
   const queryData = useLazyLoadQuery<ScheduleExecutionsQueryType>(
     scheduleExecutionsRelayQuery,
@@ -303,7 +317,7 @@ function RunExecutionRows({
     // of a fire carries the run's executionId, and search is the only argument
     // that narrows on it (`ScriptExecutionFilterInput` has no execution-id field,
     // and `ScheduleRun` has no executions connection of its own).
-    { scheduleId, filter: backendFilters, search: executionId, first: EXECUTIONS_PAGE_SIZE, after: null },
+    { scheduleId, filter: backendFilters, search: executionId, sort, first: EXECUTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network' },
   );
 
@@ -316,7 +330,7 @@ function RunExecutionRows({
 
   const executions: UiExecution[] = useMemo(() => {
     const edges = data.scheduleExecutions?.edges ?? [];
-    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
+    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node, edge.node.scriptName)] : []));
     // The query's `search` is spent on the scope above, so the user's term
     // narrows the rows we hold instead. It converges on the whole run rather
     // than the first page: an empty result keeps the infinite-scroll sentinel

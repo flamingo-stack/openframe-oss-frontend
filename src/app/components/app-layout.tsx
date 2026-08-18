@@ -22,7 +22,9 @@ import {
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
+import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
+import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
@@ -83,6 +85,50 @@ const WALKTHROUGH_OVERLAP_Z = {
  *  passthrough (no stream, no summary fetch, no context). */
 function TicketLiveWhenEnabled({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
   return enabled ? <TicketLiveProvider>{children}</TicketLiveProvider> : <>{children}</>;
+}
+
+/**
+ * How long the chrome may wait for the answers it renders from before giving up
+ * and drawing itself anyway. Sized like the session latch's own fail-open in
+ * `lib/session-ready.ts`: longer than any healthy pair of round trips, shorter
+ * than a user's patience.
+ */
+const CHROME_LOADING_FAIL_OPEN_MS = 10_000;
+
+/**
+ * `loading`, but never forever.
+ *
+ * The chrome's loading state is a latch over two async answers, and a latch with
+ * no way out is one missing terminal outcome away from a permanent skeleton —
+ * which is exactly what shipped: a store reset that arrived after hydration left
+ * the sidebar and header loading for the rest of the session while the page
+ * content worked normally. That specific cause is fixed at its source, but the
+ * SHAPE of the bug is what this closes. `lib/session-ready.ts` spells out the
+ * same rule for the request gate ("THIS GATE IS AN OPTIMIZATION AND MUST FAIL
+ * OPEN"); the chrome's gate is the same kind of optimization and earns the same
+ * predicate.
+ *
+ * Failing open degrades rather than breaks: the nav renders from whatever the
+ * flags currently read (their env defaults, if nothing answered) and without the
+ * onboarding entry. That is a nav that may be missing a row, against a rail of
+ * grey placeholders that never resolves — and unlike the skeleton, it recovers
+ * on its own the moment a real answer lands.
+ */
+function useFailOpen(loading: boolean, afterMs: number): boolean {
+  const [failedOpen, setFailedOpen] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      // Re-arm: a later load gets its own full window rather than inheriting a
+      // previous timeout's verdict.
+      setFailedOpen(false);
+      return;
+    }
+    const timer = setTimeout(() => setFailedOpen(true), afterMs);
+    return () => clearTimeout(timer);
+  }, [loading, afterMs]);
+
+  return loading && !failedOpen;
 }
 
 function AppShell({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
@@ -255,8 +301,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // answered: without that, a signed-out render would wait on a request that is never
   // going to be made. Both stores resolve terminally for a signed-in user — the flags
   // loader marks them loaded on query error, and `fetchOnboardingProgress` does the
-  // same on an error or a null payload — so this can't hang the chrome.
-  const chromeLoading = !useFeatureFlagsReady() || (sessionReady && !onboardingLoaded);
+  // same on an error or a null payload.
+  //
+  // That terminality is necessary but not sufficient, and this used to rely on it
+  // alone. It only covers the way IN — "every load eventually answers" — and says
+  // nothing about a store being emptied AFTER it answered, which is a reset away
+  // and is precisely what pinned this to `true` for whole sessions (see
+  // `onboarding-progress-hydrator.tsx`). `useFailOpen` bounds the wait regardless
+  // of which of the two signals is stuck, or why.
+  const flagsReady = useFeatureFlagsReady();
+  const chromeIncomplete = !flagsReady || (sessionReady && !onboardingLoaded);
+  const chromeLoading = useFailOpen(chromeIncomplete, CHROME_LOADING_FAIL_OPEN_MS);
 
   const tenantDone = countCompleted(TENANT_ONBOARDING_STEPS, tenantProgress?.completedSteps ?? []);
   const userDone = countCompleted(USER_ONBOARDING_STEPS, userProgress?.completedSteps ?? []);
@@ -306,6 +361,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // Monitoring, Logs, Tickets) and 2 secondary (Knowledge Base, Settings).
       loadingRows: { primary: 7, secondary: 2 },
       onNavigate: handleNavigate,
+      // Desktop shell only: renders nothing until the shell reports an update
+      // waiting. The slot is a render prop because the same node also draws in
+      // the mobile burger menu, where there is no rail to collapse into.
+      topSlot: ({ minimized }) => <SidebarUpdateButton minimized={minimized} />,
       // `h-full` (not `h-screen`) so the sidebar fills the layout row below the
       // optional top bar rather than overflowing the viewport by its height.
       className: 'h-full',
@@ -581,6 +640,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       {/* Logout confirmation modal — opened from the nav user menu and the
           Settings "Log Out" button via `useLogoutConfirmStore`. */}
       <LogoutConfirmModal />
+      {/* Desktop shell update offer. Also owns the mount-time availability
+          check that the sidebar's update button reads. No-op elsewhere. */}
+      <DesktopUpdateModal />
       {/* Floating walkthrough/demo video — the same widget every other Flamingo
           platform ships, mounted ONCE for the whole app next to the chat
           drawer. Which bottom corner it pins to is content-managed (the hub

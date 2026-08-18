@@ -7,6 +7,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -17,6 +18,7 @@ import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useUser } from '../hooks/use-user';
 import { UserStatus, useDeleteUser, useUpdateProfile } from '../hooks/use-users';
 import { ConfirmDeleteUserModal } from './confirm-delete-user-modal';
+import { DeleteAccountModal } from './delete-account-modal';
 import { EditProfileModal } from './edit-profile-modal';
 import { EmployeeWorkTime } from './employee-work-time';
 
@@ -44,7 +46,8 @@ function EmployeeSummarySkeleton() {
     <div className={CARD_CONTAINER}>
       <div className={CARD_ROW}>
         <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
-          <Skeleton className="size-12 shrink-0 rounded-full" />
+          {/* Mirrors the loaded avatar: 36px on mobile, 48px on md+. */}
+          <Skeleton className="size-9 md:size-12 shrink-0 rounded-full" />
           <ProfileFieldSkeleton valueClassName="h-6 w-32" />
         </div>
         <ProfileFieldSkeleton valueClassName="h-6 w-40" />
@@ -67,6 +70,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
   const { deleteUser } = useDeleteUser();
   const updateProfile = useUpdateProfile();
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   // Register the open employee as the Mingo "open view". `user.id` is the raw db
@@ -99,10 +103,15 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
     : ' ';
   const role = user ? (user.roles || []).join(', ') || '—' : '';
   const isActive = user?.status === UserStatus.Active;
+  const isDeleted = isDeletedUserStatus(user?.status);
 
   const isOwner = (user?.roles || []).some(r => r?.toLowerCase?.() === 'owner');
   const isSelf = !!currentUser && user?.id === currentUser.id;
-  const disableDelete = isOwner || isSelf || user?.status === UserStatus.Deleted;
+  // Viewing YOURSELF routes into the self-deletion flow (the same
+  // DeleteAccountModal as the /settings kebab — owner-transfer variant
+  // included), so `isSelf` no longer disables the action. Deleting OTHERS
+  // stays blocked for owners (the backend refuses) and already-deleted users.
+  const disableDelete = isSelf ? isDeleted : isOwner || isDeleted;
 
   const handleConfirmDelete = () => {
     if (!user) return;
@@ -140,14 +149,23 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
                 : []),
               {
                 items: [
-                  {
-                    id: 'delete',
-                    label: 'Delete',
-                    icon: <TrashIcon className="w-5 h-5 text-ods-error" />,
-                    danger: true,
-                    disabled: disableDelete,
-                    onClick: () => setIsDeleteOpen(true),
-                  },
+                  isSelf
+                    ? {
+                        id: 'delete-account',
+                        label: 'Delete Account',
+                        icon: <TrashIcon className="w-5 h-5 text-ods-error" />,
+                        danger: true,
+                        disabled: disableDelete,
+                        onClick: () => setIsDeleteAccountOpen(true),
+                      }
+                    : {
+                        id: 'delete',
+                        label: 'Delete',
+                        icon: <TrashIcon className="w-5 h-5 text-ods-error" />,
+                        danger: true,
+                        disabled: disableDelete,
+                        onClick: () => setIsDeleteOpen(true),
+                      },
                 ],
               },
             ]
@@ -156,15 +174,45 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
     >
       {!user ? (
         <EmployeeSummarySkeleton />
+      ) : isDeleted ? (
+        // Deleted variant per design: a single row with the red placeholder
+        // avatar, the name and the status tag — the role row is dropped.
+        // Admin-DELETED users keep their real name AND email (data is kept for
+        // revival); SELF_DELETED users are anonymized server-side and their
+        // synthetic email is hidden entirely.
+        <div className={CARD_CONTAINER}>
+          <div className={CARD_ROW}>
+            <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
+              {/* Design sizes the placeholder responsively: 36px with a 16px icon on
+                  mobile, 48px with a 24px icon on md+ (1095-50238 vs 1095-46586).
+                  `DeletedUserAvatar` has fixed buckets only, so the container and its
+                  svg are overridden here instead of forking the lib component. */}
+              <DeletedUserAvatar
+                size="lg"
+                className="h-9 w-9 md:h-12 md:w-12 [&>svg]:h-4 [&>svg]:w-4 md:[&>svg]:h-6 md:[&>svg]:w-6"
+              />
+              <InfoCell value={displayName} label="Name" />
+            </div>
+            {!isSelfDeletedUserStatus(user.status) && <InfoCell value={user.email} label="Email" />}
+            <InfoCell
+              value={<Tag label={isSelfDeletedUserStatus(user.status) ? 'SELF DELETED' : 'DELETED'} variant="grey" />}
+              label="Status"
+            />
+          </div>
+        </div>
       ) : (
         <div className={CARD_CONTAINER}>
           <div className={CARD_ROW}>
             <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
+              {/* Same responsive sizing as the deleted variant: 36px on mobile,
+                  48px on md+ — SquareAvatar's buckets are fixed, and its cn is
+                  tailwind-merge, so the className override wins. */}
               <SquareAvatar
                 src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
                 fallback={displayName}
                 size="lg"
                 variant="round"
+                className="h-9 w-9 md:h-12 md:w-12"
               />
               <InfoCell value={displayName} label="Name" />
             </div>
@@ -186,6 +234,9 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
         userName={displayName}
         onConfirm={handleConfirmDelete}
       />
+      {/* Self-deletion flow — the same modal the /settings profile kebab opens,
+          with the owner-transfer variant and the /account-deleted hand-off. */}
+      {isSelf && <DeleteAccountModal open={isDeleteAccountOpen} onOpenChange={setIsDeleteAccountOpen} />}
       <EditProfileModal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}

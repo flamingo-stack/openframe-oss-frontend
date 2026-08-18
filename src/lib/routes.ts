@@ -107,11 +107,16 @@ export const routes = {
   helpCenter: {
     root: '/help-center',
     onboardingGuides: '/help-center/onboarding-guides',
-    // Help Center hosts the hub's content on real slugged segments ([slug] route),
-    // not the app-wide `?id=` convention — see help-center-content-href.ts.
-    onboardingGuide: (slug: string) => `/help-center/onboarding-guides/${encodeURIComponent(slug)}`,
+    // Content detail pages follow the app-wide query-param convention rather than
+    // a `[slug]` segment. Guide/release slugs are CMS content, so `output: 'export'`
+    // cannot prerender them, and the native shell answers EVERY unprerendered path
+    // with the root `index.html` — a `/onboarding-guides/<slug>` nav failed its RSC
+    // fetch and hard-reloaded the app at `/`. A prerendered path + `?slug=` keeps it
+    // a soft-nav. See help-center-content-href.ts, which maps content cards here.
+    onboardingGuide: (slug: string) => withQuery('/help-center/onboarding-guides/detail', { slug }),
     roadmap: '/help-center/roadmap',
     releases: '/help-center/releases',
+    release: (slug: string) => withQuery('/help-center/releases/detail', { slug }),
     bugFixesAndEnhancements: '/help-center/bug-fixes-and-enhancements',
     tickets: '/help-center/tickets',
     faqs: '/help-center/faqs',
@@ -121,6 +126,13 @@ export const routes = {
     legal: (docType: HelpCenterLegalDoc) => `/help-center/legal/${docType}`,
   },
   worktime: '/worktime',
+
+  /**
+   * Standalone post-deletion page. Deliberately NOT under `/auth`: saas-tenant
+   * (web) blocks the whole `/auth` subtree, and the page must be reachable in
+   * every tenant mode right after the session is destroyed.
+   */
+  accountDeleted: '/account-deleted',
 
   auth: {
     root: '/auth',

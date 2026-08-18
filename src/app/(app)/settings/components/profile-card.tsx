@@ -1,7 +1,11 @@
 'use client';
 
 import { Skeleton, Tag } from '@flamingo-stack/openframe-frontend-core';
-import { AlertCircleIcon, BellIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  AlertCircleIcon,
+  PenEditIcon,
+  UserXmarkIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
   PageError,
@@ -13,12 +17,10 @@ import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { getFullImageUrl } from '@/lib/image-url';
-import { isMobileShell } from '@/lib/platform';
 import { useOnboardingStore } from '@/stores/onboarding-store';
-import { NotificationSettingsModal } from './notification-settings-modal';
+import { DeleteAccountModal } from './delete-account-modal';
 
 interface ProfileCardProps {
   onEditProfile: () => void;
@@ -74,13 +76,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   const { resetUser, isMutating: isResettingOnboarding } = useOnboardingMutations();
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
-  // Push settings only make sense in the mobile shell — hide on web/desktop.
-  // `isMobileShell`, NOT `isAppShell`: the modal's toggle writes the
-  // account-level `pushEnabled` setting that governs the user's FCM devices, so
-  // offering it in the desktop app (which registers none) let a desktop user
-  // silently turn off their phone's push.
-  const showNotificationSettings = useFeatureFlag('notifications') && isMobileShell();
-  const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
 
   const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '—';
 
@@ -166,16 +162,6 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                     icon: <PenEditIcon className="w-5 h-5 text-ods-text-secondary" />,
                     onClick: onEditProfile,
                   },
-                  ...(showNotificationSettings
-                    ? [
-                        {
-                          id: 'notifications',
-                          label: 'Notifications',
-                          icon: <BellIcon className="w-5 h-5 text-ods-text-secondary" />,
-                          onClick: () => setIsNotificationSettingsOpen(true),
-                        },
-                      ]
-                    : []),
                   ...(canResetOnboarding
                     ? [
                         {
@@ -189,17 +175,24 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                     : []),
                 ],
               },
+              {
+                separator: true,
+                items: [
+                  {
+                    id: 'delete-account',
+                    label: 'Delete Account',
+                    icon: <UserXmarkIcon className="w-5 h-5 text-ods-error" />,
+                    danger: true,
+                    onClick: () => setIsDeleteAccountOpen(true),
+                  },
+                ],
+              },
             ]}
           />
         </div>
       </div>
 
-      {showNotificationSettings && (
-        <NotificationSettingsModal
-          isOpen={isNotificationSettingsOpen}
-          onClose={() => setIsNotificationSettingsOpen(false)}
-        />
-      )}
+      <DeleteAccountModal open={isDeleteAccountOpen} onOpenChange={setIsDeleteAccountOpen} />
 
       {/* Reset Onboarding confirmation */}
       <ConfirmDialog

@@ -53,13 +53,16 @@ import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { type AiModel, useAiModel } from '@/app/hooks/use-ai-model';
 import { useFeatureFlag, useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
 import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation';
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
+import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
@@ -96,6 +99,7 @@ import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
+import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
 import { TicketAttachmentsSection } from './ticket-attachments-section';
 import { TicketDetailsSkeleton } from './ticket-details-skeleton';
 import { TicketDialogSubscription } from './ticket-dialog-subscription';
@@ -194,7 +198,13 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   }, []);
 
   const queryClient = useQueryClient();
-  const { ticket: dialog, isPending: isLoading, error: dialogError } = useTicketDetail(ticketId);
+  const {
+    ticket: dialog,
+    isLoading,
+    isOffline,
+    error: dialogError,
+    refetch: refetchTicket,
+  } = useTicketDetail(ticketId);
 
   // Register the open ticket as the Mingo "open view" so it rides on the sidebar
   // chat's context. `dialog.id` is the raw db id the backend TICKET resolver /
@@ -258,6 +268,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   const { download: downloadAttachment } = useDownloadTicketAttachment();
   const assignTicketMutation = useAssignTicket();
   const assigneeOptions = useAssigneeOptions();
+  const { isUserDeleted } = useUserStatusMap();
 
   const { isDirectMode, isStartingDirectChat, isSendingClientMessage, startDirectChat, sendClientMessage } =
     useDirectChat({
@@ -331,6 +342,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     dialog?.creationSource === CREATION_SOURCE.FAE_FORM || dialog?.creationSource === CREATION_SOURCE.ADMIN_DASHBOARD;
   const ticketInfoExpanded = isTicketInfoExpanded ?? defaultTicketInfoExpanded;
   const [activeChatTab, setActiveChatTab] = useState('client');
+  const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
   const mainTab = searchParams.get('tab') === 'chat' ? 'chat' : 'details';
   const handleMainTabChange = useCallback(
     (tabId: string) => {
@@ -487,6 +499,17 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   const handleTransition = useCallback(
     (toStatusId: string) => {
       if (!dialog || transitionTicket.isPending) return;
+      // Leaving a terminal status is a REOPEN, not a plain move: it goes
+      // through the confirmation modal (target status + assignee + reason)
+      // instead of firing the transition directly. Gated on `ai-resolution` —
+      // with the flag off the legacy direct transition below still applies.
+      if (
+        featureFlags.aiResolution.enabled() &&
+        (dialog.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED)
+      ) {
+        setReopenTarget({ ticketId, initialStatusId: toStatusId });
+        return;
+      }
       // Resolve is the inline status changer moving the ticket into a
       // RESOLVED-kind status — there is no dedicated "resolve" button. Track
       // optimistically on click (like the other activity events): losing one
@@ -631,12 +654,15 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       infoItems.push(deviceMenuItems.deviceDetails, deviceMenuItems.deviceLogs);
       remoteItems.push(
         withActivityTracking(deviceMenuItems.remoteShell, EVENT_SUBTYPE.OPEN_REMOTE_SHELL, href => router.push(href)),
-        withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
-          router.push(href),
-        ),
-        deviceMenuItems.manageFiles,
-        deviceMenuItems.runScript,
       );
+      if (deviceMenuItems.remoteControl) {
+        remoteItems.push(
+          withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
+            router.push(href),
+          ),
+        );
+      }
+      remoteItems.push(deviceMenuItems.manageFiles, deviceMenuItems.runScript);
     }
 
     const groups: ActionsMenuGroup[] = [];
@@ -683,8 +709,11 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     return <TicketDetailsSkeleton onBack={handleBackToTickets} showTechnicianChat={isTechnicianChatEnabled} />;
   }
 
-  if (dialogError) {
-    return <LoadError message={`Error loading ticket: ${dialogError.message}`} />;
+  // Before the not-found below, and not showing `dialogError` raw: offline the
+  // query PAUSES with no data, and this route answered that by telling the user
+  // their ticket does not exist.
+  if (dialogError || isOffline) {
+    return <LoadError {...loadErrorProps(isOffline, "Couldn't load this ticket.", () => refetchTicket())} />;
   }
 
   if (!dialog) {
@@ -768,6 +797,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
               id: dialog.assignedTo!,
               name: dialog.assignedName,
               avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+              deleted: isUserDeleted(dialog.assignedTo),
             }
           : undefined,
         options: assigneeOptions.options.map(o => ({ ...o, imageUrl: getFullImageUrl(o.imageUrl) })),
@@ -954,7 +984,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     <>
       <InfoSection title="Ticket Details" rows={infoRows} />
       <TicketAttachmentsSection ticketId={dialog.id} attachments={dialog.attachments ?? []} />
-      <TicketTagsSection ticketId={dialog.id} labels={dialog.labels ?? []} />
+      <TicketTagsSection ticketId={dialog.id} tags={dialog.tags ?? []} />
       <TicketNotesSection
         notes={uiNotes}
         isAddingNote={addNoteMutation.isPending}
@@ -1084,6 +1114,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                     id: dialog.assignedTo!,
                     name: dialog.assignedName,
                     avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+                    deleted: isUserDeleted(dialog.assignedTo),
                   }
                 : undefined,
               options: assigneeOptions.options.map(o => ({
@@ -1097,7 +1128,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
             createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
             description={dialog.description || dialog.title || ''}
             attachments={uiAttachments}
-            tags={(dialog.labels || []).map(l => l.key)}
+            tags={(dialog.tags || []).map(t => t.key)}
             notes={uiNotes}
             isAddingNote={addNoteMutation.isPending}
             onAddNote={text => {
@@ -1117,7 +1148,12 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
           )}
 
           {/* Chat Section */}
-          <div className="flex-1 flex flex-col min-h-[500px]">
+          {/* The 500px floor is a desktop rule: below `lg` this section IS the
+              page (the info blocks above it are `hidden lg:block`), so `flex-1`
+              already fills the pane — while on a phone with the keyboard up the
+              floor exceeds what's left and pushes the composer past the bottom
+              of a pane that only the browser's scroll-on-focus can recover. */}
+          <div className="flex-1 flex flex-col min-h-0 lg:min-h-[500px]">
             {/* Tab bar — visible only on mobile/tablet */}
             <Tabs value={activeChatTab} onValueChange={setActiveChatTab} className="lg:hidden mb-2">
               <TabsList className="w-full">
@@ -1167,6 +1203,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                           id: dialog.assignedTo!,
                           name: dialog.assignedName,
                           avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+                          deleted: isUserDeleted(dialog.assignedTo),
                         }
                       : undefined,
                     options: assigneeOptions.options.map(o => ({
@@ -1180,7 +1217,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                   createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
                   description={dialog.description || dialog.title || ''}
                   attachments={uiAttachments}
-                  tags={(dialog.labels || []).map(l => l.key)}
+                  tags={(dialog.tags || []).map(t => t.key)}
                   notes={uiNotes}
                   onAddNote={text => {
                     if (dialog?.id) addNoteMutation.mutate({ content: text });
@@ -1334,6 +1371,8 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
           </div>
         </PageLayout>
       )}
+
+      <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
 
       <ConfirmDialog
         open={noteToDelete !== null}

@@ -6,6 +6,7 @@ import type { scheduleDeviceFiltersRelay_facets$key as FacetsFragmentKey } from 
 import type { scheduleDeviceFiltersRelayQuery as ScheduleDeviceFiltersQueryType } from '@/__generated__/scheduleDeviceFiltersRelayQuery.graphql';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import type { DeviceFilters } from '@/app/(app)/devices/types/device.types';
+import { useRetryKey } from '@/app/components/shared';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import {
   scheduleDeviceFiltersRelayFacetsFragment,
@@ -76,6 +77,7 @@ export function useScheduleDeviceFilters(
   options?: ScheduleDeviceFiltersOptions,
 ): DeviceFilters {
   const bothHalves = options?.prefetchOtherHalf ?? false;
+  const retryKey = useRetryKey();
 
   const data = useLazyLoadQuery<ScheduleDeviceFiltersQueryType>(
     scheduleDeviceFiltersRelayQuery,
@@ -89,7 +91,7 @@ export function useScheduleDeviceFilters(
       available: bothHalves || half === 'available',
       assigned: bothHalves || half === 'assigned',
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const schedule = data.scriptSchedule;

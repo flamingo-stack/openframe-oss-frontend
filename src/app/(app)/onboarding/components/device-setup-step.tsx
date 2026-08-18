@@ -47,7 +47,9 @@ export function DeviceSetupStep({
   // Once at least one device exists, the install flow gives way to the
   // "Go to Devices" + "Mark as Complete" actions.
   const { total: deviceCount } = useDevicesOverview();
-  const hasDevice = deviceCount > 0;
+  // `null` = the count is unknown (request failed), which is not the same as
+  // zero devices — keep the install flow up rather than claiming setup is done.
+  const hasDevice = (deviceCount ?? 0) > 0;
 
   const [organizationId, setOrganizationId] = useState('');
   const [platform, setPlatform] = useState<OSPlatformId>(DEFAULT_OS_PLATFORM);

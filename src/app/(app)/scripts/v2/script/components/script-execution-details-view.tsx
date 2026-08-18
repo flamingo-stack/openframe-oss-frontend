@@ -4,16 +4,20 @@ import { NotFoundError, PageLayout, Tag, TruncateText } from '@flamingo-stack/op
 import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { useRetryKey } from '@/app/components/shared';
+import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execution-detail-relay';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { ExecutionSourceBadge } from '../../shared/components/execution-source-badge';
 import {
   executionResultText,
   executionStatusLabel,
@@ -52,10 +56,11 @@ function DetailCell({ value, label }: { value: ReactNode; label: string }) {
 function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsViewProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptExecutionDetailQueryType>(
     scriptExecutionDetailRelayQuery,
     { id: executionId },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const execution = data.node;
 
@@ -127,6 +132,7 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
     ? (decodeGlobalId(execution.initiator.id)?.rawId ?? execution.initiator.id)
     : '';
   const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
+  const isDeletedInitiator = isDeletedUserStatus(execution.initiator?.status);
 
   return (
     <PageLayout
@@ -154,7 +160,9 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
           />
           <DetailCell
             value={(() => {
-              const avatar = (
+              const avatar = isDeletedInitiator ? (
+                <DeletedUserAvatar size="md" />
+              ) : (
                 <SquareAvatar
                   variant="round"
                   size="md"
@@ -164,26 +172,35 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
                   initialsClassName="text-ods-text-secondary"
                 />
               );
-              if (!initiatorHref) {
-                return (
-                  <div className="flex items-center gap-2 min-w-0">
-                    {avatar}
-                    <TruncateText variant="h4">{initiatorName(execution.initiator)}</TruncateText>
-                  </div>
-                );
-              }
+              // The chip sits OUTSIDE the initiator link — inside it, clicking
+              // "Mingo" would open the technician's employee page.
               return (
-                <a
-                  href={initiatorHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 min-w-0 no-underline"
-                >
-                  {avatar}
-                  <TruncateText variant="h4" className="text-ods-accent underline">
-                    {initiatorName(execution.initiator)}
-                  </TruncateText>
-                </a>
+                <div className="flex items-center gap-[var(--spacing-system-xxs)] min-w-0">
+                  {initiatorHref ? (
+                    <a
+                      href={initiatorHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 min-w-0 no-underline"
+                    >
+                      {avatar}
+                      <TruncateText
+                        variant="h4"
+                        className={cn('underline', isDeletedInitiator ? 'text-ods-error' : 'text-ods-accent')}
+                      >
+                        {initiatorName(execution.initiator)}
+                      </TruncateText>
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-2 min-w-0">
+                      {avatar}
+                      <TruncateText variant="h4" className={isDeletedInitiator ? 'text-ods-error' : undefined}>
+                        {initiatorName(execution.initiator)}
+                      </TruncateText>
+                    </div>
+                  )}
+                  <ExecutionSourceBadge source={execution.source} />
+                </div>
               );
             })()}
             label="Executed by"

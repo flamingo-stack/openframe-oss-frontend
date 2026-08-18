@@ -1,63 +1,35 @@
 import { graphql } from 'react-relay';
 
 /**
- * The per-row field set every device list renders.
+ * Step 3 — the full device row: everything the Devices page reads, on top of
+ * [deviceSelectorFields_machine] and, through it, [deviceRowFields_machine].
  *
- * A fragment on `Machine` rather than a repeated selection: the infinite list
- * and the bounded pickers feed the same `Device` shape into the same shared
- * tables, so they must select the same fields. Spreading one fragment makes that
- * structural instead of a convention two documents are trusted to follow.
- *
- * The schedule tables (`script-schedule-devices-relay.ts`,
- * `schedule-device-picker-relay.ts`) deliberately do NOT spread this — they
- * select a narrower row, because `assignedDevices` already resolves per machine
- * and has timed out once on test-dev; adding this fragment's `toolConnections`
- * and `contactInformation` fan-out there would make that worse. They share the
- * `machineToDevice` transform, not the selection.
+ * The ladder is what keeps the three device lists honest. They render the same
+ * `Device` through the same tables but afford different amounts of fan-out
+ * (`assignedDevices` resolves per machine and has timed out once on test-dev),
+ * so each list spreads the step it can pay for and gets a transform typed to
+ * exactly that step — `machineRowToDevice`, `machineSelectorToDevice`,
+ * `machineToDevice`. Before the ladder, every list hand-listed its own fields
+ * against one hand-written `MachineLike` whose fields were all optional, so a
+ * missing selection silently produced an empty column instead of a type error.
  *
  * `Machine implements Node`, so Relay normalizes these records by `id` across
- * every query that spreads this — the list, a picker and a detail tab read one
- * record, which is what keeps device state consistent between screens.
+ * every query that spreads any step — the list, a picker and a detail tab read
+ * one record, which is what keeps device state consistent between screens.
  *
- * `@inline` because the consumer is `machineToDevice`, a plain function that
- * flattens a row into the `Device` the shared tables render — not a component.
- * `readInlineData` is how a fragment's data is read outside React; without it
- * the spread would hand back an opaque fragment reference and every row would
- * need its own `useFragment` component.
+ * `@inline` because the consumer is `machineToDevice`, a plain function — not a
+ * component. `readInlineData` is how a fragment's data is read outside React;
+ * without it the spread would hand back an opaque fragment reference and every
+ * row would need its own `useFragment` component.
  */
 export const deviceFieldsFragment = graphql`
   fragment deviceFields_machine on Machine @inline {
-    id
-    machineId
-    hostname
-    displayName
+    ...deviceSelectorFields_machine
+    nickname
     ip
     macAddress
     osUuid
     agentVersion
-    status
-    lastSeen
-    organization {
-      id
-      organizationId
-      name
-      # The CUSTOMER column's second line. The organization is already joined
-      # here for name + logo, so this rides along rather than adding a fan-out.
-      contactInformation {
-        contacts {
-          email
-        }
-      }
-      image {
-        imageUrl
-        hash
-      }
-    }
-    serialNumber
-    manufacturer
-    model
-    type
-    osType
     osVersion
     osBuild
     timezone
@@ -73,14 +45,6 @@ export const deviceFieldsFragment = graphql`
       connectedAt
       lastSyncAt
       disconnectedAt
-    }
-    tags {
-      id
-      key
-      description
-      color
-      values
-      createdAt
     }
   }
 `;
