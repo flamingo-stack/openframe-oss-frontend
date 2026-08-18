@@ -16,11 +16,12 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Loader2 } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
+import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { MeshControlClient } from '@/lib/meshcentral/meshcentral-control';
 import { type DisplayInfo, MeshDesktop } from '@/lib/meshcentral/meshcentral-desktop';
@@ -37,7 +38,29 @@ interface LegacyDeviceData {
   organization?: string | { name?: string };
 }
 
+/**
+ * Remote Control is desktop-only. `useDeviceActionsMenu` already drops the menu
+ * item in the mobile shell, so this catches what never passed through a menu: a
+ * restored URL, and the `/devices/details/{id}/remote-desktop` legacy remap in
+ * `not-found`. It redirects instead of rendering an explanation because the
+ * session component below opens a MeshCentral tunnel from its own effects — a
+ * guard inside it would fire after the connection had already started.
+ */
 export default function RemoteDesktopPage() {
+  const router = useRouter();
+  const deviceId = useSearchParams().get('id') ?? '';
+  const isMobileShell = useIsMobileShell();
+
+  useEffect(() => {
+    if (!isMobileShell) return;
+    router.replace(deviceId ? routes.devices.details(deviceId) : routes.devices.list);
+  }, [isMobileShell, deviceId, router]);
+
+  if (isMobileShell) return null;
+  return <RemoteDesktopSession />;
+}
+
+function RemoteDesktopSession() {
   const searchParams = useSearchParams();
   const deviceId = searchParams.get('id') ?? '';
   const { toast } = useToast();
