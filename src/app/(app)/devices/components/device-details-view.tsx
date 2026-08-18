@@ -164,7 +164,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   // Top-level header buttons reuse the shared menu items registry — only the
   // `variant` field is appended to turn them into `PageActionButton`s.
   const actions: PageActionButton[] = [
-    { ...deviceMenuItems.remoteControl, variant: 'outline' },
+    ...(deviceMenuItems.remoteControl ? [{ ...deviceMenuItems.remoteControl, variant: 'outline' as const }] : []),
     { ...deviceMenuItems.remoteShell, variant: 'outline' },
   ];
 

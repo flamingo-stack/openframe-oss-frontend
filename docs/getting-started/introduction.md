@@ -77,7 +77,7 @@ graph TD
 | `zustand` | ^5.0.8 | Client-side state management |
 | `tailwindcss` | ^3.4.17 | Utility-first CSS |
 | `@xterm/xterm` | ^6.0.0 | Terminal emulator for remote shell |
-| `@monaco-editor/react` | ^4.7.0 | Script editor |
+| `@codemirror/view` + `@codemirror/state` | ^6 | Script editor |
 | `zod` | ^4.3.6 | Runtime schema validation |
 | `@flamingo-stack/openframe-frontend-core` | ^0.0.480 | Shared UI component library |
 

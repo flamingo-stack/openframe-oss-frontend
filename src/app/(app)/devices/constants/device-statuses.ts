@@ -17,6 +17,11 @@ export const DEVICE_STATUS = {
   MAINTENANCE: 'MAINTENANCE',
   DECOMMISSIONED: 'DECOMMISSIONED',
   PENDING: 'PENDING',
+  // Filter values are sanitized against the generated `DeviceStatus` enum
+  // (`toRelayDeviceFilter`) before hitting GraphQL, so PENDING_DELETION is
+  // silently dropped from queries until the backend adds it to the schema and
+  // `schema.graphql` / schema-enums are refreshed. Safe to ship ahead of BE.
+  PENDING_DELETION: 'PENDING_DELETION',
   ARCHIVED: 'ARCHIVED',
   DELETED: 'DELETED',
 } as const;
@@ -27,19 +32,27 @@ export const DEFAULT_VISIBLE_STATUSES = [
   DEVICE_STATUS.ONLINE,
   DEVICE_STATUS.OFFLINE,
   DEVICE_STATUS.PENDING,
+  DEVICE_STATUS.PENDING_DELETION,
 ] as const satisfies string[];
 
 export const DEFAULT_DASHBOARD_STATUSES = [
   DEVICE_STATUS.ONLINE,
   DEVICE_STATUS.OFFLINE,
   DEVICE_STATUS.PENDING,
+  DEVICE_STATUS.PENDING_DELETION,
   DEVICE_STATUS.ARCHIVED,
 ] as const satisfies string[];
 
 // PENDING is intentionally not part of the default list view — pending
 // (still-enrolling) devices appear only when the user explicitly checks the
 // PENDING status filter. The option itself stays in DEFAULT_VISIBLE_STATUSES.
-export const DEFAULT_DEVICES_LIST_STATUSES = [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE] as const satisfies string[];
+// PENDING_DELETION stays in the default view: a device scheduled for uninstall
+// must remain visible until the uninstall actually completes.
+export const DEFAULT_DEVICES_LIST_STATUSES = [
+  DEVICE_STATUS.ONLINE,
+  DEVICE_STATUS.OFFLINE,
+  DEVICE_STATUS.PENDING_DELETION,
+] as const satisfies string[];
 
 // Statuses fetched when the device list is used as an enrichment registry
 // (e.g. monitoring query/policy tables mapping fleet hosts → device metadata).
