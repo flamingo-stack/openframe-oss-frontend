@@ -134,6 +134,7 @@ function RemoteDesktopSession() {
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
   const [currentDisplay, setCurrentDisplay] = useState(0);
   const currentDisplayRef = useRef(currentDisplay);
+  const didAutoSelectDisplayRef = useRef(false);
   const [firstFrameReceived, setFirstFrameReceived] = useState(false);
   const [clipboardEnabled, setClipboardEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -174,9 +175,12 @@ function RemoteDesktopSession() {
     // Set up display list change callback
     desktop.onDisplayListChange?.(newDisplays => {
       setDisplays(newDisplays);
-      // Auto-select primary display if available
+      // Auto-select primary display once, on the initial list. Later callbacks
+      // (cmd 82 location updates) must not kick the user off an explicitly
+      // chosen "All Displays" (id 0) selection.
       const primaryDisplay = newDisplays.find(d => d.primary);
-      if (primaryDisplay && currentDisplayRef.current === 0) {
+      if (primaryDisplay && currentDisplayRef.current === 0 && !didAutoSelectDisplayRef.current) {
+        didAutoSelectDisplayRef.current = true;
         setCurrentDisplay(primaryDisplay.id);
       }
     });
@@ -578,15 +582,41 @@ function RemoteDesktopSession() {
     </div>
   );
 
+  // "Show All" grid: the main canvas keeps receiving the combined
+  // virtual-desktop stream and stays mounted (hidden) as the blit source;
+  // each display with known geometry (cmd 82) gets its own cropped view.
+  const gridDisplays = displays.filter(d => d.id !== 0 && d.w > 0 && d.h > 0);
+  const isGridActive = currentDisplay === 0 && gridDisplays.length > 1;
+
   const canvasContainer = (
     <div className={`flex-1 min-h-0 min-w-0 relative bg-black overflow-hidden ${isFullscreen ? '' : 'rounded-lg'}`}>
       <canvas
         ref={canvasRef}
         tabIndex={0}
         className="absolute inset-0 w-full h-full object-contain outline-none"
-        style={{ visibility: firstFrameReceived ? 'visible' : 'hidden' }}
+        style={{ visibility: firstFrameReceived && !isGridActive ? 'visible' : 'hidden' }}
         onContextMenu={e => e.preventDefault()}
       />
+      {isGridActive && firstFrameReceived && (
+        <div className="absolute inset-0 grid grid-cols-2 content-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-mf)]">
+          {gridDisplays.map(display => (
+            <div key={display.id} className="relative flex items-center justify-center min-h-0 min-w-0">
+              <canvas
+                ref={el => {
+                  const desktop = desktopRef.current;
+                  if (!desktop || !el) return;
+                  desktop.attachDisplayView?.(display.id, el);
+                  return () => desktop.detachDisplayView?.(display.id);
+                }}
+                tabIndex={0}
+                aria-label={`Display ${display.id}${display.primary ? ' (Primary)' : ''}`}
+                className="max-w-full max-h-full object-contain outline-none"
+                onContextMenu={e => e.preventDefault()}
+              />
+            </div>
+          ))}
+        </div>
+      )}
       {!firstFrameReceived && state >= 1 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)]">
           <Loader2 className="w-8 h-8 text-ods-text-secondary animate-spin" />

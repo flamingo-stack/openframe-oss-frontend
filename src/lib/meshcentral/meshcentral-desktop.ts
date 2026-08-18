@@ -28,6 +28,8 @@ export type DesktopInputHandlers = {
   switchDisplay?(displayId: number): void;
   getDisplayList?(): DisplayInfo[];
   onDisplayListChange?(callback: (displays: DisplayInfo[]) => void): void;
+  attachDisplayView?(displayId: number, canvas: HTMLCanvasElement): void;
+  detachDisplayView?(displayId: number): void;
   onFirstFrame?(callback: () => void): void;
   setClipboardInterceptor?(interceptor: ((type: 'copy' | 'cut' | 'paste', sendKeys: () => void) => void) | null): void;
 };
@@ -70,6 +72,10 @@ export class MeshDesktop implements DesktopInputHandlers {
   private displayList: DisplayInfo[] = [];
   private currentDisplay = 0;
   private onDisplayListCallback: ((displays: DisplayInfo[]) => void) | null = null;
+  private displayViews = new Map<
+    number,
+    { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null; cleanup: Array<() => void> }
+  >();
   private firstFrameDrawn = false;
   private onFirstFrameCallback: (() => void) | null = null;
   private clipboardInterceptor: ((type: 'copy' | 'cut' | 'paste', sendKeys: () => void) => void) | null = null;
@@ -132,22 +138,26 @@ export class MeshDesktop implements DesktopInputHandlers {
     }
   }
 
-  attach(canvas: HTMLCanvasElement) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-    this.stopped = false;
-    // Input listeners (scaffold): implement binary encoders per MeshCentral desktop protocol later
+  /**
+   * Bind mouse/wheel handlers on a canvas, mapping cursor positions to remote
+   * virtual-desktop coordinates via `toRemoteXy`. Shared between the main
+   * canvas (full remote area) and per-display grid views (display sub-rect).
+   * Returns the unbind functions.
+   */
+  private bindPointerInput(
+    canvas: HTMLCanvasElement,
+    toRemoteXy: (e: MouseEvent) => { x: number; y: number },
+  ): Array<() => void> {
     const onMouseMove = (e: MouseEvent) => {
       if (this.viewOnly) return;
-      const { x, y } = this.getRemoteXy(e);
+      const { x, y } = toRemoteXy(e);
       this.send(this.encodeMouseMove(x, y));
     };
     const onMouseDown = (e: MouseEvent) => {
       if (this.viewOnly) return;
-      if (!this.canvas) return;
-      this.canvas.focus?.();
+      canvas.focus?.();
       this.syncModifiersFromEvent(e);
-      const { x, y } = this.getRemoteXy(e);
+      const { x, y } = toRemoteXy(e);
       const buttonDown = this.mapMouseButton(e.button);
       if (buttonDown == null) return;
       this.send(this.encodeMouseButton(buttonDown, x, y));
@@ -155,7 +165,7 @@ export class MeshDesktop implements DesktopInputHandlers {
     };
     const onMouseUp = (e: MouseEvent) => {
       if (this.viewOnly) return;
-      const { x, y } = this.getRemoteXy(e);
+      const { x, y } = toRemoteXy(e);
       const buttonDown = this.mapMouseButton(e.button);
       if (buttonDown == null) return;
       const buttonUp = (buttonDown * 2) & 0xff;
@@ -164,13 +174,13 @@ export class MeshDesktop implements DesktopInputHandlers {
     };
     const onDblClick = (e: MouseEvent) => {
       if (this.viewOnly) return;
-      const { x, y } = this.getRemoteXy(e);
+      const { x, y } = toRemoteXy(e);
       this.send(this.encodeMouseDoubleClick(x, y));
       e.preventDefault();
     };
     const onWheel = (e: WheelEvent) => {
       if (this.viewOnly) return;
-      const { x, y } = this.getRemoteXy(e as any as MouseEvent);
+      const { x, y } = toRemoteXy(e as any as MouseEvent);
       const sign = e.deltaY === 0 ? 0 : e.deltaY > 0 ? 1 : -1;
       let delta = sign * 120; // standard wheel notches
       if (e.deltaMode === 0) {
@@ -181,6 +191,26 @@ export class MeshDesktop implements DesktopInputHandlers {
       this.send(this.encodeMouseWheel(x, y, delta));
       e.preventDefault();
     };
+
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('wheel', onWheel);
+    canvas.addEventListener('dblclick', onDblClick);
+
+    return [
+      () => canvas.removeEventListener('mousemove', onMouseMove),
+      () => canvas.removeEventListener('mousedown', onMouseDown),
+      () => canvas.removeEventListener('mouseup', onMouseUp),
+      () => canvas.removeEventListener('wheel', onWheel),
+      () => canvas.removeEventListener('dblclick', onDblClick),
+    ];
+  }
+
+  attach(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.stopped = false;
     const onKeyDown = (e: KeyboardEvent) => {
       if (this.viewOnly) return;
       if (isTypingTarget(e.target)) return;
@@ -356,22 +386,13 @@ export class MeshDesktop implements DesktopInputHandlers {
       if (isTypingTarget(e.target)) onWindowBlur();
     };
 
-    canvas.addEventListener('mousemove', onMouseMove);
-    canvas.addEventListener('mousedown', onMouseDown);
-    canvas.addEventListener('mouseup', onMouseUp);
-    canvas.addEventListener('wheel', onWheel);
-    canvas.addEventListener('dblclick', onDblClick);
+    this.listeners.push(...this.bindPointerInput(canvas, e => this.getRemoteXy(e)));
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keypress', onKeyPress);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onWindowBlur);
     window.addEventListener('focusin', onFocusIn);
 
-    this.listeners.push(() => canvas.removeEventListener('mousemove', onMouseMove));
-    this.listeners.push(() => canvas.removeEventListener('mousedown', onMouseDown));
-    this.listeners.push(() => canvas.removeEventListener('mouseup', onMouseUp));
-    this.listeners.push(() => canvas.removeEventListener('wheel', onWheel));
-    this.listeners.push(() => canvas.removeEventListener('dblclick', onDblClick));
     this.listeners.push(() => window.removeEventListener('keydown', onKeyDown));
     this.listeners.push(() => window.removeEventListener('keypress', onKeyPress));
     this.listeners.push(() => window.removeEventListener('keyup', onKeyUp));
@@ -389,10 +410,78 @@ export class MeshDesktop implements DesktopInputHandlers {
     this.accum = null;
     this.accumOffset = 0;
     this.firstFrameDrawn = false;
+    this.detachAllDisplayViews();
     for (const off of this.listeners) off();
     this.listeners = [];
     this.canvas = null;
     this.ctx = null;
+  }
+
+  /**
+   * Register a per-display viewer canvas for the "Show All" grid. The main
+   * canvas keeps receiving the combined virtual-desktop stream (display
+   * 0xFFFF); each registered view gets its display's rectangle (from cmd 82
+   * Display Location Info) blitted onto its own canvas after every tile
+   * batch, and its pointer input mapped back into virtual-desktop coords.
+   */
+  attachDisplayView(displayId: number, canvas: HTMLCanvasElement) {
+    this.detachDisplayView(displayId);
+    const cleanup = this.bindPointerInput(canvas, e => this.getDisplayViewXy(e, canvas, displayId));
+    this.displayViews.set(displayId, { canvas, ctx: canvas.getContext('2d'), cleanup });
+    this.blitDisplayView(displayId);
+  }
+
+  detachDisplayView(displayId: number) {
+    const view = this.displayViews.get(displayId);
+    if (!view) return;
+    for (const off of view.cleanup) off();
+    this.displayViews.delete(displayId);
+  }
+
+  detachAllDisplayViews() {
+    for (const id of [...this.displayViews.keys()]) this.detachDisplayView(id);
+  }
+
+  private getDisplayViewXy(e: MouseEvent, canvas: HTMLCanvasElement, displayId: number): { x: number; y: number } {
+    const display = this.displayList.find(d => d.id === displayId);
+    if (!display || display.w === 0 || display.h === 0) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return { x: display.x, y: display.y };
+
+    // Same object-contain math as getRemoteXy, but against the display rect.
+    const scale = Math.min(rect.width / display.w, rect.height / display.h);
+    const drawnW = display.w * scale;
+    const drawnH = display.h * scale;
+    const offsetX = (rect.width - drawnW) / 2;
+    const offsetY = (rect.height - drawnH) / 2;
+
+    const cx = (e.clientX - rect.left - offsetX) / Math.max(1, drawnW);
+    const cy = (e.clientY - rect.top - offsetY) / Math.max(1, drawnH);
+
+    const x = display.x + Math.round(cx * display.w);
+    const y = display.y + Math.round(cy * display.h);
+    return {
+      x: Math.max(display.x, Math.min(display.x + display.w - 1, x)),
+      y: Math.max(display.y, Math.min(display.y + display.h - 1, y)),
+    };
+  }
+
+  private blitDisplayView(displayId: number) {
+    const view = this.displayViews.get(displayId);
+    if (!view || !view.ctx || !this.canvas) return;
+    const display = this.displayList.find(d => d.id === displayId);
+    if (!display || display.w === 0 || display.h === 0) return;
+    if (view.canvas.width !== display.w || view.canvas.height !== display.h) {
+      view.canvas.width = display.w;
+      view.canvas.height = display.h;
+    }
+    try {
+      view.ctx.drawImage(this.canvas, display.x, display.y, display.w, display.h, 0, 0, display.w, display.h);
+    } catch {}
+  }
+
+  private blitDisplayViews() {
+    for (const id of this.displayViews.keys()) this.blitDisplayView(id);
   }
 
   setViewOnly(viewOnly: boolean) {
@@ -641,12 +730,13 @@ export class MeshDesktop implements DesktopInputHandlers {
     pauseView.setUint8(4, 1); // 1=pause
     this.send(pauseBuffer);
 
-    // Switch display
+    // Switch display. UI id 0 is the "all displays" entry (parseDisplayList
+    // maps the wire's 0xFFFF to 0), so translate it back for the agent.
     const switchBuffer = new Uint8Array(6);
     const switchView = new DataView(switchBuffer.buffer);
     switchView.setUint16(0, 0x000c, false); // Command: SWITCH_DISPLAY
     switchView.setUint16(2, 0x0006, false); // Size: 6 bytes
-    switchView.setUint16(4, displayId, false); // Display ID
+    switchView.setUint16(4, displayId === 0 ? 0xffff : displayId, false); // Display ID
     this.send(switchBuffer);
     this.currentDisplay = displayId;
 
@@ -868,6 +958,7 @@ export class MeshDesktop implements DesktopInputHandlers {
           } catch {}
         }
       }
+      this.blitDisplayViews();
     });
   }
 
@@ -878,85 +969,38 @@ export class MeshDesktop implements DesktopInputHandlers {
     // Then variable format based on data size
     if (frame.length < 6) return;
 
+    // Observed wire format (Windows agent): count at [4..5], then count uint16
+    // display ids, then an optional trailing uint16 "currently selected"
+    // display. Geometry is NOT in this message - it arrives via cmd 82 (which
+    // the agent may send BEFORE this response), so merge any known rects in.
     const displayCount = (frame[4] << 8) | frame[5];
+    const idsEnd = 6 + displayCount * 2;
+    if (frame.length < idsEnd) return;
+
+    const selected = frame.length >= idsEnd + 2 ? (frame[idsEnd] << 8) | frame[idsEnd + 1] : null;
     const displays: DisplayInfo[] = [];
 
-    const dataBytes = frame.length - 6;
-    const bytesPerDisplay = displayCount > 0 ? Math.floor(dataBytes / displayCount) : 0;
+    for (let i = 0; i < displayCount; i++) {
+      const offset = 6 + i * 2;
+      const id = (frame[offset] << 8) | frame[offset + 1];
 
-    if (bytesPerDisplay === 2 || bytesPerDisplay === 4) {
-      // Simple format: just display IDs (2 bytes) or IDs + current display marker (4 bytes)
-      for (let i = 0; i < displayCount; i++) {
-        const offset = 6 + i * bytesPerDisplay;
-        if (offset + 2 > frame.length) break;
-
-        const id = (frame[offset] << 8) | frame[offset + 1];
-
-        // 0xFFFF (65535) represents "all displays" view
-        if (id === 0xffff) {
-          // Add "all displays" as display ID 0
-          const display = {
-            id: 0,
-            x: 0,
-            y: 0,
-            w: 0,
-            h: 0,
-            primary: false,
-          };
-          displays.push(display);
-          continue;
-        }
-
-        // For 4-byte format, bytes 2-3 might indicate current/primary display
-        let isPrimary = i === 0; // Default: first display is primary
-        if (bytesPerDisplay === 4 && offset + 4 <= frame.length) {
-          const flags = (frame[offset + 2] << 8) | frame[offset + 3];
-          isPrimary = flags === 0xffff || flags === 1;
-        }
-
-        const display = {
-          id,
-          x: 0,
-          y: 0,
-          w: 0,
-          h: 0,
-          primary: isPrimary,
-        };
-
-        displays.push(display);
+      // 0xFFFF represents the "all displays" view - exposed as UI id 0.
+      if (id === 0xffff) {
+        displays.push({ id: 0, x: 0, y: 0, w: 0, h: 0, primary: false });
+        continue;
       }
-    } else if (bytesPerDisplay >= 8) {
-      // Full format with position data (8+ bytes per display)
-      for (let i = 0; i < displayCount; i++) {
-        const offset = 6 + i * bytesPerDisplay;
-        if (offset + 8 > frame.length) break;
 
-        const id = (frame[offset] << 8) | frame[offset + 1];
-        const x = (frame[offset + 2] << 8) | frame[offset + 3];
-        const y = (frame[offset + 4] << 8) | frame[offset + 5];
-
-        let w = 0,
-          h = 0,
-          flags = 0;
-        if (bytesPerDisplay >= 12) {
-          w = (frame[offset + 6] << 8) | frame[offset + 7];
-          h = (frame[offset + 8] << 8) | frame[offset + 9];
-          flags = (frame[offset + 10] << 8) | frame[offset + 11];
-        } else {
-          flags = (frame[offset + 6] << 8) | frame[offset + 7];
-        }
-
-        const display = {
-          id,
-          x,
-          y,
-          w,
-          h,
-          primary: (flags & 1) === 1,
-        };
-
-        displays.push(display);
-      }
+      const known = this.displayList.find(d => d.id === id);
+      displays.push({
+        id,
+        x: known?.x ?? 0,
+        y: known?.y ?? 0,
+        w: known?.w ?? 0,
+        h: known?.h ?? 0,
+        // No primary flag on the wire here - treat the currently selected
+        // display as primary (it is what the agent streams by default).
+        primary: selected != null && selected !== 0xffff ? id === selected : i === 0,
+      });
     }
 
     this.displayList = displays;
@@ -973,15 +1017,18 @@ export class MeshDesktop implements DesktopInputHandlers {
     // Bytes 8-9: Y position (uint16, big-endian)
     // Bytes 10-11: Width (uint16, big-endian)
     // Bytes 12-13: Height (uint16, big-endian)
-    // Bytes 14-15: Flags (uint16, big-endian) - bit 0 = primary display
-    if (frame.length < 16) return;
+    // Bytes 14-15: Flags (uint16, big-endian) - bit 0 = primary display.
+    // Real Windows agents send 14-byte frames (no flags) - observed live:
+    // [0,82,0,14, id, x, y, w, h]. Flags are read only when present.
+    if (frame.length < 14) return;
 
     const displayId = (frame[4] << 8) | frame[5];
     const x = (frame[6] << 8) | frame[7];
     const y = (frame[8] << 8) | frame[9];
     const width = (frame[10] << 8) | frame[11];
     const height = (frame[12] << 8) | frame[13];
-    const flags = (frame[14] << 8) | frame[15];
+    const hasFlags = frame.length >= 16;
+    const flags = hasFlags ? (frame[14] << 8) | frame[15] : 0;
 
     const existingIndex = this.displayList.findIndex(d => d.id === displayId);
     const displayInfo: DisplayInfo = {
@@ -990,7 +1037,8 @@ export class MeshDesktop implements DesktopInputHandlers {
       y,
       w: width,
       h: height,
-      primary: (flags & 1) === 1,
+      // Without flags, keep whatever primary-ness the display list assigned.
+      primary: hasFlags ? (flags & 1) === 1 : (this.displayList[existingIndex]?.primary ?? false),
     };
 
     if (existingIndex >= 0) {
