@@ -25,6 +25,7 @@ import type { relayItemsSchedulesListQuery } from '@/__generated__/relayItemsSch
 import type { relayItemsScripts_query$key } from '@/__generated__/relayItemsScripts_query.graphql';
 import type { relayItemsScriptsListQuery } from '@/__generated__/relayItemsScriptsListQuery.graphql';
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
@@ -53,7 +54,7 @@ const DEVICES_FRAGMENT = graphql`
   ) {
     devices(filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "relayItemsDevices_devices") {
-      edges { node { id machineId hostname displayName status } }
+      edges { node { id machineId hostname displayName nickname status } }
     }
   }
 `;
@@ -88,7 +89,11 @@ export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextI
                 // (see relay-mention-chips). Falls back to `machineId` if decode
                 // ever fails.
                 id: decodeGlobalId(e.node.id)?.rawId ?? e.node.machineId,
-                label: e.node.displayName || e.node.hostname || e.node.machineId,
+                // `getDeviceName` (nickname → displayName → hostname) — the same
+                // name the device page, the devices table and the mention chip
+                // show, so the picked label can't disagree with the chip it
+                // becomes.
+                label: getDeviceName(e.node) || e.node.machineId,
                 description: e.node.status ?? undefined,
               },
             ]

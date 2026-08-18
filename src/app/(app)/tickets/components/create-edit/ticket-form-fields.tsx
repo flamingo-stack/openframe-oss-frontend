@@ -236,9 +236,9 @@ export function TicketFormFields({
         />
       </div>
 
-      {/* Labels / Tags */}
+      {/* Tags */}
       <Controller
-        name="labelIds"
+        name="tagIds"
         control={control}
         render={({ field }) => <TicketTagsManager selectedIds={field.value} onChange={val => field.onChange(val)} />}
       />

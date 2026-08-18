@@ -7,6 +7,7 @@ import { runtimeEnv } from './runtime-config';
  */
 export const FEATURE_FLAG_NAMES = [
   'ai-escalation',
+  'ai-resolution',
   'billings',
   'help-center',
   'notifications',
@@ -128,6 +129,11 @@ export const featureFlags = {
   aiEscalation: {
     enabled(): boolean {
       return getFlagValue('ai-escalation', () => false);
+    },
+  },
+  aiResolution: {
+    enabled(): boolean {
+      return getFlagValue('ai-resolution', () => false);
     },
   },
   mingoAiChatSettings: {
