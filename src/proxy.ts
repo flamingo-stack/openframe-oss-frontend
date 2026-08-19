@@ -21,6 +21,17 @@ function isAllowed(pathname: string): boolean {
     return true;
   }
 
+  // Account-deletion instructions: reachable in every mode, signed out. Both app
+  // stores require a deletion URL that resolves in a browser with no app install
+  // and no account, and the canonical one is on the saas-shared host — the only
+  // host identical for every tenant, and the mode that otherwise redirects
+  // everything but `/auth` away. Mirrors `isRouteAllowedInCurrentMode`
+  // (lib/app-mode.ts); the two allowlists are deliberately separate because this
+  // one runs in the Edge runtime and must not pull in browser globals.
+  if (pathname.startsWith('/account-deletion')) {
+    return true;
+  }
+
   if (mode === 'saas-shared') {
     return pathname.startsWith('/auth') || pathname === '/';
   }
