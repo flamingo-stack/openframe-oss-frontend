@@ -206,8 +206,10 @@ export interface AppPlugin {
  * iOS reports the keyboard frame in points, and the Android plugin divides the
  * `WindowInsets.Type.ime()` inset by display density before emitting.
  *
- * The shell configures `resize: 'none'`, so these events are the only notice
- * the web layer gets that a keyboard exists — see keyboard-inset.ts. Same
+ * Consumed on iOS ONLY: the shell configures `resize: 'none'` (an iOS-only
+ * knob), so there these events are the only notice the web layer gets that a
+ * keyboard exists, while on Android Capacitor's own SystemBars plugin resizes
+ * the WebView and the layout viewport reports it — see keyboard-inset.ts. Same
  * sync-or-Promise addListener return as AppPlugin.
  */
 export interface KeyboardPlugin {
@@ -536,6 +538,38 @@ function fullscreenElement(): Element | null {
 }
 
 /**
+ * Android only: the software keyboard is up and has taken the navigation-bar
+ * band out of the WebView. Capacitor's Android core pads the WebView's parent
+ * by the `ime()` inset for as long as the keyboard shows (see
+ * keyboard-inset.ts), and that inset spans the navigation bar — the IME window
+ * is drawn behind it — so the resized WebView ends ABOVE the navigation band
+ * and no longer contains it. Publishing the band anyway reserves space the page
+ * cannot reach: the core `MobileBottomActions` bar (`.fixed.bottom-0` in
+ * globals.css) sat on top of the keyboard with a nav-bar-sized strip of dead
+ * space under its buttons.
+ *
+ * iOS is deliberately untouched. WKWebView keeps its frame there, so the
+ * home-indicator band is still inside the viewport — merely covered — and a
+ * `fixed` bottom bar is behind the keyboard entirely, where its padding is
+ * moot.
+ */
+let keyboardCoversBottomInset = false;
+
+/**
+ * Set by the keyboard listener in keyboard-inset.ts. It routes through this
+ * module rather than writing `--native-safe-bottom` itself because
+ * `initNativeChrome` republishes all four insets on every `resize` — and on
+ * Android the keyboard IS a resize, so an outside write would be clobbered by
+ * that handler's trailing read 350ms later. The read stays authoritative; this
+ * only decides what it publishes for the bottom edge.
+ */
+export function setKeyboardCoversBottomInset(covered: boolean): void {
+  if (covered === keyboardCoversBottomInset) return;
+  keyboardCoversBottomInset = covered;
+  void applyNativeSafeAreas();
+}
+
+/**
  * Publish the native safe-area insets as CSS variables consumed by the
  * mobile-scoped rules in globals.css
  * (`--native-safe-top/-bottom/-left/-right`). All four are set so landscape and
@@ -569,7 +603,8 @@ export async function applyNativeSafeAreas(): Promise<void> {
     if (!insets) return;
     const rootStyle = document.documentElement.style;
     rootStyle.setProperty('--native-safe-top', `${insets.top}px`);
-    rootStyle.setProperty('--native-safe-bottom', `${insets.bottom}px`);
+    // Suppressed while the keyboard holds the bottom band — see above.
+    rootStyle.setProperty('--native-safe-bottom', `${keyboardCoversBottomInset ? 0 : insets.bottom}px`);
     rootStyle.setProperty('--native-safe-left', `${insets.left}px`);
     rootStyle.setProperty('--native-safe-right', `${insets.right}px`);
   } catch (error) {
