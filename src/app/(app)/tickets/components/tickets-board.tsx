@@ -84,11 +84,29 @@ function initialsOf(name?: string): string | undefined {
   return parts.map(p => p.charAt(0).toUpperCase()).join('') || undefined;
 }
 
-function dialogToBoardTicket(
-  dialog: Dialog,
-  hasNewMessage = false,
-  isUserDeleted?: (id?: string | null) => boolean,
-): BoardTicket {
+type IsUserDeleted = (id?: string | null) => boolean;
+
+/**
+ * Board tickets are rebuilt for every lane on every column tick — NATS updates,
+ * the 15s refetch, each optimistic move. Handing the memoized cards a fresh
+ * object each time would re-render the whole board (and every assignee picker
+ * in it), so cache per dialog: react-query's structural sharing keeps unchanged
+ * dialogs identical, and the two derived inputs are part of the cache key.
+ */
+const boardTicketCache = new WeakMap<
+  Dialog,
+  { hasNewMessage: boolean; isUserDeleted?: IsUserDeleted; ticket: BoardTicket }
+>();
+
+function toBoardTicket(dialog: Dialog, hasNewMessage: boolean, isUserDeleted?: IsUserDeleted): BoardTicket {
+  const cached = boardTicketCache.get(dialog);
+  if (cached && cached.hasNewMessage === hasNewMessage && cached.isUserDeleted === isUserDeleted) return cached.ticket;
+  const ticket = dialogToBoardTicket(dialog, hasNewMessage, isUserDeleted);
+  boardTicketCache.set(dialog, { hasNewMessage, isUserDeleted, ticket });
+  return ticket;
+}
+
+function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false, isUserDeleted?: IsUserDeleted): BoardTicket {
   return {
     id: dialog.id,
     title: dialog.title,
@@ -257,7 +275,7 @@ export function TicketsBoard({
       return {
         ...toLaneDefinition(status),
         tickets: (state?.tickets ?? []).map(ticket =>
-          dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
+          toBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
         ),
         total: state?.total,
         hasMore: state?.hasMore,
@@ -294,6 +312,19 @@ export function TicketsBoard({
   }, [statuses, statusesLoading]);
 
   const getTicketHref = useCallback((id: string) => routes.tickets.dialog(id), []);
+
+  // Stable identities for everything the board hands down to each card: an
+  // inline arrow here re-renders every card (and its assignee picker) on every
+  // drag frame, which is exactly what `TicketCard`'s memo is there to prevent.
+  const renderAssignSlot = useCallback((ticket: BoardTicket) => <BoardAssigneePicker ticket={ticket} />, []);
+  const handleApprove = useCallback(
+    (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, true),
+    [handleApprovalAction],
+  );
+  const handleReject = useCallback(
+    (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, false),
+    [handleApprovalAction],
+  );
 
   const loadMore = useCallback((columnId: string) => {
     loadMoreRef.current[columnId]?.();
@@ -419,9 +450,9 @@ export function TicketsBoard({
               onLoadMore={loadMore}
               onArchiveColumn={openArchiveResolvedConfirm}
               getTicketHref={getTicketHref}
-              renderAssignSlot={ticket => <BoardAssigneePicker ticket={ticket} />}
-              onApprove={(ticketId, requestId) => handleApprovalAction(ticketId, requestId, true)}
-              onReject={(ticketId, requestId) => handleApprovalAction(ticketId, requestId, false)}
+              renderAssignSlot={renderAssignSlot}
+              onApprove={handleApprove}
+              onReject={handleReject}
               collapseStorageKey="tickets-board"
               className="h-full px-[var(--spacing-system-l)]"
             />

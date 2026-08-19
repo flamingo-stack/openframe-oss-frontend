@@ -17,7 +17,7 @@ export function isDeviceOnline(status: string | undefined): boolean {
  */
 export function canArchiveDevice(status: string | undefined): boolean {
   const upperStatus = status?.toUpperCase();
-  return upperStatus !== 'ARCHIVED' && upperStatus !== 'DELETED';
+  return upperStatus !== 'ARCHIVED' && upperStatus !== 'DELETED' && upperStatus !== 'PENDING_DELETION';
 }
 
 /**
@@ -31,7 +31,8 @@ export function canUnarchiveDevice(status: string | undefined): boolean {
  * Check if a device can be deleted
  */
 export function canDeleteDevice(status: string | undefined): boolean {
-  return status?.toUpperCase() !== 'DELETED';
+  const upperStatus = status?.toUpperCase();
+  return upperStatus !== 'DELETED' && upperStatus !== 'PENDING_DELETION';
 }
 
 /**

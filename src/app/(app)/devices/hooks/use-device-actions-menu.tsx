@@ -12,6 +12,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { routes } from '@/lib/routes';
 import { EditDisplayNameModal } from '../components/edit-display-name-modal';
 import type { Device } from '../types/device.types';
@@ -37,7 +38,8 @@ interface UseDeviceActionsMenuOptions {
 export interface DeviceActionsMenuItems {
   deviceDetails: ActionsMenuItem;
   remoteShell: ActionsMenuItem;
-  remoteControl: ActionsMenuItem;
+  /** Null in the mobile shell — see the `isMobileShell` note below. */
+  remoteControl: ActionsMenuItem | null;
   manageFiles: ActionsMenuItem;
   runScript: ActionsMenuItem;
   editDisplayName: ActionsMenuItem;
@@ -65,6 +67,7 @@ export function useDeviceActionsMenu(
   }: UseDeviceActionsMenuOptions = {},
 ): UseDeviceActionsMenuResult {
   const router = useRouter();
+  const isMobileShell = useIsMobileShell();
   const [showEditDisplayName, setShowEditDisplayName] = useState(false);
 
   const deviceId = deviceIdOverride || device?.machineId || device?.id || '';
@@ -174,7 +177,14 @@ export function useDeviceActionsMenu(
     return {
       deviceDetails: base.deviceDetails,
       remoteShell: base.remoteShell,
-      remoteControl: base.remoteControl,
+      // The MeshCentral canvas is pointer-and-keyboard software — a remote desktop
+      // scaled into a phone viewport, with no mouse, no modifier keys and no
+      // Ctrl+Alt+Del. Dropping the item here (rather than disabling it) is what
+      // removes every entry point at once: this hook feeds the devices table
+      // dropdown, the device-details header buttons and the ticket-details menu.
+      // The route itself redirects, for a restored URL that never passed through
+      // a menu.
+      remoteControl: isMobileShell ? null : base.remoteControl,
       manageFiles: base.manageFiles,
       runScript,
       editDisplayName,
@@ -187,6 +197,7 @@ export function useDeviceActionsMenu(
   }, [
     deviceId,
     actionAvailability,
+    isMobileShell,
     isWindows,
     iconSize,
     handleRunScript,

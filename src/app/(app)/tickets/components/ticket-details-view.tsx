@@ -654,12 +654,15 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       infoItems.push(deviceMenuItems.deviceDetails, deviceMenuItems.deviceLogs);
       remoteItems.push(
         withActivityTracking(deviceMenuItems.remoteShell, EVENT_SUBTYPE.OPEN_REMOTE_SHELL, href => router.push(href)),
-        withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
-          router.push(href),
-        ),
-        deviceMenuItems.manageFiles,
-        deviceMenuItems.runScript,
       );
+      if (deviceMenuItems.remoteControl) {
+        remoteItems.push(
+          withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
+            router.push(href),
+          ),
+        );
+      }
+      remoteItems.push(deviceMenuItems.manageFiles, deviceMenuItems.runScript);
     }
 
     const groups: ActionsMenuGroup[] = [];
