@@ -188,6 +188,16 @@ export interface AppPlugin {
     eventName: 'backButton',
     listenerFunc: (event: { canGoBack?: boolean }) => void,
   ): Promise<{ remove: () => void }> | { remove: () => void };
+  /**
+   * Foreground/background transitions. The WebView's own `visibilitychange` is
+   * unreliable for this on iOS — WKWebView does not consistently flip
+   * `visibilityState` when the app is backgrounded — so anything that must run
+   * on resume listens here instead.
+   */
+  addListener(
+    eventName: 'appStateChange',
+    listenerFunc: (state: { isActive: boolean }) => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
   exitApp(): Promise<void>;
 }
 
