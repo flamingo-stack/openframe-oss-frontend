@@ -13,6 +13,7 @@ import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/h
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
@@ -34,8 +35,9 @@ import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
 import { type CachedBoardColumn, usePlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
+import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
 import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
-import { TicketTagFilter } from './ticket-label-filter';
+import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
 
@@ -70,8 +72,8 @@ interface TicketsBoardProps {
   onOrganizationIdsChange?: (ids: string[]) => void;
   assigneeIds?: string[];
   onAssigneeIdsChange?: (ids: string[]) => void;
-  labelIds?: string[];
-  onLabelIdsChange?: (ids: string[]) => void;
+  tagIds?: string[];
+  onTagIdsChange?: (ids: string[]) => void;
   /** Applies organization+assignee filters atomically (mobile filter modal). */
   onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[] }) => void;
   search: string;
@@ -84,11 +86,29 @@ function initialsOf(name?: string): string | undefined {
   return parts.map(p => p.charAt(0).toUpperCase()).join('') || undefined;
 }
 
-function dialogToBoardTicket(
-  dialog: Dialog,
-  hasNewMessage = false,
-  isUserDeleted?: (id?: string | null) => boolean,
-): BoardTicket {
+type IsUserDeleted = (id?: string | null) => boolean;
+
+/**
+ * Board tickets are rebuilt for every lane on every column tick — NATS updates,
+ * the 15s refetch, each optimistic move. Handing the memoized cards a fresh
+ * object each time would re-render the whole board (and every assignee picker
+ * in it), so cache per dialog: react-query's structural sharing keeps unchanged
+ * dialogs identical, and the two derived inputs are part of the cache key.
+ */
+const boardTicketCache = new WeakMap<
+  Dialog,
+  { hasNewMessage: boolean; isUserDeleted?: IsUserDeleted; ticket: BoardTicket }
+>();
+
+function toBoardTicket(dialog: Dialog, hasNewMessage: boolean, isUserDeleted?: IsUserDeleted): BoardTicket {
+  const cached = boardTicketCache.get(dialog);
+  if (cached && cached.hasNewMessage === hasNewMessage && cached.isUserDeleted === isUserDeleted) return cached.ticket;
+  const ticket = dialogToBoardTicket(dialog, hasNewMessage, isUserDeleted);
+  boardTicketCache.set(dialog, { hasNewMessage, isUserDeleted, ticket });
+  return ticket;
+}
+
+function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false, isUserDeleted?: IsUserDeleted): BoardTicket {
   return {
     id: dialog.id,
     title: dialog.title,
@@ -107,7 +127,7 @@ function dialogToBoardTicket(
           },
         ]
       : undefined,
-    tags: dialog.labels?.map(l => l.key),
+    tags: dialog.tags?.map(t => t.key),
     createdAt: dialog.createdAt,
     hasNewMessage,
     pendingApproval: dialog.pendingApproval,
@@ -121,8 +141,8 @@ export function TicketsBoard({
   onOrganizationIdsChange,
   assigneeIds,
   onAssigneeIdsChange,
-  labelIds,
-  onLabelIdsChange,
+  tagIds,
+  onTagIdsChange,
   onFiltersChange,
   search,
   onSearchChange,
@@ -190,12 +210,13 @@ export function TicketsBoard({
   // was persisted, but the Board's internal drag state still shows the card in
   // the target column. A fresh `columns` array identity makes it resync from props.
   const [boardResetNonce, setBoardResetNonce] = useState(0);
+  const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
 
   const archiveFilter = useMemo(
-    () => ({ organizationIds, assigneeIds, labelIds }),
-    [organizationIds, assigneeIds, labelIds],
+    () => ({ organizationIds, assigneeIds, tagIds }),
+    [organizationIds, assigneeIds, tagIds],
   );
   const filteredResolvedTotal = useMemo(() => {
     const resolvedId = statuses.find(s => s.kind === 'RESOLVED')?.id;
@@ -224,8 +245,8 @@ export function TicketsBoard({
   }, []);
 
   const params = useMemo(
-    () => ({ search: debouncedSearch, organizationIds, assigneeIds, labelIds }),
-    [debouncedSearch, organizationIds, assigneeIds, labelIds],
+    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds }),
+    [debouncedSearch, organizationIds, assigneeIds, tagIds],
   );
 
   const allowedFromByStatusId = useMemo<Record<string, string[]>>(() => {
@@ -263,7 +284,7 @@ export function TicketsBoard({
       return {
         ...toLaneDefinition(status),
         tickets: (state?.tickets ?? []).map(ticket =>
-          dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
+          toBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
         ),
         total: state?.total,
         hasMore: state?.hasMore,
@@ -302,6 +323,18 @@ export function TicketsBoard({
 
   const getTicketHref = useCallback((id: string) => routes.tickets.dialog(id), []);
 
+  // Stable identities for everything the board hands down to each card: an
+  // inline arrow here re-renders every card (and its assignee picker) on every
+  // drag frame, which is exactly what `TicketCard`'s memo is there to prevent.
+  const handleApprove = useCallback(
+    (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, true),
+    [handleApprovalAction],
+  );
+  const handleReject = useCallback(
+    (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, false),
+    [handleApprovalAction],
+  );
+
   const loadMore = useCallback((columnId: string) => {
     loadMoreRef.current[columnId]?.();
   }, []);
@@ -325,13 +358,41 @@ export function TicketsBoard({
     setBoardResetNonce(nonce => nonce + 1);
   }, []);
 
+  // Memoized: this sits in every card, and a board update re-renders the lanes.
+  // AI-worked tickets get the Take Over interception instead of the dropdown.
+  const renderAssignSlot = useCallback(
+    (ticket: BoardTicket) => {
+      const dialog = dialogById.get(ticket.id);
+      const aiActive = !!dialog && hasActiveAiDialog(dialog);
+      return (
+        <BoardAssigneePicker
+          ticket={ticket}
+          onTakeOver={aiActive ? () => setTakeOverTarget({ ticket: dialog }) : undefined}
+        />
+      );
+    },
+    [dialogById],
+  );
+
   const handleChange = useCallback(
     (change: BoardChange) => {
-      // Dragging an AI-worked ticket into another column is a take-over: ask
-      // for confirmation (status pre-set to the target column) instead of
-      // moving. Cancelling leaves the card where it was; reordering within a
-      // column never needs confirmation.
       if (change.fromColumnId !== change.toColumnId) {
+        // Dragging OUT of the Resolved lane is a REOPEN, not a plain move: it
+        // goes through the confirmation modal (target status + assignee +
+        // reason) instead of committing the drop. The optimistic move never
+        // runs, so the card snaps back until the modal confirms. Gated on
+        // `ai-resolution` — with the flag off the drop commits directly (legacy).
+        if (featureFlags.aiResolution.enabled()) {
+          const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
+          if (sourceKind === 'RESOLVED') {
+            setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
+            return;
+          }
+        }
+        // Dragging an AI-worked ticket into another column is a take-over: ask
+        // for confirmation (status pre-set to the target column) instead of
+        // moving. Cancelling leaves the card where it was; reordering within a
+        // column never needs confirmation.
         const dialog = dialogById.get(change.ticketId);
         if (dialog && hasActiveAiDialog(dialog)) {
           setTakeOverTarget({ ticket: dialog, initialStatusId: change.toColumnId });
@@ -346,7 +407,7 @@ export function TicketsBoard({
         beforeTicketId: change.beforeTicketId,
       });
     },
-    [moveTicket, dialogById],
+    [moveTicket, statuses, dialogById],
   );
 
   const showEmptyState =
@@ -354,7 +415,7 @@ export function TicketsBoard({
     !debouncedSearch &&
     (organizationIds?.length ?? 0) === 0 &&
     (assigneeIds?.length ?? 0) === 0 &&
-    (labelIds?.length ?? 0) === 0 &&
+    (tagIds?.length ?? 0) === 0 &&
     boardColumns.length > 0 &&
     boardColumns.every(column => column.tickets.length === 0);
 
@@ -396,8 +457,8 @@ export function TicketsBoard({
               <TicketTagFilter
                 search={search}
                 onSearchChange={onSearchChange}
-                labelIds={labelIds ?? []}
-                onLabelIdsChange={ids => onLabelIdsChange?.(ids)}
+                tagIds={tagIds ?? []}
+                onTagIdsChange={ids => onTagIdsChange?.(ids)}
                 filterButton={
                   <Button
                     variant="outline"
@@ -444,18 +505,9 @@ export function TicketsBoard({
               onLoadMore={loadMore}
               onArchiveColumn={openArchiveResolvedConfirm}
               getTicketHref={getTicketHref}
-              renderAssignSlot={ticket => {
-                const dialog = dialogById.get(ticket.id);
-                const aiActive = !!dialog && hasActiveAiDialog(dialog);
-                return (
-                  <BoardAssigneePicker
-                    ticket={ticket}
-                    onTakeOver={aiActive ? () => setTakeOverTarget({ ticket: dialog }) : undefined}
-                  />
-                );
-              }}
-              onApprove={(ticketId, requestId) => handleApprovalAction(ticketId, requestId, true)}
-              onReject={(ticketId, requestId) => handleApprovalAction(ticketId, requestId, false)}
+              renderAssignSlot={renderAssignSlot}
+              onApprove={handleApprove}
+              onReject={handleReject}
               collapseStorageKey="tickets-board"
               className="h-full px-[var(--spacing-system-l)]"
             />
@@ -464,6 +516,7 @@ export function TicketsBoard({
       </PageLayout>
       {ticketsActionsDialog}
       <TakeOverTicketModal target={takeOverTarget} onClose={handleTakeOverClose} />
+      <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
     </>
   );
 }

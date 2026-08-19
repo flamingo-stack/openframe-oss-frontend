@@ -143,9 +143,7 @@ export function useChatChunkProcessor({
       boundMirrorRef.current.mutate(reducer => {
         const messages = reducer.state.messages as Array<{ segments?: Array<{ type: string }> }>;
         const last = messages[messages.length - 1];
-        console.log(
-          `[chat-chunk] after apply → segments: ${JSON.stringify((last?.segments ?? []).map(s => s.type))}`,
-        );
+        console.log(`[chat-chunk] after apply → segments: ${JSON.stringify((last?.segments ?? []).map(s => s.type))}`);
       });
     }
   }, []);

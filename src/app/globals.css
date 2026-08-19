@@ -31,6 +31,39 @@ input[type="number"] {
 }
 
 /*
+ * Floating walkthrough video (`components/walkthrough-video.tsx`) yields to any
+ * open modal.
+ *
+ * The lib pins that card's wrapper at `z-[9980]` — a marketing-site tier, where
+ * the corner is empty space — while its OWN hand-rolled overlays sit far below:
+ * `ModalV2` at `z-[1300]` (every `ConfirmDialog` in this app), the always-mounted
+ * `MobileBurgerMenu` panel at `z-[101]`, `AlertDialog` at `z-[50]`. So the promo
+ * card paints on top of them, and since `ModalV2` does not disable body pointer
+ * events, it stays CLICKABLE there and opens its own theater (`z-[9999]`) over
+ * the modal. On mobile that is not a corner case: `ModalV2` is bottom-anchored
+ * (`items-end` + `mb-4`), i.e. exactly where the card is pinned, so it covered
+ * the footer buttons of the post-login biometric-enrollment prompt.
+ *
+ * Re-ranking is not available to us: the `z-[9980]` lives on a lib-owned wrapper
+ * that accepts no className, and lowering the card under a modal's backdrop
+ * would only trade the problem for clicks that dismiss the modal. A promo card
+ * has no business over a modal anyway, so it hides instead.
+ *
+ * Selector precision — `[aria-modal]` is set ONLY by the lib's hand-rolled
+ * modals (Radix sets `role`, never `aria-modal`), which is exactly the set that
+ * loses to the card; `[role='alertdialog']` adds Radix `AlertDialog`, the one
+ * Radix overlay still on the old `z-50` tier. `:not([inert])` is load-bearing:
+ * `MobileBurgerMenu` keeps its `aria-modal` panel mounted permanently and marks
+ * it `inert` while closed, so without it the card would never appear at all.
+ * Radix `Dialog`/`Drawer` (9997–9999) are deliberately NOT matched — they
+ * already out-rank the card, and the Mingo drawer's layering over it is
+ * intentional (see WALKTHROUGH_OVERLAP_Z in `components/app-layout.tsx`).
+ */
+body:has([aria-modal="true"]:not([inert]), [role="alertdialog"]) .of-walkthrough-card {
+  display: none;
+}
+
+/*
  * Scoped theming for the AI Settings live previews.
  */
 .ai-preview-theme {

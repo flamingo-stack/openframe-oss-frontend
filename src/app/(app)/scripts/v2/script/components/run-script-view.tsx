@@ -321,7 +321,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
  * "Run Script" — the per-run config (timeout, privilege, args, env) over the
  * device picker. Suspends on the script query; the route renders
  * `RunScriptSkeleton` while that is in flight, so the form mounts once, already
- * seeded (Monaco-free here, but the same contract as the edit page).
+ * seeded (no editor here, but the same contract as the edit page).
  */
 export function RunScriptView({ scriptId }: RunScriptViewProps) {
   const data = useLazyLoadQuery<ScriptDetailQueryType>(

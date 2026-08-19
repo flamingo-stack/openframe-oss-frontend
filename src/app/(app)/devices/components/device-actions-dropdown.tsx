@@ -26,7 +26,9 @@ export function DeviceActionsDropdown({ device, context, onActionComplete, onRun
 
     // In detail context, Remote Shell/Control/Files are exposed as separate buttons elsewhere.
     if (context === 'table') {
-      actionItems.push(items.remoteShell, items.remoteControl, items.manageFiles);
+      actionItems.push(items.remoteShell);
+      if (items.remoteControl) actionItems.push(items.remoteControl);
+      actionItems.push(items.manageFiles);
     }
     actionItems.push(items.runScript, items.editDisplayName);
     if (items.reboot) actionItems.push(items.reboot);

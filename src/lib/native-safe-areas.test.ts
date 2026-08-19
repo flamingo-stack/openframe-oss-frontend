@@ -2,18 +2,19 @@
  * Pins the safe-area publishing rules that keep the app chrome correct across a
  * video fullscreen round-trip.
  *
- * Capacitor turns on WKWebView element fullscreen, so the Mux player's fullscreen
- * button reparents the WKWebView — which IS the bridge view controller's root
- * view — into WebKit's own fullscreen window, whose view controller hides the
- * status bar. `getSafeAreaInsets` reads ~0 there; entering fires a `resize` that
- * published those zeros, and exiting restores the same viewport size and fires no
- * second resize, so they stuck and the header came back under the Dynamic Island.
+ * Capacitor turns on element fullscreen, so the Mux player's fullscreen button
+ * takes it, and both shells hide their system bars to service it. A shell that
+ * measures the view the platform took over reads ~0 while fullscreen — iOS did,
+ * measured, until it moved to measuring the window — and a zero published then is
+ * what sticks, because the exit is not guaranteed to resize anything: the header
+ * comes back under the notch. Hence the guard and the exit republish below, which
+ * keep the app correct whatever a given shell's read reports mid-fullscreen.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const REAL = { top: 62, bottom: 34, left: 0, right: 0 };
-/** What the native call reports while WebKit owns the webview — status bar hidden. */
+/** What a shell that measures the taken-over view reports while fullscreen. */
 const FULLSCREEN = { top: 0, bottom: 0, left: 0, right: 0 };
 
 let getSafeAreaInsets: ReturnType<typeof vi.fn>;

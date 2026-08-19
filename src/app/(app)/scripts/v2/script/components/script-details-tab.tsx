@@ -78,7 +78,7 @@ function ScriptParamCards({ scriptId, onResolved }: { scriptId: string; onResolv
  * summary card and the tab strip untouched.
  *
  * The boundary is around the CARDS only. The editor sits outside it and is
- * mounted from the first render with `loading`, so Monaco is built while the
+ * mounted from the first render with `loading`, so the editor is built while the
  * query is still out and holds its own placeholder until the source arrives —
  * one placeholder for the whole wait, and the editor is never built twice (it
  * would be, if it lived inside the boundary: a fallback and its children are

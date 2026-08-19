@@ -32,7 +32,7 @@ import {
   FloatingWalkthroughVideo,
   type WalkthroughVideoData,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { embedAuthedFetch, walkthroughDismissCookieName } from '@flamingo-stack/openframe-frontend-core/utils';
+import { cn, embedAuthedFetch, walkthroughDismissCookieName } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQuery } from '@tanstack/react-query';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
@@ -69,6 +69,17 @@ const DISMISS_STORAGE_KEY = walkthroughDismissCookieName(getCurrentPlatform());
 // text, so a template literal produces no rule at all — the build stays green
 // and the margin silently never exists.
 const SIDEBAR_CLEARANCE = 'ml-[var(--of-sidebar-live-width,0px)] transition-[margin] duration-300';
+
+/**
+ * Styling hook for the "hide me while a modal is open" rule in
+ * `app/globals.css` (which is where the reasoning lives). Needed because the
+ * lib pins the card's wrapper at `z-[9980]`, above every hand-rolled overlay
+ * tier in the lib (`ModalV2` 1300, burger menu 101, `AlertDialog` 50) — and
+ * that wrapper takes no className, so the app cannot re-rank it. The class
+ * lands on the card itself; the wrapper it leaves behind is transparent and
+ * `pointer-events-none`.
+ */
+const MODAL_SUPPRESSION_HOOK = 'of-walkthrough-card';
 
 /**
  * Mirror the live sidebar width into a CSS variable for the margin above.
@@ -174,7 +185,7 @@ export function WalkthroughVideo() {
       // hide target after a soft nav.
       pathname={pathname ?? undefined}
       dismissal={{ storageKey: DISMISS_STORAGE_KEY }}
-      className={side === 'left' ? SIDEBAR_CLEARANCE : undefined}
+      className={cn(MODAL_SUPPRESSION_HOOK, side === 'left' && SIDEBAR_CLEARANCE)}
     />
   );
 }

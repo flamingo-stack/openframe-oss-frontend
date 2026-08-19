@@ -312,6 +312,14 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         // never showed. `/api/auth/identity` is the lib's documented hub default.
         identityUrl: content('/api/auth/identity'),
         imageProxyUrlPrefix: content('/api/image-proxy'),
+        // Native `<track>` VTT endpoint behind every video surface (help-center
+        // release / onboarding-guide players, chat video cards, the floating
+        // walkthrough card). The lib builds caption URLs off the relative hub
+        // default `/api/captions/…`, which resolves against THIS app's origin —
+        // a route we don't serve, so toggling CC fetched a 404 and no subtitles
+        // ever rendered. Pointing it at the same `/content` proxy as every other
+        // endpoint puts the tracks back on MPH.
+        captionsUrlPrefix: content('/api/captions'),
       },
       navigation: {
         // Host mode — identical to MPH's `HubRuntimeProvider`. See the file
