@@ -1,6 +1,6 @@
-# Rename "AI Assistance" system status to "AI-Handling" — BE spec
+# Rename "AI Assistance" system status to "AI Handling" — BE spec
 
-> **Scope.** Display-name rename of the `AI_ASSISTANCE` system ticket status to **"AI-Handling"**
+> **Scope.** Display-name rename of the `AI_ASSISTANCE` system ticket status to **"AI Handling"**
 > across seeds, tenant data, and any backend-authored copy that names the status.
 > ClickUp: [86ak3dvzt](https://app.clickup.com/t/86ak3dvzt) (parent: 86ajn8hmp).
 >
@@ -29,10 +29,13 @@ Renaming the token would require a coordinated breaking deploy across BE + 3 fro
 migration of every ticket document, for zero additional user-visible value. So: **token stays,
 `name` changes.** (If a token rename is ever wanted, it is a separate project — not this task.)
 
-**New display name: `AI-Handling`** (hyphenated, per the task title). The current seeded value is
-`"AI Assistance"` (no hyphen) — `TicketStatusSeedCatalog.NAME_AI_ASSISTANCE`.
-⚠️ Confirm final spelling ("AI-Handling" vs "AI Handling") with design before merging; every change
-below is spelling-agnostic.
+**New display name: `AI Handling`** (title case, space — same convention as the sibling seeds
+"Tech Required" / "Resolved"; current value is `"AI Assistance"`,
+`TicketStatusSeedCatalog.NAME_AI_ASSISTANCE`). Spelling is confirmed: the design shows
+**"AI HANDLING"**, which is exactly how the core-lib `Tag` component renders the stored name —
+status tags and board column headers apply mono-**uppercase** styling
+(`openframe-frontend-core/src/components/ui/tag.tsx`), so the stored/display name stays title-case
+and the UI shows it in caps. Do **not** store an all-caps name.
 
 ---
 
@@ -60,7 +63,7 @@ name** — a blanket rename keyed on `kind` is safe.
 `openframe-data-mongo-sync/.../TicketStatusSeedCatalog.java`:
 
 ```java
-public static final String NAME_AI_ASSISTANCE = "AI-Handling";   // was "AI Assistance"
+public static final String NAME_AI_ASSISTANCE = "AI Handling";   // was "AI Assistance"
 ```
 
 Constant name (`NAME_AI_ASSISTANCE`) and everything else stays — it is keyed to the kind, not the
@@ -108,7 +111,7 @@ Rules encoded above:
 ### 2.3 Name-collision note
 
 Custom-status names are only uniqueness-checked in the mutation path (`ensureUniqueName`), not by
-an index. If a tenant already created a **custom** status literally named "AI-Handling", the rename
+an index. If a tenant already created a **custom** status literally named "AI Handling", the rename
 produces two rows with the same display name. This does not break anything mechanically (ids/kinds
 differ everywhere). Accepted; optionally log a warning when detected. Do not skip the rename for it.
 
@@ -119,12 +122,12 @@ differ everywhere). Accepted; optionally log a warning when detected. Do not ski
 No enum, resolver, or persistence changes. Text-level only:
 
 1. `ticket.graphqls` — update prose comments naming the status
-   ("a ticket the client closed through the assistant returns to AI Assistance" → "… AI-Handling").
+   ("a ticket the client closed through the assistant returns to AI Assistance" → "… AI Handling").
 2. AI prompt / tool descriptions (`TicketToolProvider` and any system prompts): they currently
    describe lifecycle buckets by **kind token** (`AI_ASSISTANCE`) — those stay. Grep for the display
    string `"AI Assistance"` and update only human-readable occurrences.
 3. Notification copy needs **no change** — `TicketNotificationDispatcher` renders the definition
-   `name`, so it emits "Moved to AI-Handling by …" as soon as the data is migrated.
+   `name`, so it emits "Moved to AI Handling by …" as soon as the data is migrated.
 
 ---
 
@@ -144,13 +147,13 @@ No enum, resolver, or persistence changes. Text-level only:
 
 ## 5. Acceptance criteria
 
-1. New tenant bootstrap seeds the AI system status with `name = "AI-Handling"`.
-2. Existing tenants: `ticket_statuses` row with `kind = AI_ASSISTANCE` has `name = "AI-Handling"`;
+1. New tenant bootstrap seeds the AI system status with `name = "AI Handling"`.
+2. Existing tenants: `ticket_statuses` row with `kind = AI_ASSISTANCE` has `name = "AI Handling"`;
    custom statuses untouched; re-running migrations is a no-op.
 3. `ticketStatuses` via `/chat/graphql` returns the new name; board column header, ticket detail
-   status tag, and status dropdowns show "AI-Handling" in admin FE and client chat **without any
+   status tag, and status dropdowns show "AI Handling" in admin FE and client chat **without any
    frontend deploy** (names are server-driven).
-4. Status-change notification reads "Moved to AI-Handling by …".
+4. Status-change notification reads "Moved to AI Handling by …".
 5. No change to `kind` values anywhere: GraphQL enum, stored `statusKind`, chat events still say
    `AI_ASSISTANCE`; existing FE/chat builds keep working against the migrated backend.
 6. Billing "AI Assistant Add-on" surfaces are unaffected.
@@ -161,8 +164,8 @@ No enum, resolver, or persistence changes. Text-level only:
 
 | Step | Repo | What | User-visible effect |
 |------|------|------|---------------------|
-| 1 | `openframe-oss-lib` (Java) | §2 seed + migration, release; management service picks it up and runs the change unit per tenant | Board columns, dropdowns, detail tags, notifications, client chat all show "AI-Handling" — these are all server-driven |
-| 2 | `openframe-oss-lib` (`openframe-frontend-core`) | Fallback labels `'AI Assistance'` → `'AI-Handling'` in `ticket-status-tag.tsx` `STATUS_CONFIG` and `board/types.ts` `STATUS_DEFAULTS`; stories/docs sweep; publish | Fixes the only surfaces not fed by BE data: dashboard ticket-stat card (`<TicketStatusTag status="AI_ASSISTANCE" />`) and the cold-profile board skeleton |
+| 1 | `openframe-oss-lib` (Java) | §2 seed + migration, release; management service picks it up and runs the change unit per tenant | Board columns, dropdowns, detail tags, notifications, client chat all show "AI Handling" — these are all server-driven |
+| 2 | `openframe-oss-lib` (`openframe-frontend-core`) | Fallback labels `'AI Assistance'` → `'AI Handling'` in `ticket-status-tag.tsx` `STATUS_CONFIG` and `board/types.ts` `STATUS_DEFAULTS`; stories/docs sweep; publish | Fixes the only surfaces not fed by BE data: dashboard ticket-stat card (`<TicketStatusTag status="AI_ASSISTANCE" />`) and the cold-profile board skeleton |
 | 3 | `openframe-oss-frontend` + `clients/openframe-chat` | Bump `@flamingo-stack/openframe-frontend-core`; docs sweep | Lib fallbacks live everywhere |
 
 There is **no hard deploy coupling**: an old frontend against the migrated backend already shows the
