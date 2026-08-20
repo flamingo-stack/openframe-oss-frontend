@@ -318,10 +318,31 @@ export function TicketsBoard({
 
   const getTicketHref = useCallback((id: string) => routes.tickets.dialog(id), []);
 
+  // Tickets in an AI Handling lane (kind AI_ASSISTANCE) get no assign control on
+  // the card — assignment stays on the dialog page. Matched by lane membership,
+  // not by `BoardTicket.status`: that field is the tenant-defined display name.
+  const aiHandledTicketIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const status of statuses) {
+      if (status.kind !== 'AI_ASSISTANCE') continue;
+      for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) ids.add(ticket.id);
+    }
+    return ids;
+  }, [statuses, columnUpdates]);
+
   // Stable identities for everything the board hands down to each card: an
   // inline arrow here re-renders every card (and its assignee picker) on every
   // drag frame, which is exactly what `TicketCard`'s memo is there to prevent.
-  const renderAssignSlot = useCallback((ticket: BoardTicket) => <BoardAssigneePicker ticket={ticket} />, []);
+  // The AI-lane set is read through a ref for the same reason — a new Set lands
+  // on every column tick; written during render (not an effect) so a card
+  // mounting into a lane sees the membership computed in the same pass.
+  const aiHandledTicketIdsRef = useRef(aiHandledTicketIds);
+  aiHandledTicketIdsRef.current = aiHandledTicketIds;
+  const renderAssignSlot = useCallback(
+    (ticket: BoardTicket) =>
+      aiHandledTicketIdsRef.current.has(ticket.id) ? null : <BoardAssigneePicker ticket={ticket} />,
+    [],
+  );
   const handleApprove = useCallback(
     (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, true),
     [handleApprovalAction],
