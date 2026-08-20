@@ -29,6 +29,7 @@ import { MeshTunnel, type TunnelState } from '@/lib/meshcentral/meshcentral-tunn
 import { DEFAULT_SETTINGS, RemoteDesktopSettings, type RemoteSettingsConfig } from '@/lib/meshcentral/remote-settings';
 import { routes } from '@/lib/routes';
 import { type ActionHandlers, createActionsMenuGroups } from './actions-menu-config';
+import { FullscreenToolbar } from './fullscreen-toolbar';
 import { RemoteSettingsModal } from './remote-settings-modal';
 
 interface LegacyDeviceData {
@@ -542,11 +543,7 @@ function RemoteDesktopSession() {
   );
 
   const controlsBar = (
-    <div
-      className={`bg-ods-card border border-ods-border flex items-center justify-between gap-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)] px-[var(--spacing-system-mf)] flex-shrink-0 ${
-        isFullscreen ? '' : 'rounded-md'
-      }`}
-    >
+    <div className="bg-ods-card border border-ods-border rounded-md flex items-center justify-between gap-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)] px-[var(--spacing-system-mf)] flex-shrink-0">
       {deviceInfoBlock}
       <div className="flex items-center gap-[var(--spacing-system-xs)] flex-shrink-0">
         {displays.length > 1 && (
@@ -605,7 +602,18 @@ function RemoteDesktopSession() {
       showHeader={!isFullscreen}
     >
       <div className={isFullscreen ? 'fixed inset-0 z-50 bg-black flex flex-col' : 'contents'}>
-        {controlsBar}
+        {isFullscreen ? (
+          <FullscreenToolbar
+            deviceName={hostname || `Device ${deviceId}`}
+            displayMenuGroups={displayMenuGroups}
+            currentDisplayLabel={`Display ${currentDisplay === 0 ? 'All' : currentDisplay}`}
+            actionsMenuGroups={actionsMenuGroups}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onExitFullscreen={exitFullscreen}
+          />
+        ) : (
+          controlsBar
+        )}
         {canvasContainer}
       </div>
 
