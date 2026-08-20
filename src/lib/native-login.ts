@@ -3,18 +3,17 @@
  * context, receives the dev-ticket on the callback, exchanges it natively, and
  * puts the tokens in the Keychain. On mobile the browser is an
  * ASWebAuthenticationSession completing on the app's custom scheme (Google
- * blocks OAuth in embedded webviews — 403 disallowed_useragent); the gateway
- * 302s the devTicket straight to that scheme for authMobile=true logins. The
- * desktop shell intercepts the https callback directly. Prototype flow —
- * requires `dev-ticket-enabled` on the gateway; not for production tenants.
+ * blocks OAuth in embedded webviews — 403 disallowed_useragent); on desktop it
+ * is a shell-owned window that cancels the navigation to that same scheme and
+ * reads the ticket off it. Either way the gateway 302s the devTicket straight
+ * to the scheme, which only an `authMobile=true` login gets. Hardening still
+ * pending on the ticket path (PKCE, POST exchange, rotation).
  */
 import { authApiClient } from './auth-api-client';
 import { type NativeAuthPlugin, nativeAuthPlugin, storeTenantHost } from './native-shell';
-import { isMobileShell, mobilePlatform } from './platform';
+import { mobilePlatform } from './platform';
 import { runtimeEnv } from './runtime-config';
 import { setTokens } from './token-store';
-
-const CALLBACK_PATH = '/auth/mobile-callback';
 
 export interface NativeLoginResult {
   /**
@@ -58,31 +57,32 @@ export async function nativeLogin(options: {
     return appleNativeLogin(plugin, { tenantId: options.tenantId, tenantHost, bootHost });
   }
 
-  const mobileScheme = runtimeEnv.mobileAppScheme();
+  const appScheme = runtimeEnv.appScheme();
 
-  // Mobile (authMobile=true): the gateway 302s the devTicket straight to the
-  // app's custom scheme — the auth session completes on it, no https landing.
-  // Desktop: the BFF only accepts http(s) redirect targets there; the shell
-  // window intercepts the tenant-host callback before navigation.
-  // Either way redirectTarget must reach the gateway — start() below resolves on
-  // nothing else — so loginUrl keeps it for any shell, saas-shared included.
-  const redirectTarget = isMobileShell() ? `${mobileScheme}://auth` : `${tenantHost}${CALLBACK_PATH}`;
+  // Both shells complete on the app's custom scheme, and both ask for
+  // authMobile=true. Two gateway behaviours hang off that pair, and a native
+  // login needs both: `authMobile` is what makes the callback carry a devTicket
+  // at all where dev-ticket issuance is off (prod), and the scheme is the only
+  // redirect target the gateway honours verbatim in every environment
+  // (`openframe.gateway.redirect.allowed-uris`) — an https redirectTo is
+  // rewritten to the tenant root. redirectTarget must reach the gateway —
+  // start() below resolves on nothing else — so loginUrl keeps it for any
+  // shell, saas-shared included.
+  const redirectTarget = `${appScheme}://auth`;
   const rawLoginUrl = authApiClient.loginUrl(options.tenantId, encodeURIComponent(redirectTarget), options.provider, {
-    authMobile: isMobileShell(),
+    authMobile: true,
   });
   const loginUrl = rawLoginUrl.startsWith('http') ? rawLoginUrl : `${tenantHost}${rawLoginUrl}`;
 
-  const { callbackUrl: resultUrl } = await plugin.start({
-    url: loginUrl,
-    callbackHost: new URL(tenantHost).hostname,
-    callbackPath: CALLBACK_PATH,
-    ...(isMobileShell() ? { callbackScheme: mobileScheme } : {}),
-  });
+  const { callbackUrl: resultUrl } = await plugin.start({ url: loginUrl, callbackScheme: appScheme });
 
   const parsedResult = new URL(resultUrl);
   const ticket = parsedResult.searchParams.get('devTicket');
   if (!ticket) {
-    throw new Error('Login completed without a ticket — is dev-ticket enabled on the gateway?');
+    // The gateway issues one for an authMobile login regardless of its
+    // dev-ticket setting, so a callback without one means the login never
+    // reached the BFF callback, or `mobile-auth-enabled` is off on the gateway.
+    throw new Error('Login completed without a ticket — is mobile auth enabled on the gateway?');
   }
 
   const exchangeBase = runtimeEnv.sharedHostUrl() || tenantHost;
@@ -96,10 +96,11 @@ export async function nativeLogin(options: {
 
   await setTokens({ accessToken, refreshToken });
 
-  // https callback (desktop): the origin is TLS-authenticated, take it as-is.
-  // Scheme callback (mobile) carries no host — the discovery-resolved tenant
-  // host is the gateway (the backend guarantees discovery `domain` is the
-  // exact canonical tenant host).
+  // The scheme callback carries no host — the discovery-resolved tenant host is
+  // the gateway (the backend guarantees discovery `domain` is the exact
+  // canonical tenant host). An https callback still happens where the gateway
+  // drops the requested redirect and puts the ticket on the tenant landing
+  // instead; that origin is TLS-authenticated, so take it as-is.
   const learnedHost = parsedResult.protocol === 'https:' ? parsedResult.origin : new URL(tenantHost).origin;
   storeTenantHost(learnedHost);
   // Also persist it shell-side: the shell refreshes tokens (and later runs

@@ -87,9 +87,10 @@ billing.
 The same export runs in three places, so ask the axis that owns the feature — never "is this native?":
 
 - `isAppShell()` — either shell. Shell-custodied tokens, no Next server behind the origin (so
-  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above.
+  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above, and
+  the `authMobile=true` login completing on the custom scheme (`APP_SCHEME`).
 - `isMobileShell()` — the phone. FCM push, biometrics, status bar/splash/safe-area insets, Android
-  back, custom-scheme OAuth callback.
+  back.
 - `isDesktopShell()` — Tauri. Shell-side token rotation + OS-notification click event transports.
 
 `platform.ts` is the only module that reads the injected globals, and it probes **Tauri first**: the
