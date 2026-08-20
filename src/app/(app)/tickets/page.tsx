@@ -1,8 +1,8 @@
 'use client';
 
-import { ContentPageContainer } from '@flamingo-stack/openframe-frontend-core';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 import { TicketsView } from './components/tickets-view';
@@ -22,5 +22,9 @@ export default function Tickets() {
     return null;
   }
 
-  return <TicketsView />;
+  return (
+    <ContentErrorBoundary title="Tickets" message="Couldn't load tickets.">
+      <TicketsView />
+    </ContentErrorBoundary>
+  );
 }

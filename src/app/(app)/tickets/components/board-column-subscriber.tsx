@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { BOARD_PAGE_SIZE, type BoardColumnState } from '../hooks/use-tickets-board-query';
 import { ticketService } from '../services';
 import type { TicketsPage } from '../services/ticket-service.types';
+import { isGraphQlValidationError } from '../utils/graphql';
 import { dialogsQueryKeys } from '../utils/query-keys';
 
 export interface BoardColumnUpdate {
@@ -73,7 +74,9 @@ export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoad
       lastPage.pageInfo.hasNextPage ? (lastPage.pageInfo.endCursor ?? undefined) : undefined,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
-    retry: 2,
+    // A schema-validation failure is deterministic — retrying it only delays the
+    // error. Transient failures still get the two attempts.
+    retry: (count, error) => !isGraphQlValidationError(error) && count < 2,
     retryDelay: 1000,
     refetchInterval: 15_000,
   });

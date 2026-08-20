@@ -18,7 +18,7 @@ import {
 } from '../queries/ticket-queries';
 import type { Dialog, DialogStatus, Message } from '../types/dialog.types';
 import type { GraphQlResponse } from '../utils/graphql';
-import { extractGraphQlData } from '../utils/graphql';
+import { extractGraphQlData, pruneLeafFields, undefinedFieldNames } from '../utils/graphql';
 import type {
   FetchBoardColumnByStatusIdParams,
   FetchMessagesParams,
@@ -210,6 +210,28 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
 }
 
 export class TicketService implements TicketServiceInterface {
+  /**
+   * Post a query and tolerate one field skew. A single field the deployed schema
+   * does not declare fails validation for the whole document, which would blank
+   * the list or every board column. When that happens, prune the undeclared leaf
+   * fields and retry once, so the surface loads with that value simply absent
+   * (e.g. no escalation badge) instead of empty.
+   */
+  private async fetchGraphQl<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    const response = await apiClient.post<GraphQlResponse<T>>(API_ENDPOINTS.GRAPHQL, { query, variables });
+
+    const undefinedFields = response.data?.errors ? undefinedFieldNames(response.data.errors) : [];
+    if (undefinedFields.length > 0) {
+      const pruned = pruneLeafFields(query, undefinedFields);
+      if (pruned !== query) {
+        const retried = await apiClient.post<GraphQlResponse<T>>(API_ENDPOINTS.GRAPHQL, { query: pruned, variables });
+        return extractGraphQlData(retried);
+      }
+    }
+
+    return extractGraphQlData(response);
+  }
+
   private async mutateTicketStatus(ticketId: string, mutation: string, responseKey: string): Promise<DialogStatus> {
     const response = await apiClient.post<GraphQlResponse<Record<string, StatusMutationPayload>>>(
       API_ENDPOINTS.GRAPHQL,
@@ -252,16 +274,11 @@ export class TicketService implements TicketServiceInterface {
       filter.tagIds = params.tagIds;
     }
 
-    const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
-      query: GET_TICKETS_QUERY,
-      variables: {
-        filter,
-        pagination: paginationVars,
-        search: params.search || undefined,
-      },
+    const data = await this.fetchGraphQl<TicketsResponse>(GET_TICKETS_QUERY, {
+      filter,
+      pagination: paginationVars,
+      search: params.search || undefined,
     });
-
-    const data = extractGraphQlData(response);
     const connection = data.tickets;
 
     return {
@@ -277,20 +294,15 @@ export class TicketService implements TicketServiceInterface {
   }
 
   async fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage> {
-    const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
-      query: getBoardColumnTicketsQuery(),
-      variables: {
-        statusId: params.statusId,
-        limit: params.limit,
-        cursor: params.cursor,
-        search: params.search || undefined,
-        organizationIds: params.organizationIds?.length ? params.organizationIds : undefined,
-        assigneeIds: params.assigneeIds?.length ? params.assigneeIds : undefined,
-        tagIds: params.tagIds?.length ? params.tagIds : undefined,
-      },
+    const data = await this.fetchGraphQl<TicketsResponse>(getBoardColumnTicketsQuery(), {
+      statusId: params.statusId,
+      limit: params.limit,
+      cursor: params.cursor,
+      search: params.search || undefined,
+      organizationIds: params.organizationIds?.length ? params.organizationIds : undefined,
+      assigneeIds: params.assigneeIds?.length ? params.assigneeIds : undefined,
+      tagIds: params.tagIds?.length ? params.tagIds : undefined,
     });
-
-    const data = extractGraphQlData(response);
     const connection = data.tickets;
 
     return {
