@@ -8,13 +8,14 @@
  * GTM-loaded `window.posthog` instance directly (same as the marketing hub).
  *
  * GTM must have triggers mapping these dataLayer events to PostHog tags:
- * `signup_started`, `signup_completed`, `identify`.
+ * `signup_started`, `signup_completed`, `registration_blocked`, `identify`.
  */
 
 /** dataLayer event names for the signup funnel. */
 export const FUNNEL_EVENTS = {
   SIGNUP_STARTED: 'signup_started',
   SIGNUP_COMPLETED: 'signup_completed',
+  REGISTRATION_BLOCKED: 'registration_blocked',
   IDENTIFY: 'identify',
 } as const;
 
@@ -33,6 +34,15 @@ function pushDataLayer(payload: Record<string, unknown>): void {
 /** Signup form rendered / first interaction. */
 export function pushSignupStarted(): void {
   pushDataLayer({ event: FUNNEL_EVENTS.SIGNUP_STARTED });
+}
+
+/**
+ * The backend refused a new tenant because the cluster has no capacity
+ * (409 `TENANT_REGISTRATION_BLOCKED`). The block otherwise emits no telemetry,
+ * so this is the only signal that a sign-up stalled on capacity.
+ */
+export function pushRegistrationBlocked(): void {
+  pushDataLayer({ event: FUNNEL_EVENTS.REGISTRATION_BLOCKED });
 }
 
 /**
