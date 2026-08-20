@@ -278,7 +278,8 @@ export const GET_TICKETS_QUERY = `
  * `ai-escalation` flag: a field the server's schema does not declare fails
  * validation for the entire document, and `extractGraphQlData` throws on the
  * first GraphQL error — every board column would come back empty rather than
- * merely missing a badge.
+ * merely missing a badge. `resolvedBy` rides the `ai-resolution` flag for the
+ * same reason.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
@@ -328,6 +329,7 @@ const boardCardTicketFragment = () => `
       color
     }
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
+    ${featureFlags.aiResolution.enabled() ? 'resolvedBy' : ''}
     pendingApproval {
       id
       approvalType

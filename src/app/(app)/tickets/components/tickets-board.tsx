@@ -318,14 +318,24 @@ export function TicketsBoard({
 
   const getTicketHref = useCallback((id: string) => routes.tickets.dialog(id), []);
 
-  // Tickets in an AI Handling lane (kind AI_ASSISTANCE) get no assign control on
-  // the card — assignment stays on the dialog page. Matched by lane membership,
-  // not by `BoardTicket.status`: that field is the tenant-defined display name.
-  const aiHandledTicketIds = useMemo(() => {
+  // Tickets whose card offers no assign control: everything in an AI Handling
+  // lane (kind AI_ASSISTANCE), plus Resolved-lane tickets closed without a
+  // technician — resolvedBy AI_AGENT (the AI closed it itself) or END_USER
+  // (the client closed it in the Fae chat; the BE attributes AI-driven chat
+  // closes this way). Null keeps the control: tickets resolved before the BE
+  // tracked resolvedBy may well have been closed by a technician. Assignment
+  // stays on the dialog page. Lanes are matched by kind, not by
+  // `BoardTicket.status`: that field is the tenant-defined display name.
+  const aiOwnedTicketIds = useMemo(() => {
     const ids = new Set<string>();
     for (const status of statuses) {
-      if (status.kind !== 'AI_ASSISTANCE') continue;
-      for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) ids.add(ticket.id);
+      if (status.kind === 'AI_ASSISTANCE') {
+        for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) ids.add(ticket.id);
+      } else if (status.kind === 'RESOLVED') {
+        for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) {
+          if (ticket.resolvedBy === 'AI_AGENT' || ticket.resolvedBy === 'END_USER') ids.add(ticket.id);
+        }
+      }
     }
     return ids;
   }, [statuses, columnUpdates]);
@@ -333,14 +343,14 @@ export function TicketsBoard({
   // Stable identities for everything the board hands down to each card: an
   // inline arrow here re-renders every card (and its assignee picker) on every
   // drag frame, which is exactly what `TicketCard`'s memo is there to prevent.
-  // The AI-lane set is read through a ref for the same reason — a new Set lands
+  // The AI-owned set is read through a ref for the same reason — a new Set lands
   // on every column tick; written during render (not an effect) so a card
   // mounting into a lane sees the membership computed in the same pass.
-  const aiHandledTicketIdsRef = useRef(aiHandledTicketIds);
-  aiHandledTicketIdsRef.current = aiHandledTicketIds;
+  const aiOwnedTicketIdsRef = useRef(aiOwnedTicketIds);
+  aiOwnedTicketIdsRef.current = aiOwnedTicketIds;
   const renderAssignSlot = useCallback(
     (ticket: BoardTicket) =>
-      aiHandledTicketIdsRef.current.has(ticket.id) ? null : <BoardAssigneePicker ticket={ticket} />,
+      aiOwnedTicketIdsRef.current.has(ticket.id) ? null : <BoardAssigneePicker ticket={ticket} />,
     [],
   );
   const handleApprove = useCallback(
