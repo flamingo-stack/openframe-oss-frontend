@@ -1,6 +1,7 @@
 'use client';
 
 import { type AuthSsoProvider, LoginForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { Alert, AlertDescription } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useRef, useState } from 'react';
 
@@ -17,6 +18,8 @@ interface LoginSectionProps {
   /** All providers to render (buttons stay visible but disabled until discovery unlocks them). */
   allProviders: AuthSsoProvider[];
   isLoading?: boolean;
+  /** Message shown when an SSO callback bounced back to the login screen after a failure. */
+  callbackError?: string;
 }
 
 type DiscoveryStatus = 'idle' | 'checking' | 'found' | 'not-found' | 'error';
@@ -29,7 +32,7 @@ const DISCOVERY_DEBOUNCE_MS = 400;
  * email field runs real-time (debounced) tenant discovery, and the SSO
  * provider buttons unlock once the email resolves to an existing account.
  */
-export function LoginSection({ onDiscover, onSso, allProviders, isLoading }: LoginSectionProps) {
+export function LoginSection({ onDiscover, onSso, allProviders, isLoading, callbackError }: LoginSectionProps) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<DiscoveryStatus>('idle');
   const [enabledProviders, setEnabledProviders] = useState<AuthSsoProvider[]>([]);
@@ -87,18 +90,25 @@ export function LoginSection({ onDiscover, onSso, allProviders, isLoading }: Log
   const unlocked = showStatus && status === 'found';
 
   return (
-    <LoginForm
-      email={email}
-      onEmailChange={setEmail}
-      loading={isLoading}
-      ssoProviders={allProviders}
-      onSsoClick={onSso}
-      ssoDisabled={!unlocked}
-      ssoEnabledProviders={unlocked ? enabledProviders : []}
-      emailStatus={emailStatus}
-      errors={{
-        email: email.trim() && !isEmailValid ? 'Enter a valid email address' : undefined,
-      }}
-    />
+    <div className="flex flex-col gap-4">
+      {callbackError && (
+        <Alert variant="destructive">
+          <AlertDescription>{callbackError}</AlertDescription>
+        </Alert>
+      )}
+      <LoginForm
+        email={email}
+        onEmailChange={setEmail}
+        loading={isLoading}
+        ssoProviders={allProviders}
+        onSsoClick={onSso}
+        ssoDisabled={!unlocked}
+        ssoEnabledProviders={unlocked ? enabledProviders : []}
+        emailStatus={emailStatus}
+        errors={{
+          email: email.trim() && !isEmailValid ? 'Enter a valid email address' : undefined,
+        }}
+      />
+    </div>
   );
 }
