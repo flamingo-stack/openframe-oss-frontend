@@ -8,7 +8,6 @@ import {
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { DataTable, Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -19,7 +18,6 @@ import {
   SectionLoadError,
   useOnboardingGuideButton,
 } from '@/app/components/shared';
-import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
@@ -33,33 +31,28 @@ const PAGE_SIZE = 20;
 // slot — they say the same thing and must not drift apart.
 const LOAD_ERROR_MESSAGE = "Couldn't load queries.";
 
-export function Queries() {
-  const router = useRouter();
+interface QueriesProps {
+  /** Search state is owned by the page (single URL writer) — see `monitoring/page.tsx`. */
+  search: string;
+  debouncedSearch: string;
+  onSearchChange: (value: string) => void;
+}
 
-  const { params, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-  });
+export function Queries({ search, debouncedSearch, onSearchChange }: QueriesProps) {
+  const router = useRouter();
 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
-  // Local search keeps typing responsive; the shared hook debounces the write to
-  // the URL param so we don't navigate the router (and re-filter) on every keystroke.
-  const { search, setSearch, debouncedSearch } = useSearchParam(
-    params.search,
-    value => setParams({ search: value }),
-    300,
-  );
-
   const handleSearchChange = useCallback(
     (value: string) => {
-      setSearch(value);
+      onSearchChange(value);
       setVisibleCount(PAGE_SIZE);
     },
-    [setSearch],
+    [onSearchChange],
   );
 
-  const { queries, isLoading, isOffline, canClaimEmpty, error, refetch, deleteQuery } = useQueries();
+  const { queries, isLoading, isOffline, isForbidden, canClaimEmpty, error, refetch, deleteQuery } = useQueries();
   const [queryToDelete, setQueryToDelete] = useState<Query | null>(null);
 
   const filteredQueries = useMemo(() => {
@@ -134,7 +127,9 @@ export function Queries() {
 
   return (
     <PageLayout title="Queries" actions={actions} className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
+      {(error || isOffline || isForbidden) && (
+        <SectionLoadError {...loadErrorProps({ isOffline, isForbidden }, LOAD_ERROR_MESSAGE, () => refetch())} />
+      )}
       {showEmptyState ? (
         <EmptyState
           icon={<BracketCurlyEllipsisVrIcon />}
@@ -177,7 +172,7 @@ export function Queries() {
                 ? debouncedSearch
                   ? `No queries found matching "${debouncedSearch}". Try adjusting your search.`
                   : 'No queries found.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
+                : loadErrorProps({ isOffline, isForbidden }, LOAD_ERROR_MESSAGE).message
             }
             hasMore={visibleCount < filteredQueries.length}
             onLoadMore={handleLoadMore}

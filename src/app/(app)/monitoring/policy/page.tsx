@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
 import { PolicyDetailsView } from './components/policy-details-view';
 
@@ -21,5 +22,9 @@ export default function PolicyPage() {
     return null;
   }
 
-  return <PolicyDetailsView policyId={paramId || ''} />;
+  return (
+    <ContentErrorBoundary title="Policy" message="Couldn't load this policy.">
+      <PolicyDetailsView policyId={paramId || ''} />
+    </ContentErrorBoundary>
+  );
 }
