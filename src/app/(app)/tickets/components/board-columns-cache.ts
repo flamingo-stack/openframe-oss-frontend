@@ -17,6 +17,7 @@
 
 import { type BoardColumnDef, columnFromTicketStatus } from '@flamingo-stack/openframe-frontend-core';
 import { useEffect, useState } from 'react';
+import { SYSTEM_KIND_META } from '../statuses/types/ticket-statuses.types';
 
 export interface CachedBoardColumn {
   id: string;
@@ -25,6 +26,8 @@ export interface CachedBoardColumn {
   label: string;
   color: string;
   system: boolean;
+  /** Header info-icon hint (system statuses only); absent for custom statuses. */
+  tooltip?: string;
 }
 
 const STORAGE_KEY = 'openframe:tickets-board-columns-v1';
@@ -47,7 +50,8 @@ export function readCachedBoardColumns(): CachedBoardColumn[] | null {
         typeof c.id === 'string' &&
         typeof c.label === 'string' &&
         typeof c.color === 'string' &&
-        (c.statusKey === undefined || typeof c.statusKey === 'string'),
+        (c.statusKey === undefined || typeof c.statusKey === 'string') &&
+        (c.tooltip === undefined || typeof c.tooltip === 'string'),
     );
     // Picked field by field, not spread: a stale blob's extra keys would ride
     // `...c` straight into `BoardColumnDef` (`total`, `hasMore`, `archivable`,
@@ -60,6 +64,7 @@ export function readCachedBoardColumns(): CachedBoardColumn[] | null {
           label: c.label,
           color: c.color,
           system: !!c.system,
+          tooltip: c.tooltip,
         }))
       : null;
   } catch {
@@ -74,10 +79,20 @@ const NO_TICKETS: never[] = [];
  * is filtered off the board). Custom statuses sit between them, so this is only
  * the shape until the cache has seen a real board once.
  */
+function systemFallbackColumn(kind: 'AI_ASSISTANCE' | 'TECH_REQUIRED' | 'RESOLVED') {
+  // Spread rather than an override: the header's info-icon `tooltip` lands in
+  // `BoardColumnDef` with the core-lib release that renders it, and the spread
+  // stays type-safe on either side of that bump.
+  return {
+    ...columnFromTicketStatus(kind, NO_TICKETS, { isLoading: true, system: true }),
+    tooltip: SYSTEM_KIND_META[kind].tooltip,
+  };
+}
+
 const SYSTEM_FALLBACK_COLUMNS: BoardColumnDef[] = [
-  columnFromTicketStatus('AI_ASSISTANCE', NO_TICKETS, { isLoading: true, system: true }),
-  columnFromTicketStatus('TECH_REQUIRED', NO_TICKETS, { isLoading: true, system: true }),
-  columnFromTicketStatus('RESOLVED', NO_TICKETS, { isLoading: true, system: true }),
+  systemFallbackColumn('AI_ASSISTANCE'),
+  systemFallbackColumn('TECH_REQUIRED'),
+  systemFallbackColumn('RESOLVED'),
 ];
 
 /**

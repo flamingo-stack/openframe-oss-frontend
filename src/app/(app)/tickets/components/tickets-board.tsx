@@ -24,6 +24,7 @@ import type { TicketsPage } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import {
   mapDefinitionToSystem,
+  SYSTEM_KIND_META,
   type TicketStatusDefinition,
   usesCanonicalStatusStyle,
 } from '../statuses/types/ticket-statuses.types';
@@ -53,6 +54,9 @@ const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
  * AI_ASSISTANCE/RESOLVED style their header from the canonical status key
  * (icon/variant); TECH_REQUIRED and custom statuses render from the backend
  * `color`. `id` stays the statusId regardless.
+ *
+ * System lanes also carry the same status description the settings page shows
+ * (`SYSTEM_KIND_META`), surfaced as an info-icon tooltip in the column header.
  */
 function toLaneDefinition(status: TicketStatusDefinition): CachedBoardColumn {
   return {
@@ -61,6 +65,7 @@ function toLaneDefinition(status: TicketStatusDefinition): CachedBoardColumn {
     label: status.name,
     color: status.color,
     system: status.isSystem,
+    tooltip: status.kind === 'CUSTOM' ? undefined : SYSTEM_KIND_META[status.kind].tooltip,
   };
 }
 
