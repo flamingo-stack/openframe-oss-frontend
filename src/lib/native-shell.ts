@@ -13,11 +13,15 @@
 import { isAppShell, isDesktopShell, isMobileShell } from './platform';
 
 /**
- * Custom URL scheme the mobile app registers (CFBundleURLTypes). The login
- * ASWebAuthenticationSession completes when navigation hits it; the gateway
- * 302s the devTicket straight to it for authMobile=true logins.
+ * Custom URL scheme both native shells complete their login on: the gateway
+ * 302s the devTicket straight to it for authMobile=true logins, and it is the
+ * one redirect target the gateway honours verbatim in every environment
+ * (`openframe.gateway.redirect.allowed-uris`). Mobile registers it with the OS
+ * (CFBundleURLTypes / intent-filter) because its ASWebAuthenticationSession
+ * matches on it; the desktop shell never hands it to the OS — it cancels the
+ * navigation inside its own login window — so it registers nothing.
  */
-export const MOBILE_APP_SCHEME = 'com.openframe.app';
+export const APP_SCHEME = 'com.openframe.app';
 
 /** Biometry the device supports; `'none'` when biometric auth is unavailable. */
 export type BiometryType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'none';
@@ -33,17 +37,13 @@ export type BiometryType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'none
 export interface NativeAuthPlugin {
   /**
    * Runs the OAuth login in a shell-owned browser context and resolves with
-   * the final callback URL. Mobile shells run a system browser
-   * (ASWebAuthenticationSession) that completes on `callbackScheme`; the
-   * desktop shell runs a dedicated window that intercepts the https
-   * callbackHost/callbackPath landing and ignores `callbackScheme`.
+   * the final callback URL. Both shells end the flow on `callbackScheme`:
+   * mobile runs a system browser (ASWebAuthenticationSession) that matches on
+   * it, desktop runs a dedicated window that cancels the navigation to it.
+   * Desktop additionally resolves on ANY callback carrying a `devTicket`, which
+   * is what an environment that drops the requested redirect still produces.
    */
-  start(options: {
-    url: string;
-    callbackHost: string;
-    callbackPath: string;
-    callbackScheme?: string;
-  }): Promise<{ callbackUrl: string }>;
+  start(options: { url: string; callbackScheme: string }): Promise<{ callbackUrl: string }>;
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
   exchangeTicket(options: { url: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
   /**

@@ -56,6 +56,7 @@ function fakeNativeAuth() {
       startCalls.push(options);
       const redirectTo = new URL(options.url).searchParams.get('redirectTo');
       if (!redirectTo) throw new Error('no redirectTo — the real shell would wait for a callback that never comes');
+      if (!options.callbackScheme) throw new Error('no callbackScheme — the shell has no navigation to cancel on');
       return { callbackUrl: `${redirectTo}?devTicket=TICKET-123` };
     },
     exchangeTicket: async () => ({ accessToken: 'access-1', refreshToken: 'refresh-1' }),
@@ -103,10 +104,11 @@ function resetDesktopShell() {
 // by construction — mobile/web belong in their own file if they ever get one.
 resetDesktopShell();
 const { nativeLogin } = await import('./native-login.ts');
+const { APP_SCHEME } = await import('./native-shell.ts');
 
 beforeEach(resetDesktopShell);
 
-test('saas-shared desktop login keeps its https callback in the login URL', async () => {
+test('saas-shared desktop login keeps its scheme callback in the login URL', async () => {
   await nativeLogin({ tenantId: 'tenant-1', provider: 'google' });
 
   assert.equal(startCalls.length, 1);
@@ -115,47 +117,54 @@ test('saas-shared desktop login keeps its https callback in the login URL', asyn
   assert.equal(url.origin, SHARED_HOST, 'shared mode logs in through the shared auth host');
   assert.equal(
     url.searchParams.get('redirectTo'),
-    `${TENANT_HOST}/auth/mobile-callback`,
+    `${APP_SCHEME}://auth`,
     'without redirectTo the gateway never sends the callback start() is blocked on',
   );
   assert.equal(url.searchParams.get('tenantId'), 'tenant-1');
   assert.equal(url.searchParams.get('provider'), 'google');
 });
 
-test('saas-shared desktop login takes the https landing, not the mobile scheme', async () => {
+test('desktop login asks for the ticket the same way mobile does', async () => {
   await nativeLogin({ tenantId: 'tenant-1' });
 
   const options = startCalls[0];
   const url = new URL(options.url);
 
-  assert.equal(url.searchParams.get('authMobile'), null, 'desktop must not ask for a custom-scheme 302');
-  assert.equal(options.callbackHost, 'acme.openframe.example');
-  assert.equal(options.callbackPath, '/auth/mobile-callback');
-  assert.equal(options.callbackScheme, undefined, 'no scheme interception on desktop');
+  // Without authMobile the callback carries no ticket at all wherever dev-ticket
+  // issuance is off (prod) — the login window then waits on a URL that never comes.
+  assert.equal(url.searchParams.get('authMobile'), 'true');
+  assert.equal(options.callbackScheme, APP_SCHEME, 'the shell cancels the navigation to this scheme');
 });
 
 test('saas-shared desktop login exchanges the ticket and keeps the boot host', async () => {
   const result = await nativeLogin({ tenantId: 'tenant-1' });
 
   assert.deepEqual(storedTokens, { accessToken: 'access-1', refreshToken: 'refresh-1' });
-  assert.equal(result.tenantHostChanged, false, 'callback landed on the host the app booted with');
+  assert.equal(result.tenantHostChanged, false, 'the scheme callback leaves the discovered host standing');
 });
 
 test('a discovered tenant domain overrides the boot host and is reported as a change', async () => {
   const result = await nativeLogin({ tenantId: 'tenant-1', tenantDomain: 'other.openframe.example' });
 
-  const options = startCalls[0];
-  assert.equal(
-    new URL(options.url).searchParams.get('redirectTo'),
-    'https://other.openframe.example/auth/mobile-callback',
-  );
-  assert.equal(options.callbackHost, 'other.openframe.example');
   assert.equal(result.tenantHostChanged, true);
+});
+
+test('an https landing still carries the login when the gateway drops the requested redirect', async () => {
+  // What every environment with dev-ticket issuance on does with a redirect it
+  // does not allow-list: the ticket rides on the tenant landing instead.
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
+    callbackUrl: `${TENANT_HOST}/?devTicket=TICKET-123`,
+  });
+
+  const result = await nativeLogin({ tenantId: 'tenant-1' });
+
+  assert.deepEqual(storedTokens, { accessToken: 'access-1', refreshToken: 'refresh-1' });
+  assert.equal(result.tenantHostChanged, false);
 });
 
 test('a callback without a ticket fails loudly', async () => {
   globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
-    callbackUrl: `${TENANT_HOST}/auth/mobile-callback`,
+    callbackUrl: `${APP_SCHEME}://auth`,
   });
 
   await assert.rejects(() => nativeLogin({ tenantId: 'tenant-1' }), /without a ticket/);

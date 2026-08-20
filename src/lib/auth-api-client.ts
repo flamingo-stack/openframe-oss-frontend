@@ -292,9 +292,8 @@ class AuthApiClient {
     // where a browser lands after login. Both native shells are the exception:
     // each blocks on a callback it named itself, and the gateway only sends that
     // callback because of redirectTo, so dropping it doesn't degrade the login,
-    // it hangs it forever. Keyed on isAppShell() rather than authMobile because
-    // desktop passes authMobile=false — it takes the https landing, not the
-    // mobile scheme.
+    // it hangs it forever. Both pass authMobile, so isAppShell() is belt and
+    // braces here for any shell login that ever stops doing so.
     const keepRedirect = options?.authMobile || isAppShell() || !isSaasSharedMode();
     const path = `${base}${options?.authMobile ? '&authMobile=true' : ''}${keepRedirect ? `&redirectTo=${redirectTo}` : ''}`;
     return buildAuthUrl(path);
