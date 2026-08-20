@@ -275,10 +275,11 @@ export const GET_TICKETS_QUERY = `
 
 /**
  * `escalatedByUser` ships with the escalation backend, so it rides the
- * `ai-escalation` flag: a field the server's schema does not declare fails
- * validation for the entire document, and `extractGraphQlData` throws on the
- * first GraphQL error — every board column would come back empty rather than
- * merely missing a badge.
+ * `ai-escalation` flag to avoid an extra round-trip in the common case: a field
+ * the server's schema does not declare fails validation for the whole document.
+ * The flag can still lead the backend by a deploy, so `TicketService.fetchGraphQl`
+ * is the safety net — it prunes an undeclared leaf field and retries once, and
+ * the board loads with the badge simply absent rather than empty.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {

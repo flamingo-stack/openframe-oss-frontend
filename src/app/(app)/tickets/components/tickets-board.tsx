@@ -8,13 +8,14 @@ import {
   type BoardTicket,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, PageError, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadError, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
+import { isOfflineError, loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
 import { useMoveTicket, useMovingTicketIds } from '../hooks/use-move-ticket';
@@ -153,7 +154,12 @@ export function TicketsBoard({
   const debouncedSearch = useDebounce(search, 300);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  const { data: statusesData, isLoading: statusesLoading, error: statusesError } = useTicketStatusesQuery();
+  const {
+    data: statusesData,
+    isLoading: statusesLoading,
+    error: statusesError,
+    refetch: refetchStatuses,
+  } = useTicketStatusesQuery();
   const { data: transitionRules } = useTicketStatusTransitionRules();
   const { mutate: moveTicket } = useMoveTicket();
   const movingIds = useMovingTicketIds();
@@ -392,11 +398,28 @@ export function TicketsBoard({
 
   const actions = useMemo(() => emphasizeNewTicketAction(baseActions, showEmptyState), [baseActions, showEmptyState]);
 
-  if (statusesError) {
-    return <PageError message={statusesError.message} />;
-  }
-  if (columnError) {
-    return <PageError message={columnError.message} />;
+  // Clearing the column updates drops `columnError` and remounts the column
+  // subscribers, which refetch; the statuses query is retried alongside.
+  const retryLoad = () => {
+    setColumnUpdates({});
+    queryClient.resetQueries({ queryKey: dialogsQueryKeys.boardColumns() });
+    refetchStatuses();
+  };
+
+  // Keep the page chrome and offer a retry instead of a bare banner, and never
+  // show the raw server payload the failed load carried.
+  const loadError = statusesError ?? columnError;
+  if (loadError) {
+    return (
+      <PageLayout
+        title="Tickets"
+        selector={selector}
+        className="h-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        contentClassName="flex flex-col min-h-0"
+      >
+        <LoadError {...loadErrorProps(isOfflineError(loadError), "Couldn't load tickets.", retryLoad)} />
+      </PageLayout>
+    );
   }
 
   return (

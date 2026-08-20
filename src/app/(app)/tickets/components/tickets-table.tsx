@@ -7,13 +7,14 @@ import {
   type ColumnFiltersState,
   DataTable,
   FilterModal,
+  LoadError,
   type OnChangeFn,
-  PageError,
   PageLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { loadErrorProps } from '@/lib/query-state';
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
 import { useTicketsQuery } from '../hooks/use-tickets-query';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
@@ -60,7 +61,9 @@ export function TicketsTable({
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-    error,
+    isError,
+    isOffline,
+    refetch,
   } = useTicketsQuery({
     archived: isArchived,
     search: debouncedSearch,
@@ -151,8 +154,21 @@ export function TicketsTable({
 
   const actions = useMemo(() => emphasizeNewTicketAction(baseActions, showEmptyState), [baseActions, showEmptyState]);
 
-  if (error) {
-    return <PageError message={error} />;
+  // Keep the page chrome — title, back button, view switch — so a failed load
+  // leaves a working page with a retry, not a bare banner. The thrown message is
+  // never shown: it is a raw server payload the user cannot act on.
+  if (isError) {
+    return (
+      <PageLayout
+        title={title}
+        backButton={backButton}
+        selector={selector}
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        contentClassName="flex flex-col"
+      >
+        <LoadError {...loadErrorProps(isOffline, "Couldn't load tickets.", () => refetch())} />
+      </PageLayout>
+    );
   }
 
   return (

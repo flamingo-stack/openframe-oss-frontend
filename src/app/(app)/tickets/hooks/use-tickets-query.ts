@@ -1,11 +1,12 @@
 'use client';
 
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { queryState } from '@/lib/query-state';
 import { ticketService } from '../services';
 import type { TicketsPage } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
+import { isGraphQlValidationError } from '../utils/graphql';
 import { type DialogsQueryParams, dialogsQueryKeys } from '../utils/query-keys';
 
 const TICKETS_PAGE_SIZE = 20;
@@ -21,7 +22,6 @@ export function useTicketsQuery({
   tagIds,
   pageSize = TICKETS_PAGE_SIZE,
 }: DialogsQueryParams) {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const statusesQuery = useTicketStatusesQuery({ enabled: true });
@@ -77,19 +77,11 @@ export function useTicketsQuery({
     initialPageParam: undefined as string | undefined,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
-    retry: 2,
+    // A schema-validation failure is deterministic — retrying it only delays the
+    // error. Transient failures still get the two attempts.
+    retry: (count, error) => !isGraphQlValidationError(error) && count < 2,
     retryDelay: 1000,
   });
-
-  useEffect(() => {
-    if (query.error) {
-      toast({
-        title: 'Failed to Load Tickets',
-        description: query.error.message,
-        variant: 'destructive',
-      });
-    }
-  }, [query.error, toast]);
 
   const dialogs = useMemo(() => query.data?.pages.flatMap(page => page.dialogs) ?? [], [query.data?.pages]);
 
@@ -108,13 +100,19 @@ export function useTicketsQuery({
     });
   }, [queryClient, archived, search, statusFilters, statusIds, organizationIds, assigneeIds, tagIds, pageSize]);
 
+  // Only a first-load failure with no rows is an error state; a background
+  // refetch that fails behind cached rows keeps the stale rows on screen.
+  const state = queryState(query);
+
   return {
     dialogs,
     isLoading: query.isLoading || waitingForStatusIds,
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage ?? false,
     fetchNextPage: query.fetchNextPage,
-    error: query.error?.message ?? null,
+    isError: state.error !== null,
+    isOffline: state.isOffline,
+    refetch: query.refetch,
     resetToFirstPage,
   };
 }
