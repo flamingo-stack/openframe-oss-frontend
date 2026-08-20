@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  BuildingsIcon,
-  IdCardIcon,
-  MonitorIcon,
-  UsersGroupIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
@@ -15,10 +10,18 @@ import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useOnboardingAutoAdvance } from '../hooks/use-onboarding-auto-advance';
 import { useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
-import { countCompleted, isStepDone, TENANT_ONBOARDING_STEPS } from '../onboarding-steps';
-import { CompanyTeamStep } from './company-team-step';
+import { MEET_MINGO_META } from '../meet-mingo-meta';
+import {
+  countCompleted,
+  IS_TENANT_MEET_MINGO_PERSISTED,
+  isStepDone,
+  TENANT_MEET_MINGO,
+  TENANT_ONBOARDING_STEPS,
+} from '../onboarding-steps';
+import { BookCallSection } from './book-call/book-call-section';
 import { CustomerSetupStep } from './customer-setup-step';
 import { DeviceSetupStep } from './device-setup-step';
+import { MingoStep } from './mingo-step';
 import { MspSetupStep } from './msp-setup-step';
 import { OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
 import { OnboardingCompleteBanner } from './onboarding-complete-banner';
@@ -28,6 +31,12 @@ interface StepMeta {
   icon: ReactNode;
   title: string;
   description: string;
+  /**
+   * Step that has to be done before this one can be opened, with the line that
+   * says so. A gated step renders locked (no chevron, hint on the right) —
+   * see {@link OnboardingAccordionItem}.
+   */
+  requires?: { step: TenantOnboardingStep; hint: string };
 }
 
 /**
@@ -55,12 +64,16 @@ const STEP_META: readonly StepMeta[] = [
     icon: <MonitorIcon size={24} />,
     title: 'Device Management',
     description: 'Run one command on a client machine to connect it to OpenFrame and start monitoring.',
+    // A device has to belong to a customer, so this step is dead until one
+    // exists — which is why the design draws it locked with this exact line.
+    // "Customers Setup done" IS "a customer exists": that step auto-completes
+    // off the organization count (see useTenantOnboardingAutoDetect).
+    requires: { step: TenantOnboardingStep.CUSTOMERS_SETUP, hint: 'Added Customer required' },
   },
   {
-    step: TenantOnboardingStep.COMPANY_TEAM,
-    icon: <UsersGroupIcon size={24} />,
-    title: 'Company & Team',
-    description: 'Invite your technicians and assign roles so everyone has the right access from day one.',
+    // Same row as the Get Started tour's first step, from one definition.
+    step: TENANT_MEET_MINGO,
+    ...MEET_MINGO_META,
   },
 ];
 
@@ -115,6 +128,7 @@ export function InitialSetupCard() {
 function InitialSetupCardContent() {
   const router = useRouter();
   const tenant = useOnboardingStore(state => state.tenant);
+  const setTenant = useOnboardingStore(state => state.setTenant);
   const { completeTenantStep, completeTenantStepInBackground, completeTenantInBackground } = useOnboardingMutations();
 
   // Auto-close steps whose underlying data already exists (MSP profile filled,
@@ -127,9 +141,47 @@ function InitialSetupCardContent() {
   // Which step's "Mark as Complete" is currently committing — drives that button's
   // loading spinner. Cleared when the mutation settles (success or error).
   const [completingStep, setCompletingStep] = useState<TenantOnboardingStep | null>(null);
+
+  /**
+   * A step the backend cannot store yet — today only Meet Mingo, whose enum
+   * value ships later (see TENANT_MEET_MINGO). Sending it would be rejected and
+   * the visitor would get an error toast for doing exactly what we asked.
+   */
+  const isPendingBackend = (step: TenantOnboardingStep) =>
+    step === TENANT_MEET_MINGO && !IS_TENANT_MEET_MINGO_PERSISTED;
+
+  /**
+   * Record such a completion in the STORE instead of on the server.
+   *
+   * Not cosmetic: without it the card can never reach 4/4, so nobody could
+   * finish Initial Setup at all until the backend lands. The whole-onboarding
+   * write that follows (`completeTenantInBackground`, no step argument) IS
+   * accepted today, so finishing still persists — only this one step's
+   * bookkeeping is in-memory, and a reload before finishing reopens it. The
+   * `IS_TENANT_MEET_MINGO_PERSISTED` flag retires this branch on its own the day
+   * the schema carries the value.
+   */
+  const recordPendingStep = (step: TenantOnboardingStep) => {
+    if (!tenant || tenant.completedSteps.includes(step)) return;
+    setTenant({ ...tenant, completedSteps: [...tenant.completedSteps, step] });
+  };
+
   const completeStep = (step: TenantOnboardingStep) => {
+    if (isPendingBackend(step)) {
+      recordPendingStep(step);
+      return;
+    }
     setCompletingStep(step);
     completeTenantStep(step, () => setCompletingStep(null));
+  };
+
+  /** Fire-and-forget variant, for the "open this thing" buttons. */
+  const completeStepInBackground = (step: TenantOnboardingStep) => {
+    if (isPendingBackend(step)) {
+      recordPendingStep(step);
+      return;
+    }
+    completeTenantStepInBackground(step);
   };
 
   // Display state = backend-persisted steps ∪ steps already satisfied by live data,
@@ -167,8 +219,11 @@ function InitialSetupCardContent() {
     }
   }, [allDone, completeTenantInBackground]);
 
-  const statusOf = (step: TenantOnboardingStep): OnboardingStepStatus =>
-    isStepDone(step, completedSteps) ? 'completed' : 'active';
+  const statusOf = (meta: StepMeta): OnboardingStepStatus => {
+    if (isStepDone(meta.step, completedSteps)) return 'completed';
+    if (meta.requires && !isStepDone(meta.requires.step, completedSteps)) return 'disabled';
+    return 'active';
+  };
 
   const renderStepBody = (step: TenantOnboardingStep): ReactNode => {
     const completed = isStepDone(step, completedSteps);
@@ -185,11 +240,18 @@ function InitialSetupCardContent() {
             completed={completed}
             completing={completing}
             onComplete={onComplete}
-            onCompleteBackground={() => completeTenantStepInBackground(TenantOnboardingStep.DEVICE_MANAGEMENT)}
+            onCompleteBackground={() => completeStepInBackground(TenantOnboardingStep.DEVICE_MANAGEMENT)}
           />
         );
-      case TenantOnboardingStep.COMPANY_TEAM:
-        return <CompanyTeamStep completed={completed} completing={completing} onComplete={onComplete} />;
+      case TENANT_MEET_MINGO:
+        return (
+          <MingoStep
+            completed={completed}
+            completing={completing}
+            onComplete={onComplete}
+            onCompleteBackground={() => completeStepInBackground(TENANT_MEET_MINGO)}
+          />
+        );
       default:
         return null;
     }
@@ -204,13 +266,17 @@ function InitialSetupCardContent() {
         </p>
       </div>
 
+      {/* The "walk me through it instead" offer, above the steps it replaces. */}
+      <BookCallSection />
+
       <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
         {STEP_META.map(meta => (
           <OnboardingAccordionItem
             key={meta.step}
             ref={refOf(meta.step)}
             icon={meta.icon}
-            status={statusOf(meta.step)}
+            status={statusOf(meta)}
+            requirementHint={meta.requires?.hint}
             title={meta.title}
             description={meta.description}
             expanded={expandedOf(meta.step)}
@@ -261,6 +327,12 @@ export function InitialSetupSkeleton() {
           <Skeleton className="inline-block h-3 w-52 max-w-full align-middle" />
         </div>
       </div>
+
+      {/* The REAL block, not a placeholder: it reads its own data (scheduling links,
+          walkthrough video), none of which is onboarding progress — so it settles
+          independently, and rendering it here is what keeps the rows from jumping
+          down when the card loads. */}
+      <BookCallSection />
 
       <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
         {STEP_META.map(meta => (

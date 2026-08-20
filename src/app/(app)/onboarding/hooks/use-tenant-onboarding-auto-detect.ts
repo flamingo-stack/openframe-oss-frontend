@@ -1,17 +1,14 @@
 'use client';
 
-import { useSuspenseQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { FetchPolicy } from 'relay-runtime';
 import type { tenantOnboardingAutoDetectRelayQuery as AutoDetectQuery } from '@/__generated__/tenantOnboardingAutoDetectRelayQuery.graphql';
 import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
 import { TENANT_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
-import { UserStatus } from '@/app/(app)/settings/hooks/use-users';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { tenantOnboardingAutoDetectRelayQuery } from '@/graphql/onboarding/tenant-onboarding-auto-detect-relay';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
-import { apiClient } from '@/lib/api-client';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 // Device-status filter: only ONLINE/OFFLINE count as "a device connected" — ARCHIVED
@@ -22,10 +19,9 @@ const AUTO_DETECT_VARIABLES = {
 };
 
 // `store-and-network`: fetch fresh on every mount (each dashboard visit), then serve the
-// Relay store on re-renders WITHOUT re-suspending. The no-re-suspend part is what matters:
-// this component also suspends on a sibling TanStack `useSuspenseQuery` (users), and
-// `network-only` can thrash (re-suspend/refetch) when a component keeps suspending on
-// another source before it commits — store-and-network commits from the store instead.
+// Relay store on re-renders WITHOUT re-suspending. `network-only` can thrash
+// (re-suspend/refetch) when a component keeps suspending before it commits —
+// store-and-network commits from the store instead.
 // (Stable module-level VARS/OPTIONS are belt-and-suspenders — Relay memoizes variables by
 // value, so equal-valued inline objects wouldn't refetch on their own — but keep intent
 // clear at no cost.)
@@ -58,19 +54,16 @@ const AUTO_DETECT_OPTIONS = { fetchPolicy: 'store-and-network' as FetchPolicy };
  *     count) come from ONE Relay query (`store-and-network`: fetched fresh on every
  *     mount, store-served on re-render), not four separate suspense reads — no request
  *     waterfall, no raw-POST GraphQL.
- *   - The user count is REST: it counts ACTIVE `api/users` `items`, NOT `totalElements`
- *     (which counts non-active/soft-deleted rows too and over-reports — a lone active owner
- *     can already read as 2-3). The GraphQL `users` count didn't match Employees either.
  *
- * MUST be called only from a component mounted while onboarding is active (both reads
- * suspend and have no `enabled`/mount gate of their own) and wrapped in a Suspense
+ * MUST be called only from a component mounted while onboarding is active (the read
+ * suspends and has no `enabled`/mount gate of its own) and wrapped in a Suspense
  * boundary — see InitialSetupCard, which gates on `!isLoaded || !tenant || completed`.
  *
  * Completion criteria (there is always a default org, hence `> 1` for customers):
  *   - MSP_SETUP:         name + website + logo all filled
  *   - CUSTOMERS_SETUP:   more than one organization (at least one real customer)
  *   - DEVICE_MANAGEMENT: at least one ONLINE/OFFLINE device
- *   - COMPANY_TEAM:      2 or more ACTIVE users (the owner plus at least one teammate)
+ *   - MEET_MINGO:        nothing to detect — the visitor marks it done
  */
 export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
   const tenant = useOnboardingStore(state => state.tenant);
@@ -87,30 +80,6 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
   const orgCount = data.organizations?.filteredCount ?? 0;
   const deviceCount = data.deviceFilters?.filteredCount ?? 0;
 
-  // Active-user count stays REST. `useSuspenseQuery` under the same Suspense boundary; note
-  // TanStack clamps suspense staleTime/gcTime to a 1s minimum, so this is effectively
-  // "fresh on mount" (refetchOnMount:'always') rather than truly uncached.
-  //
-  // Count ACTIVE `items`, NOT `totalElements`: `api/users` counts non-active records too
-  // (soft-deleted / removed users), so `totalElements` over-reports — a lone active owner can
-  // already read as 2-3 and wrongly auto-complete COMPANY_TEAM. A page of 100 is ample: a tenant
-  // is well past onboarding before its active roster overflows a single page.
-  const { data: usersCount = 0 } = useSuspenseQuery({
-    queryKey: ['onboarding-auto-detect', 'active-users-count'],
-    queryFn: async () => {
-      try {
-        const res = await apiClient.get<{ items?: Array<{ status?: string }> }>('api/users?page=0&size=100');
-        if (!res.ok) return 0;
-        return (res.data?.items ?? []).filter(user => user.status === UserStatus.Active).length;
-      } catch {
-        return 0;
-      }
-    },
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: 'always',
-  });
-
   const completedByData = useMemo(() => {
     const steps = new Set<TenantOnboardingStep>();
     if (mspComplete) {
@@ -122,11 +91,14 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
     if (deviceCount > 0) {
       steps.add(TenantOnboardingStep.DEVICE_MANAGEMENT);
     }
-    if (usersCount >= 2) {
-      steps.add(TenantOnboardingStep.COMPANY_TEAM);
-    }
+    // No rule for Meet Mingo: "has met Mingo" is not a fact any count can
+    // answer, so that step is completed by the visitor, not detected. The
+    // COMPANY_TEAM rule that used to live here went with the step — the write
+    // loop below only ever fires steps in TENANT_ONBOARDING_STEPS, so keeping
+    // it would have been a REST round-trip on every dashboard load feeding a
+    // set entry nothing reads.
     return steps;
-  }, [mspComplete, orgCount, deviceCount, usersCount]);
+  }, [mspComplete, orgCount, deviceCount]);
 
   // Steps whose completion mutation we've already sent this mount. Per-mount only —
   // resets on remount, and the next visit re-derives from the backend `completedSteps`.
