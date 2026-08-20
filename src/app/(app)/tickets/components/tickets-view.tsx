@@ -6,6 +6,7 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
 import { useIsMobileViewport } from '@/app/hooks/use-is-mobile-viewport';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { fromCsvParam, toCsvParam } from '@/lib/csv-search-param';
 import { resolveTicketsViewMode, type TicketsViewMode } from '../utils/resolve-view-mode';
 import { TicketsBoard } from './tickets-board';
 import { TicketsPageSkeleton } from './tickets-page-skeleton';
@@ -13,15 +14,22 @@ import { CurrentTickets } from './tickets-table';
 
 export function TicketsView() {
   const { params, setParam, setParams } = useApiParams({
-    status: { type: 'array', default: [] },
-    organizationIds: { type: 'array', default: [] },
-    assigneeIds: { type: 'array', default: [] },
-    tagIds: { type: 'array', default: [] },
+    // Multi-value filters are one comma-separated param, not a repeated key:
+    // the gateway 502s page URLs with a duplicated query parameter.
+    status: { type: 'string', default: '' },
+    organizationIds: { type: 'string', default: '' },
+    assigneeIds: { type: 'string', default: '' },
+    tagIds: { type: 'string', default: '' },
     search: { type: 'string', default: '' },
     // No default: an absent param has to stay distinguishable from an explicit
     // `viewMode=board` for `resolveTicketsViewMode` to know when it may pick.
     viewMode: { type: 'string', default: '' },
   });
+
+  const statusFilters = useMemo(() => fromCsvParam(params.status), [params.status]);
+  const organizationIds = useMemo(() => fromCsvParam(params.organizationIds), [params.organizationIds]);
+  const assigneeIds = useMemo(() => fromCsvParam(params.assigneeIds), [params.assigneeIds]);
+  const tagIds = useMemo(() => fromCsvParam(params.tagIds), [params.tagIds]);
 
   const isMobileViewport = useIsMobileViewport();
   const viewMode = resolveTicketsViewMode(params.viewMode, isMobileViewport);
@@ -31,13 +39,23 @@ export function TicketsView() {
   // every keystroke.
   const { search, setSearch } = useSearchParam(params.search, value => setParam('search', value), 300);
 
-  const handleStatusFilterChange = useCallback((status: string[]) => setParam('status', status), [setParam]);
-  const handleOrganizationIdsChange = useCallback((ids: string[]) => setParam('organizationIds', ids), [setParam]);
-  const handleAssigneeIdsChange = useCallback((ids: string[]) => setParam('assigneeIds', ids), [setParam]);
-  const handleTagIdsChange = useCallback((ids: string[]) => setParam('tagIds', ids), [setParam]);
+  const handleStatusFilterChange = useCallback(
+    (status: string[]) => setParam('status', toCsvParam(status)),
+    [setParam],
+  );
+  const handleOrganizationIdsChange = useCallback(
+    (ids: string[]) => setParam('organizationIds', toCsvParam(ids)),
+    [setParam],
+  );
+  const handleAssigneeIdsChange = useCallback((ids: string[]) => setParam('assigneeIds', toCsvParam(ids)), [setParam]);
+  const handleTagIdsChange = useCallback((ids: string[]) => setParam('tagIds', toCsvParam(ids)), [setParam]);
   // Single URL write: two sequential setParam calls read the same snapshot and clobber each other.
   const handleFiltersChange = useCallback(
-    (filters: { organizationIds: string[]; assigneeIds: string[] }) => setParams(filters),
+    (filters: { organizationIds: string[]; assigneeIds: string[] }) =>
+      setParams({
+        organizationIds: toCsvParam(filters.organizationIds),
+        assigneeIds: toCsvParam(filters.assigneeIds),
+      }),
     [setParams],
   );
 
@@ -68,11 +86,11 @@ export function TicketsView() {
     return (
       <TicketsBoard
         selector={tabs}
-        organizationIds={params.organizationIds}
+        organizationIds={organizationIds}
         onOrganizationIdsChange={handleOrganizationIdsChange}
-        assigneeIds={params.assigneeIds}
+        assigneeIds={assigneeIds}
         onAssigneeIdsChange={handleAssigneeIdsChange}
-        tagIds={params.tagIds}
+        tagIds={tagIds}
         onTagIdsChange={handleTagIdsChange}
         onFiltersChange={handleFiltersChange}
         search={search}
@@ -83,10 +101,10 @@ export function TicketsView() {
 
   return (
     <CurrentTickets
-      statusFilters={params.status}
+      statusFilters={statusFilters}
       onStatusFilterChange={handleStatusFilterChange}
       selector={tabs}
-      tagIds={params.tagIds}
+      tagIds={tagIds}
       onTagIdsChange={handleTagIdsChange}
       search={search}
       onSearchChange={setSearch}
