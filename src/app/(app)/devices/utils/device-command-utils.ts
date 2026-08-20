@@ -37,6 +37,7 @@ export interface InstallCommandOptions {
   initialKey: string;
   orgId: string;
   downloadBaseUrl: string;
+  userId?: string;
   additionalArgs?: string[];
 }
 
@@ -44,9 +45,10 @@ export interface InstallCommandOptions {
  * Build the device installation command
  */
 export function buildInstallCommand(options: InstallCommandOptions): string {
-  const { platform, serverUrl, initialKey, orgId, downloadBaseUrl, additionalArgs = [] } = options;
+  const { platform, serverUrl, initialKey, orgId, downloadBaseUrl, userId, additionalArgs = [] } = options;
 
-  const baseArgs = `install --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}`;
+  const userArg = userId ? ` --userId ${userId}` : '';
+  const baseArgs = `install --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}${userArg}`;
   const extras = additionalArgs.length ? ' ' + additionalArgs.join(' ') : '';
 
   if (platform === 'windows') {
