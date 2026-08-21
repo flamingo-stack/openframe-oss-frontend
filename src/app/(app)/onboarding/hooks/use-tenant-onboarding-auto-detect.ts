@@ -28,6 +28,18 @@ const AUTO_DETECT_VARIABLES = {
 const AUTO_DETECT_OPTIONS = { fetchPolicy: 'store-and-network' as FetchPolicy };
 
 /**
+ * The steps this hook has a rule for — i.e. the only ones whose completion is a FACT
+ * about the workspace rather than a claim by the user, and therefore the only ones a
+ * step gate can be built on (see `StepMeta.requiresData` in the Initial Setup card).
+ * `MEET_MINGO` is absent because no count answers "has met Mingo"; enumerated
+ * positively so a future undetectable step can't silently become gateable.
+ */
+export type DataDetectableStep =
+  | typeof TenantOnboardingStep.MSP_SETUP
+  | typeof TenantOnboardingStep.CUSTOMERS_SETUP
+  | typeof TenantOnboardingStep.DEVICE_MANAGEMENT;
+
+/**
  * Data-driven auto-completion for the tenant "Initial Setup" steps.
  *
  * ⚠️ TEMPORARY — this whole client-side detect-and-write-back is a stopgap. Completion
@@ -48,6 +60,10 @@ const AUTO_DETECT_OPTIONS = { fetchPolicy: 'store-and-network' as FetchPolicy };
  * criteria) so the card can union it with the backend `completedSteps` for display —
  * a step reads as done immediately, without waiting for the background mutation to
  * round-trip. The backend stays the source of truth: we only WRITE completion.
+ *
+ * The card ALSO reads this set for its step gates (`StepMeta.requiresData`), which is
+ * why it must stay a statement about the workspace's data and never absorb what the
+ * user merely checked off.
  *
  * Data fetching:
  *   - The three schema-backed signals (MSP profile, org count, connected-device

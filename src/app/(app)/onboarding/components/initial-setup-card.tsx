@@ -9,7 +9,7 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useOnboardingAutoAdvance } from '../hooks/use-onboarding-auto-advance';
-import { useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
+import { type DataDetectableStep, useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
 import { MEET_MINGO_META } from '../meet-mingo-meta';
 import { countCompleted, isStepDone, TENANT_ONBOARDING_STEPS } from '../onboarding-steps';
 import { BookCallSection } from './book-call/book-call-section';
@@ -26,11 +26,17 @@ interface StepMeta {
   title: string;
   description: string;
   /**
-   * Step that has to be done before this one can be opened, with the line that
-   * says so. A gated step renders locked (no chevron, hint on the right) —
-   * see {@link OnboardingAccordionItem}.
+   * Live-data precondition, with the line that says so. A gated step renders
+   * locked — no chevron, hint on the right, body not even mounted (see
+   * {@link OnboardingAccordionItem}).
+   *
+   * The gate asks the DATA, not whether the prerequisite step is checked off:
+   * "Mark as Complete" is a claim about a step, not proof the workspace has a
+   * customer, and unlocking device enrollment on that claim is exactly the
+   * mismatch this avoids. Typed to {@link DataDetectableStep}, so a gate can't
+   * be pointed at a step no data rule can ever satisfy.
    */
-  requires?: { step: TenantOnboardingStep; hint: string };
+  requiresData?: { step: DataDetectableStep; hint: string };
 }
 
 /**
@@ -60,9 +66,10 @@ const STEP_META: readonly StepMeta[] = [
     description: 'Run one command on a client machine to connect it to OpenFrame and start monitoring.',
     // A device has to belong to a customer, so this step is dead until one
     // exists — which is why the design draws it locked with this exact line.
-    // "Customers Setup done" IS "a customer exists": that step auto-completes
-    // off the organization count (see useTenantOnboardingAutoDetect).
-    requires: { step: TenantOnboardingStep.CUSTOMERS_SETUP, hint: 'Added Customer required' },
+    // The gate is the customer COUNT (auto-detect's `organizations > 1`, the
+    // default org not counting), never the Customers Setup checkbox: that step
+    // can be marked complete by hand on a workspace with no customer at all.
+    requiresData: { step: TenantOnboardingStep.CUSTOMERS_SETUP, hint: 'Added Customer required' },
   },
   {
     // Same row as the Get Started tour's first step, from one definition.
@@ -177,7 +184,8 @@ function InitialSetupCardContent() {
 
   const statusOf = (meta: StepMeta): OnboardingStepStatus => {
     if (isStepDone(meta.step, completedSteps)) return 'completed';
-    if (meta.requires && !isStepDone(meta.requires.step, completedSteps)) return 'disabled';
+    // Gates read the live data, NOT `completedSteps` — see `requiresData`.
+    if (meta.requiresData && !completedByData.has(meta.requiresData.step)) return 'disabled';
     return 'active';
   };
 
@@ -232,7 +240,7 @@ function InitialSetupCardContent() {
             ref={refOf(meta.step)}
             icon={meta.icon}
             status={statusOf(meta)}
-            requirementHint={meta.requires?.hint}
+            requirementHint={meta.requiresData?.hint}
             title={meta.title}
             description={meta.description}
             expanded={expandedOf(meta.step)}
