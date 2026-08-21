@@ -29,13 +29,10 @@ export function useTakeOverTicket() {
 
   return useMutation({
     mutationFn: async (input: TakeOverTicketInput) => {
-      const response = await apiClient.post<GraphQlResponse<{ takeOverTicket: TicketPayload }>>(
-        API_ENDPOINTS.GRAPHQL,
-        {
-          query: TAKE_OVER_TICKET_MUTATION,
-          variables: { input },
-        },
-      );
+      const response = await apiClient.post<GraphQlResponse<{ takeOverTicket: TicketPayload }>>(API_ENDPOINTS.GRAPHQL, {
+        query: TAKE_OVER_TICKET_MUTATION,
+        variables: { input },
+      });
 
       const payload = extractGraphQlData(response).takeOverTicket;
       if (payload.userErrors?.length) {
