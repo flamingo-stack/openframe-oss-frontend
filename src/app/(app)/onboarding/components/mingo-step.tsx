@@ -33,6 +33,20 @@ const DEMO_VIDEO_ID = 'i4H_XqrI3RA';
  */
 const MINGO_AGENT_SLUG = 'mingo';
 
+/**
+ * Wall geometry. `QuickActionWall` deals the chips out round-robin (`i % rows`) and pads
+ * each course with repeats, so the row count must stay BELOW
+ * `chips / MIN_UNIQUE_CHIPS_PER_ROW` — at one chip per row every course scrolls the same
+ * action repeated across the whole strip. Derived from the supply rather than hardcoded:
+ * the hub's action list is admin-edited and can shrink at any time.
+ *
+ * Deliberately NOT `agentSlug={MINGO_AGENT_SLUG}`: a built-in agent slug caps the stack at
+ * the lib's `AGENT_MAX_ROWS` (2), which is right above the chat composer but leaves this
+ * card's left column half empty next to the demo video.
+ */
+const MAX_WALL_ROWS = 4;
+const MIN_UNIQUE_CHIPS_PER_ROW = 7;
+
 export function MingoStep({
   onComplete,
   onCompleteBackground,
@@ -64,7 +78,7 @@ export function MingoStep({
   // sends that action's prompt via the launcher's one-shot `sendToMingo`.
   const chips = useMemo<QuickActionChip[]>(() => {
     const accent = accentFromIdentityIcon(config.icon) ?? getAgentAccent(MINGO_AGENT_SLUG);
-    return config.quickActions.slice(0, 4).map(action => ({
+    return config.quickActions.map(action => ({
       id: action.id,
       label: action.label,
       icon: {
@@ -76,6 +90,8 @@ export function MingoStep({
       onSelect: () => useMingoLauncherStore.getState().sendToMingo(action.prompt),
     }));
   }, [config.quickActions, config.icon]);
+
+  const wallRows = Math.min(MAX_WALL_ROWS, Math.max(1, Math.floor(chips.length / MIN_UNIQUE_CHIPS_PER_ROW)));
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
@@ -96,7 +112,7 @@ export function MingoStep({
               <p className="text-h5 text-ods-text-secondary">Try this quick actions:</p>
               <QuickActionWall
                 chips={chips}
-                rows={4}
+                rows={wallRows}
                 pauseOnHover
                 dragScroll
                 fade={['left', 'right']}
