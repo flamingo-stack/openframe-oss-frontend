@@ -18,13 +18,9 @@ const AUTO_DETECT_VARIABLES = {
   deviceFilter: { statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE] },
 };
 
-// `store-and-network`: fetch fresh on every mount (each dashboard visit), then serve the
-// Relay store on re-renders WITHOUT re-suspending. `network-only` can thrash
-// (re-suspend/refetch) when a component keeps suspending before it commits —
-// store-and-network commits from the store instead.
-// (Stable module-level VARS/OPTIONS are belt-and-suspenders — Relay memoizes variables by
-// value, so equal-valued inline objects wouldn't refetch on their own — but keep intent
-// clear at no cost.)
+// `store-and-network`: fresh on every mount (each dashboard visit), then store-served on
+// re-render WITHOUT re-suspending. `network-only` can thrash when a component keeps
+// suspending before it commits.
 const AUTO_DETECT_OPTIONS = { fetchPolicy: 'store-and-network' as FetchPolicy };
 
 /**
@@ -40,42 +36,26 @@ export type DataDetectableStep =
   | typeof TenantOnboardingStep.DEVICE_MANAGEMENT;
 
 /**
- * Data-driven auto-completion for the tenant "Initial Setup" steps.
+ * Data-driven auto-completion for the tenant "Initial Setup" steps: a step is done the
+ * moment its underlying data exists, so this reads the live signals and persists any
+ * step the backend doesn't have yet via `completeTenantStepInBackground`.
  *
- * ⚠️ TEMPORARY — this whole client-side detect-and-write-back is a stopgap. Completion
- * SHOULD be computed authoritatively by the backend inside `tenantOnboardingProgress`
- * (it already owns customers/devices/users/tenant-profile). Until it does, the frontend
- * polls those counts here and writes the steps back. Known limitations that go away once
- * the backend owns this: steps only auto-close when the user visits the dashboard;
- * thresholds hardcode seeding assumptions (default org, owner); a failed write-back isn't
- * retried until the next visit; the top-bar CTA can briefly lag the card. When the
- * backend lands, delete this hook and read `completedSteps` straight from the store.
+ * ⚠️ TEMPORARY — completion SHOULD be computed by the backend inside
+ * `tenantOnboardingProgress`, which already owns all of this data. Until it is, steps
+ * only close when the user visits the dashboard and a failed write-back waits for the
+ * next visit. When the backend lands, delete this hook and read `completedSteps`
+ * straight from the store.
  *
- * A step is really done the moment its underlying data exists — the MSP profile is
- * filled, a customer/device/teammate has been added. This hook reads those live
- * counts and, when a step's condition holds but the step isn't yet in the backend
- * `completedSteps`, fires `completeTenantStepInBackground` to persist it.
+ * Returns `completedByData` so the card can union it with the persisted set for display
+ * (a step reads as done without waiting for the round-trip) and gate its locked steps on
+ * it (`StepMeta.requiresData`) — which is why this set must stay a statement about the
+ * workspace's data and never absorb what the user merely checked off.
  *
- * It returns `completedByData` (the steps whose live data already satisfies their
- * criteria) so the card can union it with the backend `completedSteps` for display —
- * a step reads as done immediately, without waiting for the background mutation to
- * round-trip. The backend stays the source of truth: we only WRITE completion.
+ * MUST be called from a component mounted only while onboarding is active and wrapped in
+ * a Suspense boundary — the read suspends and has no mount gate of its own. See
+ * InitialSetupCard.
  *
- * The card ALSO reads this set for its step gates (`StepMeta.requiresData`), which is
- * why it must stay a statement about the workspace's data and never absorb what the
- * user merely checked off.
- *
- * Data fetching:
- *   - The three schema-backed signals (MSP profile, org count, connected-device
- *     count) come from ONE Relay query (`store-and-network`: fetched fresh on every
- *     mount, store-served on re-render), not four separate suspense reads — no request
- *     waterfall, no raw-POST GraphQL.
- *
- * MUST be called only from a component mounted while onboarding is active (the read
- * suspends and has no `enabled`/mount gate of its own) and wrapped in a Suspense
- * boundary — see InitialSetupCard, which gates on `!isLoaded || !tenant || completed`.
- *
- * Completion criteria:
+ * Criteria:
  *   - MSP_SETUP:         name + website + logo all filled
  *   - CUSTOMERS_SETUP:   at least one organization that is not the default one
  *   - DEVICE_MANAGEMENT: at least one ONLINE/OFFLINE device
@@ -112,12 +92,7 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
     if (deviceCount > 0) {
       steps.add(TenantOnboardingStep.DEVICE_MANAGEMENT);
     }
-    // No rule for Meet Mingo: "has met Mingo" is not a fact any count can
-    // answer, so that step is completed by the visitor, not detected. The
-    // COMPANY_TEAM rule that used to live here went with the step — the write
-    // loop below only ever fires steps in TENANT_ONBOARDING_STEPS, so keeping
-    // it would have been a REST round-trip on every dashboard load feeding a
-    // set entry nothing reads.
+    // No rule for Meet Mingo — "has met Mingo" is not a fact any query answers.
     return steps;
   }, [mspComplete, hasCustomer, deviceCount]);
 
@@ -125,23 +100,16 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
   // resets on remount, and the next visit re-derives from the backend `completedSteps`.
   const fired = useRef<Set<TenantOnboardingStep>>(new Set());
 
-  // Persist ONE step at a time: fire the first not-yet-persisted, not-yet-fired step;
-  // its mutation updates the store (tenant reference changes) which re-runs this effect
-  // for the next one. Serializing avoids firing all satisfied steps at once, where the
-  // concurrent completeTenantOnboardingStep responses (each returns the full
-  // `completedSteps` and overwrites the store, last-write-wins) could clobber a
-  // sibling's just-written step.
+  // ONE step at a time: each mutation returns the full `completedSteps` and overwrites
+  // the store, so concurrent writes would clobber each other. The store update re-runs
+  // this effect for the next step.
   useEffect(() => {
     if (!tenant) {
       return;
     }
-    // Once every step is done (backend-persisted ∪ satisfied by live data), the Initial
-    // Setup card commits the WHOLE onboarding in the background (`completeTenantInBackground`
-    // → `completed: true`). Firing per-step writes here too races it: each
-    // `completeTenantOnboardingStep` response carries `completed: false` and, landing AFTER
-    // the whole-onboarding write, clobbers the store back to `false` (last-write-wins) — so
-    // the onboarding chrome only clears on a reload, never on navigation. Defer to that single
-    // completion write; per-step persistence is redundant the moment all steps are done.
+    // With every step done the card commits the WHOLE onboarding in the background. A
+    // per-step write racing that lands `completed: false` on top of it and the onboarding
+    // chrome then only clears on a reload — and it is redundant anyway.
     const allDone = TENANT_ONBOARDING_STEPS.every(
       step => tenant.completedSteps.includes(step) || completedByData.has(step),
     );

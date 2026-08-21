@@ -79,11 +79,9 @@ interface AutoAdvanceOptions<T extends string> {
  */
 export function useOnboardingAutoAdvance<T extends string>(
   steps: readonly T[],
-  // Membership oracle, not a step list — deliberately NOT `readonly T[]`. A
-  // surface renders a SUBSET of its backend step enum (the Get Started tour
-  // leaves out the two tenant Initial Setup steps), so the completion set that
-  // comes back legitimately contains steps this surface never shows. `steps`
-  // alone defines the universe; extras here are simply never looked up.
+  // Membership oracle, not a step list — deliberately NOT `readonly T[]`. A surface
+  // renders a subset of its enum, so this can name steps it never shows; `steps` alone
+  // defines the universe.
   completedSteps: readonly string[],
   { scrollOnMount = false, urlStep = null, onOpenStepChange }: AutoAdvanceOptions<T> = {},
 ) {

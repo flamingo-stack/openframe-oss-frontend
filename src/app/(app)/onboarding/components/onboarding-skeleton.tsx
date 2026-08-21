@@ -20,10 +20,8 @@ import { OnboardingAccordionGroup, OnboardingAccordionItem } from './onboarding-
  * inside `OnboardingContent`. Rows render with `loading`, so their bodies are NOT mounted
  * and the always-mounted `DeviceSetupStep` (a `useSuspenseQuery`) never suspends here.
  *
- * The "Book a call" block is the REAL one, not a placeholder: it reads its own data
- * (scheduling links, walkthrough video), none of which is onboarding progress, so it can
- * settle while the steps are still loading — and rendering it here is what keeps the
- * steps from jumping down once they do.
+ * The "Book a call" block is the REAL one, not a placeholder — it reads its own data, so
+ * it settles independently and keeps the steps from jumping down once they load.
  */
 export function OnboardingSkeleton() {
   const total = USER_ONBOARDING_STEPS.length;

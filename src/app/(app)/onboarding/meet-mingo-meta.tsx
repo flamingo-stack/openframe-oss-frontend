@@ -1,12 +1,9 @@
 'use client';
 
 /**
- * Icon + copy for the "Meet Mingo" row, in ONE place because it is the same step
- * on two surfaces: the tenant Initial Setup card on the dashboard and the user
- * "Get Started" tour. The design shows it in both, and two hand-kept copies of a
- * title and a sentence are how those two drift.
- *
- * The step BODY is shared the same way — `./components/mingo-step`.
+ * Icon + copy for the "Meet Mingo" row — one definition for both surfaces that
+ * render it (the Initial Setup card and the "Get Started" tour), so they can't
+ * drift. The step body is shared the same way: `./components/mingo-step`.
  */
 
 import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';

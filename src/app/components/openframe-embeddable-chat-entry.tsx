@@ -102,13 +102,11 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     void sendInNewDialog(text);
   }, [pendingPrompt, consumePendingPrompt, sendInNewDialog]);
 
-  // Queued launcher "start a new chat" (`startNewChat()` — the onboarding "Meet
-  // Mingo" step's button). Unlike the prompt above there is nothing to send, and
-  // nothing the host can set: which view the narrow panel shows with no open
-  // conversation ("Current Chats" list vs. the composer) is the panel's own
-  // state, so this is relayed to its imperative handle. Same one-shot drain as
-  // the prompt, and for the same reasons — it must fire both on a fresh open and
-  // while the drawer is already open on the list.
+  // Queued launcher "start a new chat". Nothing to send and nothing the host can
+  // set — which view the narrow panel shows with no open conversation (list vs.
+  // composer) is its own state — so this goes to its imperative handle. Same
+  // one-shot drain as the prompt: it must fire on a fresh open AND while the
+  // drawer is already open on the list.
   const chatHandle = useRef<EmbeddableChatHandle>(null);
   const pendingNewChat = useMingoLauncherStore(s => s.pendingNewChat);
   const consumePendingNewChat = useMingoLauncherStore(s => s.consumePendingNewChat);

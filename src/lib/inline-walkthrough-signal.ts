@@ -1,31 +1,22 @@
 'use client';
 
 /**
- * "An inline walkthrough video is on screen" — the one signal that keeps the
- * app-shell FLOATING card (`<WalkthroughVideo>`, mounted once in the app
- * layout) from sitting in the corner playing the same clip the page already
- * renders inside itself (the onboarding "Book a call" promo). Both surfaces
- * that mount the promo — the dashboard Initial Setup card and /onboarding —
- * are pages the floating card is also live on, so without this the user sees
- * the video twice.
+ * "An inline walkthrough video is on screen" — keeps the app-shell floating
+ * card from playing the same clip the page already renders inside itself.
  *
- * A COUNTER, not a boolean: during a route transition React mounts the
- * incoming tree before unmounting the outgoing one, so with a boolean the
- * first of two overlapping unmounts would clear the flag and the corner card
- * would flash back for a frame.
+ * A COUNTER, not a boolean: a route transition mounts the incoming tree before
+ * unmounting the outgoing one, so a boolean would be cleared by the first of
+ * two overlapping unmounts and the corner card would flash back.
  *
- * Route-based suppression was the alternative and is wrong: the Initial Setup
- * card is a one-time surface that disappears from the dashboard once setup is
- * complete, so `pathname === '/dashboard'` would keep the floating card hidden
- * there forever. Claiming from the component that actually renders the inline
- * video is precise by construction — see {@link useInlineWalkthroughClaim}.
+ * Claimed by the component that renders the inline video rather than by route,
+ * because the Initial Setup card disappears once setup is complete — suppress
+ * by `pathname` and the floating card would stay hidden on /dashboard forever.
  */
 
 import { useEffect } from 'react';
 import { create } from 'zustand';
 
 interface InlineWalkthroughSignalState {
-  /** How many inline walkthrough videos are currently mounted. */
   claims: number;
   claim: () => void;
   release: () => void;
@@ -34,17 +25,14 @@ interface InlineWalkthroughSignalState {
 const useInlineWalkthroughSignal = create<InlineWalkthroughSignalState>(set => ({
   claims: 0,
   claim: () => set(state => ({ claims: state.claims + 1 })),
-  // `Math.max` guards the double-invoked cleanup React StrictMode runs in dev;
-  // a negative count would silently re-show the floating card.
+  // `Math.max` guards StrictMode's double-invoked cleanup in dev.
   release: () => set(state => ({ claims: Math.max(0, state.claims - 1) })),
 }));
 
 /**
- * Register this component as rendering the walkthrough video inline.
- *
- * `active` matters: claim only while the inline block ACTUALLY shows a video.
- * A page that mounts the block but has no video to put in it must not suppress
- * the floating card — that would trade one visible video for none.
+ * Register this component as rendering the walkthrough video inline. Pass
+ * `active` false when the block has no video to show — suppressing the
+ * floating card then would trade one visible video for none.
  */
 export function useInlineWalkthroughClaim(active: boolean): void {
   useEffect(() => {

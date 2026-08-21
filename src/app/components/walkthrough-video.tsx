@@ -7,17 +7,12 @@
  * embed). All UI lives in the core lib; this host only supplies the data and
  * the app-specific placement.
  *
- * Data comes from {@link useWalkthroughVideoData} — the app's own read of the
- * `/content` proxy, shared with the inline mount in the onboarding "Book a
- * call" promo (see that hook for why this app doesn't use the lib's
- * `useWalkthroughVideo`).
+ * Data comes from {@link useWalkthroughVideoData}, shared with the inline mount
+ * in the onboarding "Book a call" promo.
  *
- * The FLOATING widget is deliberately mounted ONCE in the app shell (next to
- * the Mingo chat drawer), never per page. The onboarding promo mounts the same
- * component with `placement="inline"`, which is a block in that page's flow —
- * a different surface, not a second floating card. While such a block is on
- * screen this mount steps aside entirely (see {@link useHasInlineWalkthrough}),
- * so the same clip is never offered twice on one page.
+ * Mounted ONCE in the app shell, never per page — and it steps aside entirely
+ * while a page renders the clip inline (see {@link useHasInlineWalkthrough}),
+ * so the same video is never offered twice at once.
  */
 
 import { FloatingWalkthroughVideo } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -117,16 +112,13 @@ export function WalkthroughVideo() {
   // A page rendering the video inline owns it for as long as it is mounted.
   const inlineElsewhere = useHasInlineWalkthrough();
 
-  // No "hide while a panel is open" handling here on purpose: an open side
-  // panel is layered OVER the card instead (see WALKTHROUGH_OVERLAP_Z in
-  // `app-layout.tsx`), so the card needs no knowledge of the panels at all.
+  // No "hide while a panel is open" handling on purpose: an open side panel is
+  // layered OVER the card (see WALKTHROUGH_OVERLAP_Z in `app-layout.tsx`).
   //
-  // The corner is content-managed (hub admin → the video's `position`); the lib
-  // resolves it the same way, we mirror it only to decide on sidebar clearance.
+  // The corner is content-managed; mirrored here only for sidebar clearance.
   const side = video?.position ?? 'left';
-  // Measure only while a left-hand card is actually on screen — there is no
-  // sidebar to clear on the right, none to measure before the video lands, and
-  // none to clear while an inline mount has taken over.
+  // Only while a left-hand card is actually on screen — nothing to clear on the
+  // right, before the video lands, or once an inline mount has taken over.
   useSidebarWidthVar(side === 'left' && video !== null && !inlineElsewhere);
 
   if (inlineElsewhere) {

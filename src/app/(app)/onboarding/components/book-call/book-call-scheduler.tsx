@@ -2,13 +2,9 @@
 
 /**
  * The booking half of {@link ./book-call-section}: the lib's HubSpot scheduler
- * bound to the one link this app books.
- *
- * All of the picker/booking UI is the lib's — this only supplies the link's
- * identity, points it at the `/content` proxy (the lib self-builds
- * `/api/meetings/{availability,book}` onto that base), and adds the two things
- * the lib deliberately leaves to the host: the way back to the promo, and the
- * app's own toast on a successful booking.
+ * bound to the one link this app books. All picker UI is the lib's; this adds
+ * the link identity, the `/content` proxy base, and the two things the lib
+ * leaves to the host — the way back, and the booked toast.
  */
 
 import { HubSpotMeetingScheduler } from '@flamingo-stack/openframe-frontend-core/components/meeting-scheduler';
@@ -34,12 +30,8 @@ export function BookCallScheduler({ link, onBack, className }: BookCallScheduler
     <HubSpotMeetingScheduler
       meetingId={link.id}
       apiBaseUrl={CONTENT_BASE}
-      // NO title/description on purpose: the promo the user just clicked is
-      // the heading for this card, and repeating the meeting's own name under
-      // the hosts pushed the timezone picker down for no new information.
-      //
-      // The directory already carries the display hosts, so the context panel
-      // shows who you're meeting before the availability request lands.
+      // No title/description: the promo the user just clicked is this card's
+      // heading, and repeating the meeting name only pushed the picker down.
       hosts={link.hosts}
       fallbackUrl={link.link}
       onBack={onBack}

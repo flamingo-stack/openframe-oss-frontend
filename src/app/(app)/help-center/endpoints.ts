@@ -104,10 +104,8 @@ export const EP = {
   // platform param — the hub resolves the platform server-side and answers with
   // the raw body `{ walkthroughVideo }` (null when that platform has none).
   walkthroughVideo: `${CONTENT}/walkthrough-video`,
-  // Scheduling links directory — the hub's curated HubSpot meeting links,
-  // grouped by audience. Feeds the onboarding "Book a call" promo; the lib's
-  // `<HubSpotMeetingScheduler apiBaseUrl={CONTENT_BASE}>` then self-builds
-  // `/api/meetings/{availability,book}` onto the same proxy.
+  // Curated HubSpot meeting links grouped by audience. The lib's scheduler then
+  // self-builds `/api/meetings/{availability,book}` onto the same proxy base.
   meetings: `${CONTENT}/meetings`,
 } as const;
 

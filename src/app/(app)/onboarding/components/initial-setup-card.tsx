@@ -26,24 +26,19 @@ interface StepMeta {
   title: string;
   description: string;
   /**
-   * Live-data precondition, with the line that says so. A gated step renders
-   * locked — no chevron, hint on the right, body not even mounted (see
-   * {@link OnboardingAccordionItem}).
+   * Live-data precondition, with the line that says so. Renders the step locked
+   * — no chevron, hint on the right, body not mounted.
    *
-   * The gate asks the DATA, not whether the prerequisite step is checked off:
-   * "Mark as Complete" is a claim about a step, not proof the workspace has a
-   * customer, and unlocking device enrollment on that claim is exactly the
-   * mismatch this avoids. Typed to {@link DataDetectableStep}, so a gate can't
-   * be pointed at a step no data rule can ever satisfy.
+   * Asks the DATA, not whether the prerequisite step is checked off: "Mark as
+   * Complete" is a claim, not proof the workspace has a customer. Typed to
+   * {@link DataDetectableStep} so a gate can't name a step no rule can satisfy.
    */
   requiresData?: { step: DataDetectableStep; hint: string };
 }
 
 /**
- * Single source of truth for the four steps' static presentation (icon, title,
- * description), shared by the real card and {@link InitialSetupSkeleton} so the
- * skeleton matches the card 1:1 (same icons, titles, descriptions, order). The
- * step-specific expanded body is wired up separately in the card.
+ * The four steps' static presentation, shared with {@link InitialSetupSkeleton}
+ * so the skeleton matches the card 1:1. Bodies are wired up in the card.
  */
 const STEP_META: readonly StepMeta[] = [
   {
@@ -64,11 +59,9 @@ const STEP_META: readonly StepMeta[] = [
     icon: <MonitorIcon size={24} />,
     title: 'Device Management',
     description: 'Run one command on a client machine to connect it to OpenFrame and start monitoring.',
-    // A device has to belong to a customer, so this step is dead until one
-    // exists — which is why the design draws it locked with this exact line.
-    // The gate is whether a customer EXISTS (auto-detect's non-default-org
-    // check), never the Customers Setup checkbox: that step can be marked
-    // complete by hand on a workspace with no customer at all.
+    // A device belongs to a customer, so this step is dead until one exists.
+    // The gate is whether a customer EXISTS, never the Customers Setup
+    // checkbox — that can be ticked by hand on a workspace with no customer.
     requiresData: { step: TenantOnboardingStep.CUSTOMERS_SETUP, hint: 'Added Customer required' },
   },
   {
@@ -90,23 +83,16 @@ export function InitialSetupCard() {
   const isLoaded = useOnboardingStore(state => state.isLoaded);
   const tenant = useOnboardingStore(state => state.tenant);
 
-  // Latch: the completed "victory" view commits Initial Setup in the background the
-  // instant it shows (see {@link InitialSetupCardContent}). That flips `tenant.completed`,
-  // which would otherwise hide this card mid-view. Once we've shown it in this mount we
-  // keep it up so the user actually sees the completed state and its "Take the Product
-  // Tour" CTA. A real exit (reload, navigating away and back) remounts against
-  // `completed: true` and the card is correctly gone. Writing the ref during render is a
-  // deliberate idempotent false→true latch — it only ever gates THIS component.
+  // Latch: the completed view commits Initial Setup in the background the instant it
+  // shows, which flips `tenant.completed` and would otherwise hide the card mid-view.
+  // A real exit remounts against `completed: true` and the card is correctly gone.
   const shownRef = useRef(false);
   if (isLoaded && tenant && !tenant.completed) {
     shownRef.current = true;
   }
 
-  // Render only when progress is loaded AND we actually have a tenant record. Guarding on
-  // `!tenant` matters: `refreshOnboardingProgress` marks the store loaded even on a
-  // failed/empty fetch (tenant stays null), and the content fires its data queries the
-  // instant it mounts — we must not mount it on null. Hide once complete UNLESS we're
-  // latched into showing the just-completed view.
+  // `!tenant` matters on its own: the store is marked loaded even on a failed fetch, and
+  // the content fires its queries the instant it mounts.
   if (!isLoaded || !tenant) {
     return null;
   }
@@ -118,28 +104,20 @@ export function InitialSetupCard() {
 }
 
 /**
- * The card body. Suspends (via {@link useTenantOnboardingAutoDetect}) until every step
- * count has loaded, then renders once in its fully-settled state — step statuses and the
- * "X/Y done" counter driven by `tenantOnboardingProgress` unioned with the live data.
- * There is no manual finisher: once every step is done the header flips to "All steps
- * complete", a "Setup Complete" banner appears, and Initial Setup auto-commits in the
- * background (see the effect below) so any exit finalizes it. Sits on the darker page
- * background (`bg-ods-bg`, not `bg-ods-card`) so it doesn't read as a card.
+ * The card body. Suspends until every step signal has loaded, then renders once fully
+ * settled. No manual finisher: with every step done the header flips, a banner appears
+ * and Initial Setup auto-commits in the background, so any exit finalizes it.
  */
 function InitialSetupCardContent() {
   const router = useRouter();
   const tenant = useOnboardingStore(state => state.tenant);
   const { completeTenantStep, completeTenantStepInBackground, completeTenantInBackground } = useOnboardingMutations();
 
-  // Auto-close steps whose underlying data already exists (MSP profile filled,
-  // customer/device/teammate added) — see the hook for criteria. Suspends until the
-  // counts load; `completedByData` feeds the display union below.
   // ⚠️ TEMPORARY client-side stopgap — drop this union and read `completedSteps` from
-  // the store once the backend computes step completion in `tenantOnboardingProgress`.
+  // the store once the backend computes step completion. Suspends until it settles.
   const completedByData = useTenantOnboardingAutoDetect();
 
-  // Which step's "Mark as Complete" is currently committing — drives that button's
-  // loading spinner. Cleared when the mutation settles (success or error).
+  // Which step's "Mark as Complete" is committing — drives that button's spinner.
   const [completingStep, setCompletingStep] = useState<TenantOnboardingStep | null>(null);
 
   const completeStep = (step: TenantOnboardingStep) => {
@@ -147,19 +125,13 @@ function InitialSetupCardContent() {
     completeTenantStep(step, () => setCompletingStep(null));
   };
 
-  // Display state = backend-persisted steps ∪ steps already satisfied by live data,
-  // so a step reads as done immediately without waiting for its background mutation
-  // to round-trip (the hook writes those to the backend for persistence). No dedup
-  // needed: `countCompleted` builds its own Set and `isStepDone` uses `.includes`, so
-  // an overlap between the two sources is harmless.
+  // Persisted ∪ satisfied-by-data, so a step reads as done without waiting for its
+  // background mutation to round-trip. Overlap is harmless — both readers dedupe.
   const completedSteps = [...(tenant?.completedSteps ?? []), ...completedByData];
 
-  // Guided flow: the first incomplete step opens automatically and, as steps
-  // complete, the finished one folds while the next opens and scrolls into view.
-  // `scrollOnMount` anchors that first open step on entry too — same as the /onboarding
-  // page — so the user lands on the actionable step even when the earlier ones are done
-  // and it sits below the card header. Runs after the auto-detect suspend, so the initial
-  // expanded step is picked from the settled union above, not a pre-load snapshot.
+  // Guided flow: the first incomplete step opens and, as steps complete, the finished
+  // one folds while the next opens and scrolls into view. `scrollOnMount` anchors that
+  // on entry too. Runs after the suspend, so the first open step comes from settled data.
   const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAutoAdvance(TENANT_ONBOARDING_STEPS, completedSteps, {
     scrollOnMount: true,
   });
@@ -168,12 +140,9 @@ function InitialSetupCardContent() {
   const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
   const allDone = done >= total;
 
-  // The instant every step is done, commit Initial Setup in the background exactly once.
-  // No manual click required: committing here is what makes ANY action on the completed
-  // view finalize it — a page reload or a navigation away both remount against
-  // `tenant.completed === true` (so the card is gone), and "Take the Product Tour" just
-  // navigates. The ref guards against a re-fire across the re-renders that follow (the
-  // parent latches this card mounted while `completed` flips — see {@link InitialSetupCard}).
+  // Commit once, the instant every step is done — that is what makes ANY exit from the
+  // completed view finalize it. The ref guards the re-renders that follow, since the
+  // parent latches this card mounted while `completed` flips.
   const committedRef = useRef(false);
   useEffect(() => {
     if (allDone && !committedRef.current) {

@@ -2,21 +2,15 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
 /**
- * Owns the Mingo chat drawer's open state (lifted out of `AppShell` so any page
- * can open it), plus the one-shot requests a page can queue for the next open.
- *
- * Two one-shot launcher entry points, both drained by the embedder
+ * Owns the Mingo drawer's open state (lifted out of `AppShell` so any page can
+ * open it) plus two one-shot requests, both drained by the embedder
  * (`OpenframeEmbeddableChatEntry`) on the next render after the drawer opens:
- *   - `sendToMingo(prompt)` — queue a prompt (e.g. the onboarding "Meet Mingo"
- *     quick-action chips); the embedder sends it via `sendInNewDialog`.
- *   - `startNewChat()` — just land on a fresh chat, nothing sent (the "Meet
- *     Mingo" step's own button). The embedder relays it to the panel's
- *     imperative handle, because "show the composer" is the panel's own view
- *     state, not something the host can set.
+ *   - `sendToMingo(prompt)` — queue a prompt, sent via `sendInNewDialog`.
+ *   - `startNewChat()` — land on a fresh chat with nothing sent; relayed to the
+ *     panel's imperative handle, since which view it shows is its own state.
  *
- * The two are mutually exclusive by construction — each action clears the
- * other's pending value — so a queued prompt can never fire into a chat the
- * user opened for something else, and vice versa.
+ * Each action clears the other's pending value, so a queued prompt can't fire
+ * into a chat the user opened for something else.
  */
 interface MingoLauncherStore {
   isOpen: boolean;
