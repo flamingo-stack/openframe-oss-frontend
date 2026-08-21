@@ -8,6 +8,7 @@
 
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
+import './test-module-resolve.mjs';
 
 let store = {};
 let cookies = [];
@@ -16,7 +17,9 @@ function resetBrowser() {
   store = {};
   cookies = [];
   globalThis.window = {
-    location: { search: '' },
+    // `hostname`/`protocol` matter only to the referral cookie writer; the cookie-scope rules
+    // themselves are covered in referral-cookie.test.mjs, so this mock keeps `name=value` only.
+    location: { search: '', hostname: 'auth.openframe.ai', protocol: 'https:' },
     sessionStorage: {
       getItem: k => (k in store ? store[k] : null),
       setItem: (k, v) => {
@@ -31,6 +34,11 @@ function resetBrowser() {
   globalThis.document = {
     get cookie() {
       return cookies.join('; ');
+    },
+    set cookie(raw) {
+      const [name, value] = raw.split('; ')[0].split('=');
+      cookies = cookies.filter(c => !c.startsWith(`${name}=`));
+      cookies.push(`${name}=${value}`);
     },
   };
   if (!globalThis.crypto) globalThis.crypto = {};
@@ -86,6 +94,29 @@ test('a direct landing on the signup page still captures its params', () => {
   // No prior capture; the live URL is the fallback source.
   window.location.search = '?utm_source=direct';
   assert.equal(A.collectRegistrationAttribution().utmSource, 'direct');
+});
+
+// The partner referral is the one signal that can predate this visit entirely — it rides a
+// cookie set on another subdomain, possibly weeks earlier (see referral-cookie.ts).
+test('the stored referral cookie rides the registration payload as `ref`', () => {
+  cookies.push('of_ref=partner-123');
+  assert.equal(A.collectRegistrationAttribution().ref, 'partner-123');
+});
+
+test('a partner link straight to the signup page captures and sends its referral', () => {
+  window.location.search = '?ref=partner-456';
+  A.captureAttributionFromUrl();
+
+  assert.ok(cookies.includes('of_ref=partner-456'), 'the capture pass writes the cookie');
+  assert.equal(A.collectRegistrationAttribution().ref, 'partner-456');
+});
+
+test('the referral also rides the SSO start URL', () => {
+  cookies.push('of_ref=partner-123');
+  const params = new URLSearchParams();
+  A.appendAttributionQueryParams(params, A.collectRegistrationAttribution());
+
+  assert.equal(params.get('attribution.ref'), 'partner-123');
 });
 
 test('no signals present yields only the always-minted event id', () => {

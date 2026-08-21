@@ -24,6 +24,7 @@ import type { TicketsPage } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import {
   mapDefinitionToSystem,
+  SYSTEM_KIND_META,
   type TicketStatusDefinition,
   usesCanonicalStatusStyle,
 } from '../statuses/types/ticket-statuses.types';
@@ -55,6 +56,9 @@ const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
  * AI_ASSISTANCE/RESOLVED style their header from the canonical status key
  * (icon/variant); TECH_REQUIRED and custom statuses render from the backend
  * `color`. `id` stays the statusId regardless.
+ *
+ * System lanes also carry the same status description the settings page shows
+ * (`SYSTEM_KIND_META`), surfaced as an info-icon tooltip in the column header.
  */
 function toLaneDefinition(status: TicketStatusDefinition): CachedBoardColumn {
   return {
@@ -63,6 +67,7 @@ function toLaneDefinition(status: TicketStatusDefinition): CachedBoardColumn {
     label: status.name,
     color: status.color,
     system: status.isSystem,
+    tooltip: status.kind === 'CUSTOM' ? undefined : SYSTEM_KIND_META[status.kind].tooltip,
   };
 }
 
@@ -323,9 +328,36 @@ export function TicketsBoard({
 
   const getTicketHref = useCallback((id: string) => routes.tickets.dialog(id), []);
 
+  // Tickets whose card offers no assign control: everything in an AI Handling
+  // lane (kind AI_ASSISTANCE), plus Resolved-lane tickets closed without a
+  // technician — resolvedBy AI_AGENT (the AI closed it itself) or END_USER
+  // (the client closed it in the Fae chat; the BE attributes AI-driven chat
+  // closes this way). Null keeps the control: tickets resolved before the BE
+  // tracked resolvedBy may well have been closed by a technician. Assignment
+  // stays on the dialog page. Lanes are matched by kind, not by
+  // `BoardTicket.status`: that field is the tenant-defined display name.
+  const aiOwnedTicketIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const status of statuses) {
+      if (status.kind === 'AI_ASSISTANCE') {
+        for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) ids.add(ticket.id);
+      } else if (status.kind === 'RESOLVED') {
+        for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) {
+          if (ticket.resolvedBy === 'AI_AGENT' || ticket.resolvedBy === 'END_USER') ids.add(ticket.id);
+        }
+      }
+    }
+    return ids;
+  }, [statuses, columnUpdates]);
+
   // Stable identities for everything the board hands down to each card: an
   // inline arrow here re-renders every card (and its assignee picker) on every
   // drag frame, which is exactly what `TicketCard`'s memo is there to prevent.
+  // The AI-owned set is read through a ref for the same reason — a new Set lands
+  // on every column tick; written during render (not an effect) so a card
+  // mounting into a lane sees the membership computed in the same pass.
+  const aiOwnedTicketIdsRef = useRef(aiOwnedTicketIds);
+  aiOwnedTicketIdsRef.current = aiOwnedTicketIds;
   const handleApprove = useCallback(
     (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, true),
     [handleApprovalAction],
@@ -358,21 +390,26 @@ export function TicketsBoard({
     setBoardResetNonce(nonce => nonce + 1);
   }, []);
 
-  // Memoized: this sits in every card, and a board update re-renders the lanes.
-  // AI-worked tickets get the Take Over interception instead of the dropdown.
-  const renderAssignSlot = useCallback(
-    (ticket: BoardTicket) => {
-      const dialog = dialogById.get(ticket.id);
-      const aiActive = !!dialog && hasActiveAiDialog(dialog);
-      return (
-        <BoardAssigneePicker
-          ticket={ticket}
-          onTakeOver={aiActive ? () => setTakeOverTarget({ ticket: dialog }) : undefined}
-        />
-      );
-    },
-    [dialogById],
-  );
+  // The dialog map is read through a ref like the AI-owned set above — its
+  // identity changes on every column tick, and this callback sits in every card.
+  const dialogByIdRef = useRef(dialogById);
+  dialogByIdRef.current = dialogById;
+
+  // AI-owned cards (AI Handling lane, AI/user-closed Resolved) render no
+  // assign control at all — assignment stays on the dialog page. The rest
+  // keep the picker; AI-worked tickets get the Take Over interception
+  // instead of the dropdown.
+  const renderAssignSlot = useCallback((ticket: BoardTicket) => {
+    if (aiOwnedTicketIdsRef.current.has(ticket.id)) return null;
+    const dialog = dialogByIdRef.current.get(ticket.id);
+    const aiActive = !!dialog && hasActiveAiDialog(dialog);
+    return (
+      <BoardAssigneePicker
+        ticket={ticket}
+        onTakeOver={aiActive ? () => setTakeOverTarget({ ticket: dialog }) : undefined}
+      />
+    );
+  }, []);
 
   const handleChange = useCallback(
     (change: BoardChange) => {

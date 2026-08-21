@@ -55,6 +55,7 @@ interface TicketNode {
   assigneeImage?: { imageUrl: string; hash?: string };
   tags?: Array<{ id: string; key: string; color?: string }>;
   escalatedByUser?: boolean | null;
+  resolvedBy?: string | null;
   pendingApproval?: {
     id: string;
     approvalType?: string;
@@ -171,6 +172,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     createdAt: ticket.createdAt,
     statusUpdatedAt: ticket.updatedAt || null,
     resolvedAt: ticket.resolvedAt || null,
+    resolvedBy: ticket.resolvedBy ?? null,
     aiResolutionSuggestedAt: null,
     rating: null,
 

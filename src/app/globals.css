@@ -169,22 +169,40 @@ html[data-shell="mobile"] .of-standalone-shell {
   padding-right: max(var(--native-safe-right, env(safe-area-inset-right)), var(--spacing-system-xlf));
 }
 
-/* The software keyboard is the app's bottom inset while it is up, and nothing
-   else applies it: the WebView keeps its frame (iOS runs the Keyboard plugin at
-   `resize: 'none'`; Android's window is edge-to-edge, where the IME is only a
-   WindowInsets type), so `h-screen` keeps reporting the full height and every
+/* The app's bottom inset, and the root owns it for the same reason it owns the
+   top one. Two things can claim that edge and only the taller applies:
+
+   The system band — the Android navigation bar / iOS home indicator. The shell
+   is edge-to-edge (`viewport-fit=cover`, and `targetSdk 36` forces it on
+   Android 15+), so `h-screen` spans the WHOLE screen and the app's last ~24-48dp
+   sits behind system chrome that swallows taps. Everything in-layout inherits
+   the fix here — `<main>`, the notification drawer and the Mingo drawer are
+   `absolute` inside this root, which is why their bottom row (Notifications
+   History) was landing under the three-button bar.
+
+   The software keyboard, which covers that band while it is up. On iOS nothing
+   else applies it: WKWebView keeps its frame (the shell runs the Keyboard plugin
+   at `resize: 'none'`), so `h-screen` keeps reporting the full height and every
    bottom-anchored composer — the Mingo drawer's and the ticket client-chat's —
-   opens UNDER the keyboard with no way to scroll to it. Absorbing it on the
-   layout root is what `adjustResize` would do: `h-screen` is border-box, so
-   this shrinks the content box and every `flex-1` descendant with it, including
-   the AppLayoutDrawer's portal container. `--of-keyboard-inset` is published by
-   keyboard-inset.ts (0 while closed) and already includes the home-indicator
-   band, which the keyboard covers. Deliberately no transition: this reflows the
-   whole app, and the composer landing a beat before the keyboard finishes its
-   slide is what every native list does. Viewport-`fixed` overlays escape this
-   root and compensate themselves — see modal-v2/dialog in the core lib. */
+   opens UNDER the keyboard with no way to scroll to it. The keyboard arm is
+   inert on Android, where the shell resizes the WebView itself and the variable
+   stays 0 so the keyboard is not counted twice (keyboard-inset.ts) — and there
+   the system arm goes to 0 too for as long as the keyboard is up, because the
+   resized WebView no longer contains the navigation band.
+
+   Absorbing either on the layout root is what `adjustResize` would do:
+   `h-screen` is border-box, so this shrinks the content box and every `flex-1`
+   descendant with it, including the AppLayoutDrawer's portal container. The
+   root's own background paints the reserved strip, so the band behind the
+   system chrome stays app-coloured rather than opening a gap. Deliberately no
+   transition: this reflows the whole app, and the composer landing a beat
+   before the keyboard finishes its slide is what every native list does.
+
+   Viewport-`fixed` descendants escape this root and compensate themselves —
+   `MobileBottomActions` and the ModalV2 sheet below, the core overlay
+   primitives (modal-v2/dialog) above. */
 html[data-shell="mobile"] .app-shell-root {
-  padding-bottom: var(--of-keyboard-inset, 0px);
+  padding-bottom: max(var(--native-safe-bottom, env(safe-area-inset-bottom)), var(--of-keyboard-inset, 0px));
 }
 
 /* Markdown editor (KB article + ticket create/edit forms). Absorbing the keyboard
@@ -248,4 +266,35 @@ html[data-shell="mobile"] .fixed.bottom-0.left-0.right-0.z-50 {
   padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom));
   padding-left: var(--native-safe-left, env(safe-area-inset-left));
   padding-right: var(--native-safe-right, env(safe-area-inset-right));
+}
+
+/* ModalV2's bottom sheet — the same overlap as the bar above, on the surface it
+   matters most. Below md the core panel is `items-end` + `mb-4`, so it ends
+   16px above the WebView's bottom edge, and that edge is the SCREEN's: the
+   shell is edge-to-edge (`targetSdk 36` forces it on Android 15+, and
+   Capacitor's SystemBars keeps the WebView spanning the full window), so the
+   last band of it is behind the navigation bar / home indicator. 16px clears
+   neither, which puts a bottom-anchored ModalV2Footer — the modal's primary
+   action — under system chrome that swallows the tap. Three-button navigation
+   is the worst case at ~48dp.
+
+   The lift goes on the PANEL, not the wrapper: the wrapper carries the keyboard
+   inset as an inline `padding-bottom`, which no stylesheet can outrank. The
+   height cap comes along because the lift eats into the panel's own room — the
+   core's `min(90dvh,100%-2rem)` budgets 1rem for the `mb-4` it is replacing —
+   and rebuilding it against BOTH bands keeps a tall sheet clear of the status
+   bar as well. `100%` is the wrapper's content box, so a keyboard-padded
+   wrapper is already accounted for on iOS, and on Android the WebView itself
+   has shrunk (see keyboard-inset.ts).
+
+   Anchored on the core's `z-[1300]` wrapper class — the tier documented at the
+   top of this file — because ModalV2 exposes no hook of its own; if that tier
+   moves, this stops applying and the footer goes back under the band. From md
+   up the panel is centered (`md:items-center md:mb-0`) and nowhere near it. */
+@media (max-width: 799.98px) {
+  html[data-shell="mobile"] .fixed.inset-0.z-\[1300\] > [role="dialog"] {
+    --of-modal-lift: max(var(--native-safe-bottom, env(safe-area-inset-bottom)), 1rem);
+    margin-bottom: var(--of-modal-lift);
+    max-height: min(90dvh, 100% - var(--native-safe-top, env(safe-area-inset-top)) - var(--of-modal-lift));
+  }
 }

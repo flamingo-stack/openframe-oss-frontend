@@ -9,7 +9,7 @@ import { OfflineError } from '../query-state';
 import { runtimeEnv } from '../runtime-config';
 import { waitForSessionReady } from '../session-ready';
 import { detectTrialExpiredFromGraphqlErrors } from '../subscription-lock-signal';
-import { refreshAccessToken } from '../token-refresh-manager';
+import { refreshTokens } from '../token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '../token-store';
 
 function getAuthHeaders(): Record<string, string> {
@@ -352,20 +352,18 @@ const fetchRelay: FetchFunction = async (request, variables) => {
       throw new Error('Unauthorized');
     }
 
-    // `refreshAccessToken` both deduplicates against an in-flight refresh and
+    // `refreshTokens` both deduplicates against an in-flight refresh and
     // short-circuits when `sentAtEpoch` is already stale, so the two arms of
     // the old `isTokenRefreshing()` branch collapse into one call.
-    const refreshed = await refreshAccessToken(sentAtEpoch);
-    if (!refreshed) {
-      // A link that dropped between the 401 and the refresh POST is NOT a
-      // rejected credential: `executeRefresh` catches the transport error and
-      // returns false the same way it does for a 401 from the refresh endpoint
-      // (`token-refresh-manager.ts`). Logging out on that destroys a valid
-      // session over a transient outage — the one failure this whole change
-      // treats as recoverable everywhere else. The tokens are still good; the
-      // boundary shows the offline copy and re-issues when the link returns.
-      if (!isOnline()) {
-        throw new OfflineError(request.name);
+    const outcome = await refreshTokens(sentAtEpoch);
+    if (outcome !== 'refreshed') {
+      // Only a 401 from the refresh endpoint is a rejected credential; a
+      // dropped link, a timeout or an auth-server 5xx is `transient`
+      // (`token-refresh-manager.ts`). The tokens are still good — the boundary
+      // shows the offline copy and re-issues when the link returns.
+      if (outcome === 'transient') {
+        if (!isOnline()) throw new OfflineError(request.name);
+        throw new Error(`Relay fetch failed: authentication temporarily unavailable (${request.name})`);
       }
       await forceLogout({ reason: 'Relay - token refresh failed' });
       throw new Error('Authentication failed');

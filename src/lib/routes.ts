@@ -134,6 +134,18 @@ export const routes = {
    */
   accountDeleted: '/account-deleted',
 
+  /**
+   * Public account-deletion instructions. Google Play requires a deletion
+   * request URL reachable from a browser WITHOUT installing the app, and it
+   * has to resolve for a visitor who cannot sign in (left the MSP, disabled by
+   * an admin, lost the password) — so this sits outside `(app)` and `(auth)`
+   * and assumes no session. The canonical URL is on the SHARED host
+   * (`NEXT_PUBLIC_SHARED_HOST_URL`), the only host identical for every tenant:
+   * per-tenant gateway hosts are learned at login and can't go in a store
+   * listing.
+   */
+  accountDeletion: '/account-deletion',
+
   auth: {
     root: '/auth',
     login: '/auth/login',
