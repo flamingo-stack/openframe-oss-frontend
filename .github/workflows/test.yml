@@ -23,8 +23,8 @@ env:
 # =============================================================================
 
 jobs:
-  scan_code:
-    name: "Scan Code"
+  scan:
+    name: "Scan"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -80,7 +80,7 @@ jobs:
             type=raw,value=pr-${{ github.event.pull_request.number }}
             type=raw,value=pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
 
-      - name: Build and Push pr-${{ github.event.pull_request.number }}
+      - name: Build image
         id: docker_build
         uses: nick-fields/retry@v4
         env:
@@ -91,7 +91,7 @@ jobs:
           timeout_minutes: 12
           shell: bash
           command: |
-            args=(--platform linux/amd64,linux/arm64 --push --provenance=false
+            args=(--platform linux/amd64,linux/arm64
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
                   -f ./Dockerfile)
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
@@ -106,28 +106,37 @@ jobs:
           dockerfile: ./Dockerfile
           context: .
 
+      - name: Push image
+        id: docker_push
+        uses: nick-fields/retry@v4
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 5
+          timeout_minutes: 12
+          shell: bash
+          command: |
+            args=(--platform linux/amd64,linux/arm64 --push --provenance=false
+                  --build-arg GITHUB_ACTOR=${{ github.actor }}
+                  -f "./Dockerfile")
+            while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
+            docker buildx build "${args[@]}" "."
+
 
 
   report:
     name: "Report"
     runs-on: ubuntu-latest
-    needs: [scan_code, build_image]
+    needs: [build_image]
     if: always() && github.event_name == 'pull_request'
     steps:
-      - name: Merge code scan report
-        continue-on-error: true
-        uses: actions/upload-artifact/merge@v4
-        with:
-          name: scan_code
-          pattern: trivy-*-code-report*
-          delete-merged: true
-
       - name: Merge image scan reports
         continue-on-error: true
         uses: actions/upload-artifact/merge@v4
         with:
           name: scan_image
-          pattern: trivy-*-image-report*
+          pattern: scan_image-*
           delete-merged: true
 
   cleanup:
