@@ -292,6 +292,15 @@ const boardCardTicketFragment = () => `
       name
       color
     }
+    availableTransitions {
+      id
+      name
+      color
+    }
+    dialog {
+      id
+      currentMode
+    }
     owner {
       ... on ClientTicketOwner {
         type
@@ -614,6 +623,24 @@ export const ASSIGN_TICKET_MUTATION = `
   mutation AssignTicket($input: AssignTicketInput!) {
     assignTicket(input: $input) {
       ticket { id assignedTo assignedName }
+      userErrors { field message }
+    }
+  }
+`;
+
+// Atomic take-over: transition + assign + switch (or create) the client
+// dialog in DIRECT mode in one backend transaction. An invalid transition
+// comes back as a userError, like transitionTicket.
+export const TAKE_OVER_TICKET_MUTATION = `
+  mutation TakeOverTicket($input: TakeOverTicketInput!) {
+    takeOverTicket(input: $input) {
+      ticket {
+        id
+        status
+        statusDefinition { id name color kind }
+        assignedTo
+        assignedName
+      }
       userErrors { field message }
     }
   }
