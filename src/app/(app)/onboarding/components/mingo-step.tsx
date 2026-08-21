@@ -14,7 +14,6 @@ import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts
 import Link from 'next/link';
 import { useCallback, useMemo } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
-import { useMingoMessagesStore } from '@/app/(app)/mingo/stores/mingo-messages-store';
 
 const GUARDRAILS_HREF = '/settings/ai-settings?tab=guardrails';
 
@@ -37,8 +36,8 @@ const DEMO_VIDEO_ID = 'i4H_XqrI3RA';
  *
  * The public agent SLUG is `mingo` (its chat-admin `source`/config is `agent-mingo`).
  *
- * "Start New Chat" opens the in-layout Mingo drawer on a fresh chat; the Guardrails
- * link goes to AI Settings.
+ * "Start New Chat" opens the in-layout Mingo drawer ON the new-chat composer (not
+ * its chat list — see the handler); the Guardrails link goes to AI Settings.
  */
 const MINGO_AGENT_SLUG = 'mingo';
 
@@ -60,10 +59,12 @@ export function MingoStep({
   const { config } = useEmptyStateConfig(agentConfigUrl, { enabled: Boolean(agentConfigUrl) });
 
   const startNewChat = useCallback(() => {
-    // Clear the active dialog so the drawer opens on a fresh Mingo chat, where the
-    // same quick actions are wired to actually send.
-    useMingoMessagesStore.getState().setActiveDialogId(null);
-    useMingoLauncherStore.getState().setOpen(true);
+    // NOT just "open the drawer": with no conversation open the narrow panel
+    // shows its "Current Chats" list, so a plain open landed the visitor on a
+    // chat picker (usually empty) instead of the chat this button promises.
+    // `startNewChat` clears the active dialog AND puts the panel on the
+    // composer, where the same quick actions are wired to actually send.
+    useMingoLauncherStore.getState().startNewChat();
   }, []);
 
   // Build the chip list exactly like the chat empty state (`GuideWelcome`): a
