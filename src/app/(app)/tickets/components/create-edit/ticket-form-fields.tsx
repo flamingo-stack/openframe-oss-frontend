@@ -4,10 +4,11 @@ import { Autocomplete, FileUpload, Input, Label } from '@flamingo-stack/openfram
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { AssignmentsField } from '@/components/assignments';
 import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
 import type { useTempAttachments } from '../../hooks/use-temp-attachments';
-import { useDeviceOptions, useOrganizationOptions, useSelfFirstAssigneeOptions } from '../../hooks/use-ticket-options';
+import { useAssigneeOptions, useDeviceOptions, useOrganizationOptions } from '../../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../../statuses/hooks/use-ticket-statuses-query';
 import type { CreateTicketFormData } from '../../types/create-ticket.types';
 import type { Ticket } from '../../types/ticket.types';
@@ -48,8 +49,16 @@ export function TicketFormFields({
   const lockOrgAndDevice = isEditMode && !!selectedDeviceId;
   const organizationOptions = useOrganizationOptions(debouncedOrgSearch);
   const deviceOptions = useDeviceOptions(selectedOrgId ?? undefined, debouncedDeviceSearch);
-  const assigneeOptions = useSelfFirstAssigneeOptions();
-  const assigneeOptionsList = assigneeOptions.options;
+  const assigneeOptions = useAssigneeOptions();
+
+  // Surface the signed-in user at the top of the assignee list (self-assign shortcut).
+  const authUserId = useAuthStore(s => s.user?.id);
+  const assigneeOptionsList = useMemo(() => {
+    const options = assigneeOptions.options;
+    const idx = authUserId ? options.findIndex(o => o.value === authUserId) : -1;
+    if (idx <= 0) return options;
+    return [options[idx], ...options.slice(0, idx), ...options.slice(idx + 1)];
+  }, [assigneeOptions.options, authUserId]);
 
   // The ticket's device may not be in the fetched page (large fleet / search), which would
   // leave the Autocomplete rendering the raw id. Seed it from the ticket's known hostname.
