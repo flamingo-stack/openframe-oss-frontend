@@ -85,7 +85,7 @@ export function TakeOverTicketModal({ target, onClose, onSuccess }: TakeOverTick
       trackDashboardActivity(EVENT_SUBTYPE.RESOLVE_TICKET);
     }
     takeOver.mutate(
-      { ticketId: ticket.id, dialogId: ticket.dialogId, toStatusId: statusId, assigneeId },
+      { ticketId: ticket.id, toStatusId: statusId, assigneeId },
       {
         onSuccess: () => {
           onClose();

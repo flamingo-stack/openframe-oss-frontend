@@ -628,6 +628,24 @@ export const ASSIGN_TICKET_MUTATION = `
   }
 `;
 
+// Atomic take-over: transition + assign + switch (or create) the client
+// dialog in DIRECT mode in one backend transaction. An invalid transition
+// comes back as a userError, like transitionTicket.
+export const TAKE_OVER_TICKET_MUTATION = `
+  mutation TakeOverTicket($input: TakeOverTicketInput!) {
+    takeOverTicket(input: $input) {
+      ticket {
+        id
+        status
+        statusDefinition { id name color kind }
+        assignedTo
+        assignedName
+      }
+      userErrors { field message }
+    }
+  }
+`;
+
 export const UNASSIGN_TICKET_MUTATION = `
   mutation UnassignTicket($input: TicketIdInput!) {
     unassignTicket(input: $input) {
