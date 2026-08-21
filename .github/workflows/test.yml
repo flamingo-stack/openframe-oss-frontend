@@ -125,20 +125,6 @@ jobs:
 
 
 
-  report:
-    name: "Report"
-    runs-on: ubuntu-latest
-    needs: [build_image]
-    if: always() && github.event_name == 'pull_request'
-    steps:
-      - name: Merge image scan reports
-        continue-on-error: true
-        uses: actions/upload-artifact/merge@v4
-        with:
-          name: scan_image
-          pattern: scan_image-*
-          delete-merged: true
-
   cleanup:
     name: Cleanup
     runs-on: ubuntu-latest
