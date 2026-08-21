@@ -10,43 +10,17 @@
 import { TenantOnboardingStep, UserOnboardingStep } from '@/generated/schema-enums';
 
 /**
- * "Meet Mingo" as a TENANT step — the design's fourth Initial Setup row, which
- * the backend enum does not carry yet (`TenantOnboardingStep` still ends at
- * `COMPANY_TEAM`; the value exists only on `UserOnboardingStep`, for the tour).
- *
- * The cast is the front end running ahead of the schema on purpose: this is the
- * wire value the backend will accept once it ships, so nothing has to change
- * here when it does. Until then {@link IS_TENANT_MEET_MINGO_PERSISTED} is false
- * and the Initial Setup card completes the step in the store instead of sending
- * a mutation the server would reject — see `initial-setup-card`.
- *
- * TODO(backend): add MEET_MINGO to TenantOnboardingStep, re-run
- * `npm run generate-enums`, and delete this constant along with the flag below
- * (`TenantOnboardingStep.MEET_MINGO` then works directly).
- */
-export const TENANT_MEET_MINGO = 'MEET_MINGO' as TenantOnboardingStep;
-
-/**
- * Whether the backend can actually STORE the step above. Derived from the
- * generated enum rather than written down, so the day the schema gains the
- * value this flips to true on its own and the local fallback retires itself.
- */
-export const IS_TENANT_MEET_MINGO_PERSISTED = Object.hasOwn(TenantOnboardingStep, 'MEET_MINGO');
-
-/**
  * Tenant "Initial Setup" steps, in display order.
  *
- * `COMPANY_TEAM` is deliberately NOT here: the design replaced it with Meet
- * Mingo as the fourth step. The enum value still exists and a tenant record may
- * still list it as completed — everything counts against THIS array, so a stray
- * entry is simply ignored, and the step's body is still on disk
- * (`components/company-team-step.tsx`) if it comes back.
+ * `COMPANY_TEAM` is gone — the design replaced it with Meet Mingo and the
+ * backend enum has dropped it. Its step body is still on disk
+ * (`components/company-team-step.tsx`) if it ever comes back.
  */
 export const TENANT_ONBOARDING_STEPS: readonly TenantOnboardingStep[] = [
   TenantOnboardingStep.MSP_SETUP,
   TenantOnboardingStep.CUSTOMERS_SETUP,
   TenantOnboardingStep.DEVICE_MANAGEMENT,
-  TENANT_MEET_MINGO,
+  TenantOnboardingStep.MEET_MINGO,
 ];
 
 /**

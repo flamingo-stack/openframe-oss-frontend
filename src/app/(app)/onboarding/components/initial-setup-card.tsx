@@ -11,13 +11,7 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useOnboardingAutoAdvance } from '../hooks/use-onboarding-auto-advance';
 import { useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
 import { MEET_MINGO_META } from '../meet-mingo-meta';
-import {
-  countCompleted,
-  IS_TENANT_MEET_MINGO_PERSISTED,
-  isStepDone,
-  TENANT_MEET_MINGO,
-  TENANT_ONBOARDING_STEPS,
-} from '../onboarding-steps';
+import { countCompleted, isStepDone, TENANT_ONBOARDING_STEPS } from '../onboarding-steps';
 import { BookCallSection } from './book-call/book-call-section';
 import { CustomerSetupStep } from './customer-setup-step';
 import { DeviceSetupStep } from './device-setup-step';
@@ -72,7 +66,7 @@ const STEP_META: readonly StepMeta[] = [
   },
   {
     // Same row as the Get Started tour's first step, from one definition.
-    step: TENANT_MEET_MINGO,
+    step: TenantOnboardingStep.MEET_MINGO,
     ...MEET_MINGO_META,
   },
 ];
@@ -128,7 +122,6 @@ export function InitialSetupCard() {
 function InitialSetupCardContent() {
   const router = useRouter();
   const tenant = useOnboardingStore(state => state.tenant);
-  const setTenant = useOnboardingStore(state => state.setTenant);
   const { completeTenantStep, completeTenantStepInBackground, completeTenantInBackground } = useOnboardingMutations();
 
   // Auto-close steps whose underlying data already exists (MSP profile filled,
@@ -142,46 +135,9 @@ function InitialSetupCardContent() {
   // loading spinner. Cleared when the mutation settles (success or error).
   const [completingStep, setCompletingStep] = useState<TenantOnboardingStep | null>(null);
 
-  /**
-   * A step the backend cannot store yet — today only Meet Mingo, whose enum
-   * value ships later (see TENANT_MEET_MINGO). Sending it would be rejected and
-   * the visitor would get an error toast for doing exactly what we asked.
-   */
-  const isPendingBackend = (step: TenantOnboardingStep) =>
-    step === TENANT_MEET_MINGO && !IS_TENANT_MEET_MINGO_PERSISTED;
-
-  /**
-   * Record such a completion in the STORE instead of on the server.
-   *
-   * Not cosmetic: without it the card can never reach 4/4, so nobody could
-   * finish Initial Setup at all until the backend lands. The whole-onboarding
-   * write that follows (`completeTenantInBackground`, no step argument) IS
-   * accepted today, so finishing still persists — only this one step's
-   * bookkeeping is in-memory, and a reload before finishing reopens it. The
-   * `IS_TENANT_MEET_MINGO_PERSISTED` flag retires this branch on its own the day
-   * the schema carries the value.
-   */
-  const recordPendingStep = (step: TenantOnboardingStep) => {
-    if (!tenant || tenant.completedSteps.includes(step)) return;
-    setTenant({ ...tenant, completedSteps: [...tenant.completedSteps, step] });
-  };
-
   const completeStep = (step: TenantOnboardingStep) => {
-    if (isPendingBackend(step)) {
-      recordPendingStep(step);
-      return;
-    }
     setCompletingStep(step);
     completeTenantStep(step, () => setCompletingStep(null));
-  };
-
-  /** Fire-and-forget variant, for the "open this thing" buttons. */
-  const completeStepInBackground = (step: TenantOnboardingStep) => {
-    if (isPendingBackend(step)) {
-      recordPendingStep(step);
-      return;
-    }
-    completeTenantStepInBackground(step);
   };
 
   // Display state = backend-persisted steps ∪ steps already satisfied by live data,
@@ -240,16 +196,16 @@ function InitialSetupCardContent() {
             completed={completed}
             completing={completing}
             onComplete={onComplete}
-            onCompleteBackground={() => completeStepInBackground(TenantOnboardingStep.DEVICE_MANAGEMENT)}
+            onCompleteBackground={() => completeTenantStepInBackground(TenantOnboardingStep.DEVICE_MANAGEMENT)}
           />
         );
-      case TENANT_MEET_MINGO:
+      case TenantOnboardingStep.MEET_MINGO:
         return (
           <MingoStep
             completed={completed}
             completing={completing}
             onComplete={onComplete}
-            onCompleteBackground={() => completeStepInBackground(TENANT_MEET_MINGO)}
+            onCompleteBackground={() => completeTenantStepInBackground(TenantOnboardingStep.MEET_MINGO)}
           />
         );
       default:
