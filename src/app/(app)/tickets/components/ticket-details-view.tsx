@@ -95,11 +95,13 @@ import { useTransitionTicket } from '../hooks/use-transition-ticket';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import { useTicketDetailsStore } from '../stores/ticket-details-store';
 import type { ClientDialogOwner, Dialog, DialogOwner } from '../types/dialog.types';
+import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
+import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
 import { TicketAttachmentsSection } from './ticket-attachments-section';
 import { TicketDetailsSkeleton } from './ticket-details-skeleton';
 import { TicketDialogSubscription } from './ticket-dialog-subscription';
@@ -277,6 +279,31 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       currentMode: dialog?.currentMode,
       onDialogCreated: refetchDialog,
     });
+
+  // Take Over flow: leaving the AI-assisted state (status change, assignment,
+  // starting a direct chat) requires explicit confirmation via this modal.
+  const [takeOverTarget, setTakeOverTarget] = useState<TakeOverTicketTarget | null>(null);
+  const openTakeOver = useCallback(
+    (prefill?: Omit<TakeOverTicketTarget, 'ticket'>) => {
+      if (!dialog) return;
+      setTakeOverTarget({ ticket: dialog, ...prefill });
+    },
+    [dialog],
+  );
+
+  const handleAssign = useCallback(
+    (userId: string | null) => {
+      if (!dialog) return;
+      // Assigning a technician to an AI-worked ticket is a take-over; plain
+      // unassign (and any change once the AI is stopped) stays one click.
+      if (userId && hasActiveAiDialog(dialog)) {
+        openTakeOver({ initialAssigneeId: userId });
+        return;
+      }
+      assignTicketMutation.mutate({ ticketId: dialog.id, assigneeId: userId });
+    },
+    [dialog, assignTicketMutation, openTakeOver],
+  );
 
   // Transform backend notes to core UI TicketNote format
   const uiNotes = useMemo(() => {
@@ -496,6 +523,16 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     if (nextStatus) applyStatus(nextStatus);
   }, [dialog, isUpdating, activate, ticketId, applyStatus]);
 
+  // Starting a direct chat on an AI-worked ticket is a take-over (confirm
+  // status + assignee first); without an active AI dialog it starts directly.
+  const handleStartDirectChat = useCallback(() => {
+    if (hasActiveAiDialog(dialog)) {
+      openTakeOver();
+      return;
+    }
+    startDirectChat();
+  }, [dialog, openTakeOver, startDirectChat]);
+
   const handleTransition = useCallback(
     (toStatusId: string) => {
       if (!dialog || transitionTicket.isPending) return;
@@ -516,6 +553,12 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
           return;
         }
       }
+      // Leaving the AI-assisted state is a TAKE OVER: confirm status +
+      // technician + stopping the AI instead of firing the transition.
+      if (hasActiveAiDialog(dialog)) {
+        openTakeOver({ initialStatusId: toStatusId });
+        return;
+      }
       // Resolve is the inline status changer moving the ticket into a
       // RESOLVED-kind status — there is no dedicated "resolve" button. Track
       // optimistically on click (like the other activity events): losing one
@@ -526,7 +569,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       }
       transitionTicket.mutate({ ticketId, toStatusId });
     },
-    [dialog, ticketId, transitionTicket, statusesData],
+    [dialog, ticketId, transitionTicket, statusesData, openTakeOver],
   );
 
   const handleApprovalAction = useCallback(
@@ -809,7 +852,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
         options: assigneeOptions.options.map(o => ({ ...o, imageUrl: getFullImageUrl(o.imageUrl) })),
         isLoading: assigneeOptions.isLoading,
         isPending: assignTicketMutation.isPending,
-        onAssign: userId => assignTicketMutation.mutate({ ticketId: dialog.id, assigneeId: userId }),
+        onAssign: handleAssign,
       },
     },
     {
@@ -921,7 +964,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
           </p>
           <Button
             variant="outline"
-            onClick={startDirectChat}
+            onClick={handleStartDirectChat}
             disabled={isStartingDirectChat}
             leftIcon={<ChatsIcon size={24} className="text-ods-text-secondary" />}
             className="shrink-0"
@@ -1129,7 +1172,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
               })),
               isLoading: assigneeOptions.isLoading,
               isPending: assignTicketMutation.isPending,
-              onAssign: userId => assignTicketMutation.mutate({ ticketId: dialog.id, assigneeId: userId }),
+              onAssign: handleAssign,
             }}
             createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
             description={dialog.description || dialog.title || ''}
@@ -1218,7 +1261,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                     })),
                     isLoading: assigneeOptions.isLoading,
                     isPending: assignTicketMutation.isPending,
-                    onAssign: userId => assignTicketMutation.mutate({ ticketId: dialog.id, assigneeId: userId }),
+                    onAssign: handleAssign,
                   }}
                   createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
                   description={dialog.description || dialog.title || ''}
@@ -1277,7 +1320,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
                   {!isClosed && !isDirectMode && (
                     <button
                       type="button"
-                      onClick={startDirectChat}
+                      onClick={handleStartDirectChat}
                       disabled={isStartingDirectChat}
                       className="w-full flex items-center justify-center gap-[var(--spacing-system-xsf)] rounded-lg bg-ods-card border border-ods-border px-[var(--spacing-system-sf)] py-[var(--spacing-system-sf)] transition-colors hover:bg-ods-bg-hover disabled:opacity-50 disabled:cursor-not-allowed mt-[var(--spacing-system-xsf)] text-ods-text-primary"
                     >
@@ -1393,6 +1436,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
         isPending={deleteNoteMutation.isPending}
         onConfirm={handleConfirmDeleteNote}
       />
+      <TakeOverTicketModal target={takeOverTarget} onClose={() => setTakeOverTarget(null)} />
     </>
   );
 }
