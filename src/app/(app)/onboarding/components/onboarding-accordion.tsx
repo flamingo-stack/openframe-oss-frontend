@@ -23,7 +23,9 @@ function InlineTextSkeleton({ className }: { className?: string }) {
  * Visual status of an onboarding step.
  * - `active`    — interactive step, can be expanded/collapsed (uses its own icon)
  * - `completed` — finished step, shows a green check + "Complete" tag, still expandable
- * - `disabled`  — locked step, muted styling, not interactive, shows a requirement hint
+ * - `disabled`  — locked step: not interactive, no chevron, shows a requirement
+ *                 hint instead. Colours are the SAME as an active row — see the
+ *                 title block below for why the row is not dimmed.
  */
 export type OnboardingStepStatus = 'active' | 'completed' | 'disabled';
 
@@ -116,7 +118,10 @@ export function OnboardingAccordionItem({
           className={cn(
             'flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-ods-border md:h-12 md:w-12',
             '[&_svg]:size-4 md:[&_svg]:size-6',
-            isDisabled ? 'bg-ods-card' : 'bg-ods-bg',
+            // One fill in every state, locked included — the design draws the
+            // four rows in identical colours and lets the trailing control say
+            // which is which.
+            'bg-ods-bg',
             // The leading step icon stays grey in every state (active/closed/open/disabled);
             // only the completed state swaps it for the green success check.
             isCompleted ? 'text-ods-success' : 'text-ods-text-secondary',
@@ -127,11 +132,17 @@ export function OnboardingAccordionItem({
 
         {/* Title + description — skeleton bars while loading (kept inside the real
             `<p>` line boxes so the row height is identical to the loaded one). */}
+        {/* Full-strength type in every state. A locked step used to dim both
+            lines to the border grey, which read as "this step is broken"
+            rather than "not yet" — and it made the one row the visitor most
+            needs to READ (it explains what to do first) the hardest one to.
+            What marks it locked is the trailing hint and the missing chevron,
+            which is exactly how the design draws it. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <p className={cn('text-h3', isDisabled ? 'text-ods-border' : 'text-ods-text-primary')}>
+          <p className="text-h3 text-ods-text-primary">
             {loading ? <InlineTextSkeleton className="h-4 w-40 md:h-5" /> : title}
           </p>
-          <p className={cn('text-h6', isDisabled ? 'text-ods-border' : 'text-ods-text-secondary')}>
+          <p className="text-h6 text-ods-text-secondary">
             {loading ? <InlineTextSkeleton className="h-3 w-64 max-w-full" /> : description}
           </p>
         </div>

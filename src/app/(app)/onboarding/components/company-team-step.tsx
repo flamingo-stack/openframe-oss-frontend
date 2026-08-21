@@ -34,6 +34,13 @@ const newRow = (): InviteRow => ({ email: '', role: 'ADMIN' });
  * blocks from settings ({@link ../../settings/components/add-users-modal}) — the same
  * row model and the `useInvitations().inviteUsers` mutation.
  */
+/**
+ * NOTE: currently UNREFERENCED. The design replaced "Company & Team" with "Meet
+ * Mingo" as the fourth Initial Setup step (see `onboarding-steps`), and the
+ * backend enum has dropped the value — so this body is kept intact rather than
+ * deleted, ready to be wired back if the step returns. Inviting teammates is
+ * otherwise reachable from Settings → Company & Users.
+ */
 export function CompanyTeamStep({
   onComplete,
   completed,
