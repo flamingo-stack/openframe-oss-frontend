@@ -18,7 +18,7 @@
  * same frame as the copy.
  *
  * It also keeps the inline CLAIM on the walkthrough video held for the whole
- * booking flow (see {@link InlineWalkthroughVideo}). Unmounting released it,
+ * booking flow (see {@link BookCallWalkthroughVideo}). Unmounting released it,
  * and the app-shell floating card took the clip back — so starting to book a
  * call popped a video into the corner, mid-form.
  *

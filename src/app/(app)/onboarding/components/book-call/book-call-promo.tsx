@@ -35,7 +35,7 @@ import { CalendarBookmarkIcon } from '@flamingo-stack/openframe-frontend-core/co
 import { MEETING_SCHEDULER_H } from '@flamingo-stack/openframe-frontend-core/components/meeting-scheduler';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { InlineWalkthroughVideo } from './inline-walkthrough-video';
+import { BookCallWalkthroughVideo } from './book-call-walkthrough-video';
 
 export interface BookCallPromoProps {
   onBookCall: () => void;
@@ -91,7 +91,7 @@ export function BookCallPromo({ onBookCall, disabled, className }: BookCallPromo
           On desktop it goes back to a stated column so the copy keeps its
           measure. Renders nothing when the platform has no walkthrough video —
           the copy then simply spans the card. */}
-      <InlineWalkthroughVideo className="w-full md:w-auto md:max-w-full md:min-h-0 md:flex-1 md:self-start lg:w-[460px] lg:flex-none lg:self-auto" />
+      <BookCallWalkthroughVideo className="w-full md:w-auto md:max-w-full md:min-h-0 md:flex-1 md:self-start lg:w-[460px] lg:flex-none lg:self-auto" />
     </section>
   );
 }
