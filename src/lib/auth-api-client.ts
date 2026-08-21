@@ -54,6 +54,16 @@ function buildAuthUrl(path: string): string {
   return `${base}${cleanPath}`;
 }
 
+export interface SsoRegisterPayload {
+  tenantName: string;
+  tenantDomain: string;
+  email: string;
+  provider: 'google' | 'microsoft' | 'apple';
+  redirectTo?: string;
+  /** Defaults to whatever is capturable right now; pass explicitly to reuse an existing set. */
+  attribution?: RegistrationAttribution;
+}
+
 class AuthApiClient {
   /**
    * `sentAtEpoch` is the {@link getTokenEpoch} value captured before the request
@@ -182,15 +192,21 @@ class AuthApiClient {
     });
   }
 
-  registerOrganizationSso(payload: {
-    tenantName: string;
-    tenantDomain: string;
-    email: string;
-    provider: 'google' | 'microsoft' | 'apple';
-    redirectTo?: string;
-    /** Defaults to whatever is capturable right now; pass explicitly to reuse an existing set. */
-    attribution?: RegistrationAttribution;
-  }) {
+  registerOrganizationSso(payload: SsoRegisterPayload) {
+    window.location.href = this.registerSsoUrl(payload);
+
+    return Promise.resolve({ ok: true, status: 302, data: null, error: null });
+  }
+
+  /**
+   * The SSO tenant-registration entry point, as a URL. Split out of
+   * {@link registerOrganizationSso} for the native shells, which must not
+   * navigate to it: Capacitor hands a top-level https nav to the system
+   * browser, so the tenant gets created in Safari and the app is left signed
+   * out. They run this URL inside a shell-owned browser session instead — see
+   * `nativeSsoRegister`.
+   */
+  registerSsoUrl(payload: SsoRegisterPayload): string {
     const params = new URLSearchParams({
       tenantName: payload.tenantName,
       tenantDomain: payload.tenantDomain,
@@ -211,10 +227,7 @@ class AuthApiClient {
       appendAttributionQueryParams(params, attribution);
     }
 
-    const url = buildAuthUrl(`/sas/oauth/register/sso?${params.toString()}`);
-    window.location.href = url;
-
-    return Promise.resolve({ ok: true, status: 302, data: null, error: null });
+    return buildAuthUrl(`/sas/oauth/register/sso?${params.toString()}`);
   }
 
   getRegistrationProviders<T = any>() {
