@@ -190,6 +190,18 @@ type KnownSeverity = 'INFO' | 'SUCCESS' | 'WARNING' | 'DANGER';
 
 const KNOWN_SEVERITIES: ReadonlySet<string> = new Set<KnownSeverity>(['INFO', 'SUCCESS', 'WARNING', 'DANGER']);
 
+/**
+ * Per-context-type overrides applied over the persisted severity. The backend stores
+ * TICKET_REOPENED with WARNING, but the design renders reopen entries in the same default grey
+ * as the neighbouring ticket types - severity colors every surface at once (tile label + tag
+ * icon, toast progress, table title), so a WARNING reopen reads as an alert next to its INFO
+ * neighbours. Mapping here covers all surfaces in one place and becomes a no-op if the backend
+ * aligns the persisted value.
+ */
+const SEVERITY_OVERRIDE_BY_CONTEXT_TYPE: Record<string, KnownSeverity> = {
+  TICKET_REOPENED: 'INFO',
+};
+
 // Takes a plain string: the fragment's severity is an enum union that also
 // carries Relay's `"%future added value"`, and dropping an unknown value is
 // exactly what this does.
@@ -263,8 +275,8 @@ export function readNotificationNode(ref: NotificationFieldsKey): NotificationFi
  * fields (the section table's own columns) reads the node once.
  */
 export function mapNotificationNode(node: NotificationFieldsData): Notification {
-  const severity = normalizeSeverity(node.severity);
   const { context } = node;
+  const severity = SEVERITY_OVERRIDE_BY_CONTEXT_TYPE[context.type] ?? normalizeSeverity(node.severity);
   const meta: Record<string, unknown> = {
     contextType: context.type,
     contextTypename: context.__typename,
