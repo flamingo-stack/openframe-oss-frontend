@@ -278,7 +278,8 @@ export const GET_TICKETS_QUERY = `
  * `ai-escalation` flag: a field the server's schema does not declare fails
  * validation for the entire document, and `extractGraphQlData` throws on the
  * first GraphQL error — every board column would come back empty rather than
- * merely missing a badge.
+ * merely missing a badge. `resolvedBy` rides the `ai-resolution` flag for the
+ * same reason.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
@@ -290,6 +291,15 @@ const boardCardTicketFragment = () => `
       id
       name
       color
+    }
+    availableTransitions {
+      id
+      name
+      color
+    }
+    dialog {
+      id
+      currentMode
     }
     owner {
       ... on ClientTicketOwner {
@@ -328,6 +338,7 @@ const boardCardTicketFragment = () => `
       color
     }
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
+    ${featureFlags.aiResolution.enabled() ? 'resolvedBy' : ''}
     pendingApproval {
       id
       approvalType
@@ -612,6 +623,24 @@ export const ASSIGN_TICKET_MUTATION = `
   mutation AssignTicket($input: AssignTicketInput!) {
     assignTicket(input: $input) {
       ticket { id assignedTo assignedName }
+      userErrors { field message }
+    }
+  }
+`;
+
+// Atomic take-over: transition + assign + switch (or create) the client
+// dialog in DIRECT mode in one backend transaction. An invalid transition
+// comes back as a userError, like transitionTicket.
+export const TAKE_OVER_TICKET_MUTATION = `
+  mutation TakeOverTicket($input: TakeOverTicketInput!) {
+    takeOverTicket(input: $input) {
+      ticket {
+        id
+        status
+        statusDefinition { id name color kind }
+        assignedTo
+        assignedName
+      }
       userErrors { field message }
     }
   }
