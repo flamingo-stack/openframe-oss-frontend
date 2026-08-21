@@ -13,6 +13,7 @@ import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/h
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
@@ -23,6 +24,7 @@ import type { TicketsPage } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import {
   mapDefinitionToSystem,
+  SYSTEM_KIND_META,
   type TicketStatusDefinition,
   usesCanonicalStatusStyle,
 } from '../statuses/types/ticket-statuses.types';
@@ -33,7 +35,8 @@ import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
 import { type CachedBoardColumn, usePlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
-import { TicketTagFilter } from './ticket-label-filter';
+import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
+import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
 
@@ -51,6 +54,9 @@ const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
  * AI_ASSISTANCE/RESOLVED style their header from the canonical status key
  * (icon/variant); TECH_REQUIRED and custom statuses render from the backend
  * `color`. `id` stays the statusId regardless.
+ *
+ * System lanes also carry the same status description the settings page shows
+ * (`SYSTEM_KIND_META`), surfaced as an info-icon tooltip in the column header.
  */
 function toLaneDefinition(status: TicketStatusDefinition): CachedBoardColumn {
   return {
@@ -59,6 +65,7 @@ function toLaneDefinition(status: TicketStatusDefinition): CachedBoardColumn {
     label: status.name,
     color: status.color,
     system: status.isSystem,
+    tooltip: status.kind === 'CUSTOM' ? undefined : SYSTEM_KIND_META[status.kind].tooltip,
   };
 }
 
@@ -68,8 +75,8 @@ interface TicketsBoardProps {
   onOrganizationIdsChange?: (ids: string[]) => void;
   assigneeIds?: string[];
   onAssigneeIdsChange?: (ids: string[]) => void;
-  labelIds?: string[];
-  onLabelIdsChange?: (ids: string[]) => void;
+  tagIds?: string[];
+  onTagIdsChange?: (ids: string[]) => void;
   /** Applies organization+assignee filters atomically (mobile filter modal). */
   onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[] }) => void;
   search: string;
@@ -82,11 +89,29 @@ function initialsOf(name?: string): string | undefined {
   return parts.map(p => p.charAt(0).toUpperCase()).join('') || undefined;
 }
 
-function dialogToBoardTicket(
-  dialog: Dialog,
-  hasNewMessage = false,
-  isUserDeleted?: (id?: string | null) => boolean,
-): BoardTicket {
+type IsUserDeleted = (id?: string | null) => boolean;
+
+/**
+ * Board tickets are rebuilt for every lane on every column tick — NATS updates,
+ * the 15s refetch, each optimistic move. Handing the memoized cards a fresh
+ * object each time would re-render the whole board (and every assignee picker
+ * in it), so cache per dialog: react-query's structural sharing keeps unchanged
+ * dialogs identical, and the two derived inputs are part of the cache key.
+ */
+const boardTicketCache = new WeakMap<
+  Dialog,
+  { hasNewMessage: boolean; isUserDeleted?: IsUserDeleted; ticket: BoardTicket }
+>();
+
+function toBoardTicket(dialog: Dialog, hasNewMessage: boolean, isUserDeleted?: IsUserDeleted): BoardTicket {
+  const cached = boardTicketCache.get(dialog);
+  if (cached && cached.hasNewMessage === hasNewMessage && cached.isUserDeleted === isUserDeleted) return cached.ticket;
+  const ticket = dialogToBoardTicket(dialog, hasNewMessage, isUserDeleted);
+  boardTicketCache.set(dialog, { hasNewMessage, isUserDeleted, ticket });
+  return ticket;
+}
+
+function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false, isUserDeleted?: IsUserDeleted): BoardTicket {
   return {
     id: dialog.id,
     title: dialog.title,
@@ -105,7 +130,7 @@ function dialogToBoardTicket(
           },
         ]
       : undefined,
-    tags: dialog.labels?.map(l => l.key),
+    tags: dialog.tags?.map(t => t.key),
     createdAt: dialog.createdAt,
     hasNewMessage,
     pendingApproval: dialog.pendingApproval,
@@ -119,8 +144,8 @@ export function TicketsBoard({
   onOrganizationIdsChange,
   assigneeIds,
   onAssigneeIdsChange,
-  labelIds,
-  onLabelIdsChange,
+  tagIds,
+  onTagIdsChange,
   onFiltersChange,
   search,
   onSearchChange,
@@ -184,12 +209,13 @@ export function TicketsBoard({
     return ids;
   }, [notifications?.notifications]);
   const [columnUpdates, setColumnUpdates] = useState<Record<string, BoardColumnUpdate>>({});
+  const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
 
   const archiveFilter = useMemo(
-    () => ({ organizationIds, assigneeIds, labelIds }),
-    [organizationIds, assigneeIds, labelIds],
+    () => ({ organizationIds, assigneeIds, tagIds }),
+    [organizationIds, assigneeIds, tagIds],
   );
   const filteredResolvedTotal = useMemo(() => {
     const resolvedId = statuses.find(s => s.kind === 'RESOLVED')?.id;
@@ -218,8 +244,8 @@ export function TicketsBoard({
   }, []);
 
   const params = useMemo(
-    () => ({ search: debouncedSearch, organizationIds, assigneeIds, labelIds }),
-    [debouncedSearch, organizationIds, assigneeIds, labelIds],
+    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds }),
+    [debouncedSearch, organizationIds, assigneeIds, tagIds],
   );
 
   const allowedFromByStatusId = useMemo<Record<string, string[]>>(() => {
@@ -254,7 +280,7 @@ export function TicketsBoard({
       return {
         ...toLaneDefinition(status),
         tickets: (state?.tickets ?? []).map(ticket =>
-          dialogToBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
+          toBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
         ),
         total: state?.total,
         hasMore: state?.hasMore,
@@ -292,12 +318,68 @@ export function TicketsBoard({
 
   const getTicketHref = useCallback((id: string) => routes.tickets.dialog(id), []);
 
+  // Tickets whose card offers no assign control: everything in an AI Handling
+  // lane (kind AI_ASSISTANCE), plus Resolved-lane tickets closed without a
+  // technician — resolvedBy AI_AGENT (the AI closed it itself) or END_USER
+  // (the client closed it in the Fae chat; the BE attributes AI-driven chat
+  // closes this way). Null keeps the control: tickets resolved before the BE
+  // tracked resolvedBy may well have been closed by a technician. Assignment
+  // stays on the dialog page. Lanes are matched by kind, not by
+  // `BoardTicket.status`: that field is the tenant-defined display name.
+  const aiOwnedTicketIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const status of statuses) {
+      if (status.kind === 'AI_ASSISTANCE') {
+        for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) ids.add(ticket.id);
+      } else if (status.kind === 'RESOLVED') {
+        for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) {
+          if (ticket.resolvedBy === 'AI_AGENT' || ticket.resolvedBy === 'END_USER') ids.add(ticket.id);
+        }
+      }
+    }
+    return ids;
+  }, [statuses, columnUpdates]);
+
+  // Stable identities for everything the board hands down to each card: an
+  // inline arrow here re-renders every card (and its assignee picker) on every
+  // drag frame, which is exactly what `TicketCard`'s memo is there to prevent.
+  // The AI-owned set is read through a ref for the same reason — a new Set lands
+  // on every column tick; written during render (not an effect) so a card
+  // mounting into a lane sees the membership computed in the same pass.
+  const aiOwnedTicketIdsRef = useRef(aiOwnedTicketIds);
+  aiOwnedTicketIdsRef.current = aiOwnedTicketIds;
+  const renderAssignSlot = useCallback(
+    (ticket: BoardTicket) =>
+      aiOwnedTicketIdsRef.current.has(ticket.id) ? null : <BoardAssigneePicker ticket={ticket} />,
+    [],
+  );
+  const handleApprove = useCallback(
+    (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, true),
+    [handleApprovalAction],
+  );
+  const handleReject = useCallback(
+    (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, false),
+    [handleApprovalAction],
+  );
+
   const loadMore = useCallback((columnId: string) => {
     loadMoreRef.current[columnId]?.();
   }, []);
 
   const handleChange = useCallback(
     (change: BoardChange) => {
+      // Dragging OUT of the Resolved lane is a REOPEN, not a plain move: it
+      // goes through the confirmation modal (target status + assignee +
+      // reason) instead of committing the drop. The optimistic move never
+      // runs, so the card snaps back until the modal confirms. Gated on
+      // `ai-resolution` — with the flag off the drop commits directly (legacy).
+      if (change.fromColumnId !== change.toColumnId && featureFlags.aiResolution.enabled()) {
+        const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
+        if (sourceKind === 'RESOLVED') {
+          setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
+          return;
+        }
+      }
       moveTicket({
         ticketId: change.ticketId,
         sourceStatusId: change.fromColumnId,
@@ -306,7 +388,7 @@ export function TicketsBoard({
         beforeTicketId: change.beforeTicketId,
       });
     },
-    [moveTicket],
+    [moveTicket, statuses],
   );
 
   const showEmptyState =
@@ -314,7 +396,7 @@ export function TicketsBoard({
     !debouncedSearch &&
     (organizationIds?.length ?? 0) === 0 &&
     (assigneeIds?.length ?? 0) === 0 &&
-    (labelIds?.length ?? 0) === 0 &&
+    (tagIds?.length ?? 0) === 0 &&
     boardColumns.length > 0 &&
     boardColumns.every(column => column.tickets.length === 0);
 
@@ -356,8 +438,8 @@ export function TicketsBoard({
               <TicketTagFilter
                 search={search}
                 onSearchChange={onSearchChange}
-                labelIds={labelIds ?? []}
-                onLabelIdsChange={ids => onLabelIdsChange?.(ids)}
+                tagIds={tagIds ?? []}
+                onTagIdsChange={ids => onTagIdsChange?.(ids)}
                 filterButton={
                   <Button
                     variant="outline"
@@ -404,9 +486,9 @@ export function TicketsBoard({
               onLoadMore={loadMore}
               onArchiveColumn={openArchiveResolvedConfirm}
               getTicketHref={getTicketHref}
-              renderAssignSlot={ticket => <BoardAssigneePicker ticket={ticket} />}
-              onApprove={(ticketId, requestId) => handleApprovalAction(ticketId, requestId, true)}
-              onReject={(ticketId, requestId) => handleApprovalAction(ticketId, requestId, false)}
+              renderAssignSlot={renderAssignSlot}
+              onApprove={handleApprove}
+              onReject={handleReject}
               collapseStorageKey="tickets-board"
               className="h-full px-[var(--spacing-system-l)]"
             />
@@ -414,6 +496,7 @@ export function TicketsBoard({
         )}
       </PageLayout>
       {ticketsActionsDialog}
+      <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
     </>
   );
 }

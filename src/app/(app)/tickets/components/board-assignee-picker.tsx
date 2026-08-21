@@ -2,6 +2,7 @@
 
 import type { BoardTicket } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { AssigneeDropdown } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { memo } from 'react';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
@@ -11,7 +12,8 @@ interface BoardAssigneePickerProps {
   ticket: BoardTicket;
 }
 
-export function BoardAssigneePicker({ ticket }: BoardAssigneePickerProps) {
+/** Memoized: this sits in every card, and a board update re-renders the lanes. */
+export const BoardAssigneePicker = memo(function BoardAssigneePicker({ ticket }: BoardAssigneePickerProps) {
   const { options, isLoading } = useAssigneeOptions();
   const assign = useAssignTicket();
   const { isUserDeleted } = useUserStatusMap();
@@ -36,4 +38,4 @@ export function BoardAssigneePicker({ ticket }: BoardAssigneePickerProps) {
       onAssign={userId => assign.mutate({ ticketId: ticket.id, assigneeId: userId })}
     />
   );
-}
+});

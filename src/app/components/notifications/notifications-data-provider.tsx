@@ -40,14 +40,12 @@ import {
 } from 'react-relay';
 import type { RecordProxy, RecordSourceSelectorProxy } from 'relay-runtime';
 import type { markNotificationReadMutation as MarkReadMutationType } from '@/__generated__/markNotificationReadMutation.graphql';
-import type {
-  NotificationSeverity,
-  notificationsDrawerRelay_query$key as NotificationsDrawerFragmentKey,
-} from '@/__generated__/notificationsDrawerRelay_query.graphql';
+import type { notificationsDrawerRelay_query$key as NotificationsDrawerFragmentKey } from '@/__generated__/notificationsDrawerRelay_query.graphql';
 import type { notificationsDrawerRelayPaginationQuery as NotificationsDrawerPaginationQueryType } from '@/__generated__/notificationsDrawerRelayPaginationQuery.graphql';
 import type { notificationsDrawerRelayQuery as NotificationsDrawerRelayQueryType } from '@/__generated__/notificationsDrawerRelayQuery.graphql';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import type { NotificationSeverity } from '@/generated/schema-enums';
 import { markNotificationReadMutation } from '@/graphql/notifications/mark-notification-read-mutation';
 import {
   notificationsDrawerRelayFragment,
@@ -60,6 +58,7 @@ import {
   NOTIFICATIONS_CONNECTION_KEY,
   parseCreatedAt,
   parseSeverity,
+  readNotificationNode,
   stripNotificationMarkup,
   UNFILTERED_NOTIFICATION_PAIR,
 } from '@/graphql/notifications/notifications-helpers';
@@ -487,7 +486,7 @@ function NotificationsDrawerHydrator({ onPaginationChange }: NotificationsDrawer
   >(notificationsDrawerRelayFragment, queryData);
 
   const notifications = useMemo(
-    () => data.notifications.edges.map(edge => withCategoryIcon(mapNotificationNode(edge.node))),
+    () => data.notifications.edges.map(edge => withCategoryIcon(mapNotificationNode(readNotificationNode(edge.node)))),
     [data.notifications.edges],
   );
 

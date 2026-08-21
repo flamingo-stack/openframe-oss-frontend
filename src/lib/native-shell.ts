@@ -13,11 +13,15 @@
 import { isAppShell, isDesktopShell, isMobileShell } from './platform';
 
 /**
- * Custom URL scheme the mobile app registers (CFBundleURLTypes). The login
- * ASWebAuthenticationSession completes when navigation hits it; the gateway
- * 302s the devTicket straight to it for authMobile=true logins.
+ * Custom URL scheme both native shells complete their login on: the gateway
+ * 302s the devTicket straight to it for authMobile=true logins, and it is the
+ * one redirect target the gateway honours verbatim in every environment
+ * (`openframe.gateway.redirect.allowed-uris`). Mobile registers it with the OS
+ * (CFBundleURLTypes / intent-filter) because its ASWebAuthenticationSession
+ * matches on it; the desktop shell never hands it to the OS — it cancels the
+ * navigation inside its own login window — so it registers nothing.
  */
-export const MOBILE_APP_SCHEME = 'com.openframe.app';
+export const APP_SCHEME = 'com.openframe.app';
 
 /** Biometry the device supports; `'none'` when biometric auth is unavailable. */
 export type BiometryType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'none';
@@ -33,19 +37,39 @@ export type BiometryType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'none
 export interface NativeAuthPlugin {
   /**
    * Runs the OAuth login in a shell-owned browser context and resolves with
-   * the final callback URL. Mobile shells run a system browser
-   * (ASWebAuthenticationSession) that completes on `callbackScheme`; the
-   * desktop shell runs a dedicated window that intercepts the https
-   * callbackHost/callbackPath landing and ignores `callbackScheme`.
+   * the final callback URL. Both shells end the flow on `callbackScheme`:
+   * mobile runs a system browser (ASWebAuthenticationSession) that matches on
+   * it, desktop runs a dedicated window that cancels the navigation to it.
+   * Desktop additionally resolves on ANY callback carrying a `devTicket`, which
+   * is what an environment that drops the requested redirect still produces.
    */
-  start(options: {
-    url: string;
-    callbackHost: string;
-    callbackPath: string;
-    callbackScheme?: string;
-  }): Promise<{ callbackUrl: string }>;
+  start(options: { url: string; callbackScheme: string }): Promise<{ callbackUrl: string }>;
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
   exchangeTicket(options: { url: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
+  /**
+   * Native Sign in with Apple (ASAuthorizationController) — iOS-only, and
+   * absent on binaries that predate it; callers must feature-check and fall
+   * back to `start`. `nonce` is the SHA-256 hex of the raw nonce the JS side
+   * generated (Apple embeds it into the identity token's `nonce` claim).
+   * Rejects with USER_CANCELED when the user dismisses the sheet.
+   */
+  signInWithApple?(options: { nonce: string }): Promise<{
+    identityToken: string;
+    authorizationCode: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }>;
+  /**
+   * POSTs the Apple credential to the gateway's native-exchange endpoint over
+   * native HTTP (same no-CORS rationale as exchangeTicket) and returns tokens
+   * from the Access-Token / Refresh-Token response headers. Paired with
+   * `signInWithApple`; same availability caveat.
+   */
+  exchangeApple?(options: {
+    url: string;
+    body: Record<string, string>;
+  }): Promise<{ accessToken?: string; refreshToken?: string }>;
   /**
    * Reads the stored tokens. When biometric login is enabled the shell gates
    * this behind a biometric prompt, so it may reject with `BIOMETRIC_CANCELED`
@@ -107,6 +131,34 @@ export interface FirebaseMessagingPlugin {
   ): Promise<unknown>;
 }
 
+/** A picked file as the NativeFiles plugin returns it, before `mimeType` is normalized to `type`. */
+export interface NativePickedFilePayload {
+  path: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+/**
+ * Subset of the shell's local NativeFiles plugin (openframe-mobile:
+ * NativeFilesPlugin.swift / NativeFilesPlugin.java; ships with the shell, not
+ * npm). Attachment bytes move through here instead of the WebView — native-files.ts
+ * owns the reasons and is the only module that should call these.
+ */
+export interface NativeFilesPlugin {
+  /** Resolves with an empty array when the user cancels. */
+  pickFiles(options: { multiple?: boolean }): Promise<{ files: NativePickedFilePayload[] }>;
+  /** Streams a picked file to a presigned URL; rejects on a non-2xx status. */
+  uploadFile(options: { path: string; url: string; contentType?: string }): Promise<{ status: number }>;
+  /**
+   * Fetches natively, then saves (Android Downloads) or shares (iOS, and Android
+   * below API 29) the result. `savedToDownloads` distinguishes the two: a share
+   * sheet is its own confirmation, a silent save is not, and the caller has to
+   * say so itself.
+   */
+  downloadFile(options: { url: string; fileName: string }): Promise<{ savedToDownloads: boolean }>;
+}
+
 /** Subset of @capacitor/splash-screen (plugin ships with the shell, not npm). */
 export interface SplashScreenPlugin {
   hide(options?: { fadeOutDuration?: number }): Promise<void>;
@@ -136,7 +188,61 @@ export interface AppPlugin {
     eventName: 'backButton',
     listenerFunc: (event: { canGoBack?: boolean }) => void,
   ): Promise<{ remove: () => void }> | { remove: () => void };
+  /**
+   * Foreground/background transitions. The WebView's own `visibilitychange` is
+   * unreliable for this on iOS — WKWebView does not consistently flip
+   * `visibilityState` when the app is backgrounded — so anything that must run
+   * on resume listens here instead.
+   */
+  addListener(
+    eventName: 'appStateChange',
+    listenerFunc: (state: { isActive: boolean }) => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
   exitApp(): Promise<void>;
+}
+
+/**
+ * Subset of @capacitor/keyboard. `keyboardHeight` is CSS px on both platforms:
+ * iOS reports the keyboard frame in points, and the Android plugin divides the
+ * `WindowInsets.Type.ime()` inset by display density before emitting.
+ *
+ * Consumed on iOS ONLY: the shell configures `resize: 'none'` (an iOS-only
+ * knob), so there these events are the only notice the web layer gets that a
+ * keyboard exists, while on Android Capacitor's own SystemBars plugin resizes
+ * the WebView and the layout viewport reports it — see keyboard-inset.ts. Same
+ * sync-or-Promise addListener return as AppPlugin.
+ */
+export interface KeyboardPlugin {
+  addListener(
+    eventName: 'keyboardWillShow',
+    listenerFunc: (info: { keyboardHeight: number }) => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
+  /** Hide carries no payload — iOS notifies with nil, Android with an empty object. */
+  addListener(
+    eventName: 'keyboardWillHide',
+    listenerFunc: () => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
+}
+
+/**
+ * Subset of @capacitor/network, used because `navigator.onLine` in WKWebView lags
+ * the OS by up to minutes — see `lib/connectivity.ts` for the device
+ * measurements and why that matters to react-query.
+ *
+ * Same sync-or-Promise `addListener` union as `AppPlugin`/`KeyboardPlugin`, and
+ * for the same reason: this reads `window.Capacitor.Plugins.Network`, the
+ * document-start bridge shim, NOT the npm package's `registerPlugin` proxy whose
+ * types promise a Promise. The shim hands the handle back synchronously.
+ * Normalize with `Promise.resolve()` before chaining.
+ *
+ * Payload fields are optional because they arrive from that bridge untyped.
+ */
+export interface NetworkPlugin {
+  getStatus(): Promise<{ connected?: boolean; connectionType?: string }>;
+  addListener(
+    eventName: 'networkStatusChange',
+    listenerFunc: (status: { connected?: boolean; connectionType?: string }) => void,
+  ): Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
 }
 
 function capacitorPlugins(): any {
@@ -167,6 +273,11 @@ export function firebaseMessagingPlugin(): FirebaseMessagingPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.FirebaseMessaging ?? null) : null;
 }
 
+/** Mobile-only. Also null on shell binaries that predate the NativeFiles plugin — callers fall back to the web path. */
+export function nativeFilesPlugin(): NativeFilesPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.NativeFiles ?? null) : null;
+}
+
 /** Mobile-only. Also null until @capacitor/splash-screen is present in the shell — callers no-op. */
 export function splashScreenPlugin(): SplashScreenPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.SplashScreen ?? null) : null;
@@ -180,6 +291,16 @@ export function statusBarPlugin(): StatusBarPlugin | null {
 /** Mobile-only. Also null until @capacitor/app is present in the shell — callers no-op. */
 export function appPlugin(): AppPlugin | null {
   return isMobileShell() ? (capacitorPlugins()?.App ?? null) : null;
+}
+
+/** Mobile-only. Also null until @capacitor/keyboard is present in the shell — callers fall back to visualViewport. */
+export function keyboardPlugin(): KeyboardPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.Keyboard ?? null) : null;
+}
+
+/** Mobile-only. Also null on shell binaries that predate the plugin — callers fall back to `navigator.onLine`. */
+export function networkPlugin(): NetworkPlugin | null {
+  return isMobileShell() ? (capacitorPlugins()?.Network ?? null) : null;
 }
 
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';
@@ -269,6 +390,186 @@ export async function takeNativeStartupNotificationClick(): Promise<unknown> {
 }
 
 /**
+ * An update the shell is offering. `releaseNotesUrl` is stamped into the
+ * updater manifest by the desktop release workflow and is absent on manifests
+ * published before that page existed — callers hide the link rather than
+ * linking a 404.
+ */
+export interface DesktopUpdateAvailability {
+  available: boolean;
+  version?: string | null;
+  notes?: string | null;
+  releaseNotesUrl?: string | null;
+}
+
+/**
+ * Why an update failed, classified SHELL-side (updater.rs `classify`). The
+ * plugin's error strings are not an interface — they wrap upstream errors and
+ * change between releases — so the kind is what the UI switches on and
+ * `message` is only ever for the log.
+ *
+ * - `network` — could not reach the update server (retry)
+ * - `signature` — the download failed verification (retry, then reinstall)
+ * - `io` — could not write to disk (free space, retry)
+ * - `unavailable` — no artifact for this platform, or a malformed manifest
+ * - `busy` — an apply is already running; this call owns nothing
+ * - `gone` — no longer offered; the silent startup update already took it
+ * - `unknown` — anything else
+ */
+export type DesktopUpdateErrorKind = 'network' | 'signature' | 'io' | 'unavailable' | 'busy' | 'gone' | 'unknown';
+
+export interface DesktopUpdateError {
+  kind: DesktopUpdateErrorKind;
+  message: string;
+}
+
+export interface DesktopUpdateProgress {
+  /** Bytes downloaded so far — already cumulative, the shell does the summing. */
+  downloaded: number;
+  /** Absent when the download carried no `Content-Length` — render indeterminate. */
+  total?: number | null;
+}
+
+/**
+ * Shape a rejected updater command back into a typed error. Tauri serializes a
+ * command's `Err` payload as-is, so a real `UpdateError` arrives as the object
+ * below — but a rejection can ALSO come from the IPC layer itself (an older
+ * shell binary that lacks the command), which arrives as a bare string. Both
+ * have to end up as something the UI can render.
+ */
+function asDesktopUpdateError(error: unknown): DesktopUpdateError {
+  const kind = (error as DesktopUpdateError | null)?.kind;
+  if (typeof kind === 'string') return error as DesktopUpdateError;
+  return { kind: 'unknown', message: String((error as Error)?.message ?? error) };
+}
+
+/**
+ * Ask the shell whether an update is waiting. Request/response on purpose: the
+ * shell also EMITS `update:available` from its background poll, but an event
+ * fired before this document mounted its listener is simply gone — so the
+ * startup answer has to be pulled, not awaited.
+ *
+ * Null outside the desktop shell, and on a desktop binary that predates the
+ * command. Rejects with a {@link DesktopUpdateError} if the check itself failed
+ * (offline, unreachable manifest), which callers treat as "don't know" rather
+ * than "no update".
+ */
+export async function checkDesktopUpdate(): Promise<DesktopUpdateAvailability | null> {
+  if (!isDesktopShell()) return null;
+  const invoke = (window as any).__TAURI__?.core?.invoke;
+  if (typeof invoke !== 'function') return null;
+  try {
+    return await invoke('update_check');
+  } catch (error) {
+    throw asDesktopUpdateError(error);
+  }
+}
+
+/**
+ * Download and install, then restart into the new version. Resolves only if the
+ * restart somehow does not happen — on success the process is replaced, so
+ * callers should treat the pending state as terminal and let the error path be
+ * the only way back.
+ */
+export async function applyDesktopUpdate(): Promise<void> {
+  if (!isDesktopShell()) return;
+  const invoke = (window as any).__TAURI__?.core?.invoke;
+  if (typeof invoke !== 'function') return;
+  try {
+    await invoke('update_apply_now');
+  } catch (error) {
+    throw asDesktopUpdateError(error);
+  }
+}
+
+/**
+ * Subscribe to a Tauri event on the desktop shell. Resolves false when there is
+ * no transport — not a shell, or `withGlobalTauri` off — so callers can tell
+ * "nothing will ever arrive" from "nothing has arrived yet".
+ */
+async function listenDesktop(event: string, callback: (payload: any) => void): Promise<boolean> {
+  if (!isDesktopShell()) return false;
+  const tauriEvent = (window as any).__TAURI__?.event;
+  if (typeof tauriEvent?.listen !== 'function') return false;
+  await tauriEvent.listen(event, (e: any) => callback(e?.payload));
+  return true;
+}
+
+/** A release published while the app was already running (shell's 45-min poll). */
+export function onDesktopUpdateAvailable(
+  callback: (availability: DesktopUpdateAvailability) => void,
+): Promise<boolean> {
+  return listenDesktop('update:available', callback);
+}
+
+/** Download progress, throttled shell-side to one frame per 200ms. */
+export function onDesktopUpdateProgress(callback: (progress: DesktopUpdateProgress) => void): Promise<boolean> {
+  return listenDesktop('update:progress', callback);
+}
+
+/**
+ * The download finished and the installer is running. A distinct phase because
+ * it is its own wait — a whole NSIS run on Windows — and because the throttled
+ * progress stream never quite reaches the end, so without it the bar would hang
+ * a hair short of full for the length of the install.
+ */
+export function onDesktopUpdateInstalling(callback: () => void): Promise<boolean> {
+  return listenDesktop('update:installing', () => callback());
+}
+
+/**
+ * Apply failures, as classified by the shell. Also delivered as the rejection
+ * of {@link applyDesktopUpdate}; this event additionally covers an apply the
+ * webview did not start.
+ */
+export function onDesktopUpdateError(callback: (error: DesktopUpdateError) => void): Promise<boolean> {
+  return listenDesktop('update:error', callback);
+}
+
+/**
+ * The current fullscreen element across both halves of the Fullscreen API. The
+ * shell's deployment target is iOS 15.0 and WebKit only went unprefixed in 16.4,
+ * so 15.4–16.3 expose `webkitFullscreenElement` alone. (media-chrome — what the
+ * Mux player is built on — probes the same pair.)
+ */
+function fullscreenElement(): Element | null {
+  const doc = document as Document & { webkitFullscreenElement?: Element | null };
+  return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+}
+
+/**
+ * Android only: the software keyboard is up and has taken the navigation-bar
+ * band out of the WebView. Capacitor's Android core pads the WebView's parent
+ * by the `ime()` inset for as long as the keyboard shows (see
+ * keyboard-inset.ts), and that inset spans the navigation bar — the IME window
+ * is drawn behind it — so the resized WebView ends ABOVE the navigation band
+ * and no longer contains it. Publishing the band anyway reserves space the page
+ * cannot reach: the core `MobileBottomActions` bar (`.fixed.bottom-0` in
+ * globals.css) sat on top of the keyboard with a nav-bar-sized strip of dead
+ * space under its buttons.
+ *
+ * iOS is deliberately untouched. WKWebView keeps its frame there, so the
+ * home-indicator band is still inside the viewport — merely covered — and a
+ * `fixed` bottom bar is behind the keyboard entirely, where its padding is
+ * moot.
+ */
+let keyboardCoversBottomInset = false;
+
+/**
+ * Set by the keyboard listener in keyboard-inset.ts. It routes through this
+ * module rather than writing `--native-safe-bottom` itself because
+ * `initNativeChrome` republishes all four insets on every `resize` — and on
+ * Android the keyboard IS a resize, so an outside write would be clobbered by
+ * that handler's trailing read 350ms later. The read stays authoritative; this
+ * only decides what it publishes for the bottom edge.
+ */
+export function setKeyboardCoversBottomInset(covered: boolean): void {
+  if (covered === keyboardCoversBottomInset) return;
+  keyboardCoversBottomInset = covered;
+  void applyNativeSafeAreas();
+}
+
+/**
  * Publish the native safe-area insets as CSS variables consumed by the
  * mobile-scoped rules in globals.css
  * (`--native-safe-top/-bottom/-left/-right`). All four are set so landscape and
@@ -279,12 +580,31 @@ export async function takeNativeStartupNotificationClick(): Promise<unknown> {
  */
 export async function applyNativeSafeAreas(): Promise<void> {
   if (!isMobileShell()) return;
+  // Never publish insets while an element is fullscreen. Capacitor turns on
+  // WKWebView element fullscreen (`isElementFullscreenEnabled`), which is the path
+  // the Mux player's fullscreen button takes, and both shells hide their system
+  // bars to service it — so whatever a shell measures there is about the fullscreen
+  // presentation, not the app chrome, and iOS measured 0 on all four edges until
+  // the shell's fullscreen fix. A zero published while fullscreen is what sticks:
+  // the app chrome comes back sitting under the notch. Nothing needs the values
+  // meanwhile — the fullscreen element renders in the top layer, above the
+  // safe-area band. iOS now measures the WINDOW and reports the true insets
+  // throughout, so there the guard is belt and braces; Android still reads the
+  // activity's `WindowInsets`, which the hidden system bars do move.
+  //
+  // This is NOT a defense against the iOS fullscreen-EXIT bug, which no JS can
+  // reach: WebKit hands the web view back with its scroll view's
+  // `contentInsetAdjustmentBehavior` reset, so the layout viewport loses the safe
+  // area while the insets still report it, and everything pads twice. Repaired in
+  // the shell (openframe-mobile `MainViewController`), not here.
+  if (fullscreenElement()) return;
   try {
     const insets = await nativeAuthPlugin()?.getSafeAreaInsets?.();
     if (!insets) return;
     const rootStyle = document.documentElement.style;
     rootStyle.setProperty('--native-safe-top', `${insets.top}px`);
-    rootStyle.setProperty('--native-safe-bottom', `${insets.bottom}px`);
+    // Suppressed while the keyboard holds the bottom band — see above.
+    rootStyle.setProperty('--native-safe-bottom', `${keyboardCoversBottomInset ? 0 : insets.bottom}px`);
     rootStyle.setProperty('--native-safe-left', `${insets.left}px`);
     rootStyle.setProperty('--native-safe-right', `${insets.right}px`);
   } catch (error) {
@@ -340,9 +660,18 @@ export async function initNativeChrome(): Promise<void> {
     // Rotation resizes the WebView and swaps which edges carry insets. iOS can
     // still report the pre-rotation safeAreaInsets in the same frame as the
     // resize event, so take a trailing read once the transition settles.
-    window.addEventListener('resize', () => {
+    const refresh = () => {
       void applyNativeSafeAreas();
       window.setTimeout(() => void applyNativeSafeAreas(), 350);
-    });
+    };
+    window.addEventListener('resize', refresh);
+    // Leaving element fullscreen is a transition `resize` cannot be relied on to
+    // cover: the viewport comes back the size it already was. (iOS does fire one
+    // anyway — measured on 26.5 — but it is the same size, so it is a courtesy,
+    // not a contract.) Without this the insets `applyNativeSafeAreas` skipped
+    // during fullscreen would never be republished. Both spellings — see
+    // `fullscreenElement`.
+    document.addEventListener('fullscreenchange', refresh);
+    document.addEventListener('webkitfullscreenchange', refresh);
   }
 }

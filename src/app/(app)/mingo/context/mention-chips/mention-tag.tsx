@@ -11,14 +11,19 @@
  * lib's inline `card://` pills are spans. `Tag`'s `as` prop renders the same
  * skin on an inline element.
  *
- * When `href` is set the chip is a link that opens the entity's page in a NEW
- * TAB. Also exports the loading skeleton and an error boundary so a per-type
- * chip is always: skeleton while fetching → resolved chip → plain id chip if the
- * fetch throws (never crashes the message).
+ * When `href` is set the chip is a link to the entity's page — a NEW TAB on
+ * desktop web, the SAME window where a new tab is unavailable or unwanted (see
+ * `useSameWindowLinks`). Also exports the loading skeleton and an error boundary
+ * so a per-type chip is always: skeleton while fetching → resolved chip → plain
+ * id chip if the fetch throws (never crashes the message).
  */
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Component, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { Component, type MouseEvent, type ReactNode } from 'react';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
+import { navigatesCurrentWindow } from '@/lib/link-click';
 
 // Tweaks on top of Tag's `badge` skin so the mention matches the canonical
 // context chip (`ChatContextChipStrip`). We KEEP Tag's natural height (h-8 =
@@ -37,18 +42,46 @@ const CHIP_CLASS = 'max-w-[16rem] align-middle [&_svg]:size-4 [&_svg]:text-ods-t
 interface MentionTagProps {
   icon?: ReactNode;
   label: ReactNode;
-  /** Entity detail-page URL. When set, the chip opens it in a new tab. */
+  /** Entity detail-page URL — always one of OUR routes (`routes.*`). */
   href?: string;
 }
 
 export function MentionTag({ icon, label, href }: MentionTagProps) {
+  const sameWindow = useSameWindowLinks();
+  const router = useRouter();
+
   // String labels go straight to Tag: its label slot shows a FloatingTooltip with
   // the full entity name only when the chip's max-w actually clips it, on a span
   // trigger that stays valid inside the markdown `<p>`.
   const chip = <Tag as="span" variant="badge" icon={icon} label={label} className={CHIP_CLASS} />;
   if (!href) return chip;
+
+  // Same-window: soft-nav rather than let the anchor do a full document load —
+  // every chip href is an in-app route. The `href` stays on the element
+  // regardless, so it is still a real link to copy or long-press.
+  //
+  // The drawer is closed HERE rather than left to `AppShell`'s pathname-change
+  // effect, which cannot see most of these navigations: detail pages carry their
+  // entity in `?id=`, so a chip pointing at the record already on screen changes
+  // no URL at all, and one pointing at a sibling record changes only the query —
+  // both leave `pathname` untouched, the effect never runs, and the drawer stays
+  // put. Below md that drawer covers the whole viewport, so the click reads as
+  // dead. Only in same-window mode: a new-tab chip leaves this page alone, and
+  // the conversation should still be here when the user comes back.
+  const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (!sameWindow || !navigatesCurrentWindow(e)) return;
+    e.preventDefault();
+    useMingoLauncherStore.getState().close();
+    router.push(href);
+  };
+
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="no-underline">
+    <a
+      href={href}
+      {...(sameWindow ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+      onClick={handleClick}
+      className="no-underline"
+    >
       {chip}
     </a>
   );

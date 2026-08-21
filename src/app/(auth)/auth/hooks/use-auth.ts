@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { authApiClient } from '@/lib/auth-api-client';
-import { nativeLogin } from '@/lib/native-login';
+import { nativeLogin, nativeSsoRegister } from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
 import { isAppShell, isMobileShell } from '@/lib/platform';
 import { appendPosthogHandoff, markPendingSignup } from '@/lib/posthog/posthog-events';
@@ -47,8 +47,20 @@ interface SsoRegisterRequest {
   tenantName: string;
   tenantDomain: string;
   email: string;
-  provider: 'google' | 'microsoft';
+  provider: 'google' | 'microsoft' | 'apple';
   redirectTo?: string;
+}
+
+/**
+ * Dismissing a native sign-in surface (the Apple sheet, or the shell-owned
+ * browser session) is a deliberate user action, not a failure — the shell
+ * rejects it with USER_CANCELED, which must not raise a toast.
+ */
+function isUserCanceled(error: unknown): boolean {
+  return (
+    (error as { code?: string } | null)?.code === 'USER_CANCELED' ||
+    (error instanceof Error && error.message === 'USER_CANCELED')
+  );
 }
 
 /**
@@ -197,6 +209,36 @@ export function useAuth() {
     setIsLoading(true);
 
     try {
+      if (isAppShell()) {
+        // The shell must not navigate to the registration URL: Capacitor hands a
+        // top-level https nav to the system browser, which creates the tenant in
+        // Safari and leaves the app signed out. Run it in the shell's own browser
+        // session instead, the same way login does.
+        const { tenantHostChanged } = await nativeSsoRegister({
+          tenantName: data.tenantName,
+          tenantDomain: data.tenantDomain,
+          email: data.email,
+          provider: data.provider,
+        });
+        // Registration has a synchronous success point, unlike the browser path
+        // below — mark the signup only once the tokens are actually stored, so a
+        // dismissed sheet leaves no marker behind.
+        markPendingSignup();
+
+        if (tenantHostChanged) {
+          // The tenant host was just learned, so module-level clients still hold
+          // the boot value — full navigation, not an SPA route. replace, not
+          // assign: keep /auth out of the history stack.
+          window.location.replace(routes.dashboard);
+          return true;
+        }
+        // Refetch /me BEFORE leaving the auth screen — same reason as loginWithSso.
+        await queryClient.refetchQueries({ queryKey: authSessionQueryKey });
+        router.replace(routes.dashboard);
+        setIsLoading(false);
+        return true;
+      }
+
       // Funnel: Google/Microsoft SSO signup. There is no synchronous success
       // point (the browser leaves for OAuth), so mark the pending signup now —
       // `signup_completed` fires when the session resolves after the callback.
@@ -204,11 +246,13 @@ export function useAuth() {
       await authApiClient.registerOrganizationSso(data);
       return true;
     } catch (error: any) {
-      toast({
-        title: 'SSO Registration Failed',
-        description: error instanceof Error ? error.message : 'Unable to register organization with SSO',
-        variant: 'destructive',
-      });
+      if (!isUserCanceled(error)) {
+        toast({
+          title: 'SSO Registration Failed',
+          description: error instanceof Error ? error.message : 'Unable to register organization with SSO',
+          variant: 'destructive',
+        });
+      }
       setIsLoading(false);
       return false;
     }
@@ -266,11 +310,13 @@ export function useAuth() {
         throw new Error('No tenant information available for SSO login');
       }
     } catch (error) {
-      toast({
-        title: 'Login Failed',
-        description: error instanceof Error ? error.message : 'Unable to sign in with SSO',
-        variant: 'destructive',
-      });
+      if (!isUserCanceled(error)) {
+        toast({
+          title: 'Login Failed',
+          description: error instanceof Error ? error.message : 'Unable to sign in with SSO',
+          variant: 'destructive',
+        });
+      }
       setIsLoading(false);
     }
   };

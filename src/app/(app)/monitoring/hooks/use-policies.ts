@@ -4,6 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
+import { queryState } from '@/lib/query-state';
 import type { Policy } from '../types/policies.types';
 
 // ============ Types ============
@@ -194,8 +195,7 @@ export function usePolicies(params?: ListPoliciesParams) {
     policies: policiesQuery.data ?? EMPTY_POLICIES,
 
     // Loading & error states
-    isLoading: policiesQuery.isLoading,
-    error: policiesQuery.error?.message ?? null,
+    ...queryState(policiesQuery),
 
     // Refetch
     refetch: policiesQuery.refetch,

@@ -43,7 +43,7 @@ interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
  * MeshCentral streams over WebSockets with its own per-operation timeouts — so
  * this ceiling never truncates one.
  */
-const REQUEST_TIMEOUT_MS = 30_000;
+export const REQUEST_TIMEOUT_MS = 30_000;
 
 interface ApiResponse<T = any> {
   data?: T;
@@ -52,10 +52,11 @@ interface ApiResponse<T = any> {
   ok: boolean;
 }
 
+import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
 import { waitForSessionReady } from './session-ready';
-import { refreshAccessToken } from './token-refresh-manager';
+import { refreshTokens } from './token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from './token-store';
 
 class ApiClient {
@@ -187,7 +188,7 @@ class ApiClient {
           };
         }
 
-        // No local queue: `refreshAccessToken` is already single-flight, so a
+        // No local queue: `refreshTokens` is already single-flight, so a
         // concurrent 401 joins the in-flight rotation instead of starting one,
         // and a 401 that lands after it finished short-circuits on `sentAtEpoch`
         // to a plain retry. Parking these in an ApiClient-owned queue meant only
@@ -195,10 +196,18 @@ class ApiClient {
         // started by Relay, the chat adapter, auth-api-client or the MeshCentral
         // socket (all sharing this same flag), nothing drained the queue and the
         // caller's promise never settled, hanging its react-query `queryFn`.
-        const refreshSuccess = await refreshAccessToken(sentAtEpoch);
+        const outcome = await refreshTokens(sentAtEpoch);
 
-        if (refreshSuccess) {
+        if (outcome === 'refreshed') {
           return this.request<T>(path, options, true);
+        }
+
+        // A refresh that failed for a reason unrelated to the credential (5xx,
+        // WAF 403, dropped link, timeout) is not a rejected session: fail THIS
+        // request and leave the session alone. Mirrors `relay/environment.ts` —
+        // both halves of the data layer have to agree.
+        if (outcome === 'transient') {
+          return { error: isOnline() ? 'Authentication temporarily unavailable' : 'Offline', status: 0, ok: false };
         }
 
         await this.forceLogout();

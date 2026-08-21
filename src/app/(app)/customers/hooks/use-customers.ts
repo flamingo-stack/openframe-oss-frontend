@@ -5,6 +5,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { OrganizationSortField, SortDirection } from '@/generated/schema-enums';
 import { apiClient } from '@/lib/api-client';
+import { queryState } from '@/lib/query-state';
 import { GET_ORGANIZATIONS_QUERY } from '../queries/customers-queries';
 
 const ORGANIZATIONS_PAGE_SIZE = 20;
@@ -184,11 +185,10 @@ export function useCustomers(search = '', status?: string, dateQuery?: Customers
 
   return {
     customers,
-    isLoading: query.isLoading,
+    ...queryState(query),
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage ?? false,
     fetchNextPage: query.fetchNextPage,
-    error: query.error?.message ?? null,
     filteredCount: query.data?.pages[0]?.filteredCount ?? 0,
     refetch: query.refetch,
   };

@@ -2,7 +2,7 @@ import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
 import { apiClient } from '@/lib/api-client';
 import type { ChatType } from '../constants';
 import { API_ENDPOINTS } from '../constants';
-import { getDialogMessagesQuery, normalizeEscalationMessageData } from '../queries/dialogs-queries';
+import { getDialogMessagesQuery, normalizeMessageDataAliases } from '../queries/dialogs-queries';
 import {
   ARCHIVE_TICKET_MUTATION,
   GET_TICKET_QUERY,
@@ -53,8 +53,9 @@ interface TicketNode {
   assignedTo?: string;
   assignedName?: string;
   assigneeImage?: { imageUrl: string; hash?: string };
-  labels?: Array<{ id: string; key: string; color?: string }>;
+  tags?: Array<{ id: string; key: string; color?: string }>;
   escalatedByUser?: boolean | null;
+  resolvedBy?: string | null;
   pendingApproval?: {
     id: string;
     approvalType?: string;
@@ -171,6 +172,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     createdAt: ticket.createdAt,
     statusUpdatedAt: ticket.updatedAt || null,
     resolvedAt: ticket.resolvedAt || null,
+    resolvedBy: ticket.resolvedBy ?? null,
     aiResolutionSuggestedAt: null,
     rating: null,
 
@@ -190,7 +192,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     assignedName: ticket.assignedName,
     assigneeImageUrl: ticket.assigneeImage?.imageUrl,
     assigneeImageHash: ticket.assigneeImage?.hash,
-    labels: ticket.labels,
+    tags: ticket.tags,
     escalatedByUser: ticket.escalatedByUser,
     pendingApproval: ticket.pendingApproval ?? undefined,
     attachments: ticket.attachments,
@@ -248,8 +250,8 @@ export class TicketService implements TicketServiceInterface {
     if (params.assigneeIds?.length) {
       filter.assigneeIds = params.assigneeIds;
     }
-    if (params.labelIds?.length) {
-      filter.labelIds = params.labelIds;
+    if (params.tagIds?.length) {
+      filter.tagIds = params.tagIds;
     }
 
     const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
@@ -286,7 +288,7 @@ export class TicketService implements TicketServiceInterface {
         search: params.search || undefined,
         organizationIds: params.organizationIds?.length ? params.organizationIds : undefined,
         assigneeIds: params.assigneeIds?.length ? params.assigneeIds : undefined,
-        labelIds: params.labelIds?.length ? params.labelIds : undefined,
+        tagIds: params.tagIds?.length ? params.tagIds : undefined,
       },
     });
 
@@ -338,11 +340,11 @@ export class TicketService implements TicketServiceInterface {
     const { edges, pageInfo } = data.messages;
 
     return {
-      // Single parse point for the escalation body aliases — see
-      // `normalizeEscalationMessageData`.
+      // Single parse point for the messageData field aliases — see
+      // `normalizeMessageDataAliases`.
       messages: edges.map(edge => ({
         ...edge.node,
-        messageData: normalizeEscalationMessageData(edge.node.messageData),
+        messageData: normalizeMessageDataAliases(edge.node.messageData),
       })),
       pageInfo,
     };

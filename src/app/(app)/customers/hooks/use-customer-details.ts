@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { queryState } from '@/lib/query-state';
 import { GET_ORGANIZATION_BY_ORGANIZATION_ID_QUERY } from '../queries/customers-queries';
 
 export interface CustomerDetails {
@@ -110,8 +111,9 @@ export function useCustomerDetails(id?: string | null) {
 
   return {
     organization: query.data ?? null,
-    isLoading: query.isLoading,
-    error: query.error?.message ?? null,
+    // `gate: 'closed'` when there is no id: the query will never run, so it must
+    // report idle rather than "loading forever".
+    ...queryState(query, id ? 'open' : 'closed'),
     refetch: query.refetch,
   };
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { notFound, useSearchParams } from 'next/navigation';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { ArticleDetailsPage } from '../components/article-details-page';
 
 export default function ArticleDetailsPageWrapper() {
@@ -8,5 +9,9 @@ export default function ArticleDetailsPageWrapper() {
   if (!id) {
     notFound();
   }
-  return <ArticleDetailsPage articleId={id} />;
+  return (
+    <ContentErrorBoundary title="Knowledge Base" message="Couldn't load this article.">
+      <ArticleDetailsPage articleId={id} />
+    </ContentErrorBoundary>
+  );
 }

@@ -24,7 +24,7 @@ import type { knowledgeBaseBodyFoldersRelayQuery as FoldersQueryType } from '@/_
 import type { knowledgeBaseBodySubtreeRelay_query$key as SubtreeFragmentKey } from '@/__generated__/knowledgeBaseBodySubtreeRelay_query.graphql';
 import type { knowledgeBaseBodySubtreeRelayPaginationQuery as SubtreePaginationQueryType } from '@/__generated__/knowledgeBaseBodySubtreeRelayPaginationQuery.graphql';
 import type { knowledgeBaseBodySubtreeRelayQuery as SubtreeQueryType } from '@/__generated__/knowledgeBaseBodySubtreeRelayQuery.graphql';
-import { EmptyState } from '@/app/components/shared';
+import { EmptyState, useRetryKey } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
@@ -228,6 +228,7 @@ function FoldersAndArticlesContent({ parentId, search, tagIds, stickyHeaderOffse
   const normalizedTagIds = tagIds.length > 0 ? [...tagIds] : null;
   const normalizedSearch = search || null;
 
+  const retryKey = useRetryKey();
   const foldersRoot = useLazyLoadQuery<FoldersQueryType>(
     knowledgeBaseBodyFoldersRelayQuery,
     {
@@ -235,7 +236,7 @@ function FoldersAndArticlesContent({ parentId, search, tagIds, stickyHeaderOffse
       search: normalizedSearch,
       first: FOLDERS_PAGE_SIZE,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const foldersData = useFragment<FoldersFragmentKey>(
     knowledgeBaseBodyFoldersRelayFragment,
@@ -254,7 +255,7 @@ function FoldersAndArticlesContent({ parentId, search, tagIds, stickyHeaderOffse
       first: KNOWLEDGE_BASE_PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const {
     data: articlesData,
@@ -335,6 +336,7 @@ function SubtreeArticlesContent({ parentId, search, tagIds, stickyHeaderOffset }
   const normalizedTagIds = tagIds.length > 0 ? [...tagIds] : null;
   const normalizedSearch = search || null;
 
+  const retryKey = useRetryKey();
   const subtreeRoot = useLazyLoadQuery<SubtreeQueryType>(
     knowledgeBaseBodySubtreeRelayQuery,
     {
@@ -343,7 +345,7 @@ function SubtreeArticlesContent({ parentId, search, tagIds, stickyHeaderOffset }
       first: KNOWLEDGE_BASE_PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const {
     data: subtreeData,

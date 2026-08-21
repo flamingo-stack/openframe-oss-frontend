@@ -9,6 +9,7 @@ import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
 import { sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
 import { Toaster } from '@/lib/openframe-core-ui';
 import { PostHogAnalyticsBridge } from '@/lib/posthog/posthog-analytics-bridge';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { FeatureFlagsLoader } from '../components/feature-flags-loader';
 import { RouteGuard } from '../components/route-guard';
 import { isAuthEnabled } from '../lib/app-mode';
@@ -22,6 +23,7 @@ import { NativeShellInitializer } from './components/native-shell-initializer';
 import { NotificationsDataProvider } from './components/notifications/notifications-data-provider';
 import { OfflineBanner } from './components/offline-banner';
 import { RegistrationAttributionCapture } from './components/registration-attribution-capture';
+import { TokenFreshnessWatcher } from './components/token-freshness-watcher';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://openframe.ai'),
@@ -124,6 +126,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <EmbedShimRegistration />
         <DeploymentInitializer />
         <NativeShellInitializer />
+        <TokenFreshnessWatcher />
         <PostHogAnalyticsBridge />
         <RelayProvider>
           <QueryClientProvider>
@@ -135,7 +138,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 EVERY statically generated page rather than on anything that looks
                 related to dev tickets. Only a production build raises it; a dev
                 build renders nothing statically and stays quiet. */}
-            {isAuthEnabled() && (
+            {/* The env flag mounts it even when auth pages are off (saas-tenant):
+                dev-ticket login exists precisely to point a local tenant build at
+                a remote tenant, and that mode has no auth pages of its own. */}
+            {(isAuthEnabled() || runtimeEnv.enableDevTicketObserver()) && (
               <Suspense fallback={null}>
                 <DevTicketObserver />
               </Suspense>

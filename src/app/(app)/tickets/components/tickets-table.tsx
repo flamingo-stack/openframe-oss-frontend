@@ -18,8 +18,8 @@ import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-ticket
 import { useTicketsQuery } from '../hooks/use-tickets-query';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { Dialog } from '../types/dialog.types';
-import { TicketTagFilter } from './ticket-label-filter';
 import { getTicketTableColumns, type StatusFilterOption, TicketTableBody } from './ticket-table-columns';
+import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 
 // TODO(unread-from-entity): re-enable per-ticket unread highlighting once the backend exposes
@@ -35,8 +35,8 @@ interface TicketsTableProps {
   selector?: ReactNode;
   search: string;
   onSearchChange: (value: string) => void;
-  labelIds: string[];
-  onLabelIdsChange: (ids: string[]) => void;
+  tagIds: string[];
+  onTagIdsChange: (ids: string[]) => void;
 }
 
 export function TicketsTable({
@@ -47,8 +47,8 @@ export function TicketsTable({
   selector,
   search,
   onSearchChange,
-  labelIds,
-  onLabelIdsChange,
+  tagIds,
+  onTagIdsChange,
 }: TicketsTableProps) {
   const debouncedSearch = useDebounce(search, 300);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -65,10 +65,10 @@ export function TicketsTable({
     archived: isArchived,
     search: debouncedSearch,
     statusFilters,
-    labelIds,
+    tagIds,
   });
 
-  const archiveFilter = useMemo(() => ({ labelIds }), [labelIds]);
+  const archiveFilter = useMemo(() => ({ tagIds }), [tagIds]);
   const {
     actions: baseActions,
     menuActions,
@@ -147,11 +147,7 @@ export function TicketsTable({
   const hasMobileFilter = filterGroups.length > 0;
 
   const showEmptyState =
-    !isLoading &&
-    !debouncedSearch &&
-    (statusFilters?.length ?? 0) === 0 &&
-    labelIds.length === 0 &&
-    tickets.length === 0;
+    !isLoading && !debouncedSearch && (statusFilters?.length ?? 0) === 0 && tagIds.length === 0 && tickets.length === 0;
 
   const actions = useMemo(() => emphasizeNewTicketAction(baseActions, showEmptyState), [baseActions, showEmptyState]);
 
@@ -182,8 +178,8 @@ export function TicketsTable({
               <TicketTagFilter
                 search={search}
                 onSearchChange={onSearchChange}
-                labelIds={labelIds}
-                onLabelIdsChange={onLabelIdsChange}
+                tagIds={tagIds}
+                onTagIdsChange={onTagIdsChange}
                 filterButton={
                   hasMobileFilter ? (
                     <Button

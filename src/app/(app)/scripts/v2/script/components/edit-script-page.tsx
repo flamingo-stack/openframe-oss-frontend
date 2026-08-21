@@ -39,7 +39,7 @@ interface ScriptFieldsProps {
   /**
    * Locks every control. This is what the page looks like while the script is in
    * flight: the real fields, in the exact geometry they will keep, with nothing
-   * in them yet — so there is no placeholder to swap and Monaco mounts once.
+   * in them yet — so there is no placeholder to swap and the editor mounts once.
    */
   disabled?: boolean;
   /** The script's own tags, so the picker paints them before its own query lands. */
@@ -110,7 +110,7 @@ interface ScriptRecordLoaderProps {
  * `useSeedForm` for why the WRITE cannot happen here).
  *
  * The alternative — the fields inside the boundary and a skeleton in the
- * fallback — costs a full remount of the field column on arrival, Monaco
+ * fallback — costs a full remount of the field column on arrival, the editor
  * included, and a second copy of the form's markup to keep in step.
  */
 function ScriptRecordLoader({ scriptId, onResolved }: ScriptRecordLoaderProps) {

@@ -87,9 +87,10 @@ billing.
 The same export runs in three places, so ask the axis that owns the feature — never "is this native?":
 
 - `isAppShell()` — either shell. Shell-custodied tokens, no Next server behind the origin (so
-  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above.
+  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above, and
+  the `authMobile=true` login completing on the custom scheme (`APP_SCHEME`).
 - `isMobileShell()` — the phone. FCM push, biometrics, status bar/splash/safe-area insets, Android
-  back, custom-scheme OAuth callback.
+  back.
 - `isDesktopShell()` — Tauri. Shell-side token rotation + OS-notification click event transports.
 
 `platform.ts` is the only module that reads the injected globals, and it probes **Tauri first**: the
@@ -439,6 +440,50 @@ const data = useLazyLoadQuery<MyFileNameQueryType>(myFileNameQuery, { first: 30 
 - Prefer fragments + `usePaginationFragment` for connections; use `@connection` + `ConnectionHandler` updaters to keep lists consistent after mutations
 - Mutations: `useMutation` with `optimisticUpdater`/`updater`; toast feedback via `useToast` in `onError` stays mandatory
 - To refresh store data imperatively: `fetchQuery(environment, query, vars, { fetchPolicy: 'network-only' }).subscribe({})` — all subscribed components re-render from the store
+
+**Shared row shapes → `@inline` fragments, NEVER a hand-written node type.** When several
+operations feed the same mapper/table, do not describe the node with a structural interface
+(`interface MachineLike { readonly id: string; readonly hostname?: string | null; … }`). Such a
+type has to make every field optional to fit all callers, so an operation that forgets a field
+renders an empty column instead of failing to compile. Declare the selection once as an
+`@inline` fragment, spread it in every operation, and read it in the plain function:
+
+```typescript
+// src/graphql/<domain>/<thing>-fields.ts
+export const executionFieldsFragment = graphql`
+  fragment executionFields_execution on ScriptExecution @inline { id status source … }
+`;
+
+// the mapper — a function, not a component, which is exactly what @inline is for
+export function toUiExecution(ref: executionFields_execution$key): UiExecution {
+  const node = readInlineData(executionFieldsFragment, ref);
+  …
+}
+```
+
+- **Lists that can afford different selections → compose a ladder**, each fragment spreading
+  the one below (`deviceRowFields` ⊂ `deviceSelectorFields` ⊂ `deviceFields`), with one mapper
+  per step building on the step below it. A list spreads the step it can pay for — e.g.
+  `assignedDevices` resolves per machine and has timed out on test-dev, so the schedule tab
+  stops at the row step — and gets a mapper typed to exactly that step. `@inline` does accept
+  `@argumentDefinitions` + `@include(if:)`, but a conditional field lands in `$data` as
+  `field?:`, i.e. back to "everything optional" — that is why the ladder is separate fragments.
+- **A field only some lists want** (e.g. `scriptName` on the schedule execution lists) stays
+  OUT of the shared fragment: those operations select it beside the spread and pass it to the
+  mapper explicitly, so "not selected" stays distinguishable from "null".
+- **Never split one field across two steps.** `tags { id key }` low and `tags { color }` high
+  land in two different `$data` types with nothing to join the halves on. Select a field whole,
+  at one step. (Different *sub-fields of a linked record* are fine — the row step reads
+  `organization { name }`, the step above reads `organization { contactInformation { … } }`.)
+- **Non-Relay callers** (legacy raw-POST paths) have no fragment reference: give them
+  `Omit<someFragment$data, ' $fragmentType'>` plus a mapper taking that data, so they are
+  type-checked against the generated shape instead of casting through `unknown`.
+- Reference: `src/graphql/devices/device-{row,selector,}-fields.ts` +
+  `devices/utils/device-transform.ts`; `src/graphql/scripts/execution-fields.ts`;
+  `src/graphql/notifications/notification-fields.ts`.
+
+**Backticks end a `graphql` template literal.** Never write a backticked word inside a GraphQL
+`#` comment — the template closes there and relay-compiler reports a bogus syntax error at 1:1.
 
 ### REST Fetching with TanStack React Query
 

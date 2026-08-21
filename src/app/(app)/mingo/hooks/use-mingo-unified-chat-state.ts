@@ -29,6 +29,7 @@ import type {
   ChatRef,
   DialogItem,
   DialogTokenUsage,
+  MessageSegment,
   StreamingPhase,
   UnifiedChatMessage,
   UnifiedChatState,
@@ -76,6 +77,14 @@ export interface MingoSubscriptionBindings {
 export interface MingoUnifiedChat {
   state: UnifiedChatState;
   subscription: MingoSubscriptionBindings;
+  /**
+   * PENDING approval cards, lifted out of the thread by `useMingoChat` — it
+   * filters them from their bubble so an interrupted retry cannot render the
+   * same request twice. They therefore reach the view ONLY through the chat's
+   * sticky-footer prop, which is why they travel beside `state` rather than
+   * inside it.
+   */
+  pendingApprovals: MessageSegment[];
   /**
    * Create a brand-new dialog and send `text` into it, regardless of any
    * currently-active dialog. Used by external launchers (e.g. the "Ask Mingo
@@ -145,6 +154,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
 
   const {
     messages: processedMessages,
+    approvals: pendingApprovals,
     createDialog,
     sendMessage: sendMingoMessage,
     stopGeneration,
@@ -538,6 +548,11 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   return {
     state,
     subscription,
+    /** PENDING approval cards, lifted out of the thread by `useMingoChat` (it
+     *  filters them from their bubble to dedupe an interrupted retry). They are
+     *  displayed nowhere unless the host hands them to the chat's sticky
+     *  footer, which is why they leave this hook separately from `state`. */
+    pendingApprovals,
     sendInNewDialog,
     searchQuery,
     setSearchQuery,

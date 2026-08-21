@@ -1,4 +1,26 @@
-import { QueryClient } from '@tanstack/react-query';
+'use client';
+
+import { onlineManager, QueryClient } from '@tanstack/react-query';
+import { subscribeConnectivity } from './connectivity';
+
+/**
+ * Point `onlineManager` at the real connectivity signal instead of the window
+ * `online`/`offline` events it uses by default.
+ *
+ * Those events lag badly in WKWebView (measurements in `connectivity.ts`), and
+ * `onlineManager` is what decides when a paused query may resume — so on the
+ * mobile shell a connectivity blip left the whole app paused long after the
+ * network was back. Nothing else about the pause/resume machinery needed
+ * changing: once the signal arrives, paused queries resume within ~500ms and
+ * `refetchOnReconnect` does the rest. That is why `networkMode` is deliberately
+ * left at its default.
+ *
+ * Module scope, once. `setEventListener` invokes the setup immediately and keeps
+ * its return as the cleanup, so `subscribeConnectivity` must (and does) return
+ * synchronously. The `window` guard lives inside `subscribeConnectivity`, which
+ * no-ops during a server render.
+ */
+onlineManager.setEventListener(setOnline => subscribeConnectivity(setOnline));
 
 /**
  * The app's single React Query client, reachable from outside the component

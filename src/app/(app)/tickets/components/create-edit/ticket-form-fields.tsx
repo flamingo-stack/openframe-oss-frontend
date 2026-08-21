@@ -6,12 +6,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { AssignmentsField } from '@/components/assignments';
+import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
 import type { useTempAttachments } from '../../hooks/use-temp-attachments';
 import { useAssigneeOptions, useDeviceOptions, useOrganizationOptions } from '../../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../../statuses/hooks/use-ticket-statuses-query';
 import type { CreateTicketFormData } from '../../types/create-ticket.types';
 import type { Ticket } from '../../types/ticket.types';
 import { resolveCurrentStatus } from '../../utils/resolve-current-status';
+import { TICKET_STATUS_KIND } from '../../utils/ticket-statistics';
 import { avatarStartAdornment, renderAvatarOption } from '../avatar-autocomplete';
 import { renderStatusOption, type StatusOption, statusStartAdornment } from '../status-autocomplete';
 import { MarkdownEditor, SimpleMarkdownRenderer } from './lazy-markdown';
@@ -77,16 +79,22 @@ export function TicketFormFields({
       for (const t of transitions) byId.set(t.id, { label: t.name, value: t.id, color: t.color });
       return [...byId.values()];
     }
-    return (statusesQuery.data?.customStatuses ?? []).map(s => ({ label: s.name, value: s.id, color: s.color }));
+    // New ticket: custom statuses plus TECH_REQUIRED — the one system status the backend
+    // allows tickets to be created in (createTicket rejects the other system statuses).
+    return (statusesQuery.data?.snapshot ?? [])
+      .filter(s => !s.isSystem || s.kind === TICKET_STATUS_KIND.TECH_REQUIRED)
+      .map(s => ({ label: s.name, value: s.id, color: s.color }));
   }, [isEditMode, ticket, statusesQuery.data]);
 
   const selectedStatusId = watch('statusId');
-  // New ticket: pre-select the first status once options load.
+  // New ticket: pre-select the first CUSTOM status once options load (Tech Required is
+  // selectable but must not become the default).
+  const defaultStatusId = statusesQuery.data?.customStatuses[0]?.id;
   useEffect(() => {
-    if (!isEditMode && !selectedStatusId && statusOptions.length > 0) {
-      setValue('statusId', statusOptions[0].value);
+    if (!isEditMode && !selectedStatusId && defaultStatusId) {
+      setValue('statusId', defaultStatusId);
     }
-  }, [isEditMode, selectedStatusId, statusOptions, setValue]);
+  }, [isEditMode, selectedStatusId, defaultStatusId, setValue]);
   const renderPreview = useCallback(
     (source: string) => (
       <div className="custom-preview-wrapper" style={{ height: '100%', overflow: 'auto' }}>
@@ -96,7 +104,7 @@ export function TicketFormFields({
     [],
   );
 
-  const handleFilesAdded = (files: File | File[] | undefined) => {
+  const handleFilesAdded = (files: UploadSource | UploadSource[] | undefined) => {
     if (!files) return;
     const fileArray = Array.isArray(files) ? files : [files];
     for (const file of fileArray) {
@@ -235,9 +243,9 @@ export function TicketFormFields({
         />
       </div>
 
-      {/* Labels / Tags */}
+      {/* Tags */}
       <Controller
-        name="labelIds"
+        name="tagIds"
         control={control}
         render={({ field }) => <TicketTagsManager selectedIds={field.value} onChange={val => field.onChange(val)} />}
       />
@@ -245,6 +253,7 @@ export function TicketFormFields({
       {/* File Upload — managed mode with temp attachments */}
       <FileUpload
         onChange={handleFilesAdded}
+        pickFiles={nativeFilePicker({ multiple: true })}
         managedFiles={managedFiles}
         onRemoveManagedFile={tempAttachments.removeFile}
         multiple

@@ -43,6 +43,9 @@ export interface Dialog {
   createdAt: string;
   statusUpdatedAt?: string | null;
   resolvedAt?: string | null;
+  // Who closed the ticket: 'AI_AGENT' | 'TECHNICIAN' | 'END_USER' (open string on the BE).
+  // Null while open; selected only when the ai-resolution flag is on.
+  resolvedBy?: string | null;
   aiResolutionSuggestedAt?: string | null;
   rating?: DialogRating | null;
 
@@ -63,7 +66,7 @@ export interface Dialog {
   assignedName?: string;
   assigneeImageUrl?: string;
   assigneeImageHash?: string;
-  labels?: Array<{ id: string; key: string; color?: string }>;
+  tags?: Array<{ id: string; key: string; color?: string }>;
   escalatedByUser?: boolean | null;
   // Latest pending tool-approval request for this ticket's dialog (from Ticket.pendingApproval).
   pendingApproval?: BoardTicketPendingApproval;
@@ -127,6 +130,7 @@ export type MessageDataType =
   | 'APPROVAL_REQUEST'
   | 'APPROVAL_RESULT'
   | 'SYSTEM'
+  | 'TICKET_EVENT'
   | 'CONTEXT_COMPACTION_START'
   | 'CONTEXT_COMPACTION_END';
 
@@ -212,6 +216,20 @@ export interface SystemData extends MessageData {
   text: string;
 }
 
+/** Ticket lifecycle receipt — same field names as the live `TICKET_EVENT`
+ *  NATS chunk, so one core-lib mapper covers both paths. `kind` is an open
+ *  vocabulary (RESOLVED/REOPENED today); unknown kinds still render. */
+export interface TicketEventData extends MessageData {
+  type: 'TICKET_EVENT';
+  kind: string;
+  actorId?: string | null;
+  actorName?: string | null;
+  actorType?: string | null;
+  reason?: string | null;
+  /** Kind-token the ticket reopened INTO (AI_ASSISTANCE / TECH_REQUIRED / ...). */
+  targetStatusKind?: string | null;
+}
+
 export interface Message {
   id: string;
   dialogId: string;
@@ -228,6 +246,7 @@ export interface Message {
     | ApprovalRequestData
     | ApprovalResultData
     | SystemData
+    | TicketEventData
     | MessageData;
 }
 

@@ -31,6 +31,39 @@ input[type="number"] {
 }
 
 /*
+ * Floating walkthrough video (`components/walkthrough-video.tsx`) yields to any
+ * open modal.
+ *
+ * The lib pins that card's wrapper at `z-[9980]` — a marketing-site tier, where
+ * the corner is empty space — while its OWN hand-rolled overlays sit far below:
+ * `ModalV2` at `z-[1300]` (every `ConfirmDialog` in this app), the always-mounted
+ * `MobileBurgerMenu` panel at `z-[101]`, `AlertDialog` at `z-[50]`. So the promo
+ * card paints on top of them, and since `ModalV2` does not disable body pointer
+ * events, it stays CLICKABLE there and opens its own theater (`z-[9999]`) over
+ * the modal. On mobile that is not a corner case: `ModalV2` is bottom-anchored
+ * (`items-end` + `mb-4`), i.e. exactly where the card is pinned, so it covered
+ * the footer buttons of the post-login biometric-enrollment prompt.
+ *
+ * Re-ranking is not available to us: the `z-[9980]` lives on a lib-owned wrapper
+ * that accepts no className, and lowering the card under a modal's backdrop
+ * would only trade the problem for clicks that dismiss the modal. A promo card
+ * has no business over a modal anyway, so it hides instead.
+ *
+ * Selector precision — `[aria-modal]` is set ONLY by the lib's hand-rolled
+ * modals (Radix sets `role`, never `aria-modal`), which is exactly the set that
+ * loses to the card; `[role='alertdialog']` adds Radix `AlertDialog`, the one
+ * Radix overlay still on the old `z-50` tier. `:not([inert])` is load-bearing:
+ * `MobileBurgerMenu` keeps its `aria-modal` panel mounted permanently and marks
+ * it `inert` while closed, so without it the card would never appear at all.
+ * Radix `Dialog`/`Drawer` (9997–9999) are deliberately NOT matched — they
+ * already out-rank the card, and the Mingo drawer's layering over it is
+ * intentional (see WALKTHROUGH_OVERLAP_Z in `components/app-layout.tsx`).
+ */
+body:has([aria-modal="true"]:not([inert]), [role="alertdialog"]) .of-walkthrough-card {
+  display: none;
+}
+
+/*
  * Scoped theming for the AI Settings live previews.
  */
 .ai-preview-theme {
@@ -112,7 +145,7 @@ html[data-shell="mobile"] body::before {
 
 /* Full-screen view roots: `app-shell-root` (core AppLayout root) and
    `of-auth-shell` (core AuthShell — the auth pages render outside
-   AppLayout). The top inset lives HERE, not on the
+   AppLayout); `of-standalone-shell` below is the third. The top inset lives HERE, not on the
    header: with the inset on the header, a `topBar` banner rendered above it
    started at y=0 under the status bar (clipped by the band), the header
    double-padded, and the burger menu's below-header offset (top: 48px = the
@@ -120,6 +153,85 @@ html[data-shell="mobile"] body::before {
 html[data-shell="mobile"] .app-shell-root,
 html[data-shell="mobile"] .of-auth-shell {
   padding-top: var(--native-safe-top, env(safe-area-inset-top));
+}
+
+/* Standalone full-screen pages — rendered outside BOTH of the roots above, i.e.
+   with no chrome to hand the remaining edges to, so this root owns all four.
+   Currently just /account-deleted, which the deletion flow `replace`s onto once
+   the session is gone. Unlike those roots it has design padding of its own, so
+   the insets go through `max()` (the shape `.app-top-bar` below uses): the inset
+   wins where it is larger — the status bar was cropping the logo — and the page's
+   40px survives everywhere it is not, e.g. the portrait sides. */
+html[data-shell="mobile"] .of-standalone-shell {
+  padding-top: max(var(--native-safe-top, env(safe-area-inset-top)), var(--spacing-system-xlf));
+  padding-bottom: max(var(--native-safe-bottom, env(safe-area-inset-bottom)), var(--spacing-system-xlf));
+  padding-left: max(var(--native-safe-left, env(safe-area-inset-left)), var(--spacing-system-xlf));
+  padding-right: max(var(--native-safe-right, env(safe-area-inset-right)), var(--spacing-system-xlf));
+}
+
+/* The app's bottom inset, and the root owns it for the same reason it owns the
+   top one. Two things can claim that edge and only the taller applies:
+
+   The system band — the Android navigation bar / iOS home indicator. The shell
+   is edge-to-edge (`viewport-fit=cover`, and `targetSdk 36` forces it on
+   Android 15+), so `h-screen` spans the WHOLE screen and the app's last ~24-48dp
+   sits behind system chrome that swallows taps. Everything in-layout inherits
+   the fix here — `<main>`, the notification drawer and the Mingo drawer are
+   `absolute` inside this root, which is why their bottom row (Notifications
+   History) was landing under the three-button bar.
+
+   The software keyboard, which covers that band while it is up. On iOS nothing
+   else applies it: WKWebView keeps its frame (the shell runs the Keyboard plugin
+   at `resize: 'none'`), so `h-screen` keeps reporting the full height and every
+   bottom-anchored composer — the Mingo drawer's and the ticket client-chat's —
+   opens UNDER the keyboard with no way to scroll to it. The keyboard arm is
+   inert on Android, where the shell resizes the WebView itself and the variable
+   stays 0 so the keyboard is not counted twice (keyboard-inset.ts) — and there
+   the system arm goes to 0 too for as long as the keyboard is up, because the
+   resized WebView no longer contains the navigation band.
+
+   Absorbing either on the layout root is what `adjustResize` would do:
+   `h-screen` is border-box, so this shrinks the content box and every `flex-1`
+   descendant with it, including the AppLayoutDrawer's portal container. The
+   root's own background paints the reserved strip, so the band behind the
+   system chrome stays app-coloured rather than opening a gap. Deliberately no
+   transition: this reflows the whole app, and the composer landing a beat
+   before the keyboard finishes its slide is what every native list does.
+
+   Viewport-`fixed` descendants escape this root and compensate themselves —
+   `MobileBottomActions` and the ModalV2 sheet below, the core overlay
+   primitives (modal-v2/dialog) above. */
+html[data-shell="mobile"] .app-shell-root {
+  padding-bottom: max(var(--native-safe-bottom, env(safe-area-inset-bottom)), var(--of-keyboard-inset, 0px));
+}
+
+/* Markdown editor (KB article + ticket create/edit forms). Absorbing the keyboard
+   inset on the layout root is only half the answer for it: the library sizes
+   `.w-md-editor` from a fixed pixel `height` prop — 400px/500px here, a desktop drag-to-resize
+   default — which is MORE than the strip a phone keyboard leaves, so the frame
+   and the caret in it stay covered no matter where <main> is scrolled, and the
+   editor's own scroller can't help because it scrolls WITHIN that covered frame.
+   Cap the frame to the keyboard-free viewport instead: `max-height` outranks the
+   library's inline `height` whatever the specificity, and `.w-md-editor` is a
+   flex column, so the toolbar keeps its size (below) and the text/preview
+   scroller absorbs the difference. 48px is the app header — the only chrome
+   between the viewport top and <main> — and the rest is breathing room; the
+   floor keeps the editor usable in landscape, where the free strip is barely
+   taller than the toolbar. Both numbers are approximations on purpose: the cap
+   only has to come out no taller than <main>'s scrollport for the browser's
+   scroll-on-focus to be ABLE to reveal the whole frame. */
+html[data-shell="mobile"] .advanced-blog-editor .w-md-editor {
+  max-height: max(
+    calc(100vh - var(--native-safe-top, env(safe-area-inset-top)) - var(--of-keyboard-inset, 0px) - 72px),
+    9rem
+  );
+}
+
+/* The toolbar is the one part that must not pay for the cap: it is `height:
+   fit-content` with a default `flex-shrink`, so the flex column takes its cut
+   out of the toolbar's 36px buttons too and clips them. */
+html[data-shell="mobile"] .advanced-blog-editor .w-md-editor-toolbar {
+  flex-shrink: 0;
 }
 
 /* Header contents clear the notch/rounded corners in landscape. No top
@@ -154,4 +266,35 @@ html[data-shell="mobile"] .fixed.bottom-0.left-0.right-0.z-50 {
   padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom));
   padding-left: var(--native-safe-left, env(safe-area-inset-left));
   padding-right: var(--native-safe-right, env(safe-area-inset-right));
+}
+
+/* ModalV2's bottom sheet — the same overlap as the bar above, on the surface it
+   matters most. Below md the core panel is `items-end` + `mb-4`, so it ends
+   16px above the WebView's bottom edge, and that edge is the SCREEN's: the
+   shell is edge-to-edge (`targetSdk 36` forces it on Android 15+, and
+   Capacitor's SystemBars keeps the WebView spanning the full window), so the
+   last band of it is behind the navigation bar / home indicator. 16px clears
+   neither, which puts a bottom-anchored ModalV2Footer — the modal's primary
+   action — under system chrome that swallows the tap. Three-button navigation
+   is the worst case at ~48dp.
+
+   The lift goes on the PANEL, not the wrapper: the wrapper carries the keyboard
+   inset as an inline `padding-bottom`, which no stylesheet can outrank. The
+   height cap comes along because the lift eats into the panel's own room — the
+   core's `min(90dvh,100%-2rem)` budgets 1rem for the `mb-4` it is replacing —
+   and rebuilding it against BOTH bands keeps a tall sheet clear of the status
+   bar as well. `100%` is the wrapper's content box, so a keyboard-padded
+   wrapper is already accounted for on iOS, and on Android the WebView itself
+   has shrunk (see keyboard-inset.ts).
+
+   Anchored on the core's `z-[1300]` wrapper class — the tier documented at the
+   top of this file — because ModalV2 exposes no hook of its own; if that tier
+   moves, this stops applying and the footer goes back under the band. From md
+   up the panel is centered (`md:items-center md:mb-0`) and nowhere near it. */
+@media (max-width: 799.98px) {
+  html[data-shell="mobile"] .fixed.inset-0.z-\[1300\] > [role="dialog"] {
+    --of-modal-lift: max(var(--native-safe-bottom, env(safe-area-inset-bottom)), 1rem);
+    margin-bottom: var(--of-modal-lift);
+    max-height: min(90dvh, 100% - var(--native-safe-top, env(safe-area-inset-top)) - var(--of-modal-lift));
+  }
 }

@@ -35,7 +35,7 @@ interface LogDrawerProps {
   children?: React.ReactNode;
 }
 
-function DrawerDeviceCard({ deviceId }: { deviceId: string }) {
+function DrawerDeviceCard({ deviceId, onNavigate }: { deviceId: string; onNavigate: () => void }) {
   const { deviceDetails, isLoading } = useDeviceDetails(deviceId, { polling: false });
 
   if (isLoading) {
@@ -67,7 +67,12 @@ function DrawerDeviceCard({ deviceId }: { deviceId: string }) {
         detailsButton: {
           visible: true,
           component: (
-            <DeviceDetailsButton deviceId={deviceDetails.id} machineId={deviceDetails.machineId} className="shrink-0" />
+            <DeviceDetailsButton
+              deviceId={deviceDetails.id}
+              machineId={deviceDetails.machineId}
+              className="shrink-0"
+              onNavigate={onNavigate}
+            />
           ),
         },
       }}
@@ -134,10 +139,15 @@ export function LogDrawer({
             )}
           </div>
 
-          {/* DeviceCard pinned to bottom */}
+          {/* DeviceCard pinned to bottom. Its Details button closes the drawer on
+              the way out: this table is embedded in the device detail page itself
+              (overview tab), where the button's target is the very URL already
+              open — no navigation, nothing moves, and the click reads as broken.
+              On mobile the drawer is full-bleed, so it hides the page it just
+              "went to" even when the device IS a different one. */}
           {hasDevice && (
             <div className="mt-auto">
-              <DrawerDeviceCard deviceId={deviceId} />
+              <DrawerDeviceCard deviceId={deviceId} onNavigate={onClose} />
             </div>
           )}
         </AppLayoutDrawerBody>

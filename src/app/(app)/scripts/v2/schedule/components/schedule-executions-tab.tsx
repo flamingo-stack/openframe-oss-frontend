@@ -6,6 +6,7 @@ import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
 import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
 import {
   scheduleExecutionsRelayFragment,
   scheduleExecutionsRelayQuery,
@@ -37,10 +38,11 @@ function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; 
 
   // One round-trip per interaction: the facets (`scheduleExecutionFilters`)
   // ride the list operation — see the query docstring for the facet semantics.
+  const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<ScheduleExecutionsQueryType>(
     scheduleExecutionsRelayQuery,
     { scheduleId, filter: backendFilters, search: querySearch || null, sort, first: EXECUTIONS_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const facetOptions = useExecutionFacetOptions(queryData.scheduleExecutionFilters);
@@ -54,7 +56,9 @@ function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; 
     const edges = data.scheduleExecutions?.edges ?? [];
     // Defensive null-node guard: skip any dangling edge instead of crashing the
     // tab on a store-evicted record.
-    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node)] : []));
+    // `scriptName` rides beside the shared row fragment on this list only — a
+    // schedule runs several scripts, so the rows say which one they were.
+    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node, edge.node.scriptName)] : []));
     // A no-op here — this list's search reaches the server, so `narrowSearch` is
     // always empty. Kept so every caller of the shell honours the same contract.
     return narrowExecutions(rows, narrowSearch);

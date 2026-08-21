@@ -1,10 +1,34 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { fetchUsers, type UserStatus, usersQueryKeys } from '@/app/(app)/settings/hooks/use-users';
 import { isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { decodeGlobalId } from '@/lib/relay-id';
+
+type UsersPage = Awaited<ReturnType<typeof fetchUsers>>;
+
+const EMPTY_STATUS_MAP = new Map<string, UserStatus>();
+
+/**
+ * One map per query payload, shared by every consumer — the tickets board
+ * renders this hook once per card, and a per-component `useMemo` had each of
+ * them building its own 1000-entry map (and handing out a fresh `isUserDeleted`
+ * identity, which re-rendered every memoized card below it). react-query's
+ * structural sharing keeps the payload identity stable across refetches, so a
+ * WeakMap keyed on it rebuilds only when the user list actually changes.
+ */
+const statusMapByPayload = new WeakMap<UsersPage, Map<string, UserStatus>>();
+
+function statusMapFor(data: UsersPage | undefined): Map<string, UserStatus> {
+  if (!data) return EMPTY_STATUS_MAP;
+  const cached = statusMapByPayload.get(data);
+  if (cached) return cached;
+  const map = new Map<string, UserStatus>();
+  for (const user of data.items ?? []) map.set(user.id, user.status);
+  statusMapByPayload.set(data, map);
+  return map;
+}
 
 /**
  * Client-side id → status map over `GET /api/users`, for surfaces whose own
@@ -38,13 +62,7 @@ export function useUserStatusMap() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const statusById = useMemo(() => {
-    const map = new Map<string, UserStatus>();
-    for (const user of query.data?.items ?? []) {
-      map.set(user.id, user.status);
-    }
-    return map;
-  }, [query.data]);
+  const statusById = statusMapFor(query.data);
 
   const isUserDeleted = useCallback(
     (id?: string | null): boolean => {

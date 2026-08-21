@@ -1,7 +1,8 @@
 import type { DeviceFilterInput as RelayDeviceFilterInput } from '@/__generated__/addAllDevicesToScheduleMutation.graphql';
+import type { deviceSelectorFields_machine$key } from '@/__generated__/deviceSelectorFields_machine.graphql';
 import type { ScheduleDeviceCriteriaInput } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
-import { machineToDevice } from '@/app/(app)/devices/utils/device-transform';
+import { machineSelectorToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { DeviceSelectorNarrowing } from '@/app/components/shared/device-selector/device-selector.types';
 import { criteriaToInput, type ScheduleCriteria } from './schedule-criteria';
 
@@ -47,12 +48,12 @@ export function narrowingToFilter(narrowing: DeviceSelectorNarrowing): DeviceFil
 }
 
 type MachineEdges = ReadonlyArray<
-  { readonly node?: Parameters<typeof machineToDevice>[0] | null } | null | undefined
+  { readonly node?: deviceSelectorFields_machine$key | null } | null | undefined
 > | null;
 
 /** Connection edges → table rows, skipping any dangling (store-evicted) edge. */
 export function toDevices(edges: MachineEdges | undefined): Device[] {
-  return (edges ?? []).flatMap(edge => (edge?.node ? [machineToDevice(edge.node)] : []));
+  return (edges ?? []).flatMap(edge => (edge?.node ? [machineSelectorToDevice(edge.node)] : []));
 }
 
 /**

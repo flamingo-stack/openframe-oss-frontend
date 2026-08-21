@@ -7,6 +7,7 @@ import { runtimeEnv } from './runtime-config';
  */
 export const FEATURE_FLAG_NAMES = [
   'ai-escalation',
+  'ai-resolution',
   'billings',
   'help-center',
   'notifications',
@@ -51,6 +52,32 @@ function getFlagValue(flagName: string, envFallback: () => boolean): boolean {
   return envFallback();
 }
 
+/** localStorage key that turns the chunk-stream console log on for THIS browser. */
+export const DEBUG_NATS_CHUNKS_KEY = 'debug-nats-chunks';
+
+/**
+ * Client-side override for the chunk debug log — the ONE flag a local value may
+ * win over the server on.
+ *
+ * Every product flag reads server-first on purpose: a client that could force a
+ * feature on would render UI the tenant is not entitled to. This one renders
+ * nothing — it only writes to the console — and the case it exists for is
+ * exactly the one the server cannot serve: a developer running against a shared
+ * backend whose tenant has the flag OFF, who would otherwise have to flip a flag
+ * for every user of that tenant just to read their own stream.
+ *
+ * Enable with `localStorage.setItem('debug-nats-chunks', 'true')`, disable by
+ * removing the key. Wrapped because Safari's private mode throws on access.
+ */
+function isDebugChunkLogForced(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(DEBUG_NATS_CHUNKS_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Feature flags management
  * Server-loaded via feFeatureFlags GraphQL query with env-var fallbacks
@@ -78,7 +105,10 @@ export const featureFlags = {
   },
   debugNatsChunks: {
     enabled(): boolean {
-      return getFlagValue('debug-nats-chunks', () => false);
+      // Local override FIRST — see `isDebugChunkLogForced`: a server value of
+      // `false` must not silence a log the developer switched on for their own
+      // browser, which a plain `envFallback` could not express.
+      return isDebugChunkLogForced() || getFlagValue(DEBUG_NATS_CHUNKS_KEY, () => false);
     },
   },
   mingoSidebar: {
@@ -99,6 +129,11 @@ export const featureFlags = {
   aiEscalation: {
     enabled(): boolean {
       return getFlagValue('ai-escalation', () => false);
+    },
+  },
+  aiResolution: {
+    enabled(): boolean {
+      return getFlagValue('ai-resolution', () => false);
     },
   },
   mingoAiChatSettings: {

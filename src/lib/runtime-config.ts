@@ -1,5 +1,5 @@
 import { env } from 'next-runtime-env';
-import { getStoredTenantHost, MOBILE_APP_SCHEME } from './native-shell';
+import { APP_SCHEME, getStoredTenantHost } from './native-shell';
 
 function getEnvVar(key: string): string | undefined {
   try {
@@ -30,13 +30,15 @@ export const runtimeEnv = {
     return getEnvVar('NEXT_PUBLIC_SHARED_HOST_URL') || '';
   },
   /**
-   * OAuth callback scheme for the mobile shell. Per-env builds (stage/dev)
-   * override it so side-by-side installs don't fight over one scheme — the
-   * value must match the shell's Info.plist / manifest registration for the
-   * same env (iOS: OPENFRAME_URL_SCHEME build setting).
+   * OAuth callback scheme for the native shells. Per-env MOBILE builds
+   * (stage/dev) override it so side-by-side installs don't fight over one
+   * scheme — the value must match the shell's Info.plist / manifest
+   * registration for the same env (iOS: OPENFRAME_URL_SCHEME build setting).
+   * The desktop shell injects no override: it registers no scheme with the OS,
+   * and the default is the one the gateway allow-lists in every environment.
    */
-  mobileAppScheme(): string {
-    return getEnvVar('NEXT_PUBLIC_MOBILE_APP_SCHEME') || MOBILE_APP_SCHEME;
+  appScheme(): string {
+    return getEnvVar('NEXT_PUBLIC_MOBILE_APP_SCHEME') || APP_SCHEME;
   },
   gtmContainerId(): string | undefined {
     return getEnvVar('NEXT_PUBLIC_GTM_CONTAINER_ID');

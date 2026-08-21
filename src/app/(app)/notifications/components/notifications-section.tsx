@@ -18,7 +18,12 @@ import type { notificationsSectionRelayPaginationQuery as NotificationsSectionPa
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
 import { EmptyState } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { mapNotificationNode, stripNotificationMarkup } from '@/graphql/notifications/notifications-helpers';
+import {
+  mapNotificationNode,
+  parseCreatedAt,
+  readNotificationNode,
+  stripNotificationMarkup,
+} from '@/graphql/notifications/notifications-helpers';
 import {
   notificationsSectionRelayFragment,
   notificationsSectionRelayQuery,
@@ -128,17 +133,16 @@ function SectionTable({
   const rows = useMemo<NotificationRow[]>(
     () =>
       data.notifications.edges.map(edge => {
-        // Strip markup and normalize createdAt the same way the drawer tiles do
-        // (mapNotificationNode types title/description as ReactNode, so the row
-        // strings are built from the node directly).
-        const notification = mapNotificationNode(edge.node);
+        // Read once: the table's own columns take the raw fields (markup-stripped,
+        // same as the drawer tiles), the sub-row and actions take the mapped notification.
+        const node = readNotificationNode(edge.node);
         return {
-          id: edge.node.id,
-          title: stripNotificationMarkup(edge.node.title),
-          description: edge.node.description == null ? null : stripNotificationMarkup(edge.node.description),
-          createdAt: notification.createdAt,
-          read: edge.node.read,
-          notification,
+          id: node.id,
+          title: stripNotificationMarkup(node.title),
+          description: node.description == null ? null : stripNotificationMarkup(node.description),
+          createdAt: parseCreatedAt(node.createdAt),
+          read: node.read,
+          notification: mapNotificationNode(node),
         };
       }),
     [data.notifications.edges],

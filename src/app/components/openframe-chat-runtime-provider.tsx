@@ -50,6 +50,8 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
 
 /**
@@ -165,14 +167,26 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   // `openframe-docs` chips / cards / search results navigate identically here.
   const navigate = useCallback<NonNullable<ChatRuntime['navigation']['navigate']>>(
     ({ href, path }) => {
+      // Every branch that moves THIS window also dismisses the Mingo drawer the
+      // chat may be sitting in. `AppShell` closes it on a `pathname` change, but
+      // that misses exactly the links a chat emits most: a doc swap and a hash
+      // jump change no path at all, and `?id=`/`?slug=` targets change only the
+      // query — so the drawer stayed over the page it had just navigated, which
+      // below md is the entire viewport. A no-op when the drawer is closed, i.e.
+      // for the Help Center / knowledge-base surfaces sharing this runtime.
+      const navigated = () => {
+        useMingoLauncherStore.getState().close();
+        return true;
+      };
+
       // 1. In-page doc-tree swap when `path` matches a mounted viewer.
-      if (path != null && docNav.navigate(path)) return true;
+      if (path != null && docNav.navigate(path)) return navigated();
       // 2. Same-origin URL → soft-nav (hash targets get the smooth same-page tween
       //    + synthetic `hashchange` so FAQ auto-expand / scroll-to-hash still fire).
       if (!isCrossOriginUrl(href)) {
         const target = stripSameOriginToPath(href);
         if (!navigateSamePageHash(target)) router.push(target);
-        return true;
+        return navigated();
       }
       // 3. Cross-origin → let the lib open it (new tab).
       return false;
@@ -194,6 +208,26 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   const decideNewTab = useCallback<NonNullable<ChatRuntime['navigation']['decideNewTab']>>(
     ({ href }) => libDecideNewTab({ href, targetPlatform: null, currentSource: CHAT_SOURCE }),
     [],
+  );
+
+  // How a link the rule above sent to a "new tab" actually opens. The lib's
+  // default is `window.open(href, '_blank')`, which the app shell's WebView drops
+  // on the floor — the link is a dead click there. Same window instead wherever
+  // that is the case (`useSameWindowLinks`); in the shell an off-origin
+  // `location.assign` is handed to the system browser, so external content still
+  // leaves the app rather than replacing it.
+  //
+  // Only ever fed CROSS-ORIGIN hrefs: `decideNewTab` above is origin-based, so
+  // everything on our origin already resolves to `navigate` (a `router.push`).
+  // Synchronous, as the runtime requires — a deferred `window.open` is a blocked
+  // popup on Safari.
+  const sameWindow = useSameWindowLinks();
+  const openExternal = useCallback<NonNullable<ChatRuntime['navigation']['openExternal']>>(
+    href => {
+      if (sameWindow) window.location.assign(href);
+      else window.open(href, '_blank', 'noopener,noreferrer');
+    },
+    [sameWindow],
   );
 
   const runtime = useMemo<ChatRuntime>(() => {
@@ -278,6 +312,14 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         // never showed. `/api/auth/identity` is the lib's documented hub default.
         identityUrl: content('/api/auth/identity'),
         imageProxyUrlPrefix: content('/api/image-proxy'),
+        // Native `<track>` VTT endpoint behind every video surface (help-center
+        // release / onboarding-guide players, chat video cards, the floating
+        // walkthrough card). The lib builds caption URLs off the relative hub
+        // default `/api/captions/…`, which resolves against THIS app's origin —
+        // a route we don't serve, so toggling CC fetched a 404 and no subtitles
+        // ever rendered. Pointing it at the same `/content` proxy as every other
+        // endpoint puts the tracks back on MPH.
+        captionsUrlPrefix: content('/api/captions'),
       },
       navigation: {
         // Host mode — identical to MPH's `HubRuntimeProvider`. See the file
@@ -285,6 +327,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         mode: 'host',
         navigate,
         decideNewTab,
+        openExternal,
       },
       // Unified content-href seam (shared with Help Center pages): the hosted
       // types and the Help Center overrides soft-nav into `/help-center/...`;
@@ -293,9 +336,11 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       composeContentUrl: composeOpenframeInAppContentUrl,
       source: CHAT_SOURCE,
     };
-    // `navigate` / `decideNewTab` are the only reactive deps; both are stable
-    // `useCallback`s, so the runtime object is effectively built once.
-  }, [navigate, decideNewTab]);
+    // `navigate` / `decideNewTab` / `openExternal` are the only reactive deps.
+    // The first two are stable `useCallback`s; `openExternal` changes only on a
+    // resize across the md breakpoint, so the runtime object is rebuilt about as
+    // often as never.
+  }, [navigate, decideNewTab, openExternal]);
 
   return <ChatRuntimeContext.Provider value={runtime}>{children}</ChatRuntimeContext.Provider>;
 }

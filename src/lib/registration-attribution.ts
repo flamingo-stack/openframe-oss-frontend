@@ -1,8 +1,11 @@
+import { readCookie } from './cookies';
+import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeReferralCode } from './referral-cookie';
+
 /**
  * Marketing-attribution signals collected at registration time, shaped to match the backend
  * `RegistrationAttribution` DTO — field names here must stay in sync with that Java class.
  *
- * Two different lifetimes are at play, which is why this file has both a capture step and a
+ * Three different lifetimes are at play, which is why this file has both a capture step and a
  * collect step:
  *
  * - **Cookies** (`_fbc`, `_fbp`) are written by the Meta pixel. They are not HttpOnly, they
@@ -14,6 +17,12 @@
  *   address bar of the *landing* page. A visitor who lands on `/` and then navigates to
  *   `/auth` has already lost them, so they are captured into sessionStorage on first load
  *   (see `captureAttributionFromUrl`, mounted app-wide) and read back at submit.
+ *
+ * - **The partner referral** (`?ref=`) outlives both. It is clicked on the marketing site
+ *   (`openframe.ai`) and redeemed on the signup app (`auth.openframe.ai`), possibly weeks
+ *   later, so sessionStorage — origin-scoped and tab-lived — cannot carry it. It gets its own
+ *   90-day cookie on the shared base domain; `referral-cookie.ts` owns that mechanism and the
+ *   last-touch policy behind it.
  */
 
 /** Backend DTO shape. Every field optional; absent means "never send this property". */
@@ -40,6 +49,8 @@ export interface RegistrationAttribution {
   utmTerm?: string;
   /** Shared id for pixel/server deduplication; generated at form submit. */
   eventId?: string;
+  /** Partner referral code from the `of_ref` cookie — see `referral-cookie.ts`. */
+  ref?: string;
 }
 
 /**
@@ -62,13 +73,6 @@ const STORAGE_PREFIX = 'of_attr_';
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
-}
-
-function readCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const escaped = name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1');
-  const match = document.cookie.match(new RegExp('(?:^|; )' + escaped + '=([^;]*)'));
-  return match ? decodeURIComponent(match[1]) : undefined;
 }
 
 function readUrlParam(name: string): string | undefined {
@@ -111,6 +115,11 @@ export function captureAttributionFromUrl(): void {
       writeStored(param, value);
     }
   }
+
+  // `?ref=` is deliberately NOT part of that loop: it is cookie-backed, cross-subdomain and
+  // last-touch, none of which sessionStorage first-touch capture can express. Usually a no-op —
+  // the cookie normally arrives from the marketing site, and an unchanged one is left alone.
+  captureReferralFromUrl();
 }
 
 /** RFC4122 id, falling back to a random string where `crypto.randomUUID` is unavailable. */
@@ -181,6 +190,10 @@ export function collectRegistrationAttribution(): RegistrationAttribution | unde
     fbp: readCookie('_fbp'),
     hutk: readCookie('hubspotutk'),
     eventId,
+    // Cookie first — it is the one signal that can predate this visit entirely. The live URL is
+    // the fallback for a partner link pointing straight at the signup page, submitted before the
+    // capture effect got to write the cookie.
+    ref: readReferralCode() ?? sanitizeReferralCode(readUrlParam(REFERRAL_URL_PARAM)),
   };
 
   for (const [param, field] of Object.entries(URL_PARAM_TO_FIELD)) {

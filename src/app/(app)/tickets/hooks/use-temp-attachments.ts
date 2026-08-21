@@ -4,6 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { putUploadSource, type UploadSource, uploadSourceMeta } from '@/lib/native-files';
 import { API_ENDPOINTS } from '../constants';
 import {
   CREATE_TEMP_ATTACHMENT_UPLOAD_URL,
@@ -26,15 +27,15 @@ export interface TempFileEntry {
 }
 
 export async function createTempAttachment(
-  file: File,
+  source: UploadSource,
 ): Promise<{ id: string; fileName: string; fileSize: number; contentType: string }> {
-  const contentType = file.type || 'application/octet-stream';
+  const { fileName, contentType, fileSize } = uploadSourceMeta(source);
 
   const response = await apiClient.post<GraphQlResponse<{ createTempAttachmentUploadUrl: TempAttachmentPayload }>>(
     API_ENDPOINTS.GRAPHQL,
     {
       query: CREATE_TEMP_ATTACHMENT_UPLOAD_URL,
-      variables: { input: { fileName: file.name, contentType: file.type || undefined, fileSize: file.size } },
+      variables: { input: { fileName, contentType, fileSize } },
     },
   );
 
@@ -48,19 +49,9 @@ export async function createTempAttachment(
     throw new Error('No attachment data returned');
   }
 
-  const { id, uploadUrl } = payload.tempAttachment;
+  await putUploadSource(source, payload.tempAttachment.uploadUrl);
 
-  const uploadResponse = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: file,
-  });
-
-  if (!uploadResponse.ok) {
-    throw new Error(`Upload failed with status ${uploadResponse.status}`);
-  }
-
-  return { id, fileName: file.name, fileSize: file.size, contentType };
+  return { id: payload.tempAttachment.id, fileName, fileSize, contentType };
 }
 
 async function deleteTempAttachment(id: string): Promise<void> {
@@ -84,12 +75,10 @@ export function useTempAttachments() {
 
   const uploadMutation = useMutation({
     mutationFn: createTempAttachment,
-    onMutate: (file: File) => {
+    onMutate: (source: UploadSource) => {
       const placeholder: TempFileEntry = {
         id: `pending-${crypto.randomUUID()}`,
-        fileName: file.name,
-        fileSize: file.size,
-        contentType: file.type || 'application/octet-stream',
+        ...uploadSourceMeta(source),
         status: 'uploading',
       };
       setFiles(prev => [...prev, placeholder]);
@@ -123,8 +112,8 @@ export function useTempAttachments() {
   });
 
   const uploadFile = useCallback(
-    (file: File) => {
-      uploadMutation.mutate(file);
+    (source: UploadSource) => {
+      uploadMutation.mutate(source);
     },
     [uploadMutation],
   );

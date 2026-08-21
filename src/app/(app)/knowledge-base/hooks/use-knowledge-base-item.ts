@@ -2,6 +2,7 @@
 
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { useKnowledgeBaseItemQuery as UseKnowledgeBaseItemQueryType } from '@/__generated__/useKnowledgeBaseItemQuery.graphql';
+import { useRetryKey } from '@/app/components/shared';
 
 export const knowledgeBaseItemQuery = graphql`
   query useKnowledgeBaseItemQuery($id: ID!) {
@@ -47,10 +48,11 @@ export const knowledgeBaseItemQuery = graphql`
 export type KnowledgeBaseItemNode = NonNullable<UseKnowledgeBaseItemQueryType['response']['knowledgeBaseItem']>;
 
 export function useKnowledgeBaseItem(id: string) {
+  const retryKey = useRetryKey();
   const data = useLazyLoadQuery<UseKnowledgeBaseItemQueryType>(
     knowledgeBaseItemQuery,
     { id },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   return data.knowledgeBaseItem;
 }
