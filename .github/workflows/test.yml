@@ -23,6 +23,25 @@ env:
 # =============================================================================
 
 jobs:
+  scan:
+    name: "Scan"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && !github.event.pull_request.draft
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Scan code
+        uses: ./.github/steps/trivy
+        with:
+          scan: code
+
   build_image:
     name: "Test Frontend"
     runs-on: ubuntu-latest
@@ -61,7 +80,7 @@ jobs:
             type=raw,value=pr-${{ github.event.pull_request.number }}
             type=raw,value=pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
 
-      - name: Build and Push pr-${{ github.event.pull_request.number }}
+      - name: Build image
         id: docker_build
         uses: nick-fields/retry@v4
         env:
@@ -72,11 +91,34 @@ jobs:
           timeout_minutes: 12
           shell: bash
           command: |
-            args=(--platform linux/amd64,linux/arm64 --push --provenance=false
+            args=(--platform linux/amd64,linux/arm64
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
-                  -f ./Dockerfile)
+                  -f "./Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
-            docker buildx build "${args[@]}" .
+            echo "BUILD_ARGS=${args[*]}" >> "$GITHUB_ENV"
+            docker buildx build "${args[@]}" "."
+
+      - name: Scan image
+        continue-on-error: true
+        uses: ./.github/steps/trivy
+        with:
+          scan: image
+          image-name: ${{ env.REPOSITORY }}
+          dockerfile: ./Dockerfile
+          context: .
+
+      - name: Push image
+        id: docker_push
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 5
+          timeout_minutes: 12
+          shell: bash
+          command: docker buildx build $BUILD_ARGS --push --provenance=false --sbom=true "."
+
+
+
 
 
   cleanup:
