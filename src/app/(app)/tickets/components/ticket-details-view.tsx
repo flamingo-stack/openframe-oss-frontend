@@ -499,16 +499,22 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   const handleTransition = useCallback(
     (toStatusId: string) => {
       if (!dialog || transitionTicket.isPending) return;
-      // Leaving a terminal status is a REOPEN, not a plain move: it goes
-      // through the confirmation modal (target status + assignee + reason)
-      // instead of firing the transition directly. Gated on `ai-resolution` —
-      // with the flag off the legacy direct transition below still applies.
+      // Leaving a terminal status for a WORKING one is a REOPEN, not a plain
+      // move: it goes through the confirmation modal (target status + assignee
+      // + reason) instead of firing the transition directly. Gated on
+      // `ai-resolution` - with the flag off the legacy direct transition below
+      // still applies. A terminal-to-terminal pick (e.g. Archived → Resolved)
+      // stays a plain move: the modal filters closed kinds out of its options,
+      // so routing it there could only render the target as a raw status id.
       if (
         featureFlags.aiResolution.enabled() &&
         (dialog.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED)
       ) {
-        setReopenTarget({ ticketId, initialStatusId: toStatusId });
-        return;
+        const targetKind = statusesData?.snapshot?.find(s => s.id === toStatusId)?.kind;
+        if (targetKind !== TICKET_STATUS_KIND.RESOLVED && targetKind !== TICKET_STATUS_KIND.ARCHIVED) {
+          setReopenTarget({ ticketId, initialStatusId: toStatusId });
+          return;
+        }
       }
       // Resolve is the inline status changer moving the ticket into a
       // RESOLVED-kind status — there is no dedicated "resolve" button. Track
