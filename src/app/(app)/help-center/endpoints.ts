@@ -99,10 +99,9 @@ export const EP = {
   docsContent: (sourceId: string) => `${CONTENT}/docs/sources/${sourceId}/content`,
   docsResolveLink: `${CONTENT}/docs/resolve-link`,
   docsSearch: `${CONTENT}/docs/search`,
-  // Walkthrough video — the floating per-platform demo video (mounted app-wide
-  // by `<WalkthroughVideo>`, not by a Help Center page). Public: no auth, no
-  // platform param — the hub resolves the platform server-side and answers with
-  // the raw body `{ walkthroughVideo }` (null when that platform has none).
+  // The per-platform demo video, rendered by the onboarding "Book a call" promo
+  // (not by a Help Center page). No platform param — the hub resolves it
+  // server-side and answers `{ walkthroughVideo }`, null when there is none.
   walkthroughVideo: `${CONTENT}/walkthrough-video`,
   // Curated HubSpot meeting links grouped by audience. The lib's scheduler then
   // self-builds `/api/meetings/{availability,book}` onto the same proxy base.
