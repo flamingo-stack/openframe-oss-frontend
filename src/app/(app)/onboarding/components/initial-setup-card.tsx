@@ -66,9 +66,9 @@ const STEP_META: readonly StepMeta[] = [
     description: 'Run one command on a client machine to connect it to OpenFrame and start monitoring.',
     // A device has to belong to a customer, so this step is dead until one
     // exists — which is why the design draws it locked with this exact line.
-    // The gate is the customer COUNT (auto-detect's `organizations > 1`, the
-    // default org not counting), never the Customers Setup checkbox: that step
-    // can be marked complete by hand on a workspace with no customer at all.
+    // The gate is whether a customer EXISTS (auto-detect's non-default-org
+    // check), never the Customers Setup checkbox: that step can be marked
+    // complete by hand on a workspace with no customer at all.
     requiresData: { step: TenantOnboardingStep.CUSTOMERS_SETUP, hint: 'Added Customer required' },
   },
   {

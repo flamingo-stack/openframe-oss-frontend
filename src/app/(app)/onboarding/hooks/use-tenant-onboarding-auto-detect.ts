@@ -75,9 +75,9 @@ export type DataDetectableStep =
  * suspends and has no `enabled`/mount gate of its own) and wrapped in a Suspense
  * boundary — see InitialSetupCard, which gates on `!isLoaded || !tenant || completed`.
  *
- * Completion criteria (there is always a default org, hence `> 1` for customers):
+ * Completion criteria:
  *   - MSP_SETUP:         name + website + logo all filled
- *   - CUSTOMERS_SETUP:   more than one organization (at least one real customer)
+ *   - CUSTOMERS_SETUP:   at least one organization that is not the default one
  *   - DEVICE_MANAGEMENT: at least one ONLINE/OFFLINE device
  *   - MEET_MINGO:        nothing to detect — the visitor marks it done
  */
@@ -93,7 +93,12 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
   const mspComplete = Boolean(
     data.tenantInfo?.name?.trim() && data.tenantInfo?.website?.trim() && data.tenantInfo?.image?.imageUrl?.trim(),
   );
-  const orgCount = data.organizations?.filteredCount ?? 0;
+  // "A customer exists" is one NON-DEFAULT organization — not a count. Counting
+  // had to assume the workspace was seeded with a default org and subtract it
+  // (`> 1`), so a tenant without that seed needed TWO customers before the step
+  // would close, and the Device Management gate stayed locked with one. Reading
+  // `isDefault` asks the question directly and holds either way.
+  const hasCustomer = (data.organizations?.edges ?? []).some(edge => edge?.node?.isDefault === false);
   const deviceCount = data.deviceFilters?.filteredCount ?? 0;
 
   const completedByData = useMemo(() => {
@@ -101,7 +106,7 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
     if (mspComplete) {
       steps.add(TenantOnboardingStep.MSP_SETUP);
     }
-    if (orgCount > 1) {
+    if (hasCustomer) {
       steps.add(TenantOnboardingStep.CUSTOMERS_SETUP);
     }
     if (deviceCount > 0) {
@@ -114,7 +119,7 @@ export function useTenantOnboardingAutoDetect(): Set<TenantOnboardingStep> {
     // it would have been a REST round-trip on every dashboard load feeding a
     // set entry nothing reads.
     return steps;
-  }, [mspComplete, orgCount, deviceCount]);
+  }, [mspComplete, hasCustomer, deviceCount]);
 
   // Steps whose completion mutation we've already sent this mount. Per-mount only —
   // resets on remount, and the next visit re-derives from the backend `completedSteps`.
