@@ -79,7 +79,10 @@ interface AutoAdvanceOptions<T extends string> {
  */
 export function useOnboardingAutoAdvance<T extends string>(
   steps: readonly T[],
-  completedSteps: readonly T[],
+  // Membership oracle, not a step list — deliberately NOT `readonly T[]`. A surface
+  // renders a subset of its enum, so this can name steps it never shows; `steps` alone
+  // defines the universe.
+  completedSteps: readonly string[],
   { scrollOnMount = false, urlStep = null, onOpenStepChange }: AutoAdvanceOptions<T> = {},
 ) {
   // The step the flow points the user at — first incomplete one in display order.

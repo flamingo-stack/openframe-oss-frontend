@@ -4,6 +4,7 @@ import { FastForwardIcon } from '@flamingo-stack/openframe-frontend-core/compone
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { USER_ONBOARDING_STEPS } from '../onboarding-steps';
 import { USER_ONBOARDING_GROUPS } from '../user-onboarding-groups';
+import { BookCallSection } from './book-call/book-call-section';
 import { OnboardingAccordionGroup, OnboardingAccordionItem } from './onboarding-accordion';
 
 /**
@@ -18,6 +19,9 @@ import { OnboardingAccordionGroup, OnboardingAccordionItem } from './onboarding-
  * Used both as the `<Suspense>` fallback in {@link ../page} and as the pre-load state
  * inside `OnboardingContent`. Rows render with `loading`, so their bodies are NOT mounted
  * and the always-mounted `DeviceSetupStep` (a `useSuspenseQuery`) never suspends here.
+ *
+ * The "Book a call" block is the REAL one, not a placeholder — it reads its own data, so
+ * it settles independently and keeps the steps from jumping down once they load.
  */
 export function OnboardingSkeleton() {
   const total = USER_ONBOARDING_STEPS.length;
@@ -33,6 +37,8 @@ export function OnboardingSkeleton() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
     >
+      <BookCallSection />
+
       {USER_ONBOARDING_GROUPS.map(group => (
         <OnboardingAccordionGroup key={group.label} label={group.label}>
           {group.items.map(item => (
