@@ -10,7 +10,6 @@ import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import type { Tag } from '@/app/components/shared/tags';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
-import { useAuthStore } from '@/stores';
 import { API_ENDPOINTS } from '../constants';
 import { GET_TICKET_TAGS_QUERY, GET_TICKETS_QUERY } from '../queries/ticket-queries';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
@@ -134,21 +133,6 @@ export function useAssigneeOptions(enabled = true) {
   });
 
   return { options: query.data ?? EMPTY_AVATAR_OPTIONS, isLoading: query.isLoading };
-}
-
-/** Move the signed-in user to the top of an assignee option list (self-assign shortcut). */
-export function sortSelfFirst<T extends AutocompleteOption>(options: T[], currentUserId: string | undefined): T[] {
-  const idx = currentUserId ? options.findIndex(o => o.value === currentUserId) : -1;
-  if (idx <= 0) return options;
-  return [options[idx], ...options.slice(0, idx), ...options.slice(idx + 1)];
-}
-
-/** Assignee options with the signed-in user surfaced first. */
-export function useSelfFirstAssigneeOptions(enabled = true) {
-  const { options, isLoading } = useAssigneeOptions(enabled);
-  const currentUserId = useAuthStore(state => state.user?.id);
-  const sortedOptions = useMemo(() => sortSelfFirst(options, currentUserId), [options, currentUserId]);
-  return { options: sortedOptions, isLoading };
 }
 
 // --- Tags (ticket-specific, via /chat/graphql) ---
