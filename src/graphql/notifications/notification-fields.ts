@@ -53,6 +53,9 @@ export const notificationFieldsFragment = graphql`
       ... on TicketReopenedContext {
         ticketId
       }
+      ... on TicketEscalatedByUserContext {
+        ticketId
+      }
       ... on TicketAssignedContext {
         ticketId
       }
