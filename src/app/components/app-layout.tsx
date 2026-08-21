@@ -45,6 +45,7 @@ import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
 import { CachedOnboardingTopBar, useCachedOnboardingTopBar } from './onboarding-top-bar-cache';
 import { OnboardingTourBar } from './onboarding-tour-bar';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
+import { PresenceHeartbeat } from './presence-heartbeat';
 import { SubscriptionGuard } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
 import { useSubscriptionLock } from './subscription-lock/subscription-lock-context';
@@ -642,10 +643,12 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
 
   return (
     <>
-      {/* Both assume a signed-in user (push registration, biometric enrolment). */}
+      {/* All three assume a signed-in user (push registration, biometric enrolment,
+          presence is an authenticated mutation). */}
       {isReady && isAuthenticated && (
         <>
           <NativePushInitializer />
+          <PresenceHeartbeat />
           <BiometricEnrollPrompt />
         </>
       )}

@@ -74,6 +74,7 @@ import {
 } from '@/lib/active-dialog-views';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { CANCEL_IDLE_MS, isSessionActive } from '@/lib/session-activity';
 import { withCategoryIcon } from './notification-category-icons';
 import {
   CONTEXT_TYPENAME_BY_TYPE,
@@ -455,6 +456,10 @@ function EntityViewAutoReader() {
   const { notifications, markRead } = useNotifications();
 
   useEffect(() => {
+    // Same cross-device consequence as the arrival-time path above, so the same
+    // gate. Without it, a browser left open on a ticket marks read — and retracts
+    // from the phone — every unread notification that ticket ever produced.
+    if (!isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })) return;
     const params = new URLSearchParams(searchParams.toString());
     for (const notification of notifications) {
       if (notification.read) continue;
@@ -523,7 +528,11 @@ interface NotificationsLiveBridgeProps {
 function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean {
   const dialogId = payload.context?.dialogId;
   if (typeof dialogId !== 'string' || !isDialogViewActive(dialogId)) return false;
-  return typeof document !== 'undefined' && document.visibilityState === 'visible';
+  // Activity, not `visibilityState`. This branch marks the notification read, and
+  // read state is CROSS-DEVICE — it drives PushRetractionListener, which pulls the
+  // banner off the user's phone. A visible tab on an unattended desk satisfied the
+  // old gate, so a laptop left open silently cleared notifications nobody saw.
+  return isSessionActive({ idleAfterMs: CANCEL_IDLE_MS });
 }
 
 /**
@@ -680,6 +689,27 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
         return;
       }
 
+      // An active human at this session is looking at the app right now, so kill the
+      // pending OS push rather than buzzing a phone about something already on screen.
+      //
+      // Placement is deliberate. ABOVE `suppress`: that branch cancels only as a side
+      // effect of marking read, and once the read is gated on activity it may not fire
+      // at all. BELOW the `isUpdate` return: NotificationBroadcaster.update() publishes
+      // to NATS and never calls channelDispatcher.dispatch, so an UPDATED event enqueues
+      // no push and a cancel there is a wasted round trip.
+      //
+      // Best-effort: the mutation plants a tombstone that wins even if it outraces the
+      // enqueue, and losing it just means the push lands.
+      if (isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })) {
+        commitMutation<CancelPendingPushMutationType>(environmentRef.current, {
+          mutation: cancelPendingPushMutation,
+          variables: { notificationId: rawId },
+          onError: error => {
+            console.warn('[notifications] cancelPendingPush failed:', error);
+          },
+        });
+      }
+
       if (suppress) {
         // Persist the auto-read server-side; refresh sidebar badges either way
         // so they stay truthful even if the mutation fails.
@@ -690,22 +720,6 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
           onError: () => refreshUnreadCounts(environmentRef.current),
         });
         return;
-      }
-
-      // A visible client means the user is looking at this notification right now — the
-      // drawer tile and popup are rendering it — so kill its pending OS push before the
-      // outbox grace expires, rather than buzzing a phone about something already on
-      // screen. Exactly complementary to the desktop mirror below, which fires only when
-      // the tab is HIDDEN. Best-effort: the mutation is a tombstone that also wins when it
-      // outraces the enqueue, and losing it just means the push lands.
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        commitMutation<CancelPendingPushMutationType>(environmentRef.current, {
-          mutation: cancelPendingPushMutation,
-          variables: { notificationId: rawId },
-          onError: error => {
-            console.warn('[notifications] cancelPendingPush failed:', error);
-          },
-        });
       }
 
       if (showDesktopPopupsRef.current) {
