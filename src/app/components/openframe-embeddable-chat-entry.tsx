@@ -32,6 +32,7 @@
 
 import type {
   ChatContextPickerConfig,
+  EmbeddableChatHandle,
   MingoQuickAction,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
@@ -39,7 +40,7 @@ import {
   getAgentAccent,
   renderQuickActionIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../(app)/mingo/context/context-sources';
@@ -100,6 +101,21 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     if (!text) return;
     void sendInNewDialog(text);
   }, [pendingPrompt, consumePendingPrompt, sendInNewDialog]);
+
+  // Queued launcher "start a new chat". Nothing to send and nothing the host can
+  // set — which view the narrow panel shows with no open conversation (list vs.
+  // composer) is its own state — so this goes to its imperative handle. Same
+  // one-shot drain as the prompt: it must fire on a fresh open AND while the
+  // drawer is already open on the list.
+  const chatHandle = useRef<EmbeddableChatHandle>(null);
+  const pendingNewChat = useMingoLauncherStore(s => s.pendingNewChat);
+  const consumePendingNewChat = useMingoLauncherStore(s => s.consumePendingNewChat);
+
+  useEffect(() => {
+    if (!pendingNewChat) return;
+    if (!consumePendingNewChat()) return;
+    chatHandle.current?.startNewChat();
+  }, [pendingNewChat, consumePendingNewChat]);
 
   // Entity-context picker config (the `+` "Assign Item" menu + `@` trigger).
   // Stable so the lib's composer doesn't re-derive its icon map each render.
@@ -177,6 +193,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
       )}
 
       <EmbeddableChat
+        ref={chatHandle}
         // Shell-less: the host `AppLayoutDrawer` owns the panel chrome,
         // open/close, and positioning. `open` / `onOpenChange` are the same
         // state the drawer is bound to, so the chat's in-header X button and

@@ -291,19 +291,24 @@ export function readNotificationNode(ref: NotificationFieldsKey): NotificationFi
  */
 export function mapNotificationNode(node: NotificationFieldsData): Notification {
   const severity = normalizeSeverity(node.severity);
+  // `context` is NULLABLE as of the backend's context -> type/attributes
+  // migration: rows written on the new path carry no typed context at all, so
+  // nothing below may assume one. A context-less row still maps — it just
+  // contributes no context metadata, and the fields that drive navigation
+  // simply stay absent.
   const { context } = node;
   const meta: Record<string, unknown> = {
-    contextType: context.type,
-    contextTypename: context.__typename,
+    contextType: context?.type,
+    contextTypename: context?.__typename,
   };
 
   // Entity ids drive navigation/auto-read uniformly across context types (see
   // resolveNotificationAction); every context that carries one selects it in the query fragment.
-  const ticketId = context.ticketId ?? context.approvalTicketId ?? context.clientTicketId ?? undefined;
-  if (context.dialogId) meta.dialogId = context.dialogId;
+  const ticketId = context?.ticketId ?? context?.approvalTicketId ?? context?.clientTicketId ?? undefined;
+  if (context?.dialogId) meta.dialogId = context.dialogId;
   if (ticketId) meta.ticketId = ticketId;
 
-  if (context.__typename === 'AdminApprovalRequestContext' && context.approvalRequestId) {
+  if (context?.__typename === 'AdminApprovalRequestContext' && context.approvalRequestId) {
     meta.approvalRequestId = context.approvalRequestId;
     meta.approvalType = context.approvalType ?? null;
     meta.resolution = context.resolution ?? null;
@@ -322,7 +327,7 @@ export function mapNotificationNode(node: NotificationFieldsData): Notification 
 
   return {
     id: node.id,
-    type: contextTypeLabel(context.type),
+    type: contextTypeLabel(context?.type),
     title: stripNotificationMarkup(node.title),
     description: node.description == null ? undefined : stripNotificationMarkup(node.description),
     createdAt: parseCreatedAt(node.createdAt),
