@@ -36,6 +36,13 @@ export const notificationFieldsFragment = graphql`
         ticketId
         dialogId
       }
+      # ticketId is aliased: nullable ID on this context (a Fae chat can run without
+      # a ticket) cannot merge with the ID! selections above. The mapper folds it
+      # into meta.ticketId for ticket navigation.
+      ... on ClientAiMessageContext {
+        dialogId
+        clientTicketId: ticketId
+      }
       ... on TicketStatusChangedContext {
         ticketId
       }
@@ -44,6 +51,9 @@ export const notificationFieldsFragment = graphql`
       # different nullability cannot merge into one selection set. Navigation
       # needs only ticketId.
       ... on TicketReopenedContext {
+        ticketId
+      }
+      ... on TicketEscalatedByUserContext {
         ticketId
       }
       ... on TicketAssignedContext {
