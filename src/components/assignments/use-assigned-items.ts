@@ -1,12 +1,12 @@
 'use client';
 
 import { type UseQueryResult, useQueries } from '@tanstack/react-query';
+import { graphql, fetchQuery, useRelayEnvironment } from 'react-relay';
 import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app/(app)/customers/hooks/use-customers';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { KnowledgeBaseRow } from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
 import type { Dialog, DialogStatus } from '@/app/(app)/tickets/types/dialog.types';
-import { postGraphQl } from './graphql';
 import { ensureGlobalId } from './relay-id';
 import {
   ASSIGNMENT_TARGET_TYPES,
@@ -16,8 +16,14 @@ import {
   type AssignmentTargetType,
 } from './types';
 
-const ASSIGNED_ITEMS_QUERY = `#graphql
-  query AssignmentsAssignedItems($itemId: ID!, $targetType: AssignmentTargetType!, $first: Int) {
+// NOTE(OPENFRAM-002-2): This query is fetched imperatively via react-relay's
+// `fetchQuery` (see `fetchAssignedItems` below) rather than `postGraphQl`,
+// because the caller needs to issue one query per assignment target type
+// through `useQueries`/`combine` for the loading/ready semantics described
+// there. `fetchQuery` still routes through the Relay environment/network
+// layer and normalizes into the Relay store, unlike a raw POST call.
+const ASSIGNED_ITEMS_QUERY = graphql`
+  query useAssignedItemsQuery($itemId: ID!, $targetType: AssignmentTargetType!, $first: Int) {
     assignedItems(itemId: $itemId, targetType: $targetType, first: $first) {
       edges {
         node {
@@ -168,12 +174,16 @@ interface AssignedItemsPayload {
   tickets?: Dialog[];
 }
 
-async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetType): Promise<AssignedItemsPayload> {
-  const data = await postGraphQl<AssignedItemsData>(ASSIGNED_ITEMS_QUERY, {
+async function fetchAssignedItems(
+  environment: Parameters<typeof fetchQuery>[0],
+  itemId: string,
+  targetType: AssignmentTargetType
+): Promise<AssignedItemsPayload> {
+  const data = (await fetchQuery(environment, ASSIGNED_ITEMS_QUERY, {
     itemId,
     targetType,
     first: PAGE_SIZE,
-  });
+  }).toPromise()) as AssignedItemsData;
 
   const refs: AssignmentRef[] = [];
   const customers: Customer[] = [];
@@ -264,6 +274,7 @@ function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Erro
 }
 
 export function useAssignedItems({ itemId, itemType, enabled = true }: UseAssignedItemsOptions): AssignedItemsResult {
+  const environment = useRelayEnvironment();
   const isEnabled = enabled && !!itemId;
   // TODO(backend): drop ensureGlobalId once ai-agent's Ticket type is Relay-compliant — see relay-id.ts.
   const normalizedItemId = itemId ? ensureGlobalId(itemType, itemId) : null;
@@ -271,7 +282,7 @@ export function useAssignedItems({ itemId, itemType, enabled = true }: UseAssign
   return useQueries({
     queries: ASSIGNMENT_TARGET_TYPES.map(targetType => ({
       queryKey: ['assignments', 'assigned-items', itemType, normalizedItemId, targetType],
-      queryFn: () => fetchAssignedItems(normalizedItemId as string, targetType),
+      queryFn: () => fetchAssignedItems(environment, normalizedItemId as string, targetType),
       enabled: isEnabled,
       staleTime: 30_000,
     })),
