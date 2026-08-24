@@ -357,7 +357,7 @@ class FleetApiClient {
     if (params?.order_key) queryParams.append('order_key', params.order_key);
     if (params?.order_direction) queryParams.append('order_direction', params.order_direction);
     if (params?.per_page) queryParams.append('per_page', params.per_page.toString());
-    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.page !== undefined) queryParams.append('page', params.page.toString());
     if (params?.disable_failing_policies !== undefined) {
       queryParams.append('disable_failing_policies', params.disable_failing_policies.toString());
     }
