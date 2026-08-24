@@ -39,6 +39,13 @@ export interface QueryState {
    * so the button would do nothing.
    */
   isOffline: boolean;
+  /**
+   * The server refused the request with a 403. Render the "not available" copy
+   * and hide any Retry: the answer will not change on a second attempt, so the
+   * button would only re-run the same rejection. Kept apart from `error` so a
+   * permission or missing-integration case never shows the raw transport string.
+   */
+  isForbidden: boolean;
   /** Terminal failure with no data. Render an error with a working Retry. */
   error: string | null;
   /**
@@ -81,14 +88,26 @@ interface QueryLike {
 export function queryState(query: QueryLike, gate: QueryGate = 'open'): QueryState {
   const isOffline = query.isPending && query.isPaused;
   const isLoading = query.isPending && !query.isPaused && gate === 'open';
+  // A 403 with no data is its own terminal state, like offline: the raw transport
+  // string never reaches the user, and the Retry is dropped because the answer
+  // will not change.
+  const isForbidden = query.isError && query.data === undefined && isForbiddenError(query.error);
   // Only a failure with NO data: a background refetch that fails while cached
   // rows are on screen is not an error state, it is stale data. The cost is that
   // a query which succeeded once and then fails every refetch reports `null`
   // forever — nothing here signals staleness, and no surface asks for it yet.
-  const error = query.isError && query.data === undefined ? query.error?.message || 'Request failed' : null;
+  const error =
+    query.isError && query.data === undefined && !isForbidden ? query.error?.message || 'Request failed' : null;
   const hasData = query.data !== undefined;
 
-  return { isLoading, isOffline, error, hasData, canClaimEmpty: hasData && !error && !isOffline };
+  return {
+    isLoading,
+    isOffline,
+    isForbidden,
+    error,
+    hasData,
+    canClaimEmpty: hasData && !error && !isOffline && !isForbidden,
+  };
 }
 
 /**
@@ -99,6 +118,13 @@ export function queryState(query: QueryLike, gate: QueryGate = 'open'): QuerySta
  * imported the string alone would get half the rule.
  */
 const OFFLINE_MESSAGE = "You're offline — this will update when the connection returns.";
+
+/**
+ * Copy for the 403 phase. One message covers both causes the user can act on:
+ * the account lacks permission, or the tenant has no Fleet connection. Reached
+ * through `loadErrorProps`, which drops the Retry along with it.
+ */
+const FORBIDDEN_MESSAGE = 'This section is not available. You may not have permission, or Fleet is not connected.';
 
 /**
  * The `(message, Retry)` pair a failed load renders, decided in one place.
@@ -119,10 +145,15 @@ const OFFLINE_MESSAGE = "You're offline — this will update when the connection
  * left saying "No policies found." when the load is what failed.
  */
 export function loadErrorProps(
-  isOffline: boolean,
+  state: boolean | { isOffline?: boolean; isForbidden?: boolean },
   message: string,
   onRetry?: () => void,
 ): { message: string; onRetry?: () => void } {
+  const isOffline = typeof state === 'boolean' ? state : !!state.isOffline;
+  const isForbidden = typeof state === 'boolean' ? false : !!state.isForbidden;
+  // Both terminal states swap the copy and drop the Retry — offline because the
+  // link is down, forbidden because a second attempt returns the same rejection.
+  if (isForbidden) return { message: FORBIDDEN_MESSAGE };
   return isOffline ? { message: OFFLINE_MESSAGE } : { message, onRetry };
 }
 
@@ -156,4 +187,28 @@ export class OfflineError extends Error {
 /** Duck-typed so it survives bundle boundaries and re-thrown copies. */
 export function isOfflineError(error: unknown): error is OfflineError {
   return (error as { isOfflineError?: unknown } | null)?.isOfflineError === true;
+}
+
+/**
+ * Thrown when the server refused a request with a 403, as opposed to a request
+ * that simply failed.
+ *
+ * A REST caller (see the Fleet hooks) throws this instead of a plain `Error`
+ * carrying the upstream transport string, so `queryState` can report the
+ * dedicated `isForbidden` state and no surface shows the raw
+ * "Request failed with status code 403". Carries the shared copy in `message`
+ * so a mutation that fails this way still reads well in a toast.
+ */
+export class ForbiddenError extends Error {
+  readonly isForbiddenError = true;
+
+  constructor() {
+    super(FORBIDDEN_MESSAGE);
+    this.name = 'ForbiddenError';
+  }
+}
+
+/** Duck-typed so it survives bundle boundaries and re-thrown copies. */
+export function isForbiddenError(error: unknown): error is ForbiddenError {
+  return (error as { isForbiddenError?: unknown } | null)?.isForbiddenError === true;
 }

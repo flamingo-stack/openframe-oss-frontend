@@ -4,7 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
-import { queryState } from '@/lib/query-state';
+import { ForbiddenError, queryState } from '@/lib/query-state';
 import type { Policy } from '../types/policies.types';
 
 // ============ Types ============
@@ -45,6 +45,10 @@ export const policiesQueryKeys = {
 async function fetchPolicies(params?: ListPoliciesParams): Promise<Policy[]> {
   const res = await fleetApiClient.getPolicies(params);
   if (!res.ok) {
+    // A 403 from the Fleet proxy is permission or a missing Fleet connection, not
+    // a load failure — throw the typed error so the tab shows the "not available"
+    // copy rather than the raw upstream string.
+    if (res.status === 403) throw new ForbiddenError();
     throw new Error(res.error || `Failed to load policies (${res.status})`);
   }
   return (res.data as { policies: Policy[] })?.policies || [];

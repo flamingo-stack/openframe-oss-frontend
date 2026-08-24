@@ -8,12 +8,10 @@ import {
   PageLayout,
   Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { PoliciesTable, type PolicyTableRow, type PolicyTableStatus, SectionLoadError } from '@/app/components/shared';
-import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
@@ -42,33 +40,29 @@ const PAGE_SIZE = 20;
 // slot — they say the same thing and must not drift apart.
 const LOAD_ERROR_MESSAGE = "Couldn't load policies.";
 
-export function Policies() {
-  const router = useRouter();
+interface PoliciesProps {
+  /** Search state is owned by the page (single URL writer) — see `monitoring/page.tsx`. */
+  search: string;
+  debouncedSearch: string;
+  onSearchChange: (value: string) => void;
+}
 
-  const { params, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-  });
+export function Policies({ search, debouncedSearch, onSearchChange }: PoliciesProps) {
+  const router = useRouter();
 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
-  // Local search keeps typing responsive; the shared hook debounces the write to
-  // the URL param so we don't navigate the router (and re-filter) on every keystroke.
-  const { search, setSearch, debouncedSearch } = useSearchParam(
-    params.search,
-    value => setParams({ search: value }),
-    300,
-  );
-
   const handleSearchChange = useCallback(
     (value: string) => {
-      setSearch(value);
+      onSearchChange(value);
       setVisibleCount(PAGE_SIZE);
     },
-    [setSearch],
+    [onSearchChange],
   );
 
-  const { policies, isLoading, isOffline, hasData, canClaimEmpty, error, refetch, deletePolicy } = usePolicies();
+  const { policies, isLoading, isOffline, isForbidden, hasData, canClaimEmpty, error, refetch, deletePolicy } =
+    usePolicies();
   const summary = useMemo(() => computePolicySummary(policies), [policies]);
 
   // `canClaimEmpty` is the shared precondition (see `lib/query-state.ts`): data
@@ -166,7 +160,9 @@ export function Policies() {
       actions={actions}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
+      {(error || isOffline || isForbidden) && (
+        <SectionLoadError {...loadErrorProps({ isOffline, isForbidden }, LOAD_ERROR_MESSAGE, () => refetch())} />
+      )}
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading ? (
@@ -255,7 +251,7 @@ export function Policies() {
                 ? debouncedSearch
                   ? `No policies found matching "${debouncedSearch}". Try adjusting your search.`
                   : 'No policies found.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
+                : loadErrorProps({ isOffline, isForbidden }, LOAD_ERROR_MESSAGE).message
             }
             hasMore={visibleCount < filteredPolicies.length}
             onLoadMore={handleLoadMore}

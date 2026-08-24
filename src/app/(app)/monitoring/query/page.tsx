@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
 import { QueryDetailsView } from './components/query-details-view';
 
@@ -21,5 +22,9 @@ export default function QueryPage() {
     return null;
   }
 
-  return <QueryDetailsView queryId={paramId || ''} />;
+  return (
+    <ContentErrorBoundary title="Query" message="Couldn't load this query.">
+      <QueryDetailsView queryId={paramId || ''} />
+    </ContentErrorBoundary>
+  );
 }
