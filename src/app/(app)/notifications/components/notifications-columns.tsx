@@ -54,7 +54,7 @@ export function buildNotificationColumns({
       enableSorting: false,
       meta: { width: 'flex-[2] min-w-0' },
       cell: ({ row }: { row: Row<NotificationRow> }) => {
-        const { category, type, severity, variant = 'default' } = row.original.notification;
+        const { category, severity, variant = 'default' } = row.original.notification;
         const titleColor = (severity && titleColorBySeverity[severity]) ?? 'text-ods-text-primary';
         const relativeTime = formatTicketRelativeTime(new Date(row.original.createdAt).toISOString());
         return (
@@ -65,8 +65,8 @@ export function buildNotificationColumns({
               )}
             </div>
             <div className="hidden min-w-0 flex-col gap-[var(--spacing-system-xxs)] md:flex">
-              {/* Context-derived kind label; title stands in when the context is generic. */}
-              <TruncateText className={titleColor}>{type ?? row.original.title}</TruncateText>
+              {/* Real content leads; the context-derived kind label moved to the details column. */}
+              <TruncateText className={titleColor}>{row.original.title}</TruncateText>
               <span className="truncate text-h6 text-ods-text-secondary">{relativeTime}</span>
             </div>
             {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
@@ -87,12 +87,12 @@ export function buildNotificationColumns({
       enableSorting: false,
       meta: { width: 'flex-[3] min-w-0', hideAt: 'md' },
       cell: ({ row }: { row: Row<NotificationRow> }) => {
-        // The title moves here only when the kind label owns the first column;
-        // otherwise it's already shown there and only the description remains.
-        const showTitle = !!row.original.notification.type;
+        // The title owns the first column; this one carries the kind label (when the
+        // context isn't generic) and the description.
+        const kindLabel = row.original.notification.type;
         return (
           <div className="flex min-w-0 flex-col">
-            {showTitle ? <TruncateText>{row.original.title}</TruncateText> : null}
+            {kindLabel ? <TruncateText>{kindLabel}</TruncateText> : null}
             {row.original.description ? (
               <TruncateText lines={3} variant="h6" tone="secondary" className="break-words">
                 {row.original.description}

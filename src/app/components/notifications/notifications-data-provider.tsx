@@ -56,8 +56,10 @@ import {
   makeMarkReadUpdater,
   mapNotificationNode,
   NOTIFICATIONS_CONNECTION_KEY,
+  parseCreatedAt,
   parseSeverity,
   readNotificationNode,
+  stripNotificationMarkup,
   UNFILTERED_NOTIFICATION_PAIR,
 } from '@/graphql/notifications/notifications-helpers';
 import { refreshUnreadCounts } from '@/graphql/notifications/unread-counts-relay';
@@ -603,9 +605,11 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       if (!rawId) return;
       const relayId = notificationGlobalId(rawId);
       const severity = parseSeverity(payload.severity);
-      const title = payload.title ?? 'Notification';
-      const description = payload.description ?? null;
-      const createdAtSeconds = Date.now() / 1000;
+      const title = (payload.title ? stripNotificationMarkup(payload.title) : '') || 'Notification';
+      const description = payload.description != null ? stripNotificationMarkup(payload.description) : null;
+      // Prefer the server timestamp so the live tile matches what a later query returns;
+      // local time is only the fallback for payloads that omit it.
+      const createdAtSeconds = (payload.createdAt != null ? parseCreatedAt(payload.createdAt) : Date.now()) / 1000;
       const category = payload.category ?? null;
       const isUpdate = payload.eventType === 'UPDATED';
       const suppress = isWatchingNotificationDialog(payload);
