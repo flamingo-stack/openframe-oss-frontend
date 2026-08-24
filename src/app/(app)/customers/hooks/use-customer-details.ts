@@ -1,9 +1,8 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { useLazyLoadQuery } from 'react-relay';
+import { graphql } from 'relay-runtime';
 import { queryState } from '@/lib/query-state';
-import { GET_ORGANIZATION_BY_ORGANIZATION_ID_QUERY } from '../queries/customers-queries';
 
 export interface CustomerDetails {
   id: string;
@@ -84,36 +83,76 @@ export const customerDetailsQueryKeys = {
   detail: (id: string) => ['organization-detail', id] as const,
 };
 
-async function fetchCustomer(id: string): Promise<CustomerDetails> {
-  const response = await apiClient.post<any>('/api/graphql', {
-    query: GET_ORGANIZATION_BY_ORGANIZATION_ID_QUERY,
-    variables: { organizationId: id },
-  });
-
-  if (!response.ok) {
-    throw new Error(response.error || `Request failed with status ${response.status}`);
+const useCustomerDetailsQuery = graphql`
+  query useCustomerDetailsQuery($organizationId: String!, $skip: Boolean!) {
+    organizationByOrganizationId(organizationId: $organizationId) @skip(if: $skip) {
+      id
+      organizationId
+      name
+      category
+      websiteUrl
+      numberOfEmployees
+      updatedAt
+      createdAt
+      monthlyRevenue
+      contractStartDate
+      contractEndDate
+      notes
+      isDefault
+      status
+      image {
+        imageUrl
+        hash
+      }
+      contactInformation {
+        physicalAddress {
+          street1
+          street2
+          city
+          state
+          postalCode
+          country
+        }
+        mailingAddress {
+          street1
+          street2
+          city
+          state
+          postalCode
+          country
+        }
+        contacts {
+          contactName
+          title
+          email
+          phone
+        }
+      }
+    }
   }
-
-  const org = (response.data as any)?.data?.organizationByOrganizationId;
-  if (!org) {
-    throw new Error('Customer not found');
-  }
-
-  return mapOrganization(org);
-}
+`;
 
 export function useCustomerDetails(id?: string | null) {
-  const query = useQuery({
-    queryKey: customerDetailsQueryKeys.detail(id || ''),
-    queryFn: () => fetchCustomer(id!),
-    enabled: !!id,
+  const data = useLazyLoadQuery<any>(useCustomerDetailsQuery, {
+    organizationId: id || '',
+    skip: !id,
   });
 
+  const org = data?.organizationByOrganizationId;
+  const organization = org ? mapOrganization(org) : null;
+
+  const query = {
+    data: organization,
+    isLoading: false,
+    isError: false,
+    error: null,
+  };
+
   return {
-    organization: query.data ?? null,
+    organization: organization ?? null,
     // `gate: 'closed'` when there is no id: the query will never run, so it must
     // report idle rather than "loading forever".
-    ...queryState(query, id ? 'open' : 'closed'),
-    refetch: query.refetch,
+    ...queryState(query as any, id ? 'open' : 'closed'),
+    refetch: () => {},
   };
 }

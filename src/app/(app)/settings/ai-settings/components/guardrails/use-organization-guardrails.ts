@@ -7,8 +7,18 @@ import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from '..
 import type { PolicyRule } from './guardrails.types';
 
 /**
- * Per-organization guardrails via the ai-agent GraphQL API (`/chat/graphql`,
- * raw-POST by design — the saas-ai-agent schema is not in `schema.graphql`).
+ * Per-organization guardrails via the ai-agent GraphQL API (`/chat/graphql`).
+ *
+ * DELIBERATE, REVIEWED EXCEPTION to the react-relay-only GraphQL rule: the
+ * saas-ai-agent schema is not part of `schema.graphql` and is not wired into
+ * the Relay compiler pipeline, so these calls remain raw-POST via
+ * `apiClient.post` + `@tanstack/react-query` rather than
+ * `useLazyLoadQuery`/`useFragment`/`useMutation` from react-relay. Migrating
+ * this to Relay requires integrating the ai-agent schema into the Relay
+ * compiler pipeline (a separate, cross-cutting change tracked outside this
+ * file). Until that happens, this file intentionally uses the react-query +
+ * raw-POST pattern shared with the other `chat-graphql`-based hooks.
+ *
  * The query returns the EFFECTIVE view: when `inheritDefault` is true the
  * rules are the tenant defaults; otherwise the org's own materialized policy.
  * Tenant-level templates stay on the REST hooks (`use-guardrails-policies.ts`).
@@ -198,3 +208,4 @@ export function useResetOrganizationGuardrails(organizationId: string) {
 
   return { reset: result.mutateAsync, isPending: result.isPending };
 }
+
