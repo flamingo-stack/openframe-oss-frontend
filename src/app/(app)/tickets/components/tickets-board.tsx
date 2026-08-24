@@ -133,7 +133,10 @@ function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false, isUserDelete
         ]
       : undefined,
     tags: dialog.tags?.map(t => t.key),
-    createdAt: dialog.createdAt,
+    // The card's "N ago" label must track the LAST lifecycle change (a reopen
+    // bumps `Ticket.updatedAt`), not the creation time — a ticket reopened
+    // minutes ago otherwise still reads as untouched since it was created.
+    createdAt: dialog.statusUpdatedAt ?? dialog.createdAt,
     hasNewMessage,
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
