@@ -32,7 +32,6 @@ import type { Dialog } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
-import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
@@ -429,7 +428,7 @@ export function TicketsBoard({
         // Tech Required + pending approval: the server rejects the transition,
         // so block the drop up front - toast the reason and snap the card back.
         const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
-        if (sourceKind === TICKET_STATUS_KIND.TECH_REQUIRED && dialogById.get(change.ticketId)?.pendingApproval) {
+        if (isStatusLockedByPendingApproval(dialogById.get(change.ticketId))) {
           toast({
             title: 'Status Locked',
             description: STATUS_LOCKED_BY_APPROVAL_REASON,
