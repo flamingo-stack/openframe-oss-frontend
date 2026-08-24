@@ -92,7 +92,7 @@ export function useEditScriptForm({ scriptId, scriptDetails, isEditMode }: UseEd
       queryClient.invalidateQueries({ queryKey: scriptsQueryKeys.all });
       toast({ title: 'Success', description: 'Script created successfully', variant: 'success' });
       const newScriptId = data?.id;
-      router.replace(newScriptId ? routes.scripts.details(newScriptId) : '/scripts');
+      router.replace(newScriptId ? routes.scripts.details(newScriptId) : routes.scripts.list());
     },
     onError: err => {
       toast({

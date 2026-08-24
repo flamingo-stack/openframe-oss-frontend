@@ -264,7 +264,7 @@ function EditScriptForm({ scriptId }: { scriptId: string | null }) {
   // new tab so the user doesn't lose in-progress script edits.
   const handleViewLogs = useCallback(() => {
     setTestDispatched(false);
-    window.open('/logs-page', '_blank', 'noopener,noreferrer');
+    window.open(routes.logs.list, '_blank', 'noopener,noreferrer');
   }, []);
 
   const actions = useMemo<PageActionButton[]>(

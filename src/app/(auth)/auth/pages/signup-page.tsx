@@ -67,7 +67,7 @@ export default function SignupPage() {
   // nothing to register, so send the user back to the form.
   useEffect(() => {
     if (!storedOrgName || !storedDomain || !storedEmail) {
-      router.replace('/auth');
+      router.replace(routes.auth.root);
     }
   }, [storedOrgName, storedDomain, storedEmail, router]);
 
@@ -133,7 +133,7 @@ export default function SignupPage() {
         onPasswordChange={setPassword}
         onConfirmPasswordChange={setConfirmPassword}
         onSubmit={handleSubmit}
-        onBack={() => router.push('/auth')}
+        onBack={() => router.push(routes.auth.root)}
         ssoProviders={formProviders}
         onSsoClick={handleSso}
         submitLabel={isSharedAuthUi() ? 'Start Free Trial' : 'Create Organization'}
@@ -159,3 +159,7 @@ export default function SignupPage() {
     </AuthShell>
   );
 }
+FILE>>>
+<<<NOTES
+1. CONFIDENCE: 70 - In the `useEffect` guarding missing org/domain/email session data (around line 65), replaced the hard-coded `router.replace('/auth')` with `router.replace(routes.auth.root)`. This assumes `routes.auth.root` exists in `@/lib/routes` and resolves to `/auth`; if the registry uses a different property name (e.g. `routes.auth.index`), this would need adjustment — could not verify against the actual routes.ts file contents.
+2. CONFIDENCE: 70 - In the `onBack` handler passed to `CompleteAccountForm` (around line 145), replaced `router.push('/auth')` with `router.push(routes.auth.root)`, consistent with the same registry key assumed in finding 1. Same caveat applies: correctness depends on `routes.auth.root` being the actual exported property name in the routes registry.

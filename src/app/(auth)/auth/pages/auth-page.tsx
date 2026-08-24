@@ -39,7 +39,7 @@ export default function AuthPage() {
     sessionStorage.setItem('auth:org_name', orgName);
     sessionStorage.setItem('auth:domain', domain);
     sessionStorage.setItem('auth:email', email);
-    router.push('/auth/signup/');
+    router.push(routes.auth.signup);
   };
 
   // External providers offered by the backend for registration; Apple only on Apple devices.
