@@ -193,6 +193,11 @@ test('SSO signup runs the registration URL in the shell browser instead of navig
   assert.equal(url.searchParams.get('tenantName'), 'Acme');
   assert.equal(url.searchParams.get('tenantDomain'), 'acme.openframe.example');
   assert.equal(url.searchParams.get('provider'), 'apple');
+  // The authz service replays this onto the /oauth/continue that finalizes the
+  // signup — without it the callback carries no ticket wherever dev-ticket
+  // issuance is off (prod), and the shell is left signed out of a tenant that
+  // now exists.
+  assert.equal(url.searchParams.get('authMobile'), 'true');
   assert.equal(startCalls[0].callbackScheme, APP_SCHEME, 'the shell cancels the navigation to this scheme');
 });
 
@@ -204,8 +209,8 @@ test('SSO signup exchanges the ticket and adopts the domain it just registered',
 });
 
 test('a signup callback without a ticket names the recoverable state', async () => {
-  // The authz service builds /oauth/continue WITHOUT authMobile, so a gateway with
-  // dev-ticket issuance off lands here — and by then the tenant already exists.
+  // An authz service that drops authMobile, or a gateway with mobile auth off,
+  // lands here — and by then the tenant already exists.
   globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
     callbackUrl: `${APP_SCHEME}://auth`,
   });

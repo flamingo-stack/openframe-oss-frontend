@@ -60,6 +60,15 @@ export interface SsoRegisterPayload {
   email: string;
   provider: 'google' | 'microsoft' | 'apple';
   redirectTo?: string;
+  /**
+   * Native shells only, and the counterpart of {@link AuthApiClient.loginUrl}'s
+   * `authMobile`: the authz service stores it in the SSO registration cookie and
+   * replays it on the `/oauth/continue` that logs the new owner in, so the
+   * callback carries a devTicket even where the gateway has dev-ticket issuance
+   * off (prod). Without it registration creates the tenant and the app gets a
+   * ticket-less callback back.
+   */
+  authMobile?: boolean;
   /** Defaults to whatever is capturable right now; pass explicitly to reuse an existing set. */
   attribution?: RegistrationAttribution;
 }
@@ -216,6 +225,10 @@ class AuthApiClient {
 
     if (payload.redirectTo) {
       params.append('redirectTo', payload.redirectTo);
+    }
+
+    if (payload.authMobile) {
+      params.append('authMobile', 'true');
     }
 
     // The IdP callback is a fresh request from Google/Microsoft — the landing URL's click ids
