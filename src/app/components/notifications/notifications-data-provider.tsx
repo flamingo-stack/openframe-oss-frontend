@@ -74,7 +74,7 @@ import {
 } from '@/lib/active-dialog-views';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { CANCEL_IDLE_MS, isSessionActive } from '@/lib/session-activity';
+import { ATTENTION_IDLE_MS, isSessionActive } from '@/lib/session-activity';
 import { withCategoryIcon } from './notification-category-icons';
 import {
   CONTEXT_TYPENAME_BY_TYPE,
@@ -456,10 +456,15 @@ function EntityViewAutoReader() {
   const { notifications, markRead } = useNotifications();
 
   useEffect(() => {
-    // Same cross-device consequence as the arrival-time path above, so the same
-    // gate. Without it, a browser left open on a ticket marks read — and retracts
-    // from the phone — every unread notification that ticket ever produced.
-    if (!isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })) return;
+    // Same cross-device consequence as the arrival-time path above, so the same gate:
+    // it stops a tab left sitting on an entity from reading — and retracting from the
+    // phone — notifications that arrive later.
+    //
+    // It does NOT help at the moment of navigation: navigating is itself input, so the
+    // gate passes by construction, and this effect then reads EVERY loaded unread
+    // notification matching the route, including ones weeks old that the user never
+    // saw. Fixing that needs an item-level signal (viewport + dwell), not this one.
+    if (!isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) return;
     const params = new URLSearchParams(searchParams.toString());
     for (const notification of notifications) {
       if (notification.read) continue;
@@ -532,7 +537,7 @@ function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean
   // read state is CROSS-DEVICE — it drives PushRetractionListener, which pulls the
   // banner off the user's phone. A visible tab on an unattended desk satisfied the
   // old gate, so a laptop left open silently cleared notifications nobody saw.
-  return isSessionActive({ idleAfterMs: CANCEL_IDLE_MS });
+  return isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS });
 }
 
 /**
@@ -700,7 +705,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       //
       // Best-effort: the mutation plants a tombstone that wins even if it outraces the
       // enqueue, and losing it just means the push lands.
-      if (isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })) {
+      if (isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) {
         commitMutation<CancelPendingPushMutationType>(environmentRef.current, {
           mutation: cancelPendingPushMutation,
           variables: { notificationId: rawId },

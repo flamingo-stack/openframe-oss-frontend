@@ -15,10 +15,24 @@ import { isMobileShell } from './platform';
  *
  * ## Two thresholds, because the error costs are asymmetric
  *
- * Reporting active while the user is away cancels a push **permanently** — the
- * server grace is 7s and nothing re-arms it. Reporting inactive while the user is
- * present merely skips that grace. So the cancel decision uses a short idle
- * window and presence a long one; callers pass the one they need.
+ * Two questions, two windows, and callers pass the one they need:
+ *
+ *   - **Attention** — "is the user at the keyboard *right now*", i.e. will an
+ *     in-app artefact (the 4s live tile, a drawer entry) actually be seen? Gates
+ *     auto-read and the push cancel. Both are irreversible in the same way: a
+ *     cancelled push is never re-armed (server grace is 7s), and marking read is
+ *     cross-device — it retracts the banner off the phone. So the window is
+ *     deliberately TIGHT. Under-firing costs a redundant buzz; over-firing loses
+ *     the notification.
+ *   - **Presence** — "is the user around at all", feeding the server heartbeat and
+ *     the outbox grace decision. Costs a skipped 7s grace when wrong, so it is
+ *     generous.
+ *
+ * The tight window means ordinary *reading* — which produces no input — reads as
+ * inattentive after ATTENTION_IDLE_MS. That is the safe direction for both
+ * consumers (item stays unread, push still arrives), but it does mean the phone
+ * can buzz for something on screen. If that proves worse than the loss risk, raise
+ * the cancel call site alone; the threshold is per-call for exactly that reason.
  *
  * ## Two implementations, not one plus an event
  *
@@ -26,8 +40,14 @@ import { isMobileShell } from './platform';
  * `appStateChange` and nothing else:
  *
  *   - `pointermove` does not exist on touch, so an input-recency timer would call
- *     a user who is reading — and touching nothing — idle. That is strictly worse
- *     than the `visibilityState` gate it replaces.
+ *     a user who is reading — and touching nothing — idle. At ATTENTION_IDLE_MS
+ *     that would be *every* reading user, every time; strictly worse than the
+ *     `visibilityState` gate it replaces.
+ *   - The consequence is a DELIBERATE divergence: on the shell, foreground alone
+ *     means attentive, with no idle window at all. Holding a phone and looking at
+ *     it is stronger evidence than a focused desktop window, so the more
+ *     permissive answer is the better one here — but it is a choice, not an
+ *     oversight.
  *   - `appStateChange` is the shell's authoritative foreground signal; the
  *     WebView's own `visibilityState` is documented as unreliable for this
  *     (see `AppPlugin` in native-shell.ts, and `token-freshness-watcher.tsx`).
@@ -43,8 +63,11 @@ import { isMobileShell } from './platform';
  * would run in Node during prerender.
  */
 
-/** Cancelling a push is unrecoverable, so treat a short silence as "gone". */
-export const CANCEL_IDLE_MS = 90_000;
+/**
+ * Auto-read and push-cancel. Both are irreversible, so a short silence counts as
+ * "not watching" — roughly the life of the live tile plus a beat.
+ */
+export const ATTENTION_IDLE_MS = 10_000;
 /** Presence only costs a skipped grace window; be generous. */
 export const PRESENCE_IDLE_MS = 5 * 60_000;
 
@@ -133,8 +156,8 @@ function startSource(): void {
 
 /**
  * @param idleAfterMs how long without input still counts as active. Use
- *   {@link CANCEL_IDLE_MS} for anything irreversible, {@link PRESENCE_IDLE_MS}
- *   for reporting presence.
+ *   {@link ATTENTION_IDLE_MS} for anything irreversible (auto-read, push cancel),
+ *   {@link PRESENCE_IDLE_MS} for reporting presence.
  */
 export function isSessionActive({ idleAfterMs }: { idleAfterMs: number }): boolean {
   if (typeof window === 'undefined') return false;

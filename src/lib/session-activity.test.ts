@@ -19,21 +19,25 @@ describe('session-activity', () => {
     return import('./session-activity');
   }
 
-  it('separates the cancel and presence idle windows', async () => {
-    const { CANCEL_IDLE_MS, PRESENCE_IDLE_MS } = await load();
-    expect(CANCEL_IDLE_MS).toBeLessThan(PRESENCE_IDLE_MS);
+  it('keeps the attention window far tighter than the presence one', async () => {
+    const { ATTENTION_IDLE_MS, PRESENCE_IDLE_MS } = await load();
+    // Attention gates two irreversible actions (auto-read retracts cross-device, a
+    // cancelled push is never re-armed), so it must bite long before presence, which
+    // only costs a skipped grace window.
+    expect(ATTENTION_IDLE_MS).toBeLessThan(PRESENCE_IDLE_MS);
+    expect(ATTENTION_IDLE_MS).toBeLessThanOrEqual(15_000);
   });
 
   it('is active on a focused window and goes idle only after the threshold', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
-    const { isSessionActive, CANCEL_IDLE_MS, PRESENCE_IDLE_MS } = await load();
+    const { isSessionActive, ATTENTION_IDLE_MS, PRESENCE_IDLE_MS } = await load();
 
-    expect(isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })).toBe(true);
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
 
-    // Past the cancel window, still inside the presence window: the short gate
-    // closes first, so a push stops being cancelled while presence keeps reporting.
-    vi.advanceTimersByTime(CANCEL_IDLE_MS + 1_000);
-    expect(isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })).toBe(false);
+    // Past the attention window, still inside the presence window: the tight gate
+    // closes first, so auto-read and cancel stop while presence keeps reporting.
+    vi.advanceTimersByTime(ATTENTION_IDLE_MS + 1_000);
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(false);
     expect(isSessionActive({ idleAfterMs: PRESENCE_IDLE_MS })).toBe(true);
 
     vi.advanceTimersByTime(PRESENCE_IDLE_MS);
@@ -42,28 +46,28 @@ describe('session-activity', () => {
 
   it('input resets the idle clock', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
-    const { isSessionActive, CANCEL_IDLE_MS } = await load();
+    const { isSessionActive, ATTENTION_IDLE_MS } = await load();
 
     // Read once first: the source starts lazily and seeds the input clock when it
     // does, so a fresh load counts as active for one idle window without input.
-    expect(isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })).toBe(true);
-    vi.advanceTimersByTime(CANCEL_IDLE_MS + 1_000);
-    expect(isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })).toBe(false);
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
+    vi.advanceTimersByTime(ATTENTION_IDLE_MS + 1_000);
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(false);
 
     document.dispatchEvent(new Event('keydown'));
-    expect(isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })).toBe(true);
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
   });
 
   it('blur is a hard inactive edge, not a timer', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
-    const { isSessionActive, CANCEL_IDLE_MS } = await load();
-    expect(isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })).toBe(true);
+    const { isSessionActive, ATTENTION_IDLE_MS } = await load();
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
 
     window.dispatchEvent(new Event('blur'));
-    expect(isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })).toBe(false);
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(false);
 
     window.dispatchEvent(new Event('focus'));
-    expect(isSessionActive({ idleAfterMs: CANCEL_IDLE_MS })).toBe(true);
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
   });
 
   it('notifies subscribers on hard edges', async () => {
