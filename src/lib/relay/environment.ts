@@ -380,6 +380,23 @@ const fetchRelay: FetchFunction = async (request, variables) => {
   if (json.errors) {
     console.error('[Relay] GraphQL errors:', json.errors);
     detectTrialExpiredFromGraphqlErrors(json.errors);
+
+    // The server returned errors and no data. Relay would otherwise reject with
+    // its internal "No data returned for operation ..." message, which reaches
+    // the user verbatim through a mutation's `onError` toast (e.g. checkout on a
+    // mutation like `createCheckoutSession`, whose `CheckoutResult` payload has
+    // no `errors` field). Throw the readable server message so `onError` shows
+    // that instead. Partial responses (data present with field errors) fall
+    // through unchanged.
+    if (json.data == null) {
+      const message = json.errors
+        .map((error: { message?: string }) => error?.message)
+        .filter(Boolean)
+        .join('. ');
+      if (message) {
+        throw new Error(message);
+      }
+    }
   }
 
   return json;

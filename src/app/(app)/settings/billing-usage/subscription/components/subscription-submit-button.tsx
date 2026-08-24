@@ -12,7 +12,7 @@ interface SubscriptionSubmitButtonProps {
   packageUpdates: PackageUpdateInput[];
   /** Desired end-state for the checkout flow. */
   checkoutProducts: ProductCheckoutInput[];
-  /** True when a Custom Amount has an empty/invalid quantity (update flow only). */
+  /** True when a Custom Amount has an empty/invalid quantity. */
   hasInvalidCustom: boolean;
   /** Extra classes for the button (e.g. `w-full` for the mobile action bar). */
   className?: string;
@@ -20,8 +20,8 @@ interface SubscriptionSubmitButtonProps {
 
 /**
  * Renders the correct submit action for the current subscription state:
- * - no active paid subscription → "Create Subscription" (Stripe Checkout); no
- *   diff/validation gating — there is nothing to compare against.
+ * - no active paid subscription → "Proceed to Payment" (Stripe Checkout);
+ *   disabled when there is nothing to buy, validated on click.
  * - active paid subscription → "Update Subscription"; disabled when the
  *   selection equals the current plan, validated on click.
  */
@@ -38,17 +38,31 @@ export function SubscriptionSubmitButton({
 
   const isPending = updateSubscription.isPending || createCheckout.isPending;
 
+  const invalidCustomToast = () => {
+    toast({
+      title: 'Invalid amount',
+      description: 'Enter a valid number for the custom package.',
+      variant: 'destructive',
+    });
+  };
+
   if (needsCheckout) {
+    const handleCheckout = () => {
+      if (hasInvalidCustom) {
+        invalidCustomToast();
+        return;
+      }
+      if (!checkoutProducts.length) return;
+      createCheckout.mutate({ products: checkoutProducts });
+    };
+
     return (
       <Button
         variant="accent"
         className={className}
-        onClick={() => {
-          if (!checkoutProducts.length) return;
-          createCheckout.mutate({ products: checkoutProducts });
-        }}
+        onClick={handleCheckout}
         loading={isPending}
-        disabled={isPending}
+        disabled={isPending || checkoutProducts.length === 0}
       >
         Proceed to Payment
       </Button>
@@ -57,11 +71,7 @@ export function SubscriptionSubmitButton({
 
   const handleUpdate = () => {
     if (hasInvalidCustom) {
-      toast({
-        title: 'Invalid amount',
-        description: 'Enter a valid number for the custom package.',
-        variant: 'destructive',
-      });
+      invalidCustomToast();
       return;
     }
     if (!packageUpdates.length) return;
