@@ -20,6 +20,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
+import { adminQueryKeys } from '@/hooks/admin-query-keys';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes, TAB_IDS } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -255,7 +256,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
 
   const invalidateOrganizationImageQueries = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['organizations'] }),
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.organizations.all }),
       queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.all }),
       ...(organizationId
         ? [queryClient.invalidateQueries({ queryKey: customerDetailsQueryKeys.detail(organizationId) })]
