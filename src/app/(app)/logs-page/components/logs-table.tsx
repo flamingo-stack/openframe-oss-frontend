@@ -60,6 +60,7 @@ import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib
 import { transformOrganizationFilters } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { routes } from '@/lib/routes';
 import type { LogFilterInput } from '../types/log.types';
 import { LogCopyButton } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
@@ -347,7 +348,13 @@ function LogsTableContent({
   const getLogDetailsUrl = useCallback((log: UiLogEntry): string => {
     const original = log.originalLogEntry || log;
     const id = log.id || log.logId;
-    return `/log-details?id=${id}&ingestDay=${original.ingestDay}&toolType=${original.toolType}&eventType=${original.eventType}&timestamp=${encodeURIComponent(original.timestamp || '')}`;
+    return routes.logDetails({
+      id,
+      ingestDay: original.ingestDay,
+      toolType: original.toolType,
+      eventType: original.eventType,
+      timestamp: original.timestamp || '',
+    });
   }, []);
 
   const columns = useMemo<ColumnDef<UiLogEntry>[]>(
