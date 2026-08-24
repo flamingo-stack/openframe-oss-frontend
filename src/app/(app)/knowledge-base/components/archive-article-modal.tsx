@@ -32,7 +32,9 @@ export function ArchiveArticleModal({ isOpen, onClose, article, sourceConnection
       });
       toast({ title: 'Article archived', description: article.name, variant: 'success' });
       onClose();
-    } catch {}
+    } catch {
+      toast({ title: 'Failed to archive article', description: article.name, variant: 'destructive' });
+    }
   };
 
   return (
