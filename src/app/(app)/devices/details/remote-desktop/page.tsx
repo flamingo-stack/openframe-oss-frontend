@@ -14,7 +14,7 @@ import {
   MonitorIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useLocalStorage, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -30,6 +30,14 @@ import { DEFAULT_SETTINGS, RemoteDesktopSettings, type RemoteSettingsConfig } fr
 import { routes } from '@/lib/routes';
 import { type ActionHandlers, createActionsMenuGroups } from './actions-menu-config';
 import { RemoteSettingsModal } from './remote-settings-modal';
+import {
+  comboLabel,
+  DEFAULT_REMOTE_SHORTCUTS,
+  REMOTE_SHORTCUTS_STORAGE_KEY,
+  type RemoteShortcut,
+  SHORTCUT_DESCRIPTIONS,
+} from './remote-shortcuts';
+import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
 
 interface LegacyDeviceData {
   id: string;
@@ -137,6 +145,11 @@ function RemoteDesktopSession() {
   const [firstFrameReceived, setFirstFrameReceived] = useState(false);
   const [clipboardEnabled, setClipboardEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [shortcuts, setShortcuts] = useLocalStorage<RemoteShortcut[]>(
+    REMOTE_SHORTCUTS_STORAGE_KEY,
+    DEFAULT_REMOTE_SHORTCUTS,
+  );
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
     currentDisplayRef.current = currentDisplay;
@@ -382,34 +395,14 @@ function RemoteDesktopSession() {
     }
   };
 
-  const sendKeyCombo = (keys: number[]) => {
-    const desktop = desktopRef.current;
-    if (!desktop) return;
-
-    const keyMappings: Record<string, string> = {
-      [`${0x5b},${0x4d}`]: 'win+m',
-      [`${0x5b},${0x28}`]: 'win+down',
-      [`${0x5b},${0x26}`]: 'win+up',
-      [`${0x10},${0x5b},${0x4d}`]: 'shift+win+m',
-      [`${0x5b},${0x4c}`]: 'win+l',
-      [`${0x5b},${0x52}`]: 'win+r',
-      [`${0x11},${0x57}`]: 'ctrl+w',
-    };
-
-    const comboString = keyMappings[keys.join(',')];
-    if (comboString) {
-      desktop.sendKeyCombo(comboString);
-    } else {
-      console.warn('Unmapped key combination:', keys);
-    }
-  };
-
-  const sendCtrlAltDel = () => {
+  const sendShortcut = (combo: string) => {
     if (state !== 3) return;
-    desktopRef.current?.sendCtrlAltDel();
+    // MeshDesktop.sendKeyCombo parses the combo string itself and special-cases
+    // 'alt+ctrl+del' into the secure attention sequence.
+    desktopRef.current?.sendKeyCombo(combo);
     toast({
-      title: 'Ctrl+Alt+Del',
-      description: 'Shortcut sent',
+      title: comboLabel(combo),
+      description: SHORTCUT_DESCRIPTIONS[combo] ?? 'Shortcut sent',
       variant: 'success',
       duration: 2000,
     });
@@ -436,8 +429,8 @@ function RemoteDesktopSession() {
   };
 
   const actionHandlers: ActionHandlers = {
-    sendCtrlAltDel,
-    sendKeyCombo,
+    sendShortcut,
+    openShortcutsManager: () => setShortcutsOpen(true),
     sendPower,
     setEnableInput: (enabled: boolean) => {
       setEnableInput(enabled);
@@ -447,7 +440,7 @@ function RemoteDesktopSession() {
     toast,
   };
 
-  const actionsMenuGroups = createActionsMenuGroups(actionHandlers, enableInput, clipboardEnabled);
+  const actionsMenuGroups = createActionsMenuGroups(actionHandlers, enableInput, clipboardEnabled, shortcuts);
 
   const displayMenuGroups: ActionsMenuGroup[] =
     displays.length > 1
@@ -617,6 +610,13 @@ function RemoteDesktopSession() {
         tunnelRef={tunnelRef}
         connectionState={state}
         onSettingsChange={setRemoteSettings}
+      />
+
+      <ShortcutsSettingsModal
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+        shortcuts={shortcuts}
+        onSave={setShortcuts}
       />
     </PageLayout>
   );
