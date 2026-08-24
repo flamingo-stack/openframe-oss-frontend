@@ -7,14 +7,16 @@ import {
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useState } from 'react';
-import { AUTH_ERROR_CODE } from '@/app/(auth)/auth/constants/auth-error-codes';
+import { isTenantRegistrationBlocked } from '@/app/(auth)/auth/constants/auth-error-codes';
 import {
   BLOCKED_EMAIL_DOMAIN_MESSAGE,
+  REGISTRATION_BLOCKED_MESSAGE,
   useDomainAvailability,
   useEmailAvailability,
 } from '@/app/(auth)/auth/hooks/use-registration-availability';
 import { isSharedAuthUi } from '@/lib/app-mode';
 import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
+import { pushRegistrationBlocked } from '@/lib/posthog/posthog-events';
 
 interface CreateOrganizationSectionProps {
   onCreateOrganization: (orgName: string, domain: string, email: string) => void;
@@ -47,6 +49,10 @@ export function CreateOrganizationSection({
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isCheckingDomain, setIsCheckingDomain] = useState(false);
   const [suggestedDomains, setSuggestedDomains] = useState<string[]>([]);
+  // Set when the submit-time check returns 409 TENANT_REGISTRATION_BLOCKED — a
+  // ~10-minute cluster-capacity condition. Held as persistent inline state (not
+  // a transient toast) so the notice stays and the submit stays disabled.
+  const [capacityBlockMessage, setCapacityBlockMessage] = useState<string | undefined>(undefined);
 
   const orgNameRegex = /^[\p{L}\p{M}0-9&\.,'"()\- ]{2,100}$/u;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -57,12 +63,17 @@ export function CreateOrganizationSection({
   const isEmailBlocked = emailStatus === 'taken' || emailStatus === 'blocked' || emailStatus === 'checking';
 
   // Live subdomain availability — shared-auth UX only.
-  const { status: domainStatus, suggestions: liveDomainSuggestions } = useDomainAvailability(
-    domain,
-    organizationName,
-    isSharedAuth,
-  );
-  const isDomainBlocked = isSharedAuth && (domainStatus === 'taken' || domainStatus === 'checking');
+  const {
+    status: domainStatus,
+    suggestions: liveDomainSuggestions,
+    blockedMessage: liveBlockedMessage,
+  } = useDomainAvailability(domain, organizationName, isSharedAuth);
+
+  // A cluster-capacity block from either the live check or the submit-time
+  // re-check. No account can be created while it holds, so it disables submit.
+  const capacityNotice =
+    capacityBlockMessage ?? (domainStatus === 'registration-blocked' ? liveBlockedMessage : undefined);
+  const isDomainBlocked = isSharedAuth && (domainStatus === 'taken' || domainStatus === 'checking' || !!capacityNotice);
 
   // Prefer live suggestions from the real-time check; fall back to submit-time ones.
   const domainSuggestions = liveDomainSuggestions.length > 0 ? liveDomainSuggestions : suggestedDomains;
@@ -74,6 +85,9 @@ export function CreateOrganizationSection({
     // Subdomains allow only lowercase letters, digits and dashes.
     setDomain(isSharedAuth ? value.toLowerCase().replace(/[^a-z0-9-]/g, '') : value);
     setSuggestedDomains([]);
+    // The capacity block is an environment condition, not tied to this value —
+    // clear it on edit so the live check can re-evaluate.
+    setCapacityBlockMessage(undefined);
   };
 
   // Shared submit path for the primary button and the SSO alternatives: both
@@ -107,17 +121,14 @@ export function CreateOrganizationSection({
           }
         }
       } else {
-        const errorData = response.data as { code?: string; message?: string } | undefined;
-
-        // 409 with TENANT_REGISTRATION_BLOCKED — no cluster capacity for new tenants.
-        if (response.status === 409 && errorData?.code === AUTH_ERROR_CODE.TENANT_REGISTRATION_BLOCKED) {
-          toast({
-            title: 'Registration Unavailable',
-            description:
-              errorData.message ||
-              'Registration is currently unavailable because there is no cluster capacity. Please contact your administrator or try again later.',
-            variant: 'destructive',
-          });
+        // No cluster capacity for new tenants. Hold it as a persistent inline
+        // notice (see capacityNotice) and disable submit, instead of a toast that
+        // fades and leaves the form looking submittable. Capture it so the block
+        // shows up in the data.
+        const capacity = isTenantRegistrationBlocked(response);
+        if (capacity.blocked) {
+          setCapacityBlockMessage(capacity.message || REGISTRATION_BLOCKED_MESSAGE);
+          pushRegistrationBlocked();
           return;
         }
 
@@ -152,16 +163,20 @@ export function CreateOrganizationSection({
             ? { message: 'Email is available', variant: 'success' as const }
             : undefined;
 
-  const domainStatusMessage =
-    !isSharedAuth || !domain.trim()
-      ? undefined
-      : domainStatus === 'checking'
-        ? { message: 'Checking availability…', variant: 'muted' as const }
-        : domainStatus === 'taken'
-          ? { message: 'This domain is already taken. Please try another one.', variant: 'error' as const }
-          : domainStatus === 'available'
-            ? { message: 'Domain is available', variant: 'success' as const }
-            : undefined;
+  const domainStatusMessage = (():
+    | { message: string; variant: 'muted' | 'error' | 'success' | 'warning' }
+    | undefined => {
+    if (!isSharedAuth) return undefined;
+    // Capacity block wins: it is an environment condition, not about this value,
+    // and holds regardless of what is typed.
+    if (capacityNotice) return { message: capacityNotice, variant: 'warning' };
+    if (!domain.trim()) return undefined;
+    if (domainStatus === 'checking') return { message: 'Checking availability…', variant: 'muted' };
+    if (domainStatus === 'taken')
+      return { message: 'This domain is already taken. Please try another one.', variant: 'error' };
+    if (domainStatus === 'available') return { message: 'Domain is available', variant: 'success' };
+    return undefined;
+  })();
 
   const domainSuggestionsSlot =
     isSharedAuth && domainSuggestions.length > 0 ? (
