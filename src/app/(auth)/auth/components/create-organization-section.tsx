@@ -54,7 +54,7 @@ export function CreateOrganizationSection({
   const isOrgNameValid = orgNameRegex.test(organizationName.trim());
 
   const emailStatus = useEmailAvailability(email);
-  const isEmailBlocked = emailStatus === 'taken' || emailStatus === 'blocked' || emailStatus === 'checking';
+  const isEmailUnavailable = emailStatus === 'taken' || emailStatus === 'blocked';
 
   // Live subdomain availability — shared-auth UX only.
   const { status: domainStatus, suggestions: liveDomainSuggestions } = useDomainAvailability(
@@ -62,13 +62,18 @@ export function CreateOrganizationSection({
     organizationName,
     isSharedAuth,
   );
-  const isDomainBlocked = isSharedAuth && (domainStatus === 'taken' || domainStatus === 'checking');
+  const isDomainUnavailable = isSharedAuth && domainStatus === 'taken';
 
   // Prefer live suggestions from the real-time check; fall back to submit-time ones.
   const domainSuggestions = liveDomainSuggestions.length > 0 ? liveDomainSuggestions : suggestedDomains;
 
+  // An availability check is still running. This does NOT disable submit — the
+  // button stays live and the submit handler waits for the check, so a click
+  // during the debounced check gives feedback instead of doing nothing.
+  const isCheckPending = emailStatus === 'checking' || (isSharedAuth && domainStatus === 'checking');
+
   const isValid =
-    isEmailValid && !isEmailBlocked && isOrgNameValid && !!domain.trim() && !isDomainBlocked && agreedToTerms;
+    isEmailValid && !isEmailUnavailable && isOrgNameValid && !!domain.trim() && !isDomainUnavailable && agreedToTerms;
 
   const handleDomainChange = (value: string) => {
     // Subdomains allow only lowercase letters, digits and dashes.
@@ -79,7 +84,20 @@ export function CreateOrganizationSection({
   // Shared submit path for the primary button and the SSO alternatives: both
   // need validated org details, plus a submit-time domain check in shared auth.
   const runWithValidatedOrg = async (action: (orgName: string, domain: string, email: string) => void) => {
-    if (!isValid || isCheckingDomain) return;
+    if (isCheckingDomain) return;
+
+    // The button is enabled during the debounced availability check; tell the
+    // user why it cannot submit yet instead of silently ignoring the click.
+    if (isCheckPending) {
+      toast({
+        title: 'Still Checking Availability',
+        description: 'Please wait a moment while we confirm your email and domain are available.',
+        variant: 'info',
+      });
+      return;
+    }
+
+    if (!isValid) return;
 
     if (!isSharedAuth) {
       action(organizationName.trim(), domain.trim(), email.trim());
