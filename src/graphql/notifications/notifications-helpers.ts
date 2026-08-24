@@ -1,4 +1,9 @@
-import type { Notification, NotificationVariant } from '@flamingo-stack/openframe-frontend-core';
+import {
+  ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE,
+  type ApprovalToolCallMeta,
+  type Notification,
+  type NotificationVariant,
+} from '@flamingo-stack/openframe-frontend-core';
 import { ConnectionHandler, type RecordSourceSelectorProxy, readInlineData } from 'relay-runtime';
 import type {
   notificationFields_notification$data as NotificationFieldsData,
@@ -221,9 +226,10 @@ export function parseSeverity(
 }
 
 /**
- * Human label for a `NotificationContext.type` discriminator: SNAKE_CASE → Title Case
+ * Human label for a notification type discriminator: SNAKE_CASE → Title Case
  * (e.g. TICKET_STATUS_CHANGED → "Ticket Status Changed"). Data-driven so new backend
- * context types label themselves; the catch-all discriminators carry no meaning → undefined.
+ * types label themselves; the catch-all discriminators carry no meaning → undefined.
+ * Fed the spec `type` when present, the legacy `context.type` otherwise.
  */
 export function contextTypeLabel(contextType: string | null | undefined): string | undefined {
   if (!contextType || contextType === 'UNKNOWN' || contextType === 'GENERIC') return undefined;
@@ -279,6 +285,120 @@ export function parseCreatedAt(value: unknown): number {
   return Date.now();
 }
 
+/**
+ * Spec-catalog approval types. The backend splits the single legacy approval by ticket
+ * linkage, but keeps `context.type` at `ADMIN_APPROVAL_REQUEST` on both — so only the
+ * top-level `type` tells them apart.
+ */
+export const TICKET_APPROVAL_REQUEST_TYPE = 'TICKET_APPROVAL_REQUEST';
+export const MINGO_APPROVAL_REQUEST_TYPE = 'MINGO_APPROVAL_REQUEST';
+
+const APPROVAL_TYPES: ReadonlySet<string> = new Set([
+  ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE,
+  TICKET_APPROVAL_REQUEST_TYPE,
+  MINGO_APPROVAL_REQUEST_TYPE,
+]);
+
+/**
+ * Attribute keys this app reads out of the flat `attributes` map. Every other key the
+ * backend sends rides along into `meta` untouched — the catalog adds facts (ticketNumber,
+ * actorName, machineId, …) without a client release, and dropping them here would be the
+ * one thing that makes that not true.
+ */
+export const NOTIFICATION_ATTR = {
+  ticketId: 'ticketId',
+  dialogId: 'dialogId',
+  approvalRequestId: 'approvalRequestId',
+  approvalType: 'approvalType',
+  resolution: 'resolution',
+  resolvedByName: 'resolvedByName',
+  toolCalls: 'toolCalls',
+} as const;
+
+/**
+ * Narrow the `attributes` JSON scalar (typed `any` by relay-compiler) to the flat
+ * string map the contract promises. Non-string values and empty strings are dropped:
+ * the contract says an absent fact is a MISSING KEY, so an empty string would otherwise
+ * read as a present-but-blank id and route somewhere that doesn't exist.
+ */
+export function readNotificationAttributes(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const attributes: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw === 'string' && raw !== '') attributes[key] = raw;
+  }
+  return attributes;
+}
+
+/** True for either spec approval type and for the legacy context discriminator. */
+export function isApprovalNotificationType(type: string | null | undefined): boolean {
+  return !!type && APPROVAL_TYPES.has(type);
+}
+
+/**
+ * Fold the approval split back onto the legacy discriminator for `meta.contextType`.
+ * The core lib gates its approval tile on that exact string and is shared across six
+ * projects, so the normalization happens here rather than there. The precise type stays
+ * available on `meta.notificationType`.
+ */
+export function toLegacyContextType(type: string | null | undefined): string | undefined {
+  if (!type) return undefined;
+  return isApprovalNotificationType(type) ? ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE : type;
+}
+
+/**
+ * Backend `ApprovalResolution` values that mean the request is settled. PENDING is
+ * deliberately NOT one of them.
+ *
+ * This matters because the two contracts disagree about what an unresolved approval looks
+ * like: the legacy context left `resolution` null until the request was settled, while the
+ * attribute map carries the key from the start (`PENDING` on a freshly emitted request). A
+ * truthiness check was correct for the first and would, on the second, retire every approval
+ * to the read list the moment any UPDATED push touched it — the card would vanish from the
+ * drawer still awaiting a decision.
+ */
+const TERMINAL_APPROVAL_RESOLUTIONS: ReadonlySet<string> = new Set(['APPROVED', 'REJECTED', 'CANCELLED']);
+
+export function isApprovalResolved(resolution: unknown): boolean {
+  return typeof resolution === 'string' && TERMINAL_APPROVAL_RESOLUTIONS.has(resolution.toUpperCase());
+}
+
+function normalizeToolCall(raw: unknown): ApprovalToolCallMeta {
+  const call = (raw ?? {}) as Record<string, unknown>;
+  return {
+    toolExecutionRequestId: typeof call.toolExecutionRequestId === 'string' ? call.toolExecutionRequestId : null,
+    toolName: typeof call.toolName === 'string' ? call.toolName : '',
+    toolTitle: typeof call.toolTitle === 'string' ? call.toolTitle : null,
+    toolExplanation: typeof call.toolExplanation === 'string' ? call.toolExplanation : null,
+    toolType: typeof call.toolType === 'string' ? call.toolType : null,
+    requiresApproval: Boolean(call.requiresApproval),
+    approvalType: typeof call.approvalType === 'string' ? call.approvalType : null,
+    toolCallArguments:
+      call.toolCallArguments && typeof call.toolCallArguments === 'object'
+        ? (call.toolCallArguments as Record<string, unknown>)
+        : null,
+  };
+}
+
+/** Normalize tool calls arriving as objects — the legacy typed context and the legacy NATS payload. */
+export function normalizeToolCalls(raw: unknown): ApprovalToolCallMeta[] {
+  return Array.isArray(raw) ? raw.map(normalizeToolCall) : [];
+}
+
+/**
+ * `attributes.toolCalls` is a JSON-encoded array inside a string (every attribute value is
+ * a string). Malformed input yields an empty list rather than throwing: a broken tool list
+ * must not take the whole notification down with it.
+ */
+export function parseAttributeToolCalls(raw: string | undefined): ApprovalToolCallMeta[] {
+  if (!raw) return [];
+  try {
+    return normalizeToolCalls(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
 /** Reads a `notificationFields_notification` spread off either list's edges. */
 export function readNotificationNode(ref: NotificationFieldsKey): NotificationFieldsData {
   return readInlineData(notificationFieldsFragment, ref);
@@ -288,46 +408,59 @@ export function readNotificationNode(ref: NotificationFieldsKey): NotificationFi
  * Flattens a notification row into the core lib's `Notification`. Takes the read
  * data rather than the fragment reference, so a caller that also needs the raw
  * fields (the section table's own columns) reads the node once.
+ *
+ * Reads the spec contract (`type` + `attributes`) when the row carries it and falls back
+ * to the legacy typed `context` when it doesn't. Both are optional on the wire — legacy
+ * rows have no `type` until the backfill migration runs, new-path rows may carry no
+ * context — and a row with neither still maps, it just offers no navigation.
  */
 export function mapNotificationNode(node: NotificationFieldsData): Notification {
   const severity = normalizeSeverity(node.severity);
-  // `context` is NULLABLE as of the backend's context -> type/attributes
-  // migration: rows written on the new path carry no typed context at all, so
-  // nothing below may assume one. A context-less row still maps — it just
-  // contributes no context metadata, and the fields that drive navigation
-  // simply stay absent.
   const { context } = node;
+  const attributes = readNotificationAttributes(node.attributes);
+  // The spec type wins; `context.type` is what a legacy row (or a kill-switched backend) has.
+  const notificationType = node.type ?? context?.type ?? undefined;
+
   const meta: Record<string, unknown> = {
-    contextType: context?.type,
-    contextTypename: context?.__typename,
+    // Every attribute the backend sent, including keys this release has no code for.
+    ...attributes,
+    notificationType,
+    // What the core lib's approval gate reads — the approval split folded back onto one string.
+    contextType: toLegacyContextType(notificationType),
   };
 
-  // Entity ids drive navigation/auto-read uniformly across context types (see
-  // resolveNotificationAction); every context that carries one selects it in the query fragment.
-  const ticketId = context?.ticketId ?? context?.approvalTicketId ?? context?.clientTicketId ?? undefined;
-  if (context?.dialogId) meta.dialogId = context.dialogId;
+  // Entity ids drive navigation and auto-read uniformly across types (see
+  // resolveNotificationAction). Under `attributes` they sit at fixed keys for every type,
+  // known or not; the context aliases below exist only because the union declares the same
+  // field with different nullability per member.
+  const ticketId =
+    attributes[NOTIFICATION_ATTR.ticketId] ??
+    context?.ticketId ??
+    context?.approvalTicketId ??
+    context?.clientTicketId ??
+    undefined;
+  const dialogId = attributes[NOTIFICATION_ATTR.dialogId] ?? context?.dialogId ?? undefined;
+  if (dialogId) meta.dialogId = dialogId;
   if (ticketId) meta.ticketId = ticketId;
 
-  if (context?.__typename === 'AdminApprovalRequestContext' && context.approvalRequestId) {
-    meta.approvalRequestId = context.approvalRequestId;
-    meta.approvalType = context.approvalType ?? null;
-    meta.resolution = context.resolution ?? null;
-    meta.resolvedByName = context.resolvedByName ?? null;
-    meta.toolCalls = (context.toolCalls ?? []).map(call => ({
-      toolExecutionRequestId: call.toolExecutionRequestId,
-      toolName: call.toolName,
-      toolTitle: call.toolTitle,
-      toolExplanation: call.toolExplanation,
-      toolType: call.toolType,
-      requiresApproval: call.requiresApproval,
-      approvalType: call.approvalType,
-      toolCallArguments: call.toolCallArguments,
-    }));
+  const approvalRequestId = attributes[NOTIFICATION_ATTR.approvalRequestId] ?? context?.approvalRequestId ?? undefined;
+  if (approvalRequestId) {
+    meta.approvalRequestId = approvalRequestId;
+    meta.approvalType = attributes[NOTIFICATION_ATTR.approvalType] ?? context?.approvalType ?? null;
+    meta.resolution = attributes[NOTIFICATION_ATTR.resolution] ?? context?.resolution ?? null;
+    meta.resolvedByName = attributes[NOTIFICATION_ATTR.resolvedByName] ?? context?.resolvedByName ?? null;
+    // Must end up an ARRAY: the core lib's `getApprovalMeta` bails on anything else, which
+    // would silently downgrade the approval tile to a plain one. The spread above put the
+    // raw JSON string here, so this assignment is not optional.
+    meta.toolCalls =
+      attributes[NOTIFICATION_ATTR.toolCalls] !== undefined
+        ? parseAttributeToolCalls(attributes[NOTIFICATION_ATTR.toolCalls])
+        : normalizeToolCalls(context?.toolCalls);
   }
 
   return {
     id: node.id,
-    type: contextTypeLabel(context?.type),
+    type: contextTypeLabel(notificationType),
     title: stripNotificationMarkup(node.title),
     description: node.description == null ? undefined : stripNotificationMarkup(node.description),
     createdAt: parseCreatedAt(node.createdAt),

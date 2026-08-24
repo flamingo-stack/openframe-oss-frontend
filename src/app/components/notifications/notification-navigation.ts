@@ -1,10 +1,17 @@
 import { ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE, type Notification } from '@flamingo-stack/openframe-frontend-core';
+import {
+  isApprovalNotificationType,
+  NOTIFICATION_ATTR,
+  readNotificationAttributes,
+} from '@/graphql/notifications/notifications-helpers';
 import { featureFlags } from '@/lib/feature-flags';
 import { routes } from '@/lib/routes';
 
-// Backend `NotificationContext.type` discriminators (the string `type` field; the same set the
-// concrete `__typename` subtypes carry in schema.graphql). NATS payloads carry only this string,
-// so it is the single source of truth for both routing and reconstructing store records live.
+// Backend notification type discriminators. The spec catalog's top-level `type` and the legacy
+// `NotificationContext.type` use the SAME strings for these, so one set routes both shapes — the
+// only divergence is approvals, which the catalog splits in two (see isApprovalNotificationType).
+// Membership here is an optimization: it picks the right tab. An unrecognized type still routes
+// by entity id, so this list never has to be exhaustive for navigation to work.
 export const ADMIN_AI_MESSAGE_CONTEXT_TYPE = 'ADMIN_AI_MESSAGE';
 export const ADMIN_AI_TICKET_MESSAGE_CONTEXT_TYPE = 'ADMIN_AI_TICKET_MESSAGE';
 export const CLIENT_AI_MESSAGE_CONTEXT_TYPE = 'CLIENT_AI_MESSAGE';
@@ -17,7 +24,10 @@ export const TICKET_ESCALATED_BY_USER_CONTEXT_TYPE = 'TICKET_ESCALATED_BY_USER';
 export const CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
 export const ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
 
-/** Context `type` → GraphQL `__typename`, so the NATS live path can rebuild typed context records. */
+/**
+ * Context `type` → GraphQL `__typename`, so the NATS live path can rebuild typed context records.
+ * LEGACY ONLY: a spec-shaped push carries `attributes` and needs no typed context record at all.
+ */
 export const CONTEXT_TYPENAME_BY_TYPE: Record<string, string> = {
   [ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE]: 'AdminApprovalRequestContext',
   [ADMIN_AI_MESSAGE_CONTEXT_TYPE]: 'AdminAiMessageContext',
@@ -32,7 +42,7 @@ export const CONTEXT_TYPENAME_BY_TYPE: Record<string, string> = {
 };
 
 /**
- * Context types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`.
+ * Types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`.
  * CLIENT_AI_MESSAGE belongs here only when its dialog is ticket-linked — `ticketId` is
  * nullable on that context (a Fae chat can run without a ticket), and without one the
  * notification resolves to no action, same as before the field existed.
@@ -49,7 +59,7 @@ const TICKET_CONTEXT_TYPES = new Set<string>([
 ]);
 
 /**
- * Ticket contexts announcing a new message in the ticket's client chat; they land on the
+ * Ticket types announcing a new message in the ticket's client chat; they land on the
  * Chat tab instead of Details. Mingo ticket messages (`ADMIN_AI_TICKET_MESSAGE`) are
  * excluded — with `mingo-sidebar-context` on, that conversation lives in the sidebar
  * drawer, not the page's Client Chat tab.
@@ -83,26 +93,38 @@ const mingoDialogAction = (dialogId: string): NotificationAction =>
     ? { label: 'Open Chat', mingoDialogId: dialogId }
     : { label: 'Open Chat', route: mingoDialogRoute(dialogId) };
 
+/** Backend `NotificationCategory` for Mingo — the signal that an unknown type's dialog is an admin one. */
+const MINGO_CATEGORY = 'MINGO';
+
 function resolveAction(
-  contextType: string | null,
+  type: string | null,
   ticketId: string | null,
   dialogId: string | null,
+  category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
-  if (contextType === ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE) {
+  // Covers the legacy discriminator and both spec types it was split into.
+  if (isApprovalNotificationType(type)) {
     if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
     if (dialogId) return mingoDialogAction(dialogId);
     return null;
   }
 
-  if (contextType && TICKET_CONTEXT_TYPES.has(contextType) && ticketId) {
-    const tab = TICKET_CHAT_CONTEXT_TYPES.has(contextType) ? 'chat' : undefined;
+  if (type && TICKET_CONTEXT_TYPES.has(type) && ticketId) {
+    const tab = TICKET_CHAT_CONTEXT_TYPES.has(type) ? 'chat' : undefined;
     return { label: 'Ticket Details', route: ticketRoute(ticketId, tab) };
   }
 
-  if (contextType === ADMIN_AI_MESSAGE_CONTEXT_TYPE && dialogId) {
+  if (type === ADMIN_AI_MESSAGE_CONTEXT_TYPE && dialogId) {
     return mingoDialogAction(dialogId);
   }
+
+  // Unknown type — the contract says new ones ship without a client release, so route by
+  // the entity ids instead of giving up. A ticket id is unambiguous. A dialog id is not:
+  // CLIENT_AI_MESSAGE carries a CLIENT chat's dialogId, which the admin Mingo drawer cannot
+  // open, so a bare dialog is only followed when the category says the dialog is Mingo's.
+  if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
+  if (dialogId && category === MINGO_CATEGORY) return mingoDialogAction(dialogId);
 
   return null;
 }
@@ -113,23 +135,41 @@ function resolveAction(
  */
 export function resolveNotificationAction(notification: Notification): NotificationAction | null {
   const meta = notification.meta ?? {};
+  // `notificationType` is the precise spec type; `contextType` is the legacy discriminator
+  // (and the approval split folded back onto it). Either identifies a route the same way.
+  const type = typeof meta.notificationType === 'string' ? meta.notificationType : meta.contextType;
   return resolveAction(
-    typeof meta.contextType === 'string' ? meta.contextType : null,
+    typeof type === 'string' ? type : null,
     typeof meta.ticketId === 'string' ? meta.ticketId : null,
     typeof meta.dialogId === 'string' ? meta.dialogId : null,
+    typeof notification.category === 'string' ? notification.category : null,
   );
 }
 
 /**
- * Route for a raw NATS notification envelope (`context.type/ticketId/dialogId`), before it has
- * been shaped into a store record — the native shell's OS-toast click path (`notification:click`
- * from the Rust notification plane) hands the wire payload over as-is. Drawer-only actions
- * (mingoDialogId) have no URL and resolve to null — callers fall back.
+ * Route for a raw NATS notification envelope, before it has been shaped into a store record —
+ * the native shell's OS-toast click path (`notification:click` from the Rust notification
+ * plane) hands the wire payload over as-is. Reads `type`/`attributes` when the envelope carries
+ * them and the legacy `context` otherwise, so a shell build that still forwards only the old
+ * shape keeps working. Drawer-only actions (mingoDialogId) have no URL and resolve to null —
+ * callers fall back.
  */
 export function resolveNatsNotificationRoute(payload: unknown): string | null {
-  const context = (payload as { context?: Record<string, unknown> } | null | undefined)?.context ?? {};
+  const envelope = (payload ?? {}) as {
+    type?: unknown;
+    attributes?: unknown;
+    category?: unknown;
+    context?: Record<string, unknown>;
+  };
+  const context = envelope.context ?? {};
+  const attributes = readNotificationAttributes(envelope.attributes);
   const str = (value: unknown) => (typeof value === 'string' && value ? value : null);
-  const action = resolveAction(str(context.type), str(context.ticketId), str(context.dialogId));
+  const action = resolveAction(
+    str(envelope.type) ?? str(context.type),
+    attributes[NOTIFICATION_ATTR.ticketId] ?? str(context.ticketId),
+    attributes[NOTIFICATION_ATTR.dialogId] ?? str(context.dialogId),
+    str(envelope.category),
+  );
   return action && 'route' in action ? action.route : null;
 }
 

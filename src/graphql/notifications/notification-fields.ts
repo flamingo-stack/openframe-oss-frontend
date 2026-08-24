@@ -11,6 +11,20 @@ import { graphql } from 'react-relay';
  * `mapNotificationNode` reads a generated type instead of a hand-written mirror
  * of what the two documents happened to select.
  *
+ * Two shapes of the same facts are selected side by side, and `mapNotificationNode`
+ * prefers the first that is present:
+ *
+ * 1. `type` + `attributes` — the spec-catalog contract (flat `string -> string` map).
+ *    Entity ids live under fixed keys regardless of the type, so a type this release
+ *    has never heard of still navigates and auto-reads.
+ * 2. `context` — the legacy typed union, kept because it is what the backend still
+ *    writes until the spec path ships, and what it writes again if the
+ *    `notifications.legacy-path` kill-switch is flipped back on. Rows written before
+ *    the backfill migration carry only this.
+ *
+ * Neither is guaranteed: `context` is nullable on the new path, `type`/`attributes`
+ * are null on legacy rows. Reading both is what makes the switch-over a no-op here.
+ *
  * `context` is a union: Relay flattens the inline fragments into one object
  * keyed by `__typename`, which is exactly what the mapper switches on.
  *
@@ -26,6 +40,8 @@ export const notificationFieldsFragment = graphql`
     createdAt
     read
     category
+    type
+    attributes
     context {
       __typename
       type
