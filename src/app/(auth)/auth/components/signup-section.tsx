@@ -47,7 +47,7 @@ export function AuthSignupSection({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [, setSignupMethod] = useState<'form' | 'sso'>('form');
 
-  const displayDomain = isSaasShared ? domain : domain;
+  const displayDomain = domain;
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email.trim());
