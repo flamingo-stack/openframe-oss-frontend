@@ -24,8 +24,13 @@ export function NativePushInitializer() {
 
   useEffect(() => {
     if (!isMobileShell()) return;
-    void initNativePush(data => {
+    initNativePush(data => {
       router.push(resolvePushNotificationRoute(data) ?? routes.notifications());
+    }).catch(error => {
+      // `initialized` latches before the awaits inside, so this is terminal for the
+      // session: no token registration, possibly no tap handler. Surface it rather
+      // than leaving an unhandled rejection as the only trace.
+      console.error('[Native Push] initialisation failed:', error);
     });
   }, [router]);
 

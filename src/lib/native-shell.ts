@@ -116,6 +116,12 @@ export interface NativeAuthPlugin {
 
 export type PushPermissionState = 'prompt' | 'prompt-with-rationale' | 'granted' | 'denied';
 
+/** A notification sitting in the OS tray, as the plugin reports it. */
+export interface DeliveredNotification {
+  id?: string;
+  data?: Record<string, unknown>;
+}
+
 /** Subset of @capacitor-firebase/messaging used by this app (plugin ships with the shell, not npm). */
 export interface FirebaseMessagingPlugin {
   checkPermissions(): Promise<{ receive: PushPermissionState }>;
@@ -125,28 +131,21 @@ export interface FirebaseMessagingPlugin {
   deleteToken(): Promise<void>;
   /** Fires when FCM first issues or later rotates the registration token. */
   addListener(eventName: 'tokenReceived', listenerFunc: (event: { token: string }) => void): Promise<unknown>;
-  addListener(
-    eventName: 'notificationActionPerformed',
-    listenerFunc: (event: { notification: { data?: Record<string, unknown> } }) => void,
-  ): Promise<unknown>;
   /**
-   * Fires for a push that arrives while the app is alive. Includes the data-only
-   * retraction push, which carries no notification block and so renders nothing —
-   * it exists purely to tell the client to clear a banner.
+   * `notificationActionPerformed` fires on a tap; `notificationReceived` fires for a
+   * push that arrives while the app is alive, including the data-only retraction push,
+   * which carries no notification block and so renders nothing — it exists purely to
+   * tell the client to clear a banner. One signature because this subset models only
+   * `notification.data`, which both carry identically; split them if the tap event's
+   * `actionId`/`inputValue` are ever needed.
    */
   addListener(
-    eventName: 'notificationReceived',
+    eventName: 'notificationActionPerformed' | 'notificationReceived',
     listenerFunc: (event: { notification: { data?: Record<string, unknown> } }) => void,
   ): Promise<unknown>;
   getDeliveredNotifications(): Promise<{ notifications: DeliveredNotification[] }>;
   /** Takes the objects `getDeliveredNotifications` returned, not ids. */
   removeDeliveredNotifications(options: { notifications: DeliveredNotification[] }): Promise<void>;
-}
-
-/** A notification sitting in the OS tray, as the plugin reports it. */
-export interface DeliveredNotification {
-  id?: string;
-  data?: Record<string, unknown>;
 }
 
 /** A picked file as the NativeFiles plugin returns it, before `mimeType` is normalized to `type`. */

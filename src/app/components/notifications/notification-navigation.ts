@@ -83,6 +83,8 @@ const mingoDialogAction = (dialogId: string): NotificationAction =>
     ? { label: 'Open Chat', mingoDialogId: dialogId }
     : { label: 'Open Chat', route: mingoDialogRoute(dialogId) };
 
+const nonEmptyString = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
+
 function resolveAction(
   contextType: string | null,
   ticketId: string | null,
@@ -113,31 +115,25 @@ function resolveAction(
  */
 export function resolveNotificationAction(notification: Notification): NotificationAction | null {
   const meta = notification.meta ?? {};
-  return resolveAction(
-    typeof meta.contextType === 'string' ? meta.contextType : null,
-    typeof meta.ticketId === 'string' ? meta.ticketId : null,
-    typeof meta.dialogId === 'string' ? meta.dialogId : null,
-  );
+  return resolveAction(nonEmptyString(meta.contextType), nonEmptyString(meta.ticketId), nonEmptyString(meta.dialogId));
 }
 
-const nonEmptyString = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
+/** Drawer-only actions (`mingoDialogId`) have no URL — one home for that rule. */
+function actionRoute(action: NotificationAction | null): string | null {
+  return action && 'route' in action ? action.route : null;
+}
 
 /**
  * Route for a bag of wire fields, whatever transport carried them. Both shells hand over
- * untyped payloads, so every field is narrowed rather than trusted. Drawer-only actions
- * (mingoDialogId) have no URL and resolve to null — callers fall back.
- *
+ * untyped payloads, so every field is narrowed rather than trusted.
  * The returned route is always BUILT by a `routes.*` builder from those narrowed ids, never
  * echoed from the payload, so a forged push cannot name its own destination. That is what
  * replaced the old `startsWith('/')` check on a server-supplied route string.
  */
 function routeFromWireFields(fields: Record<string, unknown>): string | null {
-  const action = resolveAction(
-    nonEmptyString(fields.type),
-    nonEmptyString(fields.ticketId),
-    nonEmptyString(fields.dialogId),
+  return actionRoute(
+    resolveAction(nonEmptyString(fields.type), nonEmptyString(fields.ticketId), nonEmptyString(fields.dialogId)),
   );
-  return action && 'route' in action ? action.route : null;
 }
 
 /**
@@ -165,8 +161,7 @@ export function resolvePushNotificationRoute(data: unknown): string | null {
 
 /** Convenience for callers that only need a router route (drawer actions yield null). */
 export function resolveNotificationRoute(notification: Notification): string | null {
-  const action = resolveNotificationAction(notification);
-  return action && 'route' in action ? action.route : null;
+  return actionRoute(resolveNotificationAction(notification));
 }
 
 /**

@@ -72,9 +72,10 @@ import {
   isDialogViewActive,
   subscribeActiveDialogViews,
 } from '@/lib/active-dialog-views';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { ATTENTION_IDLE_MS, isSessionActive } from '@/lib/session-activity';
+import { ATTENTION_IDLE_MS, isSessionActive, subscribeSessionActivity } from '@/lib/session-activity';
 import { withCategoryIcon } from './notification-category-icons';
 import {
   CONTEXT_TYPENAME_BY_TYPE,
@@ -454,8 +455,19 @@ function EntityViewAutoReader() {
     getServerActiveDialogViews,
   );
   const { notifications, markRead } = useNotifications();
+  // The gate below is time-varying, but none of the effect's other deps change when
+  // the session becomes active again — so without this a notification that arrived
+  // while the user was idle on its entity would stay unread until some unrelated dep
+  // happened to re-run the effect. Hard edges only (focus / foreground), so this is
+  // a handful of re-renders per session on a component that renders null.
+  const [activityEdge, setActivityEdge] = useState(0);
+  useEffect(() => subscribeSessionActivity(() => setActivityEdge(edge => edge + 1)), []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activityEdge is the re-run trigger, not read in the body.
   useEffect(() => {
+    // Called live rather than snapshotted into state: the idle timer lapsing fires no
+    // event, so a captured boolean would go stale and re-open the very hole this closes.
+    //
     // Same cross-device consequence as the arrival-time path above, so the same gate:
     // it stops a tab left sitting on an entity from reading — and retracting from the
     // phone — notifications that arrive later.
@@ -475,7 +487,7 @@ function EntityViewAutoReader() {
         markRead(notification.id);
       }
     }
-  }, [pathname, searchParams, activeDialogs, notifications, markRead]);
+  }, [pathname, searchParams, activeDialogs, notifications, markRead, activityEdge]);
 
   return null;
 }
@@ -528,7 +540,7 @@ interface NotificationsLiveBridgeProps {
  * `dialogId`, i.e. Mingo messages, their ticket-linked variant, and approval
  * requests. Such notifications are redundant — the message or approval card is
  * already rendering in the chat — so the popup is skipped and the notification
- * auto-marked read.
+ * auto-marked read. Requires an actively-attended session, not merely a visible tab.
  */
 function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean {
   const dialogId = payload.context?.dialogId;
@@ -554,6 +566,12 @@ function maybeShowDesktopNotification(
   navigate: (route: string) => void,
   markRead: (notificationId: string) => void,
 ): void {
+  // Deliberately still `visibilityState`, not `isSessionActive`: this decides whether
+  // to MIRROR a notification to the OS, which is reversible and costs nothing when
+  // wrong — unlike auto-read and push-cancel, which are irreversible and therefore
+  // demand the stricter attention test. The gap is real and known: a visible but
+  // unfocused window gets no desktop banner AND no push cancel, so the phone buzzes
+  // for something sitting on a second monitor. Unifying the two is a product call.
   if (
     typeof window === 'undefined' ||
     !('Notification' in window) ||
@@ -705,12 +723,14 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       //
       // Best-effort: the mutation plants a tombstone that wins even if it outraces the
       // enqueue, and losing it just means the push lands.
-      if (isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) {
+      // Mode-gated: `cancelPendingPush` is declared only in push-saas.graphqls. Firing it
+      // in oss-tenant mode — the default — is an undefined mutation on every arrival.
+      if (isSaasTenantMode() && isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) {
         commitMutation<CancelPendingPushMutationType>(environmentRef.current, {
           mutation: cancelPendingPushMutation,
           variables: { notificationId: rawId },
           onError: error => {
-            console.warn('[notifications] cancelPendingPush failed:', error);
+            console.warn('[Notifications] cancelPendingPush failed:', error);
           },
         });
       }

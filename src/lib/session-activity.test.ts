@@ -11,6 +11,9 @@ describe('session-activity', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    // The config sets no `restoreMocks`, so the `hasFocus` spies installed per test
+    // would otherwise leak into the ones that don't install their own.
+    vi.restoreAllMocks();
   });
 
   async function load() {
@@ -58,6 +61,25 @@ describe('session-activity', () => {
     expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
   });
 
+  // Programmatic scrolling fires TRUSTED scroll events, and core-lib's chat pins itself
+  // to the bottom on every incoming message. Counting that as input kept an unattended
+  // tab "attentive" forever, on the surface this gate exists to protect. Pinned so a
+  // future re-add of `scroll` to the input set cannot pass silently.
+  it('does not treat scroll as user input', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    const { isSessionActive, ATTENTION_IDLE_MS } = await load();
+
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
+    vi.advanceTimersByTime(ATTENTION_IDLE_MS + 1_000);
+
+    document.dispatchEvent(new Event('scroll'));
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(false);
+
+    // ...while a real gesture still counts.
+    document.dispatchEvent(new Event('wheel'));
+    expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
+  });
+
   it('blur is a hard inactive edge, not a timer', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     const { isSessionActive, ATTENTION_IDLE_MS } = await load();
@@ -68,6 +90,46 @@ describe('session-activity', () => {
 
     window.dispatchEvent(new Event('focus'));
     expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
+  });
+
+  // This path has been wrong twice: once by latching `sourceStarted` before the plugin
+  // lookup, once by latching `usingShellSource` before an ASYNC registration rejection.
+  // Both made isSessionActive answer true forever — failing open on auto-read and push
+  // cancel, the two irreversible actions. Pinned rather than re-argued.
+  describe('shell registration failure falls back to the web source', () => {
+    async function loadMobile(addListener: () => unknown) {
+      vi.doMock('./platform', () => ({ isMobileShell: () => true }));
+      vi.doMock('./native-shell', () => ({ appPlugin: () => ({ addListener }) }));
+      return import('./session-activity');
+    }
+
+    it('falls back when the plugin is absent', async () => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+      vi.doMock('./platform', () => ({ isMobileShell: () => true }));
+      vi.doMock('./native-shell', () => ({ appPlugin: () => null }));
+      const { isSessionActive, ATTENTION_IDLE_MS } = await import('./session-activity');
+      // Unfocused window ⇒ the web source says inactive. A latched shell source would
+      // report `true` here off the seeded value.
+      expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(false);
+    });
+
+    it('falls back when registration throws synchronously', async () => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+      const { isSessionActive, ATTENTION_IDLE_MS } = await loadMobile(() => {
+        throw new Error('bridge exploded');
+      });
+      expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(false);
+    });
+
+    it('falls back when registration rejects asynchronously', async () => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { isSessionActive, ATTENTION_IDLE_MS } = await loadMobile(() => Promise.reject(new Error('nope')));
+
+      // Before the microtask flush the shell source is still believed good.
+      expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
+      await vi.waitFor(() => expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(false));
+    });
   });
 
   it('notifies subscribers on hard edges', async () => {

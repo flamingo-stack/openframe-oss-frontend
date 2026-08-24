@@ -71,7 +71,7 @@ export const ATTENTION_IDLE_MS = 10_000;
 /** Presence only costs a skipped grace window; be generous. */
 export const PRESENCE_IDLE_MS = 5 * 60_000;
 
-/** `pointermove` fires continuously; one timestamp write per this window is plenty. */
+/** Movement events fire continuously; one timestamp write per this window is plenty. */
 const MOVE_THROTTLE_MS = 1_000;
 
 type Listener = () => void;
@@ -89,6 +89,9 @@ let lastMoveWrite = 0;
 let windowActive = true;
 /** Mobile only. Seeded true: `AppPlugin` exposes no synchronous state read. */
 let shellActive = true;
+/** Whether the shell listener actually attached. False ⇒ the web source is authoritative. */
+let usingShellSource = false;
+let webSourceStarted = false;
 
 function notify(): void {
   for (const listener of [...listeners]) listener();
@@ -112,14 +115,55 @@ function recordMove(): void {
   lastInputAt = now;
 }
 
+function startWebSource(): void {
+  if (webSourceStarted) return;
+  webSourceStarted = true;
+  lastInputAt = Date.now();
+
+  // Capture phase on `document`, not `window`: the app scrolls an inner
+  // `main.overflow-y-auto` and `scroll` does not bubble.
+  //
+  // `scroll` is deliberately NOT in this set. Programmatic scrolling emits trusted
+  // `scroll` events with no human involved, and this app does it constantly — the
+  // core-lib chat pins itself to the bottom on every incoming message
+  // (`el.scrollTop = el.scrollHeight`), as does the script test-run log. Treating
+  // that as input would keep an unattended tab "attentive" for as long as messages
+  // keep arriving, on exactly the surface this gate exists to protect. `wheel` and
+  // `touchmove` cover real scrolling and cannot be synthesised by a layout effect.
+  const options = { capture: true, passive: true } as const;
+  document.addEventListener('pointerdown', recordInput, options);
+  document.addEventListener('keydown', recordInput, options);
+  document.addEventListener('wheel', recordMove, options);
+  document.addEventListener('touchmove', recordMove, options);
+  document.addEventListener('pointermove', recordMove, options);
+
+  window.addEventListener('focus', () => setWindowActive(true));
+  window.addEventListener('blur', () => setWindowActive(false));
+  window.addEventListener('pagehide', () => setWindowActive(false));
+  // Counterpart to `pagehide`. Without it a bfcache restore (external nav, then
+  // browser back) leaves the tab inactive forever: the window never lost OS focus
+  // so no `focus` event follows, and input alone cannot clear the flag.
+  window.addEventListener('pageshow', () => setWindowActive(document.hasFocus()));
+  document.addEventListener('visibilitychange', () => {
+    setWindowActive(document.visibilityState === 'visible' && document.hasFocus());
+  });
+
+  windowActive = document.hasFocus();
+}
+
 function startSource(): void {
   if (sourceStarted || typeof window === 'undefined') return;
   sourceStarted = true;
-  lastInputAt = Date.now();
 
-  if (isMobileShell()) {
-    const app = appPlugin();
-    if (!app) return;
+  // Any failure to attach the shell listener degrades to the web source, mirroring
+  // connectivity.ts. The alternative is fatal: `shellActive` is seeded `true` and
+  // nothing else can clear it, so `isSessionActive` would answer `true` forever —
+  // failing OPEN on two irreversible actions (auto-read retracts cross-device; a
+  // cancelled push is never re-armed). Under-firing is the only acceptable
+  // failure direction, so BOTH the synchronous throw and the async rejection below
+  // fall back rather than logging and leaving the flag latched.
+  const app = isMobileShell() ? appPlugin() : null;
+  if (app) {
     try {
       // The injected bridge proxy returns a bare handle, not the Promise its type
       // advertises (see native-back.ts) — never chain on it directly.
@@ -129,29 +173,20 @@ function startSource(): void {
           shellActive = isActive;
           notify();
         }),
-      ).catch(error => console.error('[session-activity] appStateChange registration failed:', error));
+      ).catch(error => {
+        console.error('[Session Activity] appStateChange registration failed:', error);
+        usingShellSource = false;
+        startWebSource();
+        notify();
+      });
+      usingShellSource = true;
+      return;
     } catch (error) {
-      console.error('[session-activity] appStateChange registration threw:', error);
+      console.error('[Session Activity] appStateChange registration threw:', error);
     }
-    return;
   }
 
-  // Capture phase on `document`, not `window`: the app scrolls an inner
-  // `main.overflow-y-auto` and `scroll` does not bubble.
-  const options = { capture: true, passive: true } as const;
-  document.addEventListener('pointerdown', recordInput, options);
-  document.addEventListener('keydown', recordInput, options);
-  document.addEventListener('scroll', recordInput, options);
-  document.addEventListener('pointermove', recordMove, options);
-
-  window.addEventListener('focus', () => setWindowActive(true));
-  window.addEventListener('blur', () => setWindowActive(false));
-  window.addEventListener('pagehide', () => setWindowActive(false));
-  document.addEventListener('visibilitychange', () => {
-    setWindowActive(document.visibilityState === 'visible' && document.hasFocus());
-  });
-
-  windowActive = document.hasFocus();
+  startWebSource();
 }
 
 /**
@@ -162,7 +197,7 @@ function startSource(): void {
 export function isSessionActive({ idleAfterMs }: { idleAfterMs: number }): boolean {
   if (typeof window === 'undefined') return false;
   startSource();
-  if (isMobileShell()) return shellActive;
+  if (usingShellSource) return shellActive;
   if (!windowActive) return false;
   return Date.now() - lastInputAt < idleAfterMs;
 }
@@ -173,6 +208,7 @@ export function isSessionActive({ idleAfterMs }: { idleAfterMs: number }): boole
  * `isSessionActive` for that.
  */
 export function subscribeSessionActivity(listener: Listener): () => void {
+  if (typeof window === 'undefined') return () => {};
   startSource();
   listeners.add(listener);
   return () => {

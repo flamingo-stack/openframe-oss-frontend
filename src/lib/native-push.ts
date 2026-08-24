@@ -20,12 +20,23 @@ import { registerPushDeviceMutation } from '@/graphql/notifications/register-pus
 import { unregisterPushDeviceMutation } from '@/graphql/notifications/unregister-push-device-mutation';
 import { firebaseMessagingPlugin } from './native-shell';
 import { mobilePlatform } from './platform';
-import { removeRetracted, retractedIds } from './push-retraction';
+import { parseRetractedIds, removeRetracted } from './push-retraction';
 import { getRelayEnvironment } from './relay';
 
 const PUSH_TOKEN_STORAGE_KEY = 'native:push-token';
 
-let initialized = false;
+/**
+ * Listeners attach once per document; token registration does NOT. Splitting the two
+ * is load-bearing: on the mobile shell `forceLogout` returns WITHOUT reloading the
+ * WebView in saas-tenant mode (force-logout.ts) — which every openframe-mobile build
+ * lane defaults to — so a 401 re-login keeps module state. A single latch over the
+ * whole function meant the new session never called `registerPushDevice`, leaving the
+ * FCM token bound server-side to the PREVIOUS user and delivering their notification
+ * titles to this device.
+ */
+let listenersAttached = false;
+/** Read by the tap listener so a re-login's callback replaces the first one's. */
+let onTap: ((data: Record<string, unknown> | undefined) => void) | null = null;
 
 /** Platform uppercased for the PushPlatform enum; null off the mobile shell. */
 function pushPlatform(): PushPlatform | null {
@@ -64,7 +75,7 @@ async function registerPushDevice(token: string): Promise<void> {
     await commitPushMutation<RegisterPushDeviceMutationType>(registerPushDeviceMutation, { token, platform });
   } catch (error) {
     // Non-fatal: FCM re-emits the token on rotation and every init re-registers.
-    console.warn('[native-push] registerPushDevice failed:', error);
+    console.warn('[Native Push] registerPushDevice failed:', error);
   }
 }
 
@@ -76,7 +87,19 @@ async function unregisterPushDevice(token: string): Promise<void> {
   try {
     await commitPushMutation<UnregisterPushDeviceMutationType>(unregisterPushDeviceMutation, { token });
   } catch (error) {
-    console.warn('[native-push] unregisterPushDevice failed:', error);
+    console.warn('[Native Push] unregisterPushDevice failed:', error);
+  }
+}
+
+/**
+ * Registers one plugin listener, absorbing a failure to attach. See the call site for
+ * why a rejection must not propagate.
+ */
+async function attachListener(eventName: string, register: () => Promise<unknown>): Promise<void> {
+  try {
+    await register();
+  } catch (error) {
+    console.warn(`[Native Push] ${eventName} listener registration failed:`, error);
   }
 }
 
@@ -86,39 +109,59 @@ async function unregisterPushDevice(token: string): Promise<void> {
  *   cold-start tap too — the plugin retains the event until a listener consumes
  *   it, so mounting after launch does not lose it.
  */
-export async function initNativePush(onNotificationTap: (data: unknown) => void): Promise<void> {
+export async function initNativePush(
+  onNotificationTap: (data: Record<string, unknown> | undefined) => void,
+): Promise<void> {
   const plugin = firebaseMessagingPlugin();
-  if (!plugin || initialized) return;
-  initialized = true;
+  if (!plugin) return;
+  onTap = onNotificationTap;
 
-  // Attach listeners before getToken(): the token event can fire immediately,
-  // and iOS replays the launching notification's tap to a fresh listener on
-  // cold start.
-  await plugin.addListener('notificationActionPerformed', ({ notification }) => {
-    onNotificationTap(notification?.data);
-  });
-
-  // Retraction rides in on both the data-only retraction push and the piggybacked
-  // list on every regular push; either way it only reaches us while the app is alive.
-  await plugin.addListener('notificationReceived', ({ notification }) => {
-    void removeRetracted(plugin, retractedIds(notification?.data)).catch(error => {
-      // Cosmetic cleanup — never let it break notification handling.
-      console.warn('[native-push] retraction cleanup failed:', error);
-    });
-  });
-
-  // FCM issues the token here and re-emits it on rotation — re-register each time.
-  await plugin.addListener('tokenReceived', ({ token }) => {
-    void registerPushDevice(token);
-  });
+  if (!listenersAttached) {
+    listenersAttached = true;
+    await attachPushListeners(plugin);
+  }
 
   const { receive } = await plugin.requestPermissions();
   if (receive !== 'granted') return;
 
-  // Session-start registration. FCM tokens rotate; the backend upsert is
-  // idempotent, so overlapping with the tokenReceived path is harmless.
+  // Runs on EVERY init, not just the first: re-login inside one document must rebind
+  // the token to the new user. The backend upsert is idempotent and re-binds a token
+  // previously owned by someone else, so repeating it is the fix, not a cost.
   const { token } = await plugin.getToken();
   await registerPushDevice(token);
+}
+
+async function attachPushListeners(plugin: NonNullable<ReturnType<typeof firebaseMessagingPlugin>>): Promise<void> {
+  // Attach listeners before getToken(): the token event can fire immediately,
+  // and iOS replays the launching notification's tap to a fresh listener on
+  // cold start.
+  //
+  // Every registration is isolated. `initialized` latches above, so ANY rejection
+  // escaping this function is terminal for the session — no tap handler, no token,
+  // no push at all, with no retry. That is too high a price for one listener failing
+  // to attach, so each failure is logged and the rest still run.
+  await attachListener('notificationActionPerformed', () =>
+    plugin.addListener('notificationActionPerformed', ({ notification }) => {
+      onTap?.(notification?.data);
+    }),
+  );
+
+  // FCM issues the token here and re-emits it on rotation — re-register each time.
+  await attachListener('tokenReceived', () =>
+    plugin.addListener('tokenReceived', ({ token }) => {
+      void registerPushDevice(token);
+    }),
+  );
+
+  // Ordered after tokenReceived: this one is cosmetic cleanup and must never outrank
+  // getting the device registered.
+  await attachListener('notificationReceived', () =>
+    plugin.addListener('notificationReceived', ({ notification }) => {
+      void removeRetracted(plugin, parseRetractedIds(notification?.data)).catch(error => {
+        console.warn('[Native Push] retraction cleanup failed:', error);
+      });
+    }),
+  );
 }
 
 /**
