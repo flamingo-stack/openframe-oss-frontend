@@ -32,6 +32,14 @@ interface TicketsTabProps {
 // page the backend allows (100) and match tickets to this device client-side.
 // Replace with a server-side `filter: { machineIds }` once the backend
 // supports it.
+//
+// KNOWN LIMITATION: because matching happens client-side over a single fetched
+// page, a device with more tickets than fit within the fetched pages (or
+// tickets outside the ordering the backend applies) may not all be present in
+// `tickets` even after `hasNextPage` is exhausted, and the list rendered below
+// can silently be incomplete. We surface this by continuing to paginate
+// (`fetchNextPage`) until the backend reports no more pages, but this is not a
+// substitute for server-side filtering.
 const DEVICE_TICKETS_PAGE_SIZE = 100;
 
 /** Match a ticket to this device strictly by machine id — never by hostname
@@ -78,6 +86,14 @@ export function TicketsTab({ device }: TicketsTabProps) {
   );
 
   const deviceTickets = useMemo(() => tickets.filter(t => ticketBelongsToDevice(t, deviceIds)), [tickets, deviceIds]);
+
+  // Client-side filtering means the true set of matching tickets is only complete once the
+  // backend has no more pages left to give us. Keep fetching subsequent pages automatically
+  // so a device with tickets beyond the first page isn't silently truncated; the caller still
+  // sees `hasNextPage`/`isFetchingNextPage` for the (empty, once exhausted) manual footer.
+  if (!isLoading && !isFetchingNextPage && hasNextPage) {
+    fetchNextPage();
+  }
 
   // Reuse the shared ticket columns, but drop the device/source column — it's redundant on a
   // device-scoped list — and keep the trailing open-in-new-tab action.
