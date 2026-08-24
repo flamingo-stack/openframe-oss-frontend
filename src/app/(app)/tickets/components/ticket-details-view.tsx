@@ -39,6 +39,10 @@ import {
   type TabItem,
   TabNavigation,
   TicketInfoSection,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -99,6 +103,7 @@ import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
+import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
 import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
@@ -286,9 +291,20 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   const openTakeOver = useCallback(
     (prefill?: Omit<TakeOverTicketTarget, 'ticket'>) => {
       if (!dialog) return;
+      // Take-over is a status transition, so the pending-approval lock blocks
+      // it too (server-enforced). Safety net for every entry point.
+      if (isStatusLockedByPendingApproval(dialog)) {
+        toast({
+          title: 'Status Locked',
+          description: STATUS_LOCKED_BY_APPROVAL_REASON,
+          variant: 'destructive',
+          duration: 5000,
+        });
+        return;
+      }
       setTakeOverTarget({ ticket: dialog, ...prefill });
     },
-    [dialog],
+    [dialog, toast],
   );
 
   const handleAssign = useCallback(
@@ -536,6 +552,9 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   const handleTransition = useCallback(
     (toStatusId: string) => {
       if (!dialog || transitionTicket.isPending) return;
+      // Server-enforced lock (Tech Required + pending approval): the dropdown
+      // is disabled in this state, but guard the programmatic path too.
+      if (isStatusLockedByPendingApproval(dialog)) return;
       // Leaving a terminal status for a WORKING one is a REOPEN, not a plain
       // move: it goes through the confirmation modal (target status + assignee
       // + reason) instead of firing the transition directly. Gated on
@@ -585,6 +604,9 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       updateApprovalStatusInMessages('admin', requestId, status);
       try {
         await mutate(requestId);
+        // Resolving the approval releases the status lock and changes the
+        // available transitions - refresh the cached ticket right away.
+        refetchDialog();
       } catch (error) {
         toast({
           title: approving ? 'Approval Failed' : 'Rejection Failed',
@@ -599,7 +621,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
         });
       }
     },
-    [handleApproveRequest, handleRejectRequest, toast, updateApprovalStatusInMessages],
+    [handleApproveRequest, handleRejectRequest, toast, updateApprovalStatusInMessages, refetchDialog],
   );
 
   const handleApprove = useCallback(
@@ -787,6 +809,12 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     statusName: dialog.statusName,
     statusColor: dialog.statusColor,
   });
+  // Tech Required + pending approval: the server rejects any transition, so
+  // the inline changer renders as a locked tag with the reason in a tooltip.
+  const isStatusLocked = isStatusLockedByPendingApproval(dialog);
+  // Take-over transitions the status, so the same lock blocks starting a
+  // direct chat while the AI still works the ticket.
+  const isTakeOverBlocked = isStatusLocked && hasActiveAiDialog(dialog);
   const statusInfoProps = {
     status: statusTag.status,
     statusLabel: statusTag.label,
@@ -794,6 +822,8 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     statusOptions: dialog.availableTransitions,
     onStatusSelect: handleTransition,
     isStatusPending: transitionTicket.isPending,
+    isStatusDisabled: isStatusLocked,
+    statusDisabledReason: isStatusLocked ? STATUS_LOCKED_BY_APPROVAL_REASON : undefined,
   };
 
   const hasClientChat = !isAdminOwner;
@@ -871,6 +901,8 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
         options: dialog.availableTransitions,
         onSelect: handleTransition,
         isPending: transitionTicket.isPending,
+        disabled: isStatusLocked,
+        disabledReason: isStatusLocked ? STATUS_LOCKED_BY_APPROVAL_REASON : undefined,
       },
     },
   ];
@@ -962,15 +994,24 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
           <p className="flex-1 min-w-0 text-h6 text-ods-text-secondary">
             The AI assistant will be stopped and you will be able to communicate with the user directly.
           </p>
-          <Button
-            variant="outline"
-            onClick={handleStartDirectChat}
-            disabled={isStartingDirectChat}
-            leftIcon={<ChatsIcon size={24} className="text-ods-text-secondary" />}
-            className="shrink-0"
-          >
-            {isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}
-          </Button>
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={isTakeOverBlocked ? 'shrink-0 cursor-not-allowed' : 'shrink-0'}>
+                  <Button
+                    variant="outline"
+                    onClick={handleStartDirectChat}
+                    disabled={isStartingDirectChat || isTakeOverBlocked}
+                    leftIcon={<ChatsIcon size={24} className="text-ods-text-secondary" />}
+                    className="shrink-0"
+                  >
+                    {isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isTakeOverBlocked && <TooltipContent>{STATUS_LOCKED_BY_APPROVAL_REASON}</TooltipContent>}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       )}
       {!isClosed && isDirectMode && (
@@ -1318,15 +1359,26 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
 
                   {/* Direct Chat: Start button or ChatInput */}
                   {!isClosed && !isDirectMode && (
-                    <button
-                      type="button"
-                      onClick={handleStartDirectChat}
-                      disabled={isStartingDirectChat}
-                      className="w-full flex items-center justify-center gap-[var(--spacing-system-xsf)] rounded-lg bg-ods-card border border-ods-border px-[var(--spacing-system-sf)] py-[var(--spacing-system-sf)] transition-colors hover:bg-ods-bg-hover disabled:opacity-50 disabled:cursor-not-allowed mt-[var(--spacing-system-xsf)] text-ods-text-primary"
-                    >
-                      <ChatsIcon size={24} className="shrink-0 text-ods-text-secondary" />
-                      <span className="text-h4">{isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}</span>
-                    </button>
+                    <TooltipProvider delayDuration={0}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={isTakeOverBlocked ? 'block cursor-not-allowed' : 'block'}>
+                            <button
+                              type="button"
+                              onClick={handleStartDirectChat}
+                              disabled={isStartingDirectChat || isTakeOverBlocked}
+                              className="w-full flex items-center justify-center gap-[var(--spacing-system-xsf)] rounded-lg bg-ods-card border border-ods-border px-[var(--spacing-system-sf)] py-[var(--spacing-system-sf)] transition-colors hover:bg-ods-bg-hover disabled:opacity-50 disabled:cursor-not-allowed mt-[var(--spacing-system-xsf)] text-ods-text-primary"
+                            >
+                              <ChatsIcon size={24} className="shrink-0 text-ods-text-secondary" />
+                              <span className="text-h4">
+                                {isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}
+                              </span>
+                            </button>
+                          </span>
+                        </TooltipTrigger>
+                        {isTakeOverBlocked && <TooltipContent>{STATUS_LOCKED_BY_APPROVAL_REASON}</TooltipContent>}
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                   {!isClosed && isDirectMode && (
                     <ChatInput

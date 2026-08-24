@@ -74,6 +74,8 @@ export interface Ticket {
   status: TicketStatus;
   statusDefinition?: TicketStatusRef & { kind: string };
   availableTransitions?: TicketStatusRef[];
+  // Latest pending tool-approval request (locks Tech Required status changes).
+  pendingApproval?: { id: string; approvalType?: string } | null;
   creationSource?: string;
   owner: TicketOwner;
   deviceId?: string;
