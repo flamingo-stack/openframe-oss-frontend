@@ -28,7 +28,7 @@ function formatUptime(seconds?: number): string | undefined {
   const parts: string[] = [];
   if (days) parts.push(`${days}d`);
   if (hours) parts.push(`${hours}h`);
-  if (minutes && !days) parts.push(`${minutes}m`);
+  if (minutes) parts.push(`${minutes}m`);
   return parts.join(' ') || '< 1m';
 }
 
