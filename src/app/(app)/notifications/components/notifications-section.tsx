@@ -22,6 +22,7 @@ import {
   mapNotificationNode,
   parseCreatedAt,
   readNotificationNode,
+  stripNotificationMarkup,
 } from '@/graphql/notifications/notifications-helpers';
 import {
   notificationsSectionRelayFragment,
@@ -132,13 +133,13 @@ function SectionTable({
   const rows = useMemo<NotificationRow[]>(
     () =>
       data.notifications.edges.map(edge => {
-        // Read once: the table's own columns take the raw fields, the sub-row
-        // and actions take the mapped notification.
+        // Read once: the table's own columns take the raw fields (markup-stripped,
+        // same as the drawer tiles), the sub-row and actions take the mapped notification.
         const node = readNotificationNode(edge.node);
         return {
           id: node.id,
-          title: node.title,
-          description: node.description ?? null,
+          title: stripNotificationMarkup(node.title),
+          description: node.description == null ? null : stripNotificationMarkup(node.description),
           createdAt: parseCreatedAt(node.createdAt),
           read: node.read,
           notification: mapNotificationNode(node),

@@ -13,6 +13,7 @@ export const TICKET_STATUS_CHANGED_CONTEXT_TYPE = 'TICKET_STATUS_CHANGED';
 // without this mapping reopens would be invisible (no navigation, no auto-read).
 export const TICKET_REOPENED_CONTEXT_TYPE = 'TICKET_REOPENED';
 export const TICKET_ASSIGNED_CONTEXT_TYPE = 'TICKET_ASSIGNED';
+export const TICKET_ESCALATED_BY_USER_CONTEXT_TYPE = 'TICKET_ESCALATED_BY_USER';
 export const CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
 export const ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
 
@@ -25,18 +26,26 @@ export const CONTEXT_TYPENAME_BY_TYPE: Record<string, string> = {
   [TICKET_STATUS_CHANGED_CONTEXT_TYPE]: 'TicketStatusChangedContext',
   [TICKET_REOPENED_CONTEXT_TYPE]: 'TicketReopenedContext',
   [TICKET_ASSIGNED_CONTEXT_TYPE]: 'TicketAssignedContext',
+  [TICKET_ESCALATED_BY_USER_CONTEXT_TYPE]: 'TicketEscalatedByUserContext',
   [CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE]: 'CustomerMessagePublishedContext',
   [ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE]: 'AdminMessagePublishedContext',
 };
 
-/** Context types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`. */
+/**
+ * Context types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`.
+ * CLIENT_AI_MESSAGE belongs here only when its dialog is ticket-linked — `ticketId` is
+ * nullable on that context (a Fae chat can run without a ticket), and without one the
+ * notification resolves to no action, same as before the field existed.
+ */
 const TICKET_CONTEXT_TYPES = new Set<string>([
   ADMIN_AI_TICKET_MESSAGE_CONTEXT_TYPE,
   TICKET_STATUS_CHANGED_CONTEXT_TYPE,
   TICKET_REOPENED_CONTEXT_TYPE,
   TICKET_ASSIGNED_CONTEXT_TYPE,
+  TICKET_ESCALATED_BY_USER_CONTEXT_TYPE,
   CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE,
   ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE,
+  CLIENT_AI_MESSAGE_CONTEXT_TYPE,
 ]);
 
 /**
@@ -48,6 +57,7 @@ const TICKET_CONTEXT_TYPES = new Set<string>([
 const TICKET_CHAT_CONTEXT_TYPES = new Set<string>([
   CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE,
   ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE,
+  CLIENT_AI_MESSAGE_CONTEXT_TYPE,
 ]);
 
 /**
