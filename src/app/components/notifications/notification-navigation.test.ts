@@ -7,7 +7,11 @@ vi.mock('react-relay', async importOriginal => ({
   graphql: () => ({}),
 }));
 
-import { resolveNatsNotificationRoute, resolveNotificationAction } from './notification-navigation';
+import {
+  resolveNativePushRoute,
+  resolveNatsNotificationRoute,
+  resolveNotificationAction,
+} from './notification-navigation';
 
 /**
  * Routing must survive the backend adding notification types without a client release —
@@ -99,5 +103,44 @@ describe('raw NATS envelopes (native shell OS-toast click)', () => {
   it('returns null for an envelope with nothing to open', () => {
     expect(resolveNatsNotificationRoute({})).toBeNull();
     expect(resolveNatsNotificationRoute(null)).toBeNull();
+  });
+});
+
+describe('mobile FCM push payloads', () => {
+  it('routes off the flat keys the backend sends', () => {
+    const route = resolveNativePushRoute({
+      notificationId: 'n-1',
+      type: 'TICKET_ASSIGNED',
+      category: 'TICKETS',
+      severity: 'INFO',
+      ticketId: 't-1',
+    });
+    expect(route).toBe('/tickets/dialog?id=t-1');
+  });
+
+  it('still routes when the context blob was dropped for size', () => {
+    // The whole point of the flat keys: an oversized context is dropped, ids survive.
+    const route = resolveNativePushRoute({ type: 'MINGO_APPROVAL_REQUEST', dialogId: 'd-1', category: 'MINGO' });
+    expect(route).toBe('/mingo?dialogId=d-1');
+  });
+
+  it('falls back to the serialized context blob', () => {
+    const route = resolveNativePushRoute({
+      context: JSON.stringify({ type: 'TICKET_REOPENED', ticketId: 't-2' }),
+    });
+    expect(route).toBe('/tickets/dialog?id=t-2');
+  });
+
+  it('survives a malformed context blob', () => {
+    expect(resolveNativePushRoute({ context: 'not json' })).toBeNull();
+  });
+
+  it('degrades an unknown type by ticket id', () => {
+    expect(resolveNativePushRoute({ type: 'BRAND_NEW', ticketId: 't-3' })).toBe('/tickets/dialog?id=t-3');
+  });
+
+  it('returns null for a payload with nothing openable', () => {
+    expect(resolveNativePushRoute({ type: 'TICKET_ASSIGNED' })).toBeNull();
+    expect(resolveNativePushRoute(undefined)).toBeNull();
   });
 });

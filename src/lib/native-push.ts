@@ -1,10 +1,10 @@
 /**
  * Mobile-shell push notifications: permission → FCM registration token handed
- * to the backend, and notification taps deep-linked to the `route` key of the
- * push payload (contract: openframe-mobile dev/push-sample.apns). All push
- * flows through Firebase/FCM on both platforms (@capacitor-firebase/messaging,
- * shipped with the shell — not an npm dep here). Mobile-only: no-ops on the
- * web, in the desktop shell, and in shells without the plugin.
+ * to the backend, and notification taps deep-linked to the entity the push
+ * points at. All push flows through Firebase/FCM on both platforms
+ * (@capacitor-firebase/messaging, shipped with the shell — not an npm dep
+ * here). Mobile-only: no-ops on the web, in the desktop shell, and in shells
+ * without the plugin.
  *
  * Init runs post-login (registration is an authenticated call; the permission
  * prompt belongs after sign-in, not at launch).
@@ -13,6 +13,7 @@ import { commitMutation, type GraphQLTaggedNode } from 'react-relay';
 import type { MutationParameters } from 'relay-runtime';
 import type { registerPushDeviceMutation as RegisterPushDeviceMutationType } from '@/__generated__/registerPushDeviceMutation.graphql';
 import type { unregisterPushDeviceMutation as UnregisterPushDeviceMutationType } from '@/__generated__/unregisterPushDeviceMutation.graphql';
+import { resolveNativePushRoute } from '@/app/components/notifications/notification-navigation';
 import type { PushPlatform } from '@/generated/schema-enums';
 import { registerPushDeviceMutation } from '@/graphql/notifications/register-push-device-mutation';
 import { unregisterPushDeviceMutation } from '@/graphql/notifications/unregister-push-device-mutation';
@@ -86,7 +87,12 @@ export async function initNativePush(navigate: (route: string) => void): Promise
   // and iOS replays the launching notification's tap to a fresh listener on
   // cold start.
   await plugin.addListener('notificationActionPerformed', ({ notification }) => {
-    const route = notification?.data?.route;
+    const data = notification?.data as Record<string, unknown> | undefined;
+    // The backend sends the notification's facts, not a route — deep-linking is the client's
+    // to decide (see resolveNativePushRoute). `data.route` is still honoured first so a push
+    // that does carry one keeps working. A payload pointing at nothing openable just brings
+    // the app up, which is what a tap did before this resolved anything at all.
+    const route = typeof data?.route === 'string' ? data.route : resolveNativePushRoute(data);
     // Only app-internal routes — never navigate to arbitrary payload URLs.
     if (typeof route === 'string' && route.startsWith('/')) {
       navigate(route);

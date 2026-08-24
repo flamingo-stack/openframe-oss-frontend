@@ -173,6 +173,45 @@ export function resolveNatsNotificationRoute(payload: unknown): string | null {
   return action && 'route' in action ? action.route : null;
 }
 
+/**
+ * Route for a mobile push's FCM data payload.
+ *
+ * The backend deliberately does NOT send a ready-made route — its own test says so: the data
+ * payload "carries id/type/category/severity AND the context's own fields — the client routes
+ * off this, so it can change deep-linking without a backend release". So the mapping lives
+ * here, on the same `resolveAction` the drawer and the desktop toast use.
+ *
+ * The payload is FLAT, unlike the NATS envelope: `type`, `ticketId`, `dialogId` and
+ * `approvalRequestId` ride as top-level keys precisely so they survive when the serialized
+ * `context` blob is dropped for exceeding the push size cap. Flat keys are therefore read
+ * FIRST, with the blob only as a backstop; `attributes` is read ahead of both for when the
+ * backend moves this payload onto the spec contract.
+ */
+export function resolveNativePushRoute(data: Record<string, unknown> | null | undefined): string | null {
+  if (!data) return null;
+  const str = (value: unknown) => (typeof value === 'string' && value ? value : null);
+  const attributes = readNotificationAttributes(data.attributes);
+  // `context` arrives as a JSON string here (it is one value in a string->string map), and is
+  // absent entirely on a payload whose context exceeded the cap.
+  let blob: Record<string, unknown> | null = null;
+  if (typeof data.context === 'string') {
+    try {
+      const parsed = JSON.parse(data.context);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) blob = parsed;
+    } catch {
+      blob = null;
+    }
+  }
+
+  const action = resolveAction(
+    str(data.type) ?? str(blob?.type),
+    attributes[NOTIFICATION_ATTR.ticketId] ?? str(data.ticketId) ?? str(blob?.ticketId),
+    attributes[NOTIFICATION_ATTR.dialogId] ?? str(data.dialogId) ?? str(blob?.dialogId),
+    str(data.category),
+  );
+  return action && 'route' in action ? action.route : null;
+}
+
 /** Convenience for callers that only need a router route (drawer actions yield null). */
 export function resolveNotificationRoute(notification: Notification): string | null {
   const action = resolveNotificationAction(notification);
