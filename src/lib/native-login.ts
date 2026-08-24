@@ -104,6 +104,13 @@ export async function nativeLogin(options: {
  * submits `<subdomain>.<SAAS_DOMAIN_SUFFIX>` and the backend stores that
  * verbatim as `Tenant.domain` — the same string discovery returns on every
  * later login.
+ *
+ * `authMobile` carries the same weight it does on a login, and reaches the BFF
+ * the long way round: the authz service keeps it in the SSO registration cookie
+ * and puts it back on the `/oauth/continue` it issues once the tenant exists.
+ * That is what makes the callback carry a devTicket on a gateway with
+ * dev-ticket issuance off (prod) — without it signup created the org and left
+ * the app signed out.
  */
 export async function nativeSsoRegister(options: {
   tenantName: string;
@@ -125,6 +132,7 @@ export async function nativeSsoRegister(options: {
     email: options.email,
     provider: options.provider,
     redirectTo: `${appScheme}://auth`,
+    authMobile: true,
   });
 
   const { callbackUrl } = await plugin.start({ url, callbackScheme: appScheme });
@@ -132,11 +140,11 @@ export async function nativeSsoRegister(options: {
   return completeTicketFlow(plugin, callbackUrl, {
     tenantHost,
     bootHost: runtimeEnv.tenantHostUrl(),
-    // Registration reaches the BFF callback through `/oauth/continue`, which the
-    // authz service builds WITHOUT authMobile — so unlike login the ticket rides
-    // on the gateway's dev-ticket setting alone, and a gateway with
-    // `dev-ticket-enabled: false` lands here having already created the tenant.
-    // Say so: the account exists and signing in finishes the job.
+    // authMobile now rides through to `/oauth/continue`, so the ticket no longer
+    // depends on the gateway's dev-ticket setting. Landing here means the flag
+    // never reached the BFF — an authz service predating that support, or
+    // `mobile-auth-enabled` off on the gateway — and by then the tenant already
+    // exists. Say so: the account is there and signing in finishes the job.
     noTicketMessage:
       'Your organization was created, but the app did not receive a session. Open the Login tab and sign in with the same provider.',
   });
