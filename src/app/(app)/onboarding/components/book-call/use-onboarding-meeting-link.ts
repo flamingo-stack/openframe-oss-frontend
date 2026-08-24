@@ -16,6 +16,7 @@ import type {
 import { embedAuthedFetch } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQuery } from '@tanstack/react-query';
 import { EP } from '@/app/(app)/help-center/endpoints';
+import { SCHEDULING_LINKS_KEY } from '@/hooks/admin-query-keys';
 
 /** Slugified label of the hub's "OpenFrame Users" audience — content-managed. */
 const ONBOARDING_PURPOSE = 'openframe-users';
@@ -40,7 +41,7 @@ export interface OnboardingMeetingLinkResult {
 
 export function useOnboardingMeetingLink(): OnboardingMeetingLinkResult {
   const query = useQuery<SchedulingLinksPayload | null>({
-    queryKey: ['scheduling-links', EP.meetings],
+    queryKey: [...SCHEDULING_LINKS_KEY, EP.meetings],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       // `no-store`: a 404/410 is cacheable by default, and a pinned one would
