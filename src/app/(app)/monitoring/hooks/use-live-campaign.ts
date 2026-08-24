@@ -3,10 +3,12 @@
 import type { QueryResultRow } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQuery } from '@tanstack/react-query';
+import { graphql, fetchQuery } from 'react-relay';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { apiClient } from '@/lib/api-client';
+import { getRelayEnvironment } from '@/lib/relay-environment';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
+import type { useLiveCampaignFleetApiTokenQuery } from './__generated__/useLiveCampaignFleetApiTokenQuery.graphql';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -119,8 +121,8 @@ async function getAllHostsLabelId(): Promise<number> {
 
 // ── Fleet API token fetch ─────────────────────────────────────────
 
-const GET_FLEET_API_TOKEN_QUERY = `
-  query GetFleetApiToken {
+const GET_FLEET_API_TOKEN_QUERY = graphql`
+  query useLiveCampaignFleetApiTokenQuery {
     integratedTools(search: "fleetmdm") {
       tools {
         id
@@ -136,31 +138,13 @@ const GET_FLEET_API_TOKEN_QUERY = `
 `;
 
 async function fetchFleetApiToken(): Promise<string> {
-  const response = await apiClient.post<{
-    data?: {
-      integratedTools: {
-        tools: Array<{
-          id: string;
-          toolType: string;
-          credentials?: { apiKey?: { key: string } | null } | null;
-        }>;
-      };
-    };
-    errors?: Array<{ message: string }>;
-  }>('/api/graphql', {
-    query: GET_FLEET_API_TOKEN_QUERY,
-  });
+  const data = await fetchQuery<useLiveCampaignFleetApiTokenQuery>(
+    getRelayEnvironment(),
+    GET_FLEET_API_TOKEN_QUERY,
+    {},
+  ).toPromise();
 
-  if (!response.ok) {
-    throw new Error(response.error || 'Failed to fetch Fleet API token');
-  }
-
-  const graphql = response.data;
-  if (graphql?.errors?.length) {
-    throw new Error(graphql.errors[0].message);
-  }
-
-  const tools = graphql?.data?.integratedTools?.tools ?? [];
+  const tools = data?.integratedTools?.tools ?? [];
   const fleetTool = tools.find(t => t.toolType === 'FLEET_MDM' || t.id === 'fleetmdm-server');
   const token = fleetTool?.credentials?.apiKey?.key;
 
