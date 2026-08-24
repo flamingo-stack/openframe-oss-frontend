@@ -315,7 +315,7 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
 
   // 2.5) Fetch Fleet MDM details if present
   const fleet = node.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');
-  let fleetData: any | null = null;
+  let fleetData: FleetHost | null = null;
   if (fleet?.agentToolId) {
     // Validate that agentToolId is a valid numeric string before calling Fleet API
     const fleetHostId = Number(fleet.agentToolId);
