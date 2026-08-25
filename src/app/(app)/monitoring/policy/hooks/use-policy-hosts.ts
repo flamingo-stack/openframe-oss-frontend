@@ -30,7 +30,7 @@ async function fetchAllPolicyHosts(policyId: number): Promise<PolicyHost[]> {
     }
     const hosts = res.data?.hosts ?? [];
     allHosts.push(...hosts);
-    hasMore = res.data?.meta?.has_next_results ?? false;
+    hasMore = (res.data?.meta?.has_next_results ?? false) && hosts.length > 0;
     page++;
   }
 

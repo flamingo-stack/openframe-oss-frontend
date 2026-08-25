@@ -116,14 +116,26 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
     try {
       await publishArticle(article.id);
       toast({ title: 'Published', description: article.name, variant: 'success' });
-    } catch {}
+    } catch (error) {
+      toast({
+        title: 'Failed to publish',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive',
+      });
+    }
   }, [publishArticle, article.id, article.name, toast]);
 
   const handleUnpublish = useCallback(async () => {
     try {
       await unpublishArticle(article.id);
       toast({ title: 'Moved to draft', description: article.name, variant: 'success' });
-    } catch {}
+    } catch (error) {
+      toast({
+        title: 'Failed to move to draft',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive',
+      });
+    }
   }, [unpublishArticle, article.id, article.name, toast]);
 
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {

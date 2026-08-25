@@ -22,6 +22,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useClientView } from '@/app/(app)/settings/ai-settings/hooks/use-client-view';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { useControlledTabNavigation } from '@/app/hooks/use-controlled-tab-navigation';
 import { getFullImageUrl } from '@/lib/image-url';
 import { type CustomerDetailTab, type CustomerEditTab, routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -53,23 +54,6 @@ const DETAIL_TO_EDIT_TAB: Partial<Record<CustomerDetailTab, CustomerEditTab>> = 
 
 export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const requestedTab = searchParams?.get('tab') ?? 'devices';
-
-  // Controlled mode for TabNavigation: derive activeTab from URL directly.
-  // This avoids a flicker bug in TabNavigation's `urlSync` mode where its
-  // internal URL-sync effect fires after an urgent state update but before
-  // `router.replace` has propagated, briefly resetting the active tab to the
-  // URL's previous value.
-  const handleTabChange = useCallback(
-    (tabId: string) => {
-      const params = new URLSearchParams(searchParams?.toString() ?? '');
-      params.set('tab', tabId);
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    },
-    [router, pathname, searchParams],
-  );
 
   const { organization, isLoading, error } = useCustomerDetails(id);
 
@@ -94,7 +78,13 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
     () => getCustomerTabs({ showCustomAiAssistant, showGuardrails }),
     [showCustomAiAssistant, showGuardrails],
   );
-  const activeTab = (tabs.some(tab => tab.id === requestedTab) ? requestedTab : 'devices') as CustomerDetailTab;
+
+  // Controlled mode for TabNavigation: derive activeTab from URL directly.
+  // This avoids a flicker bug in TabNavigation's `urlSync` mode where its
+  // internal URL-sync effect fires after an urgent state update but before
+  // `router.replace` has propagated, briefly resetting the active tab to the
+  // URL's previous value.
+  const { activeTab, handleTabChange } = useControlledTabNavigation<CustomerDetailTab>(tabs, 'devices');
 
   // Register this organization as the Mingo "open view".
   useTrackOpenView(

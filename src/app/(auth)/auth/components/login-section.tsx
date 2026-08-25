@@ -1,7 +1,7 @@
 'use client';
 
 import { AuthProvidersList } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ArrowLeft, Building, Cloud, Lock, Mail, User } from 'lucide-react';
 import { useState } from 'react';
 import { useDeployment } from '@/app/hooks/use-deployment';

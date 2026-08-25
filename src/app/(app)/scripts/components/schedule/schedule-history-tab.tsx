@@ -49,8 +49,6 @@ export function ScheduleHistoryTab({ schedule, scheduleId }: ScheduleHistoryTabP
     offset,
   });
 
-  console.log(history);
-
   const handleNextPage = useCallback(() => {
     if (offset + limit < total) {
       setOffset(prev => prev + limit);
