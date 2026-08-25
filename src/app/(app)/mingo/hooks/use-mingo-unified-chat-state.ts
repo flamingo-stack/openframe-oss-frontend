@@ -102,6 +102,13 @@ export interface MingoUnifiedChat {
   }>;
   /** Restore an archived dialog back to the active list. */
   unarchiveDialog: (id: string) => Promise<void>;
+  /**
+   * Why the SELECTED dialog could not be fetched, or null. `UnifiedChatState` has no
+   * field for it (`dialogsError` is about the LIST), and without it a dialog id that
+   * no longer resolves — a deleted conversation, someone else's, a mistyped link —
+   * renders as an ordinary empty thread and says nothing.
+   */
+  dialogError: string | null;
 }
 
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
@@ -150,6 +157,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     fetchNextPage: fetchNextMessagePage,
     initialOptStartSeq,
     isMessagesFetched,
+    dialogError,
   } = useMingoDialogSelection();
 
   const {
@@ -558,5 +566,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     setSearchQuery,
     fetchArchivedDialogs,
     unarchiveDialog,
+    dialogError,
   };
 }
