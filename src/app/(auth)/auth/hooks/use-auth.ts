@@ -64,6 +64,23 @@ function isUserCanceled(error: unknown): boolean {
 }
 
 /**
+ * Sign in with Apple authenticates whichever Apple ID is signed into the device
+ * — it has no credential entry — so the identity is frequently NOT the account
+ * the email field just resolved. The gateway then validates the credential fine
+ * and 401s for want of a linked account, which the shell rejects with this code.
+ * An ordinary outcome deserving actionable copy, not a raw HTTP status: App
+ * Review cited "Apple exchange failed with status 401" as a bug (2.1).
+ * Recovery is the account's own email, or Sign Up to create an organization
+ * against this Apple ID.
+ */
+function isAppleAccountNotLinked(error: unknown): boolean {
+  return (
+    (error as { code?: string } | null)?.code === 'APPLE_ACCOUNT_NOT_LINKED' ||
+    (error instanceof Error && error.message === 'APPLE_ACCOUNT_NOT_LINKED')
+  );
+}
+
+/**
  * Auth actions hook - provides login, registration, and logout functions.
  * Does NOT perform auth checking. Use `useAuthSession` for that.
  */
@@ -310,7 +327,14 @@ export function useAuth() {
         throw new Error('No tenant information available for SSO login');
       }
     } catch (error) {
-      if (!isUserCanceled(error)) {
+      if (isAppleAccountNotLinked(error)) {
+        toast({
+          title: 'No OpenFrame account for this Apple ID',
+          description:
+            'Sign in with the email address on your account instead, or use Sign Up to create a new organization with this Apple ID.',
+          variant: 'destructive',
+        });
+      } else if (!isUserCanceled(error)) {
         toast({
           title: 'Login Failed',
           description: error instanceof Error ? error.message : 'Unable to sign in with SSO',

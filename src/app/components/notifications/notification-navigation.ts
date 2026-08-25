@@ -1,6 +1,6 @@
 import { ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE, type Notification } from '@flamingo-stack/openframe-frontend-core';
-import { featureFlags } from '@/lib/feature-flags';
-import { routes } from '@/lib/routes';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { mingoDialogLink, routes } from '@/lib/routes';
 
 // Backend `NotificationContext.type` discriminators (the string `type` field; the same set the
 // concrete `__typename` subtypes carry in schema.graphql). NATS payloads carry only this string,
@@ -61,27 +61,51 @@ const TICKET_CHAT_CONTEXT_TYPES = new Set<string>([
 ]);
 
 /**
- * A notification's primary action. Either a plain `route` the host pushes onto
- * the router, or — for a Mingo dialog once the standalone `/mingo` page is
- * retired behind `mingo-sidebar` — a `mingoDialogId` the host opens in the
- * in-layout chat drawer (the drawer has no URL, so it can't be a route).
+ * A notification's primary action. Every action has a `route` — a URL the host can
+ * push, and the only thing a transport that runs OUTSIDE React (a push tap, an OS
+ * toast) can act on.
+ *
+ * A Mingo dialog additionally carries `mingoDialogId`, because in-app it should
+ * open the in-layout drawer rather than navigate. That is a preference, not a
+ * substitute: `mingoDrawerDialogId` decides at CLICK time whether the drawer is
+ * actually there, and the route is the fallback when it isn't.
  */
-export type NotificationAction = { label: string; route: string } | { label: string; mingoDialogId: string };
+export type NotificationAction = { label: string; route: string; mingoDialogId?: string };
 
 // routes.* builders URL-encode values via URLSearchParams — no manual encodeURIComponent.
-const mingoDialogRoute = (dialogId: string) => routes.mingo({ dialogId });
+const mingoDialogRoute = (dialogId: string) => mingoDialogLink(dialogId);
 const ticketRoute = (ticketId: string, tab?: 'chat') => routes.tickets.dialog(ticketId, { tab });
 
 /**
- * Action for a Mingo dialog. With `mingo-sidebar` ON the `/mingo` page is gone
- * (it redirects to the dashboard), so the dialog opens in the in-layout drawer
- * via `mingoDialogId`; the consumer drives the shared Mingo store. Legacy (flag
- * OFF) still routes to the page. Tickets are unaffected — they always route.
+ * Action for a Mingo dialog: the canonical route ALWAYS, plus the drawer id.
+ *
+ * Deliberately reads no feature flag. This mapping is called from transports that
+ * run before the flags query has answered — a cold-start push tap beats it every
+ * time — and `featureFlags.*.enabled()` reports the env default in that window, so
+ * a flag read here decides the destination by coin-flip. `/mingo` resolves it
+ * instead, and that page already waits on a tri-state gate.
  */
-const mingoDialogAction = (dialogId: string): NotificationAction =>
-  featureFlags.mingoSidebar.enabled()
-    ? { label: 'Open Chat', mingoDialogId: dialogId }
-    : { label: 'Open Chat', route: mingoDialogRoute(dialogId) };
+const mingoDialogAction = (dialogId: string): NotificationAction => ({
+  label: 'Open Chat',
+  route: mingoDialogRoute(dialogId),
+  mingoDialogId: dialogId,
+});
+
+/**
+ * The dialog to open in the in-layout drawer for this action, or `null` to follow
+ * `action.route` instead.
+ *
+ * Decided when the user acts, rather than in the mapping above, which runs before the
+ * shell can answer. Asks `MingoLauncherStore.canOpen` — see that field for why the
+ * feature flag alone is the wrong question.
+ *
+ * A render-phase caller must SUBSCRIBE to `canOpen` and pass it down; this reads the
+ * store without one, so a value read during render never updates.
+ */
+export function mingoDrawerDialogId(action: NotificationAction): string | null {
+  if (!action.mingoDialogId) return null;
+  return useMingoLauncherStore.getState().canOpen ? action.mingoDialogId : null;
+}
 
 const nonEmptyString = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
@@ -118,9 +142,8 @@ export function resolveNotificationAction(notification: Notification): Notificat
   return resolveAction(nonEmptyString(meta.contextType), nonEmptyString(meta.ticketId), nonEmptyString(meta.dialogId));
 }
 
-/** Drawer-only actions (`mingoDialogId`) have no URL — one home for that rule. */
 function actionRoute(action: NotificationAction | null): string | null {
-  return action && 'route' in action ? action.route : null;
+  return action?.route ?? null;
 }
 
 /**
@@ -159,15 +182,16 @@ export function resolvePushNotificationRoute(data: unknown): string | null {
   return routeFromWireFields((data ?? {}) as Record<string, unknown>);
 }
 
-/** Convenience for callers that only need a router route (drawer actions yield null). */
+/** Convenience for callers that only need a router route. */
 export function resolveNotificationRoute(notification: Notification): string | null {
   return actionRoute(resolveNotificationAction(notification));
 }
 
 /**
- * True when the notification carries the id of a dialog currently on screen. The drawer
- * changes no URL, so this is the drawer analogue of `notificationTargetsLocation` — the
- * caller supplies the active-view set from `@/lib/active-dialog-views`. Matches by
+ * True when the notification carries the id of a dialog currently on screen. The drawer's
+ * resting URL is one `notificationTargetsLocation` can never match (see it below), so this
+ * is its drawer analogue — the caller supplies the active-view set from
+ * `@/lib/active-dialog-views`. Matches by
  * `meta.dialogId` rather than the navigation action so ticket-linked Mingo messages
  * (whose action is the ticket route) still auto-read while their dialog is being watched.
  */
@@ -181,6 +205,11 @@ export function notificationTargetsDialog(notification: Notification, activeDial
  * pathname matches and every query param it carries is present with the same value. Drives
  * auto-marking a notification read once the user opens its entity, uniformly for every entity
  * type the route mapping covers (mingo dialog, ticket, …).
+ *
+ * A Mingo dialog matches here only with `mingo-sidebar` OFF, where `/mingo?dialogId=` is the
+ * legacy page's resting URL. With the flag on that route only ever redirects, and the drawer's
+ * resting URL is `?mingoDialog=` on some other path — so the drawer's auto-read runs through
+ * `notificationTargetsDialog` instead, off the set of dialogs actually on screen.
  */
 export function notificationTargetsLocation(
   notification: Notification,

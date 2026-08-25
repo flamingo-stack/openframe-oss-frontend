@@ -12,6 +12,7 @@ import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/comp
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMingoDialogUrlSync } from '@/app/(app)/mingo/hooks/use-mingo-dialog-url-sync';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
 import {
@@ -181,20 +182,22 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const closeNotificationsRef = useRef(notificationsCtx?.close);
   closeNotificationsRef.current = notificationsCtx?.close;
 
-  // Close the in-layout panels (mingo chat + notifications drawer) on route
-  // navigation. They are non-modal (header + sidebar stay interactive while
-  // open), so clicking a nav link or an in-chat link that routes should land
+  // Close the notifications drawer on route navigation. It is non-modal (header
+  // and sidebar stay interactive while open), so clicking a nav link should land
   // the user on the new page rather than leaving a panel covering it. The lib
   // leaves this pathname-driven close to the embedder (it has no router), so
   // we own it here. Runs on `pathname` change; the initial no-op (already
   // closed) is harmless - React bails on a same-value `setState`.
   //
+  // The Mingo chat drawer used to be closed here too; it now belongs to
+  // `useMingoDialogUrlSync` below — why it can't be its own effect is on the
+  // resolver's step 1.
+  //
   // `pathname` is the intentional trigger but isn't read in the body (the
-  // close actions are read imperatively via getState()/ref so they aren't
-  // dependencies), so biome's exhaustive-deps rule sees it as "extra".
-  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the intentional re-run trigger; the close() actions are read imperatively
+  // close action is read imperatively via a ref so it isn't a dependency),
+  // so biome's exhaustive-deps rule sees it as "extra".
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the intentional re-run trigger; the close() action is read imperatively
   useEffect(() => {
-    useMingoLauncherStore.getState().close();
     closeNotificationsRef.current?.();
   }, [pathname]);
 
@@ -219,31 +222,56 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // the query is `store-and-network`, so the window exists only on a cold store.
   void subscriptionResolved;
   void isCheckoutResultPage;
-  // The Mingo sidebar (header launcher + in-layout chat drawer) is gated by the
-  // `mingo-sidebar` feature flag. It's also only meaningful inside the full,
-  // unlocked app shell (it hits authed endpoints), so the subscription lock
-  // suppresses both the launcher and the drawer regardless of the flag.
-  //
-  // Suppressed on the legacy `/mingo` route: that page is itself a full Mingo
-  // chat and shares the same global `mingo-messages-store`. Mounting the drawer
-  // there too means two surfaces fight over `activeDialogId` — e.g. the page's
-  // URL→store sync immediately re-selects the dialog the drawer's Back button
-  // just cleared, so Back appears to do nothing. The drawer is the replacement
-  // for that page, so they should never be live at the same time.
-  const isMingoPage = pathname?.startsWith('/mingo') ?? false;
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
   // `featureFlags.*` snapshot taken before the flags query answers would leave
   // them stuck on the env defaults with nothing to recompute them.
-  // Plain booleans: `AppLayoutInner` holds its stub until the flags have answered,
-  // so nothing below ever renders on an unanswered flag.
+  // Plain booleans, so each reads `false` until the flags answer. `AppLayoutInner`
+  // gates on the SESSION, not on flags, so this shell does render during that window
+  // — what `chromeLoading` below covers is how it LOOKS, not whether it mounts.
+  // Anything whose wrong value would redirect or change which surface renders needs
+  // `useFeatureFlagGate` instead (see the drawer's URL sync).
   const mingoSidebarEnabled = useFeatureFlag('mingo-sidebar');
   const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const scriptsV2Enabled = useFeatureFlag('scripts-v2');
   const helpCenterEnabled = useFeatureFlag('help-center');
   const notificationsEnabled = useFeatureFlag('notifications');
 
-  const chatEnabled = mingoSidebarEnabled && !showLockContent && !isMingoPage;
+  // The Mingo sidebar (header launcher + in-layout chat drawer) is gated by the
+  // `mingo-sidebar` feature flag. It's also only meaningful inside the full,
+  // unlocked app shell (it hits authed endpoints), so the subscription lock
+  // suppresses both the launcher and the drawer regardless of the flag.
+  //
+  // NOT suppressed on `/mingo` any more, and the two-surfaces hazard that
+  // suppression guarded is unreachable: the legacy page renders its chat only on
+  // a definitive flag `off`, which is the same answer that makes this false, so the
+  // page and the drawer can never both be live over `mingo-messages-store`.
+  // Suppressing it was actively harmful once `/mingo` became the deep-link resolver
+  // — routing through it unmounted the drawer and its `<DialogSubscription>`
+  // mid-stream, for one redirect's worth of frames.
+  const chatEnabled = mingoSidebarEnabled && !showLockContent;
+
+  // Mirrors the drawer's open conversation into `?mingoDialog=` and adopts one
+  // from the URL — what makes a dialog shareable by link and reachable from a
+  // push/OS-notification deep link. Also owns the drawer's close-on-navigate
+  // (see the notifications effect above). Passed `chatEnabled` so an instruction
+  // is HELD rather than applied into a shell that renders no drawer.
+  useMingoDialogUrlSync(chatEnabled);
+
+  // Same answer, published for the non-React callers that need it — notification
+  // clicks decide drawer-vs-navigate through `mingoDrawerDialogId`, which has no
+  // hooks and cannot see the subscription lock.
+  const setChatCanOpen = useMingoLauncherStore(state => state.setCanOpen);
+  useEffect(() => {
+    setChatCanOpen(chatEnabled);
+    // Unpublish with the shell that owns it. `forceLogout` on a SaaS tenant returns
+    // without a reload, so this shell unmounts while the root-layout notifications
+    // provider keeps running — and a desktop toast raised moments earlier still holds
+    // a live `onclick`. Without this, that click reads a latched `true` and opens into
+    // a drawer that no longer exists. Cleanup and re-run share an effect phase, so a
+    // `chatEnabled` change has no observable false→true window.
+    return () => setChatCanOpen(false);
+  }, [chatEnabled, setChatCanOpen]);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCountsByCategory>({});
 
   // Onboarding chrome: the sidebar "Onboarding" tab/badge and the Initial Setup /
@@ -520,6 +548,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           defaultSize={920}
           storageKey="openframe:mingo-chat-width-v2"
           panelClassName="!bg-ods-bg"
+          // No `AppLayoutDrawerTitle` is rendered (see below), so Radix's
+          // `aria-labelledby` points at an id that doesn't exist and the dialog has
+          // no accessible name. That was survivable while the drawer only ever
+          // opened from a click; a deep link opens it with no user gesture, moving
+          // focus into an unnamed dialog.
+          aria-label="Mingo AI chat"
         >
           {/* No AppLayoutDrawerHeader/Title — EmbeddableChat renders its own
               header + X button; a wrapper header would double it up. */}
