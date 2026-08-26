@@ -14,7 +14,7 @@ All of it is driven by two build settings on the stage configurations
 (`OPENFRAME_DISPLAY_NAME`, `OPENFRAME_URL_SCHEME` — consumed by Info.plist) plus
 `PRODUCT_BUNDLE_IDENTIFIER`. The web bundle must be baked with the matching
 scheme: `NEXT_PUBLIC_MOBILE_APP_SCHEME=com.openframe.app.stage` (injected into
-`window.__ENV`; the frontend reads it via `runtimeEnv.mobileAppScheme()`).
+`window.__ENV`; the frontend reads it via `runtimeEnv.appScheme()`).
 A mismatch between the baked scheme and the native registration breaks login.
 
 ## Build + export

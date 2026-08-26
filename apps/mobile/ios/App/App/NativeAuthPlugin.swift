@@ -16,8 +16,8 @@ import UIKit
  *   claimed-https needs an Associated Domains entitlement + AASA the infra
  *   doesn't have (and the entitlement is unavailable on the free team). The
  *   gateway redirects the devTicket straight to the scheme (authMobile=true
- *   logins). callbackHost/callbackPath still arrive from JS for the desktop
- *   shell's benefit; iOS ignores them.
+ *   logins). The desktop Tauri shell now ends its login on the same scheme,
+ *   cancelling the navigation to it inside its own window.
  * - exchangeTicket: dev-ticket -> tokens over native HTTP, so the WebView
  *   never fights CORS for the Access-Token/Refresh-Token response headers.
  * - get/set/clearTokens: Keychain storage, WhenUnlockedThisDeviceOnly
@@ -206,6 +206,17 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
                 return
             }
             guard (200..<300).contains(http.statusCode) else {
+                // 401 is not a failure of the Apple credential — the gateway
+                // validated it and found no OpenFrame account linked to that
+                // Apple ID. Accounts are provisioned by an MSP administrator, so
+                // this is an ordinary outcome for anyone signing in with an Apple
+                // ID we've never seen. Coded (message == code, as USER_CANCELED
+                // does) so the web layer shows actionable copy; surfacing the raw
+                // status here is what App Review cited as a bug.
+                if http.statusCode == 401 {
+                    call.reject("APPLE_ACCOUNT_NOT_LINKED", "APPLE_ACCOUNT_NOT_LINKED")
+                    return
+                }
                 call.reject("Apple exchange failed with status \(http.statusCode)")
                 return
             }

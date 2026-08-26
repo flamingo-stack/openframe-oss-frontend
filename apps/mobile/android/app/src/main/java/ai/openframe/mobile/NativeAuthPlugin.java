@@ -39,8 +39,9 @@ import javax.crypto.Cipher;
  *   third-party IdPs like Google refuse). The gateway 302s the devTicket to the
  *   custom scheme com.openframe.app://auth; the deep-link intent-filter on
  *   MainActivity (launchMode=singleTask) routes it back to onNewIntent, which the
- *   Capacitor bridge forwards to handleOnNewIntent here. callbackHost/callbackPath
- *   arrive from JS for the desktop shell's benefit; Android ignores them (mirrors iOS).
+ *   Capacitor bridge forwards to handleOnNewIntent here. The desktop Tauri shell
+ *   ends its login on the same scheme, cancelling the navigation to it in its own
+ *   window (mirrors iOS).
  * - exchangeTicket: dev-ticket -> tokens over native HTTP, reading the
  *   Access-Token / Refresh-Token RESPONSE headers (no CORS, mirrors iOS).
  * - get/set/clearTokens: Android-Keystore-backed secure storage (SecureTokenStore),

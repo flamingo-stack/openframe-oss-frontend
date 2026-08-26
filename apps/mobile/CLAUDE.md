@@ -183,7 +183,8 @@ build configurations.
 - **On iOS every lane bakes plain `com.openframe.app`** into the bundle even for stage/dev —
   ASWebAuthenticationSession intercepts the callback session-internally, so the baked scheme
   need not match `OPENFRAME_URL_SCHEME`. On **Android it MUST match** the intent-filter scheme.
-  The frontend reads the baked value via `runtimeEnv.mobileAppScheme()`.
+  The frontend reads the baked value via `runtimeEnv.appScheme()` (both shells' callback
+  scheme; desktop injects no override and takes the default).
 - Shared schemes `App` / `App Stage` / `App Dev` are committed — CLI and CI builds need them.
 - Release lanes: `scripts/build-{ios,android}-{prod,stage,dev}.sh`. Stage/dev go to
   TestFlight / Firebase App Distribution; see `docs/release-{ios,android}-stage.md` for the
@@ -241,12 +242,33 @@ swapped.
   `setInvalidatedByBiometricEnrollment`) → `BIOMETRIC_INVALIDATED` → frontend force-relogins.
 - **Biometric flows are device-only to verify.** The Simulator can enroll Face ID but won't
   exercise the gated Keychain/Keystore path fully.
-- **Nothing shrinks the layout viewport when the keyboard opens.** WKWebView keeps its frame
-  (Capacitor's iOS core has no keyboard code at all) and Android's window is edge-to-edge at
-  `targetSdk 36`, where `adjustResize` is inert and the IME is a `WindowInsets` type. So
-  `inset-0` / `100dvh` / `%` heights all keep reporting the full screen, and a bottom-anchored
-  or viewport-centered overlay opens **fully behind** the keyboard. The height reaches CSS
-  only via `--of-keyboard-inset` (frontend `keyboard-inset.ts`), consumed by **three** layers:
+- **Nothing shrinks the layout viewport when the keyboard opens — on iOS.** WKWebView keeps
+  its frame (Capacitor's iOS core has no keyboard code at all), so `inset-0` / `100dvh` / `%`
+  heights all keep reporting the full screen, and a bottom-anchored or viewport-centered
+  overlay opens **fully behind** the keyboard. **Android is the opposite and must publish
+  nothing**: Capacitor 8 registers `com.getcapacitor.plugin.SystemBars` unconditionally
+  (`Bridge.registerAllPlugins`) and its window-insets listener pads the WebView's parent
+  CoordinatorLayout by the `ime()` inset while the keyboard is up — both branches do (the
+  WebView-140+ passthrough one, which this app takes via `viewportFit: 'cover'`, and the
+  API-35+ one) — so the WebView, and with it the layout viewport, already shrinks by exactly
+  the keyboard height. `resize: 'none'` does not prevent it: that is an iOS-only knob, and
+  this is not the Keyboard plugin's `resizeOnFullScreen` (which defers to SystemBars when
+  present). Publishing the inset on Android applied the keyboard TWICE — overlays subtract it
+  from a `100dvh` that no longer contains it *and* shift `top` by another half — which is why
+  modals opened squashed against the top of the screen (fixed in frontend
+  `keyboard-inset.ts`, which publishes no inset on Android). The `ime()` inset spans the nav
+  bar too — the IME window draws behind it — so the resized WebView also ends ABOVE the
+  navigation band, and `--native-safe-bottom` has to go with it: frontend
+  `setKeyboardCoversBottomInset` zeroes it from the same keyboard events for as long as the
+  keyboard is up. That matters twice over: the layout root reserves the same band as
+  `padding-bottom` (`max(--native-safe-bottom, --of-keyboard-inset)` in frontend
+  `globals.css` — the app is edge-to-edge, so without it the whole in-layout tree ends
+  BEHIND the navigation bar), and `MobileBottomActions` pads by it too. Left un-zeroed, both
+  reserve a nav-bar-sized strip of dead space inside a WebView that has already shrunk. It routes through `native-shell.ts` because
+  `initNativeChrome` republishes all four insets on every `resize`, and on Android the
+  keyboard IS a resize.
+  On iOS the height reaches CSS via `--of-keyboard-inset` (frontend `keyboard-inset.ts`),
+  consumed by **three** layers:
   the core-lib overlay primitives (modal-v2/dialog/alert-dialog — viewport-`fixed`, so they
   escape the layout and pad themselves); the layout root
   (`html[data-shell="mobile"] .app-shell-root` in frontend `globals.css`), which absorbs it as
@@ -256,10 +278,8 @@ swapped.
   floating-ui takes its collision viewport from `visualViewport` and would otherwise place a
   search dropdown straight behind the keyboard its own field just raised. Anything
   bottom-anchored that is *none* of the three (a `fixed` bar of its own) is still uncovered.
-  Keep `resize: 'none'`: it's an **iOS-only** knob — Android has no resize
-  option, only events — so any other value splits the two platforms across two mechanisms,
-  and `'native'` shrinks the WKWebView out from under the UIKit safe-area insets, floating
-  the home-indicator band above the keyboard.
+  Keep `resize: 'none'`: `'native'` shrinks the WKWebView out from under the UIKit safe-area
+  insets, floating the home-indicator band above the keyboard.
 - **Attachment capture needs BOTH camera and microphone usage strings.** WKWebView's
   own file picker offers "Take Photo or Video" for any input accepting media, and iOS
   **terminates** the app the instant that reaches the camera without
