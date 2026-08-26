@@ -24,11 +24,12 @@ export function canDeleteDevice(status: string | undefined): boolean {
 
 /**
  * Check if a device's display name can be edited. DELETED devices (and legacy
- * ARCHIVED ones) are read-only archive records - no edits of any kind.
+ * ARCHIVED ones) are read-only archive records - no edits of any kind - and a
+ * PENDING_DELETION device is already on its way there (per design).
  */
 export function canEditDisplayName(status: string | undefined): boolean {
   const upperStatus = status?.toUpperCase();
-  return upperStatus !== 'DELETED' && upperStatus !== 'ARCHIVED';
+  return upperStatus !== 'DELETED' && upperStatus !== 'ARCHIVED' && upperStatus !== 'PENDING_DELETION';
 }
 
 /**
