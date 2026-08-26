@@ -36,7 +36,8 @@ import type {
   UnifiedSendMessageOptions,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { buildDiscussPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { featureFlags } from '@/lib/feature-flags';
@@ -102,6 +103,29 @@ export interface MingoUnifiedChat {
   }>;
   /** Restore an archived dialog back to the active list. */
   unarchiveDialog: (id: string) => Promise<void>;
+  /**
+   * Why the SELECTED dialog could not be fetched, or null. `UnifiedChatState` has no
+   * field for it (`dialogsError` is about the LIST), and without it a dialog id that
+   * no longer resolves — a deleted conversation, someone else's, a mistyped link —
+   * renders as an ordinary empty thread and says nothing.
+   */
+  dialogError: string | null;
+}
+
+/**
+ * Whether the rail must move to "All Chats" to be capable of listing this dialog.
+ *
+ * "My Chats" is a server-side filter for dialogs THIS user owns, so a conversation
+ * opened without going through the list — a shared link, a notification tap — can
+ * land on a tab that structurally cannot contain it.
+ *
+ * Both `undefined` cases are deliberate no-ops rather than defensive noise:
+ * a client (machine-owned) dialog has no `ownerUserId` and belongs to neither admin
+ * scope, and an unresolved viewer would make every dialog look like someone else's.
+ */
+export function needsAllChatsScope(ownerUserId: string | undefined, currentUserId: string | undefined): boolean {
+  if (!ownerUserId || !currentUserId) return false;
+  return ownerUserId !== currentUserId;
 }
 
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
@@ -150,6 +174,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     fetchNextPage: fetchNextMessagePage,
     initialOptStartSeq,
     isMessagesFetched,
+    dialogError,
   } = useMingoDialogSelection();
 
   const {
@@ -164,6 +189,31 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
 
   const { subscribeToDialog, subscribedDialogs, onConnectionChange, connectionState } =
     useMingoRealtimeSubscription(activeDialogId);
+
+  // Reconcile the rail's scope with whoever owns the OPEN conversation.
+  //
+  // The scope is a filter over the LIST, but a dialog can arrive without going
+  // through the list at all — a shared link, a notification tap — and "My Chats"
+  // only contains dialogs this user owns. So opening someone else's conversation
+  // leaves the rail on a tab that cannot contain it: the chat is right there, and
+  // the list beside it says it doesn't exist. Both cases QA hit are this one
+  // (a link copied from All Chats, and user A's link opened by user B).
+  //
+  // Once per dialog, never back to 'my': the switch answers "this tab can't show
+  // what you're looking at", which is only ever true in one direction, and
+  // re-deciding on every render would fight a user who then picks a tab themselves.
+  const currentUserId = useAuthStore(state => state.user?.id);
+  const scopeReconciledForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeDialogId || !dialogData) return;
+    if (scopeReconciledForRef.current === activeDialogId) return;
+    scopeReconciledForRef.current = activeDialogId;
+
+    // Absent on a client (machine-owned) dialog, which neither admin scope lists —
+    // nothing to reconcile there.
+    const ownerId = dialogData.owner?.userId;
+    if (needsAllChatsScope(ownerId, currentUserId)) setDialogScope('all');
+  }, [activeDialogId, dialogData, currentUserId]);
 
   // ─── Live model metadata (refined per-turn by `metadata` frames) ──────────
   const [liveModel, setLiveModel] = useState<{ displayName: string; provider: string } | null>(null);
@@ -558,5 +608,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     setSearchQuery,
     fetchArchivedDialogs,
     unarchiveDialog,
+    dialogError,
   };
 }

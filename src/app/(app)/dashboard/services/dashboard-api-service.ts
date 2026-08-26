@@ -86,7 +86,9 @@ class DashboardApiService {
       const active = countFor(DEVICE_STATUS.ONLINE);
       const inactive = countFor(DEVICE_STATUS.OFFLINE);
       const pending = countFor(DEVICE_STATUS.PENDING);
-      const archived = countFor(DEVICE_STATUS.ARCHIVED);
+      // The archive card counts what /devices/archive lists: deleted devices
+      // plus legacy ARCHIVED records from before the delete/archive rework.
+      const archived = countFor(DEVICE_STATUS.DELETED) + countFor(DEVICE_STATUS.ARCHIVED);
 
       return {
         total,
