@@ -13,26 +13,23 @@ export function isDeviceOnline(status: string | undefined): boolean {
 }
 
 /**
- * Check if a device can be archived
- */
-export function canArchiveDevice(status: string | undefined): boolean {
-  const upperStatus = status?.toUpperCase();
-  return upperStatus !== 'ARCHIVED' && upperStatus !== 'DELETED' && upperStatus !== 'PENDING_DELETION';
-}
-
-/**
- * Check if a device can be unarchived (restored from the archive)
- */
-export function canUnarchiveDevice(status: string | undefined): boolean {
-  return status?.toUpperCase() === 'ARCHIVED';
-}
-
-/**
- * Check if a device can be deleted
+ * Check if a device can be deleted. Deletion is final: a DELETED device is a
+ * read-only archive record, and PENDING_DELETION already has an uninstall
+ * scheduled.
  */
 export function canDeleteDevice(status: string | undefined): boolean {
   const upperStatus = status?.toUpperCase();
   return upperStatus !== 'DELETED' && upperStatus !== 'PENDING_DELETION';
+}
+
+/**
+ * Check if a device's display name can be edited. DELETED devices (and legacy
+ * ARCHIVED ones) are read-only archive records - no edits of any kind - and a
+ * PENDING_DELETION device is already on its way there (per design).
+ */
+export function canEditDisplayName(status: string | undefined): boolean {
+  const upperStatus = status?.toUpperCase();
+  return upperStatus !== 'DELETED' && upperStatus !== 'ARCHIVED' && upperStatus !== 'PENDING_DELETION';
 }
 
 /**
@@ -100,8 +97,7 @@ export interface DeviceActionAvailability {
   manageFilesEnabled: boolean;
   runScriptEnabled: boolean;
   rebootEnabled: boolean;
-  archiveEnabled: boolean;
-  unarchiveEnabled: boolean;
+  editDisplayNameEnabled: boolean;
   deleteEnabled: boolean;
 
   // Tool IDs (for handlers)
@@ -136,11 +132,8 @@ export function getDeviceActionAvailability(device: Device): DeviceActionAvailab
     // TODO(openframe-rmm): gate on an OpenFrame RMM agent once run-script is wired.
     runScriptEnabled: isOnline,
 
-    // Archive: device must not be already archived or deleted
-    archiveEnabled: canArchiveDevice(device.status),
-
-    // Unarchive: only archived devices can be restored
-    unarchiveEnabled: canUnarchiveDevice(device.status),
+    // Edit Display Name: blocked on read-only archive records
+    editDisplayNameEnabled: canEditDisplayName(device.status),
 
     // Delete: device must not be already deleted
     deleteEnabled: canDeleteDevice(device.status),
