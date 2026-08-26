@@ -30,7 +30,8 @@ export function DeviceActionsDropdown({ device, context, onActionComplete, onRun
       if (items.remoteControl) actionItems.push(items.remoteControl);
       actionItems.push(items.manageFiles);
     }
-    actionItems.push(items.runScript, items.editDisplayName);
+    actionItems.push(items.runScript);
+    if (items.editDisplayName) actionItems.push(items.editDisplayName);
     if (items.reboot) actionItems.push(items.reboot);
 
     if (actionItems.length > 0) {
@@ -38,8 +39,6 @@ export function DeviceActionsDropdown({ device, context, onActionComplete, onRun
     }
 
     const destructiveItems: ActionsMenuItem[] = [];
-    if (items.archive) destructiveItems.push(items.archive);
-    if (items.unarchive) destructiveItems.push(items.unarchive);
     if (items.delete) destructiveItems.push(items.delete);
 
     if (destructiveItems.length > 0) {
