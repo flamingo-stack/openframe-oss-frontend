@@ -6,11 +6,13 @@ details). Each **OPEN** item is backend work that would light up UI that is
 otherwise ready; each **DELIVERED** item records what shipped and where the
 frontend consumes it, because the shape that landed rarely matched the ask.
 
-> Referenced from code comments (`script-schedules-table.tsx`,
-> `edit-schedule-page.tsx`, the two spec docs next to it), so it lives at this
-> path on purpose. The docs reorganisation in #97 removed it; it is back because
-> those references are load-bearing and nothing in the new `docs/` layout took
-> over the role.
+> Referenced from code comments (`schedule-criteria-fields.tsx`,
+> `edit-schedule.types.ts`, `schedule-runs-relay.ts` and others), so it lives at
+> this path on purpose. The docs reorganisation in #97 removed it; it is back
+> because those references are load-bearing and nothing in the new `docs/` layout
+> took over the role. The two backend-ask specs that used to sit beside it were
+> delivered and are gone; what they proposed, and how what shipped differs, is
+> recorded per-section below.
 
 ## 1. Schedule timing & repeat — **DELIVERED**
 
@@ -110,8 +112,8 @@ uses) and still dropped on submit — see the `TODO(backend)` in
 ## 4. Execution history & runs — **DELIVERED**
 
 `scheduleExecutions(scheduleId:)` + `scheduleExecutionFilters(scheduleId:)`
-(Option A of `script-schedules-v2-execution-history-spec.md`, under different
-names than proposed), `ScriptExecutionFilterInput.dispatchedAtFrom`/`To`, and
+(top-level and keyed by `scheduleId`, under different names than the closed
+backend ask proposed), `ScriptExecutionFilterInput.dispatchedAtFrom`/`To`, and
 `scheduleRuns(scheduleId:)` for the aggregate one-row-per-fire view.
 
 Still open: **no `executionIds` filter on `ScriptExecutionFilterInput`.** The
