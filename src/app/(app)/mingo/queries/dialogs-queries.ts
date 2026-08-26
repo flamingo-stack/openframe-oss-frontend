@@ -110,6 +110,10 @@ export const GET_MINGO_DIALOG_QUERY = `
     status
     streamState
     owner {
+      type
+      ... on AdminDialogOwner {
+       userId
+      }
       ... on ClientDialogOwner {
       machineId
       machine {

@@ -19,7 +19,7 @@ import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { isSaasTenantMode } from '@/lib/app-mode';
-import { routes } from '@/lib/routes';
+import { MINGO_CANONICAL_DIALOG_PARAM, routes, withMingoDialog } from '@/lib/routes';
 import { useMingoChat } from './hooks/use-mingo-chat';
 import { useMingoDialog } from './hooks/use-mingo-dialog';
 import { useMingoDialogSelection } from './hooks/use-mingo-dialog-selection';
@@ -28,35 +28,55 @@ import { DialogSubscription, useMingoRealtimeSubscription } from './hooks/use-mi
 import { useMingoMessagesStore } from './stores/mingo-messages-store';
 
 /**
- * Route gate for the LEGACY standalone `/mingo` page. When `mingo-sidebar` is on,
- * Mingo lives in the in-layout sidebar drawer instead and this route is fully
- * hidden, so any direct/bookmarked hit redirects to the dashboard. Also covers the
- * non-SaaS guard.
+ * Route gate for the LEGACY standalone `/mingo` page — and, with `mingo-sidebar`
+ * on, the RESOLVER for the canonical Mingo dialog URL.
+ *
+ * It hands the id to the drawer as `?mingoDialog=` on the dashboard, where
+ * `useMingoDialogUrlSync` adopts it, so old bookmarks and links keep working (why
+ * that URL is the only shareable shape: see `routes.mingo`).
+ *
+ * Resolving HERE rather than in the notification mapping is also what removes the
+ * cold-start flag race — see `mingoDialogAction` in `notification-navigation.ts`.
+ * The tri-state gate below is what this route contributes to that.
  *
  * Tri-state on purpose — whether a route is reachable is exactly what must not be
  * decided on a guess. Read as a plain boolean the flag said "off" for the length of
- * the flags round-trip, so a tenant that has the drawer mounted this whole legacy
- * chat first — dialog list, message history, a NATS subscription — and unmounted it
- * again once the answer landed.
+ * the flags round-trip, so a tenant that has the drawer would mount this whole legacy
+ * chat first — dialog list, message history, a NATS subscription — and
+ * unmount it again once the answer landed.
  */
 export default function MingoPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isSaasTenant = isSaasTenantMode();
   const mingoSidebarGate = useFeatureFlagGate('mingo-sidebar');
+  const dialogId = searchParams.get(MINGO_CANONICAL_DIALOG_PARAM);
 
   useEffect(() => {
-    if (!isSaasTenant || mingoSidebarGate === 'on') {
+    // Non-SaaS has no Mingo at all — drop the id rather than stamp a param onto
+    // the dashboard that nothing will ever adopt.
+    if (!isSaasTenant) {
       router.replace(routes.dashboard);
+      return;
     }
-  }, [router, isSaasTenant, mingoSidebarGate]);
+    if (mingoSidebarGate === 'on') {
+      router.replace(dialogId ? withMingoDialog(routes.dashboard, dialogId) : routes.dashboard);
+    }
+  }, [router, isSaasTenant, mingoSidebarGate, dialogId]);
 
   // On the way out — the redirect above owns this render.
   if (!isSaasTenant || mingoSidebarGate === 'on') {
     return null;
   }
 
+  // A deep link (`?dialogId=`) is on its way to the drawer, so painting the legacy
+  // chat frame for the length of the flags round-trip shows the reader a surface they
+  // are about to be redirected away from. Nothing produces these links any more (see
+  // `mingoDialogLink`) — only ones already pasted elsewhere arrive here, and for them
+  // a blank beat is the honest frame. The skeleton still covers a flag-off tenant
+  // landing on the legacy page itself.
   if (mingoSidebarGate === 'loading') {
-    return <MingoChatSkeleton />;
+    return dialogId ? null : <MingoChatSkeleton />;
   }
 
   return <MingoChat />;
@@ -251,7 +271,7 @@ function MingoChat() {
   // render. Reading the dialog id from the URL synchronously during render lets
   // us decide what to show without waiting a frame, which is what previously
   // caused the empty-state logo to flash on navigation.
-  const urlDialogId = searchParams.get('dialogId');
+  const urlDialogId = searchParams.get(MINGO_CANONICAL_DIALOG_PARAM);
 
   // A dialog id is in the URL but the store hasn't caught up yet — show the
   // message list in its loading state instead of anything else.
@@ -290,7 +310,7 @@ function MingoChat() {
           setIsDraftChat(false);
         } else if (activeDialogId) {
           const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.delete('dialogId');
+          currentUrl.searchParams.delete(MINGO_CANONICAL_DIALOG_PARAM);
           router.replace(currentUrl.pathname + currentUrl.search, { scroll: false });
         }
       }
@@ -308,7 +328,7 @@ function MingoChat() {
       setIsDraftChat(false);
 
       const currentUrl = new URL(window.location.href);
-      currentUrl.searchParams.set('dialogId', dialogId);
+      currentUrl.searchParams.set(MINGO_CANONICAL_DIALOG_PARAM, dialogId);
       router.replace(currentUrl.pathname + currentUrl.search, { scroll: false });
 
       setActiveDialogId(dialogId);
@@ -323,7 +343,7 @@ function MingoChat() {
   useEffect(() => {
     if (isDraftChat) return;
 
-    const urlDialogId = searchParams.get('dialogId');
+    const urlDialogId = searchParams.get(MINGO_CANONICAL_DIALOG_PARAM);
 
     if (urlDialogId !== activeDialogId) {
       if (urlDialogId) {
@@ -345,7 +365,7 @@ function MingoChat() {
     setIsDraftChat(true);
 
     const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.delete('dialogId');
+    currentUrl.searchParams.delete(MINGO_CANONICAL_DIALOG_PARAM);
     router.replace(currentUrl.pathname + currentUrl.search, { scroll: false });
   }, [resetDialog, setActiveDialogId, router]);
 
@@ -372,7 +392,7 @@ function MingoChat() {
         subscribeToDialog(newDialogId);
 
         const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('dialogId', newDialogId);
+        currentUrl.searchParams.set(MINGO_CANONICAL_DIALOG_PARAM, newDialogId);
         router.replace(currentUrl.pathname + currentUrl.search, { scroll: false });
 
         const success = await sendMessage(message.trim(), newDialogId);
