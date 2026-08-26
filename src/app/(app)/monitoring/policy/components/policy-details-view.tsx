@@ -18,7 +18,7 @@ import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
-import { ScriptEditor } from '../../../scripts/components/script/script-editor';
+import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
 import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
