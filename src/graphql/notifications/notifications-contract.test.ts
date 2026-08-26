@@ -1,5 +1,5 @@
 import { getApprovalMeta, isApprovalNotification } from '@flamingo-stack/openframe-frontend-core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // `graphql` tags are compiled away by the relay babel transform, which vitest doesn't run;
 // the tag would throw at module scope on import. The mapper under test takes already-read
@@ -10,6 +10,7 @@ vi.mock('react-relay', async importOriginal => ({
 }));
 
 import type { notificationFields_notification$data as NotificationFieldsData } from '@/__generated__/notificationFields_notification.graphql';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { isApprovalResolved, mapNotificationNode } from './notifications-helpers';
 
 /**
@@ -171,5 +172,67 @@ describe('approval resolution', () => {
     expect(isApprovalResolved(null)).toBe(false);
     expect(isApprovalResolved(undefined)).toBe(false);
     expect(isApprovalResolved('')).toBe(false);
+  });
+});
+
+describe('the notifications-legacy-path rollback lever', () => {
+  const setFlag = (value: boolean) =>
+    useFeatureFlagsStore.setState({ isLoaded: true, flags: { 'notifications-legacy-path': value } });
+
+  afterEach(() => useFeatureFlagsStore.setState({ isLoaded: false, flags: {} }));
+
+  const dualShapeRow = () =>
+    node({
+      type: 'TICKET_REOPENED',
+      attributes: { ticketId: 'from-attributes' },
+      context: legacyContext('TicketReopenedContext', { type: 'TICKET_REOPENED', ticketId: 'from-context' }),
+    });
+
+  it('prefers attributes while off', () => {
+    setFlag(false);
+    expect(mapNotificationNode(dualShapeRow()).meta?.ticketId).toBe('from-attributes');
+  });
+
+  it('prefers the legacy context while on', () => {
+    setFlag(true);
+    expect(mapNotificationNode(dualShapeRow()).meta?.ticketId).toBe('from-context');
+  });
+
+  it('is off when the server has never heard of the flag', () => {
+    // It ships before the backend declares it — an undeclared flag must read as off,
+    // not as "unknown", or turning the lever on later would be the only safe state.
+    useFeatureFlagsStore.setState({ isLoaded: true, flags: {} });
+    expect(mapNotificationNode(dualShapeRow()).meta?.ticketId).toBe('from-attributes');
+  });
+
+  it('still falls back when the preferred shape is absent', () => {
+    // The lever flips preference, never the fallback: rows predating the backfill carry
+    // no attributes, and rows on the spec path may carry no context.
+    setFlag(true);
+    expect(mapNotificationNode(node({ type: 'TICKET_ASSIGNED', attributes: { ticketId: 't-1' } })).meta?.ticketId).toBe(
+      't-1',
+    );
+
+    setFlag(false);
+    const legacyOnly = node({
+      context: legacyContext('TicketAssignedContext', { type: 'TICKET_ASSIGNED', ticketId: 't-2' }),
+    });
+    expect(mapNotificationNode(legacyOnly).meta?.ticketId).toBe('t-2');
+  });
+
+  it('reads approval tool calls from the legacy context while on', () => {
+    setFlag(true);
+    const mapped = mapNotificationNode(
+      node({
+        type: 'MINGO_APPROVAL_REQUEST',
+        attributes: { approvalRequestId: 'a-1', toolCalls: JSON.stringify([{ toolName: 'from_attributes' }]) },
+        context: legacyContext('AdminApprovalRequestContext', {
+          type: 'ADMIN_APPROVAL_REQUEST',
+          approvalRequestId: 'a-1',
+          toolCalls: [{ toolName: 'from_context' }],
+        }),
+      }),
+    );
+    expect(getApprovalMeta(mapped)?.toolCalls[0].toolName).toBe('from_context');
   });
 });

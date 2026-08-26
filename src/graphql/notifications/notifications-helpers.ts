@@ -10,6 +10,7 @@ import type {
   notificationFields_notification$key as NotificationFieldsKey,
 } from '@/__generated__/notificationFields_notification.graphql';
 import type { NotificationSeverity } from '@/generated/schema-enums';
+import { featureFlags } from '@/lib/feature-flags';
 import { notificationFieldsFragment } from './notification-fields';
 
 export const NOTIFICATIONS_CONNECTION_KEY = 'NotificationsList_notifications';
@@ -418,8 +419,21 @@ export function mapNotificationNode(node: NotificationFieldsData): Notification 
   const severity = normalizeSeverity(node.severity);
   const { context } = node;
   const attributes = readNotificationAttributes(node.attributes);
-  // The spec type wins; `context.type` is what a legacy row (or a kill-switched backend) has.
-  const notificationType = node.type ?? context?.type ?? undefined;
+
+  /**
+   * Which shape wins on a row that carries both. Normally the spec one; the
+   * `notifications-legacy-path` flag flips it back without a release, should attributes
+   * turn out wrong in production.
+   *
+   * It flips the ORDER, not the fallback — whichever shape is absent is skipped either
+   * way. Reading only the preferred one would blank every row that has just the other,
+   * which is most of the history until the backfill migration has swept it.
+   */
+  const preferLegacy = featureFlags.notificationsLegacyPath.enabled();
+  const pick = <T>(spec: T | undefined | null, legacy: T | undefined | null): T | undefined =>
+    (preferLegacy ? (legacy ?? spec) : (spec ?? legacy)) ?? undefined;
+
+  const notificationType = pick(node.type, context?.type);
 
   const meta: Record<string, unknown> = {
     // Every attribute the backend sent, including keys this release has no code for.
@@ -433,29 +447,31 @@ export function mapNotificationNode(node: NotificationFieldsData): Notification 
   // resolveNotificationAction). Under `attributes` they sit at fixed keys for every type,
   // known or not; the context aliases below exist only because the union declares the same
   // field with different nullability per member.
-  const ticketId =
-    attributes[NOTIFICATION_ATTR.ticketId] ??
-    context?.ticketId ??
-    context?.approvalTicketId ??
-    context?.clientTicketId ??
-    undefined;
-  const dialogId = attributes[NOTIFICATION_ATTR.dialogId] ?? context?.dialogId ?? undefined;
+  const ticketId = pick(
+    attributes[NOTIFICATION_ATTR.ticketId],
+    context?.ticketId ?? context?.approvalTicketId ?? context?.clientTicketId,
+  );
+  const dialogId = pick(attributes[NOTIFICATION_ATTR.dialogId], context?.dialogId);
   if (dialogId) meta.dialogId = dialogId;
   if (ticketId) meta.ticketId = ticketId;
 
-  const approvalRequestId = attributes[NOTIFICATION_ATTR.approvalRequestId] ?? context?.approvalRequestId ?? undefined;
+  const approvalRequestId = pick(attributes[NOTIFICATION_ATTR.approvalRequestId], context?.approvalRequestId);
   if (approvalRequestId) {
     meta.approvalRequestId = approvalRequestId;
-    meta.approvalType = attributes[NOTIFICATION_ATTR.approvalType] ?? context?.approvalType ?? null;
-    meta.resolution = attributes[NOTIFICATION_ATTR.resolution] ?? context?.resolution ?? null;
-    meta.resolvedByName = attributes[NOTIFICATION_ATTR.resolvedByName] ?? context?.resolvedByName ?? null;
+    meta.approvalType = pick(attributes[NOTIFICATION_ATTR.approvalType], context?.approvalType) ?? null;
+    meta.resolution = pick(attributes[NOTIFICATION_ATTR.resolution], context?.resolution) ?? null;
+    meta.resolvedByName = pick(attributes[NOTIFICATION_ATTR.resolvedByName], context?.resolvedByName) ?? null;
     // Must end up an ARRAY: the core lib's `getApprovalMeta` bails on anything else, which
     // would silently downgrade the approval tile to a plain one. The spread above put the
     // raw JSON string here, so this assignment is not optional.
+    const specToolCalls = attributes[NOTIFICATION_ATTR.toolCalls];
+    const legacyToolCalls = context?.toolCalls;
     meta.toolCalls =
-      attributes[NOTIFICATION_ATTR.toolCalls] !== undefined
-        ? parseAttributeToolCalls(attributes[NOTIFICATION_ATTR.toolCalls])
-        : normalizeToolCalls(context?.toolCalls);
+      preferLegacy && legacyToolCalls
+        ? normalizeToolCalls(legacyToolCalls)
+        : specToolCalls !== undefined
+          ? parseAttributeToolCalls(specToolCalls)
+          : normalizeToolCalls(legacyToolCalls);
   }
 
   return {

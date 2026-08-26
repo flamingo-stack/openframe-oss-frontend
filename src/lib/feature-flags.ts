@@ -11,6 +11,7 @@ export const FEATURE_FLAG_NAMES = [
   'billings',
   'help-center',
   'notifications',
+  'notifications-legacy-path',
   'batch-approval',
   'debug-nats-chunks',
   'mingo-sidebar',
@@ -96,6 +97,24 @@ export const featureFlags = {
   notifications: {
     enabled(): boolean {
       return getFlagValue('notifications', () => false);
+    },
+  },
+  /**
+   * Rollback lever for the notification `type` + `attributes` migration: ON makes the
+   * mapper prefer the legacy `context` over `attributes` on rows that carry both.
+   *
+   * Mirrors the backend's `notifications.legacy-path` kill-switch by name, but is a
+   * separate switch for a separate job — that one decides what gets WRITTEN, this one
+   * what we READ. It exists so a rollback needs no frontend release; the flag is read
+   * even before it is declared server-side, where it simply resolves to OFF.
+   *
+   * OFF (the default, and the normal state) does NOT mean "attributes only": the mapper
+   * always falls back to whichever shape is present, because rows predating the backfill
+   * carry no attributes at all. The flag flips the ORDER OF PREFERENCE, never the fallback.
+   */
+  notificationsLegacyPath: {
+    enabled(): boolean {
+      return getFlagValue('notifications-legacy-path', () => false);
     },
   },
   batchApproval: {
