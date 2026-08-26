@@ -147,11 +147,11 @@ export function DesktopUpdateModal() {
           </div>
         ) : (
           <>
-            <Button variant="outline" onClick={dismiss}>
+            <Button variant="outline" className="flex-1" onClick={dismiss}>
               {errorCopy ? 'Later' : 'Update on Next Launch'}
             </Button>
             {(!errorCopy || errorCopy.retryable) && (
-              <Button variant="accent" onClick={handleApply}>
+              <Button variant="accent" className="flex-1" onClick={handleApply}>
                 {errorCopy ? 'Try Again' : 'Update & Restart'}
               </Button>
             )}
