@@ -67,9 +67,9 @@ export function renderMingoMention({
         <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT} id={id} icon={icon} fallbackLabel={label} />
       );
     case M.SCRIPT:
-      // Dual-sourced, independent of the `scripts-v2` flag: a 24-char ObjectId is
-      // a NEW script (Relay `script(id:)`); anything else (numeric) is a LEGACY
-      // Tactical script (REST). Only the manual-add dropdown source is flag-gated.
+      // Dual-sourced: a 24-char ObjectId is a NATIVE script (Relay `script(id:)`);
+      // anything else (numeric) is a LEGACY Tactical id, still reachable in old
+      // chat history even though nothing writes those ids any more.
       return OBJECT_ID_RE.test(id) ? (
         <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCRIPT} id={id} icon={icon} fallbackLabel={label} />
       ) : (

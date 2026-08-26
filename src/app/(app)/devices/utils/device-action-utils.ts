@@ -128,7 +128,7 @@ export function getDeviceActionAvailability(device: Device): DeviceActionAvailab
     // so it has the same requirements as the other remote actions.
     rebootEnabled: meshcentralReady,
 
-    // Run Script (native scripts-v2 flow): only requires the device to be online.
+    // Run Script (native Scripts flow): only requires the device to be online.
     // TODO(openframe-rmm): gate on an OpenFrame RMM agent once run-script is wired.
     runScriptEnabled: isOnline,
 

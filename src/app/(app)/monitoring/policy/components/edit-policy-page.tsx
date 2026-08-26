@@ -20,7 +20,7 @@ import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import type { Device } from '../../../devices/types/device.types';
 import { getFleetHostId } from '../../../devices/utils/device-action-utils';
-import { ScriptEditor } from '../../../scripts/components/script/script-editor';
+import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
 import { usePolicyDetails } from '../hooks/use-policy-details';

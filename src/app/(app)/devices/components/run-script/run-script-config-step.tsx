@@ -10,16 +10,16 @@ import { useLazyLoadQuery, useMutation } from 'react-relay';
 import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
-import { scriptArgumentSchema } from '@/app/(app)/scripts/types/edit-script.types';
-import { parseKeyValues, serializeKeyValues } from '@/app/(app)/scripts/utils/script-key-values';
-import { ScriptSummaryCard } from '@/app/(app)/scripts/v2/script/components/script-summary-card';
-import { initiatorName } from '@/app/(app)/scripts/v2/shared/utils/execution-helpers';
+import { ScriptSummaryCard } from '@/app/(app)/scripts/script/components/script-summary-card';
+import { scriptArgumentSchema } from '@/app/(app)/scripts/shared/types/edit-script.types';
+import { initiatorName } from '@/app/(app)/scripts/shared/utils/execution-helpers';
+import { parseKeyValues, serializeKeyValues } from '@/app/(app)/scripts/shared/utils/script-key-values';
 import {
   envVarsToInput,
   envVarsToPairs,
   platformsToIds,
   shellToId,
-} from '@/app/(app)/scripts/v2/shared/utils/script-mappers';
+} from '@/app/(app)/scripts/shared/utils/script-mappers';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
 

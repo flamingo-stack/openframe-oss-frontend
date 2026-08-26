@@ -45,7 +45,7 @@ flowchart TD
     AppRoutes --> Tickets["tickets/"]
     AppRoutes --> KB["knowledge-base/"]
     AppRoutes --> Monitoring["monitoring/"]
-    AppRoutes --> Scripts["scripts/ + scripts-v2/"]
+    AppRoutes --> Scripts["scripts/"]
     AppRoutes --> Logs["logs-page/"]
     AppRoutes --> Mingo["mingo/"]
     AppRoutes --> Settings["settings/"]
