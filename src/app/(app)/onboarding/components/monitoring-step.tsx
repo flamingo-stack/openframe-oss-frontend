@@ -16,7 +16,7 @@ import { getFleetHostId } from '../../devices/utils/device-action-utils';
 import { usePolicies } from '../../monitoring/hooks/use-policies';
 import { usePolicyDevices } from '../../monitoring/policy/hooks/use-policy-devices';
 import { useReplacePolicyHosts } from '../../monitoring/policy/hooks/use-policy-hosts';
-import { ScriptEditor } from '../../scripts/components/script/script-editor';
+import { ScriptEditor } from '../../scripts/shared/components/script-editor';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 import { useStepActionState } from '../use-step-action-state';
 import { FullFormLink } from './full-form-link';
