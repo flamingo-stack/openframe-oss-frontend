@@ -30,6 +30,15 @@ export interface NotificationRow {
 
 interface BuildColumnsArgs {
   rowVariant: 'unread' | 'read';
+  /**
+   * `MingoLauncherStore.canOpen`, SUBSCRIBED by the caller.
+   *
+   * This cell has to decide `href` vs `onClick` during render, so unlike the other
+   * `mingoDrawerDialogId` callers it cannot ask at click time — and a bare `getState()`
+   * read here would freeze whatever the flags happened to say when the row first
+   * rendered.
+   */
+  canOpenMingoDrawer?: boolean;
   onMarkRead?: (id: string) => void;
   onDelete?: (id: string) => void;
 }
@@ -43,6 +52,7 @@ const titleColorBySeverity: Partial<Record<NotificationSeverity, string>> = {
 
 export function buildNotificationColumns({
   rowVariant,
+  canOpenMingoDrawer = false,
   onMarkRead,
   onDelete,
 }: BuildColumnsArgs): ColumnDef<NotificationRow>[] {
@@ -110,33 +120,36 @@ export function buildNotificationColumns({
       cell: ({ row }: { row: Row<NotificationRow> }) => {
         const action = resolveNotificationAction(row.original.notification);
         if (!action) return null;
-        // A Mingo dialog has no URL (it lives in the in-layout drawer once the
-        // `/mingo` page is retired), so it opens via click instead of an href +
-        // new tab. Route actions keep the open-in-new-tab anchor behavior.
-        const isRoute = 'route' in action;
-        // Opening clears unread (the drawer has no URL, so the location-based
-        // auto-reader can't). `onMarkRead` is only wired for the unread
-        // variant; it's a no-op for already-read rows.
-        const openDrawer = isRoute
-          ? undefined
-          : () => {
-              openMingoDialogInDrawer(action.mingoDialogId);
+        // A Mingo dialog opens the in-layout drawer instead of navigating — but only
+        // where that drawer exists. Every action carries a route, so anything else
+        // (and a shell with no drawer) keeps the open-in-new-tab anchor. Bound to a
+        // const so it narrows inside the closure.
+        const drawerDialogId = canOpenMingoDrawer ? (action.mingoDialogId ?? null) : null;
+        const navigates = !drawerDialogId;
+        // Opening clears unread: the drawer changes no URL of its own here (the sync
+        // hook stamps one a commit later), so the location-based auto-reader can't.
+        // `onMarkRead` is only wired for the unread variant; it's a no-op for
+        // already-read rows.
+        const openDrawer = drawerDialogId
+          ? () => {
+              openMingoDialogInDrawer(drawerDialogId);
               onMarkRead?.(row.original.id);
-            };
+            }
+          : undefined;
         return (
           <div data-no-row-click className="flex w-full justify-end">
             <SplitButton
               className="hidden md:inline-flex"
               variant="outline"
-              href={isRoute ? action.route : undefined}
+              href={navigates ? action.route : undefined}
               onClick={openDrawer}
               groupAriaLabel={action.label}
               iconAction={{
                 icon: <ArrowRightUpIcon className="text-ods-text-secondary" />,
-                'aria-label': isRoute ? `Open ${action.label} in new tab` : `Open ${action.label}`,
-                href: isRoute ? action.route : undefined,
+                'aria-label': navigates ? `Open ${action.label} in new tab` : `Open ${action.label}`,
+                href: navigates ? action.route : undefined,
                 onClick: openDrawer,
-                openInNewTab: isRoute,
+                openInNewTab: navigates,
               }}
             >
               {action.label}
@@ -146,7 +159,7 @@ export function buildNotificationColumns({
               className="md:hidden"
               variant="outline"
               size="icon"
-              href={isRoute ? action.route : undefined}
+              href={navigates ? action.route : undefined}
               onClick={openDrawer}
               aria-label={action.label}
               leftIcon={<ArrowRightUpIcon />}

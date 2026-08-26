@@ -79,6 +79,8 @@ import { ATTENTION_IDLE_MS, isSessionActive, subscribeSessionActivity } from '@/
 import { withCategoryIcon } from './notification-category-icons';
 import {
   CONTEXT_TYPENAME_BY_TYPE,
+  mingoDrawerDialogId,
+  type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
   resolveNotificationAction,
@@ -244,6 +246,33 @@ interface TileHelpers {
   liveDurationMs?: number;
 }
 
+/**
+ * Open what a notification points at, from either imperative surface — a clicked tile
+ * or a desktop OS banner.
+ *
+ * Shared because the drawer branch carries a compensating step that is easy to omit:
+ * it changes no URL of its own here (the sync hook stamps one a commit later), so the
+ * location-based `EntityViewAutoReader` never sees the user arrive and the caller has
+ * to mark the notification read itself. Written out twice, one copy drifted from the
+ * other within a single review pass.
+ *
+ * The table's action cell does NOT use this — it needs the same decision split across
+ * an `href` and an `onClick` rather than run as one statement.
+ */
+function openNotificationTarget(
+  action: NotificationAction,
+  notificationId: string,
+  { markRead, navigate }: { markRead: (id: string) => void; navigate: (route: string) => void },
+): void {
+  const drawerDialogId = mingoDrawerDialogId(action);
+  if (!drawerDialogId) {
+    navigate(action.route);
+    return;
+  }
+  openMingoDialogInDrawer(drawerDialogId);
+  markRead(notificationId);
+}
+
 interface NavigationTileWrapperProps {
   notification: Notification;
   helpers: TileHelpers;
@@ -268,14 +297,7 @@ function NavigationTileWrapper({ notification, helpers, children }: NavigationTi
       close();
       // Settle (dismiss the live tile) but keep it unread until the user acts on the entity.
       helpers.onSettle(notification.id);
-      if ('mingoDialogId' in action) {
-        openMingoDialogInDrawer(action.mingoDialogId);
-        // The drawer changes no URL, so the location-based `EntityViewAutoReader`
-        // can't clear this one — mark it read here to match the route flow.
-        markRead(notification.id);
-      } else {
-        router.push(action.route);
-      }
+      openNotificationTarget(action, notification.id, { markRead, navigate: router.push });
     },
     [action, close, markRead, helpers, notification, router],
   );
@@ -443,7 +465,8 @@ function NotificationsDataInner({
  * dialog, the ticket, …). Works off the shared route mapping so it stays consistent across
  * every entity type a notification can carry, and routes through the context's `markRead` so
  * the drawer list, the unread connection and the sidebar bucket all update together. A Mingo
- * dialog opened in the chat drawer changes no URL, so "viewing" is the union of the location
+ * dialog's resting URL is `?mingoDialog=` on whatever route the drawer floats over, which the
+ * notification's own target route never matches, so "viewing" is the union of the location
  * match and the active-dialog-views registry.
  */
 function EntityViewAutoReader() {
@@ -600,16 +623,7 @@ function maybeShowDesktopNotification(
     });
     notification.onclick = () => {
       window.focus();
-      // A Mingo dialog opens in the drawer (no URL); everything else is a route.
-      if (action) {
-        if ('mingoDialogId' in action) {
-          openMingoDialogInDrawer(action.mingoDialogId);
-          // No route change → the location auto-reader can't clear it; mark read here.
-          markRead(relayId);
-        } else {
-          navigate(action.route);
-        }
-      }
+      if (action) openNotificationTarget(action, relayId, { markRead, navigate });
       notification.close();
     };
   } catch {

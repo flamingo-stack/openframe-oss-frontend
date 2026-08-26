@@ -27,6 +27,14 @@ import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage, MessagesResponse } from '../types';
 import { useGuideApproval } from './use-guide-approval';
 
+/**
+ * Thrown when the dialog id resolves to nothing this user can open — deleted, someone
+ * else's, or a mistyped link. Carried as an error `message` because that is the only
+ * channel react-query's `error` gives us; consumers match on it rather than showing it,
+ * since it is a discriminator and not a sentence for a reader.
+ */
+export const MINGO_DIALOG_NOT_FOUND = 'MINGO_DIALOG_NOT_FOUND';
+
 export function useMingoDialogSelection() {
   const { toast } = useToast();
   const [approvalStatuses, setApprovalStatuses] = useState<Record<string, ApprovalStatus>>({});
@@ -205,13 +213,23 @@ export function useMingoDialogSelection() {
         variables: { id: activeDialogId },
       });
 
-      if (!response.ok || !response.data?.data?.dialog) {
+      if (!response.ok) {
         throw new Error(response.error || 'Failed to fetch dialog');
+      }
+      // HTTP 200 with `dialog: null` and no `errors` is the backend's ANSWER, not a
+      // failure: this id names nothing this user can open. Separated from the
+      // transport failure above because the two want opposite handling — this one
+      // must not be retried (see `retry`) and is safe to act on.
+      if (!response.data?.data?.dialog) {
+        throw new Error(MINGO_DIALOG_NOT_FOUND);
       }
 
       return response.data.data.dialog;
     },
     enabled: !!activeDialogId,
+    // A missing dialog is settled; retrying it only delays the message by the length
+    // of the backoff (~8s), during which the panel looks like an ordinary empty chat.
+    retry: (failureCount, error) => error.message !== MINGO_DIALOG_NOT_FOUND && failureCount < 3,
     staleTime: 30 * 1000,
     // Self-heals if every chunk carrying streamState=IDLE is dropped; off while
     // idle. Also polls while the composer is busy WITHOUT an open stream (see

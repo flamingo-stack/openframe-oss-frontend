@@ -16,6 +16,7 @@ import { type PreloadedQuery, usePaginationFragment, usePreloadedQuery } from 'r
 import type { notificationsSectionRelay_query$key as NotificationsSectionFragmentKey } from '@/__generated__/notificationsSectionRelay_query.graphql';
 import type { notificationsSectionRelayPaginationQuery as NotificationsSectionPaginationQueryType } from '@/__generated__/notificationsSectionRelayPaginationQuery.graphql';
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { EmptyState } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import {
@@ -148,9 +149,14 @@ function SectionTable({
     [data.notifications.edges],
   );
 
+  // Subscribed, not read imperatively: the action cell decides `href` vs `onClick` at
+  // RENDER time, so a snapshot would freeze whatever the shell had published when the
+  // first row rendered and never pick up the flags landing.
+  const canOpenMingoDrawer = useMingoLauncherStore(state => state.canOpen);
+
   const columns = useMemo(
-    () => buildNotificationColumns({ rowVariant, onMarkRead, onDelete }),
-    [rowVariant, onMarkRead, onDelete],
+    () => buildNotificationColumns({ rowVariant, canOpenMingoDrawer, onMarkRead, onDelete }),
+    [rowVariant, canOpenMingoDrawer, onMarkRead, onDelete],
   );
 
   const renderSubRow = useCallback(
