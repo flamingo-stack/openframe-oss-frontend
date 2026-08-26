@@ -14,12 +14,25 @@ import { devtools } from 'zustand/middleware';
  */
 interface MingoLauncherStore {
   isOpen: boolean;
+  /**
+   * Whether a drawer is actually mounted to receive an open request — `AppShell`'s
+   * `chatEnabled` (the `mingo-sidebar` flag AND an unlocked workspace), published
+   * here so non-React callers can ask.
+   *
+   * Without it `setOpen(true)` from a notification click on a locked workspace sets
+   * state nothing renders, while the caller goes on to mark the notification read —
+   * consuming it with nothing to show. The `mingo-sidebar` flag alone cannot answer
+   * this: the subscription lock suppresses the drawer independently of it, and so does
+   * the shell being unmounted entirely (`AppShell` republishes `false` on unmount).
+   */
+  canOpen: boolean;
   /** One-shot prompt to auto-send on the next drawer open; null once consumed. */
   pendingPrompt: string | null;
   /** One-shot "open on a fresh chat" request; false once consumed. */
   pendingNewChat: boolean;
 
   setOpen: (open: boolean) => void;
+  setCanOpen: (canOpen: boolean) => void;
   toggle: () => void;
   close: () => void;
   /** Open the drawer and queue a prompt for Mingo auto-send — the chat entry
@@ -38,10 +51,12 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
   devtools(
     (set, get) => ({
       isOpen: false,
+      canOpen: false,
       pendingPrompt: null,
       pendingNewChat: false,
 
       setOpen: open => set({ isOpen: open }, false, 'setOpen'),
+      setCanOpen: canOpen => set({ canOpen }, false, 'setCanOpen'),
       toggle: () => set(state => ({ isOpen: !state.isOpen }), false, 'toggle'),
       close: () => set({ isOpen: false }, false, 'close'),
 

@@ -39,6 +39,7 @@ import {
   useRelayEnvironment,
 } from 'react-relay';
 import type { RecordProxy, RecordSourceSelectorProxy } from 'relay-runtime';
+import type { cancelPendingPushMutation as CancelPendingPushMutationType } from '@/__generated__/cancelPendingPushMutation.graphql';
 import type { markNotificationReadMutation as MarkReadMutationType } from '@/__generated__/markNotificationReadMutation.graphql';
 import type { notificationsDrawerRelay_query$key as NotificationsDrawerFragmentKey } from '@/__generated__/notificationsDrawerRelay_query.graphql';
 import type { notificationsDrawerRelayPaginationQuery as NotificationsDrawerPaginationQueryType } from '@/__generated__/notificationsDrawerRelayPaginationQuery.graphql';
@@ -46,6 +47,7 @@ import type { notificationsDrawerRelayQuery as NotificationsDrawerRelayQueryType
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import type { NotificationSeverity } from '@/generated/schema-enums';
+import { cancelPendingPushMutation } from '@/graphql/notifications/cancel-pending-push-mutation';
 import { markNotificationReadMutation } from '@/graphql/notifications/mark-notification-read-mutation';
 import {
   notificationsDrawerRelayFragment,
@@ -74,11 +76,15 @@ import {
   isDialogViewActive,
   subscribeActiveDialogViews,
 } from '@/lib/active-dialog-views';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { ATTENTION_IDLE_MS, isSessionActive, subscribeSessionActivity } from '@/lib/session-activity';
 import { withCategoryIcon } from './notification-category-icons';
 import {
   CONTEXT_TYPENAME_BY_TYPE,
+  mingoDrawerDialogId,
+  type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
   resolveNotificationAction,
@@ -292,6 +298,33 @@ interface TileHelpers {
   liveDurationMs?: number;
 }
 
+/**
+ * Open what a notification points at, from either imperative surface — a clicked tile
+ * or a desktop OS banner.
+ *
+ * Shared because the drawer branch carries a compensating step that is easy to omit:
+ * it changes no URL of its own here (the sync hook stamps one a commit later), so the
+ * location-based `EntityViewAutoReader` never sees the user arrive and the caller has
+ * to mark the notification read itself. Written out twice, one copy drifted from the
+ * other within a single review pass.
+ *
+ * The table's action cell does NOT use this — it needs the same decision split across
+ * an `href` and an `onClick` rather than run as one statement.
+ */
+function openNotificationTarget(
+  action: NotificationAction,
+  notificationId: string,
+  { markRead, navigate }: { markRead: (id: string) => void; navigate: (route: string) => void },
+): void {
+  const drawerDialogId = mingoDrawerDialogId(action);
+  if (!drawerDialogId) {
+    navigate(action.route);
+    return;
+  }
+  openMingoDialogInDrawer(drawerDialogId);
+  markRead(notificationId);
+}
+
 interface NavigationTileWrapperProps {
   notification: Notification;
   helpers: TileHelpers;
@@ -316,14 +349,7 @@ function NavigationTileWrapper({ notification, helpers, children }: NavigationTi
       close();
       // Settle (dismiss the live tile) but keep it unread until the user acts on the entity.
       helpers.onSettle(notification.id);
-      if ('mingoDialogId' in action) {
-        openMingoDialogInDrawer(action.mingoDialogId);
-        // The drawer changes no URL, so the location-based `EntityViewAutoReader`
-        // can't clear this one — mark it read here to match the route flow.
-        markRead(notification.id);
-      } else {
-        router.push(action.route);
-      }
+      openNotificationTarget(action, notification.id, { markRead, navigate: router.push });
     },
     [action, close, markRead, helpers, notification, router],
   );
@@ -491,7 +517,8 @@ function NotificationsDataInner({
  * dialog, the ticket, …). Works off the shared route mapping so it stays consistent across
  * every entity type a notification can carry, and routes through the context's `markRead` so
  * the drawer list, the unread connection and the sidebar bucket all update together. A Mingo
- * dialog opened in the chat drawer changes no URL, so "viewing" is the union of the location
+ * dialog's resting URL is `?mingoDialog=` on whatever route the drawer floats over, which the
+ * notification's own target route never matches, so "viewing" is the union of the location
  * match and the active-dialog-views registry.
  */
 function EntityViewAutoReader() {
@@ -503,8 +530,28 @@ function EntityViewAutoReader() {
     getServerActiveDialogViews,
   );
   const { notifications, markRead } = useNotifications();
+  // The gate below is time-varying, but none of the effect's other deps change when
+  // the session becomes active again — so without this a notification that arrived
+  // while the user was idle on its entity would stay unread until some unrelated dep
+  // happened to re-run the effect. Hard edges only (focus / foreground), so this is
+  // a handful of re-renders per session on a component that renders null.
+  const [activityEdge, setActivityEdge] = useState(0);
+  useEffect(() => subscribeSessionActivity(() => setActivityEdge(edge => edge + 1)), []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activityEdge is the re-run trigger, not read in the body.
   useEffect(() => {
+    // Called live rather than snapshotted into state: the idle timer lapsing fires no
+    // event, so a captured boolean would go stale and re-open the very hole this closes.
+    //
+    // Same cross-device consequence as the arrival-time path above, so the same gate:
+    // it stops a tab left sitting on an entity from reading — and retracting from the
+    // phone — notifications that arrive later.
+    //
+    // It does NOT help at the moment of navigation: navigating is itself input, so the
+    // gate passes by construction, and this effect then reads EVERY loaded unread
+    // notification matching the route, including ones weeks old that the user never
+    // saw. Fixing that needs an item-level signal (viewport + dwell), not this one.
+    if (!isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) return;
     const params = new URLSearchParams(searchParams.toString());
     for (const notification of notifications) {
       if (notification.read) continue;
@@ -515,7 +562,7 @@ function EntityViewAutoReader() {
         markRead(notification.id);
       }
     }
-  }, [pathname, searchParams, activeDialogs, notifications, markRead]);
+  }, [pathname, searchParams, activeDialogs, notifications, markRead, activityEdge]);
 
   return null;
 }
@@ -568,12 +615,16 @@ interface NotificationsLiveBridgeProps {
  * `dialogId`, i.e. Mingo messages, their ticket-linked variant, and approval
  * requests. Such notifications are redundant — the message or approval card is
  * already rendering in the chat — so the popup is skipped and the notification
- * auto-marked read.
+ * auto-marked read. Requires an actively-attended session, not merely a visible tab.
  */
 function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean {
   const dialogId = payloadDialogId(payload);
   if (!dialogId || !isDialogViewActive(dialogId)) return false;
-  return typeof document !== 'undefined' && document.visibilityState === 'visible';
+  // Activity, not `visibilityState`. This branch marks the notification read, and
+  // read state is CROSS-DEVICE — it drives PushRetractionListener, which pulls the
+  // banner off the user's phone. A visible tab on an unattended desk satisfied the
+  // old gate, so a laptop left open silently cleared notifications nobody saw.
+  return isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS });
 }
 
 /**
@@ -590,6 +641,12 @@ function maybeShowDesktopNotification(
   navigate: (route: string) => void,
   markRead: (notificationId: string) => void,
 ): void {
+  // Deliberately still `visibilityState`, not `isSessionActive`: this decides whether
+  // to MIRROR a notification to the OS, which is reversible and costs nothing when
+  // wrong — unlike auto-read and push-cancel, which are irreversible and therefore
+  // demand the stricter attention test. The gap is real and known: a visible but
+  // unfocused window gets no desktop banner AND no push cancel, so the phone buzzes
+  // for something sitting on a second monitor. Unifying the two is a product call.
   if (
     typeof window === 'undefined' ||
     !('Notification' in window) ||
@@ -619,16 +676,7 @@ function maybeShowDesktopNotification(
     });
     notification.onclick = () => {
       window.focus();
-      // A Mingo dialog opens in the drawer (no URL); everything else is a route.
-      if (action) {
-        if ('mingoDialogId' in action) {
-          openMingoDialogInDrawer(action.mingoDialogId);
-          // No route change → the location auto-reader can't clear it; mark read here.
-          markRead(relayId);
-        } else {
-          navigate(action.route);
-        }
-      }
+      if (action) openNotificationTarget(action, relayId, { markRead, navigate });
       notification.close();
     };
   } catch {
@@ -731,6 +779,29 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
           });
         }
         return;
+      }
+
+      // An active human at this session is looking at the app right now, so kill the
+      // pending OS push rather than buzzing a phone about something already on screen.
+      //
+      // Placement is deliberate. ABOVE `suppress`: that branch cancels only as a side
+      // effect of marking read, and once the read is gated on activity it may not fire
+      // at all. BELOW the `isUpdate` return: NotificationBroadcaster.update() publishes
+      // to NATS and never calls channelDispatcher.dispatch, so an UPDATED event enqueues
+      // no push and a cancel there is a wasted round trip.
+      //
+      // Best-effort: the mutation plants a tombstone that wins even if it outraces the
+      // enqueue, and losing it just means the push lands.
+      // Mode-gated: `cancelPendingPush` is declared only in push-saas.graphqls. Firing it
+      // in oss-tenant mode — the default — is an undefined mutation on every arrival.
+      if (isSaasTenantMode() && isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) {
+        commitMutation<CancelPendingPushMutationType>(environmentRef.current, {
+          mutation: cancelPendingPushMutation,
+          variables: { notificationId: rawId },
+          onError: error => {
+            console.warn('[Notifications] cancelPendingPush failed:', error);
+          },
+        });
       }
 
       if (suppress) {

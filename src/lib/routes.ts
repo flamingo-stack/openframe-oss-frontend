@@ -97,6 +97,63 @@ function withQuery(base: string, query?: Record<string, QueryValue>): string {
 }
 
 // --------------------------------------------------------------------------
+// Mingo dialog params
+// --------------------------------------------------------------------------
+
+/**
+ * Query param carrying the dialog id on the canonical `/mingo` route.
+ *
+ * Shared with `MingoPage`, which reads it back, because the two halves are one wire
+ * contract: rename it on the producing side alone and every push and OS-toast deep
+ * link silently redirects to a bare dashboard with the id dropped — no compile
+ * error, and the notification tests only pin the half that builds the URL.
+ *
+ * Distinct from {@link MINGO_DIALOG_PARAM} on purpose: this one names the SHARE URL's
+ * id, that one the live drawer state. `/mingo` reads this and writes that, and one
+ * shared name would make the handoff indistinguishable from a loop.
+ */
+export const MINGO_CANONICAL_DIALOG_PARAM = 'dialogId';
+
+/**
+ * Query param naming the dialog open in the Mingo chat drawer.
+ *
+ * Not an entry in {@link routes} because it belongs to no single route: the drawer
+ * floats over whatever page is showing, so this rides the CURRENT URL rather than
+ * producing one. See ROUTES.md § *Cross-cutting overlay params* for the policy.
+ */
+export const MINGO_DIALOG_PARAM = 'mingoDialog';
+
+/**
+ * Add (or, with `null`, remove) {@link MINGO_DIALOG_PARAM} on an app-relative URL,
+ * preserving the path, the fragment, and the values of other params (which are
+ * re-serialized through `URLSearchParams`, so their encoding may be normalized).
+ *
+ * A caller writing the result straight through `history.replaceState` must feed it
+ * the LIVE location (`pathname + search + hash`), never a `routes.*` constant:
+ * nothing normalizes it afterwards, and `trailingSlash: true` means a slash-less path
+ * is one the static export's file host cannot resolve on reload. Passing a `routes.*`
+ * value is fine when the result goes through `router.replace`, which does normalize.
+ */
+export function withMingoDialog(url: string, dialogId: string | null): string {
+  const hashAt = url.indexOf('#');
+  const hash = hashAt === -1 ? '' : url.slice(hashAt);
+  const withoutHash = hashAt === -1 ? url : url.slice(0, hashAt);
+
+  const queryAt = withoutHash.indexOf('?');
+  const path = queryAt === -1 ? withoutHash : withoutHash.slice(0, queryAt);
+  const params = new URLSearchParams(queryAt === -1 ? '' : withoutHash.slice(queryAt + 1));
+
+  if (dialogId === null) {
+    params.delete(MINGO_DIALOG_PARAM);
+  } else {
+    params.set(MINGO_DIALOG_PARAM, dialogId);
+  }
+
+  const serialized = params.toString();
+  return `${path}${serialized ? `?${serialized}` : ''}${hash}`;
+}
+
+// --------------------------------------------------------------------------
 // The route registry
 // --------------------------------------------------------------------------
 
@@ -260,7 +317,15 @@ export const routes = {
     billingSubscription: '/settings/billing-usage/subscription',
   },
 
-  mingo: (o?: { dialogId?: string }) => withQuery('/mingo', { dialogId: o?.dialogId }),
+  /**
+   * Canonical, page-independent URL for a Mingo dialog — the SHARE and DEEP-LINK
+   * form. With `mingo-sidebar` on it resolves into the in-layout drawer (the page
+   * redirects, carrying the id over as {@link MINGO_DIALOG_PARAM}); with the flag
+   * off it is the legacy chat page. A sender — a push payload, an OS toast, a
+   * copied link — cannot know which route the recipient is on, so this is the only
+   * shape it can produce.
+   */
+  mingo: (o?: { dialogId?: string }) => withQuery('/mingo', { [MINGO_CANONICAL_DIALOG_PARAM]: o?.dialogId }),
 
   notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),
 
@@ -269,3 +334,19 @@ export const routes = {
     cancel: '/checkout/cancel',
   },
 } as const;
+
+/**
+ * Canonical, page-independent URL for SHARING or deep-linking a Mingo dialog —
+ * what "Copy chat link" writes and what a notification tap navigates to.
+ *
+ * It is the drawer's own resting shape on a fixed landing page, NOT the `/mingo`
+ * route: `/mingo` can only redirect here from the client, which costs a render and
+ * a paint before the drawer appears. Emitting the destination directly means a
+ * pasted link adopts on first commit with nothing rendered in between.
+ *
+ * `/mingo?dialogId=` stays supported for links already pasted elsewhere — see
+ * `MingoPage` — but nothing produces it any more.
+ */
+export function mingoDialogLink(dialogId: string): string {
+  return withMingoDialog(routes.dashboard, dialogId);
+}

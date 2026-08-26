@@ -1,8 +1,10 @@
 'use client';
 
 import { Skeleton, Tag } from '@flamingo-stack/openframe-frontend-core';
+import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertCircleIcon,
+  BellIcon,
   PenEditIcon,
   UserXmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -13,7 +15,7 @@ import {
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { RotateCcw } from 'lucide-react';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -21,6 +23,7 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { getFullImageUrl } from '@/lib/image-url';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { DeleteAccountModal } from './delete-account-modal';
+import { NotificationSettingsModal } from './notification-settings-modal';
 
 interface ProfileCardProps {
   onEditProfile: () => void;
@@ -77,6 +80,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
+  const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
 
   const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '—';
 
@@ -162,6 +166,12 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                     icon: <PenEditIcon className="w-5 h-5 text-ods-text-secondary" />,
                     onClick: onEditProfile,
                   },
+                  {
+                    id: 'notification-settings',
+                    label: 'Notification Settings',
+                    icon: <BellIcon className="w-5 h-5 text-ods-text-secondary" />,
+                    onClick: () => setIsNotificationSettingsOpen(true),
+                  },
                   ...(canResetOnboarding
                     ? [
                         {
@@ -191,6 +201,17 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
           />
         </div>
       </div>
+
+      {/* Mounted only while open: the modal's query suspends, so this both defers the
+          fetch to the moment it is needed and gives it a boundary to suspend against.
+          Same shape as the notifications drawer hydrator. */}
+      {isNotificationSettingsOpen && (
+        <ErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <NotificationSettingsModal onClose={() => setIsNotificationSettingsOpen(false)} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
 
       <DeleteAccountModal open={isDeleteAccountOpen} onOpenChange={setIsDeleteAccountOpen} />
 
