@@ -48,10 +48,20 @@ describe('resolvePushNotificationRoute', () => {
     expect(resolvePushNotificationRoute(dropped)).toBe('/tickets/dialog?id=t-1');
   });
 
-  it('yields null for an unrecognised type, a missing id, and a junk payload', () => {
-    // The caller falls back to the notifications page — an app older than the
-    // notification type it was sent must not tap into nothing.
-    expect(resolvePushNotificationRoute({ type: 'SOMETHING_SHIPPED_LATER', ticketId: 't-1' })).toBeNull();
+  // CHANGED by the type + attributes migration, and worth a second opinion on review.
+  // This used to yield null for an unrecognised type and let the caller fall back to the
+  // notifications page. The spec contract asks for more than that: "an unfamiliar string
+  // still routes by ids ... new types will appear without a client release". A ticket id
+  // names a ticket whatever the type is called, so an unknown type now opens it.
+  // Deliberately narrow: only `ticketId` degrades. A bare `dialogId` still yields null
+  // unless the category says Mingo — see the unknown-type tests below.
+  it('routes an unrecognised type by its ticket id', () => {
+    expect(resolvePushNotificationRoute({ type: 'SOMETHING_SHIPPED_LATER', ticketId: 't-1' })).toBe(
+      '/tickets/dialog?id=t-1',
+    );
+  });
+
+  it('yields null for a missing id and a junk payload', () => {
     expect(resolvePushNotificationRoute({ type: 'TICKET_ASSIGNED' })).toBeNull();
     expect(resolvePushNotificationRoute({ type: 'TICKET_ASSIGNED', ticketId: '' })).toBeNull();
     expect(resolvePushNotificationRoute(undefined)).toBeNull();
@@ -134,5 +144,62 @@ describe('mingoDrawerDialogId', () => {
       meta: { contextType: 'TICKET_ASSIGNED', ticketId: 't-1' },
     } as unknown as Notification);
     expect(mingoDrawerDialogId(ticket!)).toBeNull();
+  });
+});
+
+/**
+ * The spec contract (`type` + `attributes`) alongside the legacy `context`. Both shapes reach
+ * these resolvers, and an unfamiliar type must still reach its entity — that promise is the
+ * whole point of the flat attribute map.
+ */
+describe('the type + attributes contract', () => {
+  const notification = (meta: Record<string, unknown>, category?: string): Notification =>
+    ({ id: 'n-1', title: 'x', createdAt: 0, read: false, category, meta }) as Notification;
+
+  it('routes off the spec type carried on meta', () => {
+    const action = resolveNotificationAction(notification({ notificationType: 'TICKET_ASSIGNED', ticketId: 't-1' }));
+    expect(action?.route).toBe('/tickets/dialog?id=t-1');
+  });
+
+  it('still routes a legacy row that only has contextType', () => {
+    const action = resolveNotificationAction(notification({ contextType: 'TICKET_REOPENED', ticketId: 't-2' }));
+    expect(action?.route).toBe('/tickets/dialog?id=t-2');
+  });
+
+  it('routes both halves of the approval split by ticket linkage', () => {
+    expect(
+      resolveNotificationAction(notification({ notificationType: 'TICKET_APPROVAL_REQUEST', ticketId: 't-3' }))?.route,
+    ).toBe('/tickets/dialog?id=t-3');
+    expect(
+      resolveNotificationAction(notification({ notificationType: 'MINGO_APPROVAL_REQUEST', dialogId: 'd-1' }))
+        ?.mingoDialogId,
+    ).toBe('d-1');
+  });
+
+  it('reads ids out of attributes on a NATS envelope', () => {
+    const route = resolveNatsNotificationRoute({
+      type: 'TICKET_STATUS_CHANGED',
+      attributes: { ticketId: 't-4', newStatusLabel: 'Closed' },
+      category: 'TICKETS',
+    });
+    expect(route).toBe('/tickets/dialog?id=t-4');
+  });
+
+  it('still reads a legacy envelope carrying only context', () => {
+    expect(resolveNatsNotificationRoute({ context: { type: 'TICKET_STATUS_CHANGED', ticketId: 't-5' } })).toBe(
+      '/tickets/dialog?id=t-5',
+    );
+  });
+
+  it("opens an unknown type's bare dialog only when the category says Mingo", () => {
+    expect(
+      resolveNotificationAction(notification({ notificationType: 'SOME_NEW_MINGO', dialogId: 'd-2' }, 'MINGO'))
+        ?.mingoDialogId,
+    ).toBe('d-2');
+    // A CLIENT chat's dialogId: `/mingo?dialogId=` resolves admin dialogs only, so following
+    // this would land on an empty chat.
+    expect(
+      resolveNotificationAction(notification({ notificationType: 'SOME_NEW_CLIENT', dialogId: 'd-3' }, 'TICKETS')),
+    ).toBeNull();
   });
 });
