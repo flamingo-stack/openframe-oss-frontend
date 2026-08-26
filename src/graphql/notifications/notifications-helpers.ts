@@ -1,11 +1,37 @@
-import type { Notification, NotificationVariant } from '@flamingo-stack/openframe-frontend-core';
+import {
+  ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE,
+  type ApprovalToolCallMeta,
+  type Notification,
+  type NotificationVariant,
+} from '@flamingo-stack/openframe-frontend-core';
 import { ConnectionHandler, type RecordSourceSelectorProxy, readInlineData } from 'relay-runtime';
 import type {
   notificationFields_notification$data as NotificationFieldsData,
   notificationFields_notification$key as NotificationFieldsKey,
 } from '@/__generated__/notificationFields_notification.graphql';
 import type { NotificationSeverity } from '@/generated/schema-enums';
+import { featureFlags } from '@/lib/feature-flags';
+import {
+  isApprovalNotificationType,
+  NOTIFICATION_ATTR,
+  normalizeToolCalls,
+  parseAttributeToolCalls,
+  readNotificationAttributes,
+  toLegacyContextType,
+} from './notification-attributes';
 import { notificationFieldsFragment } from './notification-fields';
+
+export {
+  isApprovalNotificationType,
+  isApprovalResolved,
+  MINGO_APPROVAL_REQUEST_TYPE,
+  NOTIFICATION_ATTR,
+  normalizeToolCalls,
+  parseAttributeToolCalls,
+  readNotificationAttributes,
+  TICKET_APPROVAL_REQUEST_TYPE,
+  toLegacyContextType,
+} from './notification-attributes';
 
 export const NOTIFICATIONS_CONNECTION_KEY = 'NotificationsList_notifications';
 const NOTIFICATION_EDGE_TYPENAME = 'NotificationEdge';
@@ -221,9 +247,10 @@ export function parseSeverity(
 }
 
 /**
- * Human label for a `NotificationContext.type` discriminator: SNAKE_CASE → Title Case
+ * Human label for a notification type discriminator: SNAKE_CASE → Title Case
  * (e.g. TICKET_STATUS_CHANGED → "Ticket Status Changed"). Data-driven so new backend
- * context types label themselves; the catch-all discriminators carry no meaning → undefined.
+ * types label themselves; the catch-all discriminators carry no meaning → undefined.
+ * Fed the spec `type` when present, the legacy `context.type` otherwise.
  */
 export function contextTypeLabel(contextType: string | null | undefined): string | undefined {
   if (!contextType || contextType === 'UNKNOWN' || contextType === 'GENERIC') return undefined;
@@ -233,6 +260,33 @@ export function contextTypeLabel(contextType: string | null | undefined): string
     .filter(Boolean)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+/**
+ * Defensive plain-text pass over notification title/description: strips common markdown
+ * and HTML artifacts so previews (drawer tiles, table rows, OS toasts) never show raw
+ * formatting. Canonical sanitization belongs on the BE at emission time (ClickUp 86ajn8hpg);
+ * this only guards records written before that fix and any stragglers.
+ */
+export function stripNotificationMarkup(text: string): string {
+  return (
+    text
+      .replace(/<[^>]+>/g, '') // HTML tags
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1') // images -> alt text
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links -> label
+      .replace(/(\*{1,3}|_{1,3}|~~)(\S(?:.*?\S)?)\1/g, '$2') // bold / italic / strikethrough
+      .replace(/`{1,3}([^`]*)`{1,3}/g, '$1') // inline / fenced code
+      .replace(/^[^\S\n]{0,3}#{1,6}[^\S\n]+/gm, '') // headings
+      .replace(/[^\S\n]#{2,6}[^\S\n]+/g, ' ') // stray mid-line heading markers ("text. ## Summary"); 2+ hashes so "#238" survives
+      .replace(/^[^\S\n]{0,3}>[^\S\n]?/gm, '') // blockquotes
+      .replace(/^[^\S\n]{0,3}(?:[-*+]|\d+\.)[^\S\n]+/gm, '') // list markers
+      // Collapse whitespace within lines only - newlines survive so the full-text
+      // hover/tooltip keeps its paragraph structure (clamped previews ignore them anyway).
+      .replace(/[^\S\n]+/g, ' ')
+      .replace(/ ?\n ?/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
 }
 
 const EPOCH_MS_THRESHOLD = 1e12;
@@ -261,43 +315,84 @@ export function readNotificationNode(ref: NotificationFieldsKey): NotificationFi
  * Flattens a notification row into the core lib's `Notification`. Takes the read
  * data rather than the fragment reference, so a caller that also needs the raw
  * fields (the section table's own columns) reads the node once.
+ *
+ * Reads exactly ONE of the two contracts — the spec pair (`type` + `attributes`) by
+ * default, the legacy typed `context` when the rollback lever is on — never a mix of
+ * both. A row that carries only the other shape still maps: it keeps its title, body,
+ * severity and timestamp, and offers no type or entity metadata (so: a plain tile, no
+ * navigation). See the lever comment inside for why that is the intended outcome.
  */
 export function mapNotificationNode(node: NotificationFieldsData): Notification {
   const severity = normalizeSeverity(node.severity);
-  const { context } = node;
+
+  /**
+   * Which contract this release reads. Normally the spec one; the `notifications-legacy-path`
+   * flag switches back to the typed `context` without a release, should attributes turn out
+   * wrong in production.
+   *
+   * The switch is EXCLUSIVE: the shape the lever does not select is not read on any field,
+   * and a row carrying only that shape maps with no type and no entity ids rather than
+   * quietly answering from the other contract. That is the point — what the UI shows is
+   * always the shape the lever names, so a rollback is a clean swap and never a per-row
+   * mixture nobody can reason about. The cost is real and expected: with the lever OFF,
+   * rows the backfill migration has not swept yet (no `attributes`) lose their navigation
+   * until it has, and with it ON, spec-path rows that carry no context lose theirs.
+   *
+   * Zeroing the unselected side ONCE, here, is what makes that hold for the whole map —
+   * the `...attributes` spread below included, so unknown spec keys cannot leak into `meta`
+   * behind the lever's back.
+   */
+  const readLegacy = featureFlags.notificationsLegacyPath.enabled();
+  const context = readLegacy ? node.context : null;
+  const attributes: Record<string, string> = readLegacy ? {} : readNotificationAttributes(node.attributes);
+  /** One fact, read off the selected shape only — there is no cross-shape fallback. */
+  const pick = <T>(spec: T | undefined | null, legacy: T | undefined | null): T | undefined =>
+    (readLegacy ? legacy : spec) ?? undefined;
+
+  const notificationType = pick(node.type, context?.type);
+
   const meta: Record<string, unknown> = {
-    contextType: context.type,
-    contextTypename: context.__typename,
+    // Every attribute the backend sent, including keys this release has no code for.
+    ...attributes,
+    notificationType,
+    // What the core lib's approval gate reads — the approval split folded back onto one string.
+    contextType: toLegacyContextType(notificationType),
   };
 
-  // Entity ids drive navigation/auto-read uniformly across context types (see
-  // resolveNotificationAction); every context that carries one selects it in the query fragment.
-  const ticketId = context.ticketId ?? context.approvalTicketId ?? undefined;
-  if (context.dialogId) meta.dialogId = context.dialogId;
+  // Entity ids drive navigation and auto-read uniformly across types (see
+  // resolveNotificationAction). Under `attributes` they sit at fixed keys for every type,
+  // known or not; the context aliases below are not a fallback across shapes — they are one
+  // shape's own spelling variants, since the union declares the same field with different
+  // nullability per member.
+  const ticketId = pick(
+    attributes[NOTIFICATION_ATTR.ticketId],
+    context?.ticketId ?? context?.approvalTicketId ?? context?.clientTicketId,
+  );
+  const dialogId = pick(attributes[NOTIFICATION_ATTR.dialogId], context?.dialogId);
+  if (dialogId) meta.dialogId = dialogId;
   if (ticketId) meta.ticketId = ticketId;
 
-  if (context.__typename === 'AdminApprovalRequestContext' && context.approvalRequestId) {
-    meta.approvalRequestId = context.approvalRequestId;
-    meta.approvalType = context.approvalType ?? null;
-    meta.resolution = context.resolution ?? null;
-    meta.resolvedByName = context.resolvedByName ?? null;
-    meta.toolCalls = (context.toolCalls ?? []).map(call => ({
-      toolExecutionRequestId: call.toolExecutionRequestId,
-      toolName: call.toolName,
-      toolTitle: call.toolTitle,
-      toolExplanation: call.toolExplanation,
-      toolType: call.toolType,
-      requiresApproval: call.requiresApproval,
-      approvalType: call.approvalType,
-      toolCallArguments: call.toolCallArguments,
-    }));
+  const approvalRequestId = pick(attributes[NOTIFICATION_ATTR.approvalRequestId], context?.approvalRequestId);
+  if (approvalRequestId) {
+    meta.approvalRequestId = approvalRequestId;
+    meta.approvalType = pick(attributes[NOTIFICATION_ATTR.approvalType], context?.approvalType) ?? null;
+    meta.resolution = pick(attributes[NOTIFICATION_ATTR.resolution], context?.resolution) ?? null;
+    meta.resolvedByName = pick(attributes[NOTIFICATION_ATTR.resolvedByName], context?.resolvedByName) ?? null;
+    // Must end up an ARRAY: the core lib's `getApprovalMeta` bails on anything else, which
+    // would silently downgrade the approval tile to a plain one. On the spec path the spread
+    // above put the raw JSON string here, so this assignment is not optional. The two shapes
+    // need different readers (a JSON-encoded string vs. typed records), which is why this one
+    // fact branches instead of going through `pick`.
+    meta.toolCalls = readLegacy
+      ? normalizeToolCalls(context?.toolCalls)
+      : parseAttributeToolCalls(attributes[NOTIFICATION_ATTR.toolCalls]);
   }
 
   return {
     id: node.id,
-    type: contextTypeLabel(context.type),
-    title: node.title,
-    description: node.description ?? undefined,
+    type: contextTypeLabel(notificationType),
+    title: stripNotificationMarkup(node.title),
+    description: node.description == null ? undefined : stripNotificationMarkup(node.description),
     createdAt: parseCreatedAt(node.createdAt),
     read: node.read,
     severity,

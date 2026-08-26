@@ -14,7 +14,7 @@ import {
   type RegistrationAttribution,
 } from './registration-attribution';
 import { runtimeEnv } from './runtime-config';
-import { refreshAccessToken } from './token-refresh-manager';
+import { refreshTokens } from './token-refresh-manager';
 import { getAccessTokenSync, getRefreshToken, getTokenEpoch, isBearerAuthMode } from './token-store';
 
 function getDomainSuffix(): string {
@@ -54,6 +54,25 @@ function buildAuthUrl(path: string): string {
   return `${base}${cleanPath}`;
 }
 
+export interface SsoRegisterPayload {
+  tenantName: string;
+  tenantDomain: string;
+  email: string;
+  provider: 'google' | 'microsoft' | 'apple';
+  redirectTo?: string;
+  /**
+   * Native shells only, and the counterpart of {@link AuthApiClient.loginUrl}'s
+   * `authMobile`: the authz service stores it in the SSO registration cookie and
+   * replays it on the `/oauth/continue` that logs the new owner in, so the
+   * callback carries a devTicket even where the gateway has dev-ticket issuance
+   * off (prod). Without it registration creates the tenant and the app gets a
+   * ticket-less callback back.
+   */
+  authMobile?: boolean;
+  /** Defaults to whatever is capturable right now; pass explicitly to reuse an existing set. */
+  attribution?: RegistrationAttribution;
+}
+
 class AuthApiClient {
   /**
    * `sentAtEpoch` is the {@link getTokenEpoch} value captured before the request
@@ -75,9 +94,15 @@ class AuthApiClient {
       return null;
     }
 
-    const refreshSuccess = await refreshAccessToken(sentAtEpoch);
+    const outcome = await refreshTokens(sentAtEpoch);
 
-    if (refreshSuccess) {
+    if (outcome === 'transient') {
+      // Not a rejected credential (5xx, WAF 403, dropped link, timeout) — fail
+      // this request rather than ending a working session.
+      return { data: undefined, error: 'Authentication temporarily unavailable', status: 0, ok: false };
+    }
+
+    if (outcome === 'refreshed') {
       if (isBearerAuthMode()) {
         const newToken = getAccessTokenSync();
         if (newToken) {
@@ -176,15 +201,21 @@ class AuthApiClient {
     });
   }
 
-  registerOrganizationSso(payload: {
-    tenantName: string;
-    tenantDomain: string;
-    email: string;
-    provider: 'google' | 'microsoft' | 'apple';
-    redirectTo?: string;
-    /** Defaults to whatever is capturable right now; pass explicitly to reuse an existing set. */
-    attribution?: RegistrationAttribution;
-  }) {
+  registerOrganizationSso(payload: SsoRegisterPayload) {
+    window.location.href = this.registerSsoUrl(payload);
+
+    return Promise.resolve({ ok: true, status: 302, data: null, error: null });
+  }
+
+  /**
+   * The SSO tenant-registration entry point, as a URL. Split out of
+   * {@link registerOrganizationSso} for the native shells, which must not
+   * navigate to it: Capacitor hands a top-level https nav to the system
+   * browser, so the tenant gets created in Safari and the app is left signed
+   * out. They run this URL inside a shell-owned browser session instead — see
+   * `nativeSsoRegister`.
+   */
+  registerSsoUrl(payload: SsoRegisterPayload): string {
     const params = new URLSearchParams({
       tenantName: payload.tenantName,
       tenantDomain: payload.tenantDomain,
@@ -196,6 +227,10 @@ class AuthApiClient {
       params.append('redirectTo', payload.redirectTo);
     }
 
+    if (payload.authMobile) {
+      params.append('authMobile', 'true');
+    }
+
     // The IdP callback is a fresh request from Google/Microsoft — the landing URL's click ids
     // and this browser's tracking cookies are unreachable by then. Send them now; the backend
     // stashes them in the SSO state cookie and replays them when the callback builds the
@@ -205,10 +240,7 @@ class AuthApiClient {
       appendAttributionQueryParams(params, attribution);
     }
 
-    const url = buildAuthUrl(`/sas/oauth/register/sso?${params.toString()}`);
-    window.location.href = url;
-
-    return Promise.resolve({ ok: true, status: 302, data: null, error: null });
+    return buildAuthUrl(`/sas/oauth/register/sso?${params.toString()}`);
   }
 
   getRegistrationProviders<T = any>() {
@@ -286,9 +318,8 @@ class AuthApiClient {
     // where a browser lands after login. Both native shells are the exception:
     // each blocks on a callback it named itself, and the gateway only sends that
     // callback because of redirectTo, so dropping it doesn't degrade the login,
-    // it hangs it forever. Keyed on isAppShell() rather than authMobile because
-    // desktop passes authMobile=false — it takes the https landing, not the
-    // mobile scheme.
+    // it hangs it forever. Both pass authMobile, so isAppShell() is belt and
+    // braces here for any shell login that ever stops doing so.
     const keepRedirect = options?.authMobile || isAppShell() || !isSaasSharedMode();
     const path = `${base}${options?.authMobile ? '&authMobile=true' : ''}${keepRedirect ? `&redirectTo=${redirectTo}` : ''}`;
     return buildAuthUrl(path);

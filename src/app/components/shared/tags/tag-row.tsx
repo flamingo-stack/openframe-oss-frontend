@@ -79,6 +79,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
       onChange={() => {}}
       placeholder="Enter value..."
       label={isFirst ? 'Tag Values' : undefined}
+      labelVariant="large"
       className={labelClassName}
       showChevron={false}
       disabled
@@ -102,6 +103,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
           onInputChange={handleKeyInputChange}
           placeholder="Enter tag key..."
           label={isFirst ? 'Tag Name' : undefined}
+          labelVariant="large"
           className={labelClassName}
           loading={isKeyRefetching}
           error={keyError}
@@ -124,6 +126,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
                   onChange={handleValuesChange}
                   error={valuesError}
                   label={isFirst ? 'Tag Values' : undefined}
+                  labelVariant="large"
                   className={labelClassName}
                 />
               </div>

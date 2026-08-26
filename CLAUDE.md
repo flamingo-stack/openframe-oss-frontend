@@ -87,9 +87,10 @@ billing.
 The same export runs in three places, so ask the axis that owns the feature — never "is this native?":
 
 - `isAppShell()` — either shell. Shell-custodied tokens, no Next server behind the origin (so
-  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above.
+  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above, and
+  the `authMobile=true` login completing on the custom scheme (`APP_SCHEME`).
 - `isMobileShell()` — the phone. FCM push, biometrics, status bar/splash/safe-area insets, Android
-  back, custom-scheme OAuth callback.
+  back.
 - `isDesktopShell()` — Tauri. Shell-side token rotation + OS-notification click event transports.
 
 `platform.ts` is the only module that reads the injected globals, and it probes **Tauri first**: the
@@ -174,7 +175,7 @@ Helper functions: `isOssTenantMode()`, `isSaasTenantMode()`, `isSaasSharedMode()
 
 ### Feature Flags
 
-Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `help-center`, `notifications`, `time-tracker`, `scripts-v2`, `mingo-sidebar`, `cancel-subscription`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-loader.tsx` runs that query but does NOT gate render: read a flag through `useFeatureFlagGate` (tri-state `loading | on | off`) wherever a wrong value would be visible or would redirect, and render the loading branch — see `src/app/hooks/use-feature-flag.ts`.
+Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `help-center`, `notifications`, `time-tracker`, `script-schedules`, `mingo-sidebar`, `cancel-subscription`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-loader.tsx` runs that query but does NOT gate render: read a flag through `useFeatureFlagGate` (tri-state `loading | on | off`) wherever a wrong value would be visible or would redirect, and render the loading branch — see `src/app/hooks/use-feature-flag.ts`.
 
 ### Route Registry (MANDATORY)
 
@@ -212,7 +213,7 @@ Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query 
 - **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour)
 - **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
-- **Scripts** (`/scripts` legacy, Tactical backend removed — hooks are `TODO(openframe-rmm)` stubs; `/scripts-v2` Relay, behind flag `scripts-v2` — implementation lives in `src/app/(app)/scripts/v2/{script,schedule,shared}/`)
+- **Scripts** (`/scripts`) — fully Relay; thin route wrappers over the implementation in `src/app/(app)/scripts/{script,schedule,shared}/`. Schedules (`/scripts/schedules/*`) are gated by flag `script-schedules`
 - **Customers** (`/customers`) — Customer/organization CRM (route renamed from `/organizations`; sidebar item id is still `organizations`)
 - **Monitoring** (`/monitoring`) — Fleet osquery queries + policies (not feature-flagged)
 - **Tickets** (`/tickets`) — Ticket board + AI chat dialogs (saas-tenant only; talks to `/chat/graphql`)
@@ -232,8 +233,7 @@ src/
 │   ├── (auth)/auth/       # Authentication (login, signup, invite, password-reset, stores/auth-store.ts)
 │   ├── (app)/             # All app pages, wrapped by AppLayout in (app)/layout.tsx
 │   │   ├── dashboard/  onboarding/  devices/  logs-page/  log-details/
-│   │   ├── scripts/       # legacy + v2 in scripts/v2/{script,schedule,shared}/{components,hooks,utils}
-│   │   ├── scripts-v2/    # thin route wrappers over scripts/v2 (flag-gated layout)
+│   │   ├── scripts/       # route wrappers + {script,schedule,shared}/{components,hooks,types,utils}
 │   │   ├── customers/  monitoring/  tickets/  mingo/  knowledge-base/
 │   │   ├── help-center/  worktime/  notifications/  settings/  checkout/
 │   ├── hooks/             # Shared hooks (use-feature-flags-query, use-required-id-param, …)
@@ -768,7 +768,7 @@ OpenFrame integrates device monitoring data from multiple sources with normaliza
 > no Tactical types, and no Tactical fields in the device merge. Remaining references are
 > legacy `/scripts` stubs (see `src/app/(app)/scripts/lib/scripts-migration.ts`, all marked
 > `TODO(openframe-rmm)`) that return empty / throw a "migration pending" error, plus mention-chip
-> id-shape handling in Mingo. `runScript` now means a GraphQL mutation via scripts-v2
+> id-shape handling in Mingo. `runScript` now means a GraphQL mutation via the Scripts module
 > (`src/graphql/scripts/run-script-mutation.ts`), not Tactical REST.
 
 **Merge logic locations** (there is no `normalize-device.ts`):

@@ -5,6 +5,7 @@
 
 import { isPaymentUiEnabled } from './billing-visibility';
 import { isAppShell } from './platform';
+import { routes } from './routes';
 import { runtimeEnv } from './runtime-config';
 
 export type AppMode = 'oss-tenant' | 'saas-tenant' | 'saas-shared';
@@ -92,6 +93,17 @@ export function isRouteAllowedInCurrentMode(pathname: string): boolean {
     pathname.startsWith('/assets') ||
     pathname.startsWith('/icons')
   ) {
+    return true;
+  }
+
+  // Account-deletion instructions are reachable in EVERY mode, signed out. Both
+  // stores require a deletion URL that resolves in a browser without installing
+  // the app and without an account — a user who was removed by an admin or lost
+  // their password is exactly who needs it. The canonical URL lives on the
+  // shared (saas-shared) host, the only host that is the same for every tenant,
+  // and that mode otherwise allows `/auth` and `/` only. `startsWith` covers the
+  // `trailingSlash: true` form.
+  if (pathname.startsWith(routes.accountDeletion)) {
     return true;
   }
 

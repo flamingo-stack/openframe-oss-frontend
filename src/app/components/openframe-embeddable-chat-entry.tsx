@@ -32,6 +32,7 @@
 
 import type {
   ChatContextPickerConfig,
+  EmbeddableChatHandle,
   MingoQuickAction,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
@@ -39,14 +40,18 @@ import {
   getAgentAccent,
   renderQuickActionIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { useEffect, useMemo } from 'react';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
+import { mingoDialogLink } from '@/lib/routes';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../(app)/mingo/context/context-sources';
 import { CONTEXT_ITEMS_MAX } from '../(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoMention } from '../(app)/mingo/context/mention-chips/render-mention';
 import { renderMingoContextItems } from '../(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '../(app)/mingo/context/use-context-memory';
+import { MINGO_DIALOG_NOT_FOUND } from '../(app)/mingo/hooks/use-mingo-dialog-selection';
 import { useMingoQuickActions } from '../(app)/mingo/hooks/use-mingo-quick-actions';
 import { DialogSubscription } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
 import { useMingoUnifiedChatState } from '../(app)/mingo/hooks/use-mingo-unified-chat-state';
@@ -71,7 +76,87 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     setSearchQuery,
     fetchArchivedDialogs,
     unarchiveDialog,
+    dialogError,
   } = useMingoUnifiedChatState();
+
+  // A dialog that won't load is otherwise indistinguishable from an empty one — the
+  // panel renders a thread with no messages, which for a conversation reached by link
+  // or notification is the whole answer the user gets. Toasted once per
+  // (dialog, error) so a retry can't stack duplicates.
+  //
+  // The reader never sees the underlying error text: it is a raw GraphQL-envelope
+  // string, and the two cases a person can act on differently ("this link is dead" vs
+  // "the network is") are already separated by `MINGO_DIALOG_NOT_FOUND`.
+  const { toast } = useToast();
+  const toastedDialogErrorRef = useRef<string | null>(null);
+  const activeDialogId = state.activeDialogId;
+  const selectDialog = state.selectDialog;
+  useEffect(() => {
+    if (!dialogError || !activeDialogId) {
+      toastedDialogErrorRef.current = null;
+      return;
+    }
+    const key = `${activeDialogId}:${dialogError}`;
+    if (toastedDialogErrorRef.current === key) return;
+    toastedDialogErrorRef.current = key;
+
+    const missing = dialogError === MINGO_DIALOG_NOT_FOUND;
+    toast({
+      title: missing ? 'Conversation not available' : "Couldn't open this conversation",
+      description: missing
+        ? 'It may have been deleted, or you may not have access to it.'
+        : 'Check your connection and try again.',
+      variant: 'destructive',
+    });
+
+    // Only for a settled "not found": drop the selection so the drawer falls back to
+    // the chat list and the sync hook strips the dead id from the URL, leaving nothing
+    // to re-open on reload or to copy onward. A transient failure keeps its selection,
+    // because a reload would have recovered it.
+    if (missing) selectDialog(null);
+  }, [dialogError, activeDialogId, selectDialog, toast]);
+
+  // "Copy chat link" — the header ⋯ menu and every dialog row menu.
+  //
+  // Emits `mingoDialogLink`, NOT the URL in the address bar: the live URL is
+  // `?mingoDialog=` riding whatever page the sharer happens to be on, so copying that
+  // would hand the recipient the sharer's current screen. Absolute, because a link
+  // gets pasted somewhere this app isn't.
+  //
+  // The origin is the TENANT HOST, not `window.location.origin`: inside the native
+  // shells the latter is `capacitor://localhost` (mobile) or a `tauri://` origin —
+  // a scheme nothing outside that install can resolve, so the link would be dead the
+  // moment it left the device, including for the person who copied it. The tenant
+  // host is the workspace's public address (build-time value, backed by the host the
+  // shell learns from the OAuth callback at login) and on the web it resolves to the
+  // same place anyway. Same precedence the Relay environment uses.
+  const copyDialogLink = useCallback(
+    async (dialog: { id: string }) => {
+      const origin = (runtimeEnv.tenantHostUrl() || window.location.origin).replace(/\/+$/, '');
+      // Catches BOTH "no tenant host configured" and a shell origin that slipped
+      // through — a link that isn't http(s) cannot travel, so say so rather than put
+      // something unusable on the clipboard.
+      if (!/^https?:\/\//.test(origin)) {
+        toast({
+          title: "Couldn't copy the link",
+          description: 'This app does not know its workspace address yet.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const url = `${origin}${mingoDialogLink(dialog.id)}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast({ title: 'Link copied', description: 'Anyone with access to this workspace can open it.' });
+      } catch {
+        // Clipboard access is refused outside a secure context and under some
+        // permission policies. Showing the URL is a worse-but-real fallback — the
+        // reader can still select it by hand.
+        toast({ title: "Couldn't copy the link", description: url, variant: 'destructive' });
+      }
+    },
+    [toast],
+  );
 
   // Signed-in user's display name for the chat header sub-line. The lib prefers
   // its server-resolved chat identity; this is the reliable host fallback (the
@@ -100,6 +185,21 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     if (!text) return;
     void sendInNewDialog(text);
   }, [pendingPrompt, consumePendingPrompt, sendInNewDialog]);
+
+  // Queued launcher "start a new chat". Nothing to send and nothing the host can
+  // set — which view the narrow panel shows with no open conversation (list vs.
+  // composer) is its own state — so this goes to its imperative handle. Same
+  // one-shot drain as the prompt: it must fire on a fresh open AND while the
+  // drawer is already open on the list.
+  const chatHandle = useRef<EmbeddableChatHandle>(null);
+  const pendingNewChat = useMingoLauncherStore(s => s.pendingNewChat);
+  const consumePendingNewChat = useMingoLauncherStore(s => s.consumePendingNewChat);
+
+  useEffect(() => {
+    if (!pendingNewChat) return;
+    if (!consumePendingNewChat()) return;
+    chatHandle.current?.startNewChat();
+  }, [pendingNewChat, consumePendingNewChat]);
 
   // Entity-context picker config (the `+` "Assign Item" menu + `@` trigger).
   // Stable so the lib's composer doesn't re-derive its icon map each render.
@@ -177,6 +277,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
       )}
 
       <EmbeddableChat
+        ref={chatHandle}
         // Shell-less: the host `AppLayoutDrawer` owns the panel chrome,
         // open/close, and positioning. `open` / `onOpenChange` are the same
         // state the drawer is bound to, so the chat's in-header X button and
@@ -220,6 +321,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
           canArchive: true,
           fetchArchivedDialogs,
           unarchiveDialog,
+          onCopyLink: copyDialogLink,
         }}
         // Admin-configured Mingo quick actions rendered as chips in the Mingo
         // empty state. Omitted when none are configured so the lib keeps its

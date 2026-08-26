@@ -4,15 +4,15 @@ import { Autocomplete, FileUpload, Input, Label } from '@flamingo-stack/openfram
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
-import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { AssignmentsField } from '@/components/assignments';
 import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
 import type { useTempAttachments } from '../../hooks/use-temp-attachments';
-import { useAssigneeOptions, useDeviceOptions, useOrganizationOptions } from '../../hooks/use-ticket-options';
+import { useDeviceOptions, useOrganizationOptions, useSelfFirstAssigneeOptions } from '../../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../../statuses/hooks/use-ticket-statuses-query';
 import type { CreateTicketFormData } from '../../types/create-ticket.types';
 import type { Ticket } from '../../types/ticket.types';
 import { resolveCurrentStatus } from '../../utils/resolve-current-status';
+import { TICKET_STATUS_KIND } from '../../utils/ticket-statistics';
 import { avatarStartAdornment, renderAvatarOption } from '../avatar-autocomplete';
 import { renderStatusOption, type StatusOption, statusStartAdornment } from '../status-autocomplete';
 import { MarkdownEditor, SimpleMarkdownRenderer } from './lazy-markdown';
@@ -48,16 +48,8 @@ export function TicketFormFields({
   const lockOrgAndDevice = isEditMode && !!selectedDeviceId;
   const organizationOptions = useOrganizationOptions(debouncedOrgSearch);
   const deviceOptions = useDeviceOptions(selectedOrgId ?? undefined, debouncedDeviceSearch);
-  const assigneeOptions = useAssigneeOptions();
-
-  // Surface the signed-in user at the top of the assignee list (self-assign shortcut).
-  const authUserId = useAuthStore(s => s.user?.id);
-  const assigneeOptionsList = useMemo(() => {
-    const options = assigneeOptions.options;
-    const idx = authUserId ? options.findIndex(o => o.value === authUserId) : -1;
-    if (idx <= 0) return options;
-    return [options[idx], ...options.slice(0, idx), ...options.slice(idx + 1)];
-  }, [assigneeOptions.options, authUserId]);
+  const assigneeOptions = useSelfFirstAssigneeOptions();
+  const assigneeOptionsList = assigneeOptions.options;
 
   // The ticket's device may not be in the fetched page (large fleet / search), which would
   // leave the Autocomplete rendering the raw id. Seed it from the ticket's known hostname.
@@ -78,16 +70,22 @@ export function TicketFormFields({
       for (const t of transitions) byId.set(t.id, { label: t.name, value: t.id, color: t.color });
       return [...byId.values()];
     }
-    return (statusesQuery.data?.customStatuses ?? []).map(s => ({ label: s.name, value: s.id, color: s.color }));
+    // New ticket: custom statuses plus TECH_REQUIRED — the one system status the backend
+    // allows tickets to be created in (createTicket rejects the other system statuses).
+    return (statusesQuery.data?.snapshot ?? [])
+      .filter(s => !s.isSystem || s.kind === TICKET_STATUS_KIND.TECH_REQUIRED)
+      .map(s => ({ label: s.name, value: s.id, color: s.color }));
   }, [isEditMode, ticket, statusesQuery.data]);
 
   const selectedStatusId = watch('statusId');
-  // New ticket: pre-select the first status once options load.
+  // New ticket: pre-select the first CUSTOM status once options load (Tech Required is
+  // selectable but must not become the default).
+  const defaultStatusId = statusesQuery.data?.customStatuses[0]?.id;
   useEffect(() => {
-    if (!isEditMode && !selectedStatusId && statusOptions.length > 0) {
-      setValue('statusId', statusOptions[0].value);
+    if (!isEditMode && !selectedStatusId && defaultStatusId) {
+      setValue('statusId', defaultStatusId);
     }
-  }, [isEditMode, selectedStatusId, statusOptions, setValue]);
+  }, [isEditMode, selectedStatusId, defaultStatusId, setValue]);
   const renderPreview = useCallback(
     (source: string) => (
       <div className="custom-preview-wrapper" style={{ height: '100%', overflow: 'auto' }}>

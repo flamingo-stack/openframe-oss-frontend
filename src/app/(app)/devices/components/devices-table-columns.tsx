@@ -212,7 +212,7 @@ export function getDeviceFilterColumns(deviceFilters?: DeviceFilters | null): De
       filterable: true,
       filterOptions: (() => {
         const statuses = deviceFilters?.statuses || [];
-        // Show only DEFAULT_VISIBLE_STATUSES (ARCHIVED lives on /devices/archive, DELETED hidden)
+        // Show only DEFAULT_VISIBLE_STATUSES (DELETED and legacy ARCHIVED live on /devices/archive)
         return statuses
           .filter(s => (DEFAULT_VISIBLE_STATUSES as readonly string[]).includes(s.value))
           .map(status => ({

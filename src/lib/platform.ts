@@ -11,8 +11,8 @@
  *     `/content` rewrite, in-app auth pages, no external navigation, and the
  *     App Store / Play billing ban.
  *   - `isMobileShell()` — the phone. FCM push, biometric login, status bar /
- *     splash / safe-area insets, Android hardware back, and the custom-scheme
- *     OAuth callback (desktop lands on https instead).
+ *     splash / safe-area insets, and Android hardware back. NOT the
+ *     custom-scheme OAuth callback: both shells complete login on it.
  *   - `isDesktopShell()` — Tauri. Shell-side token rotation and OS-notification
  *     click transports, both delivered as Tauri events.
  *

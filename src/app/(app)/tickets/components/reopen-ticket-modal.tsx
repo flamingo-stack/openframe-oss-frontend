@@ -66,8 +66,13 @@ export function ReopenTicketModal({ target, onClose, onSuccess }: ReopenTicketMo
   }, [ticket?.availableTransitions, kindById]);
 
   // Design default: Tech Required, unless the trigger already picked a status.
+  // The prefill is honored only when it is actually offerable: a drag/pick can
+  // name a status outside the ticket's `availableTransitions` (the board gates
+  // drops per-status, not per-ticket), and an unknown value would render in
+  // the select as the raw status id.
   const initialStatusId = useMemo(() => {
-    if (target?.initialStatusId) return target.initialStatusId;
+    const prefill = target?.initialStatusId;
+    if (prefill && statusOptions.some(o => o.value === prefill)) return prefill;
     return statusOptions.find(o => kindById.get(o.value) === TICKET_STATUS_KIND.TECH_REQUIRED)?.value ?? null;
   }, [target?.initialStatusId, statusOptions, kindById]);
 

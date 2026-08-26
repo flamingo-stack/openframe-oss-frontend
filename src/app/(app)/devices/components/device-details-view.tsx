@@ -124,11 +124,9 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     const destructiveItems: ActionsMenuItem[] = [];
 
     if (actionAvailability?.runScriptEnabled) primaryItems.push(deviceMenuItems.runScript);
-    primaryItems.push(deviceMenuItems.editDisplayName);
+    if (deviceMenuItems.editDisplayName) primaryItems.push(deviceMenuItems.editDisplayName);
     if (actionAvailability?.manageFilesEnabled) primaryItems.push(deviceMenuItems.manageFiles);
     if (deviceMenuItems.reboot) primaryItems.push(deviceMenuItems.reboot);
-    if (deviceMenuItems.archive) destructiveItems.push(deviceMenuItems.archive);
-    if (deviceMenuItems.unarchive) destructiveItems.push(deviceMenuItems.unarchive);
     if (deviceMenuItems.delete) destructiveItems.push(deviceMenuItems.delete);
 
     if (primaryItems.length > 0) {
@@ -197,7 +195,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         )}
       </TabNavigation>
 
-      {/* Run Script — native scripts-v2 modal (GraphQL run API). The legacy Tactical
+      {/* Run Script — native Scripts modal (GraphQL run API). The legacy Tactical
           ScriptsModal was removed together with the Tactical RMM integration. */}
       <RunScriptModal
         isOpen={isScriptsModalOpen}
