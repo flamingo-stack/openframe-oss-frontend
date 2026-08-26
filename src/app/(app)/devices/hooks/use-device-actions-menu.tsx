@@ -3,9 +3,7 @@
 import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core';
 import { normalizeOSType } from '@flamingo-stack/openframe-frontend-core';
 import {
-  BoxArchiveIcon,
   BracketCurlyIcon,
-  InboxArrowUpIcon,
   PenEditIcon,
   Refresh01LeftIcon,
   TrashIcon,
@@ -18,8 +16,6 @@ import { EditDisplayNameModal } from '../components/edit-display-name-modal';
 import type { Device } from '../types/device.types';
 import { type DeviceActionAvailability, getDeviceActionAvailability } from '../utils/device-action-utils';
 import { buildDeviceMenuItems } from '../utils/device-menu-items';
-import { getDeviceName } from '../utils/device-name';
-import { useDeviceActions } from './use-device-actions';
 import { useDeviceConfirmationDialogs } from './use-device-confirmation-dialogs';
 
 const DEFAULT_ICON_SIZE = 'w-6 h-6';
@@ -31,7 +27,7 @@ interface UseDeviceActionsMenuOptions {
   deviceId?: string;
   /** Tailwind classes for primary menu icons. Defaults to 'w-6 h-6'. */
   iconSize?: string;
-  /** When true, after archive/delete success also navigate to `/devices`. Composes with onActionComplete. */
+  /** When true, after delete success also navigate to `/devices`. Composes with onActionComplete. */
   navigateOnDestructive?: boolean;
 }
 
@@ -42,11 +38,10 @@ export interface DeviceActionsMenuItems {
   remoteControl: ActionsMenuItem | null;
   manageFiles: ActionsMenuItem;
   runScript: ActionsMenuItem;
-  editDisplayName: ActionsMenuItem;
+  /** Null on read-only archive records (DELETED / legacy ARCHIVED). */
+  editDisplayName: ActionsMenuItem | null;
   reboot: ActionsMenuItem | null;
   deviceLogs: ActionsMenuItem;
-  archive: ActionsMenuItem | null;
-  unarchive: ActionsMenuItem | null;
   delete: ActionsMenuItem | null;
 }
 
@@ -77,20 +72,10 @@ export function useDeviceActionsMenu(
     if (navigateOnDestructive) router.push(routes.devices.list);
   }, [onActionComplete, navigateOnDestructive, router]);
 
-  const { openArchive, openDelete, openReboot, dialogs, unarchiveDevice, isUnarchiving, isRebooting } =
-    useDeviceConfirmationDialogs(device, {
-      onArchived: handleDestructiveSuccess,
-      onDeleted: handleDestructiveSuccess,
-      onRebooted: onActionComplete,
-    });
-
-  // Unarchive is non-destructive and instantly reversible — no confirm dialog,
-  // just the action + toast. The device stays valid, so no navigation either.
-  const handleUnarchive = useCallback(async () => {
-    if (!device) return;
-    const success = await unarchiveDevice(deviceId, getDeviceName(device));
-    if (success) onActionComplete?.();
-  }, [device, deviceId, unarchiveDevice, onActionComplete]);
+  const { openDelete, openReboot, dialogs, isRebooting } = useDeviceConfirmationDialogs(device, {
+    onDeleted: handleDestructiveSuccess,
+    onRebooted: onActionComplete,
+  });
 
   const actionAvailability = useMemo(() => (device ? getDeviceActionAvailability(device) : null), [device]);
 
@@ -129,12 +114,14 @@ export function useDeviceActionsMenu(
       onClick: handleRunScript,
     };
 
-    const editDisplayName: ActionsMenuItem = {
-      id: 'edit-display-name',
-      label: 'Edit Display Name',
-      icon: <PenEditIcon className={`${iconSize} text-ods-text-secondary`} />,
-      onClick: () => setShowEditDisplayName(true),
-    };
+    const editDisplayName: ActionsMenuItem | null = actionAvailability?.editDisplayNameEnabled
+      ? {
+          id: 'edit-display-name',
+          label: 'Edit Display Name',
+          icon: <PenEditIcon className={`${iconSize} text-ods-text-secondary`} />,
+          onClick: () => setShowEditDisplayName(true),
+        }
+      : null;
 
     const reboot: ActionsMenuItem | null = actionAvailability?.rebootEnabled
       ? {
@@ -143,25 +130,6 @@ export function useDeviceActionsMenu(
           icon: <Refresh01LeftIcon className={`${iconSize} text-ods-text-secondary`} />,
           disabled: isRebooting,
           onClick: openReboot,
-        }
-      : null;
-
-    const archive: ActionsMenuItem | null = actionAvailability?.archiveEnabled
-      ? {
-          id: 'archive',
-          label: 'Archive Device',
-          icon: <BoxArchiveIcon className={`${iconSize} text-ods-text-secondary`} />,
-          onClick: openArchive,
-        }
-      : null;
-
-    const unarchive: ActionsMenuItem | null = actionAvailability?.unarchiveEnabled
-      ? {
-          id: 'unarchive',
-          label: 'Unarchive Device',
-          icon: <InboxArrowUpIcon className={`${iconSize} text-ods-text-secondary`} />,
-          disabled: isUnarchiving,
-          onClick: handleUnarchive,
         }
       : null;
 
@@ -190,8 +158,6 @@ export function useDeviceActionsMenu(
       editDisplayName,
       reboot,
       deviceLogs: base.deviceLogs,
-      archive,
-      unarchive,
       delete: deleteItem,
     };
   }, [
@@ -201,12 +167,9 @@ export function useDeviceActionsMenu(
     isWindows,
     iconSize,
     handleRunScript,
-    openArchive,
     openDelete,
     openReboot,
     isRebooting,
-    handleUnarchive,
-    isUnarchiving,
   ]);
 
   const allDialogs = (

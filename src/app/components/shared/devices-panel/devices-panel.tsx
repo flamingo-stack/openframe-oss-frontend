@@ -97,6 +97,11 @@ export interface DevicesPanelProps {
    * it doesn't flash before the answer is known.
    */
   isCheckingOrganizations?: boolean;
+  /**
+   * Drops the per-row actions dropdown, leaving only the open-in-new-tab arrow.
+   * Used by the archive page: DELETED devices are read-only records.
+   */
+  readOnlyRows?: boolean;
 }
 
 function DevicesPanelContent({
@@ -115,6 +120,7 @@ function DevicesPanelContent({
   emptyState,
   noOrganizations = false,
   isCheckingOrganizations = false,
+  readOnlyRows = false,
 }: DevicesPanelProps) {
   const router = useRouter();
 
@@ -192,7 +198,12 @@ function DevicesPanelContent({
     [columnFilters, handleFilterChange],
   );
 
-  const actionsColumn = useMemo<ColumnDef<Device>>(() => getDeviceActionsColumn(renderRowActions), [renderRowActions]);
+  // Read-only lists keep the column (width parity with the skeleton) but render
+  // nothing in it — rows offer only the open-in-new-tab arrow.
+  const actionsColumn = useMemo<ColumnDef<Device>>(
+    () => getDeviceActionsColumn(readOnlyRows ? undefined : renderRowActions),
+    [readOnlyRows, renderRowActions],
+  );
 
   const {
     isOpen: filterModalOpen,
