@@ -17,7 +17,7 @@ interface RunScriptModalProps {
 }
 
 /**
- * "Run Script on device" modal (scripts-v2). Steps:
+ * "Run Script on device" modal (Scripts). Steps:
  *   1. Select Script — search + tag-filtered, infinite-scroll list of ACTIVE
  *      scripts (new GraphQL).
  *   2. Run Script — a mini run view: the selected script's details + overridable

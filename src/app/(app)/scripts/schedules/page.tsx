@@ -1,9 +1,16 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
-import { ScheduleDetailView } from '../components/schedule/schedule-details-view';
+import { ContentErrorBoundary } from '@/app/components/shared';
+import { ScriptSchedulesTable } from '../schedule/components/script-schedules-table';
+import { ScriptsTabNavigation } from '../shared/components/scripts-tabs';
 
-export default function ScheduleDetailPage() {
-  const id = useSearchParams().get('id') ?? '';
-  return <ScheduleDetailView scheduleId={id} />;
+export default function ScriptSchedulesPage() {
+  return (
+    <div className="flex flex-col w-full">
+      <ScriptsTabNavigation activeTab="schedules" />
+      <ContentErrorBoundary title="Schedules" message="Couldn't load schedules.">
+        <ScriptSchedulesTable />
+      </ContentErrorBoundary>
+    </div>
+  );
 }

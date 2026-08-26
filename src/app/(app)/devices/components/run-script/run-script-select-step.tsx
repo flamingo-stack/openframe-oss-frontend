@@ -8,9 +8,9 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scriptsRunPickerRelay_query$key } from '@/__generated__/scriptsRunPickerRelay_query.graphql';
 import type { scriptsRunPickerRelayQuery as ScriptsRunPickerQueryType } from '@/__generated__/scriptsRunPickerRelayQuery.graphql';
-import { platformsToIds } from '@/app/(app)/scripts/v2/shared/utils/script-mappers';
+import { platformsToIds } from '@/app/(app)/scripts/shared/utils/script-mappers';
 import { scriptsRunPickerRelayFragment, scriptsRunPickerRelayQuery } from '@/graphql/scripts/scripts-run-picker-relay';
-import { ScriptsTagFilter, ScriptsTagFilterSkeleton } from '../../../scripts/v2/script/components/scripts-tag-filter';
+import { ScriptsTagFilter, ScriptsTagFilterSkeleton } from '../../../scripts/script/components/scripts-tag-filter';
 import { RunScriptSelectListSkeleton } from './run-script-skeletons';
 
 const PICKER_PAGE_SIZE = 20;

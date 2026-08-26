@@ -141,7 +141,7 @@ These mirror the app-router constraints (static-export build):
   `/help-center/releases/detail?slug=…` use `slug`, not `id`, because the content
   endpoints resolve by slug only and 404 on an id.
 - **Create pages are dedicated `/new` segments** (`/customers/new`,
-  `/monitoring/policy/new`, `/scripts-v2/new`), not an `?id=new` sentinel.
+  `/monitoring/policy/new`, `/scripts/new`), not an `?id=new` sentinel.
 - **Multi-param routes** compose through the options object:
   `/devices/details?id=…&tab=overview&action=runScript`.
 

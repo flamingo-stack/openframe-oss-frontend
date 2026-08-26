@@ -173,7 +173,7 @@ export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
 
 /**
  * Tab bar placeholder for the pages whose `TabNavigation` sits ABOVE the page
- * header (customers, monitoring, scripts-v2, notifications). Mirrors
+ * header (customers, monitoring, scripts, notifications). Mirrors
  * `TabNavigation`'s h-14 bar with icon + label cells; `widths` sets each cell's
  * width so the bar matches the real labels.
  */
