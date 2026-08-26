@@ -1,5 +1,5 @@
 import { getApprovalMeta, isApprovalNotification } from '@flamingo-stack/openframe-frontend-core';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // `graphql` tags are compiled away by the relay babel transform, which vitest doesn't run;
 // the tag would throw at module scope on import. The mapper under test takes already-read
@@ -17,9 +17,22 @@ import { isApprovalResolved, mapNotificationNode } from './notifications-helpers
  * The backend is mid-migration from a typed `context` union to a flat `type` + `attributes`
  * pair, and both shapes are on the wire at once: legacy rows carry only `context`, spec-path
  * rows carry only `type`/`attributes`, and a kill-switch can flip emission back at any time.
- * These pin that the mapper reads whichever shape arrived — the tests are the contract, since
- * `attributes` is an untyped JSON scalar and nothing else catches a wrong key.
+ *
+ * The mapper reads exactly ONE of them, chosen by the `notifications-legacy-path` lever, and
+ * never mixes the two on a row — so these tests come in pairs: what each shape yields on its
+ * own path, and what it yields (nothing) on the other one. That exclusivity is the contract,
+ * and the tests are the only thing pinning it: `attributes` is an untyped JSON scalar, so
+ * nothing else catches a wrong key or a fallback creeping back in.
  */
+
+/**
+ * The lever the mapper reads. Hoisted out of its own suite because it now decides which
+ * shape EVERY test here is exercising — a legacy-context row is only read on the legacy path.
+ */
+const setLegacyPath = (value: boolean) =>
+  useFeatureFlagsStore.setState({ isLoaded: true, flags: { 'notifications-legacy-path': value } });
+
+const resetFlags = () => useFeatureFlagsStore.setState({ isLoaded: false, flags: {} });
 
 const BASE = {
   id: 'Tm90aWZpY2F0aW9uOjE=',
@@ -41,7 +54,10 @@ function legacyContext(typename: string, fields: Record<string, unknown>) {
   return { __typename: typename, ...fields };
 }
 
-describe('legacy context rows', () => {
+describe('legacy context rows, on the legacy path', () => {
+  beforeEach(() => setLegacyPath(true));
+  afterEach(resetFlags);
+
   it('reads entity ids off the typed context', () => {
     const mapped = mapNotificationNode(
       node({ context: legacyContext('TicketAssignedContext', { type: 'TICKET_ASSIGNED', ticketId: 't-1' }) }),
@@ -71,6 +87,40 @@ describe('legacy context rows', () => {
   });
 });
 
+describe('legacy context rows, on the spec path', () => {
+  afterEach(resetFlags);
+
+  it('are read for nothing but their plain fields', () => {
+    // The exclusivity trade-off, stated as a test: until the backfill has swept these rows,
+    // the default path renders them as plain tiles rather than reading a contract it is not on.
+    setLegacyPath(false);
+    const mapped = mapNotificationNode(
+      node({ context: legacyContext('TicketAssignedContext', { type: 'TICKET_ASSIGNED', ticketId: 't-1' }) }),
+    );
+    expect(mapped.title).toBe('A title');
+    expect(mapped.meta?.ticketId).toBeUndefined();
+    expect(mapped.meta?.notificationType).toBeUndefined();
+    expect(mapped.meta?.contextType).toBeUndefined();
+    expect(mapped.type).toBeUndefined();
+  });
+
+  it('do not reach the approval tile through context.toolCalls', () => {
+    setLegacyPath(false);
+    const mapped = mapNotificationNode(
+      node({
+        category: 'MINGO',
+        context: legacyContext('AdminApprovalRequestContext', {
+          type: 'ADMIN_APPROVAL_REQUEST',
+          approvalRequestId: 'a-1',
+          dialogId: 'd-1',
+          toolCalls: [{ toolName: 'run_script', requiresApproval: true }],
+        }),
+      }),
+    );
+    expect(isApprovalNotification(mapped)).toBe(false);
+  });
+});
+
 describe('spec attribute rows', () => {
   it('reads entity ids off attributes when no context is present', () => {
     const mapped = mapNotificationNode(
@@ -92,15 +142,21 @@ describe('spec attribute rows', () => {
     expect(mapped.meta?.ticketId).toBeUndefined();
   });
 
-  it('prefers the spec type over a legacy context type on a dual-shape row', () => {
+  it('ignores the legacy context entirely on a dual-shape row', () => {
     const mapped = mapNotificationNode(
       node({
         type: 'TICKET_REOPENED',
         attributes: { ticketId: 'from-attributes' },
-        context: legacyContext('TicketReopenedContext', { type: 'TICKET_REOPENED', ticketId: 'from-context' }),
+        context: legacyContext('TicketReopenedContext', {
+          type: 'TICKET_REOPENED',
+          ticketId: 'from-context',
+          dialogId: 'from-context',
+        }),
       }),
     );
     expect(mapped.meta?.ticketId).toBe('from-attributes');
+    // Not merely outranked — a fact only the unselected shape carries stays absent.
+    expect(mapped.meta?.dialogId).toBeUndefined();
   });
 });
 
@@ -176,10 +232,9 @@ describe('approval resolution', () => {
 });
 
 describe('the notifications-legacy-path rollback lever', () => {
-  const setFlag = (value: boolean) =>
-    useFeatureFlagsStore.setState({ isLoaded: true, flags: { 'notifications-legacy-path': value } });
+  const setFlag = setLegacyPath;
 
-  afterEach(() => useFeatureFlagsStore.setState({ isLoaded: false, flags: {} }));
+  afterEach(resetFlags);
 
   const dualShapeRow = () =>
     node({
@@ -188,14 +243,31 @@ describe('the notifications-legacy-path rollback lever', () => {
       context: legacyContext('TicketReopenedContext', { type: 'TICKET_REOPENED', ticketId: 'from-context' }),
     });
 
-  it('prefers attributes while off', () => {
+  it('reads attributes while off', () => {
     setFlag(false);
     expect(mapNotificationNode(dualShapeRow()).meta?.ticketId).toBe('from-attributes');
   });
 
-  it('prefers the legacy context while on', () => {
+  it('reads the legacy context while on', () => {
     setFlag(true);
     expect(mapNotificationNode(dualShapeRow()).meta?.ticketId).toBe('from-context');
+  });
+
+  it('keeps unknown attribute keys off the legacy path', () => {
+    // `meta` is spread from the attribute bag, so exclusivity has to hold for keys this
+    // release has no code for too — otherwise the unselected contract leaks in wholesale.
+    setFlag(true);
+    const mapped = mapNotificationNode(
+      node({
+        type: 'TICKET_STATUS_CHANGED',
+        attributes: { ticketId: 'from-attributes', newStatusLabel: 'In Progress' },
+        context: legacyContext('TicketStatusChangedContext', {
+          type: 'TICKET_STATUS_CHANGED',
+          ticketId: 'from-context',
+        }),
+      }),
+    );
+    expect(mapped.meta?.newStatusLabel).toBeUndefined();
   });
 
   it('is off when the server has never heard of the flag', () => {
@@ -205,22 +277,23 @@ describe('the notifications-legacy-path rollback lever', () => {
     expect(mapNotificationNode(dualShapeRow()).meta?.ticketId).toBe('from-attributes');
   });
 
-  it('still falls back when the preferred shape is absent', () => {
-    // The lever flips preference, never the fallback: rows predating the backfill carry
-    // no attributes, and rows on the spec path may carry no context.
+  it('never falls back to the shape it did not select', () => {
+    // Both directions, because both are load-bearing: with the lever ON a spec-only row is
+    // not read off `attributes`, and with it OFF a legacy-only row is not read off `context`.
     setFlag(true);
-    expect(mapNotificationNode(node({ type: 'TICKET_ASSIGNED', attributes: { ticketId: 't-1' } })).meta?.ticketId).toBe(
-      't-1',
-    );
+    const specOnly = node({ type: 'TICKET_ASSIGNED', attributes: { ticketId: 't-1' } });
+    expect(mapNotificationNode(specOnly).meta?.ticketId).toBeUndefined();
+    expect(mapNotificationNode(specOnly).meta?.notificationType).toBeUndefined();
 
     setFlag(false);
     const legacyOnly = node({
       context: legacyContext('TicketAssignedContext', { type: 'TICKET_ASSIGNED', ticketId: 't-2' }),
     });
-    expect(mapNotificationNode(legacyOnly).meta?.ticketId).toBe('t-2');
+    expect(mapNotificationNode(legacyOnly).meta?.ticketId).toBeUndefined();
+    expect(mapNotificationNode(legacyOnly).meta?.notificationType).toBeUndefined();
   });
 
-  it('reads approval tool calls from the legacy context while on', () => {
+  it('reads approval tool calls from the legacy context while on, not from attributes', () => {
     setFlag(true);
     const mapped = mapNotificationNode(
       node({

@@ -100,17 +100,28 @@ export const featureFlags = {
     },
   },
   /**
-   * Rollback lever for the notification `type` + `attributes` migration: ON makes the
-   * mapper prefer the legacy `context` over `attributes` on rows that carry both.
+   * Rollback lever for the notification `type` + `attributes` migration: it selects which
+   * of the two contracts the row mapper reads. OFF (the default, and the normal state) →
+   * the spec pair `type` + `attributes`; ON → the legacy typed `context`.
+   *
+   * The selection is EXCLUSIVE, in both directions: the shape the lever does not name is
+   * not read at all, so a row carrying only that shape maps with no type and no entity ids
+   * instead of answering from the other contract. A rollback is therefore a clean swap of
+   * contracts, never a per-row mixture — at the cost that rows the backfill migration has
+   * not swept yet lose their navigation while the lever is OFF. `mapNotificationNode` in
+   * `graphql/notifications/notifications-helpers.ts` is where that is implemented, and
+   * `notifications-contract.test.ts` pins it.
    *
    * Mirrors the backend's `notifications.legacy-path` kill-switch by name, but is a
    * separate switch for a separate job — that one decides what gets WRITTEN, this one
    * what we READ. It exists so a rollback needs no frontend release; the flag is read
    * even before it is declared server-side, where it simply resolves to OFF.
    *
-   * OFF (the default, and the normal state) does NOT mean "attributes only": the mapper
-   * always falls back to whichever shape is present, because rows predating the backfill
-   * carry no attributes at all. The flag flips the ORDER OF PREFERENCE, never the fallback.
+   * NOT covered by this lever: the transport routing path (`notification-navigation.ts`
+   * `routeFromWireFields`, and the NATS payload helpers in `notifications-data-provider`),
+   * which reads whichever shape a push happens to carry. Those run on cold-start taps
+   * where no flags are loaded, and a push carries one shape anyway — the backend's own
+   * kill-switch decides which.
    */
   notificationsLegacyPath: {
     enabled(): boolean {

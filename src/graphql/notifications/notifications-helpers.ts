@@ -316,28 +316,38 @@ export function readNotificationNode(ref: NotificationFieldsKey): NotificationFi
  * data rather than the fragment reference, so a caller that also needs the raw
  * fields (the section table's own columns) reads the node once.
  *
- * Reads the spec contract (`type` + `attributes`) when the row carries it and falls back
- * to the legacy typed `context` when it doesn't. Both are optional on the wire — legacy
- * rows have no `type` until the backfill migration runs, new-path rows may carry no
- * context — and a row with neither still maps, it just offers no navigation.
+ * Reads exactly ONE of the two contracts — the spec pair (`type` + `attributes`) by
+ * default, the legacy typed `context` when the rollback lever is on — never a mix of
+ * both. A row that carries only the other shape still maps: it keeps its title, body,
+ * severity and timestamp, and offers no type or entity metadata (so: a plain tile, no
+ * navigation). See the lever comment inside for why that is the intended outcome.
  */
 export function mapNotificationNode(node: NotificationFieldsData): Notification {
   const severity = normalizeSeverity(node.severity);
-  const { context } = node;
-  const attributes = readNotificationAttributes(node.attributes);
 
   /**
-   * Which shape wins on a row that carries both. Normally the spec one; the
-   * `notifications-legacy-path` flag flips it back without a release, should attributes
-   * turn out wrong in production.
+   * Which contract this release reads. Normally the spec one; the `notifications-legacy-path`
+   * flag switches back to the typed `context` without a release, should attributes turn out
+   * wrong in production.
    *
-   * It flips the ORDER, not the fallback — whichever shape is absent is skipped either
-   * way. Reading only the preferred one would blank every row that has just the other,
-   * which is most of the history until the backfill migration has swept it.
+   * The switch is EXCLUSIVE: the shape the lever does not select is not read on any field,
+   * and a row carrying only that shape maps with no type and no entity ids rather than
+   * quietly answering from the other contract. That is the point — what the UI shows is
+   * always the shape the lever names, so a rollback is a clean swap and never a per-row
+   * mixture nobody can reason about. The cost is real and expected: with the lever OFF,
+   * rows the backfill migration has not swept yet (no `attributes`) lose their navigation
+   * until it has, and with it ON, spec-path rows that carry no context lose theirs.
+   *
+   * Zeroing the unselected side ONCE, here, is what makes that hold for the whole map —
+   * the `...attributes` spread below included, so unknown spec keys cannot leak into `meta`
+   * behind the lever's back.
    */
-  const preferLegacy = featureFlags.notificationsLegacyPath.enabled();
+  const readLegacy = featureFlags.notificationsLegacyPath.enabled();
+  const context = readLegacy ? node.context : null;
+  const attributes: Record<string, string> = readLegacy ? {} : readNotificationAttributes(node.attributes);
+  /** One fact, read off the selected shape only — there is no cross-shape fallback. */
   const pick = <T>(spec: T | undefined | null, legacy: T | undefined | null): T | undefined =>
-    (preferLegacy ? (legacy ?? spec) : (spec ?? legacy)) ?? undefined;
+    (readLegacy ? legacy : spec) ?? undefined;
 
   const notificationType = pick(node.type, context?.type);
 
@@ -351,8 +361,9 @@ export function mapNotificationNode(node: NotificationFieldsData): Notification 
 
   // Entity ids drive navigation and auto-read uniformly across types (see
   // resolveNotificationAction). Under `attributes` they sit at fixed keys for every type,
-  // known or not; the context aliases below exist only because the union declares the same
-  // field with different nullability per member.
+  // known or not; the context aliases below are not a fallback across shapes — they are one
+  // shape's own spelling variants, since the union declares the same field with different
+  // nullability per member.
   const ticketId = pick(
     attributes[NOTIFICATION_ATTR.ticketId],
     context?.ticketId ?? context?.approvalTicketId ?? context?.clientTicketId,
@@ -368,16 +379,13 @@ export function mapNotificationNode(node: NotificationFieldsData): Notification 
     meta.resolution = pick(attributes[NOTIFICATION_ATTR.resolution], context?.resolution) ?? null;
     meta.resolvedByName = pick(attributes[NOTIFICATION_ATTR.resolvedByName], context?.resolvedByName) ?? null;
     // Must end up an ARRAY: the core lib's `getApprovalMeta` bails on anything else, which
-    // would silently downgrade the approval tile to a plain one. The spread above put the
-    // raw JSON string here, so this assignment is not optional.
-    const specToolCalls = attributes[NOTIFICATION_ATTR.toolCalls];
-    const legacyToolCalls = context?.toolCalls;
-    meta.toolCalls =
-      preferLegacy && legacyToolCalls
-        ? normalizeToolCalls(legacyToolCalls)
-        : specToolCalls !== undefined
-          ? parseAttributeToolCalls(specToolCalls)
-          : normalizeToolCalls(legacyToolCalls);
+    // would silently downgrade the approval tile to a plain one. On the spec path the spread
+    // above put the raw JSON string here, so this assignment is not optional. The two shapes
+    // need different readers (a JSON-encoded string vs. typed records), which is why this one
+    // fact branches instead of going through `pick`.
+    meta.toolCalls = readLegacy
+      ? normalizeToolCalls(context?.toolCalls)
+      : parseAttributeToolCalls(attributes[NOTIFICATION_ATTR.toolCalls]);
   }
 
   return {

@@ -12,18 +12,21 @@ import { graphql } from 'react-relay';
  * of what the two documents happened to select.
  *
  * Two shapes of the same facts are selected side by side, and `mapNotificationNode`
- * prefers the first that is present:
+ * reads exactly one of them — whichever the `notifications-legacy-path` lever selects:
  *
- * 1. `type` + `attributes` — the spec-catalog contract (flat `string -> string` map).
- *    Entity ids live under fixed keys regardless of the type, so a type this release
- *    has never heard of still navigates and auto-reads.
- * 2. `context` — the legacy typed union, kept because it is what the backend still
- *    writes until the spec path ships, and what it writes again if the
- *    `notifications.legacy-path` kill-switch is flipped back on. Rows written before
+ * 1. `type` + `attributes` — the spec-catalog contract (flat `string -> string` map),
+ *    read by default. Entity ids live under fixed keys regardless of the type, so a type
+ *    this release has never heard of still navigates and auto-reads.
+ * 2. `context` — the legacy typed union, read when the lever is on. Kept because it is
+ *    what the backend still writes until the spec path ships, and what it writes again if
+ *    the `notifications.legacy-path` kill-switch is flipped back on. Rows written before
  *    the backfill migration carry only this.
  *
- * Neither is guaranteed: `context` is nullable on the new path, `type`/`attributes`
- * are null on legacy rows. Reading both is what makes the switch-over a no-op here.
+ * Both are selected here even though only one is read, because the lever is a runtime
+ * value and flipping it must not need a new query. Neither is guaranteed on the wire:
+ * `context` is nullable on the new path, `type`/`attributes` are null on legacy rows —
+ * and since the read is exclusive, a row carrying only the unselected shape maps without
+ * type or entity ids rather than falling back (see `mapNotificationNode`).
  *
  * `context` is a union: Relay flattens the inline fragments into one object
  * keyed by `__typename`, which is exactly what the mapper switches on.
