@@ -39,6 +39,9 @@ function getDomainSuffix(): string {
 
 export const SAAS_DOMAIN_SUFFIX = getDomainSuffix();
 
+/** Upper bound on the server-side logout call before sign-out proceeds anyway. */
+const LOGOUT_TIMEOUT_MS = 5000;
+
 export interface AuthApiResponse<T = any> {
   data?: T;
   error?: string;
@@ -350,16 +353,24 @@ class AuthApiClient {
       }
     }
 
+    // Bound the server call: a hung request must not block the caller, which
+    // waits on this before it clears local state and redirects. On timeout the
+    // abort rejects the fetch, this returns false, and sign-out still finishes.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
     try {
       await fetch(logoutUrl, {
         method: 'GET',
         credentials: 'include',
         redirect: 'manual',
         headers,
+        signal: controller.signal,
       });
       return true;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }

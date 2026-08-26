@@ -29,14 +29,22 @@ interface FetchArchivedResult {
 }
 
 async function runDialogMutation(query: string, variables: Record<string, unknown>, key: string): Promise<void> {
-  const response = await apiClient.post<{ data: Record<string, DialogMutationPayload> }>('/chat/graphql', {
+  const response = await apiClient.post<{
+    data: Record<string, DialogMutationPayload> | null;
+    errors?: { message: string }[];
+  }>('/chat/graphql', {
     query,
     variables,
   });
   if (!response.ok || !response.data) {
     throw new Error(response.error || 'Request failed');
   }
-  const payload = response.data.data[key];
+  // A GraphQL-level failure returns HTTP 200 with `data: null` and an `errors`
+  // array. Surface the server's message instead of dereferencing null `data`.
+  if (response.data.errors?.length) {
+    throw new Error(response.data.errors[0].message);
+  }
+  const payload = response.data.data?.[key];
   if (payload?.userErrors?.length) {
     throw new Error(payload.userErrors[0].message);
   }
@@ -118,7 +126,7 @@ export function useMingoDialogActions() {
   const fetchArchivedDialogs = useCallback(
     async (params: FetchArchivedParams): Promise<FetchArchivedResult> => {
       const runFetch = async (): Promise<FetchArchivedResult> => {
-        const response = await apiClient.post<DialogsResponse>('/chat/graphql', {
+        const response = await apiClient.post<DialogsResponse & { errors?: { message: string }[] }>('/chat/graphql', {
           query: GET_MINGO_DIALOGS_QUERY,
           variables: {
             filter: { agentTypes: ['ADMIN'], statuses: ['ARCHIVED'] },
@@ -128,6 +136,12 @@ export function useMingoDialogActions() {
         });
         if (!response.ok || !response.data) {
           throw new Error(response.error || 'Failed to fetch archived chats');
+        }
+        // A GraphQL-level failure returns HTTP 200 with `data: null` and an
+        // `errors` array. Surface the server's message instead of dereferencing
+        // null `data`.
+        if (response.data.errors?.length) {
+          throw new Error(response.data.errors[0].message);
         }
         const { edges, pageInfo } = response.data.data.dialogs;
         return {
