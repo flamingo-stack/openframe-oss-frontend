@@ -1,6 +1,11 @@
 'use client';
 
-import { PenEditIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  PasscodeIcon,
+  PenEditIcon,
+  PlusCircleIcon,
+  SearchIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   Card,
@@ -46,15 +51,19 @@ export function SsoConfigurationTab() {
   const [error, setError] = useState<string | null>(null);
   const [modalState, setModalState] = useState<{
     open: boolean;
+    mode: 'create' | 'edit';
     providerKey: string;
     displayName: string;
-    isEnabled: boolean;
     clientId?: string | null;
     clientSecret?: string | null;
     msTenantId?: string | null;
     autoProvisionUsers?: boolean;
     allowedDomains?: string[];
   } | null>(null);
+
+  // Providers the backend offers that have no stored configuration yet —
+  // the options behind "Add SSO Configuration".
+  const [availableForCreate, setAvailableForCreate] = useState<AvailableProvider[]>([]);
 
   // Shared SSO provider state
   const [tenantDomain, setTenantDomain] = useState<TenantDomainInfo | null>(null);
@@ -83,10 +92,18 @@ export function SsoConfigurationTab() {
       // 2) For each provider fetch its config in parallel
       const configs = await Promise.all(available.map(p => fetchProviderConfig(p.provider)));
 
-      const rows: UiProviderRow[] = available.map((p, idx) => {
+      // The table lists stored configurations only; providers without one feed
+      // the "Add SSO Configuration" dropdown instead.
+      const rows: UiProviderRow[] = [];
+      const unconfigured: AvailableProvider[] = [];
+      available.forEach((p, idx) => {
         const cfg = configs[idx];
-        const isEnabled = cfg?.enabled === true;
-        return {
+        if (!cfg) {
+          unconfigured.push(p);
+          return;
+        }
+        const isEnabled = cfg.enabled === true;
+        rows.push({
           id: p.provider,
           provider: p.provider,
           displayName: p.displayName,
@@ -94,14 +111,15 @@ export function SsoConfigurationTab() {
             label: isEnabled ? 'ACTIVE' : 'INACTIVE',
             variant: isEnabled ? 'success' : 'grey',
           },
-          hasConfig: Boolean(cfg?.clientId || cfg?.clientSecret),
-          allowedDomains: cfg?.allowedDomains || [],
-          autoProvisionUsers: cfg?.autoProvisionUsers || false,
+          hasConfig: Boolean(cfg.clientId || cfg.clientSecret),
+          allowedDomains: cfg.allowedDomains || [],
+          autoProvisionUsers: cfg.autoProvisionUsers || false,
           original: { available: p, config: cfg },
-        };
+        });
       });
 
       setProviders(rows);
+      setAvailableForCreate(unconfigured);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load SSO providers');
     } finally {
@@ -267,7 +285,7 @@ export function SsoConfigurationTab() {
             {row.original.allowedDomains.length > 0 ? row.original.allowedDomains.join(', ') : 'None'}
           </TruncateText>
         ),
-        meta: { width: 'w-[220px] shrink-0', hideAt: 'lg' },
+        meta: { width: 'w-[220px] shrink-0', hideAt: 'md' },
       },
       {
         accessorKey: 'hasConfig',
@@ -277,7 +295,8 @@ export function SsoConfigurationTab() {
             {row.original.hasConfig ? 'Configured' : 'Not configured'}
           </TruncateText>
         ),
-        meta: { width: 'w-[140px] shrink-0', hideAt: 'md' },
+        // The tablet keeps Allowed Domains and folds Configuration first (design 1614-66094).
+        meta: { width: 'w-[140px] shrink-0', hideAt: 'lg' },
       },
       {
         id: 'actions',
@@ -285,9 +304,9 @@ export function SsoConfigurationTab() {
           const openEditModal = () =>
             setModalState({
               open: true,
+              mode: 'edit',
               providerKey: row.original.provider,
               displayName: row.original.displayName,
-              isEnabled: row.original.status.label === 'ACTIVE',
               clientId: row.original.original?.config?.clientId,
               clientSecret: row.original.original?.config?.clientSecret,
               msTenantId: row.original.original?.config?.msTenantId,
@@ -346,6 +365,14 @@ export function SsoConfigurationTab() {
       title="SSO Configurations"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] bg-ods-bg"
       backButton={{ label: 'Back', onClick: handleBack }}
+      actions={[
+        {
+          label: 'Add SSO Configuration',
+          icon: <PlusCircleIcon />,
+          variant: 'accent',
+          onClick: () => setModalState({ open: true, mode: 'create', providerKey: '', displayName: '' }),
+        },
+      ]}
     >
       {/* Tenant-wide sign-in options: built-in OpenFrame login + open access for the tenant domain */}
       {isOpenframeLoading || isDomainLoading ? (
@@ -373,7 +400,7 @@ export function SsoConfigurationTab() {
                 disabled={isOpenframeUpdating}
                 title="Enable OpenFrame SSO"
                 description="Allow users to sign up and sign in with an OpenFrame account."
-                className="border-0 rounded-none bg-transparent"
+                className="border-0 rounded-none bg-transparent items-center [&_label]:text-h4 [&>button]:mt-0 [&>button]:bg-transparent"
               />
             )}
             {tenantDomain && (
@@ -388,7 +415,10 @@ export function SsoConfigurationTab() {
                     ? `Generic domains like ${tenantDomain.domain} cannot be used for open access.`
                     : 'Anyone with an account on your allowed domains can sign in to OpenFrame without an invitation. Their account is created automatically the first time they sign in.'
                 }
-                className={cn('border-0 rounded-none bg-transparent', openframeSso && 'border-t border-ods-border')}
+                className={cn(
+                  'border-0 rounded-none bg-transparent items-center [&_label]:text-h4 [&>button]:mt-0 [&>button]:bg-transparent',
+                  openframeSso && 'border-t border-ods-border',
+                )}
               />
             )}
           </Card>
@@ -397,30 +427,39 @@ export function SsoConfigurationTab() {
 
       <Input
         startAdornment={<SearchIcon />}
-        placeholder="Search SSO providers"
+        placeholder="Search for SSO"
         value={searchTerm}
         onChange={e => setSearchTerm(e.target.value)}
         className="w-full"
       />
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="provider" />} />
-        <DataTable.Body loading={isLoading} emptyMessage="No SSO providers found." rowClassName="mb-1" />
+        <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" />} />
+        <DataTable.Body
+          loading={isLoading}
+          emptyState={{
+            icon: <PasscodeIcon />,
+            title: 'No SSO configurations',
+            description: 'Set up your first SSO provider',
+          }}
+          rowClassName="mb-1"
+        />
       </DataTable>
       <SsoConfigModal
         isOpen={Boolean(modalState?.open)}
         onClose={() => setModalState(null)}
+        mode={modalState?.mode ?? 'edit'}
+        providerOptions={availableForCreate}
         providerKey={modalState?.providerKey || ''}
         providerDisplayName={modalState?.displayName || ''}
-        isEnabled={modalState?.isEnabled}
         initialClientId={modalState?.clientId}
         initialClientSecret={modalState?.clientSecret}
         initialMsTenantId={modalState?.msTenantId}
         initialAutoProvisionUsers={modalState?.autoProvisionUsers}
         initialAllowedDomains={modalState?.allowedDomains}
-        onSubmit={async ({ clientId, clientSecret, msTenantId, autoProvisionUsers, allowedDomains }) => {
-          if (!modalState?.providerKey) return;
-          await updateProviderConfig(modalState.providerKey, {
+        onSubmit={async ({ provider, clientId, clientSecret, msTenantId, autoProvisionUsers, allowedDomains }) => {
+          if (!provider) return;
+          await updateProviderConfig(provider, {
             clientId,
             clientSecret,
             msTenantId,
@@ -428,16 +467,10 @@ export function SsoConfigurationTab() {
             allowedDomains,
           });
           // Also enable the provider after saving
-          await toggleProviderEnabled(modalState.providerKey, true);
+          await toggleProviderEnabled(provider, true);
           // New onboarding has no SSO step, so the activation event fires on the
           // actual provider save+enable (SINGULAR — backend counts it once per user).
           trackDashboardActivity(EVENT_SUBTYPE.ADD_SSO_IDP);
-          await loadData();
-        }}
-        onDisable={async () => {
-          if (!modalState?.providerKey) return;
-          await toggleProviderEnabled(modalState.providerKey, false);
-          setModalState(null);
           await loadData();
         }}
       />
