@@ -51,6 +51,7 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { installSlashCommandVisibilityFilter } from '@/app/components/chat-slash-command-visibility';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
 
@@ -151,9 +152,16 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
 // earlier `setEmbedProxyAuth`-based approach persisted the openframe JWT under
 // `<appType>.chat.proxy-auth.v1`. That copy is frozen at login, so
 // `applyProxyAuth` kept attaching a stale/expired Bearer to `/content/*`.
+//
+// `installSlashCommandVisibilityFilter()`: v2 stopgap that trims the
+// server-owned slash-command catalog down to the four commands openframe ships
+// today. Registered here for the same reason as the adapter — the chat's
+// command requests fire from child mount effects. See the module header in
+// `chat-slash-command-visibility.ts` for why it has to sit on the response.
 if (typeof window !== 'undefined') {
   clearEmbedProxyAuth();
   setEmbedAuthAdapter(CHAT_AUTH_ADAPTER);
+  installSlashCommandVisibilityFilter();
 }
 
 export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode }) {
