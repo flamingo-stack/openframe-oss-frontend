@@ -34,9 +34,11 @@ interface AuthLoginSectionProps {
 export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading }: AuthLoginSectionProps) {
   const [loginMethod, setLoginMethod] = useState<'sso' | 'email'>('sso');
 
-  // Separate OpenFrame SSO from standard providers
-  const hasOpenFrameSso = availableProviders.includes('openframe-sso');
-  const standardProviders = availableProviders.filter(provider => provider !== 'openframe-sso');
+  // Separate the built-in OpenFrame login from standard providers.
+  // The backend reports it as 'openframe'; 'openframe-sso' is the legacy id.
+  const OPENFRAME_IDS = ['openframe', 'openframe-sso'];
+  const hasOpenFrameSso = availableProviders.some(provider => OPENFRAME_IDS.includes(provider));
+  const standardProviders = availableProviders.filter(provider => !OPENFRAME_IDS.includes(provider));
 
   const enabledProviders: SsoProvider[] = standardProviders.map(provider => ({
     provider: provider,
@@ -80,7 +82,7 @@ export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading 
                 {hasOpenFrameSso && (
                   <>
                     <Button
-                      onClick={() => handleSsoClick('openframe-sso')}
+                      onClick={() => handleSsoClick('openframe')}
                       disabled={isLoading}
                       loading={isLoading && loginMethod === 'sso'}
                       variant="accent"
