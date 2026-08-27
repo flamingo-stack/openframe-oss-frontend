@@ -26,7 +26,6 @@ import {
   type DateRange,
   FilterModal,
   Input,
-  multiSelectFilterFn,
   PageLayout,
   type Row,
   TruncateText,
@@ -73,6 +72,7 @@ import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 import { SCHEDULE_COLUMNS, SCHEDULES_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import { formatScheduleStartAt, isEventTrigger, repeatToLabel } from '../utils/schedule-timing';

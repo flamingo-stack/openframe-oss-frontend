@@ -189,7 +189,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         {tabId => (
           <TabContent
             activeTab={tabId}
-            TabComponent={getTabComponent(DEVICE_TABS, tabId)}
+            TabComponent={getTabComponent(DEVICE_TABS, tabId) ?? null}
             componentProps={{ device: normalizedDevice }}
           />
         )}

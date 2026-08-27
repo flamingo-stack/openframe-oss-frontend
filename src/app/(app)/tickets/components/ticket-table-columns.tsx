@@ -5,7 +5,6 @@ import {
   type ColumnFiltersState,
   DataTable,
   DeviceCardCompact,
-  multiSelectFilterFn,
   type OnChangeFn,
   type Row,
   resolveStatusTagProps,
@@ -22,6 +21,7 @@ import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { ClientDialogOwner, Dialog } from '../types/dialog.types';
 import { TICKET_COLUMNS } from './ticket-table-layout';
 
