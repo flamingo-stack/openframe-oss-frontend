@@ -9,6 +9,7 @@ import { useMutation } from 'react-relay';
 import type { createScriptScheduleMutation as CreateScheduleMutationType } from '@/__generated__/createScriptScheduleMutation.graphql';
 import type { updateScriptScheduleMutation as UpdateScheduleMutationType } from '@/__generated__/updateScriptScheduleMutation.graphql';
 import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
+import { ScheduleOfflineBehavior } from '@/generated/schema-enums';
 import { createScriptScheduleMutation } from '@/graphql/scripts/create-script-schedule-mutation';
 import { updateScriptScheduleMutation } from '@/graphql/scripts/update-script-schedule-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
@@ -21,7 +22,13 @@ import {
   editScheduleFormSchema,
 } from '../types/edit-schedule.types';
 import { collectScriptCustomParams } from '../utils/schedule-script-params';
-import { applyTimeSlot, isEventTrigger, resolveRepeatSeconds, toScheduleInstant } from '../utils/schedule-timing';
+import {
+  applyTimeSlot,
+  isEventTrigger,
+  isRetryOnReconnect,
+  resolveDurationSeconds,
+  toScheduleInstant,
+} from '../utils/schedule-timing';
 
 interface UseEditScheduleFormOptions {
   /** `null` on the create page — which is also what picks create over update. */
@@ -67,6 +74,9 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         !isEventDriven && data.scheduledDate && data.scheduledTime
           ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime))
           : null;
+      // The window is written only when the behavior that uses it is in force,
+      // and an event-driven schedule has neither.
+      const retriesOnReconnect = !isEventDriven && isRetryOnReconnect(data.offlineBehavior);
       const input = {
         name: data.name,
         // PUT semantics on update: null clears the stored description.
@@ -75,7 +85,7 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // Order is the payload: the card order (drag & drop) IS the run order.
         // TODO(backend): per-script TIMEOUT is still edited in the cards and
         // dropped here — `ScheduledScriptCustomParamsInput` carries args and env
-        // vars only (docs/script-schedules-graphql-gaps.md §3).
+        // vars only.
         scriptIds: data.scripts.map(s => s.scriptId),
         // Sparse by construction: a script whose args and env vars still equal
         // its own defaults contributes no entry, so the schedule keeps
@@ -87,14 +97,31 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // PUT semantics: null clears the timing / recurrence. `repeat` needs a
         // start to anchor it, which a DATE_TIME schedule always has by now.
         startAt,
-        // `resolveRepeatSeconds`, not the raw parts: a stored cadence the unit
+        // `resolveDurationSeconds`, not the raw parts: a stored cadence the unit
         // dropdown can't express is displayed rounded, and writing that display
         // back would change how often the schedule runs on an edit that never
         // touched recurrence.
         repeat:
           startAt && data.repeatEnabled
-            ? resolveRepeatSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
+            ? resolveDurationSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
             : null,
+        // "If device is offline at scheduled time" — meaningless without one, so
+        // an event-driven schedule is written back as the SKIP default rather
+        // than carrying whatever the collapsed block still holds. It fires ON
+        // the reconnect already; there is no offline moment to decide about.
+        offlineBehavior: isEventDriven ? ScheduleOfflineBehavior.SKIP : data.offlineBehavior,
+        // Only ever set alongside RETRY_ON_RECONNECT — the schema says the field
+        // is "set only when offlineBehavior is RETRY_ON_RECONNECT; null/ignored
+        // for SKIP", and PUT semantics make sending a stale window on a schedule
+        // switched back to SKIP a stored value nothing displays.
+        //
+        // `resolveDurationSeconds` for the same reason `repeat` uses it, and
+        // more sharply: this field sits on no grid, so a window the unit
+        // dropdown genuinely cannot express is reachable, and writing the
+        // rounded display back would shorten it on an unrelated edit.
+        reconnectWindowSeconds: retriesOnReconnect
+          ? resolveDurationSeconds(data.reconnectInterval, data.reconnectUnit, data.reconnectWindowSecondsStored)
+          : null,
       };
 
       if (isEditMode && scheduleId) {

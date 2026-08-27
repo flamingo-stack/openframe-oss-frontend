@@ -15,6 +15,7 @@ import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '../../shared/utils/script-utils';
 import { type EditScheduleFormData, TRIGGER_OPTIONS } from '../types/edit-schedule.types';
 import { isEventTrigger } from '../utils/schedule-timing';
+import { ScheduleOfflineFields } from './schedule-offline-fields';
 import { ScheduleScriptsField } from './schedule-scripts-field';
 import { ScheduleTimingFields } from './schedule-timing-fields';
 
@@ -130,8 +131,6 @@ export function ScheduleFormFields({ showErrors, disabled = false }: ScheduleFor
         />
       )}
 
-      <ScheduleTimingFields showErrors={showErrors} disabled={disabled} />
-
       {/* The min-1 error overlays the section gap below the row (same absolute
           pattern as the script form) — no layout shift. `data-invalid`: the block
           has no input of its own, so it carries the marker itself, which is what
@@ -165,6 +164,13 @@ export function ScheduleFormFields({ showErrors, disabled = false }: ScheduleFor
           </div>
         )}
       </div>
+
+      <ScheduleTimingFields showErrors={showErrors} disabled={disabled} />
+
+      {/* Hangs off the same answer as the timing above it — "if device is
+          offline at scheduled time" presupposes one — so it collapses for the
+          event trigger too, and the two blocks animate together. */}
+      <ScheduleOfflineFields showErrors={showErrors} disabled={disabled} />
 
       <ScheduleScriptsField showErrors={showErrors} disabled={disabled} />
     </div>

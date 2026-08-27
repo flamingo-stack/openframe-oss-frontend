@@ -27,7 +27,7 @@ import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { initiatorName } from '../../shared/utils/execution-helpers';
 import { platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleArchive } from '../hooks/use-schedule-archive';
-import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
+import { formatScheduleStartAt, isEventTrigger, offlineBehaviorToLabel, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import {
   SCHEDULE_DEFAULT_TAB,
@@ -177,6 +177,14 @@ function ScheduleInfoBar({ scheduleId }: ScheduleDetailsViewProps) {
 
   const { date, time } = formatScheduleStartAt(schedule.startAt);
 
+  // A DEVICE_ONLINE schedule waits for the device by definition, so the offline
+  // setting does not apply — the edit form hides its block for the same reason,
+  // and a value shown here that cannot be edited there would read as a setting
+  // the page had lost.
+  const ifDeviceOffline = isEventTrigger(schedule.trigger)
+    ? undefined
+    : offlineBehaviorToLabel(schedule.offlineBehavior, schedule.reconnectWindowSeconds);
+
   // No name / note row: the page title carries them (design node 260:44649).
   return (
     <ScheduleInfoBarFromData
@@ -186,6 +194,7 @@ function ScheduleInfoBar({ scheduleId }: ScheduleDetailsViewProps) {
       platforms={platformsToIds(schedule.supportedPlatforms)}
       trigger={schedule.trigger}
       addedBy={initiatorName(schedule.author)}
+      ifDeviceOffline={ifDeviceOffline}
     />
   );
 }
