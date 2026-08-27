@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Chevron02RightIcon,
   PasscodeIcon,
   PenEditIcon,
   PlusCircleIcon,
@@ -384,24 +383,21 @@ export function SsoConfigurationTab() {
             });
 
           return (
-            <div className="flex items-center justify-end">
-              {/* Desktop: square edit icon button (design 1614-66071); it must not trigger the row's details click */}
-              <div data-no-row-click className="hidden md:flex pointer-events-auto">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label={`Edit ${row.original.displayName}`}
-                  onClick={openEditModal}
-                  leftIcon={<PenEditIcon />}
-                />
-              </div>
-              {/* Mobile: a chevron affordance — the whole row opens Configuration Details (design 1614-66116) */}
-              <Chevron02RightIcon className="h-6 w-6 text-ods-text-secondary md:hidden" />
+            // A square edit icon button on every breakpoint (designs 1614-66071/66116);
+            // it must not trigger the row's Configuration Details click.
+            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label={`Edit ${row.original.displayName}`}
+                onClick={openEditModal}
+                leftIcon={<PenEditIcon />}
+              />
             </div>
           );
         },
         enableSorting: false,
-        meta: { width: 'w-8 shrink-0 md:w-16', align: 'right' },
+        meta: { width: 'w-11 shrink-0 md:w-16', align: 'right' },
       },
     ],
     [],
@@ -429,14 +425,18 @@ export function SsoConfigurationTab() {
       title="SSO Configurations"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] bg-ods-bg"
       backButton={{ label: 'Back', onClick: handleBack }}
-      actions={[
-        {
-          label: 'Add SSO Configuration',
-          icon: <PlusCircleIcon />,
-          variant: 'accent',
-          onClick: () => setModalState({ open: true, mode: 'create', providerKey: '', displayName: '' }),
-        },
-      ]}
+      actions={
+        availableForCreate.length > 0
+          ? [
+              {
+                label: 'Add SSO Configuration',
+                icon: <PlusCircleIcon />,
+                variant: 'accent',
+                onClick: () => setModalState({ open: true, mode: 'create', providerKey: '', displayName: '' }),
+              },
+            ]
+          : undefined
+      }
     >
       {/* Tenant-wide sign-in options: built-in OpenFrame login + open access for the tenant domain */}
       {isOpenframeLoading || isDomainLoading ? (
