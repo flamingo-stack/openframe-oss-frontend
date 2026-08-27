@@ -10,10 +10,10 @@ import {
   dateToTimeSlot,
   fromScheduleInstant,
   isEventTrigger,
-  isRetryOnReconnect,
   isStartInPastAndChanged,
   MIN_REPEAT_MINUTES,
   PAST_START_MESSAGE,
+  resolveOfflineBehavior,
   secondsToDuration,
   startOfToday,
 } from '../utils/schedule-timing';
@@ -60,7 +60,7 @@ export function platformLabel(id: string): string {
 // otherwise, and only the halves that still differ from those defaults are
 // written back. `timeoutSeconds` remains the one field with nowhere to go — the
 // override input carries no timeout — so it is still seeded from the script and
-// dropped on submit (docs/script-schedules-graphql-gaps.md §3).
+// dropped on submit.
 export const editScheduleFormSchema = z
   .object({
     name: z.string().min(1, 'Please enter a schedule name').max(255, 'Name must not exceed 255 characters'),
@@ -337,12 +337,9 @@ export function scheduleToFormValues(schedule: ScheduleDetailData): EditSchedule
     repeatUnit: repeatParts?.unit ?? 'day',
     repeatSecondsStored: schedule.repeat ?? null,
     startAtStored: schedule.startAt ?? null,
-    // Read through the predicate, not `as`: the field is a Relay enum and
-    // carries a `%future added value` member, so a behavior this client doesn't
-    // know settles on SKIP rather than widening the form's union.
-    offlineBehavior: isRetryOnReconnect(schedule.offlineBehavior)
-      ? ScheduleOfflineBehavior.RETRY_ON_RECONNECT
-      : ScheduleOfflineBehavior.SKIP,
+    // Normalised, not cast: null or a value this client doesn't know settles on
+    // SKIP rather than widening the form's union (see `resolveOfflineBehavior`).
+    offlineBehavior: resolveOfflineBehavior(schedule.offlineBehavior),
     reconnectInterval: reconnectParts.interval,
     reconnectUnit: reconnectParts.unit,
     reconnectWindowSecondsStored: schedule.reconnectWindowSeconds ?? null,

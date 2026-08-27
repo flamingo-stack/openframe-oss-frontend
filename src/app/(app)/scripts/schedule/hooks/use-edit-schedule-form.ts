@@ -85,7 +85,7 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // Order is the payload: the card order (drag & drop) IS the run order.
         // TODO(backend): per-script TIMEOUT is still edited in the cards and
         // dropped here — `ScheduledScriptCustomParamsInput` carries args and env
-        // vars only (docs/script-schedules-graphql-gaps.md §3).
+        // vars only.
         scriptIds: data.scripts.map(s => s.scriptId),
         // Sparse by construction: a script whose args and env vars still equal
         // its own defaults contributes no entry, so the schedule keeps

@@ -10,8 +10,7 @@
 > incompatible field.
 >
 > What is genuinely still missing (criteria mode, delta mutations,
-> immediate-commit) is tracked in `docs/script-schedules-graphql-gaps.md`,
-> which is the live status document.
+> immediate-commit) is recorded in the code comments at the call sites.
 >
 > Delivered frontend: `src/graphql/scripts/script-schedule-devices-relay.ts`
 > (paginated tab + one-page id read) and `schedule-devices-table.tsx` /

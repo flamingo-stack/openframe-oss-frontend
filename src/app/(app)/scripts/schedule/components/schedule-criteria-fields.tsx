@@ -171,8 +171,8 @@ export function ScheduleCriteriaFields({ criteria, onChange, deviceFilters, disa
 /**
  * Drawn in the design as a working chip input, but there is nowhere to put what
  * it collects: `ScheduleDeviceCriteriaInput` is closed at { organizationIds,
- * deviceTypes, osTypes }, with no field for tags or any free-form term
- * (docs/script-schedules-graphql-gaps.md §7). Kept in place and disabled,
+ * deviceTypes, osTypes }, with no field for tags or any free-form term.
+ * Kept in place and disabled,
  * tagged the way this screen already marks what is not built yet, rather than
  * shipped as a control that swallows whatever the user types.
  *
@@ -258,9 +258,9 @@ export function ScheduleCriteriaSummary({ criteria }: { criteria: ScheduleCriter
         : []),
       { label: 'OS', value: criteria.osTypes.length ? criteria.osTypes.join(', ') : 'All Platforms' },
       // The design's fourth row, "Custom Criteria", has no field behind it —
-      // `ScheduleDeviceCriteriaInput` is closed at the three dimensions above
-      // (docs/script-schedules-graphql-gaps.md §7). A row that could only
-      // ever read empty is left out rather than shipped as furniture; the
+      // `ScheduleDeviceCriteriaInput` is closed at the three dimensions above.
+      // A row that could only ever read empty is left out rather than shipped
+      // as furniture; the
       // editor is where the gap is marked, with its "Coming Soon" tag.
     ];
   }, [criteria, organizations]);

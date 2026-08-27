@@ -10,7 +10,7 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import type { ScheduleDevicesSettingsData } from '../types/schedule-detail.types';
 import { toEnvVarInputs } from '../utils/schedule-script-params';
-import { isEventTrigger, isRetryOnReconnect } from '../utils/schedule-timing';
+import { isEventTrigger, resolveOfflineBehavior } from '../utils/schedule-timing';
 
 interface SaveSpecificModeCallbacks {
   onSaved?: () => void;
@@ -94,9 +94,7 @@ export function useScheduleSelectionMode(schedule: ScheduleDevicesSettingsData |
             // dropping it would not just blank a value: the input reads null as
             // SKIP, so omitting it would quietly turn a schedule that queues
             // runs for offline devices into one that skips them.
-            offlineBehavior: isRetryOnReconnect(schedule.offlineBehavior)
-              ? ScheduleOfflineBehavior.RETRY_ON_RECONNECT
-              : ScheduleOfflineBehavior.SKIP,
+            offlineBehavior: resolveOfflineBehavior(schedule.offlineBehavior),
             reconnectWindowSeconds: schedule.reconnectWindowSeconds,
             startAt: schedule.startAt,
             repeat: schedule.repeat,

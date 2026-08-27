@@ -189,6 +189,26 @@ export function offlineBehaviorToLabel(
 }
 
 /**
+ * A stored `offlineBehavior` narrowed to the two arms this client knows, with
+ * anything else — including null — settling on SKIP.
+ *
+ * The read side of the schema declares the field non-null, so TypeScript says
+ * this cannot happen; the WRITE side declares it nullable and documents null as
+ * meaning SKIP, which is the same rule from the other direction. Normalising
+ * here keeps the two consistent without trusting either declaration: Relay also
+ * types every schema enum with a `%future added value` member, so a value added
+ * server-side would otherwise flow into a union that cannot hold it.
+ *
+ * SKIP is the safe arm to land on — it is what every schedule authored before
+ * the field existed already does.
+ */
+export function resolveOfflineBehavior(
+  behavior: ScheduleOfflineBehavior | string | null | undefined,
+): ScheduleOfflineBehavior {
+  return isRetryOnReconnect(behavior) ? ScheduleOfflineBehavior.RETRY_ON_RECONNECT : ScheduleOfflineBehavior.SKIP;
+}
+
+/**
  * What the "Stop Retry after" pair starts at — the design's own default
  * (node 460:63425). It is only ever a SEED: the field is required whenever
  * RETRY_ON_RECONNECT is picked, so every saved schedule carries a window the
@@ -196,7 +216,6 @@ export function offlineBehaviorToLabel(
  */
 export const DEFAULT_RECONNECT_WINDOW: { interval: number; unit: DurationUnit } = { interval: 1, unit: 'week' };
 
-/** Human label for the REPEAT column / info bar ("Once", "1 Week", "3 Days"). */
 /**
  * A span of seconds as "1 Week" / "3 Days" — the coarsest unit that divides it
  * exactly, matching what the form's own interval + unit pair would have shown.
@@ -219,6 +238,7 @@ function secondsToLabel(seconds: number): string {
   return mins === 1 ? '1 Minute' : `${mins} Minutes`;
 }
 
+/** Human label for the REPEAT column / info bar ("Once", "1 Week", "3 Days"). */
 export function repeatToLabel(repeat: number | null | undefined): string {
   if (!repeat || repeat <= 0) return 'Once';
   return secondsToLabel(repeat);
