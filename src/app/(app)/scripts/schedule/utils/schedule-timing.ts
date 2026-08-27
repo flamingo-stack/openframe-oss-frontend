@@ -99,8 +99,8 @@ export const DURATION_UNIT_OPTIONS: { label: string; value: DurationUnit }[] = D
  * Used when the unit CHANGES: switching "1 Day" to minutes would otherwise leave
  * "1 Minute" sitting in the form, a value the user never typed and cannot save.
  */
-export function snapRepeatInterval(interval: number, unit: DurationUnit): number {
-  if (unit !== 'minute') return interval;
+export function snapRepeatInterval(interval: number | null, unit: DurationUnit): number | null {
+  if (unit !== 'minute' || interval === null) return interval;
   if (!Number.isFinite(interval) || interval < MIN_REPEAT_MINUTES) return MIN_REPEAT_MINUTES;
   return Math.ceil(interval / MIN_REPEAT_MINUTES) * MIN_REPEAT_MINUTES;
 }
@@ -209,12 +209,46 @@ export function resolveOfflineBehavior(
 }
 
 /**
- * What the "Stop Retry after" pair starts at — the design's own default
- * (node 460:63425). It is only ever a SEED: the field is required whenever
+ * The floor on the reconnect window, in minutes.
+ *
+ * NOT the runner's grid — this field sits on none, the backend accepts any
+ * number of seconds. It is the same 30 as {@link MIN_REPEAT_MINUTES} and a
+ * separate constant on purpose: that one follows the runner, this one follows
+ * the shortest cadence a schedule can have, and there is no reason the two must
+ * move together.
+ *
+ * Unlike the repeat floor it is a MINIMUM only — no multiple-of-30 rule, because
+ * there is no grid for a value to land on. A 45-minute window is legal.
+ */
+export const MIN_RECONNECT_MINUTES = 30;
+
+/**
+ * Raises a reconnect interval to its floor when the unit switches to minutes —
+ * the counterpart of {@link snapRepeatInterval}, minus the multiple half.
+ *
+ * `null` (the field cleared while typing) passes through untouched: snapping it
+ * to a number would refill a box the user is in the middle of emptying, which is
+ * the behaviour this whole pair of fields was reported for.
+ */
+export function snapReconnectInterval(interval: number | null, unit: DurationUnit): number | null {
+  if (unit !== 'minute' || interval === null) return interval;
+  return Math.max(interval, MIN_RECONNECT_MINUTES);
+}
+
+/**
+ * What the "Stop Retry after" pair starts at.
+ *
+ * The design shows 1 Week (node 460:63425); the product rule is the floor —
+ * minutes, at the minimum — so a new schedule starts at the smallest legal
+ * window and the user raises it, rather than starting at a week they may not
+ * want. It is only ever a SEED: the field is required whenever
  * RETRY_ON_RECONNECT is picked, so every saved schedule carries a window the
  * user could see, and `reconnectWindowSeconds` is never written blind.
  */
-export const DEFAULT_RECONNECT_WINDOW: { interval: number; unit: DurationUnit } = { interval: 1, unit: 'week' };
+export const DEFAULT_RECONNECT_WINDOW: { interval: number; unit: DurationUnit } = {
+  interval: MIN_RECONNECT_MINUTES,
+  unit: 'minute',
+};
 
 /**
  * A span of seconds as "1 Week" / "3 Days" — the coarsest unit that divides it

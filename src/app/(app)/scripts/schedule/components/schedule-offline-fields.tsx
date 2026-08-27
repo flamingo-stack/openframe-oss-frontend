@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Input,
   Label,
   RadioGroupBlock,
   Select,
@@ -14,12 +13,21 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useController, useFormContext, useWatch } from 'react-hook-form';
 import { type EditScheduleFormData, OFFLINE_BEHAVIOR_OPTIONS } from '../types/edit-schedule.types';
-import { DURATION_UNIT_OPTIONS, type DurationUnit, isEventTrigger, isRetryOnReconnect } from '../utils/schedule-timing';
+import {
+  DURATION_UNIT_OPTIONS,
+  type DurationUnit,
+  isEventTrigger,
+  isRetryOnReconnect,
+  MIN_RECONNECT_MINUTES,
+  snapReconnectInterval,
+} from '../utils/schedule-timing';
+import { ScheduleIntervalInput } from './schedule-interval-input';
 
 interface ReconnectWindowFieldsProps {
-  interval: number;
+  interval: number | null;
   unit: DurationUnit;
-  onIntervalChange: (next: number) => void;
+  onIntervalChange: (next: number | null) => void;
+  onIntervalBlur: () => void;
   onUnitChange: (next: DurationUnit) => void;
   disabled: boolean;
   invalid: boolean;
@@ -44,6 +52,7 @@ function ReconnectWindowFields({
   interval,
   unit,
   onIntervalChange,
+  onIntervalBlur,
   onUnitChange,
   disabled,
   invalid,
@@ -56,19 +65,19 @@ function ReconnectWindowFields({
       <span className={cn('text-h4 shrink-0', disabled ? 'text-ods-text-disabled' : 'text-ods-text-secondary')}>
         Stop Retry after
       </span>
-      <Input
-        type="number"
-        min={1}
+      <ScheduleIntervalInput
+        min={unit === 'minute' ? MIN_RECONNECT_MINUTES : 1}
         aria-label="Stop retry after"
         className={controlWidth}
-        // Same guard the repeat interval uses: an emptied field falls back to
-        // the floor rather than to NaN, so clearing it to retype never puts a
-        // value in the form that the schema then has to reject.
-        value={String(interval ?? '')}
-        onChange={e => onIntervalChange(e.target.value ? Number(e.target.value) : 1)}
+        value={interval}
+        onChange={onIntervalChange}
+        onBlur={onIntervalBlur}
         disabled={disabled}
         invalid={invalid}
       />
+      {/* Switching to minutes drags the interval up to the floor with it: "1 Day"
+          would otherwise read "1 Minute", a value the user never typed and the
+          form cannot save. Coarser units clear the floor by construction. */}
       <Select value={unit} onValueChange={(next: DurationUnit) => onUnitChange(next)} disabled={disabled}>
         <SelectTrigger className={controlWidth} aria-label="Stop retry after unit">
           <SelectValue />
@@ -123,12 +132,22 @@ export function ScheduleOfflineFields({ showErrors, disabled = false }: { showEr
   const windowDisabled = disabled || !isRetryOnReconnect(behaviorField.value);
   const intervalError = showErrors ? intervalState.error?.message : undefined;
 
+  // Switching TO minutes drags the interval up to the floor with it, the way the
+  // repeat pair does: "1 Day" would otherwise read "1 Minute", a value the user
+  // never typed and the form cannot save. A cleared field stays cleared.
+  const handleUnitChange = (next: DurationUnit) => {
+    unitField.onChange(next);
+    const snapped = snapReconnectInterval(intervalField.value, next);
+    if (snapped !== intervalField.value) intervalField.onChange(snapped);
+  };
+
   const windowFieldsFor = (fluid: boolean) => (
     <ReconnectWindowFields
       interval={intervalField.value}
       unit={unitField.value}
       onIntervalChange={intervalField.onChange}
-      onUnitChange={unitField.onChange}
+      onIntervalBlur={intervalField.onBlur}
+      onUnitChange={handleUnitChange}
       disabled={windowDisabled}
       invalid={!!intervalError}
       fluid={fluid}
