@@ -72,6 +72,10 @@ function ReconnectWindowFields({
         value={interval}
         onChange={onIntervalChange}
         onBlur={onIntervalBlur}
+        // Where a failed Save should land. Without it the section marker below
+        // hands focus to its first focusable descendant, which is the "Skip
+        // this Run" radio — three controls away from the value to fix.
+        data-invalid-focus
         disabled={disabled}
         invalid={invalid}
       />
@@ -181,10 +185,11 @@ export function ScheduleOfflineFields({ showErrors, disabled = false }: { showEr
             instead of closing the section gap. */}
         <div className="pb-[var(--spacing-system-lf)]">
           {/* `data-invalid` on the SECTION, not on the number inputs: one of
-              those two is always display:none, and `scrollToFirstInvalidField`
-              takes the first marker in DOM order — which would be the hidden one
-              half the time. An ancestor is matched before either, is visible at
-              every breakpoint, and hands focus to the first control inside it. */}
+              those two copies is always display:none, and an ancestor is matched
+              before either, so the marker is visible at every breakpoint. What
+              it cannot say on its own is WHERE to put focus — the first
+              focusable inside it is the "Skip this Run" radio — so the input
+              carries `data-invalid-focus` and the helper prefers it. */}
           <div
             className="relative flex flex-col gap-[var(--spacing-system-xxs)]"
             data-invalid={intervalError ? true : undefined}

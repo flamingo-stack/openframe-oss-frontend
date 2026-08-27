@@ -20,6 +20,11 @@ interface ScheduleIntervalInputProps {
   min?: number;
   className?: string;
   'aria-label'?: string;
+  /**
+   * Marks this box as where `scrollToFirstInvalidField` should put focus when
+   * the error is carried by an ancestor rather than by the input itself.
+   */
+  'data-invalid-focus'?: boolean;
 }
 
 /**
@@ -60,6 +65,7 @@ export function ScheduleIntervalInput({
   min,
   className,
   'aria-label': ariaLabel,
+  'data-invalid-focus': invalidFocus,
 }: ScheduleIntervalInputProps) {
   const [text, setText] = useState(() => (value === null ? '' : String(value)));
   const focused = useRef(false);
@@ -84,6 +90,7 @@ export function ScheduleIntervalInput({
       min={min}
       inputMode="numeric"
       aria-label={ariaLabel}
+      data-invalid-focus={invalidFocus || undefined}
       className={className}
       value={text}
       onFocus={() => {
