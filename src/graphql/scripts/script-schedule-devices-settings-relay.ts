@@ -27,6 +27,12 @@ import { graphql } from 'react-relay';
  * `scriptCustomParams` are here for that write alone, not for anything this
  * page renders; the ids are cheap, and dropping them would have the switch
  * empty the schedule's recipe.
+ *
+ * `offlineBehavior` / `reconnectWindowSeconds` are here for that write alone as
+ * well, and they are the sharper case: the input reads a null `offlineBehavior`
+ * as SKIP, so omitting them would not merely blank a field — it would silently
+ * downgrade a RETRY_ON_RECONNECT schedule to skipping, from a page about device
+ * targeting that never mentions either.
  */
 export const scriptScheduleDevicesSettingsRelayQuery = graphql`
   query scriptScheduleDevicesSettingsRelayQuery($id: ID!) {
@@ -36,6 +42,12 @@ export const scriptScheduleDevicesSettingsRelayQuery = graphql`
       description
       supportedPlatforms
       trigger
+      # What happens to a device that is offline when the schedule fires. Never
+      # null on the read side — a schedule stored before the field existed reads
+      # as SKIP. reconnectWindowSeconds is the deadline a queued run is abandoned
+      # at, and is null for SKIP.
+      offlineBehavior
+      reconnectWindowSeconds
       startAt
       repeat
       # The answer the page branches on.

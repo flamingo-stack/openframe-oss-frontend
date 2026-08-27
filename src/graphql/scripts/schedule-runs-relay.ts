@@ -16,9 +16,8 @@ import { graphql } from 'react-relay';
  * with because both take the same `filter`/`search`.
  *
  * Only `statuses` is wired to a funnel. `initiators` comes back too, but
- * `ScheduleRunFilterInput` has no field to apply it — see §11 of
- * docs/script-schedules-graphql-gaps.md — so selecting from it could not
- * narrow anything, and it is not offered.
+ * `ScheduleRunFilterInput` has no field to apply it, so selecting from it could
+ * not narrow anything, and it is not offered.
  *
  * `sort` (`{ field: "dispatchedAt", direction }`) and `dispatchedAtFrom` /
  * `dispatchedAtTo` inside `filter` are the Execution column's calendar — the

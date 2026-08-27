@@ -18,7 +18,12 @@ const CELLS = [
 /** One value/label pair, sized by the real typography rather than by fixed bar heights. */
 function Cell({ value, label, className }: { value: string; label: string; className?: string }) {
   return (
-    <div className={cn('flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px]', className)}>
+    <div
+      className={cn(
+        'flex flex-col items-start justify-center min-w-0 px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] md:py-0 md:h-[80px]',
+        className,
+      )}
+    >
       <div className="text-h4">
         <Skeleton className={cn('inline-block h-3 md:h-4 max-w-full', value)} />
       </div>
@@ -31,7 +36,7 @@ function Cell({ value, label, className }: { value: string; label: string; class
 
 /**
  * Mirrors `ScheduleInfoBarFromData` as the schedule pages use it: timing row +
- * one trailing full-width row.
+ * a trailing row of two cells.
  *
  * The bars sit INSIDE elements carrying the real typography classes and are
  * shorter than the line they sit on, so each cell is sized by `text-h4`/`text-h6`
@@ -40,10 +45,11 @@ function Cell({ value, label, className }: { value: string; label: string; class
  * + `h-5` pair measures 72px against the real 60px on mobile, and with three rows
  * the page drops ~36px the moment the schedule lands.
  *
- * The trailing "Added by" row IS reserved, even though the real bar guards it
- * with `{addedBy && …}`: every schedule has an author, so the bar is two storeys
- * tall in practice. The guard covers a case the data does not produce, and
- * dropping the row here would shorten the block by 80px on every load.
+ * The trailing row IS reserved, even though the real bar guards it with
+ * `{ifDeviceOffline || addedBy && …}`: every schedule has an author and an
+ * offline behavior, so the bar is two storeys tall in practice. The guard covers
+ * a case the data does not produce, and dropping the row here would shorten the
+ * block by 80px on every load.
  */
 export function ScheduleInfoBarSkeleton() {
   return (
@@ -58,7 +64,10 @@ export function ScheduleInfoBarSkeleton() {
           />
         ))}
       </div>
-      <Cell value="w-24" label="w-16" />
+      <div className="grid grid-cols-1 md:grid-cols-2">
+        <Cell value="w-28" label="w-24" className="border-b md:border-b-0 border-ods-border" />
+        <Cell value="w-24" label="w-16" />
+      </div>
     </div>
   );
 }

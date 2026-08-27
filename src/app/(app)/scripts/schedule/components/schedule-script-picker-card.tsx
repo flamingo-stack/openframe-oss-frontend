@@ -73,7 +73,7 @@ function ScriptPlatformIcons({ platforms }: { platforms: string[] }) {
  * untouched keeps the schedule following later edits to the script itself.
  *
  * ⚠ **Timeout is still editable but not persisted**: the override input carries
- * args and env vars only (docs/script-schedules-graphql-gaps.md §3). It is
+ * args and env vars only. It is
  * seeded from the script's own default, which is what the run actually uses, so
  * the card shows the truth — it just cannot be changed per schedule yet.
  */
