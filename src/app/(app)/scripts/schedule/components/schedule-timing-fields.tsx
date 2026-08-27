@@ -28,6 +28,7 @@ import {
   snapRepeatInterval,
   startOfToday,
 } from '../utils/schedule-timing';
+import { ScheduleIntervalInput } from './schedule-interval-input';
 
 /**
  * Date | Time | Repeat | Repeat in — the timing a DATE_TIME schedule fires on.
@@ -59,7 +60,25 @@ import {
  * measures 0.
  */
 export function ScheduleTimingFields({ showErrors, disabled = false }: { showErrors: boolean; disabled?: boolean }) {
-  const { control, getValues, setValue } = useFormContext<EditScheduleFormData>();
+  const { control, getValues, setValue, trigger: triggerValidation } = useFormContext<EditScheduleFormData>();
+
+  /**
+   * Re-checks the reconnect window after the cadence moves.
+   *
+   * The rule "the window must be shorter than the cadence" is attached to
+   * `reconnectInterval`, and react-hook-form only refreshes the error of the
+   * field that just fired an event — so fixing the CADENCE left the complaint
+   * sitting under the offline block until the next Save, pointing at a value
+   * that was already legal.
+   *
+   * Called on the cadence's blur and on its two discrete controls, never
+   * per-keystroke: the half-typed "6" of "60" is briefly shorter than the
+   * window, and grading it would flash an error at a number still being
+   * written. Silent until the first Save, like every other rule here.
+   */
+  const recheckReconnectWindow = useCallback(() => {
+    if (showErrors) triggerValidation('reconnectInterval');
+  }, [showErrors, triggerValidation]);
   const trigger = useWatch({ control, name: 'trigger' });
   const repeatEnabled = useWatch({ control, name: 'repeatEnabled' });
   const repeatUnit = useWatch({ control, name: 'repeatUnit' });
@@ -219,7 +238,12 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                 <CheckboxBlock
                   label="Repeat Script Run"
                   checked={field.value}
-                  onCheckedChange={field.onChange}
+                  onCheckedChange={next => {
+                    field.onChange(next);
+                    // Turning recurrence off removes the cadence the window is
+                    // measured against, so the rule stops applying entirely.
+                    recheckReconnectWindow();
+                  }}
                   disabled={disabled}
                   className="w-full"
                 />
@@ -234,13 +258,15 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                 name="repeatInterval"
                 control={control}
                 render={({ field, fieldState }) => (
-                  <Input
-                    type="number"
+                  <ScheduleIntervalInput
                     min={intervalStep}
-                    step={intervalStep}
                     className="w-full"
-                    value={String(field.value ?? '')}
-                    onChange={e => field.onChange(e.target.value ? Number(e.target.value) : intervalStep)}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={() => {
+                      field.onBlur();
+                      recheckReconnectWindow();
+                    }}
                     disabled={disabled || !repeatEnabled}
                     error={showErrors ? fieldState.error?.message : undefined}
                     invalid={showErrors && !!fieldState.error}
@@ -264,6 +290,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                       field.onChange(next);
                       const snapped = snapRepeatInterval(getValues('repeatInterval'), next);
                       if (snapped !== getValues('repeatInterval')) setValue('repeatInterval', snapped);
+                      recheckReconnectWindow();
                     }}
                     disabled={disabled || !repeatEnabled}
                   >
