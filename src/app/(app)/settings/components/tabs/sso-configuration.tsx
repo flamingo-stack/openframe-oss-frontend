@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Chevron02RightIcon,
   PasscodeIcon,
   PenEditIcon,
   PlusCircleIcon,
@@ -24,14 +25,15 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { routes } from '@/lib/routes';
 import { type AvailableProvider, type ProviderConfig, useSsoConfig } from '../../hooks/use-sso-config';
 import { type TenantDomainInfo, useTenantDomain } from '../../hooks/use-tenant-domain';
-import { getProviderIcon } from '../../utils/get-provider-icon';
 import { DisableOpenframeSsoModal } from '../disable-openframe-sso-modal';
 import { SsoConfigModal } from '../edit-sso-config-modal';
+import { SsoConfigurationDetailsModal } from '../sso-configuration-details-modal';
 
 type UiProviderRow = {
   id: string;
@@ -65,6 +67,12 @@ export function SsoConfigurationTab() {
   // the options behind "Add SSO Configuration".
   const [availableForCreate, setAvailableForCreate] = useState<AvailableProvider[]>([]);
 
+  // Configuration Details flow: a row click opens the read-only view; disable
+  // and delete go through their confirmation dialogs from there.
+  const [detailsRow, setDetailsRow] = useState<UiProviderRow | null>(null);
+  const [providerConfirm, setProviderConfirm] = useState<'disable' | 'delete' | null>(null);
+  const [isProviderActionPending, setIsProviderActionPending] = useState(false);
+
   // Shared SSO provider state
   const [tenantDomain, setTenantDomain] = useState<TenantDomainInfo | null>(null);
   const [isDomainLoading, setIsDomainLoading] = useState(true);
@@ -77,7 +85,13 @@ export function SsoConfigurationTab() {
   const [isOpenframeUpdating, setIsOpenframeUpdating] = useState(false);
   const [isDisableOpenframeOpen, setIsDisableOpenframeOpen] = useState(false);
 
-  const { fetchAvailableProviders, fetchProviderConfig, updateProviderConfig, toggleProviderEnabled } = useSsoConfig();
+  const {
+    fetchAvailableProviders,
+    fetchProviderConfig,
+    updateProviderConfig,
+    toggleProviderEnabled,
+    deleteProviderConfig,
+  } = useSsoConfig();
   const { fetchTenantDomain, updateSharedAutoProvision } = useTenantDomain();
   const { toast } = useToast();
   const handleBack = useSafeBack(routes.settings.root());
@@ -157,6 +171,62 @@ export function SsoConfigurationTab() {
       setIsOpenframeLoading(false);
     }
   }, [fetchProviderConfig]);
+
+  const openDetails = useCallback((row: UiProviderRow) => setDetailsRow(row), []);
+
+  // Enable (direct) and disable (after confirmation) for a provider from Configuration Details.
+  const setProviderEnabled = useCallback(
+    async (provider: string, displayName: string, enabled: boolean) => {
+      setIsProviderActionPending(true);
+      try {
+        await toggleProviderEnabled(provider, enabled);
+        toast({
+          title: enabled ? 'SSO Enabled' : 'SSO Disabled',
+          description: `${displayName} has been ${enabled ? 'enabled' : 'disabled'}`,
+          variant: 'success',
+        });
+        setProviderConfirm(null);
+        setDetailsRow(null);
+        await loadData();
+      } catch (err) {
+        toast({
+          title: 'Action failed',
+          description: err instanceof Error ? err.message : `Failed to ${enabled ? 'enable' : 'disable'} SSO`,
+          variant: 'destructive',
+        });
+      } finally {
+        setIsProviderActionPending(false);
+      }
+    },
+    [toggleProviderEnabled, toast, loadData],
+  );
+
+  // Deleting frees the provider — it returns to the "Add SSO Configuration" options.
+  const deleteProvider = useCallback(
+    async (provider: string, displayName: string) => {
+      setIsProviderActionPending(true);
+      try {
+        await deleteProviderConfig(provider);
+        toast({
+          title: 'Configuration Deleted',
+          description: `${displayName} configuration has been deleted`,
+          variant: 'success',
+        });
+        setProviderConfirm(null);
+        setDetailsRow(null);
+        await loadData();
+      } catch (err) {
+        toast({
+          title: 'Delete failed',
+          description: err instanceof Error ? err.message : 'Failed to delete SSO configuration',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsProviderActionPending(false);
+      }
+    },
+    [deleteProviderConfig, toast, loadData],
+  );
 
   const setOpenframeEnabled = useCallback(
     async (enabled: boolean) => {
@@ -257,8 +327,7 @@ export function SsoConfigurationTab() {
         accessorKey: 'provider',
         header: 'OAuth Provider',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <div className="flex items-center gap-[var(--spacing-system-sf)] min-w-0">
-            {getProviderIcon(row.original.provider)}
+          <div className="flex items-center min-w-0">
             <div className="flex flex-col justify-center min-w-0">
               <TruncateText>{row.original.displayName}</TruncateText>
               <TruncateText variant="h5" tone="secondary">
@@ -281,8 +350,8 @@ export function SsoConfigurationTab() {
         accessorKey: 'allowedDomains',
         header: 'Allowed Domains',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <TruncateText variant="h6" tone="secondary">
-            {row.original.allowedDomains.length > 0 ? row.original.allowedDomains.join(', ') : 'None'}
+          <TruncateText variant="h4" tone="secondary">
+            {row.original.allowedDomains.length > 0 ? row.original.allowedDomains.join(', ') : 'none'}
           </TruncateText>
         ),
         meta: { width: 'w-[220px] shrink-0', hideAt: 'md' },
@@ -291,7 +360,7 @@ export function SsoConfigurationTab() {
         accessorKey: 'hasConfig',
         header: 'Configuration',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <TruncateText variant="h6" tone="secondary">
+          <TruncateText variant="h4" tone="secondary">
             {row.original.hasConfig ? 'Configured' : 'Not configured'}
           </TruncateText>
         ),
@@ -315,29 +384,24 @@ export function SsoConfigurationTab() {
             });
 
           return (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
-              <Button
-                className="hidden md:inline-flex"
-                variant="outline"
-                leftIcon={<PenEditIcon className="h-6 w-6" />}
-                onClick={openEditModal}
-              >
-                Edit
-              </Button>
-              {/* Mobile: the labeled button doesn't fit beside the provider and status — collapse to an icon. */}
-              <Button
-                className="md:hidden"
-                variant="outline"
-                size="icon"
-                aria-label={`Edit ${row.original.displayName}`}
-                onClick={openEditModal}
-                leftIcon={<PenEditIcon />}
-              />
+            <div className="flex items-center justify-end">
+              {/* Desktop: square edit icon button (design 1614-66071); it must not trigger the row's details click */}
+              <div data-no-row-click className="hidden md:flex pointer-events-auto">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label={`Edit ${row.original.displayName}`}
+                  onClick={openEditModal}
+                  leftIcon={<PenEditIcon />}
+                />
+              </div>
+              {/* Mobile: a chevron affordance — the whole row opens Configuration Details (design 1614-66116) */}
+              <Chevron02RightIcon className="h-6 w-6 text-ods-text-secondary md:hidden" />
             </div>
           );
         },
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 md:w-[120px]', align: 'right' },
+        meta: { width: 'w-8 shrink-0 md:w-16', align: 'right' },
       },
     ],
     [],
@@ -442,6 +506,7 @@ export function SsoConfigurationTab() {
             title: 'No SSO configurations',
             description: 'Set up your first SSO provider',
           }}
+          onRowClick={openDetails}
           rowClassName="mb-1"
         />
       </DataTable>
@@ -479,6 +544,64 @@ export function SsoConfigurationTab() {
         onOpenChange={setIsDisableOpenframeOpen}
         isPending={isOpenframeUpdating}
         onConfirm={() => void setOpenframeEnabled(false)}
+      />
+      <SsoConfigurationDetailsModal
+        isOpen={Boolean(detailsRow)}
+        onClose={() => setDetailsRow(null)}
+        details={
+          detailsRow
+            ? {
+                provider: detailsRow.provider,
+                displayName: detailsRow.displayName,
+                isEnabled: detailsRow.status.label === 'ACTIVE',
+                clientId: detailsRow.original?.config?.clientId,
+                clientSecret: detailsRow.original?.config?.clientSecret,
+                allowedDomains: detailsRow.allowedDomains,
+              }
+            : null
+        }
+        isPending={isProviderActionPending}
+        onEnable={() => detailsRow && void setProviderEnabled(detailsRow.provider, detailsRow.displayName, true)}
+        onDisableRequest={() => setProviderConfirm('disable')}
+        onDeleteRequest={() => setProviderConfirm('delete')}
+      />
+      <ConfirmDialog
+        open={providerConfirm === 'disable'}
+        onOpenChange={open => {
+          if (!open) setProviderConfirm(null);
+        }}
+        title="Confirm Disabling"
+        description={
+          <>
+            Are you sure you want to deactivate <span className="text-ods-error">{detailsRow?.displayName}</span>? This
+            SSO configuration will not be available for sign-in until you re-enable it.
+          </>
+        }
+        confirmLabel="Disable Configuration"
+        variant="destructive"
+        isPending={isProviderActionPending}
+        onConfirm={() => {
+          if (detailsRow) void setProviderEnabled(detailsRow.provider, detailsRow.displayName, false);
+        }}
+      />
+      <ConfirmDialog
+        open={providerConfirm === 'delete'}
+        onOpenChange={open => {
+          if (!open) setProviderConfirm(null);
+        }}
+        title="Confirm Deleting"
+        description={
+          <>
+            Are you sure you want to delete <span className="text-ods-error">{detailsRow?.displayName}</span>? This SSO
+            configuration will instantly become unavailable for login.
+          </>
+        }
+        confirmLabel="Delete Configuration"
+        variant="destructive"
+        isPending={isProviderActionPending}
+        onConfirm={() => {
+          if (detailsRow) void deleteProvider(detailsRow.provider, detailsRow.displayName);
+        }}
       />
     </PageLayout>
   );
