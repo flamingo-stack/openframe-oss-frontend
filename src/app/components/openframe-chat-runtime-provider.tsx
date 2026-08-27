@@ -153,11 +153,8 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
 // `<appType>.chat.proxy-auth.v1`. That copy is frozen at login, so
 // `applyProxyAuth` kept attaching a stale/expired Bearer to `/content/*`.
 //
-// `installSlashCommandVisibilityFilter()`: v2 stopgap that trims the
-// server-owned slash-command catalog down to the four commands openframe ships
-// today. Registered here for the same reason as the adapter — the chat's
-// command requests fire from child mount effects. See the module header in
-// `chat-slash-command-visibility.ts` for why it has to sit on the response.
+// `installSlashCommandVisibilityFilter()`: stopgap that trims the server-owned
+// command catalog, here for the same reason as the adapter.
 if (typeof window !== 'undefined') {
   clearEmbedProxyAuth();
   setEmbedAuthAdapter(CHAT_AUTH_ADAPTER);

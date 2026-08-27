@@ -17,26 +17,21 @@ interface CommandsResponse {
 
 let installed = false;
 
-/** Resolve the request URL from any `fetch` input form, or `null` if it is not parseable. */
-function requestUrl(input: RequestInfo | URL): URL | null {
+function isCommandsRequest(input: RequestInfo | URL): boolean {
   const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   try {
-    return new URL(raw, window.location.origin);
+    return new URL(raw, window.location.origin).pathname.endsWith(COMMANDS_PATH);
   } catch {
-    return null;
+    return false;
   }
 }
 
-function isCommandsRequest(input: RequestInfo | URL): boolean {
-  return requestUrl(input)?.pathname.endsWith(COMMANDS_PATH) ?? false;
-}
-
 /**
- * Install the filter. Idempotent (and HMR-safe) — a second call is a no-op, so
- * the wrapper can never stack on top of itself.
+ * Trim the server-owned command catalog down to the commands openframe ships.
  *
- * Call at module load, next to `setEmbedAuthAdapter`: the chat's command
- * requests fire from CHILD mount effects, which run before any parent effect.
+ * Sits on `fetch` because the request fires from a CHILD mount effect, before any
+ * parent effect could gate it — hence the call at module load, next to
+ * `setEmbedAuthAdapter`. Idempotent, so the wrapper can never stack on itself.
  */
 export function installSlashCommandVisibilityFilter(): void {
   if (installed || typeof window === 'undefined') return;
@@ -48,9 +43,8 @@ export function installSlashCommandVisibilityFilter(): void {
     const response = await originalFetch(input, init);
     if (!response.ok || !isCommandsRequest(input)) return response;
 
-    // Read the body off a clone: on any parse failure we still have the
-    // untouched original to return, so a response-shape change upstream
-    // degrades to "no filtering", never to a broken chat.
+    // Parsed off a clone, so any failure can return the untouched original: a
+    // response-shape change upstream degrades to "no filtering", not to a broken chat.
     let payload: CommandsResponse;
     try {
       payload = (await response.clone().json()) as CommandsResponse;
@@ -62,8 +56,7 @@ export function installSlashCommandVisibilityFilter(): void {
     const commands = payload.commands.filter(cmd => cmd.id !== undefined && VISIBLE_SLASH_COMMAND_IDS.has(cmd.id));
     if (commands.length === payload.commands.length) return response;
 
-    // `Content-Length` from the original headers would now be wrong; rebuild
-    // from the status line + content type only.
+    // Headers rebuilt rather than copied — the original `Content-Length` no longer matches.
     return new Response(JSON.stringify({ ...payload, commands }), {
       status: response.status,
       statusText: response.statusText,
