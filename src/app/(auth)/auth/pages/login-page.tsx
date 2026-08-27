@@ -13,13 +13,15 @@ import { routes } from '@/lib/routes';
 
 // Backend provider id ↔ LoginForm provider id
 const SSO_TO_FORM: Record<string, AuthSsoProvider> = {
+  // The backend reports the built-in login as 'openframe'; 'openframe-sso' is the legacy id.
+  openframe: 'openframe',
   'openframe-sso': 'openframe',
   google: 'google',
   microsoft: 'microsoft',
   apple: 'apple',
 };
 const FORM_TO_SSO: Record<AuthSsoProvider, string> = {
-  openframe: 'openframe-sso',
+  openframe: 'openframe',
   google: 'google',
   microsoft: 'microsoft',
   apple: 'apple',
@@ -60,7 +62,7 @@ export default function LoginPage() {
   const handleDiscover = async (email: string): Promise<LoginDiscoveryResult | null> => {
     const result = await discoverTenants(email);
     if (!result) return null;
-    const backendProviders = result.auth_providers || ['openframe-sso'];
+    const backendProviders = result.auth_providers || ['openframe'];
     return {
       found: result.has_existing_accounts,
       providers: formProviders.filter(provider => backendProviders.some(id => SSO_TO_FORM[id] === provider)),
