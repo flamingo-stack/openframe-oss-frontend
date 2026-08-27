@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p ${PORT:-3000}",
+    "dev:proxy": "node scripts/dev.mjs",
+    "dev:login": "node scripts/dev-login.mjs",
     "build": "npm run generate-enums && relay-compiler && next build",
     "generate-enums": "node scripts/generate-schema-enums.mjs",
     "build:export": "OPENFRAME_BUILD_TARGET=export npm run build",
