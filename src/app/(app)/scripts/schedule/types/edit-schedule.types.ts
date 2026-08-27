@@ -8,9 +8,12 @@ import {
   DEFAULT_RECONNECT_WINDOW,
   DURATION_UNIT_VALUES,
   dateToTimeSlot,
+  durationToSeconds,
   fromScheduleInstant,
   isEventTrigger,
+  isRetryOnReconnect,
   isStartInPastAndChanged,
+  MIN_RECONNECT_MINUTES,
   MIN_REPEAT_MINUTES,
   PAST_START_MESSAGE,
   resolveOfflineBehavior,
@@ -70,7 +73,16 @@ export const editScheduleFormSchema = z
     /** `HH:mm` on the 30-minute grid; `''` = the user hasn't picked a time yet. */
     scheduledTime: z.string(),
     repeatEnabled: z.boolean(),
-    repeatInterval: z.number().int().min(1, 'Interval must be at least 1'),
+    /**
+     * `null` while the box is EMPTY — the user is mid-edit, not proposing zero.
+     *
+     * Coercing an emptied field back to a number is what made this input feel
+     * broken: typing over "1" wrote "1" straight back, so the digit could not be
+     * deleted. Nullable here, required by the rule below only when the setting
+     * it belongs to is switched on, so the complaint arrives on Save rather than
+     * on every keystroke.
+     */
+    repeatInterval: z.number().int().min(1, 'Must be at least 1').nullable(),
     repeatUnit: z.enum(DURATION_UNIT_VALUES),
     /**
      * The `repeat` seconds this form was seeded with, carried along with no
@@ -114,7 +126,7 @@ export const editScheduleFormSchema = z
      * RETRY_ON_RECONNECT" and says nothing about null meaning an unbounded
      * queue, so the form never asks for a reading of null it cannot back up.
      */
-    reconnectInterval: z.number().int().min(1, 'Interval must be at least 1'),
+    reconnectInterval: z.number().int().min(1, 'Must be at least 1').nullable(),
     reconnectUnit: z.enum(DURATION_UNIT_VALUES),
     /**
      * The `reconnectWindowSeconds` this form was seeded with — the same
@@ -227,11 +239,26 @@ export const editScheduleFormSchema = z
       });
     }
 
+    // An empty box is only a problem for the setting that is switched ON. Each
+    // interval is nullable so it can be cleared while typing (see the field
+    // docs); this is where "cleared" stops being allowed.
+    if (data.repeatEnabled && data.repeatInterval === null) {
+      ctx.addIssue({ code: 'custom', message: 'Enter an interval', path: ['repeatInterval'] });
+    }
+    if (isRetryOnReconnect(data.offlineBehavior) && data.reconnectInterval === null) {
+      ctx.addIssue({ code: 'custom', message: 'Enter an interval', path: ['reconnectInterval'] });
+    }
+
     // The runner ticks on a 30-minute grid, so a cadence has to be a whole
     // number of those slots. Only the Minute unit can express one that isn't —
     // an hour is already two slots — and the `.min(1)` above rules out zero, so
     // "a multiple of 30" is the whole rule, floor included.
-    if (data.repeatEnabled && data.repeatUnit === 'minute' && data.repeatInterval % MIN_REPEAT_MINUTES !== 0) {
+    if (
+      data.repeatEnabled &&
+      data.repeatUnit === 'minute' &&
+      data.repeatInterval !== null &&
+      data.repeatInterval % MIN_REPEAT_MINUTES !== 0
+    ) {
       ctx.addIssue({
         code: 'custom',
         // Names the half of the rule the value actually broke. One combined
@@ -244,6 +271,44 @@ export const editScheduleFormSchema = z
             : `Use multiples of ${MIN_REPEAT_MINUTES}`,
         path: ['repeatInterval'],
       });
+    }
+
+    // The reconnect window has a floor but no grid — the backend accepts any
+    // number of seconds — so unlike the cadence above this is a minimum only.
+    if (
+      isRetryOnReconnect(data.offlineBehavior) &&
+      data.reconnectUnit === 'minute' &&
+      data.reconnectInterval !== null &&
+      data.reconnectInterval < MIN_RECONNECT_MINUTES
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Minimum ${MIN_RECONNECT_MINUTES} minutes`,
+        path: ['reconnectInterval'],
+      });
+    }
+
+    // A queued run has to expire BEFORE the next occurrence, and strictly:
+    // equal windows would have the retry for one run still live at the instant
+    // the next one is dispatched, so a device coming back late could take both.
+    // Only meaningful when there IS a next occurrence — a one-shot schedule can
+    // hold its queued run for as long as it likes.
+    if (data.repeatEnabled && isRetryOnReconnect(data.offlineBehavior)) {
+      const repeatSeconds =
+        data.repeatInterval === null ? null : durationToSeconds(data.repeatInterval, data.repeatUnit);
+      const windowSeconds =
+        data.reconnectInterval === null ? null : durationToSeconds(data.reconnectInterval, data.reconnectUnit);
+      if (repeatSeconds !== null && windowSeconds !== null && windowSeconds >= repeatSeconds) {
+        ctx.addIssue({
+          code: 'custom',
+          // Flagged on the window, not the cadence: this error renders full
+          // width under the offline block, where a sentence naming the other
+          // field survives — the cadence field is a narrow quarter-row that
+          // ellipsises long before that.
+          message: 'Stop Retry after must be shorter than Repeat in',
+          path: ['reconnectInterval'],
+        });
+      }
     }
   });
 

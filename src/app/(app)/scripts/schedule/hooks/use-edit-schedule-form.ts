@@ -54,6 +54,14 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
   const methods = useForm<EditScheduleFormData>({
     resolver: zodResolver(editScheduleFormSchema),
     defaultValues: DEFAULT_SCHEDULE_VALUES,
+    // Nothing is judged mid-word. The default pair is `onSubmit` + re-validate
+    // `onChange`, which means that after ONE failed Save every later keystroke
+    // is graded — the half-typed "3" of "30" reads as below the minimum, and the
+    // number fields flash a complaint about a value still being written. Blur is
+    // when a value is finished, and it is also when the cross-field rule (window
+    // shorter than cadence) can weigh two settled numbers rather than one
+    // settled and one in progress.
+    reValidateMode: 'onBlur',
   });
 
   // Errors stay hidden on a pristine form and appear only once the user attempts
@@ -101,8 +109,11 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // dropdown can't express is displayed rounded, and writing that display
         // back would change how often the schedule runs on an edit that never
         // touched recurrence.
+        // `data.repeatInterval` is nullable so the box can be emptied while
+        // typing; validation has already refused a null one by the time a
+        // repeating schedule reaches here, so the guard is only for the type.
         repeat:
-          startAt && data.repeatEnabled
+          startAt && data.repeatEnabled && data.repeatInterval !== null
             ? resolveDurationSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
             : null,
         // "If device is offline at scheduled time" — meaningless without one, so
@@ -119,9 +130,10 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // more sharply: this field sits on no grid, so a window the unit
         // dropdown genuinely cannot express is reachable, and writing the
         // rounded display back would shorten it on an unrelated edit.
-        reconnectWindowSeconds: retriesOnReconnect
-          ? resolveDurationSeconds(data.reconnectInterval, data.reconnectUnit, data.reconnectWindowSecondsStored)
-          : null,
+        reconnectWindowSeconds:
+          retriesOnReconnect && data.reconnectInterval !== null
+            ? resolveDurationSeconds(data.reconnectInterval, data.reconnectUnit, data.reconnectWindowSecondsStored)
+            : null,
       };
 
       if (isEditMode && scheduleId) {
