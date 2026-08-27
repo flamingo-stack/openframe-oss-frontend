@@ -20,7 +20,6 @@ import {
   type ColumnDef,
   DataTable,
   FilterModal,
-  multiSelectFilterFn,
   PageLayout,
   type Row,
   SquareAvatar,
@@ -67,6 +66,7 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 import { SCRIPT_COLUMNS, SCRIPTS_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
 import { initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
 import { facetToSortedOptions } from '../../shared/utils/facet-options';

@@ -7,7 +7,6 @@ import {
   Button,
   type ColumnDef,
   DataTable,
-  multiSelectFilterFn,
   type Row,
   SquareAvatar,
   Tag,
@@ -29,6 +28,7 @@ import {
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
 
 /** How many runs load per page. */

@@ -20,7 +20,6 @@ import {
   type DateRange,
   FilterModal,
   Input,
-  multiSelectFilterFn,
   PageLayout,
   type Row,
   Tag,
@@ -60,6 +59,7 @@ import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib
 import { transformOrganizationFilters } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { LogFilterInput } from '../types/log.types';
 import { LogCopyButton } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';

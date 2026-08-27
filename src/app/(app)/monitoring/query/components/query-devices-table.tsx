@@ -17,7 +17,6 @@ import {
   EntityImage,
   FilterModal,
   Input,
-  multiSelectFilterFn,
   type Row,
   Tag,
   TruncateText,
@@ -29,6 +28,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 import { getDeviceStatusConfig } from '../../../devices/utils/device-status';
 import { QuickQueryPanel } from '../../policy/components/quick-query-panel';
 import { useQueryDevicesTable } from '../hooks/use-query-devices-table';
