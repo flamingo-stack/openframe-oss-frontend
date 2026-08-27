@@ -273,7 +273,7 @@ class AuthApiClient {
 
   acceptInvitationSso(payload: {
     invitationId: string;
-    provider: 'openframe-sso' | 'google' | 'microsoft' | 'apple';
+    provider: 'openframe' | 'openframe-sso' | 'google' | 'microsoft' | 'apple';
     switchTenant?: boolean;
     redirectTo?: string;
   }) {
@@ -312,7 +312,11 @@ class AuthApiClient {
 
   /** `redirectTo` is pre-encoded by the caller — it is interpolated as-is. */
   loginUrl(tenantId: string, redirectTo: string, provider?: string, options?: { authMobile?: boolean }) {
-    const providerParam = provider && provider !== 'openframe-sso' ? `&provider=${encodeURIComponent(provider)}` : '';
+    // The built-in OpenFrame login has no provider param; 'openframe-sso' is its legacy id.
+    const providerParam =
+      provider && provider !== 'openframe' && provider !== 'openframe-sso'
+        ? `&provider=${encodeURIComponent(provider)}`
+        : '';
     const base = `/oauth/login?tenantId=${encodeURIComponent(tenantId)}${providerParam}`;
     // Shared mode drops a caller-supplied redirectTo — the shared auth host owns
     // where a browser lands after login. Both native shells are the exception:
