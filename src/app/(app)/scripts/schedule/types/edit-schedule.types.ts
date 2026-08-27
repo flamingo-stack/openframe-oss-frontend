@@ -1,18 +1,20 @@
 import { OS_PLATFORMS } from '@flamingo-stack/openframe-frontend-core/utils';
 import { z } from 'zod';
-import { ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { ScheduleOfflineBehavior, ScriptScheduleTrigger } from '@/generated/schema-enums';
 import { parseKeyValues, serializeKeyValues } from '../../shared/utils/script-key-values';
 import { envVarsToInput, envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
 import { customParamsByScriptId, effectiveScriptParams, toEnvVarInputs } from '../utils/schedule-script-params';
 import {
+  DEFAULT_RECONNECT_WINDOW,
+  DURATION_UNIT_VALUES,
   dateToTimeSlot,
   fromScheduleInstant,
   isEventTrigger,
+  isRetryOnReconnect,
   isStartInPastAndChanged,
   MIN_REPEAT_MINUTES,
   PAST_START_MESSAGE,
-  REPEAT_UNIT_VALUES,
-  secondsToRepeatParts,
+  secondsToDuration,
   startOfToday,
 } from '../utils/schedule-timing';
 import type { ScheduleDetailData } from './schedule-detail.types';
@@ -35,7 +37,9 @@ export function platformLabel(id: string): string {
 // `trigger` decides whether the timing block applies at all: DATE_TIME is the
 // time-driven model below; DEVICE_ONLINE is event-driven and the backend keeps
 // `startAt` / `repeat` null for it, so the whole Date & Time row is hidden and
-// both fields are submitted as null.
+// both fields are submitted as null. The offline-behavior block below it hangs
+// off the same answer — "if device is offline at scheduled time" presupposes a
+// scheduled time — so it collapses with the timing and submits the SKIP default.
 //
 // Timing maps to two backend fields: `startAt` (UTC Instant on a 30-min
 // boundary — the Time dropdown only offers slots that land on it) and `repeat`
@@ -67,12 +71,12 @@ export const editScheduleFormSchema = z
     scheduledTime: z.string(),
     repeatEnabled: z.boolean(),
     repeatInterval: z.number().int().min(1, 'Interval must be at least 1'),
-    repeatUnit: z.enum(REPEAT_UNIT_VALUES),
+    repeatUnit: z.enum(DURATION_UNIT_VALUES),
     /**
      * The `repeat` seconds this form was seeded with, carried along with no
      * control of its own. The interval/unit pair cannot express a sub-hour
      * cadence, so a schedule authored elsewhere displays rounded — and this is
-     * what lets Save write the original back untouched (`resolveRepeatSeconds`)
+     * what lets Save write the original back untouched (`resolveDurationSeconds`)
      * instead of rewriting the cadence on an unrelated edit. `null` when
      * creating, or when the schedule has no recurrence.
      */
@@ -88,6 +92,38 @@ export const editScheduleFormSchema = z
      * date or the time, their choice has to be in the future like any other.
      */
     startAtStored: z.string().nullable(),
+    /**
+     * What happens to a device that is offline when the schedule fires: `SKIP`
+     * logs the miss and leaves the next run on schedule, `RETRY_ON_RECONNECT`
+     * queues the run and dispatches it when the device comes back.
+     *
+     * Only meaningful for DATE_TIME — a DEVICE_ONLINE schedule fires ON the
+     * reconnect, so there is no offline moment to decide about. The block is
+     * collapsed for it and `SKIP` (the backend's documented default) is
+     * submitted, exactly as the timing fields submit null.
+     */
+    offlineBehavior: z.enum([ScheduleOfflineBehavior.SKIP, ScheduleOfflineBehavior.RETRY_ON_RECONNECT]),
+    /**
+     * "Stop Retry after" — how long a queued run stays worth running, as the
+     * `[interval] [unit]` pair the design shows. Combined into
+     * `reconnectWindowSeconds` on submit, and only when the behavior above is
+     * RETRY_ON_RECONNECT (the backend ignores it for SKIP).
+     *
+     * Required whenever it applies rather than optional-meaning-forever: the
+     * schema documents the field as "set only when offlineBehavior is
+     * RETRY_ON_RECONNECT" and says nothing about null meaning an unbounded
+     * queue, so the form never asks for a reading of null it cannot back up.
+     */
+    reconnectInterval: z.number().int().min(1, 'Interval must be at least 1'),
+    reconnectUnit: z.enum(DURATION_UNIT_VALUES),
+    /**
+     * The `reconnectWindowSeconds` this form was seeded with — the same
+     * carried-along contract as `repeatSecondsStored`, and here it is the more
+     * reachable case of the two: the backend puts no grid on this field, so a
+     * window authored elsewhere (90 seconds, say) genuinely cannot be shown by
+     * the unit dropdown and would otherwise be rewritten by an unrelated edit.
+     */
+    reconnectWindowSecondsStored: z.number().nullable(),
     supportedPlatforms: z.array(z.string()).min(1, 'Please select at least one platform'),
     scripts: z
       .array(
@@ -238,6 +274,25 @@ export const TRIGGER_OPTIONS = [
   },
 ];
 
+/**
+ * The two answers to "if device is offline at scheduled time" (design node
+ * 460:63425). SKIP first, because it is both the design's default and the
+ * behavior every schedule authored before this field existed already has — the
+ * backend reads a null `offlineBehavior` as SKIP.
+ */
+export const OFFLINE_BEHAVIOR_OPTIONS = [
+  {
+    value: ScheduleOfflineBehavior.SKIP,
+    label: 'Skip this Run',
+    description: 'Next run stays on schedule. Missed runs are logged.',
+  },
+  {
+    value: ScheduleOfflineBehavior.RETRY_ON_RECONNECT,
+    label: 'Run when device comes back online',
+    description: 'Executes on the next reconnect.',
+  },
+];
+
 export const DEFAULT_SCHEDULE_VALUES: EditScheduleFormData = {
   name: '',
   description: '',
@@ -249,15 +304,25 @@ export const DEFAULT_SCHEDULE_VALUES: EditScheduleFormData = {
   repeatUnit: 'day',
   repeatSecondsStored: null,
   startAtStored: null,
+  offlineBehavior: ScheduleOfflineBehavior.SKIP,
+  reconnectInterval: DEFAULT_RECONNECT_WINDOW.interval,
+  reconnectUnit: DEFAULT_RECONNECT_WINDOW.unit,
+  reconnectWindowSecondsStored: null,
   supportedPlatforms: ['windows'],
   scripts: [EMPTY_SCRIPT_ROW],
 };
 
 /** The stored schedule, in the shape the edit form holds it. */
 export function scheduleToFormValues(schedule: ScheduleDetailData): EditScheduleFormData {
-  const repeatParts = schedule.repeat ? secondsToRepeatParts(schedule.repeat) : null;
+  const repeatParts = schedule.repeat ? secondsToDuration(schedule.repeat) : null;
   // The stored instant carries both halves; the form keeps them apart.
   const startAt = schedule.startAt ? fromScheduleInstant(schedule.startAt) : null;
+  // A SKIP schedule has no window on file, so the pair falls back to the design
+  // default — which is what the user will see the moment they pick RETRY, and
+  // what they would have got creating the schedule from scratch.
+  const reconnectParts = schedule.reconnectWindowSeconds
+    ? secondsToDuration(schedule.reconnectWindowSeconds)
+    : DEFAULT_RECONNECT_WINDOW;
   // Overrides are sparse and keyed by script — a script with no entry runs on
   // its own defaults, and a script the schedule lists twice reads the same one.
   const customParams = customParamsByScriptId(schedule.scriptCustomParams);
@@ -272,6 +337,15 @@ export function scheduleToFormValues(schedule: ScheduleDetailData): EditSchedule
     repeatUnit: repeatParts?.unit ?? 'day',
     repeatSecondsStored: schedule.repeat ?? null,
     startAtStored: schedule.startAt ?? null,
+    // Read through the predicate, not `as`: the field is a Relay enum and
+    // carries a `%future added value` member, so a behavior this client doesn't
+    // know settles on SKIP rather than widening the form's union.
+    offlineBehavior: isRetryOnReconnect(schedule.offlineBehavior)
+      ? ScheduleOfflineBehavior.RETRY_ON_RECONNECT
+      : ScheduleOfflineBehavior.SKIP,
+    reconnectInterval: reconnectParts.interval,
+    reconnectUnit: reconnectParts.unit,
+    reconnectWindowSecondsStored: schedule.reconnectWindowSeconds ?? null,
     supportedPlatforms: platformsToIds(schedule.supportedPlatforms),
     scripts:
       schedule.scripts.length > 0

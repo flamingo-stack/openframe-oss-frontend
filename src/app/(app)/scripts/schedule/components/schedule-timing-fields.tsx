@@ -16,14 +16,14 @@ import { useCallback, useMemo } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import type { EditScheduleFormData } from '../types/edit-schedule.types';
 import {
+  DURATION_UNIT_OPTIONS,
+  type DurationUnit,
   getTimeSlotOptions,
   isEventTrigger,
   isScheduleStartInPast,
   isStartInPastAndChanged,
   MIN_REPEAT_MINUTES,
   PAST_START_MESSAGE,
-  REPEAT_UNIT_OPTIONS,
-  type RepeatUnit,
   slotToLabel,
   snapRepeatInterval,
   startOfToday,
@@ -47,8 +47,16 @@ import {
  * the fields — and field errors are absolutely positioned there (out of flow, so
  * showing one never reflows the form). The bottom padding is the room they render
  * into; the constant negative margin cancels it again, so the spacing below the
- * row is unchanged and a COLLAPSED row still leaves no 24px hole (a 0fr track
- * zeroes the padding too — `border-box`).
+ * row is unchanged and a COLLAPSED row leaves no 24px hole.
+ *
+ * That padding sits on the field row INSIDE the clipping box, not on the box
+ * itself, and the difference is load-bearing: a box is never shorter than its own
+ * padding — `border-box` does not change that, it only decides what a specified
+ * height includes — so padding on the grid item survives the 0fr track as 24px of
+ * residue. The negative margin then spends itself cancelling that instead of
+ * closing the section gap, and the collapsed row leaves the hole this was written
+ * to avoid. Nested one level down it is clipped like everything else, and the row
+ * measures 0.
  */
 export function ScheduleTimingFields({ showErrors, disabled = false }: { showErrors: boolean; disabled?: boolean }) {
   const { control, getValues, setValue } = useFormContext<EditScheduleFormData>();
@@ -133,8 +141,8 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
       }}
       className="grid mb-[calc(-1*var(--spacing-system-lf))] transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
     >
-      <div className="overflow-hidden min-h-0 pb-[var(--spacing-system-lf)]">
-        <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] md:items-end">
+      <div className="overflow-hidden min-h-0">
+        <div className="pb-[var(--spacing-system-lf)] flex flex-col md:flex-row gap-[var(--spacing-system-lf)] md:items-end">
           <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)]">
             <Label className="text-h4">Date</Label>
             <Controller
@@ -252,7 +260,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                     // value the user never typed and the form cannot save. The
                     // other direction needs nothing — every coarser unit is
                     // already a whole number of slots at any interval.
-                    onValueChange={(next: RepeatUnit) => {
+                    onValueChange={(next: DurationUnit) => {
                       field.onChange(next);
                       const snapped = snapRepeatInterval(getValues('repeatInterval'), next);
                       if (snapped !== getValues('repeatInterval')) setValue('repeatInterval', snapped);
@@ -263,7 +271,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {REPEAT_UNIT_OPTIONS.map(opt => (
+                      {DURATION_UNIT_OPTIONS.map(opt => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
                         </SelectItem>

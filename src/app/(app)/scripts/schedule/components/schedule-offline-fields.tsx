@@ -1,0 +1,194 @@
+'use client';
+
+import {
+  Input,
+  Label,
+  RadioGroupBlock,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { useController, useFormContext, useWatch } from 'react-hook-form';
+import { type EditScheduleFormData, OFFLINE_BEHAVIOR_OPTIONS } from '../types/edit-schedule.types';
+import { DURATION_UNIT_OPTIONS, type DurationUnit, isEventTrigger, isRetryOnReconnect } from '../utils/schedule-timing';
+
+interface ReconnectWindowFieldsProps {
+  interval: number;
+  unit: DurationUnit;
+  onIntervalChange: (next: number) => void;
+  onUnitChange: (next: DurationUnit) => void;
+  disabled: boolean;
+  invalid: boolean;
+  /**
+   * Let the two controls share the width they are given instead of taking the
+   * design's fixed 120px each — what the full-width row below `md` needs, where
+   * the fixed pair plus its caption overflows a phone.
+   */
+  fluid?: boolean;
+  className?: string;
+}
+
+/**
+ * "Stop Retry after [1] [Week]" — how long a queued run stays worth running.
+ *
+ * Presentational and stateless: the two form fields are registered ONCE by the
+ * block below and handed down, because this renders TWICE (see the two call
+ * sites). Two `Controller`s on one name would also work, but one registration
+ * with two views is the honest description of what this is.
+ */
+function ReconnectWindowFields({
+  interval,
+  unit,
+  onIntervalChange,
+  onUnitChange,
+  disabled,
+  invalid,
+  fluid = false,
+  className,
+}: ReconnectWindowFieldsProps) {
+  const controlWidth = fluid ? 'flex-1 min-w-0' : 'w-[120px]';
+  return (
+    <div className={cn('flex items-center gap-[var(--spacing-system-xsf)]', className)}>
+      <span className={cn('text-h4 shrink-0', disabled ? 'text-ods-text-disabled' : 'text-ods-text-secondary')}>
+        Stop Retry after
+      </span>
+      <Input
+        type="number"
+        min={1}
+        aria-label="Stop retry after"
+        className={controlWidth}
+        // Same guard the repeat interval uses: an emptied field falls back to
+        // the floor rather than to NaN, so clearing it to retype never puts a
+        // value in the form that the schema then has to reject.
+        value={String(interval ?? '')}
+        onChange={e => onIntervalChange(e.target.value ? Number(e.target.value) : 1)}
+        disabled={disabled}
+        invalid={invalid}
+      />
+      <Select value={unit} onValueChange={(next: DurationUnit) => onUnitChange(next)} disabled={disabled}>
+        <SelectTrigger className={controlWidth} aria-label="Stop retry after unit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {DURATION_UNIT_OPTIONS.map(opt => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/**
+ * "If device is offline at scheduled time" — Skip this Run vs Run when device
+ * comes back online, plus the reconnect window the second one needs
+ * (design node 460:63425).
+ *
+ * Maps to `offlineBehavior` (`SKIP` | `RETRY_ON_RECONNECT`) and
+ * `reconnectWindowSeconds`. The window is submitted ONLY alongside
+ * RETRY_ON_RECONNECT — the schema documents it as "set only when offlineBehavior
+ * is RETRY_ON_RECONNECT" — which is also why it is required rather than
+ * optional-meaning-forever: nothing in the contract says a null window queues a
+ * run indefinitely, so the form never offers a reading it cannot back up.
+ *
+ * The whole block presupposes a scheduled time, so it collapses for the
+ * DEVICE_ONLINE trigger exactly as the timing row above it does — same
+ * `0fr → 1fr` grid-rows technique, same stays-MOUNTED contract (toggling the
+ * trigger back restores what was picked), same `inert` to drop the collapsed
+ * controls out of the tab order, and the same padding/negative-margin pair: the
+ * bottom padding is the room the absolutely-positioned error renders into, and
+ * the constant negative margin cancels it so a collapsed block leaves no hole.
+ */
+export function ScheduleOfflineFields({ showErrors, disabled = false }: { showErrors: boolean; disabled?: boolean }) {
+  const { control } = useFormContext<EditScheduleFormData>();
+  const trigger = useWatch({ control, name: 'trigger' });
+  const eventDriven = isEventTrigger(trigger);
+
+  const { field: behaviorField } = useController({ control, name: 'offlineBehavior' });
+  const { field: intervalField, fieldState: intervalState } = useController({ control, name: 'reconnectInterval' });
+  const { field: unitField } = useController({ control, name: 'reconnectUnit' });
+
+  // The window belongs to the second option and only to it. Locked under SKIP
+  // rather than hidden: the design keeps it on the row so the choice reads as
+  // "skip, or retry for THIS long", and a click anywhere on that row selects the
+  // option and unlocks it — the controls themselves are interactive content,
+  // which a label's activation behavior skips, so using them never re-triggers
+  // the radio they sit inside.
+  const windowDisabled = disabled || !isRetryOnReconnect(behaviorField.value);
+  const intervalError = showErrors ? intervalState.error?.message : undefined;
+
+  const windowFieldsFor = (fluid: boolean) => (
+    <ReconnectWindowFields
+      interval={intervalField.value}
+      unit={unitField.value}
+      onIntervalChange={intervalField.onChange}
+      onUnitChange={unitField.onChange}
+      disabled={windowDisabled}
+      invalid={!!intervalError}
+      fluid={fluid}
+    />
+  );
+
+  const options = OFFLINE_BEHAVIOR_OPTIONS.map(option =>
+    isRetryOnReconnect(option.value)
+      ? // Desktop only. Below `md` the caption plus two controls cannot share a
+        // row with the option's own label without squeezing it to nothing, so
+        // the same fields render full-width under the group instead.
+        { ...option, trailing: <div className="hidden md:flex">{windowFieldsFor(false)}</div> }
+      : option,
+  );
+
+  return (
+    <div
+      inert={eventDriven}
+      style={{
+        gridTemplateRows: eventDriven ? '0fr' : '1fr',
+        opacity: eventDriven ? 0 : 1,
+      }}
+      className="grid mb-[calc(-1*var(--spacing-system-lf))] transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
+    >
+      <div className="overflow-hidden min-h-0">
+        {/* The bottom padding is the room the error below renders into, and it
+            sits on a wrapper INSIDE the clipping box rather than on the box
+            itself: a box is never shorter than its own padding — border-box
+            included — so padding on the grid item would survive the 0fr track as
+            24px of residue that the negative margin above then spends cancelling
+            instead of closing the section gap. */}
+        <div className="pb-[var(--spacing-system-lf)]">
+          {/* `data-invalid` on the SECTION, not on the number inputs: one of
+              those two is always display:none, and `scrollToFirstInvalidField`
+              takes the first marker in DOM order — which would be the hidden one
+              half the time. An ancestor is matched before either, is visible at
+              every breakpoint, and hands focus to the first control inside it. */}
+          <div
+            className="relative flex flex-col gap-[var(--spacing-system-xxs)]"
+            data-invalid={intervalError ? true : undefined}
+          >
+            <Label className="text-h4">If device is offline at scheduled time</Label>
+            <RadioGroupBlock
+              variant="grouped"
+              value={behaviorField.value}
+              onValueChange={behaviorField.onChange}
+              disabled={disabled}
+              options={options}
+            />
+            <div className="md:hidden pt-[var(--spacing-system-xs)]">{windowFieldsFor(true)}</div>
+            {intervalError && (
+              <div className="absolute bottom-0 left-0 right-0 translate-y-full">
+                <TruncateText variant="h6" className="text-ods-error">
+                  {intervalError}
+                </TruncateText>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

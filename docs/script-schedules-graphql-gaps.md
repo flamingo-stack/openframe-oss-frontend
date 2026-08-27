@@ -55,8 +55,70 @@ floor of 30 — one slot of the runner's grid, so the finest cadence the backend
 accepts is also the finest the form can author. Minute intervals are constrained to multiples of 30 (stepper + schema
 rule); every coarser unit is a whole number of slots at any interval. Anything
 off the minute grid entirely can still only be DISPLAYED rounded, and
-`resolveRepeatSeconds` preserves the stored value unless the user actually
+`resolveDurationSeconds` preserves the stored value unless the user actually
 changes the recurrence.
+
+### 1a. Offline behavior (skip vs run-when-back-online) — **DELIVERED** (schema refresh 2026-08-26)
+
+`enum ScheduleOfflineBehavior { SKIP, RETRY_ON_RECONNECT }`, plus two fields that
+say what happens when a target device is offline at the moment a `DATE_TIME`
+schedule fires:
+
+- `ScriptSchedule.offlineBehavior: ScheduleOfflineBehavior!` — never null; a
+  schedule stored before the field existed reads as `SKIP`.
+- `ScriptSchedule.reconnectWindowSeconds: Long` — "Max seconds to wait for an
+  offline device to reconnect before abandoning the run", null for `SKIP`.
+- Both are on `CreateScriptScheduleInput` and `UpdateScriptScheduleInput`,
+  nullable, where **null `offlineBehavior` means `SKIP`**.
+
+Frontend: `components/schedule-offline-fields.tsx` (the block, design node
+460:63425), the four form fields in `edit-schedule.types.ts`
+(`offlineBehavior` / `reconnectInterval` / `reconnectUnit` /
+`reconnectWindowSecondsStored`), and the submit mapping in
+`use-edit-schedule-form.ts`.
+
+Three things the shape forced:
+
+- **The window is required whenever `RETRY_ON_RECONNECT` is picked.** The schema
+  documents it as "set only when offlineBehavior is RETRY_ON_RECONNECT" and says
+  nothing about a null window meaning an unbounded queue, so the form does not
+  offer "leave it empty = retry forever" — a reading it cannot back up. If the
+  backend does define null-as-unbounded, this is the one decision to revisit.
+- **`reconnectWindowSeconds` sits on no grid**, unlike `repeat` — the backend
+  accepts any number of seconds. That makes the lossy round trip
+  `resolveDurationSeconds` guards against genuinely reachable here (a 90-second
+  window cannot be shown by the unit dropdown and would otherwise be rewritten
+  to 30 minutes by an unrelated edit), which is why the pair carries a
+  `reconnectWindowSecondsStored` alongside it.
+- **PUT semantics make omitting the pair a silent downgrade.** Because null
+  `offlineBehavior` reads as `SKIP`, any full-replacement write that forgets it
+  turns a queueing schedule into a skipping one. `use-schedule-selection-mode.ts`
+  (the Edit Devices page's mode flip) therefore sends both back unchanged, and
+  `script-schedule-devices-settings-relay.ts` selects them for that write alone.
+
+Surfaced read-only since design node 793:64147 landed: the details info bar
+grew a second row that pairs **If Device Offline** with **Added by**
+(`schedule-info-bar.tsx`, worded by `offlineBehaviorToLabel`). A schedule with no
+window reads as plain "Retry" rather than inventing a deadline — see the first
+bullet above, which is the same open question seen from the read side.
+
+### 1b. Timezone a schedule is interpreted in — **OPEN**
+
+Design node 793:64147 puts a **Timezone** cell in the details info bar, reading
+"Organization time (EET)". Nothing can fill it today:
+
+- `ScriptSchedule` has no timezone field, and neither `CreateScriptScheduleInput`
+  nor `UpdateScriptScheduleInput` accepts one.
+- No organization- or tenant-level timezone is exposed either. The only
+  `timezone` in the schema belongs to `Machine`.
+- The viewer's browser timezone is NOT a substitute: the cell says *organization*
+  time, and the two differ for exactly the admin the label matters to.
+
+So the cell is not implemented — a cell that has to be right about which clock a
+schedule fires on cannot be filled with a guess. The other cell from that node
+(**If Device Offline**) shipped; this one needs either `ScriptSchedule.timezone`
+or an organization-level field to read, plus a decision on whether `startAt` is
+already stored in that zone.
 
 ## 2. `assignedDevices` resolver — **DELIVERED** (was a 504 hang)
 
