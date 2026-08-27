@@ -1,6 +1,5 @@
 'use client';
 
-import { GoogleLogo, MicrosoftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { PenEditIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -18,6 +17,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
@@ -25,6 +25,7 @@ import { routes } from '@/lib/routes';
 import { type AvailableProvider, type ProviderConfig, useSsoConfig } from '../../hooks/use-sso-config';
 import { type TenantDomainInfo, useTenantDomain } from '../../hooks/use-tenant-domain';
 import { getProviderIcon } from '../../utils/get-provider-icon';
+import { DisableOpenframeSsoModal } from '../disable-openframe-sso-modal';
 import { SsoConfigModal } from '../edit-sso-config-modal';
 
 type UiProviderRow = {
@@ -59,6 +60,13 @@ export function SsoConfigurationTab() {
   const [tenantDomain, setTenantDomain] = useState<TenantDomainInfo | null>(null);
   const [isDomainLoading, setIsDomainLoading] = useState(true);
   const [isAutoProvisionUpdating, setIsAutoProvisionUpdating] = useState(false);
+
+  // Built-in OpenFrame login, backed by the 'openframe' pseudo-provider. `null`
+  // means the backend doesn't support the toggle — the row is hidden then.
+  const [openframeSso, setOpenframeSso] = useState<{ enabled: boolean } | null>(null);
+  const [isOpenframeLoading, setIsOpenframeLoading] = useState(true);
+  const [isOpenframeUpdating, setIsOpenframeUpdating] = useState(false);
+  const [isDisableOpenframeOpen, setIsDisableOpenframeOpen] = useState(false);
 
   const { fetchAvailableProviders, fetchProviderConfig, updateProviderConfig, toggleProviderEnabled } = useSsoConfig();
   const { fetchTenantDomain, updateSharedAutoProvision } = useTenantDomain();
@@ -116,6 +124,63 @@ export function SsoConfigurationTab() {
     }
   }, [fetchTenantDomain]);
 
+  // The 'openframe' pseudo-provider backs the tenant-wide built-in login toggle.
+  // Older backends 404 on it (fetchProviderConfig -> undefined); any other
+  // failure also hides the row rather than blocking the page.
+  const loadOpenframeSso = useCallback(async () => {
+    setIsOpenframeLoading(true);
+    try {
+      const cfg = await fetchProviderConfig('openframe');
+      setOpenframeSso(cfg ? { enabled: cfg.enabled === true } : null);
+    } catch (err) {
+      console.error('Failed to load OpenFrame SSO state:', err);
+      setOpenframeSso(null);
+    } finally {
+      setIsOpenframeLoading(false);
+    }
+  }, [fetchProviderConfig]);
+
+  const setOpenframeEnabled = useCallback(
+    async (enabled: boolean) => {
+      setIsOpenframeUpdating(true);
+      try {
+        await toggleProviderEnabled('openframe', enabled);
+        setOpenframeSso({ enabled });
+        setIsDisableOpenframeOpen(false);
+        toast({
+          title: enabled ? 'OpenFrame SSO Enabled' : 'OpenFrame SSO Disabled',
+          description: enabled
+            ? 'Users can sign up and sign in with an OpenFrame account again.'
+            : 'The OpenFrame sign-in option is now hidden from the login page.',
+          variant: 'success',
+          duration: 4000,
+        });
+      } catch (err) {
+        toast({
+          title: 'Update Failed',
+          description: err instanceof Error ? err.message : 'Failed to update OpenFrame SSO',
+          variant: 'destructive',
+          duration: 5000,
+        });
+      } finally {
+        setIsOpenframeUpdating(false);
+      }
+    },
+    [toggleProviderEnabled, toast],
+  );
+
+  // Re-enabling is immediate; disabling goes through the confirmation modal.
+  const handleOpenframeCheckedChange = useCallback(
+    (checked: boolean) => {
+      if (checked) {
+        void setOpenframeEnabled(true);
+      } else {
+        setIsDisableOpenframeOpen(true);
+      }
+    },
+    [setOpenframeEnabled],
+  );
+
   // Handle shared auto provision toggle
   const handleAutoProvisionToggle = useCallback(
     async (enabled: boolean) => {
@@ -139,10 +204,10 @@ export function SsoConfigurationTab() {
         setTenantDomain(prev => (prev ? { ...prev, autoAllow: enabled } : null));
 
         toast({
-          title: enabled ? 'Auto Provision Enabled' : 'Auto Provision Disabled',
+          title: enabled ? 'Open Access Enabled' : 'Open Access Disabled',
           description: enabled
-            ? `Users from ${tenantDomain.domain} can now sign in via shared Google and Microsoft SSO.`
-            : 'Auto provision for shared SSO providers has been disabled.',
+            ? `Anyone with an account on ${tenantDomain.domain} can now sign in without an invitation.`
+            : 'Open access for your domains has been disabled.',
           variant: 'success',
           duration: 4000,
         });
@@ -163,7 +228,8 @@ export function SsoConfigurationTab() {
   useEffect(() => {
     loadData();
     loadDomainData();
-  }, [loadData, loadDomainData]);
+    loadOpenframeSso();
+  }, [loadData, loadDomainData, loadOpenframeSso]);
 
   // Mobile keeps only the provider, status and the edit action; configuration folds
   // in at tablet and the allowed-domains list at desktop.
@@ -281,6 +347,54 @@ export function SsoConfigurationTab() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] bg-ods-bg"
       backButton={{ label: 'Back', onClick: handleBack }}
     >
+      {/* Tenant-wide sign-in options: built-in OpenFrame login + open access for the tenant domain */}
+      {isOpenframeLoading || isDomainLoading ? (
+        <Card className="bg-ods-card border-ods-border p-4">
+          <div className="flex flex-col gap-6">
+            {[0, 1].map(row => (
+              <div key={row} className="flex items-start gap-3">
+                <Skeleton className="h-5 w-5 rounded shrink-0" />
+                <div className="flex flex-col gap-1 flex-1">
+                  <Skeleton className="h-5 w-48 md:w-64" />
+                  <Skeleton className="h-4 w-full md:w-96" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : (
+        (openframeSso || tenantDomain) && (
+          <Card className="bg-ods-card border-ods-border overflow-hidden">
+            {openframeSso && (
+              <CheckboxWithDescription
+                id="openframe-sso-enabled"
+                checked={openframeSso.enabled}
+                onCheckedChange={handleOpenframeCheckedChange}
+                disabled={isOpenframeUpdating}
+                title="Enable OpenFrame SSO"
+                description="Allow users to sign up and sign in with an OpenFrame account."
+                className="border-0 rounded-none bg-transparent"
+              />
+            )}
+            {tenantDomain && (
+              <CheckboxWithDescription
+                id="shared-auto-provision"
+                checked={tenantDomain.autoAllow}
+                onCheckedChange={handleAutoProvisionToggle}
+                disabled={tenantDomain.generic || isAutoProvisionUpdating}
+                title="Open access for your domains"
+                description={
+                  tenantDomain.generic
+                    ? `Generic domains like ${tenantDomain.domain} cannot be used for open access.`
+                    : 'Anyone with an account on your allowed domains can sign in to OpenFrame without an invitation. Their account is created automatically the first time they sign in.'
+                }
+                className={cn('border-0 rounded-none bg-transparent', openframeSso && 'border-t border-ods-border')}
+              />
+            )}
+          </Card>
+        )
+      )}
+
       <Input
         startAdornment={<SearchIcon />}
         placeholder="Search SSO providers"
@@ -288,61 +402,6 @@ export function SsoConfigurationTab() {
         onChange={e => setSearchTerm(e.target.value)}
         className="w-full"
       />
-
-      {/* Shared SSO Provider Section */}
-      {isDomainLoading ? (
-        <Card className="bg-ods-card border-ods-border my-6 p-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1">
-              <Skeleton className="h-6 w-6 rounded shrink-0" />
-              <Skeleton className="h-4 w-3 shrink-0" />
-              <Skeleton className="h-6 w-6 rounded shrink-0" />
-              <div className="flex flex-col gap-1">
-                <Skeleton className="h-5 w-48 md:w-64" />
-                <Skeleton className="h-4 w-full md:w-96" />
-              </div>
-            </div>
-            <Skeleton className="h-20 w-full md:w-[400px] rounded-lg" />
-          </div>
-        </Card>
-      ) : (
-        tenantDomain && (
-          <Card className="bg-ods-card border-ods-border my-6 p-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              {/* Row 1 on mobile / Left side on desktop: Icons and text */}
-              <div className="flex items-center gap-3 flex-1">
-                <div className="flex items-center gap-2 shrink-0">
-                  <GoogleLogo className="h-6 w-6" />
-                  <span className="text-ods-text-secondary">&</span>
-                  <MicrosoftIcon className="h-6 w-6" />
-                </div>
-                <div>
-                  <h2 className="text-h3 text-ods-text-primary">OpenFrame Google & Microsoft SSO</h2>
-                  <p className="text-h6 text-ods-text-secondary">
-                    Allow any account from {tenantDomain.domain} domain to access OpenFrame via shared SSO providers.
-                    Accounts will be auto provisioned upon first sign-in.
-                  </p>
-                </div>
-              </div>
-
-              {/* Row 2 on mobile / Right side on desktop: Checkbox */}
-              <CheckboxWithDescription
-                id="shared-auto-provision"
-                checked={tenantDomain.autoAllow}
-                onCheckedChange={handleAutoProvisionToggle}
-                disabled={tenantDomain.generic || isAutoProvisionUpdating}
-                title={`Auto-provision accounts from ${tenantDomain.domain}`}
-                description={
-                  tenantDomain.generic
-                    ? `Generic domains like ${tenantDomain.domain} cannot be used for auto-provisioning.`
-                    : 'Automatically create user accounts when signing in via shared Google or Microsoft SSO.'
-                }
-                className="w-full md:w-[400px] md:shrink-0"
-              />
-            </div>
-          </Card>
-        )
-      )}
 
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="provider" />} />
@@ -381,6 +440,12 @@ export function SsoConfigurationTab() {
           setModalState(null);
           await loadData();
         }}
+      />
+      <DisableOpenframeSsoModal
+        open={isDisableOpenframeOpen}
+        onOpenChange={setIsDisableOpenframeOpen}
+        isPending={isOpenframeUpdating}
+        onConfirm={() => void setOpenframeEnabled(false)}
       />
     </PageLayout>
   );
