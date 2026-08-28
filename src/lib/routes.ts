@@ -293,6 +293,7 @@ export const routes = {
     apiKeys: '/settings/api-keys',
     sso: '/settings/sso',
     architecture: '/settings/architecture',
+    downloadApps: '/settings/download-apps',
     billingUsage: '/settings/billing-usage',
     billingSubscription: '/settings/billing-usage/subscription',
   },
