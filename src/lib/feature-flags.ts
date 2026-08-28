@@ -26,6 +26,7 @@ export const FEATURE_FLAG_NAMES = [
   'script-schedule-device-online',
   'cancel-subscription',
   'test-clock',
+  'download-apps',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
