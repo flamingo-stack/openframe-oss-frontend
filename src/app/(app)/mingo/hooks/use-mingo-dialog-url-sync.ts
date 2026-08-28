@@ -29,6 +29,8 @@ export interface MingoUrlSyncInput {
   canOpenDrawer: boolean;
   drawerOpen: boolean;
   activeDialogId: string | null;
+  /** The drawer closed BECAUSE of a navigation issued in the same handler. */
+  closedForNavigation: boolean;
 }
 
 /**
@@ -50,6 +52,7 @@ export function resolveMingoUrlSync({
   canOpenDrawer,
   drawerOpen,
   activeDialogId,
+  closedForNavigation,
 }: MingoUrlSyncInput): MingoUrlSyncAction {
   // 1. No instruction in the URL, and either it just lost the one we were
   //    mirroring (back/forward) or the route changed under an open drawer. The
@@ -88,7 +91,16 @@ export function resolveMingoUrlSync({
   //    mid-conversation would otherwise leave the URL advertising an open chat
   //    on the lock screen until the next navigation healed it.
   const desired = canOpenDrawer && drawerOpen ? activeDialogId : null;
-  return desired === urlDialogId ? { type: 'none' } : { type: 'write', dialogId: desired };
+  if (desired === urlDialogId) return { type: 'none' };
+
+  // A drawer closed BY a navigation does not own the URL: the destination is
+  // already param-free, and this pass still sees the pre-navigation location
+  // (React flushes the close before the push's transition commits), so writing
+  // would stamp the old URL over the navigation in flight. Step 1 clears the
+  // mirror once the URL lands.
+  if (desired === null && closedForNavigation) return { type: 'none' };
+
+  return { type: 'write', dialogId: desired };
 }
 
 /**
@@ -147,6 +159,7 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
       canOpenDrawer,
       drawerOpen: useMingoLauncherStore.getState().isOpen,
       activeDialogId: useMingoMessagesStore.getState().activeDialogId,
+      closedForNavigation: useMingoLauncherStore.getState().closedForNavigation,
     });
 
     switch (action.type) {

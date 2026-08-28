@@ -15,6 +15,7 @@ const base: MingoUrlSyncInput = {
   canOpenDrawer: true,
   drawerOpen: false,
   activeDialogId: null,
+  closedForNavigation: false,
 };
 
 describe('resolveMingoUrlSync', () => {
@@ -71,6 +72,30 @@ describe('resolveMingoUrlSync', () => {
     expect(
       resolveMingoUrlSync({ ...base, urlDialogId: 'd-1', mirroredDialogId: 'd-1', activeDialogId: 'd-1' }),
     ).toEqual({ type: 'write', dialogId: null });
+  });
+
+  it('leaves the URL alone when the close came FROM a navigation still in flight', () => {
+    // The in-chat card click: `router.push` is a pending transition, so this pass
+    // still reads the PRE-navigation location. Stripping here writes the old URL
+    // over the push and the click does nothing. The destination is param-free
+    // anyway; step 1 clears the mirror once it lands.
+    expect(
+      resolveMingoUrlSync({
+        ...base,
+        urlDialogId: 'd-1',
+        mirroredDialogId: 'd-1',
+        activeDialogId: 'd-1',
+        closedForNavigation: true,
+      }),
+    ).toEqual({ type: 'none' });
+  });
+
+  it('still writes a reopened conversation while the navigation flag is set', () => {
+    // Only the STRIP waits. A reopen names a real conversation and must reach the
+    // URL, or a share/reload loses it.
+    expect(
+      resolveMingoUrlSync({ ...base, drawerOpen: true, activeDialogId: 'd-2', closedForNavigation: true }),
+    ).toEqual({ type: 'write', dialogId: 'd-2' });
   });
 
   it('closes on navigation instead of stamping the dialog onto the new route', () => {
