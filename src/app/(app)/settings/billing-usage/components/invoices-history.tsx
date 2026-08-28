@@ -12,6 +12,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { InvoiceStatus } from '@/generated/schema-enums';
+import { presentationFor } from '@/lib/exhaustive-map';
 import { formatCurrency, formatDateOrDash } from '../lib/format';
 
 interface InvoiceItem {
@@ -36,24 +37,34 @@ function invoiceAmount(invoice: InvoiceItem): number {
   return invoice.amountDue;
 }
 
-/** Tag styling + label for each lifecycle status; null (legacy) reads as unpaid. */
-function statusTag(status: string | null | undefined): {
+interface StatusTag {
   variant: 'success' | 'warning' | 'error' | 'grey';
   label: string;
-} {
-  switch (status) {
-    case InvoiceStatus.PAID:
-      return { variant: 'success', label: 'Paid' };
-    case InvoiceStatus.DRAFT:
-      return { variant: 'grey', label: 'Draft' };
-    case InvoiceStatus.VOID:
-      return { variant: 'error', label: 'Void' };
-    case InvoiceStatus.UNCOLLECTIBLE:
-      return { variant: 'error', label: 'Uncollectible' };
-    default:
-      // OPEN and legacy (null) both mean "still owed".
-      return { variant: 'warning', label: 'Unpaid' };
-  }
+}
+
+/** Legacy rows carry no status at all; Stripe only ever owed us money for them. */
+const UNPAID: StatusTag = { variant: 'warning', label: 'Unpaid' };
+
+/**
+ * Tag styling + label per lifecycle status, exhaustive over `InvoiceStatus` on
+ * purpose: a status Stripe adds later breaks the build here instead of being
+ * quietly billed to the customer as "Unpaid".
+ *
+ * OPEN is spelled out rather than left to the fallback — it is the one status
+ * that genuinely means unpaid, and conflating it with "unknown" is what hid the
+ * distinction before.
+ */
+const INVOICE_STATUS_TAGS = {
+  [InvoiceStatus.DRAFT]: { variant: 'grey', label: 'Draft' },
+  [InvoiceStatus.OPEN]: UNPAID,
+  [InvoiceStatus.PAID]: { variant: 'success', label: 'Paid' },
+  [InvoiceStatus.VOID]: { variant: 'error', label: 'Void' },
+  [InvoiceStatus.UNCOLLECTIBLE]: { variant: 'error', label: 'Uncollectible' },
+} satisfies Record<InvoiceStatus, StatusTag>;
+
+/** Tag styling + label for a lifecycle status; null (legacy) reads as unpaid. */
+function statusTag(status: string | null | undefined): StatusTag {
+  return presentationFor(INVOICE_STATUS_TAGS, status) ?? UNPAID;
 }
 
 export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[] }) {

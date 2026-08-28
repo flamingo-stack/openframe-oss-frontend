@@ -12,7 +12,6 @@ import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { useRetryKey } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execution-detail-relay';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId } from '@/lib/relay-id';
@@ -25,6 +24,7 @@ import {
   formatExecutionTimestamp,
   initiatorInitials,
   initiatorName,
+  isExecutionInFlight,
   machineLabel,
   organizationLabel,
   privilegeLevelLabel,
@@ -34,8 +34,8 @@ interface ScriptExecutionDetailsViewProps {
   executionId: string;
 }
 
-/** How often a RUNNING execution is re-fetched so its status/output stay live. */
-const RUNNING_POLL_INTERVAL_MS = 5000;
+/** How often an in-flight execution is re-fetched so its status/output stay live. */
+const IN_FLIGHT_POLL_INTERVAL_MS = 5000;
 
 // Unlike the other script pages, this page's header IS data-dependent (subtitle +
 // back target come from the execution), so the loaded view and the Suspense
@@ -64,13 +64,13 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
   );
   const execution = data.node;
 
-  // Live view of an in-flight run: while the execution is RUNNING, poll the node
-  // so the status flips and the output streams in without a manual reload. The
-  // refetched payload lands in the Relay store, so this component re-renders
-  // from it; the interval stops itself once the status leaves RUNNING.
-  const isRunning = execution?.status === ScriptExecutionStatus.RUNNING;
+  // Live view of an in-flight run: while the execution is QUEUED or RUNNING, poll
+  // the node so the status flips and the output streams in without a manual
+  // reload. The refetched payload lands in the Relay store, so this component
+  // re-renders from it; the interval stops itself once the status is final.
+  const isInFlight = isExecutionInFlight(execution?.status);
   useEffect(() => {
-    if (!isRunning) return;
+    if (!isInFlight) return;
     const interval = setInterval(() => {
       fetchQuery(
         environment,
@@ -80,9 +80,9 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
           fetchPolicy: 'network-only',
         },
       ).subscribe({});
-    }, RUNNING_POLL_INTERVAL_MS);
+    }, IN_FLIGHT_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [isRunning, environment, executionId]);
+  }, [isInFlight, environment, executionId]);
 
   const handleBack = useSafeBack(
     execution?.scriptId ? routes.scripts.details(execution.scriptId, { tab: 'executions' }) : routes.scripts.list,
@@ -229,13 +229,13 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
           />
         </div>
 
-        {/* Result — a RUNNING execution with no output yet says so (the page
+        {/* Result — an in-flight execution with no output yet says so (the page
             polls, so the output streams in) instead of a dead-end "—". */}
         <div className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-m)]">
           {result ? (
             <div className="text-h4 text-ods-text-primary whitespace-pre-wrap break-words">{result}</div>
           ) : (
-            <div className="text-h4 text-ods-text-secondary">{isRunning ? 'Waiting for output…' : '—'}</div>
+            <div className="text-h4 text-ods-text-secondary">{isInFlight ? 'Waiting for output…' : '—'}</div>
           )}
           <div className="text-h6 text-ods-text-secondary">Result</div>
         </div>
