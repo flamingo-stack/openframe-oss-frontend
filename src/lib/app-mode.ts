@@ -118,6 +118,13 @@ export function isRouteAllowedInCurrentMode(pathname: string): boolean {
     return false;
   }
 
+  // The app-download page is a browser errand: it hands out the installers for the
+  // very shells it would be running inside. Same belt-and-braces as above — the page
+  // 404s on its own, this closes the deep-link and restored-history routes to it.
+  if (isAppShell() && pathname.startsWith(routes.settings.downloadApps)) {
+    return false;
+  }
+
   if (mode === 'saas-shared') {
     // Auth-only mode: only auth routes and root
     return pathname.startsWith('/auth') || pathname === '/';
