@@ -39,6 +39,7 @@ const GROUPS = Object.values(NotificationSettingGroup);
 
 const GROUP_LABELS: Record<NotificationSettingGroup, string> = {
   TICKET_ASSIGNED: 'Ticket assigned',
+  TICKET_CREATED: 'Ticket created by client',
   TICKET_STATUS_CHANGED: 'Ticket status changed',
   CUSTOMER_REPLIED: 'Customer replied',
   ADMIN_REPLIED: 'Admin replied',
