@@ -20,7 +20,7 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EmptyState, SectionLoadError, useOnboardingGuideButton } from '@/app/components/shared';
+import { EmptyState, onboardingGuideButton, SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -139,7 +139,7 @@ export function CustomersTable({ status }: CustomersTableProps) {
     [handleAddCustomer, showEmptyState],
   );
 
-  const guideButton = useOnboardingGuideButton('customers');
+  const guideButton = onboardingGuideButton('customers');
 
   return (
     <PageLayout

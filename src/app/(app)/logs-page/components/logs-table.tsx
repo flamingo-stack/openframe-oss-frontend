@@ -48,8 +48,8 @@ import {
   EMBEDDED_PAGE_OFFSET,
   EmptyState,
   LogDrawer,
+  onboardingGuideButton,
   type TableDateFilter,
-  useOnboardingGuideButton,
   useRetryKey,
 } from '@/app/components/shared';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -576,7 +576,7 @@ function LogsTableContent({
     onEmptyChange(hideSearch);
   }, [hideSearch, onEmptyChange]);
 
-  const guideButton = useOnboardingGuideButton('logs');
+  const guideButton = onboardingGuideButton('logs');
 
   if (showEmptyState) {
     return (

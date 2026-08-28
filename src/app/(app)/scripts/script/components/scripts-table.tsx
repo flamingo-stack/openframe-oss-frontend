@@ -46,8 +46,8 @@ import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import {
   EmptyState,
   liveColumnMeta,
+  onboardingGuideButton,
   skeletonColumnDefs,
-  useOnboardingGuideButton,
   useRetryKey,
 } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
@@ -553,7 +553,7 @@ function ScriptsTableContent({
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
-  const guideButton = useOnboardingGuideButton('scripts');
+  const guideButton = onboardingGuideButton('scripts');
 
   if (showEmptyState && archived) {
     return (

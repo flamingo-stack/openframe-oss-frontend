@@ -50,9 +50,9 @@ import {
   DateColumnHeader,
   EmptyState,
   liveColumnMeta,
+  onboardingGuideButton,
   skeletonColumnDefs,
   type TableDateFilter,
-  useOnboardingGuideButton,
   useRetryKey,
 } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -504,7 +504,7 @@ function SchedulesTableContent({
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
-  const guideButton = useOnboardingGuideButton('script-schedules');
+  const guideButton = onboardingGuideButton('script-schedules');
 
   if (showEmptyState && archived) {
     return (

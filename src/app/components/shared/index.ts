@@ -18,7 +18,7 @@ export { DevicesPanel, type DevicesPanelProps } from './devices-panel';
 export { EMBEDDED_PAGE_OFFSET } from './embedded-page';
 export { EmptyState, type EmptyStateProps } from './empty-state';
 export { LogDrawer, type LogDrawerInfoField } from './log-drawer';
-export { type OnboardingGuideSource, useOnboardingGuideButton } from './onboarding-guide-button';
+export { type OnboardingGuideSource, onboardingGuideButton } from './onboarding-guide-button';
 export { OrgAvatar } from './org-avatar';
 export {
   InfoCardSkeleton,
