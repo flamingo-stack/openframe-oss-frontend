@@ -8,6 +8,7 @@ import {
 import { Input, TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { type PrNamespaceIssue } from '@/app/(auth)/auth/constants/auth-error-codes';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
@@ -18,6 +19,14 @@ import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 const MIN_PASSWORD_LENGTH = 8;
+
+/** Plain, per-cause copy for a PR environment that cannot be claimed (dev/QA only). */
+function prNamespaceNoticeText(issue: PrNamespaceIssue, prNumber: string): string {
+  const env = `PR environment #${prNumber}`;
+  return issue === 'missing'
+    ? `${env} is not provisioned. No namespace exists for this PR number yet.`
+    : `${env} is not ready. Its namespace exists but is not available yet.`;
+}
 
 /**
  * "Complete your Account" step: name + password for the organization collected
@@ -35,6 +44,10 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [prNumber, setPrNumber] = useState('');
   const showPrNumber = runtimeEnv.prNumberEnabled();
+  // Set when a submit is refused because the PR environment cannot be claimed.
+  // Held as persistent inline state (not a toast) so the notice stays and submit
+  // stays disabled until the user edits or clears the PR number.
+  const [prNamespaceNotice, setPrNamespaceNotice] = useState<string | undefined>(undefined);
 
   // "Continue with Apple" is offered on Apple devices only.
   const isApple = useIsApplePlatform();
@@ -76,11 +89,23 @@ export default function SignupPage() {
   const isTooShort = !!password && password.length < MIN_PASSWORD_LENGTH;
   const isMismatch = !!confirmPassword && password !== confirmPassword;
   const isValid =
-    !!firstName.trim() && !!lastName.trim() && password.length >= MIN_PASSWORD_LENGTH && password === confirmPassword;
+    !!firstName.trim() &&
+    !!lastName.trim() &&
+    password.length >= MIN_PASSWORD_LENGTH &&
+    password === confirmPassword &&
+    // A standing PR-namespace notice blocks submit until the user resolves it.
+    !prNamespaceNotice;
 
-  const handleSubmit = () => {
+  // Clearing the PR number sends the signup down the normal "claim any READY
+  // cluster" path — the recovery from an unclaimable PR environment.
+  const clearPrNumber = () => {
+    setPrNumber('');
+    setPrNamespaceNotice(undefined);
+  };
+
+  const handleSubmit = async () => {
     if (!isValid) return;
-    registerOrganization({
+    const { prNamespaceIssue } = await registerOrganization({
       tenantName: storedOrgName,
       tenantDomain: storedDomain,
       email: storedEmail,
@@ -89,6 +114,7 @@ export default function SignupPage() {
       password,
       ...(showPrNumber && prNumber ? { prNumber: Number(prNumber) } : {}),
     });
+    if (prNamespaceIssue) setPrNamespaceNotice(prNamespaceNoticeText(prNamespaceIssue, prNumber));
   };
 
   // External providers offered by the backend for registration; Apple only on Apple devices.
@@ -145,15 +171,30 @@ export default function SignupPage() {
         }}
       >
         {showPrNumber && (
-          <Input
-            label="PR Number (optional)"
-            placeholder="Enter PR Number"
-            inputMode="numeric"
-            value={prNumber}
-            disabled={isLoading || loadingProviders}
-            // Digits only — typing or pasting anything else (minus sign included) is stripped.
-            onChange={event => setPrNumber(event.target.value.replace(/\D/g, ''))}
-          />
+          <div className="flex flex-col gap-[var(--spacing-system-s)]">
+            <Input
+              label="PR Number (optional)"
+              placeholder="Enter PR Number"
+              inputMode="numeric"
+              value={prNumber}
+              disabled={isLoading || loadingProviders}
+              // The notice describes the PR environment, not a malformed value, so it
+              // shows as a warning rather than a validation error.
+              error={prNamespaceNotice}
+              errorVariant="warning"
+              // Digits only — typing or pasting anything else (minus sign included) is stripped.
+              // Editing clears the notice so the new value can be tried.
+              onChange={event => {
+                setPrNumber(event.target.value.replace(/\D/g, ''));
+                setPrNamespaceNotice(undefined);
+              }}
+            />
+            {prNamespaceNotice && (
+              <button type="button" className="self-start text-ods-accent text-h6 underline" onClick={clearPrNumber}>
+                Clear the PR number to use a shared dev cluster
+              </button>
+            )}
+          </div>
         )}
       </CompleteAccountForm>
     </AuthShell>

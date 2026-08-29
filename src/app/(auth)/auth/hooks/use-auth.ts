@@ -13,7 +13,7 @@ import { collectRegistrationAttribution } from '@/lib/registration-attribution';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { isBearerAuthMode } from '@/lib/token-store';
-import { AUTH_ERROR_CODE } from '../constants/auth-error-codes';
+import { AUTH_ERROR_CODE, getPrNamespaceIssue, type PrNamespaceIssue } from '../constants/auth-error-codes';
 import { useAuthStore } from '../stores/auth-store';
 import { authSessionQueryKey } from './use-auth-session';
 import { useTokenStorage } from './use-token-storage';
@@ -41,6 +41,15 @@ interface RegisterRequest {
   password: string;
   /** Links the registration to a git PR for testing (dev environments only). */
   prNumber?: number;
+}
+
+/**
+ * Outcome of {@link useAuth.registerOrganization}. A PR-namespace failure is
+ * returned (not toasted) so the caller can hold it inline; every other outcome —
+ * success, generic failure, network error — is handled here and returns empty.
+ */
+interface RegisterResult {
+  prNamespaceIssue?: PrNamespaceIssue;
 }
 
 interface SsoRegisterRequest {
@@ -159,7 +168,7 @@ export function useAuth() {
     }
   };
 
-  const registerOrganization = async (data: RegisterRequest) => {
+  const registerOrganization = async (data: RegisterRequest): Promise<RegisterResult> => {
     setIsLoading(true);
 
     try {
@@ -177,6 +186,13 @@ export function useAuth() {
       });
 
       if (!response.ok) {
+        // A `prNumber` that points at an unprovisioned or not-READY PR
+        // environment (dev/QA only). Return it so the signup form can hold a
+        // persistent inline notice and offer recovery, rather than a toast that
+        // fades and leaves the form looking submittable.
+        const prNamespaceIssue = getPrNamespaceIssue(response);
+        if (prNamespaceIssue) return { prNamespaceIssue };
+
         const code = (response.data as any)?.code;
         const message = (response.data as any)?.message || response.error || 'Registration failed';
         let userMessage = 'Registration failed';
@@ -211,12 +227,14 @@ export function useAuth() {
       // Client-side replace (not window.location.href) so the success toast
       // survives the transition; replace keeps signup out of the back stack.
       router.replace(routes.auth.checkEmail);
+      return {};
     } catch (error: any) {
       toast({
         title: 'Registration Failed',
         description: error instanceof Error ? error.message : 'Unable to create organization',
         variant: 'destructive',
       });
+      return {};
     } finally {
       setIsLoading(false);
     }
