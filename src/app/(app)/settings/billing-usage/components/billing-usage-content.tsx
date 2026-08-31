@@ -523,7 +523,9 @@ export function BillingUsageContent() {
                 activeDevices: device.active,
                 tickets: impact.tickets,
                 kbArticles: impact.kbArticles,
+                kbFolders: impact.kbFolders,
                 scripts: impact.scripts,
+                activeSchedules: impact.activeSchedules,
                 monitoringPolicies: impact.monitoringPolicies,
                 savedQueries: impact.savedQueries,
               }

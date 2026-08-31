@@ -52,6 +52,24 @@ export interface TableSkeletonColumn {
    * reach the date filter.
    */
   dateFilterable?: boolean;
+  /**
+   * Literal Tailwind classes that keep this column's header at its normal width
+   * below `lg`, and — by their presence — keep it rendered there at all.
+   *
+   * `DataTable.Header` drops every header cell below `lg` except the ones a user
+   * can act on, and gives the survivors `max-lg:[&&]:w-auto/flex-none/basis-auto`
+   * so they pack left beside their controls. That is the right shape for a table
+   * whose tablet header IS a filter toolbar; it is the wrong one for a table that
+   * simply wants its labels, because the header cells then no longer line up with
+   * the body cells, which are laid out by `hideAt` alone at every width.
+   *
+   * Taking the width back is the escape hatch the core documents: its rule is a
+   * doubled-class selector (specificity 0-2-0) precisely so a consumer can outrank
+   * it, hence the tripled `[&&&]` here rather than `!important`. Written out as
+   * whole class strings, and only as whole class strings — Tailwind scans source
+   * text, so a value composed at runtime generates no CSS at all.
+   */
+  tabletHeaderWidth?: string;
 }
 
 /** The `meta` fields a live column and its skeleton must agree on. */
@@ -61,6 +79,7 @@ interface SharedColumnMeta {
   align?: 'right';
   sortable?: boolean;
   alwaysShowHeader?: boolean;
+  headerClassName?: string;
 }
 
 function sharedMeta(column: TableSkeletonColumn): SharedColumnMeta {
@@ -71,8 +90,10 @@ function sharedMeta(column: TableSkeletonColumn): SharedColumnMeta {
     sortable: column.sortable,
     // A date-filtered header is a control the user can act on, so it earns its
     // space below `lg` the same way the funnels do — the table keeps those on
-    // its own, but knows nothing about the calendar.
-    alwaysShowHeader: column.dateFilterable,
+    // its own, but knows nothing about the calendar. A column asking to keep its
+    // tablet WIDTH is asking to be there to have one.
+    alwaysShowHeader: column.dateFilterable || column.tabletHeaderWidth != null,
+    headerClassName: column.tabletHeaderWidth,
   };
 }
 

@@ -12,6 +12,13 @@ interface CheckoutResultCardProps {
   description: ReactNode;
   primaryCta: { label: string; href: string };
   secondaryCta?: { label: string; href: string };
+  /**
+   * The page has not yet learned whether it is allowed to exist (see the pages'
+   * `billings` gate). The card's own words are already true — Stripe has just
+   * sent the user here — so the outcome is stated and only the ways OUT of it
+   * are held, rather than replacing a settled message with grey bars.
+   */
+  pending?: boolean;
 }
 
 export function CheckoutResultCard({
@@ -21,6 +28,7 @@ export function CheckoutResultCard({
   description,
   primaryCta,
   secondaryCta,
+  pending = false,
 }: CheckoutResultCardProps) {
   const router = useRouter();
 
@@ -40,11 +48,16 @@ export function CheckoutResultCard({
         </div>
 
         <div className="flex w-full flex-col gap-3">
-          <Button variant="accent" className="w-full" onClick={() => router.push(primaryCta.href)}>
+          <Button variant="accent" className="w-full" disabled={pending} onClick={() => router.push(primaryCta.href)}>
             {primaryCta.label}
           </Button>
           {secondaryCta && (
-            <Button variant="outline" className="w-full" onClick={() => router.push(secondaryCta.href)}>
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled={pending}
+              onClick={() => router.push(secondaryCta.href)}
+            >
               {secondaryCta.label}
             </Button>
           )}
