@@ -234,9 +234,11 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
     <div
       className={cn(
         touchReorder
-          ? 'grid grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
-          : 'grid grid-cols-[auto_minmax(0,1fr)_auto] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto]',
-        'gap-x-[var(--spacing-system-xs)] gap-y-[var(--spacing-system-m)] items-start',
+          ? // Touch: the mock spaces name / move buttons / delete by the same
+            // fixed 8px, so the grid gap matches the controls-cluster gap.
+            'grid grid-cols-[minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xsf)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
+          : 'grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xs)] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto]',
+        'gap-y-[var(--spacing-system-m)] items-start',
         'border border-ods-border rounded-md p-[var(--spacing-system-m)]',
         drag.isDragging && 'opacity-70 shadow-lg bg-ods-bg',
       )}
@@ -288,7 +290,7 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
 
       <div
         className={cn(
-          'row-start-1 flex items-center gap-[var(--spacing-system-s)]',
+          'row-start-1 flex items-center gap-[var(--spacing-system-xsf)]',
           touchReorder ? 'col-start-2 lg:col-start-3' : 'col-start-3 lg:col-start-4',
           LABEL_OFFSET_CLASS,
         )}
