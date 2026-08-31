@@ -27,15 +27,18 @@ import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { writeCachedOnboardingTopBar } from '@/lib/onboarding-top-bar-cache';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
+import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
 import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
+import { AiSpendLimitBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { InitialSetupBar } from './initial-setup-bar';
@@ -264,6 +267,33 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const helpCenterEnabled = useFeatureFlag('help-center');
   const notificationsEnabled = useFeatureFlag('notifications');
+  const billingsEnabled = useFeatureFlag('billings');
+  /**
+   * What the app-wide billing banners have to say, reported by the hydrator
+   * mounted below. `default`/`null` cover both "nothing set" and "nowhere near
+   * it", which are the same thing to look at: nothing.
+   */
+  const [billingBars, setBillingBars] = useState<BillingBarsState>(NO_BARS);
+  /**
+   * The trial banner is the only dismissible one, and the dismissal is per
+   * TRIAL (see `trial-bar-dismissal.ts`). Read past hydration, never in the
+   * initializer: `localStorage` is empty on the server, so a state seeded from
+   * it makes the two renders disagree about whether the band exists — a
+   * mismatch that costs the whole shell subtree, exactly as the onboarding
+   * cache beside it documents.
+   */
+  const trialToken = billingBars.trial?.token ?? null;
+  const [trialDismissed, setTrialDismissed] = useState(false);
+  useEffect(() => {
+    setTrialDismissed(isTrialBarDismissed(trialToken));
+  }, [trialToken]);
+  /**
+   * Payments have to be showable at all for this to be worth saying: the native
+   * builds hide every payment surface (App Store Guideline 3.1.1, see
+   * `billing-visibility.ts`), and the page this bar sends you to has no limit
+   * control on them.
+   */
+  const showAiSpendBar = billingsEnabled && !isBillingHidden() && sessionReady && !isLocked;
 
   // The Mingo sidebar (header launcher + in-layout chat drawer) is gated by the
   // `mingo-sidebar` feature flag. It's also only meaningful inside the full,
@@ -430,7 +460,35 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // browser-only (see `useCachedOnboardingTopBar`).
   const cachedTopBar = useCachedOnboardingTopBar(cacheOwnerId);
   let topBar: React.ReactNode;
-  if (showOnboardingChrome) {
+  if (showAiSpendBar && billingBars.ai.tone !== 'default') {
+    // Ahead of the onboarding bars, and the only thing that outranks them:
+    // finishing a setup tour can wait, agents about to stop answering cannot,
+    // and this state is invisible from every page but Billing & Usage. Not
+    // cached like the onboarding decision below — replaying a red bar on a cold
+    // start would announce a limit the tenant may have already raised.
+    topBar = (
+      <AiSpendLimitBar
+        tone={billingBars.ai.tone}
+        percent={billingBars.ai.percent}
+        onExpand={() => router.push(routes.settings.billingUsage)}
+      />
+    );
+  } else if (showAiSpendBar && billingBars.trial && !trialDismissed) {
+    // Below the AI bars and above onboarding: a trial past its halfway point is
+    // a deadline, not a failure — but it still outranks a setup tour, because
+    // missing it locks the workspace and the tour can be finished afterwards.
+    topBar = (
+      <TrialEndingBar
+        daysLeft={billingBars.trial.daysLeft}
+        onActivate={() => router.push(routes.settings.billingUsage)}
+        onDismiss={() => {
+          if (!trialToken) return;
+          dismissTrialBar(trialToken);
+          setTrialDismissed(true);
+        }}
+      />
+    );
+  } else if (showOnboardingChrome) {
     if (initialSetupActive) {
       topBar = (
         <InitialSetupBar
@@ -686,6 +744,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           <OnboardingProgressHydrator />
           <OnboardingCoachMark />
         </>
+      )}
+      {/* Reports what the billing banners above need. Suspends, so it sits in
+          its own boundary and renders nothing either way — a shell that waited
+          on it would hold the whole app for a banner. */}
+      {showAiSpendBar && (
+        <Suspense fallback={null}>
+          <BillingBarsHydrator onResolved={setBillingBars} />
+        </Suspense>
       )}
       {/* Logout confirmation modal — opened from the nav user menu and the
           Settings "Log Out" button via `useLogoutConfirmStore`. */}

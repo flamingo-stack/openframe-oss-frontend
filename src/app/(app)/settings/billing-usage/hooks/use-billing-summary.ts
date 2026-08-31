@@ -1,19 +1,13 @@
 import type { billingUsageContentQuery$data } from '@/__generated__/billingUsageContentQuery.graphql';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { BillingPeriod, OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
+import { aiSpendTone } from '@/lib/ai-spend-tone';
 import type { UsageStatTone } from '../components/usage-stat-card';
 import { freeTokensForPlan } from '../lib/ai-free-tokens';
 import { aiTokenPrice as tokenPriceFromUnit } from '../lib/ai-token-price';
 
 type SubscriptionData = billingUsageContentQuery$data['subscription'];
 type BillingPlanData = billingUsageContentQuery$data['billingPlan'];
-
-/**
- * How much of the AI cap has to be spent before the page says so. The warning
- * exists to be actionable — early enough to raise the limit before Fae and Mingo
- * stop, late enough that it is not noise on a limit barely touched.
- */
-const AI_CAP_WARNING_RATIO = 0.9;
 
 export function useBillingSummary(subscription: SubscriptionData, billingPlan: BillingPlanData) {
   const subscriptionProducts = subscription?.products ?? [];
@@ -132,12 +126,13 @@ export function useBillingSummary(subscription: SubscriptionData, billingPlan: B
   const aiCapUsd = subscription?.aiSpendCapUsd ?? null;
 
   /**
-   * A cap of 0 is a real cap — nothing beyond the free tokens — so this is a
-   * null check, never a falsy one, everywhere the cap is read.
+   * Shared with the app-wide limit bar, so the two cannot disagree about when
+   * AI is close to stopping (see `lib/ai-spend-tone.ts`). A cap of 0 is a real
+   * cap — nothing beyond the free tokens — so every check there is against
+   * `null`, never falsy.
    */
   const aiCapped = aiCapUsd != null;
-  const aiCapReached = aiCapped && aiSpendUsd >= aiCapUsd;
-  const aiCapNear = aiCapped && !aiCapReached && aiSpendUsd >= aiCapUsd * AI_CAP_WARNING_RATIO;
+  const aiTone = aiSpendTone(aiSpendUsd, aiCapUsd);
 
   const ai = {
     tokenPrice: aiTokenPrice,
@@ -149,9 +144,9 @@ export function useBillingSummary(subscription: SubscriptionData, billingPlan: B
     capUsd: aiCapUsd,
     /** The cap told back in tokens, which is the unit the counter is in. */
     capTokens: aiCapped && aiTokenPrice ? Math.round(aiCapUsd / aiTokenPrice) : null,
-    capReached: aiCapReached,
-    capNear: aiCapNear,
-    tone: (aiCapReached ? 'error' : aiCapNear ? 'warning' : 'default') as UsageStatTone,
+    capReached: aiTone === 'error',
+    capNear: aiTone === 'warning',
+    tone: aiTone as UsageStatTone,
   };
 
   /**
