@@ -157,8 +157,18 @@ export function ScheduleScriptPickerCard({
         isDragging ? 'relative z-10 border-ods-accent shadow-lg' : 'border-ods-border'
       }`}
     >
-      <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] md:items-end">
-        <div className="flex-1 min-w-0 flex gap-[var(--spacing-system-xs)] items-end">
+      {/* Touch (no DnD): the mock stacks the rows on every width and puts the
+          move buttons + delete in the Select Script row, spaced by a fixed 8px;
+          with DnD the approved desktop layout stays — handle beside the select,
+          delete beside the timeout, the two halves side by side from md. */}
+      <div
+        className={`flex flex-col gap-[var(--spacing-system-lf)] ${dragAndDropEnabled ? 'md:flex-row md:items-end' : ''}`}
+      >
+        <div
+          className={`flex-1 min-w-0 flex items-end ${
+            dragAndDropEnabled ? 'gap-[var(--spacing-system-xs)]' : 'gap-[var(--spacing-system-xsf)]'
+          }`}
+        >
           {dragAndDropEnabled && (
             <button
               type="button"
@@ -215,6 +225,22 @@ export function ScheduleScriptPickerCard({
               )}
             />
           </div>
+
+          {!dragAndDropEnabled && (
+            <>
+              <SortableMoveButtons index={index} count={count} label={selected?.name || `script ${index + 1}`} />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={onRemove}
+                disabled={!canRemove || disabled}
+                aria-label="Remove script from schedule"
+                className="text-ods-error disabled:opacity-30"
+              >
+                <TrashIcon size={20} />
+              </Button>
+            </>
+          )}
         </div>
 
         <div className="flex-1 min-w-0 flex gap-[var(--spacing-system-xs)] items-end">
@@ -244,20 +270,18 @@ export function ScheduleScriptPickerCard({
             />
           </div>
 
-          {!dragAndDropEnabled && (
-            <SortableMoveButtons index={index} count={count} label={selected?.name || `script ${index + 1}`} />
+          {dragAndDropEnabled && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onRemove}
+              disabled={!canRemove || disabled}
+              aria-label="Remove script from schedule"
+              className="text-ods-error disabled:opacity-30"
+            >
+              <TrashIcon size={20} />
+            </Button>
           )}
-
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={onRemove}
-            disabled={!canRemove || disabled}
-            aria-label="Remove script from schedule"
-            className="text-ods-error disabled:opacity-30"
-          >
-            <TrashIcon size={20} />
-          </Button>
         </div>
       </div>
 
