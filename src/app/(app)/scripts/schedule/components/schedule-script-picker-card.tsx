@@ -302,7 +302,7 @@ export function ScheduleScriptPickerCard({
       {isMdUp === false ? (
         <Accordion type="multiple" className="overflow-hidden rounded-[6px] border border-ods-border">
           <AccordionItem value="args" className="border-ods-border data-[state=closed]:bg-ods-card">
-            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:h-6 [&>svg]:w-6 [&>svg]:text-ods-text-secondary">
+            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:text-ods-text-secondary">
               Edit Default Script Arguments
             </AccordionTrigger>
             {/* The editor's own title would duplicate the trigger — an empty
@@ -326,7 +326,7 @@ export function ScheduleScriptPickerCard({
             </AccordionContent>
           </AccordionItem>
           <AccordionItem value="env" className="border-b-0 border-ods-border data-[state=closed]:bg-ods-card">
-            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:h-6 [&>svg]:w-6 [&>svg]:text-ods-text-secondary">
+            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:text-ods-text-secondary">
               Edit Default Environment Vars
             </AccordionTrigger>
             <AccordionContent className="px-[var(--spacing-system-sf)] [&_label:empty]:hidden">
