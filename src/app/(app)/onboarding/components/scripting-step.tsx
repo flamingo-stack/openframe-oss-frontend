@@ -22,10 +22,10 @@ import { createScriptMutation } from '@/graphql/scripts/create-script-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 import { routes } from '@/lib/routes';
-import { ScriptEditor } from '../../scripts/components/script/script-editor';
-import { EDIT_SCRIPT_DEFAULT_VALUES } from '../../scripts/types/edit-script.types';
-import { formToWriteInput } from '../../scripts/v2/shared/utils/script-mappers';
-import { SCRIPT_V2_SHELL_TYPES } from '../../scripts/v2/shared/utils/shell-types';
+import { ScriptEditor } from '../../scripts/shared/components/script-editor';
+import { EDIT_SCRIPT_DEFAULT_VALUES } from '../../scripts/shared/types/edit-script.types';
+import { formToWriteInput } from '../../scripts/shared/utils/script-mappers';
+import { SCRIPT_SHELL_TYPES } from '../../scripts/shared/utils/shell-types';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 import { useStepActionState } from '../use-step-action-state';
 import { FullFormLink } from './full-form-link';
@@ -49,7 +49,7 @@ type OnboardingScriptForm = z.infer<typeof onboardingScriptSchema>;
 
 /**
  * Inner body of the "Scripting" onboarding step — a trimmed version of the full
- * add-script form ({@link ../../scripts/v2/script/components/edit-script-page}). It reuses
+ * add-script form ({@link ../../scripts/script/components/edit-script-page}). It reuses
  * the same primitives (platform `SelectButton`s, shell `Select`, `ScriptEditor`) and
  * the native `createScriptMutation` + `formToWriteInput` mapper. On "Add Script" it
  * creates the script and redirects to its details page with the coach-mark hint.
@@ -95,7 +95,9 @@ export function ScriptingStep({
           toast({ title: 'Success', description: 'Script created successfully', variant: 'success' });
           // A successful create completes the onboarding step (if not already done).
           if (!completed) onComplete?.();
-          router.push(newId ? onboardingHintUrl(routes.scriptsV2.details(newId), 'scripts', pathname) : '/scripts-v2');
+          router.push(
+            newId ? onboardingHintUrl(routes.scripts.details(newId), 'scripts', pathname) : routes.scripts.list,
+          );
         },
         onError: err => {
           toast({
@@ -204,7 +206,7 @@ export function ScriptingStep({
                   <SelectValue placeholder="Select Shell Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SCRIPT_V2_SHELL_TYPES.map(s => (
+                  {SCRIPT_SHELL_TYPES.map(s => (
                     <SelectItem key={s.value} value={s.value}>
                       <div className="flex items-center gap-[var(--spacing-system-xs)]">
                         <s.icon className="size-5" />
@@ -257,7 +259,7 @@ export function ScriptingStep({
 
       {/* Footer: full-form link (left) + Mark as Complete + Add Script (right) */}
       <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
-        <FullFormLink href={routes.scriptsV2.new} label="Full Script Form" />
+        <FullFormLink href={routes.scripts.new} label="Full Script Form" />
         <div className="flex flex-1 flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
           {!completed ? (
             <Button

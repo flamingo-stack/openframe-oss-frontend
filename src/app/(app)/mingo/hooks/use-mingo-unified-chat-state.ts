@@ -482,9 +482,12 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     },
     [sendMessage],
   );
-  // Display dispatches a `/<cmd> display "<x>"` slash command, which only the
-  // hub's SSE transport has a registry for — still inert here.
-  const displayRef = useCallback(() => {}, []);
+  // Display dumps a row's raw body via a `/<cmd> display "<x>"` slash command, which
+  // only the hub's SSE transport has a registry for — the agent has no verbatim-dump
+  // path. Left UNDEFINED rather than stubbed: the lib gates the affordance on this
+  // callback, so a stub renders a dead "Display" row where "Ask Mingo" (which works)
+  // belongs. The lib's type makes it optional for exactly this case.
+  const displayRef: UnifiedChatState['displayRef'] = undefined;
 
   const state = useMemo<UnifiedChatState>(
     () => ({
@@ -544,7 +547,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       stopMessage,
       clearMessages,
       discussRef,
-      displayRef,
       model,
       tokenUsage,
       dialogs,

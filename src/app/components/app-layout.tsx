@@ -263,7 +263,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // `useFeatureFlagGate` instead (see the drawer's URL sync).
   const mingoSidebarEnabled = useFeatureFlag('mingo-sidebar');
   const timeTrackerEnabled = useFeatureFlag('time-tracker');
-  const scriptsV2Enabled = useFeatureFlag('scripts-v2');
   const helpCenterEnabled = useFeatureFlag('help-center');
   const notificationsEnabled = useFeatureFlag('notifications');
 
@@ -362,12 +361,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   const navigationFlags = useMemo<NavigationFlags>(
     () => ({
-      scriptsV2: scriptsV2Enabled,
       mingoSidebar: mingoSidebarEnabled,
       timeTracker: timeTrackerEnabled,
       helpCenter: helpCenterEnabled,
     }),
-    [scriptsV2Enabled, mingoSidebarEnabled, timeTrackerEnabled, helpCenterEnabled],
+    [mingoSidebarEnabled, timeTrackerEnabled, helpCenterEnabled],
   );
 
   const navigationItems = useMemo(

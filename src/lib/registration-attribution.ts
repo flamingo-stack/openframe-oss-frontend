@@ -15,14 +15,17 @@ import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeR
  *
  * - **URL parameters** (`fbclid`, `gclid`, `rdt_cid`, `li_fat_id`, `utm_*`) exist only in the
  *   address bar of the *landing* page. A visitor who lands on `/` and then navigates to
- *   `/auth` has already lost them, so they are captured into sessionStorage on first load
- *   (see `captureAttributionFromUrl`, mounted app-wide) and read back at submit.
+ *   `/auth` has already lost them, so they are captured into localStorage on first load
+ *   (see `captureAttributionFromUrl`, mounted app-wide) and read back at submit. Each entry
+ *   carries its capture timestamp and expires after 90 days — enforced in code, because
+ *   localStorage itself never expires — so the ad click survives the tab being closed and a
+ *   return visit days later, without attributing signups to clicks from another quarter.
+ *   Known limitation: Safari ITP caps script-writable storage at ~7 days; accepted as-is.
  *
- * - **The partner referral** (`?ref=`) outlives both. It is clicked on the marketing site
- *   (`openframe.ai`) and redeemed on the signup app (`auth.openframe.ai`), possibly weeks
- *   later, so sessionStorage — origin-scoped and tab-lived — cannot carry it. It gets its own
- *   90-day cookie on the shared base domain; `referral-cookie.ts` owns that mechanism and the
- *   last-touch policy behind it.
+ * - **The partner referral** (`?ref=`) is different still. It is clicked on the marketing site
+ *   (`openframe.ai`) and redeemed on the signup app (`auth.openframe.ai`) — localStorage is
+ *   origin-scoped, so it cannot make that hop. It gets its own 90-day cookie on the shared
+ *   base domain; `referral-cookie.ts` owns that mechanism and the last-touch policy behind it.
  */
 
 /** Backend DTO shape. Every field optional; absent means "never send this property". */
@@ -54,7 +57,7 @@ export interface RegistrationAttribution {
 }
 
 /**
- * URL parameter -> DTO field. Each entry also becomes a sessionStorage key (prefixed), so
+ * URL parameter -> DTO field. Each entry also becomes a localStorage key (prefixed), so
  * adding a network here is a one-line change that flows through capture, storage and submit.
  */
 const URL_PARAM_TO_FIELD: Record<string, keyof RegistrationAttribution> = {
@@ -71,6 +74,18 @@ const URL_PARAM_TO_FIELD: Record<string, keyof RegistrationAttribution> = {
 
 const STORAGE_PREFIX = 'of_attr_';
 
+/**
+ * How long a captured landing-page parameter stays usable. Matches the 90-day referral-cookie
+ * window; enforced on read because localStorage entries never expire on their own.
+ */
+const ATTRIBUTION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** What one localStorage entry holds: the parameter value plus its capture time, so expiry is per parameter. */
+interface StoredAttributionEntry {
+  v: string;
+  t: number;
+}
+
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
 }
@@ -86,8 +101,25 @@ function readUrlParam(name: string): string | undefined {
 
 function readStored(param: string): string | undefined {
   if (!isBrowser()) return undefined;
+  const key = STORAGE_PREFIX + param;
   try {
-    return window.sessionStorage.getItem(STORAGE_PREFIX + param)?.trim() || undefined;
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return undefined;
+    let entry: Partial<StoredAttributionEntry> | undefined;
+    try {
+      entry = JSON.parse(raw);
+    } catch {}
+    if (
+      !entry ||
+      typeof entry.v !== 'string' ||
+      typeof entry.t !== 'number' ||
+      Date.now() - entry.t > ATTRIBUTION_TTL_MS
+    ) {
+      // Expired or unreadable — drop it so the next visit's parameters count as a first touch.
+      window.localStorage.removeItem(key);
+      return undefined;
+    }
+    return entry.v.trim() || undefined;
   } catch {
     return undefined;
   }
@@ -96,15 +128,17 @@ function readStored(param: string): string | undefined {
 function writeStored(param: string, value: string): void {
   if (!isBrowser()) return;
   try {
-    window.sessionStorage.setItem(STORAGE_PREFIX + param, value);
+    const entry: StoredAttributionEntry = { v: value, t: Date.now() };
+    window.localStorage.setItem(STORAGE_PREFIX + param, JSON.stringify(entry));
   } catch {}
 }
 
 /**
- * Read every known attribution parameter out of the current URL and persist it for the rest
- * of the session. Safe to call on every page load: an existing value is never overwritten,
+ * Read every known attribution parameter out of the current URL and persist it for up to
+ * 90 days. Safe to call on every page load: an existing unexpired value is never overwritten,
  * so the *first* touch wins — that is the ad click that brought the visitor, not whatever
- * internal navigation they made afterwards.
+ * internal navigation they made afterwards. An expired entry reads as absent, so the next
+ * visit that carries the parameter starts a fresh 90-day window.
  */
 export function captureAttributionFromUrl(): void {
   if (!isBrowser()) return;
@@ -117,7 +151,7 @@ export function captureAttributionFromUrl(): void {
   }
 
   // `?ref=` is deliberately NOT part of that loop: it is cookie-backed, cross-subdomain and
-  // last-touch, none of which sessionStorage first-touch capture can express. Usually a no-op —
+  // last-touch, none of which localStorage first-touch capture can express. Usually a no-op —
   // the cookie normally arrives from the marketing site, and an unchanged one is left alone.
   captureReferralFromUrl();
 }

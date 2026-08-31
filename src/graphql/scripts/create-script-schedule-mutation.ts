@@ -15,6 +15,12 @@ export const createScriptScheduleMutation = graphql`
       status
       deviceCount
       trigger
+      # What happens to a device that is offline when the schedule fires. Never
+      # null on the read side — a schedule stored before the field existed reads
+      # as SKIP. reconnectWindowSeconds is the deadline a queued run is abandoned
+      # at, and is null for SKIP.
+      offlineBehavior
+      reconnectWindowSeconds
       startAt
       repeat
       nextRunAt

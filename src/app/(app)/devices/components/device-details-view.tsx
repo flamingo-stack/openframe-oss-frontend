@@ -189,13 +189,13 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         {tabId => (
           <TabContent
             activeTab={tabId}
-            TabComponent={getTabComponent(DEVICE_TABS, tabId)}
+            TabComponent={getTabComponent(DEVICE_TABS, tabId) ?? null}
             componentProps={{ device: normalizedDevice }}
           />
         )}
       </TabNavigation>
 
-      {/* Run Script — native scripts-v2 modal (GraphQL run API). The legacy Tactical
+      {/* Run Script — native Scripts modal (GraphQL run API). The legacy Tactical
           ScriptsModal was removed together with the Tactical RMM integration. */}
       <RunScriptModal
         isOpen={isScriptsModalOpen}

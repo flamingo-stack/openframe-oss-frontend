@@ -24,7 +24,6 @@ const CATEGORY_BY_NAV_ID: Record<string, NotificationCategory> = {
   organizations: NotificationCategory.CUSTOMERS,
   devices: NotificationCategory.DEVICES,
   scripts: NotificationCategory.SCRIPTS,
-  'scripts-v2': NotificationCategory.SCRIPTS,
   monitoring: NotificationCategory.MONITORING,
   logs: NotificationCategory.LOGS,
   tickets: NotificationCategory.TICKETS,
@@ -52,14 +51,12 @@ export interface OnboardingNavState {
  * they are real.
  *
  * That matters because `false` here is indistinguishable from "not answered yet", and
- * two of these entries are gated in the "on hides it" direction — `scriptsV2` swaps
- * which page the Scripts row opens, `mingoSidebar` hides the legacy Mingo row — so a
- * guessed `false` would render entries that don't belong to the tenant rather than
- * simply fewer of them. If the `loading` wiring in `app-layout.tsx` is ever removed,
- * this type has to go back to three states.
+ * one of these entries is gated in the "on hides it" direction — `mingoSidebar` hides
+ * the legacy Mingo row — so a guessed `false` would render entries that don't belong
+ * to the tenant rather than simply fewer of them. If the `loading` wiring in
+ * `app-layout.tsx` is ever removed, this type has to go back to three states.
  */
 export interface NavigationFlags {
-  scriptsV2: boolean;
   mingoSidebar: boolean;
   timeTracker: boolean;
   helpCenter: boolean;
@@ -113,24 +110,13 @@ export const getNavigationItems = (
       path: routes.devices.list,
       isActive: pathname.startsWith('/devices'),
     },
-    // Single "Scripts" entry — the flag swaps which implementation it points at
-    // (new `/scripts-v2` when enabled, legacy `/scripts` otherwise). The label
-    // stays "Scripts" in both cases; the version is never surfaced in the sidebar.
-    flags.scriptsV2
-      ? {
-          id: 'scripts-v2',
-          label: 'Scripts',
-          icon: <BracketCurlyIcon size={24} />,
-          path: routes.scriptsV2.list,
-          isActive: pathname.startsWith('/scripts-v2'),
-        }
-      : {
-          id: 'scripts',
-          label: 'Scripts',
-          icon: <BracketCurlyIcon size={24} />,
-          path: routes.scripts.list(),
-          isActive: pathname.startsWith('/scripts') && !pathname.startsWith('/scripts-v2'),
-        },
+    {
+      id: 'scripts',
+      label: 'Scripts',
+      icon: <BracketCurlyIcon size={24} />,
+      path: routes.scripts.list,
+      isActive: pathname.startsWith('/scripts'),
+    },
     {
       id: 'monitoring',
       label: 'Monitoring',

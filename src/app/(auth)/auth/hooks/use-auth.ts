@@ -133,7 +133,7 @@ export function useAuth() {
           tenantName: '',
           tenantDomain: data.domain || 'localhost',
         };
-        const providers = data.auth_providers || ['openframe-sso'];
+        const providers = data.auth_providers || ['openframe'];
 
         setTenantInfo(tenantInfo);
         setAvailableProviders(providers);

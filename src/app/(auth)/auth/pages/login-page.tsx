@@ -13,13 +13,15 @@ import { routes } from '@/lib/routes';
 
 // Backend provider id ↔ LoginForm provider id
 const SSO_TO_FORM: Record<string, AuthSsoProvider> = {
+  // The backend reports the built-in login as 'openframe'; 'openframe-sso' is the legacy id.
+  openframe: 'openframe',
   'openframe-sso': 'openframe',
   google: 'google',
   microsoft: 'microsoft',
   apple: 'apple',
 };
 const FORM_TO_SSO: Record<AuthSsoProvider, string> = {
-  openframe: 'openframe-sso',
+  openframe: 'openframe',
   google: 'google',
   microsoft: 'microsoft',
   apple: 'apple',
@@ -39,6 +41,12 @@ export default function LoginPage() {
   const isApple = useIsApplePlatform();
   const formProviders = FORM_PROVIDER_ORDER.filter(provider => provider !== 'apple' || isApple);
 
+  // A tenant can disable the built-in OpenFrame login (Settings > SSO
+  // Configurations). Discovery then omits its provider id, and the button must
+  // disappear entirely — not just stay locked like the other providers do.
+  const [openframeOffered, setOpenframeOffered] = useState(true);
+  const visibleProviders = formProviders.filter(provider => provider !== 'openframe' || openframeOffered);
+
   useEffect(() => {
     if (isAuthenticated && !isAuthOnlyMode()) {
       // replace, not push: an authenticated user landing on /auth/login (e.g. via
@@ -56,14 +64,19 @@ export default function LoginPage() {
   }, [router]);
 
   // Single-screen flow: the email field runs debounced discovery; provider
-  // buttons are always visible and unlock for the discovered tenant.
+  // buttons unlock for the discovered tenant (and OpenFrame hides when the
+  // tenant disabled it — see `openframeOffered`).
   const handleDiscover = async (email: string): Promise<LoginDiscoveryResult | null> => {
     const result = await discoverTenants(email);
     if (!result) return null;
-    const backendProviders = result.auth_providers || ['openframe-sso'];
+    const backendProviders = result.auth_providers || ['openframe'];
+    const providers = formProviders.filter(provider => backendProviders.some(id => SSO_TO_FORM[id] === provider));
+    // Only an explicit answer for an existing account hides the button; a
+    // not-found email restores the default full set.
+    setOpenframeOffered(!result.has_existing_accounts || providers.includes('openframe'));
     return {
       found: result.has_existing_accounts,
-      providers: formProviders.filter(provider => backendProviders.some(id => SSO_TO_FORM[id] === provider)),
+      providers,
     };
   };
 
@@ -92,7 +105,12 @@ export default function LoginPage() {
 
   return (
     <AuthShell tabs={tabs}>
-      <LoginSection onDiscover={handleDiscover} onSso={handleSso} allProviders={formProviders} isLoading={ssoLoading} />
+      <LoginSection
+        onDiscover={handleDiscover}
+        onSso={handleSso}
+        allProviders={visibleProviders}
+        isLoading={ssoLoading}
+      />
     </AuthShell>
   );
 }

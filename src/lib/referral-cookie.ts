@@ -5,13 +5,12 @@ import { type CookieAttributes, readCookie, writeCookie } from './cookies';
  * Partner-referral capture: `?ref=<code>` on any OpenFrame surface → the `of_ref` cookie, read
  * back at signup and sent as `attribution.ref` (see `registration-attribution.ts`).
  *
- * **Why a cookie**, when every other attribution signal in this app rides sessionStorage: the
+ * **Why a cookie**, when every other attribution signal in this app rides localStorage: the
  * referral link lands on the marketing site (`openframe.ai`) but is redeemed on the signup app
- * (`auth.openframe.ai`). sessionStorage is origin-scoped and dies on tab close, so it survives
- * neither the subdomain hop nor the visitor who comes back tomorrow. A cookie scoped to the
- * registrable base domain (`.openframe.ai`) survives both — which is exactly the requirement:
- * one referred visit is enough, and every later visit from any other source still registers
- * under that partner until the window expires.
+ * (`auth.openframe.ai`). localStorage is origin-scoped, so it cannot make that subdomain hop.
+ * A cookie scoped to the registrable base domain (`.openframe.ai`) can — which is exactly the
+ * requirement: one referred visit is enough, and every later visit from any other source still
+ * registers under that partner until the window expires.
  *
  * **The browser writes it here**, because this app has no server-side seam to write it from:
  * it also ships as a static export for the native shells, so there are no route handlers, and
