@@ -112,6 +112,10 @@ export const GET_TICKET_QUERY = `
         name
         color
       }
+      pendingApproval {
+        id
+        approvalType
+      }
       creationSource
       owner {
         ... on ClientTicketOwner {
@@ -291,6 +295,7 @@ const boardCardTicketFragment = () => `
       id
       name
       color
+      kind
     }
     availableTransitions {
       id

@@ -31,6 +31,7 @@ import {
 import type { Dialog } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
+import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
@@ -402,28 +403,50 @@ export function TicketsBoard({
   // assign control at all — assignment stays on the dialog page. The rest
   // keep the picker; AI-worked tickets get the Take Over interception
   // instead of the dropdown.
-  const renderAssignSlot = useCallback((ticket: BoardTicket) => {
-    if (aiOwnedTicketIdsRef.current.has(ticket.id)) return null;
-    const dialog = dialogByIdRef.current.get(ticket.id);
-    const aiActive = !!dialog && hasActiveAiDialog(dialog);
-    return (
-      <BoardAssigneePicker
-        ticket={ticket}
-        onTakeOver={aiActive ? () => setTakeOverTarget({ ticket: dialog }) : undefined}
-      />
-    );
-  }, []);
+  const renderAssignSlot = useCallback(
+    (ticket: BoardTicket) => {
+      if (aiOwnedTicketIdsRef.current.has(ticket.id)) return null;
+      const dialog = dialogByIdRef.current.get(ticket.id);
+      const aiActive = !!dialog && hasActiveAiDialog(dialog);
+      if (!aiActive) return <BoardAssigneePicker ticket={ticket} />;
+      // Assigning an AI-worked ticket is a take-over, which the pending-approval
+      // lock blocks (server-enforced) - explain instead of opening the modal.
+      const handleTakeOver = isStatusLockedByPendingApproval(dialog)
+        ? () =>
+            toast({
+              title: 'Status Locked',
+              description: STATUS_LOCKED_BY_APPROVAL_REASON,
+              variant: 'destructive',
+              duration: 5000,
+            })
+        : () => setTakeOverTarget({ ticket: dialog });
+      return <BoardAssigneePicker ticket={ticket} onTakeOver={handleTakeOver} />;
+    },
+    [toast],
+  );
 
   const handleChange = useCallback(
     (change: BoardChange) => {
       if (change.fromColumnId !== change.toColumnId) {
+        // Tech Required + pending approval: the server rejects the transition,
+        // so block the drop up front - toast the reason and snap the card back.
+        const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
+        if (isStatusLockedByPendingApproval(dialogById.get(change.ticketId))) {
+          toast({
+            title: 'Status Locked',
+            description: STATUS_LOCKED_BY_APPROVAL_REASON,
+            variant: 'destructive',
+            duration: 5000,
+          });
+          setBoardResetNonce(nonce => nonce + 1);
+          return;
+        }
         // Dragging OUT of the Resolved lane is a REOPEN, not a plain move: it
         // goes through the confirmation modal (target status + assignee +
         // reason) instead of committing the drop. The optimistic move never
         // runs, so the card snaps back until the modal confirms. Gated on
         // `ai-resolution` — with the flag off the drop commits directly (legacy).
         if (featureFlags.aiResolution.enabled()) {
-          const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
           if (sourceKind === 'RESOLVED') {
             setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
             return;
@@ -447,7 +470,7 @@ export function TicketsBoard({
         beforeTicketId: change.beforeTicketId,
       });
     },
-    [moveTicket, statuses, dialogById],
+    [moveTicket, statuses, dialogById, toast],
   );
 
   const showEmptyState =
