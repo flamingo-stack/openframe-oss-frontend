@@ -34,7 +34,12 @@ interface TakeOverTicketModalProps {
   /** Non-null opens the modal. */
   target: TakeOverTicketTarget | null;
   onClose: () => void;
-  onSuccess?: () => void;
+  /**
+   * Fires with the confirmed selection BEFORE `onClose`, so a host that held
+   * UI state for the pending take-over (the board's held drop) can convert it
+   * instead of discarding it when the close handler runs.
+   */
+  onSuccess?: (selection: TakeOverTicketSelection) => void;
 }
 
 /**
@@ -88,8 +93,8 @@ export function TakeOverTicketModal({ target, onClose, onSuccess }: TakeOverTick
       { ticketId: ticket.id, toStatusId: statusId, assigneeId },
       {
         onSuccess: () => {
+          onSuccess?.({ statusId, assigneeId });
           onClose();
-          onSuccess?.();
         },
       },
     );
