@@ -161,7 +161,7 @@ export function ScheduleScriptPickerCard({
       ref={itemRef}
       // No inline style here — the list writes `transform` straight onto this
       // node during a drag (see `SortableList`).
-      className={`bg-ods-bg border rounded-[6px] p-[var(--spacing-system-lf)] flex flex-col gap-[var(--spacing-system-lf)] ${
+      className={`bg-ods-bg border rounded-[6px] p-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-lf)] ${
         isDragging ? 'relative z-10 border-ods-accent shadow-lg' : 'border-ods-border'
       }`}
     >
