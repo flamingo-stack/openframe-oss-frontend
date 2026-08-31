@@ -36,11 +36,13 @@ const REASON_OPTIONS: ReadonlyArray<{ value: CancelReason; label: string }> = [
   { value: 'OTHER', label: 'Other' },
 ];
 
-export interface DataLossStats {
+interface DataLossStats {
   activeDevices: number;
   tickets: number;
   kbArticles: number;
+  kbFolders: number;
   scripts: number;
+  activeSchedules: number;
   monitoringPolicies: number;
   savedQueries: number;
 }
@@ -215,6 +217,17 @@ function Stat({ value }: { value: number }) {
 // Rows with a zero metric are hidden. The policies/queries row is dropped only
 // when both are zero; otherwise it shows just the non-zero parts. If nothing is
 // left to warn about, the whole box is omitted.
+//
+// Two rows name a second figure — the schedules that would have kept running, the
+// folders the articles are filed in. Both are qualifiers on the row they sit in
+// rather than rows of their own: a schedule with no script and a folder with no
+// articles are not things a customer loses separately, and the design states them
+// in the same sentence. Each is dropped on its own when it is zero, so a workspace
+// with scripts but no schedules reads "12 scripts", not "12 scripts (with 0 …)".
+//
+// One category from the design is still missing: events across monitoring
+// policies. Nothing in the schema or in Fleet counts them, so it is left unsaid
+// rather than guessed at.
 function DataLossBox({ stats }: { stats: DataLossStats }) {
   const showPolicies = stats.monitoringPolicies > 0;
   const showQueries = stats.savedQueries > 0;
@@ -235,12 +248,26 @@ function DataLossBox({ stats }: { stats: DataLossStats }) {
       <DataLossItem key="kb">
         <Stat value={stats.kbArticles} />
         {` knowledge base articles`}
+        {stats.kbFolders > 0 && (
+          <>
+            {` across `}
+            <Stat value={stats.kbFolders} />
+            {` folders`}
+          </>
+        )}
       </DataLossItem>
     ),
     stats.scripts > 0 && (
       <DataLossItem key="scripts">
         <Stat value={stats.scripts} />
         {` scripts`}
+        {stats.activeSchedules > 0 && (
+          <>
+            {` with `}
+            <Stat value={stats.activeSchedules} />
+            {` active schedules`}
+          </>
+        )}
       </DataLossItem>
     ),
     (showPolicies || showQueries) && (
@@ -265,7 +292,14 @@ function DataLossBox({ stats }: { stats: DataLossStats }) {
   if (rows.length === 0) return null;
 
   return (
-    <div className="rounded-md border border-ods-warning overflow-hidden bg-ods-bg">
+    // `shrink-0` is load-bearing, not defensive. The modal body is a flex column
+    // that scrolls, and a flex item's automatic minimum size — the thing that
+    // normally stops one shrinking below its content — applies only while its
+    // overflow is `visible`. `overflow-hidden` (here, to clip the header band
+    // against the rounded border) opts this box out of that protection, so it was
+    // the ONE child the column could crush: it collapsed to a sliver instead of
+    // pushing the body into a scroll.
+    <div className="shrink-0 rounded-md border border-ods-warning overflow-hidden bg-ods-bg">
       <div className="flex items-center gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] bg-[var(--ods-open-yellow-secondary)] border-b border-ods-warning">
         <AlertCircleIcon className="size-6 text-ods-warning shrink-0" />
         <p className="text-h6 flex-1 text-ods-warning">
@@ -283,7 +317,9 @@ const SKELETON_ROW_WIDTHS = ['w-1/2', 'w-3/4', 'w-2/5', 'w-1/3', 'w-3/4'] as con
 
 function DataLossSkeleton() {
   return (
-    <div className="rounded-md border border-ods-warning overflow-hidden bg-ods-bg">
+    // Same `shrink-0`, same reason as `DataLossBox` — and it has to match, or the
+    // loading state is the one that collapses.
+    <div className="shrink-0 rounded-md border border-ods-warning overflow-hidden bg-ods-bg">
       <div className="flex items-center gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] bg-[var(--ods-open-yellow-secondary)] border-b border-ods-warning">
         <AlertCircleIcon className="size-6 text-ods-warning shrink-0" />
         <p className="text-h6 flex-1 text-ods-warning">

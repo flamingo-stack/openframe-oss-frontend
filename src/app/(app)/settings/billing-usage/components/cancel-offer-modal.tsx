@@ -28,7 +28,8 @@ const OFFER_PRESETS: Record<CancelReason, OfferPreset> = {
     ctaTitle: 'Find a Plan that Fits',
     ctaDescription: `Keep everything you've built at a lower cost.`,
     ctaIcon: LayersMinusIcon,
-    ctaHref: routes.settings.billingSubscription,
+    // No href: the plan picker is a modal on the page this opens from, so the
+    // caller handles it (`onCtaClick`) rather than navigating anywhere.
   },
   NOT_USING_ENOUGH: {
     title: 'Compare Plans',
@@ -36,7 +37,8 @@ const OFFER_PRESETS: Record<CancelReason, OfferPreset> = {
     ctaTitle: 'Find a Plan that Fits',
     ctaDescription: `Keep everything you've built at a lower cost.`,
     ctaIcon: LayersMinusIcon,
-    ctaHref: routes.settings.billingSubscription,
+    // No href: the plan picker is a modal on the page this opens from, so the
+    // caller handles it (`onCtaClick`) rather than navigating anywhere.
   },
   MISSING_FEATURE: {
     title: 'Check the Roadmap',
@@ -44,7 +46,7 @@ const OFFER_PRESETS: Record<CancelReason, OfferPreset> = {
     ctaTitle: `See what's Coming`,
     ctaDescription: 'What you need might already be in progress.',
     ctaIcon: CalendarDaysIcon,
-    ctaHref: 'https://openframe.ai/roadmap',
+    ctaHref: routes.helpCenter.roadmap,
   },
   TECHNICAL_ISSUES: {
     title: 'Contact Support',
@@ -52,7 +54,7 @@ const OFFER_PRESETS: Record<CancelReason, OfferPreset> = {
     ctaTitle: 'We can Help',
     ctaDescription: 'Most issues get resolved faster than switching tools.',
     ctaIcon: LifeBuoyIcon,
-    ctaHref: 'mailto:support@openframe.ai',
+    ctaHref: routes.helpCenter.tickets,
   },
   OTHER: {
     title: 'Contact Support',
@@ -60,7 +62,7 @@ const OFFER_PRESETS: Record<CancelReason, OfferPreset> = {
     ctaTitle: 'We can Help',
     ctaDescription: 'Most issues get resolved faster than switching tools.',
     ctaIcon: LifeBuoyIcon,
-    ctaHref: 'mailto:support@openframe.ai',
+    ctaHref: routes.helpCenter.tickets,
   },
 };
 
@@ -86,14 +88,24 @@ export function CancelOfferModal({
   const preset = OFFER_PRESETS[reason];
   const CtaIcon = preset.ctaIcon;
 
+  // An href is a destination and always wins; a preset without one is asking the
+  // page to do something in place.
+  //
+  // The destinations are this tenant's OWN help center, reached through the route
+  // registry, and that is the fix for the bug they had: they used to point at
+  // `openframe.ai/roadmap` and a `mailto:`, so a customer mid-cancellation landed
+  // on the marketing site's login wall instead of the roadmap that was supposed to
+  // talk them out of leaving.
+  //
+  // Still a new tab, deliberately: the retention prompt is an aside, and navigating
+  // in place would close this modal and abandon a cancellation the user has not
+  // finished deciding about.
   const handleCtaClick = () => {
-    if (onCtaClick) {
-      onCtaClick();
-      return;
-    }
     if (preset.ctaHref) {
       window.open(preset.ctaHref, '_blank', 'noopener,noreferrer');
+      return;
     }
+    onCtaClick?.();
   };
 
   return (
