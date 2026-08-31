@@ -295,7 +295,6 @@ export const routes = {
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
     billingUsage: '/settings/billing-usage',
-    billingSubscription: '/settings/billing-usage/subscription',
   },
 
   /**

@@ -3,7 +3,6 @@
  * Controls whether the app runs in auth-only mode or full application mode
  */
 
-import { isPaymentUiEnabled } from './billing-visibility';
 import { isAppShell } from './platform';
 import { routes } from './routes';
 import { runtimeEnv } from './runtime-config';
@@ -81,6 +80,19 @@ export function isAppEnabled(): boolean {
  * Check if a route is allowed in the current app mode
  * @param pathname The route path to check
  * @returns True if the route is allowed in current mode
+ *
+ * APP MODE ONLY. Everything this answers is decided by `NEXT_PUBLIC_APP_MODE`
+ * and the shell — facts that are true before the first paint. It used to also
+ * block the purchase surfaces on `!isPaymentUiEnabled()`, and that was the bug
+ * behind the "Access restricted" screen: `isPaymentUiEnabled()` reads the
+ * server-loaded `billings` flag, which is simply *unanswered* on a cold load, so
+ * the guard read "not yet" as "not allowed" and threw the refusal over billing
+ * routes until the flags query came back.
+ *
+ * Do NOT reintroduce a check here that depends on data still in flight. Pages
+ * whose existence depends on loaded state gate themselves, where a tri-state
+ * (`loading | on | off`) can be told apart — see `billing-usage/page.tsx` and
+ * the `/checkout/*` pages, which 404 on their own.
  */
 export function isRouteAllowedInCurrentMode(pathname: string): boolean {
   const mode = getAppMode();
@@ -105,17 +117,6 @@ export function isRouteAllowedInCurrentMode(pathname: string): boolean {
   // `trailingSlash: true` form.
   if (pathname.startsWith(routes.accountDeletion)) {
     return true;
-  }
-
-  // Purchase surfaces exist only where the payment UI does — the `billings` flag
-  // AND a build allowed to show payments (App Store review; see
-  // billing-visibility.ts). The pages 404 on their own; this keeps them
-  // unreachable via a deep link or a restored history entry too.
-  if (
-    !isPaymentUiEnabled() &&
-    (pathname.startsWith('/settings/billing-usage/subscription') || pathname.startsWith('/checkout'))
-  ) {
-    return false;
   }
 
   // The app-download page is a browser errand: it hands out the installers for the
