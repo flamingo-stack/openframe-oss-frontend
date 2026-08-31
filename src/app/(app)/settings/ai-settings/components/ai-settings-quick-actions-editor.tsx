@@ -259,7 +259,9 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
         <Controller
           name={`quickActions.${index}.name`}
           control={control}
-          render={({ field, fieldState }) => <Input {...field} label="Action Name" error={fieldState.error?.message} />}
+          render={({ field, fieldState }) => (
+            <Input {...field} label="Action Name" labelVariant="large" error={fieldState.error?.message} />
+          )}
         />
       </div>
 
@@ -273,7 +275,13 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
           name={`quickActions.${index}.instructions`}
           control={control}
           render={({ field, fieldState }) => (
-            <Textarea {...field} label="Action Instructions" error={fieldState.error?.message} rows={4} />
+            <Textarea
+              {...field}
+              label="Action Instructions"
+              labelVariant="large"
+              error={fieldState.error?.message}
+              rows={4}
+            />
           )}
         />
       </div>
