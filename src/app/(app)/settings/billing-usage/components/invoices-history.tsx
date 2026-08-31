@@ -3,17 +3,23 @@
 import { ExternalLinkIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
+  type ColumnFiltersState,
   DataTable,
+  type DataTableFilterOption,
   Input,
   type Row,
+  type SortingState,
   Tag,
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { InvoiceStatus } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 import { formatCurrency, formatDateOrDash } from '../lib/format';
+import { INVOICE_COLUMNS } from '../lib/invoices-table-columns';
 
 interface InvoiceItem {
   id: string;
@@ -25,8 +31,10 @@ interface InvoiceItem {
    * cleanly; `statusTag` narrows it against the `InvoiceStatus` values.
    */
   status?: string | null;
-  amountDue: number; // major currency units (e.g. 11.92 USD)
-  currency: string;
+  // Major currency units (e.g. 11.92 USD). No `currency` beside it: `formatCurrency`
+  // prints USD, so carrying the code without reading it only looked like support
+  // for others. Re-select the field when a non-USD tenant is real.
+  amountDue: number;
   createdAt: string;
   dueDate?: string | null;
   hostedInvoiceUrl: string;
@@ -53,12 +61,17 @@ const UNPAID: StatusTag = { variant: 'warning', label: 'Unpaid' };
  * OPEN is spelled out rather than left to the fallback — it is the one status
  * that genuinely means unpaid, and conflating it with "unknown" is what hid the
  * distinction before.
+ *
+ * VOID reads "Canceled": `void` is Stripe's own word for an invoice withdrawn
+ * before it was ever paid, and the only way a customer's invoice gets there is a
+ * cancellation. Every other surface in the product calls that canceled, so the
+ * wire value stays VOID and only the label is in the customer's vocabulary.
  */
 const INVOICE_STATUS_TAGS = {
   [InvoiceStatus.DRAFT]: { variant: 'grey', label: 'Draft' },
   [InvoiceStatus.OPEN]: UNPAID,
   [InvoiceStatus.PAID]: { variant: 'success', label: 'Paid' },
-  [InvoiceStatus.VOID]: { variant: 'error', label: 'Void' },
+  [InvoiceStatus.VOID]: { variant: 'error', label: 'Canceled' },
   [InvoiceStatus.UNCOLLECTIBLE]: { variant: 'error', label: 'Uncollectible' },
 } satisfies Record<InvoiceStatus, StatusTag>;
 
@@ -67,8 +80,41 @@ function statusTag(status: string | null | undefined): StatusTag {
   return presentationFor(INVOICE_STATUS_TAGS, status) ?? UNPAID;
 }
 
+/**
+ * The status column is keyed by its LABEL, not by the wire status.
+ *
+ * Two wire values can print the same tag — a legacy `null` row and an `OPEN` one
+ * are both "Unpaid" — and a filter listing "Unpaid" twice, each hiding rows the
+ * other shows, is a filter nobody can use. Keying on what the row displays makes
+ * the option list exactly the set of tags on screen.
+ */
+function statusKey(invoice: InvoiceItem): string {
+  return statusTag(invoice.status).label;
+}
+
+/**
+ * Epoch ms for sorting, or `undefined` for a date that is missing or unparseable.
+ *
+ * `undefined` and not `null` because that is the only absence TanStack knows:
+ * paired with `sortUndefined: 'last'` it settles those rows BEFORE the descending
+ * flip is applied, so they stay at the bottom in both directions. A comparator
+ * returning them last would only hold for ascending — one click later, the rows
+ * with no answer to "which is due soonest" would be the ones on top.
+ *
+ * The column sorts on this number rather than on the ISO string, so a row whose
+ * date the backend sends in another shape sorts as unknown instead of
+ * lexicographically among the others.
+ */
+function dateSortValue(iso: string | null | undefined): number | undefined {
+  if (!iso) return undefined;
+  const time = new Date(iso).getTime();
+  return Number.isFinite(time) ? time : undefined;
+}
+
 export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[] }) {
   const [search, setSearch] = useState('');
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const data = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -83,25 +129,43 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
     }) as InvoiceItem[];
   }, [invoices, search]);
 
+  // Built from the statuses actually present, not from the enum: an option that
+  // can only ever return an empty table is a dead end the user has to undo.
+  // Derived from the FULL list rather than from `data`, so typing in the search
+  // box does not silently retire the filter option the user has selected.
+  const statusOptions = useMemo<DataTableFilterOption[]>(() => {
+    const labels = new Set(invoices.map(statusKey));
+    return [...labels].sort().map(label => ({ id: label, label, value: label }));
+  }, [invoices]);
+
   const columns = useMemo<ColumnDef<InvoiceItem>[]>(
     () => [
       {
-        // Human-readable Stripe invoice number; legacy entries have none, so the
-        // issue date stands in as the identifier.
+        // Human-readable Stripe invoice number over the date it was issued.
+        // Legacy entries not yet reconciled have no number, and the issue date
+        // used to stand in alone — a date under a header reading INVOICE is not a
+        // missing identifier, it is a wrong one. An em dash says what is true:
+        // this row has no number. The date keeps its place underneath either way.
         accessorKey: 'invoiceNumber',
         header: 'INVOICE',
         cell: ({ row }: { row: Row<InvoiceItem> }) => (
-          <TruncateText>{row.original.invoiceNumber ?? formatDateOrDash(row.original.createdAt)}</TruncateText>
+          <>
+            <TruncateText>{row.original.invoiceNumber ?? '—'}</TruncateText>
+            <span className="truncate text-h6 text-ods-text-secondary">{formatDateOrDash(row.original.createdAt)}</span>
+          </>
         ),
-        meta: { width: 'flex-1 min-w-0' },
+        enableSorting: false,
+        meta: liveColumnMeta(INVOICE_COLUMNS.invoiceNumber),
       },
       {
-        accessorKey: 'dueDate',
+        id: 'dueDate',
+        accessorFn: (row: InvoiceItem) => dateSortValue(row.dueDate),
         header: 'DUE DATE',
         cell: ({ row }: { row: Row<InvoiceItem> }) => (
           <TruncateText>{formatDateOrDash(row.original.dueDate)}</TruncateText>
         ),
-        meta: { width: 'flex-1 min-w-0' },
+        sortUndefined: 'last',
+        meta: liveColumnMeta(INVOICE_COLUMNS.dueDate),
       },
       {
         accessorKey: 'amountDue',
@@ -109,19 +173,24 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
         cell: ({ row }: { row: Row<InvoiceItem> }) => (
           <TruncateText>{formatCurrency(invoiceAmount(row.original))}</TruncateText>
         ),
-        meta: { width: 'flex-1 min-w-0' },
+        meta: liveColumnMeta(INVOICE_COLUMNS.amountDue),
       },
       {
-        accessorKey: 'status',
+        id: 'status',
+        accessorFn: statusKey,
         header: 'STATUS',
         cell: ({ row }: { row: Row<InvoiceItem> }) => {
           const { variant, label } = statusTag(row.original.status);
           return <Tag variant={variant} label={label} />;
         },
         enableSorting: false,
+        filterFn: multiSelectFilterFn,
         // The body cell is a `flex-col` (default `align-items: stretch`), which stretches the
         // tag full-width. `items-start` keeps it at its natural width, left-aligned.
-        meta: { width: 'flex-1 min-w-0', cellClassName: 'items-start' },
+        meta: liveColumnMeta(INVOICE_COLUMNS.status, {
+          cellClassName: 'items-start',
+          filter: { options: statusOptions },
+        }),
       },
       {
         id: 'actions',
@@ -139,17 +208,38 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
           </div>
         ),
         enableSorting: false,
-        // Fixed width reserved in BOTH header and body so the flex-1 columns line up
-        // (an empty `w-auto` header cell would collapse to 0 and shift every column).
-        meta: { width: 'w-14 shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(INVOICE_COLUMNS.actions),
       },
     ],
-    [],
+    [statusOptions],
   );
 
   const getRowId = useCallback((row: InvoiceItem) => row.id, []);
 
-  const table = useDataTable<InvoiceItem>({ data, columns, getRowId });
+  const table = useDataTable<InvoiceItem>({
+    data,
+    columns,
+    getRowId,
+    clientSideSorting: true,
+    clientSideFiltering: true,
+    state: { sorting, columnFilters },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+  });
+
+  // The header owns only the indicator; the cycle is ours. Third click clears the
+  // sort rather than pinning one of the two directions — the list's natural order
+  // is Stripe's own, and there is no way back to it otherwise.
+  const handleSortChange = useCallback((columnId: string) => {
+    setSorting(prev => {
+      const current = prev[0];
+      if (!current || current.id !== columnId) return [{ id: columnId, desc: false }];
+      if (!current.desc) return [{ id: columnId, desc: true }];
+      return [];
+    });
+  }, []);
+
+  const sortState = sorting[0] ? { id: sorting[0].id, desc: sorting[0].desc } : null;
 
   if (invoices.length === 0) return null;
 
@@ -166,8 +256,10 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
       />
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} />
-        <DataTable.Body emptyState={{ title: 'No invoices found', description: 'Try adjusting your search.' }} />
+        <DataTable.Header rightSlot={<DataTable.RowCount />} sort={sortState} onSortChange={handleSortChange} />
+        <DataTable.Body
+          emptyState={{ title: 'No invoices found', description: 'Try adjusting your search or filters.' }}
+        />
       </DataTable>
     </div>
   );

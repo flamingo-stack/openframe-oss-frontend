@@ -27,15 +27,18 @@ import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { writeCachedOnboardingTopBar } from '@/lib/onboarding-top-bar-cache';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
+import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
 import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
+import { AiSpendLimitBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { InitialSetupBar } from './initial-setup-bar';
@@ -47,9 +50,8 @@ import { CachedOnboardingTopBar, useCachedOnboardingTopBar } from './onboarding-
 import { OnboardingTourBar } from './onboarding-tour-bar';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { PresenceHeartbeat } from './presence-heartbeat';
-import { SubscriptionGuard } from './subscription-lock/subscription-guard';
+import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
-import { useSubscriptionLock } from './subscription-lock/subscription-lock-context';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
@@ -231,27 +233,20 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     closeNotificationsRef.current?.();
   }, [pathname]);
 
-  const { isLocked, isResolved: subscriptionResolved } = useSubscriptionLock();
-  // Checkout result pages render their own success/cancel UI; they're the only
-  // place a paying user lands before the webhook flips the subscription to ACTIVE.
-  const isCheckoutResultPage = pathname?.startsWith('/checkout') ?? false;
-  const showLockContent = isLocked && !isCheckoutResultPage;
-  // The subscription answer decides whether the page or the lock screen belongs
-  // in `<main>`, so until it lands the page area holds the route's skeleton.
-  // Checkout pages are exempt for the same reason they are exempt from the lock.
-  // Note there is deliberately NO "still resolving" placeholder for the page
-  // area. `children` render immediately — before the session and before the
+  // Reaching this component at all means the lock is NOT showing — `AppContent`
+  // above renders the lock screen instead of the shell. `isLocked` can still be
+  // true here on one route: `/checkout/*`, which is exempt from the lock (a payer
+  // lands there before the webhook flips the subscription to ACTIVE), and where
+  // the chrome's own data requests are still held by the subscription gate. That
+  // is what the `!isLocked` guards below are for.
+  //
+  // There is deliberately NO "still resolving" placeholder for the page area.
+  // `children` render immediately — before the session and before the
   // subscription answer — and show their OWN loading state, because every app
   // data request waits on the session latch (`lib/session-ready.ts`) rather than
   // on this tree. That is what removed the route→skeleton registry: the mapping
   // from a page to its skeleton lives in the page, once.
-  //
-  // The trade-off is on the lock: a locked workspace sees its page's skeleton for
-  // the length of the subscription round-trip before the lock screen swaps in.
-  // The lock is UX, not enforcement (the API refuses the data either way), and
-  // the query is `store-and-network`, so the window exists only on a cold store.
-  void subscriptionResolved;
-  void isCheckoutResultPage;
+  const { isLocked } = useSubscriptionLock();
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
   // `featureFlags.*` snapshot taken before the flags query answers would leave
@@ -265,6 +260,33 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const helpCenterEnabled = useFeatureFlag('help-center');
   const notificationsEnabled = useFeatureFlag('notifications');
+  const billingsEnabled = useFeatureFlag('billings');
+  /**
+   * What the app-wide billing banners have to say, reported by the hydrator
+   * mounted below. `default`/`null` cover both "nothing set" and "nowhere near
+   * it", which are the same thing to look at: nothing.
+   */
+  const [billingBars, setBillingBars] = useState<BillingBarsState>(NO_BARS);
+  /**
+   * The trial banner is the only dismissible one, and the dismissal is per
+   * TRIAL (see `trial-bar-dismissal.ts`). Read past hydration, never in the
+   * initializer: `localStorage` is empty on the server, so a state seeded from
+   * it makes the two renders disagree about whether the band exists — a
+   * mismatch that costs the whole shell subtree, exactly as the onboarding
+   * cache beside it documents.
+   */
+  const trialToken = billingBars.trial?.token ?? null;
+  const [trialDismissed, setTrialDismissed] = useState(false);
+  useEffect(() => {
+    setTrialDismissed(isTrialBarDismissed(trialToken));
+  }, [trialToken]);
+  /**
+   * Payments have to be showable at all for this to be worth saying: the native
+   * builds hide every payment surface (App Store Guideline 3.1.1, see
+   * `billing-visibility.ts`), and the page this bar sends you to has no limit
+   * control on them.
+   */
+  const showAiSpendBar = billingsEnabled && !isBillingHidden() && sessionReady && !isLocked;
 
   // The Mingo sidebar (header launcher + in-layout chat drawer) is gated by the
   // `mingo-sidebar` feature flag. It's also only meaningful inside the full,
@@ -278,7 +300,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Suppressing it was actively harmful once `/mingo` became the deep-link resolver
   // — routing through it unmounted the drawer and its `<DialogSubscription>`
   // mid-stream, for one redirect's worth of frames.
-  const chatEnabled = mingoSidebarEnabled && !showLockContent;
+  const chatEnabled = mingoSidebarEnabled && !isLocked;
 
   // Mirrors the drawer's open conversation into `?mingoDialog=` and adopts one
   // from the URL — what makes a dialog shareable by link and reachable from a
@@ -331,14 +353,21 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // loader marks them loaded on query error, and `fetchOnboardingProgress` does the
   // same on an error or a null payload.
   //
-  // That terminality is necessary but not sufficient, and this used to rely on it
-  // alone. It only covers the way IN — "every load eventually answers" — and says
-  // nothing about a store being emptied AFTER it answered, which is a reset away
-  // and is precisely what pinned this to `true` for whole sessions (see
+  // `isLocked` is excluded outright, and it is not an error case: a locked workspace
+  // has its app requests HELD at the network layer (`subscription-gate.ts`), so the
+  // onboarding progress request neither answers nor fails — it simply never settles,
+  // and waiting on it left the sidebar and header skeletons up forever behind the lock
+  // screen. There is no onboarding chrome to draw on a locked workspace anyway, which
+  // is why the hydrator below is not mounted there either.
+  //
+  // Terminality is necessary but not sufficient, and this used to rely on it alone.
+  // It only covers the way IN — "every load eventually answers" — and says nothing
+  // about a store being emptied AFTER it answered, which is a reset away and is
+  // precisely what pinned this to `true` for whole sessions (see
   // `onboarding-progress-hydrator.tsx`). `useFailOpen` bounds the wait regardless
   // of which of the two signals is stuck, or why.
   const flagsReady = useFeatureFlagsReady();
-  const chromeIncomplete = !flagsReady || (sessionReady && !onboardingLoaded);
+  const chromeIncomplete = !flagsReady || (sessionReady && !isLocked && !onboardingLoaded);
   const chromeLoading = useFailOpen(chromeIncomplete, CHROME_LOADING_FAIL_OPEN_MS);
 
   const tenantDone = countCompleted(TENANT_ONBOARDING_STEPS, tenantProgress?.completedSteps ?? []);
@@ -424,7 +453,35 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // browser-only (see `useCachedOnboardingTopBar`).
   const cachedTopBar = useCachedOnboardingTopBar(cacheOwnerId);
   let topBar: React.ReactNode;
-  if (showOnboardingChrome) {
+  if (showAiSpendBar && billingBars.ai.tone !== 'default') {
+    // Ahead of the onboarding bars, and the only thing that outranks them:
+    // finishing a setup tour can wait, agents about to stop answering cannot,
+    // and this state is invisible from every page but Billing & Usage. Not
+    // cached like the onboarding decision below — replaying a red bar on a cold
+    // start would announce a limit the tenant may have already raised.
+    topBar = (
+      <AiSpendLimitBar
+        tone={billingBars.ai.tone}
+        percent={billingBars.ai.percent}
+        onExpand={() => router.push(routes.settings.billingUsage)}
+      />
+    );
+  } else if (showAiSpendBar && billingBars.trial && !trialDismissed) {
+    // Below the AI bars and above onboarding: a trial past its halfway point is
+    // a deadline, not a failure — but it still outranks a setup tour, because
+    // missing it locks the workspace and the tour can be finished afterwards.
+    topBar = (
+      <TrialEndingBar
+        daysLeft={billingBars.trial.daysLeft}
+        onActivate={() => router.push(routes.settings.billingUsage)}
+        onDismiss={() => {
+          if (!trialToken) return;
+          dismissTrialBar(trialToken);
+          setTrialDismissed(true);
+        }}
+      />
+    );
+  } else if (showOnboardingChrome) {
     if (initialSetupActive) {
       topBar = (
         <InitialSetupBar
@@ -599,7 +656,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   return (
     <>
-      {notificationsEnabled && sessionReady && (
+      {/* `!isLocked`: the badge count is decorative, and on a locked workspace its
+          request is held by the subscription gate — the Suspense below would sit on
+          its fallback for the whole visit rather than resolving. */}
+      {notificationsEnabled && sessionReady && !isLocked && (
         // Two boundaries, two different failures, both of them real here.
         //
         // ErrorBoundary: a trial-expired GraphQL error makes the query return null data,
@@ -619,13 +679,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           </Suspense>
         </ErrorBoundary>
       )}
-      <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady}>
+      {/* Same reason as the onboarding hydrator: a locked workspace can't track
+          time, and its query would be held rather than answered. */}
+      <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady && !isLocked}>
         {/* Ticket live stream + unread indication (Help Center). Gated on the
             same feature flag as the surface it serves; wraps CoreAppLayout so
             BOTH the header's TicketAlertsButton and the /help-center/tickets
             page (children) read one provider. Without it every ticket-live
-            surface renders nothing and no stream/summary request fires. */}
-        <TicketLiveWhenEnabled enabled={helpCenterEnabled && sessionReady}>
+            surface renders nothing and no stream/summary request fires.
+            `!isLocked` for the same reason as the provider above: a locked
+            workspace has its app data refused, so the stream and summary
+            requests would be parked by the subscription gate rather than
+            answered. */}
+        <TicketLiveWhenEnabled enabled={helpCenterEnabled && sessionReady && !isLocked}>
           <CoreAppLayout
             // Hook for the native-shell safe-area CSS in globals.css: the layout
             // root owns the top inset (see `.app-shell-root`). Inert on the web.
@@ -634,7 +700,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             sidebarConfig={sidebarConfig}
             mobileBurgerMenuProps={mobileBurgerMenuProps}
             headerProps={headerProps}
-            disabled={showLockContent}
             drawer={chatDrawer}
             topBar={topBar}
           >
@@ -651,28 +716,31 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
               The fallback draws nothing on purpose: a neutral page shape here was
               a grey block flashed ahead of the real content whenever a browser
-              frame landed in the gap. Pages own their real skeleton.
-
-              One shell, two possible contents. The chrome around this never
-              unmounts, so moving between them is a swap inside `<main>` and not
-              a re-mount of the sidebar + header. */}
-            <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
+              frame landed in the gap. Pages own their real skeleton. */}
+            <Suspense fallback={null}>{children}</Suspense>
           </CoreAppLayout>
         </TicketLiveWhenEnabled>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
           + coach-mark (shows only when a page was reached from an onboarding step
           via the `setupHint` query param). Gated on the session so the queries
-          never fire before `/me` has answered. */}
-      {sessionReady && (
+          never fire before `/me` has answered, and on the lock because a locked
+          workspace shows no onboarding — and its request would be held by the
+          subscription gate rather than answered (see `chromeLoading`). */}
+      {sessionReady && !isLocked && (
         <>
           <OnboardingProgressHydrator />
           <OnboardingCoachMark />
         </>
       )}
-      {/* Logout confirmation modal — opened from the nav user menu and the
-          Settings "Log Out" button via `useLogoutConfirmStore`. */}
-      <LogoutConfirmModal />
+      {/* Reports what the billing banners above need. Suspends, so it sits in
+          its own boundary and renders nothing either way — a shell that waited
+          on it would hold the whole app for a banner. */}
+      {showAiSpendBar && (
+        <Suspense fallback={null}>
+          <BillingBarsHydrator onResolved={setBillingBars} />
+        </Suspense>
+      )}
       {/* Desktop shell update offer. Also owns the mount-time availability
           check that the sidebar's update button reads. No-op elsewhere. */}
       <DesktopUpdateModal />
@@ -681,9 +749,53 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           drawer. Which bottom corner it pins to is content-managed (the hub
           admin sets it per platform). Left out behind the subscription lock for
           the same reason the Mingo launcher is: that screen is not the app. */}
-      {!showLockContent && <WalkthroughVideo />}
+      {!isLocked && <WalkthroughVideo />}
     </>
   );
+}
+
+/**
+ * The app, or the lock screen INSTEAD of it.
+ *
+ * The lock replaces the whole shell rather than the contents of `<main>`. It used
+ * to be a swap inside `<main>`, which left the sidebar and header standing around
+ * it — greyed out, since nothing they lead to is reachable — and that is what the
+ * two bugs filed against it describe from opposite ends: an expired trial reading
+ * as a modal card inside the app, and a plans page whose entire side navigation is
+ * dead. Both say the same thing: a workspace that is not paid for should not be
+ * dressed as one. The paywall was designed for this too — see `PaywallHeader`,
+ * which replaces the page header because "the design carries no page chrome above
+ * it".
+ *
+ * The cost is a mount: the shell renders during the subscription round-trip (it
+ * must — holding it for the answer is what made a cold start mount the chrome
+ * twice), so a locked workspace shows the chrome with its page's skeleton until
+ * the answer lands, then the lock screen replaces it. One transition, once per
+ * cold load, on a `store-and-network` query — against a lock screen that is
+ * finally a screen.
+ *
+ * `/checkout/*` is exempt, and is why this is a separate component rather than a
+ * branch upstairs: a payer lands there before the webhook has flipped the
+ * subscription to ACTIVE, so the status is still locking while the page they need
+ * is a normal one.
+ */
+function AppContent({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
+  const { isLocked } = useSubscriptionLock();
+  const pathname = usePathname();
+
+  if (isLocked && !(pathname?.startsWith('/checkout') ?? false)) {
+    // The frame the shell used to provide: full height and the app background, so
+    // the lock screen's own three bands have something to distribute over. Each
+    // branch of `SubscriptionLockContent` owns its padding and, on the native
+    // shells, its safe-area insets (`of-standalone-shell`).
+    return (
+      <div className="min-h-screen bg-ods-bg">
+        <SubscriptionLockContent />
+      </div>
+    );
+  }
+
+  return <AppShell mainClassName={mainClassName}>{children}</AppShell>;
 }
 
 function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
@@ -724,10 +836,16 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
           <BiometricEnrollPrompt />
         </>
       )}
-      {/* No `fallback` — the guard no longer suspends, so the shell below mounts
+      {/* Logout confirmation modal — opened from the nav user menu, the Settings
+          "Log Out" button, and the lock screen's, all via `useLogoutConfirmStore`.
+          Mounted ABOVE the lock/shell branch because that last caller lives on the
+          side of it where the shell does not exist: with the modal inside the
+          shell, "Log Out" on a locked workspace opened nothing at all. */}
+      <LogoutConfirmModal />
+      {/* No `fallback` — the guard does not suspend, so the shell below mounts
           once and stays mounted through the subscription round-trip. */}
       <SubscriptionGuard>
-        <AppShell mainClassName={mainClassName}>{children}</AppShell>
+        <AppContent mainClassName={mainClassName}>{children}</AppContent>
       </SubscriptionGuard>
     </>
   );
