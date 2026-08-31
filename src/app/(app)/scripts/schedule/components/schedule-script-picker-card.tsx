@@ -1,8 +1,7 @@
 'use client';
 
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { OS_PLATFORMS, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { SortableMoveButtons, useSortableItem } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DraggerIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Autocomplete,
@@ -13,7 +12,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { FocusEvent } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
-import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import { parseKeyValues } from '../../shared/utils/script-key-values';
 import { envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleScriptsAutocomplete } from '../hooks/use-schedule-scripts-autocomplete';
@@ -27,9 +25,9 @@ const DEFAULT_TIMEOUT_SECONDS = 90;
 const UNSET_TIMEOUT = 0;
 
 interface ScheduleScriptPickerCardProps {
-  /** Sortable id — the `useFieldArray` field id, stable across reorders. */
-  id: string;
   index: number;
+  /** How many cards the list has — disables the move buttons at the ends. */
+  count: number;
   /** UI platform ids the schedule targets — narrows the script search server-side. */
   supportedPlatforms: string[];
   onRemove: () => void;
@@ -60,12 +58,13 @@ function ScriptPlatformIcons({ platforms }: { platforms: string[] }) {
  * **Order is the payload.** The card index IS the run order — the backend
  * stores `scriptIds: [ID!]` in run order, so reordering rewrites that array.
  *
- * Sorting runs on dnd-kit (`useSortable`), the same stack the core library's
- * board uses. Only the handle is an activator (`setActivatorNodeRef` +
- * `listeners`), so text selection inside the fields keeps working; dnd-kit's
- * `attributes` make that handle a full keyboard drag control (Space to lift,
- * arrows to move, Space to drop, Esc to cancel) with live-region announcements
- * wired up by the list — no separate keyboard affordance needed.
+ * Sorting runs on the core library's `SortableList` (`useSortableItem`), the
+ * same Pragmatic stack the ticket board uses. Only the handle starts a drag,
+ * so text selection inside the fields keeps working, and the handle carries
+ * the keyboard path (Arrow Up / Arrow Down, one press one move) with
+ * live-region announcements wired up by the list. On touch/narrow viewports
+ * no drag exists at all — an up/down button pair renders beside the delete
+ * button instead.
  *
  * Arguments and env vars ARE persisted, as this schedule's per-script override
  * (`scriptCustomParams`): they seed from the picked script's defaults, and only
@@ -78,8 +77,8 @@ function ScriptPlatformIcons({ platforms }: { platforms: string[] }) {
  * the card shows the truth — it just cannot be changed per schedule yet.
  */
 export function ScheduleScriptPickerCard({
-  id,
   index,
+  count,
   supportedPlatforms,
   onRemove,
   canRemove,
@@ -93,15 +92,7 @@ export function ScheduleScriptPickerCard({
   // seeded from it, so they stay locked until there is a script to belong to.
   const runParamsLocked = disabled || !selected?.scriptId;
 
-  // dnd-kit drives the sortable slide from an inline style, which no CSS media
-  // query can opt out of — so drop the transition for reduced-motion users and
-  // let the cards snap into place instead.
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id,
-    disabled,
-    transition: prefersReducedMotion ? null : undefined,
-  });
+  const { itemRef, dragHandleProps, isDragging, dragAndDropEnabled } = useSortableItem();
 
   const { scripts, isLoading, inputValue, onInputChange, onOpen, onClose } =
     useScheduleScriptsAutocomplete(supportedPlatforms);
@@ -159,31 +150,28 @@ export function ScheduleScriptPickerCard({
 
   return (
     <div
-      ref={setNodeRef}
-      // `Translate` (not `Transform`): the card must slide, never scale — a
-      // scaled form card would blur its inputs mid-drag.
-      style={{ transform: CSS.Translate.toString(transform), transition }}
+      ref={itemRef}
+      // No inline style here — the list writes `transform` straight onto this
+      // node during a drag (see `SortableList`).
       className={`bg-ods-bg border rounded-[6px] p-[var(--spacing-system-lf)] flex flex-col gap-[var(--spacing-system-lf)] ${
         isDragging ? 'relative z-10 border-ods-accent shadow-lg' : 'border-ods-border'
       }`}
     >
       <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] md:items-end">
         <div className="flex-1 min-w-0 flex gap-[var(--spacing-system-xs)] items-end">
-          <button
-            type="button"
-            ref={setActivatorNodeRef}
-            {...attributes}
-            {...listeners}
-            disabled={disabled}
-            aria-label={`Reorder ${selected?.name || `script ${index + 1}`}`}
-            // `touch-none` hands touch gestures to the pointer sensor instead of
-            // letting the page scroll steal them.
-            className={`size-12 shrink-0 flex items-center justify-center rounded-[6px] touch-none text-ods-text-secondary hover:text-ods-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ods-border-focus disabled:opacity-30 disabled:cursor-not-allowed ${
-              isDragging ? 'cursor-grabbing text-ods-text-primary' : 'cursor-grab'
-            }`}
-          >
-            <DraggerIcon size={24} />
-          </button>
+          {dragAndDropEnabled && (
+            <button
+              type="button"
+              {...dragHandleProps}
+              disabled={disabled}
+              aria-label={`Reorder ${selected?.name || `script ${index + 1}`}`}
+              className={`size-12 shrink-0 flex items-center justify-center rounded-[6px] text-ods-text-secondary hover:text-ods-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ods-border-focus disabled:opacity-30 disabled:cursor-not-allowed ${
+                isDragging ? 'cursor-grabbing text-ods-text-primary' : 'cursor-grab'
+              }`}
+            >
+              <DraggerIcon size={24} />
+            </button>
+          )}
 
           <div
             className="flex-1 flex flex-col gap-[var(--spacing-system-xxs)] min-w-0"
@@ -255,6 +243,10 @@ export function ScheduleScriptPickerCard({
               )}
             />
           </div>
+
+          {!dragAndDropEnabled && (
+            <SortableMoveButtons index={index} count={count} label={selected?.name || `script ${index + 1}`} />
+          )}
 
           <Button
             variant="outline"

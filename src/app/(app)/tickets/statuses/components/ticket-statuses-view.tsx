@@ -118,7 +118,8 @@ export function TicketStatusesView() {
           <TicketStatusConfigList
             items={fieldArray.fields.map((f, index) => ({ id: f.id, rhfKey: f._key, index }))}
             onReorder={fieldArray.move}
-            renderRow={(row, { dragHandleProps, dragHandleAttributes, isDragging }) => (
+            getItemLabel={index => form.getValues(`customStatuses.${index}`)?.name || undefined}
+            renderRow={(row, { dragHandleProps, isDragging, moveButtons }) => (
               <Controller
                 key={row.rhfKey}
                 control={form.control}
@@ -136,8 +137,8 @@ export function TicketStatusesView() {
                     deleteDisabled={!canDelete}
                     deleteDisabledReason={!canDelete ? DELETE_DISABLED_REASON : undefined}
                     dragHandleProps={dragHandleProps}
-                    dragHandleAttributes={dragHandleAttributes}
                     isDragging={isDragging}
+                    moveButtons={moveButtons}
                   />
                 )}
               />
