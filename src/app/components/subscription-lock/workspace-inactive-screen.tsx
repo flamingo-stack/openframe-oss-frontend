@@ -22,11 +22,13 @@ interface WorkspaceInactiveScreenProps {
  *   - anyone whose role cannot open billing, on any build — renewing is for the
  *     workspace owner and admins (`use-billing-access-gate.ts`).
  *
- * Renders inside the app shell's `<main>`, with the header and nav sidebar still up
- * (`disabled`, since nothing they lead to is reachable while the lock holds). Hence
- * `min-h-full` rather than `min-h-screen`: the three bands distribute over the
- * content area's height, not the viewport's, and the shell root keeps owning the
- * native safe-area insets.
+ * A STANDALONE screen: `AppContent` renders the lock instead of the app shell, so
+ * there is no header, no nav sidebar and no shell root above it. Hence
+ * `min-h-screen` — the three bands distribute over the viewport — and hence
+ * `of-standalone-shell`, which is what owns the native safe-area insets on a page
+ * with no chrome to hand its edges to (the same class `/account-deleted` carries,
+ * and for the same reason). The design padding stays declared here: that rule
+ * outranks it in the mobile shell rather than adding to it.
  *
  * Deliberately carries NO plans, prices, "choose a plan"/"pay" CTA, or link to
  * an external purchase flow: App Store Review Guideline 3.1.1 treats any of
@@ -53,7 +55,7 @@ export function WorkspaceInactiveScreen({ title, description }: WorkspaceInactiv
 
   return (
     <>
-      <div className="flex min-h-full flex-col items-center justify-between p-[var(--spacing-system-xl)]">
+      <div className="of-standalone-shell flex min-h-screen flex-col items-center justify-between p-[var(--spacing-system-xl)]">
         <div className="flex items-center gap-[var(--spacing-system-xsf)]">
           <OpenFrameLogo
             className="h-10 w-auto"

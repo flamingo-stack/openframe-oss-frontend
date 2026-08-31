@@ -233,27 +233,20 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     closeNotificationsRef.current?.();
   }, [pathname]);
 
-  const { isLocked, isResolved: subscriptionResolved } = useSubscriptionLock();
-  // Checkout result pages render their own success/cancel UI; they're the only
-  // place a paying user lands before the webhook flips the subscription to ACTIVE.
-  const isCheckoutResultPage = pathname?.startsWith('/checkout') ?? false;
-  const showLockContent = isLocked && !isCheckoutResultPage;
-  // The subscription answer decides whether the page or the lock screen belongs
-  // in `<main>`, so until it lands the page area holds the route's skeleton.
-  // Checkout pages are exempt for the same reason they are exempt from the lock.
-  // Note there is deliberately NO "still resolving" placeholder for the page
-  // area. `children` render immediately — before the session and before the
+  // Reaching this component at all means the lock is NOT showing — `AppContent`
+  // above renders the lock screen instead of the shell. `isLocked` can still be
+  // true here on one route: `/checkout/*`, which is exempt from the lock (a payer
+  // lands there before the webhook flips the subscription to ACTIVE), and where
+  // the chrome's own data requests are still held by the subscription gate. That
+  // is what the `!isLocked` guards below are for.
+  //
+  // There is deliberately NO "still resolving" placeholder for the page area.
+  // `children` render immediately — before the session and before the
   // subscription answer — and show their OWN loading state, because every app
   // data request waits on the session latch (`lib/session-ready.ts`) rather than
   // on this tree. That is what removed the route→skeleton registry: the mapping
   // from a page to its skeleton lives in the page, once.
-  //
-  // The trade-off is on the lock: a locked workspace sees its page's skeleton for
-  // the length of the subscription round-trip before the lock screen swaps in.
-  // The lock is UX, not enforcement (the API refuses the data either way), and
-  // the query is `store-and-network`, so the window exists only on a cold store.
-  void subscriptionResolved;
-  void isCheckoutResultPage;
+  const { isLocked } = useSubscriptionLock();
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
   // `featureFlags.*` snapshot taken before the flags query answers would leave
@@ -307,7 +300,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // Suppressing it was actively harmful once `/mingo` became the deep-link resolver
   // — routing through it unmounted the drawer and its `<DialogSubscription>`
   // mid-stream, for one redirect's worth of frames.
-  const chatEnabled = mingoSidebarEnabled && !showLockContent;
+  const chatEnabled = mingoSidebarEnabled && !isLocked;
 
   // Mirrors the drawer's open conversation into `?mingoDialog=` and adopts one
   // from the URL — what makes a dialog shareable by link and reachable from a
@@ -707,7 +700,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             sidebarConfig={sidebarConfig}
             mobileBurgerMenuProps={mobileBurgerMenuProps}
             headerProps={headerProps}
-            disabled={showLockContent}
             drawer={chatDrawer}
             topBar={topBar}
           >
@@ -724,12 +716,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
               The fallback draws nothing on purpose: a neutral page shape here was
               a grey block flashed ahead of the real content whenever a browser
-              frame landed in the gap. Pages own their real skeleton.
-
-              One shell, two possible contents. The chrome around this never
-              unmounts, so moving between them is a swap inside `<main>` and not
-              a re-mount of the sidebar + header. */}
-            <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
+              frame landed in the gap. Pages own their real skeleton. */}
+            <Suspense fallback={null}>{children}</Suspense>
           </CoreAppLayout>
         </TicketLiveWhenEnabled>
       </TimeTrackerHostProvider>
@@ -753,9 +741,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           <BillingBarsHydrator onResolved={setBillingBars} />
         </Suspense>
       )}
-      {/* Logout confirmation modal — opened from the nav user menu and the
-          Settings "Log Out" button via `useLogoutConfirmStore`. */}
-      <LogoutConfirmModal />
       {/* Desktop shell update offer. Also owns the mount-time availability
           check that the sidebar's update button reads. No-op elsewhere. */}
       <DesktopUpdateModal />
@@ -764,9 +749,53 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           drawer. Which bottom corner it pins to is content-managed (the hub
           admin sets it per platform). Left out behind the subscription lock for
           the same reason the Mingo launcher is: that screen is not the app. */}
-      {!showLockContent && <WalkthroughVideo />}
+      {!isLocked && <WalkthroughVideo />}
     </>
   );
+}
+
+/**
+ * The app, or the lock screen INSTEAD of it.
+ *
+ * The lock replaces the whole shell rather than the contents of `<main>`. It used
+ * to be a swap inside `<main>`, which left the sidebar and header standing around
+ * it — greyed out, since nothing they lead to is reachable — and that is what the
+ * two bugs filed against it describe from opposite ends: an expired trial reading
+ * as a modal card inside the app, and a plans page whose entire side navigation is
+ * dead. Both say the same thing: a workspace that is not paid for should not be
+ * dressed as one. The paywall was designed for this too — see `PaywallHeader`,
+ * which replaces the page header because "the design carries no page chrome above
+ * it".
+ *
+ * The cost is a mount: the shell renders during the subscription round-trip (it
+ * must — holding it for the answer is what made a cold start mount the chrome
+ * twice), so a locked workspace shows the chrome with its page's skeleton until
+ * the answer lands, then the lock screen replaces it. One transition, once per
+ * cold load, on a `store-and-network` query — against a lock screen that is
+ * finally a screen.
+ *
+ * `/checkout/*` is exempt, and is why this is a separate component rather than a
+ * branch upstairs: a payer lands there before the webhook has flipped the
+ * subscription to ACTIVE, so the status is still locking while the page they need
+ * is a normal one.
+ */
+function AppContent({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
+  const { isLocked } = useSubscriptionLock();
+  const pathname = usePathname();
+
+  if (isLocked && !(pathname?.startsWith('/checkout') ?? false)) {
+    // The frame the shell used to provide: full height and the app background, so
+    // the lock screen's own three bands have something to distribute over. Each
+    // branch of `SubscriptionLockContent` owns its padding and, on the native
+    // shells, its safe-area insets (`of-standalone-shell`).
+    return (
+      <div className="min-h-screen bg-ods-bg">
+        <SubscriptionLockContent />
+      </div>
+    );
+  }
+
+  return <AppShell mainClassName={mainClassName}>{children}</AppShell>;
 }
 
 function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
@@ -807,10 +836,16 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
           <BiometricEnrollPrompt />
         </>
       )}
-      {/* No `fallback` — the guard no longer suspends, so the shell below mounts
+      {/* Logout confirmation modal — opened from the nav user menu, the Settings
+          "Log Out" button, and the lock screen's, all via `useLogoutConfirmStore`.
+          Mounted ABOVE the lock/shell branch because that last caller lives on the
+          side of it where the shell does not exist: with the modal inside the
+          shell, "Log Out" on a locked workspace opened nothing at all. */}
+      <LogoutConfirmModal />
+      {/* No `fallback` — the guard does not suspend, so the shell below mounts
           once and stays mounted through the subscription round-trip. */}
       <SubscriptionGuard>
-        <AppShell mainClassName={mainClassName}>{children}</AppShell>
+        <AppContent mainClassName={mainClassName}>{children}</AppContent>
       </SubscriptionGuard>
     </>
   );

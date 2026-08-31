@@ -85,7 +85,7 @@ export function SubscriptionSettingsView() {
   const copy = getPaywallCopy(status);
 
   return (
-    <PageLayout className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]" showHeader={false}>
+    <PageLayout className="px-[var(--spacing-system-l)] pb-28 md:pb-[var(--spacing-system-l)]" showHeader={false}>
       {/* This screen is what a locked workspace gets INSTEAD of the app, so a throw
           here has nowhere to land but the root — where it replaces the lock with
           Next's generic failure page and the user is left with no way out at all.
@@ -112,7 +112,7 @@ export function SubscriptionSettingsLoading() {
   const { status } = useSubscriptionLock();
 
   return (
-    <PageLayout className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]" showHeader={false}>
+    <PageLayout className="px-[var(--spacing-system-l)] pb-28 md:pb-[var(--spacing-system-l)]" showHeader={false}>
       <PaywallBody copy={getPaywallCopy(status)} data={null} />
     </PageLayout>
   );
@@ -265,8 +265,10 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
 
       {/* Fixed (not sticky) so the bar always pins to the bottom of the viewport,
           even when the page is shorter than the screen — sticky only engages while
-          scrolling, leaving the bar stranded mid-page on short content. The app's
-          <main> reserves pb-20 for exactly this bar. */}
+          scrolling, leaving the bar stranded mid-page on short content. The room
+          it needs is reserved by this page's own `pb-28` below `md`: the lock
+          screen renders outside the app shell now, so there is no `<main>` to
+          reserve it. */}
       <div className="md:hidden fixed inset-x-0 bottom-0 z-20 border-t border-ods-border bg-ods-card p-[var(--spacing-system-l)]">
         <div className="flex">
           <SubscriptionSubmitButton
