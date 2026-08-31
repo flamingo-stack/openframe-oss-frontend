@@ -17,15 +17,10 @@ import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
 import { featureFlags } from '@/lib/feature-flags';
 import type { ApprovalStatus } from '../../tickets/constants';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, MESSAGE_TYPE } from '../../tickets/constants';
-import {
-  GET_MINGO_DIALOG_QUERY,
-  getMingoDialogMessagesQuery,
-  normalizeAskMessageData,
-} from '../queries/dialogs-queries';
+import { GET_MINGO_DIALOG_QUERY, getMingoDialogMessagesQuery } from '../queries/dialogs-queries';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage, MessagesResponse } from '../types';
-import { useGuideApproval } from './use-guide-approval';
 
 /**
  * Thrown when the dialog id resolves to nothing this user can open — deleted, someone
@@ -56,27 +51,6 @@ export function useMingoDialogSelection() {
 
   const approveRequestMutation = useApproveRequestMutation();
   const rejectRequestMutation = useRejectRequestMutation();
-  const resolveGuideApproval = useGuideApproval();
-
-  /**
-   * Whether this request id belongs to a Product Guide card. Read off the
-   * SEGMENT (`data.origin`), which the chunk decoder stamps — not guessed from
-   * the id or the approval type, so a new hub tool needs no change here.
-   */
-  const isGuideApproval = useCallback(
-    (dialogId: string, requestId: string): boolean =>
-      getMessages(dialogId).some(
-        message =>
-          Array.isArray(message.content) &&
-          message.content.some(
-            segment =>
-              segment.type === 'approval_request' &&
-              segment.data?.requestId === requestId &&
-              segment.data?.origin === 'guide',
-          ),
-      ),
-    [getMessages],
-  );
 
   const handleApprove = useCallback(
     async (requestId?: string) => {
@@ -104,13 +78,7 @@ export function useMingoDialogSelection() {
       setTyping(activeDialogId, true);
 
       try {
-        // A Product Guide proposal is settled by the hub, not by the agent —
-        // same route the Guide chat uses. See `useGuideApproval`.
-        if (isGuideApproval(activeDialogId, requestId)) {
-          await resolveGuideApproval(activeDialogId, requestId, 'approve');
-        } else {
-          await approveRequestMutation.mutateAsync(requestId);
-        }
+        await approveRequestMutation.mutateAsync(requestId);
         trackDashboardActivity(EVENT_SUBTYPE.APPROVE_MINGO_COMMAND);
       } catch (error) {
         if (!wasTyping) setTyping(activeDialogId, false);
@@ -122,16 +90,7 @@ export function useMingoDialogSelection() {
         });
       }
     },
-    [
-      approveRequestMutation,
-      toast,
-      activeDialogId,
-      updateApprovalStatusInMessages,
-      setTyping,
-      getTyping,
-      isGuideApproval,
-      resolveGuideApproval,
-    ],
+    [approveRequestMutation, toast, activeDialogId, updateApprovalStatusInMessages, setTyping, getTyping],
   );
 
   const handleReject = useCallback(
@@ -153,11 +112,7 @@ export function useMingoDialogSelection() {
       setTyping(activeDialogId, true);
 
       try {
-        if (isGuideApproval(activeDialogId, requestId)) {
-          await resolveGuideApproval(activeDialogId, requestId, 'reject');
-        } else {
-          await rejectRequestMutation.mutateAsync(requestId);
-        }
+        await rejectRequestMutation.mutateAsync(requestId);
         trackDashboardActivity(EVENT_SUBTYPE.REJECT_MINGO_COMMAND);
       } catch (error) {
         if (!wasTyping) setTyping(activeDialogId, false);
@@ -169,16 +124,7 @@ export function useMingoDialogSelection() {
         });
       }
     },
-    [
-      rejectRequestMutation,
-      toast,
-      activeDialogId,
-      updateApprovalStatusInMessages,
-      setTyping,
-      getTyping,
-      isGuideApproval,
-      resolveGuideApproval,
-    ],
+    [rejectRequestMutation, toast, activeDialogId, updateApprovalStatusInMessages, setTyping, getTyping],
   );
 
   const handleApproveRef = useRef(handleApprove);
@@ -260,12 +206,7 @@ export function useMingoDialogSelection() {
 
       const { edges, pageInfo } = response.data.data.messages;
       const allMessages = edges.map(edge => edge.node);
-      const adminMessages = allMessages
-        .filter(msg => msg.chatType === CHAT_TYPE.ADMIN)
-        // THE parse point for this query: the ASK intro comes back under an
-        // alias (nullability clash with the other `text` fields — see
-        // `ASK_INTRO_ALIAS`), and everything downstream expects `text`.
-        .map(msg => ({ ...msg, messageData: normalizeAskMessageData(msg.messageData) }));
+      const adminMessages = allMessages.filter(msg => msg.chatType === CHAT_TYPE.ADMIN);
 
       return { messages: adminMessages, pageInfo };
     },
