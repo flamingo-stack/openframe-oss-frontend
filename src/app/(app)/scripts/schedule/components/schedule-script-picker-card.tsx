@@ -4,12 +4,17 @@ import { OS_PLATFORMS, ScriptArguments } from '@flamingo-stack/openframe-fronten
 import { SortableMoveButtons, useSortableItem } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DraggerIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Autocomplete,
   Button,
   Input,
   Label,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { FocusEvent } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import { parseKeyValues } from '../../shared/utils/script-key-values';
@@ -93,6 +98,9 @@ export function ScheduleScriptPickerCard({
   const runParamsLocked = disabled || !selected?.scriptId;
 
   const { itemRef, dragHandleProps, isDragging, dragAndDropEnabled } = useSortableItem();
+  // Mobile folds the args/env editors into accordions; `undefined` (SSR/first
+  // render) keeps the expanded variant and settles before first paint.
+  const isMdUp = useMdUp();
 
   const { scripts, isLoading, inputValue, onInputChange, onOpen, onClose } =
     useScheduleScriptsAutocomplete(supportedPlatforms);
@@ -287,43 +295,97 @@ export function ScheduleScriptPickerCard({
 
       {/* Arguments / env vars are the same class of field as Timeout — they
           belong to the picked script and are seeded from it — so they stay
-          locked until there is a script to belong to. */}
-      <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] items-start">
-        <div className="flex-1 min-w-0 w-full">
-          <Controller
-            name={`scripts.${index}.args`}
-            control={control}
-            render={({ field }) => (
-              <ScriptArguments
-                arguments={field.value}
-                onArgumentsChange={field.onChange}
-                keyPlaceholder="Key"
-                valuePlaceholder="Enter Value (empty=flag)"
-                addButtonLabel="Add Script Argument"
-                titleLabel="Script Arguments"
-                disabled={runParamsLocked}
+          locked until there is a script to belong to.
+          Mobile folds the two editors into "Edit Default …" accordions (per the
+          mock); from md up they stay expanded side by side. The editors are the
+          only difference — both branches render the same controlled fields. */}
+      {isMdUp === false ? (
+        <Accordion type="multiple" className="rounded-[6px] border border-ods-border">
+          <AccordionItem value="args" className="border-ods-border">
+            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:h-6 [&>svg]:w-6 [&>svg]:text-ods-text-secondary">
+              Edit Default Script Arguments
+            </AccordionTrigger>
+            {/* The editor's own title would duplicate the trigger — an empty
+                titleLabel renders an empty <label>, hidden by :empty. */}
+            <AccordionContent className="px-[var(--spacing-system-sf)] [&_label:empty]:hidden">
+              <Controller
+                name={`scripts.${index}.args`}
+                control={control}
+                render={({ field }) => (
+                  <ScriptArguments
+                    arguments={field.value}
+                    onArgumentsChange={field.onChange}
+                    keyPlaceholder="Key"
+                    valuePlaceholder="Enter Value (empty=flag)"
+                    addButtonLabel="Add Script Argument"
+                    titleLabel=""
+                    disabled={runParamsLocked}
+                  />
+                )}
               />
-            )}
-          />
-        </div>
-        <div className="flex-1 min-w-0 w-full">
-          <Controller
-            name={`scripts.${index}.envVars`}
-            control={control}
-            render={({ field }) => (
-              <ScriptArguments
-                arguments={field.value}
-                onArgumentsChange={field.onChange}
-                keyPlaceholder="Key"
-                valuePlaceholder="Enter Value"
-                addButtonLabel="Add Environment Var"
-                titleLabel="Environment Vars"
-                disabled={runParamsLocked}
+            </AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="env" className="border-b-0 border-ods-border">
+            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:h-6 [&>svg]:w-6 [&>svg]:text-ods-text-secondary">
+              Edit Default Environment Vars
+            </AccordionTrigger>
+            <AccordionContent className="px-[var(--spacing-system-sf)] [&_label:empty]:hidden">
+              <Controller
+                name={`scripts.${index}.envVars`}
+                control={control}
+                render={({ field }) => (
+                  <ScriptArguments
+                    arguments={field.value}
+                    onArgumentsChange={field.onChange}
+                    keyPlaceholder="Key"
+                    valuePlaceholder="Enter Value"
+                    addButtonLabel="Add Environment Var"
+                    titleLabel=""
+                    disabled={runParamsLocked}
+                  />
+                )}
               />
-            )}
-          />
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      ) : (
+        <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] items-start">
+          <div className="flex-1 min-w-0 w-full">
+            <Controller
+              name={`scripts.${index}.args`}
+              control={control}
+              render={({ field }) => (
+                <ScriptArguments
+                  arguments={field.value}
+                  onArgumentsChange={field.onChange}
+                  keyPlaceholder="Key"
+                  valuePlaceholder="Enter Value (empty=flag)"
+                  addButtonLabel="Add Script Argument"
+                  titleLabel="Script Arguments"
+                  disabled={runParamsLocked}
+                />
+              )}
+            />
+          </div>
+          <div className="flex-1 min-w-0 w-full">
+            <Controller
+              name={`scripts.${index}.envVars`}
+              control={control}
+              render={({ field }) => (
+                <ScriptArguments
+                  arguments={field.value}
+                  onArgumentsChange={field.onChange}
+                  keyPlaceholder="Key"
+                  valuePlaceholder="Enter Value"
+                  addButtonLabel="Add Environment Var"
+                  titleLabel="Environment Vars"
+                  disabled={runParamsLocked}
+                />
+              )}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
