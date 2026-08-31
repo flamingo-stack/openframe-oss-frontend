@@ -161,7 +161,7 @@ export function ScheduleScriptPickerCard({
       ref={itemRef}
       // No inline style here — the list writes `transform` straight onto this
       // node during a drag (see `SortableList`).
-      className={`bg-ods-bg border rounded-[6px] p-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-lf)] ${
+      className={`bg-ods-bg border rounded-[6px] p-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-sf)] md:gap-[var(--spacing-system-lf)] ${
         isDragging ? 'relative z-10 border-ods-accent shadow-lg' : 'border-ods-border'
       }`}
     >
@@ -170,7 +170,7 @@ export function ScheduleScriptPickerCard({
           with DnD the approved desktop layout stays — handle beside the select,
           delete beside the timeout, the two halves side by side from md. */}
       <div
-        className={`flex flex-col gap-[var(--spacing-system-lf)] ${dragAndDropEnabled ? 'md:flex-row md:items-end' : ''}`}
+        className={`flex flex-col gap-[var(--spacing-system-sf)] md:gap-[var(--spacing-system-lf)] ${dragAndDropEnabled ? 'md:flex-row md:items-end' : ''}`}
       >
         <div
           className={`flex-1 min-w-0 flex items-end ${
@@ -300,8 +300,8 @@ export function ScheduleScriptPickerCard({
           mock); from md up they stay expanded side by side. The editors are the
           only difference — both branches render the same controlled fields. */}
       {isMdUp === false ? (
-        <Accordion type="multiple" className="rounded-[6px] border border-ods-border">
-          <AccordionItem value="args" className="border-ods-border">
+        <Accordion type="multiple" className="overflow-hidden rounded-[6px] border border-ods-border">
+          <AccordionItem value="args" className="border-ods-border data-[state=closed]:bg-ods-card">
             <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:h-6 [&>svg]:w-6 [&>svg]:text-ods-text-secondary">
               Edit Default Script Arguments
             </AccordionTrigger>
@@ -325,7 +325,7 @@ export function ScheduleScriptPickerCard({
               />
             </AccordionContent>
           </AccordionItem>
-          <AccordionItem value="env" className="border-b-0 border-ods-border">
+          <AccordionItem value="env" className="border-b-0 border-ods-border data-[state=closed]:bg-ods-card">
             <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:h-6 [&>svg]:w-6 [&>svg]:text-ods-text-secondary">
               Edit Default Environment Vars
             </AccordionTrigger>
@@ -350,7 +350,7 @@ export function ScheduleScriptPickerCard({
         </Accordion>
       ) : (
         <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] items-start">
-          <div className="flex-1 min-w-0 w-full">
+          <div className="flex-1 min-w-0 w-full [&_label]:text-h4">
             <Controller
               name={`scripts.${index}.args`}
               control={control}
@@ -367,7 +367,7 @@ export function ScheduleScriptPickerCard({
               )}
             />
           </div>
-          <div className="flex-1 min-w-0 w-full">
+          <div className="flex-1 min-w-0 w-full [&_label]:text-h4">
             <Controller
               name={`scripts.${index}.envVars`}
               control={control}
