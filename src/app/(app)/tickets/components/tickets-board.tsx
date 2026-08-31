@@ -8,7 +8,12 @@ import {
   type BoardTicket,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, PageError, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Button,
+  PageError,
+  PageLayout,
+  type TakeOverTicketSelection,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -46,6 +51,52 @@ import { TicketsFilterModal } from './tickets-filter-modal';
 // unread counts on the ticket entity itself. Matching unread notifications to tickets by id is a
 // temporary workaround — disabled for now; flip this flag to restore it.
 const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
+
+/** How long a CONFIRMED take-over drop may keep standing in for the refetched
+ *  columns. Exists so a ticket the refetch never returns to the target lane
+ *  (active filters, a server-side re-route) can't stay painted forever — the
+ *  hold has no time limit while the modal is still open. */
+const HELD_MOVE_SETTLE_TIMEOUT_MS = 5000;
+
+/**
+ * Re-seats a dropped ticket at its drop position on top of the raw columns.
+ *
+ * A drop intercepted by the Take Over modal persists nothing, so the data
+ * still holds the card at its origin — without this overlay the Board's own
+ * optimistic view times out (2s) and the card visibly snaps back BEHIND the
+ * open modal. Pure view transform: remove the ticket from wherever the data
+ * has it, insert it into the target lane at the drop anchor (after → before →
+ * top, the same order the drop itself resolved).
+ */
+function applyHeldMove(columns: BoardColumnDef[], move: BoardChange): BoardColumnDef[] {
+  const source = columns.find(column => column.tickets.some(t => t.id === move.ticketId));
+  const ticket = source?.tickets.find(t => t.id === move.ticketId);
+  const targetExists = columns.some(column => column.id === move.toColumnId);
+  // Source gone (the refetch already moved it) or the target lane is not on
+  // the board — nothing sensible to overlay.
+  if (!source || !ticket || !targetExists) return columns;
+  if (source.id === move.toColumnId && !move.afterTicketId && !move.beforeTicketId) return columns;
+
+  return columns.map(column => {
+    const without = column.tickets.filter(t => t.id !== move.ticketId);
+    if (column.id !== move.toColumnId) {
+      return without.length === column.tickets.length ? column : { ...column, tickets: without };
+    }
+    const tickets = [...without];
+    const afterIndex = move.afterTicketId ? tickets.findIndex(t => t.id === move.afterTicketId) : -1;
+    if (afterIndex >= 0) {
+      tickets.splice(afterIndex + 1, 0, ticket);
+    } else if (move.beforeTicketId) {
+      const beforeIndex = tickets.findIndex(t => t.id === move.beforeTicketId);
+      tickets.splice(beforeIndex >= 0 ? beforeIndex : tickets.length, 0, ticket);
+    } else {
+      // No anchor: the drop landed at the top of the lane — and a confirmed
+      // take-over into a status other than the dropped lane also lands here.
+      tickets.unshift(ticket);
+    }
+    return { ...column, tickets };
+  });
+}
 
 /**
  * The layout-defining half of a lane — everything the column header renders
@@ -218,6 +269,20 @@ export function TicketsBoard({
   // was persisted, but the Board's internal drag state still shows the card in
   // the target column. A fresh `columns` array identity makes it resync from props.
   const [boardResetNonce, setBoardResetNonce] = useState(0);
+  // A drop the Take Over modal intercepted: the view keeps the card at the
+  // drop position (see `applyHeldMove`) until the modal decides. The ref
+  // mirrors the state for the success/close handlers, which run back to back
+  // in one event and must see each other's writes.
+  const heldMoveRef = useRef<BoardChange | null>(null);
+  const [heldMove, setHeldMoveState] = useState<BoardChange | null>(null);
+  const setHeldMove = useCallback((move: BoardChange | null) => {
+    heldMoveRef.current = move;
+    setHeldMoveState(move);
+  }, []);
+  // Whether the modal is closing because the take-over COMMITTED — then the
+  // hold survives the close and keeps the card in place until the refetch
+  // shows it in the target lane.
+  const takeOverConfirmedRef = useRef(false);
   const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
@@ -316,6 +381,23 @@ export function TicketsBoard({
     boardResetNonce,
   ]);
 
+  // The columns the board actually renders: the raw data plus the held drop
+  // (if any) re-seated at its drop position.
+  const displayColumns = useMemo(
+    () => (heldMove ? applyHeldMove(boardColumns, heldMove) : boardColumns),
+    [boardColumns, heldMove],
+  );
+
+  // Release the hold once the data itself shows the ticket in the target lane
+  // (the post-take-over refetch or a NATS tick caught up).
+  useEffect(() => {
+    if (!heldMove) return;
+    const settled = boardColumns
+      .find(column => column.id === heldMove.toColumnId)
+      ?.tickets.some(t => t.id === heldMove.ticketId);
+    if (settled) setHeldMove(null);
+  }, [boardColumns, heldMove, setHeldMove]);
+
   // Remember the lane set so the route skeleton can lay out the same board on
   // the next cold start (see `board-columns-cache`). Only the layout-defining
   // fields; ticket data is deliberately not cached.
@@ -388,10 +470,45 @@ export function TicketsBoard({
 
   const [takeOverTarget, setTakeOverTarget] = useState<TakeOverTicketTarget | null>(null);
 
+  const handleTakeOverSuccess = useCallback(
+    (selection: TakeOverTicketSelection) => {
+      takeOverConfirmedRef.current = true;
+      const held = heldMoveRef.current;
+      if (!held) return;
+      // The user may have picked a different status in the modal than the lane
+      // they dropped into — hold the card in the CONFIRMED lane instead.
+      if (held.toColumnId !== selection.statusId) {
+        setHeldMove({
+          ticketId: held.ticketId,
+          fromColumnId: held.fromColumnId,
+          toColumnId: selection.statusId,
+          afterTicketId: null,
+          beforeTicketId: null,
+        });
+      }
+    },
+    [setHeldMove],
+  );
+
   const handleTakeOverClose = useCallback(() => {
     setTakeOverTarget(null);
+    if (takeOverConfirmedRef.current) {
+      takeOverConfirmedRef.current = false;
+    } else {
+      // Cancelled/dismissed: nothing was persisted — release the card.
+      setHeldMove(null);
+    }
     setBoardResetNonce(nonce => nonce + 1);
-  }, []);
+  }, [setHeldMove]);
+
+  // Backstop for a confirmed take-over whose refetch never lands the ticket in
+  // the target lane (filters can legitimately exclude it there). Deliberately
+  // NOT armed while the modal is open — the hold has no time limit there.
+  useEffect(() => {
+    if (!heldMove || takeOverTarget) return undefined;
+    const timer = setTimeout(() => setHeldMove(null), HELD_MOVE_SETTLE_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [heldMove, takeOverTarget, setHeldMove]);
 
   // The dialog map is read through a ref like the AI-owned set above — its
   // identity changes on every column tick, and this callback sits in every card.
@@ -431,10 +548,12 @@ export function TicketsBoard({
         }
         // Dragging an AI-worked ticket into another column is a take-over: ask
         // for confirmation (status pre-set to the target column) instead of
-        // moving. Cancelling leaves the card where it was; reordering within a
-        // column never needs confirmation.
+        // moving. The card is HELD at the drop position while the modal is
+        // open — confirming keeps it there, cancelling releases it back;
+        // reordering within a column never needs confirmation.
         const dialog = dialogById.get(change.ticketId);
         if (dialog && hasActiveAiDialog(dialog)) {
+          setHeldMove(change);
           setTakeOverTarget({ ticket: dialog, initialStatusId: change.toColumnId });
           return;
         }
@@ -447,7 +566,7 @@ export function TicketsBoard({
         beforeTicketId: change.beforeTicketId,
       });
     },
-    [moveTicket, statuses, dialogById],
+    [moveTicket, statuses, dialogById, setHeldMove],
   );
 
   const showEmptyState =
@@ -540,7 +659,7 @@ export function TicketsBoard({
         ) : (
           <div aria-busy={isLoading || movingIds.size > 0} className="flex-1 min-h-0 -mx-[var(--spacing-system-l)]">
             <Board
-              columns={boardColumns}
+              columns={displayColumns}
               onChange={handleChange}
               onLoadMore={loadMore}
               onArchiveColumn={openArchiveResolvedConfirm}
@@ -555,7 +674,7 @@ export function TicketsBoard({
         )}
       </PageLayout>
       {ticketsActionsDialog}
-      <TakeOverTicketModal target={takeOverTarget} onClose={handleTakeOverClose} />
+      <TakeOverTicketModal target={takeOverTarget} onClose={handleTakeOverClose} onSuccess={handleTakeOverSuccess} />
       <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
     </>
   );
