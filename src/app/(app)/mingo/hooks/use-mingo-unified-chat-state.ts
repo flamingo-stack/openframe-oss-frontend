@@ -575,6 +575,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       stopMessage,
       clearMessages,
       discussRef,
+      displayRef,
       model,
       tokenUsage,
       dialogs,
