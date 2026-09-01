@@ -233,12 +233,18 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     closeNotificationsRef.current?.();
   }, [pathname]);
 
-  // Reaching this component at all means the lock is NOT showing — `AppContent`
-  // above renders the lock screen instead of the shell. `isLocked` can still be
-  // true here on one route: `/checkout/*`, which is exempt from the lock (a payer
-  // lands there before the webhook flips the subscription to ACTIVE), and where
-  // the chrome's own data requests are still held by the subscription gate. That
-  // is what the `!isLocked` guards below are for.
+  // The lock screen renders INSIDE this shell — the chrome stays up on every lock
+  // screen, `disabled`, since nothing it leads to is reachable while the lock
+  // holds. It briefly did the opposite (`b13fc05` replaced the shell outright);
+  // the layout is required, so the swap is back in `<main>` where it started.
+  //
+  // Two different questions, and they answer differently on `/checkout/*`:
+  //   - `showLockContent` — does the lock screen belong in `<main>`? Not on the
+  //     checkout result pages: a payer lands there before the webhook flips the
+  //     subscription to ACTIVE, and the page they need is a normal one.
+  //   - `isLocked` — is the subscription gate holding this workspace's data? That
+  //     is route-blind, so every chrome hydrator below gates on THIS. On checkout
+  //     their requests are parked exactly as they are anywhere else.
   //
   // There is deliberately NO "still resolving" placeholder for the page area.
   // `children` render immediately — before the session and before the
@@ -246,7 +252,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // data request waits on the session latch (`lib/session-ready.ts`) rather than
   // on this tree. That is what removed the route→skeleton registry: the mapping
   // from a page to its skeleton lives in the page, once.
+  //
+  // The trade-off is on the lock: a locked workspace sees its page's skeleton for
+  // the length of the subscription round-trip before the lock screen swaps in.
+  // The lock is UX, not enforcement (the API refuses the data either way), and
+  // the query is `store-and-network`, so the window exists only on a cold store.
   const { isLocked } = useSubscriptionLock();
+  const showLockContent = isLocked && !(pathname?.startsWith('/checkout') ?? false);
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
   // `featureFlags.*` snapshot taken before the flags query answers would leave
@@ -690,6 +702,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             sidebarConfig={sidebarConfig}
             mobileBurgerMenuProps={mobileBurgerMenuProps}
             headerProps={headerProps}
+            // Greys the header and nav rail out for the lock: they stay legible —
+            // the user can still see where they are and reach the account menu —
+            // but nothing they lead to is reachable until the workspace is paid for.
+            disabled={showLockContent}
             drawer={chatDrawer}
             topBar={topBar}
           >
@@ -706,8 +722,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
               The fallback draws nothing on purpose: a neutral page shape here was
               a grey block flashed ahead of the real content whenever a browser
-              frame landed in the gap. Pages own their real skeleton. */}
-            <Suspense fallback={null}>{children}</Suspense>
+              frame landed in the gap. Pages own their real skeleton.
+
+              One shell, two possible contents. The chrome around this never
+              unmounts, so moving between them is a swap inside `<main>` and not
+              a re-mount of the sidebar + header — which also means the lock
+              arriving late costs a content swap, not a second chrome mount. */}
+            <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
           </CoreAppLayout>
         </TicketLiveWhenEnabled>
       </TimeTrackerHostProvider>
@@ -744,50 +765,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   );
 }
 
-/**
- * The app, or the lock screen INSTEAD of it.
- *
- * The lock replaces the whole shell rather than the contents of `<main>`. It used
- * to be a swap inside `<main>`, which left the sidebar and header standing around
- * it — greyed out, since nothing they lead to is reachable — and that is what the
- * two bugs filed against it describe from opposite ends: an expired trial reading
- * as a modal card inside the app, and a plans page whose entire side navigation is
- * dead. Both say the same thing: a workspace that is not paid for should not be
- * dressed as one. The paywall was designed for this too — see `PaywallHeader`,
- * which replaces the page header because "the design carries no page chrome above
- * it".
- *
- * The cost is a mount: the shell renders during the subscription round-trip (it
- * must — holding it for the answer is what made a cold start mount the chrome
- * twice), so a locked workspace shows the chrome with its page's skeleton until
- * the answer lands, then the lock screen replaces it. One transition, once per
- * cold load, on a `store-and-network` query — against a lock screen that is
- * finally a screen.
- *
- * `/checkout/*` is exempt, and is why this is a separate component rather than a
- * branch upstairs: a payer lands there before the webhook has flipped the
- * subscription to ACTIVE, so the status is still locking while the page they need
- * is a normal one.
- */
-function AppContent({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
-  const { isLocked } = useSubscriptionLock();
-  const pathname = usePathname();
-
-  if (isLocked && !(pathname?.startsWith('/checkout') ?? false)) {
-    // The frame the shell used to provide: full height and the app background, so
-    // the lock screen's own three bands have something to distribute over. Each
-    // branch of `SubscriptionLockContent` owns its padding and, on the native
-    // shells, its safe-area insets (`of-standalone-shell`).
-    return (
-      <div className="min-h-screen bg-ods-bg">
-        <SubscriptionLockContent />
-      </div>
-    );
-  }
-
-  return <AppShell mainClassName={mainClassName}>{children}</AppShell>;
-}
-
 function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   const { isReady, isAuthenticated } = useAuthSession();
   const router = useRouter();
@@ -815,10 +792,20 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
     // rather than swapping the whole chrome for a placeholder on the way out.
   }
 
+  // The guard wraps EVERYTHING, and that placement is the rule, not a detail.
+  // Anything mounted beside it instead of under it cannot read the subscription
+  // answer, and a mutation is not held back by the network gate (see
+  // `useSubscriptionOpen`) — which is how the presence heartbeat came to beat one
+  // failing `recordPresence` every ten seconds behind the lock screen. Leaving no
+  // "above the guard" position in this tree is what stops the next one.
+  //
+  // No `fallback` — the guard does not suspend, so the shell below mounts once
+  // and stays mounted through the subscription round-trip.
   return (
-    <>
+    <SubscriptionGuard>
       {/* All three assume a signed-in user (push registration, biometric enrolment,
-          presence is an authenticated mutation). */}
+          presence is an authenticated mutation). The two that talk to the API also
+          wait for the subscription answer, from inside — `useSubscriptionOpen`. */}
       {isReady && isAuthenticated && (
         <>
           <NativePushInitializer />
@@ -828,16 +815,12 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
       )}
       {/* Logout confirmation modal — opened from the nav user menu, the Settings
           "Log Out" button, and the lock screen's, all via `useLogoutConfirmStore`.
-          Mounted ABOVE the lock/shell branch because that last caller lives on the
-          side of it where the shell does not exist: with the modal inside the
-          shell, "Log Out" on a locked workspace opened nothing at all. */}
+          Kept ABOVE the shell rather than inside it: all three callers are on the
+          same side of the lock swap now, but a modal that outlives the content it
+          was opened from is the safer place for it. */}
       <LogoutConfirmModal />
-      {/* No `fallback` — the guard does not suspend, so the shell below mounts
-          once and stays mounted through the subscription round-trip. */}
-      <SubscriptionGuard>
-        <AppContent mainClassName={mainClassName}>{children}</AppContent>
-      </SubscriptionGuard>
-    </>
+      <AppShell mainClassName={mainClassName}>{children}</AppShell>
+    </SubscriptionGuard>
   );
 }
 

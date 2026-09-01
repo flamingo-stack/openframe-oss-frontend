@@ -413,6 +413,13 @@ The app is **gradually migrating GraphQL data fetching to react-relay**. The rul
 4. **Exception — the `/chat/graphql` domain (tickets, mingo, AI settings)**: it talks to the saas-ai-agent service whose schema is NOT in `schema.graphql`, so it stays on raw-POST permanently. Extending raw-POST there is correct, not a violation.
 5. No Apollo Client anywhere.
 
+**Every request goes out BELOW `SubscriptionGuard`.** The guard (`src/app/components/subscription-lock/subscription-guard.tsx`) wraps the whole app tree in `app-layout.tsx`, and the network gate it feeds (`src/lib/subscription-gate.ts`) holds app *queries* until the subscription answers and while it locks. **Mutations bypass that gate by design** — they are user actions, and the paywall's own are what a locked workspace needs (`useMutation` takes no `cacheConfig`, so there is no per-call opt-out either). So a mutation fired by a timer/effect rather than by a click goes straight out on a locked workspace and fails on every interval — which `recordPresence` did, once every ten seconds behind the lock screen.
+
+Rules for anything automatic (heartbeats, registrations, telemetry, hydrators):
+- Mount it **under** `SubscriptionGuard` — do not add siblings beside it in `AppLayoutInner`.
+- Gate it on `useSubscriptionOpen()` (from `subscription-guard.tsx`): `false` until the answer lands, `false` while locked. It fails closed and `console.error`s in dev when there is no guard above it, so a component mounted in the wrong place says so instead of silently spamming the API.
+- `useSubscriptionLock()` is the *other* hook — `{ status, isLocked, isResolved }` for UI that renders differently when locked. It falls back to unlocked with no guard above; do not use it to decide whether to send traffic.
+
 ### GraphQL with react-relay (preferred)
 
 **Setup:**

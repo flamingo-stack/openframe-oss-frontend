@@ -135,6 +135,43 @@ export function useSubscriptionLock(): SubscriptionLockState {
 }
 
 /**
+ * "May automatic, non-user-initiated traffic go out right now?" — `false` until
+ * the subscription query has answered, and `false` for as long as the workspace
+ * is locked.
+ *
+ * This is the mechanism behind a rule the network layer cannot enforce on its
+ * own. `subscription-gate.ts` parks QUERIES until the answer lands and holds
+ * them while it locks, but every MUTATION bypasses it by design — mutations are
+ * deliberate user actions, and the ones on the paywall are exactly what a locked
+ * workspace needs. `useMutation` also takes no `cacheConfig`, so there is no
+ * per-call opt-out to draw a narrower line with.
+ *
+ * A mutation fired by a TIMER rather than by a click falls straight through that
+ * hole: it goes out on a locked workspace, comes back `SUBSCRIPTION_*` with a
+ * null payload, and does it again on the next interval, forever. That is exactly
+ * what `recordPresence` did — one console error every ten seconds behind the
+ * lock screen.
+ *
+ * So background components ask HERE, which means they must be mounted BELOW the
+ * guard. Above it there is no context to read, and this deliberately does NOT
+ * fall back the way `useSubscriptionLock` does: it fails closed (no traffic) and
+ * says why in dev, rather than quietly answering "open" and reopening the hole.
+ */
+export function useSubscriptionOpen(): boolean {
+  const state = useContext(SubscriptionLockContext);
+
+  if (state === null && process.env.NODE_ENV !== 'production') {
+    console.error(
+      '[SubscriptionGuard] useSubscriptionOpen() found no <SubscriptionGuard> above it. ' +
+        'The component issuing background traffic is mounted outside the guard, so it can never run — ' +
+        'move it below <SubscriptionGuard> in `app-layout.tsx`.',
+    );
+  }
+
+  return state != null && state.isResolved && !state.isLocked;
+}
+
+/**
  * The one part that has to be its own component: `useLazyLoadQuery` suspends,
  * and a hook cannot be called conditionally — so "query only when the flag is on,
  * and blank nothing while it is in flight" is a mount, inside a `Suspense` whose

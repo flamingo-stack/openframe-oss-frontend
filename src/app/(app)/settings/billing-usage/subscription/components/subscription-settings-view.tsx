@@ -266,9 +266,11 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
       {/* Fixed (not sticky) so the bar always pins to the bottom of the viewport,
           even when the page is shorter than the screen — sticky only engages while
           scrolling, leaving the bar stranded mid-page on short content. The room
-          it needs is reserved by this page's own `pb-28` below `md`: the lock
-          screen renders outside the app shell now, so there is no `<main>` to
-          reserve it. */}
+          it needs is reserved by this page's own `pb-28` below `md` rather than by
+          `<main>`: the shell's bottom padding is per-route (`getMainClassNameOverride`
+          gives `/settings` and `/tickets` `pb-0`), and as a lock screen this renders
+          under whatever route the user was on. Its own reservation is the only one
+          that holds on all of them. */}
       <div className="md:hidden fixed inset-x-0 bottom-0 z-20 border-t border-ods-border bg-ods-card p-[var(--spacing-system-l)]">
         <div className="flex">
           <SubscriptionSubmitButton
