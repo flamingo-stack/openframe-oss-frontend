@@ -14,6 +14,7 @@ import {
   FilterModal,
   Input,
   type Row,
+  type SortDirection,
   type SortingState,
   Tag,
   TruncateText,
@@ -249,6 +250,40 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
   const sortState = sorting[0] ? { id: sorting[0].id, desc: sorting[0].desc } : null;
 
   /**
+   * The same two sortable columns, for the mobile modal — below `md` the table
+   * header is gone entirely (`hidden md:flex`), so its arrows are unreachable
+   * and this is the only place left to reorder from.
+   *
+   * Labels are written out rather than taken from `INVOICE_COLUMNS[*].header`:
+   * those are the table's uppercase mono headings, and `SortColumnItem` renders
+   * its label as plain `text-h4` body text.
+   *
+   * Unlike the filters, a sort here applies IMMEDIATELY rather than on Apply —
+   * `FilterModal` drafts only what it can commit in `handleApply`, and sort is
+   * not among them. The arrow updates live, so the modal still shows the truth.
+   */
+  const sortConfig = useMemo(
+    () => ({
+      columns: [
+        { key: 'dueDate', label: 'Due Date' },
+        { key: 'amountDue', label: 'Amount' },
+      ],
+      sortBy: sorting[0]?.id,
+      sortDirection: sorting[0] ? ((sorting[0].desc ? 'desc' : 'asc') as SortDirection) : undefined,
+    }),
+    [sorting],
+  );
+
+  // `SortColumnItem` owns the none → asc → desc → clear cycle and hands us the
+  // outcome, so these two only have to store it — the header's `handleSortChange`
+  // runs the same cycle itself because there it is a single click target.
+  const handleModalSort = useCallback((columnId: string, direction: SortDirection) => {
+    setSorting([{ id: columnId, desc: direction === 'desc' }]);
+  }, []);
+
+  const handleModalSortClear = useCallback(() => setSorting([]), []);
+
+  /**
    * The one filter this table has, restated for the mobile modal.
    *
    * Same `statusOptions` the column header's funnel uses, so the two controls
@@ -324,6 +359,9 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
         filterGroups={filterGroups}
         currentFilters={mobileFilters}
         onFilterChange={handleMobileFilterChange}
+        sortConfig={sortConfig}
+        onSort={handleModalSort}
+        onSortClear={handleModalSortClear}
       />
     </div>
   );
