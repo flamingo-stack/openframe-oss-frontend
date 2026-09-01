@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  type ChunkData,
-  type NatsMessageType,
-  useJetStreamDialogSubscription,
-} from '@flamingo-stack/openframe-frontend-core';
+import { type ChunkData, useJetStreamDialogSubscription } from '@flamingo-stack/openframe-frontend-core';
 import { useCallback, useEffect, useRef } from 'react';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { NATS_TOPICS } from '../constants';
@@ -13,16 +9,12 @@ const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
 
 interface TicketDialogSubscriptionProps {
   dialogId: string | null;
-  /** Dispatch a chunk directly to side processors. */
-  dispatchChunk: (chunk: ChunkData, messageType: NatsMessageType) => void;
+  /** Dispatch a chunk directly to the client-side processor. */
+  dispatchChunk: (chunk: ChunkData) => void;
   /** Resume sequence for the CLIENT topic; 0 = replay from stream start (per-dialog filter). */
   clientInitialOptStartSeq: number;
-  /** Resume sequence for the ADMIN topic; 0 = replay from stream start (per-dialog filter). */
-  adminInitialOptStartSeq: number;
-  /** Gates JetStream consumer creation until both sides' history has loaded. */
+  /** Gates JetStream consumer creation until history has loaded. */
   isInitialOptStartSeqReady: boolean;
-  /** Gates the ADMIN (technician) topic consumer; off when the technician chat is hidden. */
-  subscribeAdmin: boolean;
   /** Fired once per NATS reconnect. The CHAT_CHUNKS stream retains ~10
    *  minutes, so an outage longer than that leaves a gap JetStream replay
    *  cannot fill — the parent must refetch persisted history to cover it. */
@@ -33,9 +25,7 @@ export function TicketDialogSubscription({
   dialogId,
   dispatchChunk,
   clientInitialOptStartSeq,
-  adminInitialOptStartSeq,
   isInitialOptStartSeqReady,
-  subscribeAdmin,
   onReconnected,
 }: TicketDialogSubscriptionProps) {
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
@@ -46,14 +36,12 @@ export function TicketDialogSubscription({
   }, [dispatchChunk]);
 
   // JetStream redeliveries may repeat a streamSeq during reconnect; drop any
-  // we've already applied. Tracked per topic.
+  // we've already applied.
   const lastClientStreamSeqRef = useRef<number>(-1);
-  const lastAdminStreamSeqRef = useRef<number>(-1);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: dialogId change is the reset trigger
   useEffect(() => {
     lastClientStreamSeqRef.current = -1;
-    lastAdminStreamSeqRef.current = -1;
   }, [dialogId]);
 
   const handleClientJsEvent = useCallback((payload: unknown) => {
@@ -62,19 +50,10 @@ export function TicketDialogSubscription({
       if (chunk.streamSeq <= lastClientStreamSeqRef.current) return;
       lastClientStreamSeqRef.current = chunk.streamSeq;
     }
-    dispatchRef.current(chunk, NATS_TOPICS.MESSAGE);
+    dispatchRef.current(chunk);
   }, []);
 
-  const handleAdminJsEvent = useCallback((payload: unknown) => {
-    const chunk = payload as ChunkData;
-    if (typeof chunk.streamSeq === 'number') {
-      if (chunk.streamSeq <= lastAdminStreamSeqRef.current) return;
-      lastAdminStreamSeqRef.current = chunk.streamSeq;
-    }
-    dispatchRef.current(chunk, NATS_TOPICS.ADMIN_MESSAGE);
-  }, []);
-
-  const { reconnectionCount: clientReconnectionCount } = useJetStreamDialogSubscription({
+  const { reconnectionCount } = useJetStreamDialogSubscription({
     enabled: !!dialogId && isInitialOptStartSeqReady,
     dialogId,
     streamName: CHAT_CHUNKS_STREAM,
@@ -85,35 +64,20 @@ export function TicketDialogSubscription({
     getNatsWsUrl: getWsUrl,
   });
 
-  const { reconnectionCount: adminReconnectionCount } = useJetStreamDialogSubscription({
-    enabled: !!dialogId && isInitialOptStartSeqReady && subscribeAdmin,
-    dialogId,
-    streamName: CHAT_CHUNKS_STREAM,
-    topic: NATS_TOPICS.ADMIN_MESSAGE,
-    optStartSeq: adminInitialOptStartSeq,
-    onEvent: handleAdminJsEvent,
-    onBeforeReconnect,
-    getNatsWsUrl: getWsUrl,
-  });
-
   const onReconnectedRef = useRef(onReconnected);
   useEffect(() => {
     onReconnectedRef.current = onReconnected;
   }, [onReconnected]);
 
-  // Sum, not max: a shared-connection reconnect bumps both counters at once, but
-  // the counter also covers per-consumer events (a JetStream consumer being
-  // recreated, a resync after the page was hidden) that move only one of them.
-  // Under max, a recovery on the tail that happens to be behind is invisible —
-  // its gap never gets refetched. Summing keeps every bump observable; the ref
-  // below still collapses a simultaneous pair into one parent notification.
+  // The counter covers both a shared-connection reconnect and per-consumer events
+  // (a JetStream consumer being recreated, a resync after the page was hidden);
+  // the ref keeps a repeated read from re-notifying the parent.
   const lastNotifiedReconnectRef = useRef(0);
-  const reconnectTotal = clientReconnectionCount + adminReconnectionCount;
   useEffect(() => {
-    if (reconnectTotal <= lastNotifiedReconnectRef.current) return;
-    lastNotifiedReconnectRef.current = reconnectTotal;
+    if (reconnectionCount <= lastNotifiedReconnectRef.current) return;
+    lastNotifiedReconnectRef.current = reconnectionCount;
     onReconnectedRef.current?.();
-  }, [reconnectTotal]);
+  }, [reconnectionCount]);
 
   return null;
 }

@@ -1,11 +1,17 @@
 'use client';
 
-import { ExternalLinkIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  ExternalLinkIcon,
+  Filter02Icon,
+  SearchIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  Button,
   type ColumnDef,
   type ColumnFiltersState,
   DataTable,
   type DataTableFilterOption,
+  FilterModal,
   Input,
   type Row,
   type SortingState,
@@ -115,6 +121,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const data = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -241,19 +248,68 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
 
   const sortState = sorting[0] ? { id: sorting[0].id, desc: sorting[0].desc } : null;
 
+  /**
+   * The one filter this table has, restated for the mobile modal.
+   *
+   * Same `statusOptions` the column header's funnel uses, so the two controls
+   * can never offer different statuses — they are the same list, reached from
+   * two widths. `FilterModalOption` wants `{ id, label }` and
+   * `DataTableFilterOption` carries a third field it ignores.
+   */
+  const filterGroups = useMemo(() => [{ id: 'status', title: 'Status', options: statusOptions }], [statusOptions]);
+
+  /** TanStack's filter state in the modal's shape: column id → selected option ids. */
+  const mobileFilters = useMemo(
+    () =>
+      Object.fromEntries(
+        columnFilters.map(filter => [filter.id, Array.isArray(filter.value) ? (filter.value as string[]) : []]),
+      ),
+    [columnFilters],
+  );
+
+  /**
+   * And back again on Apply. Empty selections are dropped rather than stored as
+   * empty arrays: `multiSelectFilterFn` treats an empty array as "no filter"
+   * anyway, and a table whose `columnFilters` is never empty reports itself as
+   * filtered forever — which is what the empty state reads to decide between
+   * "nothing matched" and "nothing here yet".
+   */
+  const handleMobileFilterChange = useCallback((filters: Record<string, string[]>) => {
+    setColumnFilters(
+      Object.entries(filters)
+        .filter(([, values]) => values.length > 0)
+        .map(([id, values]) => ({ id, value: values })),
+    );
+  }, []);
+
   if (invoices.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <h2 className="text-h2 text-ods-text-primary">Invoices History</h2>
 
-      <Input
-        startAdornment={<SearchIcon />}
-        placeholder="Search for Invoice"
-        value={search}
-        onChange={event => setSearch(event.target.value)}
-        className="w-full"
-      />
+      {/* Below `md` the whole table header is gone (`hidden md:flex`), and the
+          STATUS funnel with it — so the filter moves next to the search, the same
+          toolbar shape the scripts and schedules tables use. */}
+      <div className="flex items-center gap-[var(--spacing-system-m)]">
+        <div className="flex-1">
+          <Input
+            startAdornment={<SearchIcon />}
+            placeholder="Search for Invoice"
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+            className="w-full"
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          className="md:hidden"
+          onClick={() => setMobileFilterOpen(true)}
+          aria-label="Open filters"
+          leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+        />
+      </div>
 
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount />} sort={sortState} onSortChange={handleSortChange} />
@@ -261,6 +317,14 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
           emptyState={{ title: 'No invoices found', description: 'Try adjusting your search or filters.' }}
         />
       </DataTable>
+
+      <FilterModal
+        isOpen={mobileFilterOpen}
+        onClose={() => setMobileFilterOpen(false)}
+        filterGroups={filterGroups}
+        currentFilters={mobileFilters}
+        onFilterChange={handleMobileFilterChange}
+      />
     </div>
   );
 }

@@ -12,13 +12,13 @@ import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
  * window — it is a guess, wrong whenever the server disagrees. Two ways that has
  * actually broken:
  * - **Functionally.** A flag-gated route read `false` before the answer and
- *   redirected away as if the feature were off — refreshing `/scripts/schedules`
- *   bounced to the Scripts list. Route gates that `notFound()` were worse: it
- *   throws, so the 404 stuck for the whole page life.
- * - **Visibly.** Chrome is gated in BOTH directions — some flags REPLACE or HIDE
- *   pre-feature UI when on (`mingo-sidebar` hides the legacy Mingo entry) — so
- *   "default off" isn't "show less", it's "show the pre-feature app", including
- *   nav entries that must not be there at all.
+ *   redirected away as if the feature were off — refreshing a gated route bounced
+ *   to its fallback. Route gates that `notFound()` were worse: it throws, so the
+ *   404 stuck for the whole page life.
+ * - **Visibly.** Chrome can be gated in BOTH directions — a flag that REPLACES or
+ *   HIDES pre-feature UI when on makes "default off" mean "show the pre-feature
+ *   app", including nav entries that must not be there at all, rather than simply
+ *   "show less".
  *
  * Making the window a value the compiler forces you to name is what stops both.
  */
@@ -44,8 +44,8 @@ export function useFeatureFlagsReady(): boolean {
  * `'loading'` into `'off'`; that is the bug this hook exists to prevent.
  *
  * ```tsx
- * const gate = useFeatureFlagGate('script-schedules');
- * if (gate === 'loading') return <TabBarSkeleton widths={SCRIPTS_TAB_WIDTHS} />;
+ * const gate = useFeatureFlagGate('time-tracker');
+ * if (gate === 'loading') return <TabBarSkeleton widths={TAB_WIDTHS} />;
  * if (gate === 'off') { redirect(); return null; }
  * ```
  */

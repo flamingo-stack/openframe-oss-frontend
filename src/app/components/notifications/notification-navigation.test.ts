@@ -196,7 +196,7 @@ describe('the type + attributes contract', () => {
       resolveNotificationAction(notification({ notificationType: 'SOME_NEW_MINGO', dialogId: 'd-2' }, 'MINGO'))
         ?.mingoDialogId,
     ).toBe('d-2');
-    // A CLIENT chat's dialogId: `/mingo?dialogId=` resolves admin dialogs only, so following
+    // A CLIENT chat's dialogId: the Mingo drawer resolves admin dialogs only, so following
     // this would land on an empty chat.
     expect(
       resolveNotificationAction(notification({ notificationType: 'SOME_NEW_CLIENT', dialogId: 'd-3' }, 'TICKETS')),

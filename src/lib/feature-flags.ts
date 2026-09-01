@@ -12,17 +12,12 @@ export const FEATURE_FLAG_NAMES = [
   'help-center',
   'notifications',
   'notifications-legacy-path',
-  'batch-approval',
   'debug-nats-chunks',
-  'mingo-sidebar',
-  'mingo-sidebar-context',
   'mingo-ai-chat-settings',
   'customer-ai-assistant-settings',
   'customer-ai-configuration',
   'customer-guardrails',
   'time-tracker',
-  'script-schedules',
-  'script-schedule-device-online',
   'cancel-subscription',
   'test-clock',
   'download-apps',
@@ -127,27 +122,12 @@ export const featureFlags = {
       return getFlagValue('notifications-legacy-path', () => false);
     },
   },
-  batchApproval: {
-    enabled(): boolean {
-      return getFlagValue('batch-approval', () => false);
-    },
-  },
   debugNatsChunks: {
     enabled(): boolean {
       // Local override FIRST — see `isDebugChunkLogForced`: a server value of
       // `false` must not silence a log the developer switched on for their own
       // browser, which a plain `envFallback` could not express.
       return isDebugChunkLogForced() || getFlagValue(DEBUG_NATS_CHUNKS_KEY, () => false);
-    },
-  },
-  mingoSidebar: {
-    enabled(): boolean {
-      return getFlagValue('mingo-sidebar', () => false);
-    },
-  },
-  mingoSidebarContext: {
-    enabled(): boolean {
-      return getFlagValue('mingo-sidebar-context', () => false);
     },
   },
   aiEscalation: {
@@ -186,30 +166,6 @@ export const featureFlags = {
   timeTracker: {
     enabled(): boolean {
       return getFlagValue('time-tracker', () => false);
-    },
-  },
-  /**
-   * Scripts Schedules module (`/scripts/schedules/*`) — the scheduled-run
-   * list, detail, create/edit, and device-assignment pages. Off → the schedules
-   * routes redirect to the Scripts list and the "Scripts Schedules" tab is
-   * hidden. Defaults off when unset.
-   */
-  scriptSchedules: {
-    enabled(): boolean {
-      return getFlagValue('script-schedules', () => false);
-    },
-  },
-  /**
-   * The DEVICE_ONLINE trigger on the schedule form — "Run when device comes
-   * online", the event-driven alternative to a date and time. Off → the form
-   * offers no trigger choice at all and every schedule it writes is DATE_TIME.
-   *
-   * Nested under `scriptSchedules`, which gates the module the form belongs to.
-   * Defaults off when unset.
-   */
-  scriptScheduleDeviceOnline: {
-    enabled(): boolean {
-      return getFlagValue('script-schedule-device-online', () => false);
     },
   },
   cancelSubscription: {

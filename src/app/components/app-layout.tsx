@@ -256,7 +256,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // — what `chromeLoading` below covers is how it LOOKS, not whether it mounts.
   // Anything whose wrong value would redirect or change which surface renders needs
   // `useFeatureFlagGate` instead (see the drawer's URL sync).
-  const mingoSidebarEnabled = useFeatureFlag('mingo-sidebar');
   const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const helpCenterEnabled = useFeatureFlag('help-center');
   const notificationsEnabled = useFeatureFlag('notifications');
@@ -288,19 +287,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
    */
   const showAiSpendBar = billingsEnabled && !isBillingHidden() && sessionReady && !isLocked;
 
-  // The Mingo sidebar (header launcher + in-layout chat drawer) is gated by the
-  // `mingo-sidebar` feature flag. It's also only meaningful inside the full,
-  // unlocked app shell (it hits authed endpoints), so the subscription lock
-  // suppresses both the launcher and the drawer regardless of the flag.
-  //
-  // NOT suppressed on `/mingo` any more, and the two-surfaces hazard that
-  // suppression guarded is unreachable: the legacy page renders its chat only on
-  // a definitive flag `off`, which is the same answer that makes this false, so the
-  // page and the drawer can never both be live over `mingo-messages-store`.
-  // Suppressing it was actively harmful once `/mingo` became the deep-link resolver
-  // — routing through it unmounted the drawer and its `<DialogSubscription>`
-  // mid-stream, for one redirect's worth of frames.
-  const chatEnabled = mingoSidebarEnabled && !isLocked;
+  // The Mingo sidebar (header launcher + in-layout chat drawer) is the only chat
+  // surface there is. It is meaningful only inside the full, unlocked app shell
+  // (it hits authed endpoints), so the subscription lock suppresses both the
+  // launcher and the drawer.
+  const chatEnabled = !isLocked;
 
   // Mirrors the drawer's open conversation into `?mingoDialog=` and adopts one
   // from the URL — what makes a dialog shareable by link and reachable from a
@@ -390,11 +381,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   const navigationFlags = useMemo<NavigationFlags>(
     () => ({
-      mingoSidebar: mingoSidebarEnabled,
       timeTracker: timeTrackerEnabled,
       helpCenter: helpCenterEnabled,
     }),
-    [mingoSidebarEnabled, timeTrackerEnabled, helpCenterEnabled],
+    [timeTrackerEnabled, helpCenterEnabled],
   );
 
   const navigationItems = useMemo(

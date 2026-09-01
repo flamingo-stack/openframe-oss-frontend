@@ -42,7 +42,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { mingoDialogLink } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -215,11 +214,6 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     [],
   );
 
-  // Entity-context picker (the `+` / `@`-mention flow + selected chips) is
-  // gated behind the `mingo-sidebar-context` flag. Passing `contextPicker`
-  // undefined makes the lib's composer inert (no `+`, no `@`, no chips).
-  const contextEnabled = useFeatureFlag('mingo-sidebar-context');
-
   // Context-memory strip above the composer: the navigation history Mingo
   // carries on every message (current page + previously viewed entities), each
   // droppable from the `⋯` dropdown.
@@ -327,21 +321,21 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         // empty state. Omitted when none are configured so the lib keeps its
         // default welcome content.
         mingoWelcome={mingoQuickActions.length > 0 ? { quickActions: mingoQuickActions } : undefined}
-        contextPicker={contextEnabled ? contextPicker : undefined}
+        contextPicker={contextPicker}
         // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
         // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`
         // for `[card://]`. Stable module-level fn so the message memo holds.
-        renderMention={contextEnabled ? renderMingoMention : undefined}
+        renderMention={renderMingoMention}
         // Renders a user's ATTACHED context chips (`contextItems`) as the SAME
         // self-fetching chips as inline mentions — so manually attached context
         // resolves its live name + link instead of the lib's label-only pill.
-        renderContextItem={contextEnabled ? renderMingoContextItem : undefined}
+        renderContextItem={renderMingoContextItem}
         // Context memory (Figma 271:38656): the strip at the top of the composer
         // card naming what Mingo remembers from this session's navigation — the
         // open entity page plus the recently viewed ones — with a `⋯` dropdown
         // to review and forget individual entries. Replaces the old under-the-
         // header page-context banner. The strip self-hides when memory is empty.
-        contextMemory={contextEnabled ? contextMemory : undefined}
+        contextMemory={contextMemory}
       />
     </>
   );

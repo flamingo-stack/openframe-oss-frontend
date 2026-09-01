@@ -97,20 +97,6 @@ function withQuery(base: string, query?: Record<string, QueryValue>): string {
 // --------------------------------------------------------------------------
 
 /**
- * Query param carrying the dialog id on the canonical `/mingo` route.
- *
- * Shared with `MingoPage`, which reads it back, because the two halves are one wire
- * contract: rename it on the producing side alone and every push and OS-toast deep
- * link silently redirects to a bare dashboard with the id dropped — no compile
- * error, and the notification tests only pin the half that builds the URL.
- *
- * Distinct from {@link MINGO_DIALOG_PARAM} on purpose: this one names the SHARE URL's
- * id, that one the live drawer state. `/mingo` reads this and writes that, and one
- * shared name would make the handoff indistinguishable from a loop.
- */
-export const MINGO_CANONICAL_DIALOG_PARAM = 'dialogId';
-
-/**
  * Query param naming the dialog open in the Mingo chat drawer.
  *
  * Not an entry in {@link routes} because it belongs to no single route: the drawer
@@ -297,16 +283,6 @@ export const routes = {
     billingUsage: '/settings/billing-usage',
   },
 
-  /**
-   * Canonical, page-independent URL for a Mingo dialog — the SHARE and DEEP-LINK
-   * form. With `mingo-sidebar` on it resolves into the in-layout drawer (the page
-   * redirects, carrying the id over as {@link MINGO_DIALOG_PARAM}); with the flag
-   * off it is the legacy chat page. A sender — a push payload, an OS toast, a
-   * copied link — cannot know which route the recipient is on, so this is the only
-   * shape it can produce.
-   */
-  mingo: (o?: { dialogId?: string }) => withQuery('/mingo', { [MINGO_CANONICAL_DIALOG_PARAM]: o?.dialogId }),
-
   notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),
 
   checkout: {
@@ -319,13 +295,11 @@ export const routes = {
  * Canonical, page-independent URL for SHARING or deep-linking a Mingo dialog —
  * what "Copy chat link" writes and what a notification tap navigates to.
  *
- * It is the drawer's own resting shape on a fixed landing page, NOT the `/mingo`
- * route: `/mingo` can only redirect here from the client, which costs a render and
- * a paint before the drawer appears. Emitting the destination directly means a
- * pasted link adopts on first commit with nothing rendered in between.
- *
- * `/mingo?dialogId=` stays supported for links already pasted elsewhere — see
- * `MingoPage` — but nothing produces it any more.
+ * The chat has no route of its own: it is a drawer floating over whatever page is
+ * showing, so the shareable shape is the drawer's resting state on a fixed landing
+ * page. A sender — a push payload, an OS toast, a copied link — cannot know which
+ * route the recipient is on, so this is the only shape it can produce, and a pasted
+ * link adopts on first commit with nothing rendered in between.
  */
 export function mingoDialogLink(dialogId: string): string {
   return withMingoDialog(routes.dashboard, dialogId);
