@@ -28,7 +28,9 @@ Access: http://localhost:3000
 ### All Commands
 | Command | Purpose |
 |---------|----------|
-| `npm run dev` | Dev server (port 3000, `PORT` env to override) |
+| `npm run dev` | Dev server (port 3000, `PORT` env to override) — UI only, no gateway access |
+| `npm run dev:login` | Capture a dev session once (dedicated Chrome + CDP) → `.dev-session.json` |
+| `npm run dev:proxy` | Dev server **with** working gateway access — same-origin proxy + server-side cookie jar |
 | `npm run build` | Production build (`generate-enums` + `relay-compiler` + `next build`; standalone output in `dist/`) |
 | `npm run build:export` | Static-export build (`OPENFRAME_BUILD_TARGET=export`) — SPA bundle for Capacitor/Tauri native shells |
 | `npm run build:local` | Production build with webpack |
@@ -67,6 +69,15 @@ NEXT_PUBLIC_GTM_CONTAINER_ID=GTM-XXXXXXX                # Google Tag Manager
 ```bash
 NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER=true   # Dev ticket auth mode (Bearer tokens instead of cookies)
 ```
+
+**Working against a real backend locally:** `npm run dev` has no API — the browser
+would call the gateway cross-origin and it does not allow-list `localhost`. A
+deployed OpenFrame is same-origin (relative URLs + a reverse proxy in front), so
+the fix is to supply that proxy locally, not to add CORS: `npm run dev:login`
+once, then `npm run dev:proxy`. The session cookie is held server-side by
+`scripts/dev-proxy.mjs`, so even a fresh browser profile is signed in. Full
+rationale and caveats (NATS WS is not proxied) in
+`docs/development/setup/local-development.md`.
 
 Feature flags are **not** env vars — they are server-loaded via GraphQL (see Feature Flags below). Native-shell env split is documented in `.env.export.example`.
 

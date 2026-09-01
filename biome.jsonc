@@ -14,7 +14,12 @@
       "!**/next-env.d.ts",
       "!**/__generated__/**",
       "!**/src/generated/**",
-      "!**/schema.graphql"
+      "!**/schema.graphql",
+      // Local dev-session artefacts (see scripts/dev-login.mjs). `.dev-chrome/`
+      // is a whole Chrome profile — thousands of vendor JSON files Biome would
+      // otherwise check and report on.
+      "!**/.dev-chrome/**",
+      "!**/.dev-session.json"
     ]
   },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },

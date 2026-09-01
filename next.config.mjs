@@ -55,10 +55,35 @@ const nextConfig = {
   // `rewrites()` is unsupported under `output: 'export'` (no server to run
   // them), so it is omitted in export mode; the embedded-chat proxy is replaced
   // there by absolute gateway URLs + Bearer + CORS (migration item 7).
+  //
+  // `OPENFRAME_DEV_PROXY` generalises the same idea to the WHOLE gateway surface
+  // for local dev: with it set, every gateway path is rewritten to the local
+  // credential-injecting proxy (`scripts/dev-proxy.mjs`) instead of the browser
+  // reaching the gateway itself. That makes `next dev` the same shape as a
+  // deployment — one origin in the browser, a reverse proxy behind it — so no
+  // CORS is involved at all, and the session cookie (which belongs to the gateway
+  // domain and can never be set on `localhost`) is attached server-side.
+  //
+  // It is set only by `npm run dev` via the dev-proxy script. Absent, everything
+  // below behaves exactly as before, and it can never reach a production build:
+  // the deployed image builds with no `.env*` and no such variable.
   ...(isStaticExport
     ? {}
     : {
         async rewrites() {
+          const devProxy = (process.env.OPENFRAME_DEV_PROXY || '').replace(/\/+$/, '');
+          if (devProxy) {
+            return {
+              // `beforeFiles`, so these win over the App Router's own matching.
+              // `/api` is safe to claim wholesale: this app defines no route
+              // handlers (there is no `src/app/api`), every `/api/*` call is a
+              // gateway call.
+              beforeFiles: ['/api', '/oauth', '/sas', '/chat', '/tools', '/content'].map(prefix => ({
+                source: `${prefix}/:path*`,
+                destination: `${devProxy}${prefix}/:path*`,
+              })),
+            };
+          }
           const tenantHost = (process.env.NEXT_PUBLIC_TENANT_HOST_URL || '').replace(/\/+$/, '');
           if (!tenantHost) return [];
           return {

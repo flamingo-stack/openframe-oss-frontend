@@ -37,3 +37,7 @@ src/generated/
 
 # Claude
 **/.claude/
+
+# Local dev session captured by `npm run dev:login` — live credentials, never commit.
+.dev-session.json
+.dev-chrome/
