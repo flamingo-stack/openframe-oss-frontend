@@ -240,7 +240,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                       // in the form. It replaces a popup that opened blank; the
                       // Date field carries the same sentence for whoever never
                       // opens this one.
-                      <p className="px-[var(--spacing-system-s)] py-[var(--spacing-system-xs)] text-h6 text-ods-text-secondary">
+                      <p className="px-4 py-[var(--spacing-system-sf)] text-h6 text-ods-text-secondary">
                         {NO_SLOTS_TODAY_MESSAGE}
                       </p>
                     ) : (
