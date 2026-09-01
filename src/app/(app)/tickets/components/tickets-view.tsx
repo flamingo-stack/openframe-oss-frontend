@@ -28,13 +28,18 @@ export function TicketsView() {
   // every keystroke.
   const { search, setSearch } = useSearchParam(params.search, value => setParam('search', value), 300);
 
-  const handleStatusFilterChange = useCallback((status: string[]) => setParam('status', status), [setParam]);
   const handleOrganizationIdsChange = useCallback((ids: string[]) => setParam('organizationIds', ids), [setParam]);
   const handleAssigneeIdsChange = useCallback((ids: string[]) => setParam('assigneeIds', ids), [setParam]);
   const handleTagIdsChange = useCallback((ids: string[]) => setParam('tagIds', ids), [setParam]);
   // Single URL write: two sequential setParam calls read the same snapshot and clobber each other.
   const handleFiltersChange = useCallback(
     (filters: { organizationIds: string[]; assigneeIds: string[] }) => setParams(filters),
+    [setParams],
+  );
+  // The table's variant also carries the status filter (its mobile modal and
+  // the column-header filters both go through this one atomic write).
+  const handleTableFiltersChange = useCallback(
+    (filters: { status: string[]; assigneeIds: string[]; organizationIds: string[] }) => setParams(filters),
     [setParams],
   );
 
@@ -74,7 +79,9 @@ export function TicketsView() {
   return (
     <CurrentTickets
       statusFilters={params.status}
-      onStatusFilterChange={handleStatusFilterChange}
+      organizationIds={params.organizationIds}
+      assigneeIds={params.assigneeIds}
+      onFiltersChange={handleTableFiltersChange}
       selector={tabs}
       tagIds={params.tagIds}
       onTagIdsChange={handleTagIdsChange}
