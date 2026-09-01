@@ -1,8 +1,6 @@
 'use client';
 
 import {
-  ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE,
-  type ApprovalNotificationMeta,
   ApprovalRequestNotificationTile,
   getApprovalMeta,
   isApprovalNotification,
@@ -60,7 +58,6 @@ import {
   mapNotificationNode,
   NOTIFICATION_ATTR,
   NOTIFICATIONS_CONNECTION_KEY,
-  normalizeToolCalls,
   parseCreatedAt,
   parseSeverity,
   readNotificationAttributes,
@@ -82,7 +79,6 @@ import { routes } from '@/lib/routes';
 import { ATTENTION_IDLE_MS, isSessionActive, subscribeSessionActivity } from '@/lib/session-activity';
 import { withCategoryIcon } from './notification-category-icons';
 import {
-  CONTEXT_TYPENAME_BY_TYPE,
   mingoDrawerDialogId,
   type NotificationAction,
   notificationTargetsDialog,
@@ -102,94 +98,10 @@ const POPUP_OFFSET_CLASS = 'top-16 md:top-[4.5rem]';
 const NOTIFICATIONS_HISTORY_HREF = routes.notifications({ tab: 'history' });
 
 const DRAWER_FILTER_PAIRS = [UNFILTERED_NOTIFICATION_PAIR];
-const NATS_CONTEXT_TYPENAME = 'GenericContext';
-const APPROVAL_CONTEXT_TYPENAME = 'AdminApprovalRequestContext';
-
-/** Extract the approval payload from a LEGACY NATS notification context, or null if it isn't one. */
-function parseApprovalContext(context: NatsNotificationPayload['context']): ApprovalNotificationMeta | null {
-  if (!context || context.type !== ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE) return null;
-  const approvalRequestId = context.approvalRequestId;
-  if (typeof approvalRequestId !== 'string') return null;
-  return {
-    approvalRequestId,
-    dialogId: typeof context.dialogId === 'string' ? context.dialogId : null,
-    ticketId: typeof context.ticketId === 'string' ? context.ticketId : null,
-    approvalType: typeof context.approvalType === 'string' ? context.approvalType : null,
-    resolution: typeof context.resolution === 'string' ? context.resolution : null,
-    resolvedByName: typeof context.resolvedByName === 'string' ? context.resolvedByName : null,
-    toolCalls: normalizeToolCalls(context.toolCalls),
-  };
-}
 
 /** Write a JSON custom-scalar field: RecordProxy.setValue rejects objects, so use the normalizer's unsafe setter. */
 function setJsonScalar(record: unknown, name: string, value: Record<string, unknown> | null) {
   (record as Record<string, (v: unknown, n: string) => void>).setValue__UNSAFE(value, name);
-}
-
-/** Get-or-create a Notification context record and stamp its GraphQL `__typename`. */
-function upsertContextRecord(store: RecordSourceSelectorProxy, id: string, typename: string): RecordProxy {
-  const record = store.get(id) ?? store.create(id, typename);
-  record.setValue(typename, '__typename');
-  return record;
-}
-
-function writeToolCallRecord(
-  store: RecordSourceSelectorProxy,
-  id: string,
-  call: ApprovalNotificationMeta['toolCalls'][number],
-): RecordProxy {
-  const record = store.get(id) ?? store.create(id, 'ApprovalToolCall');
-  record.setValue(call.toolExecutionRequestId ?? null, 'toolExecutionRequestId');
-  record.setValue(call.toolName ?? '', 'toolName');
-  record.setValue(call.toolTitle ?? null, 'toolTitle');
-  record.setValue(call.toolExplanation ?? null, 'toolExplanation');
-  record.setValue(call.toolType ?? null, 'toolType');
-  record.setValue(Boolean(call.requiresApproval), 'requiresApproval');
-  record.setValue(call.approvalType ?? null, 'approvalType');
-  setJsonScalar(record, 'toolCallArguments', call.toolCallArguments ?? null);
-  return record;
-}
-
-/** Build the Notification.context record for a NATS payload: approval, any typed context, or a generic fallback. */
-function writeNotificationContext(
-  store: RecordSourceSelectorProxy,
-  contextRecordId: string,
-  payload: NatsNotificationPayload,
-): RecordProxy {
-  const approval = parseApprovalContext(payload.context);
-  if (approval) {
-    const record = upsertContextRecord(store, contextRecordId, APPROVAL_CONTEXT_TYPENAME);
-    record.setValue(ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE, 'type');
-    record.setValue(approval.approvalRequestId, 'approvalRequestId');
-    record.setValue(approval.dialogId ?? null, 'dialogId');
-    record.setValue(approval.ticketId ?? null, 'ticketId');
-    record.setValue(approval.approvalType ?? null, 'approvalType');
-    record.setValue(approval.resolution ?? null, 'resolution');
-    record.setValue(approval.resolvedByName ?? null, 'resolvedByName');
-    record.setLinkedRecords(
-      approval.toolCalls.map((call, i) => writeToolCallRecord(store, `${contextRecordId}:toolCall:${i}`, call)),
-      'toolCalls',
-    );
-    return record;
-  }
-
-  // Any other known context: rebuild a typed record carrying the entity ids the route mapping reads
-  // (dialogId / ticketId), so the live tile navigates and auto-reads exactly like a fetched one.
-  const type = payload.context?.type;
-  const typename = type ? CONTEXT_TYPENAME_BY_TYPE[type] : undefined;
-  if (type && typename) {
-    const record = upsertContextRecord(store, contextRecordId, typename);
-    record.setValue(type, 'type');
-    const dialogId = payload.context?.dialogId;
-    const ticketId = payload.context?.ticketId;
-    if (typeof dialogId === 'string') record.setValue(dialogId, 'dialogId');
-    if (typeof ticketId === 'string') record.setValue(ticketId, 'ticketId');
-    return record;
-  }
-
-  const record = upsertContextRecord(store, contextRecordId, NATS_CONTEXT_TYPENAME);
-  record.setValue(type ?? 'UNKNOWN', 'type');
-  return record;
 }
 
 /** The payload's flat attribute map, or an empty one for a legacy push that carries none. */
@@ -211,7 +123,7 @@ function payloadTicketId(payload: NatsNotificationPayload): string | null {
 }
 
 /**
- * Write both shapes of the notification's facts onto the store record.
+ * Write the notification's facts onto the store record.
  *
  * Every field the row fragment selects has to end up present, even as null — a field left
  * unwritten reads back as missing data, which makes Relay refetch the row (or blank it),
@@ -221,16 +133,8 @@ function payloadTicketId(payload: NatsNotificationPayload): string | null {
  * Attributes MERGE rather than replace: an UPDATED push is expected to carry the full map,
  * but a partial one (say a resolve sending only the resolution keys) should top the record
  * up instead of blanking the ids the tile navigates by.
- *
- * The legacy context is rebuilt only when the push actually carries one — deriving it from
- * a spec-shaped push would overwrite a real context with an UNKNOWN placeholder.
  */
-function writeNotificationShapes(
-  store: RecordSourceSelectorProxy,
-  node: RecordProxy,
-  relayId: string,
-  payload: NatsNotificationPayload,
-): void {
+function writeNotificationShapes(node: RecordProxy, payload: NatsNotificationPayload): void {
   if (payload.type) node.setValue(payload.type, 'type');
   else if (node.getValue('type') === undefined) node.setValue(null, 'type');
 
@@ -242,12 +146,6 @@ function writeNotificationShapes(
     setJsonScalar(node, 'attributes', merged);
   } else if (node.getValue('attributes') === undefined) {
     setJsonScalar(node, 'attributes', null);
-  }
-
-  if (payload.context) {
-    node.setLinkedRecord(writeNotificationContext(store, `${relayId}:context`, payload), 'context');
-  } else if (node.getLinkedRecord('context') === undefined) {
-    node.setLinkedRecord(null, 'context');
   }
 }
 
@@ -276,11 +174,11 @@ interface NatsNotificationPayload {
   // CREATED is the initial push; UPDATED supersedes an earlier push with the same id
   // (e.g. an approval request whose status changed). Absent → treat as CREATED.
   eventType?: 'CREATED' | 'UPDATED';
-  // Spec-catalog contract. Present once the backend emits on the spec path; absent on
-  // legacy pushes and if the `notifications.legacy-path` kill-switch is flipped back on.
+  // Spec-catalog contract: flat facts under fixed keys.
   type?: string;
   attributes?: Record<string, unknown>;
-  // Legacy typed context. Deprecated, still the only shape some pushes carry.
+  // Legacy typed context: still read as a transport-level fallback for pushes emitted by
+  // backends that have not shipped the context removal yet. Never written to the Relay store.
   context?: { type?: string; resolution?: string; [k: string]: unknown };
 }
 
@@ -730,7 +628,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
         node.setValue(title, 'title');
         node.setValue(description, 'description');
         node.setValue(category, 'category');
-        writeNotificationShapes(store, node, relayId, payload);
+        writeNotificationShapes(node, payload);
 
         if (isUpdate) {
           // A TERMINAL resolution means the approval was handled (this tab's chat card, another

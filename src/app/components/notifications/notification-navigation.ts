@@ -187,12 +187,10 @@ function routeFromWireFields(fields: Record<string, unknown>): string | null {
   // `attributes` is the spec contract's home for the ids; the flat keys are where the legacy
   // shape puts them. Both transports may carry either, so read the spec one first and fall back.
   //
-  // NOT the row mapper's rule: `mapNotificationNode` reads ONE shape, chosen by the
-  // `notifications-legacy-path` flag, and never falls back. This path deliberately keeps the
-  // fallback — it runs on cold-start taps (a desktop OS-toast click, an FCM tap) where no
-  // flags are loaded yet, so keying on one would silently drop the route of every push
-  // carrying the other. A push carries one shape anyway; the backend's own kill-switch
-  // decides which, and routing on whichever arrived costs nothing here.
+  // NOT the row mapper's rule: `mapNotificationNode` reads the spec shape only. This path
+  // deliberately keeps the fallback — it runs on cold-start taps (a desktop OS-toast click,
+  // an FCM tap) whose payloads may come from an installed shell or a backend that predates
+  // the context removal, and routing on whichever shape arrived costs nothing here.
   const attributes = readNotificationAttributes(fields.attributes);
   return actionRoute(
     resolveAction(
