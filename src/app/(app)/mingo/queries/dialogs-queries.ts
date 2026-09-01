@@ -1,3 +1,40 @@
+/**
+ * Response name the ASK card's intro sentence is fetched under.
+ *
+ * `AskData.text` is `String` while `TextData`/`ThinkingData.text` are
+ * `String!`, and GraphQL refuses to merge same-named fields with different
+ * nullability into one selection set (`FieldsConflict` — the whole query is
+ * rejected, not just that fragment). Aliasing gives the ask intro its own
+ * response name, which is not merged with the others.
+ *
+ * Everything downstream — the core lib's history decoder included — reads
+ * `text`, so `normalizeAskMessageData` maps it back at the single parse point.
+ * Change one of the two and you must change the other.
+ */
+export const ASK_INTRO_ALIAS = 'askIntro';
+
+type RawMessageData = Record<string, unknown>;
+
+/**
+ * Undo `ASK_INTRO_ALIAS` on a message's `messageData` list, so persisted ASK
+ * rows reach the core lib in the SAME shape the live NATS chunk has
+ * (`{ type, text, question, options }`). Non-ASK entries pass through by
+ * reference — no copy, no reordering.
+ */
+export function normalizeAskMessageData<T>(messageData: T): T {
+  if (!Array.isArray(messageData)) return messageData;
+  let changed = false;
+  const normalized = messageData.map(item => {
+    if (!item || typeof item !== 'object') return item;
+    const row = item as RawMessageData;
+    if (row.type !== 'ASK' || !(ASK_INTRO_ALIAS in row)) return item;
+    changed = true;
+    const { [ASK_INTRO_ALIAS]: intro, ...rest } = row;
+    return typeof intro === 'string' && intro ? { ...rest, text: intro } : rest;
+  });
+  return (changed ? normalized : messageData) as T;
+}
+
 export const GET_MINGO_DIALOGS_QUERY = `
   query GetDialogs($filter: DialogFilterInput, $pagination: CursorPaginationInput, $search: String) {
   dialogs(filter: $filter, pagination: $pagination, search: $search) {
@@ -105,6 +142,23 @@ export const GET_MINGO_DIALOG_QUERY = `
 `;
 
 export function getMingoDialogMessagesQuery() {
+  // Product-doc metadata and clarification cards are persisted separately from
+  // the answer text. Fetch both so a reloaded V3 dialog renders like the live turn.
+  // The ask intro is fetched under `ASK_INTRO_ALIAS`, not as `text` — see the
+  // alias' doc-comment. `normalizeAskMessageData` undoes it on the way in.
+  const guideModeFragment = `... on GuideData {
+              payload
+            }
+
+            ... on AskData {
+              ${ASK_INTRO_ALIAS}: text
+              question
+              options {
+                label
+                description
+              }
+            }`;
+
   return `
   query GetAllMessages($dialogId: ID!, $cursor: String, $limit: Int, $sortField: String, $sortDirection: SortDirection) {
     messages(
@@ -149,6 +203,7 @@ export function getMingoDialogMessagesQuery() {
               text
             }
 
+            ${guideModeFragment}
             ... on ExecutingToolData {
               type
               integratedToolType

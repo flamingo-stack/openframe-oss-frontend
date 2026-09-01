@@ -1,5 +1,136 @@
-import { describe, expect, it } from 'vitest';
-import { needsAllChatsScope } from './use-mingo-unified-chat-state';
+import type { SlashCommandSummary } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { describe, expect, it, vi } from 'vitest';
+import { mapMingoMessageToUnified, needsAllChatsScope, sendMingoDisplayCommand } from './use-mingo-unified-chat-state';
+
+const sources = [
+  {
+    index: 1,
+    name: 'Installing the OpenFrame agent',
+    path: 'docs/agent-installation.md',
+    documentType: 'markdown',
+    sourceRepo: 'openframe-docs',
+  },
+];
+
+describe('mapMingoMessageToUnified', () => {
+  it('retains sources on a live text message', () => {
+    const message = mapMingoMessageToUnified({
+      id: 'live-message',
+      role: 'assistant',
+      content: 'Install the agent from the Devices page.',
+      name: 'Mingo',
+      timestamp: new Date('2026-08-26T12:00:00Z'),
+      sources,
+    });
+
+    expect(message.sources).toBe(sources);
+  });
+
+  it('retains sources on a segmented history message', () => {
+    const message = mapMingoMessageToUnified({
+      id: 'history-message',
+      role: 'assistant',
+      content: [{ type: 'guide', text: '## Install the agent' }],
+      name: 'Mingo',
+      timestamp: new Date('2026-08-26T11:00:00Z'),
+      sources,
+    });
+
+    expect(message.sources).toBe(sources);
+  });
+
+  it('retains core-owned rich metadata without naming each field in the app mapper', () => {
+    const refs = [{ type: 'video', id: 'MdFJNoJeqZQ', metadata: { youtubeUrl: 'https://youtu.be/MdFJNoJeqZQ' } }];
+    const message = mapMingoMessageToUnified({
+      id: 'rich-message',
+      role: 'assistant',
+      content: 'Watch [card://video:MdFJNoJeqZQ].',
+      name: 'Mingo',
+      timestamp: new Date('2026-08-26T13:00:00Z'),
+      streamSeq: 42,
+      scrollAnchor: 'top',
+      refs,
+    } as Parameters<typeof mapMingoMessageToUnified>[0] & { refs: typeof refs });
+
+    expect(message).toMatchObject({ streamSeq: 42, scrollAnchor: 'top', refs });
+  });
+});
+
+const displayCommands: SlashCommandSummary[] = [
+  {
+    id: 'product-docs',
+    description: 'Search product documentation',
+    primarySourceId: 'getting-started',
+    actions: [{ id: 'display', label: 'Display' }],
+  },
+  {
+    id: 'docs-display',
+    description: 'Display product documentation',
+    primarySourceId: 'openframe-docs',
+    actions: [{ id: 'display', label: 'Display' }],
+  },
+  {
+    id: 'search-only',
+    description: 'Search documentation',
+    primarySourceId: 'unsupported-docs',
+    actions: [{ id: 'search', label: 'Search' }],
+  },
+];
+
+describe('sendMingoDisplayCommand', () => {
+  it('selects a display command by source repo and sends the escaped slug', () => {
+    const sendMessage = vi.fn();
+
+    expect(
+      sendMingoDisplayCommand(
+        {
+          type: 'markdown',
+          id: 'install-agent',
+          title: 'Install the agent',
+          url: null,
+          sourceRepo: 'getting-started',
+          metadata: { slug: 'agent\\"install' },
+        },
+        displayCommands,
+        sendMessage,
+      ),
+    ).toBe(true);
+    expect(sendMessage).toHaveBeenCalledOnce();
+    expect(sendMessage).toHaveBeenCalledWith('/product-docs display "agent\\\\\\"install"');
+  });
+
+  it('falls back to the document-type table mapping when source repo has no display command', () => {
+    const sendMessage = vi.fn();
+
+    expect(
+      sendMingoDisplayCommand(
+        {
+          type: 'markdown',
+          id: 'guide-id',
+          title: 'Getting Started',
+          url: null,
+          sourceRepo: 'missing-repo',
+        },
+        displayCommands,
+        sendMessage,
+      ),
+    ).toBe(true);
+    expect(sendMessage).toHaveBeenCalledWith('/docs-display display "Getting Started"');
+  });
+
+  it('does not send when no matching command supports display', () => {
+    const sendMessage = vi.fn();
+
+    expect(
+      sendMingoDisplayCommand(
+        { type: 'unsupported', id: 'doc-id', title: 'Doc', url: null, sourceRepo: 'unsupported-docs' },
+        displayCommands,
+        sendMessage,
+      ),
+    ).toBe(false);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+});
 
 /**
  * The rail's scope is a filter over the LIST, but a dialog can arrive without going

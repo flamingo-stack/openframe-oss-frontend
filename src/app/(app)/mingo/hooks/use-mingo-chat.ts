@@ -1,7 +1,7 @@
 'use client';
 
-import { AuthorType, type MessageSegment } from '@flamingo-stack/openframe-frontend-core';
-import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import type { MessageSegment } from '@flamingo-stack/openframe-frontend-core';
+import type { ChatContextItem, UnifiedChatMessage } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
@@ -26,26 +26,12 @@ export interface MingoSendContext {
   recentViews?: Array<{ type: string; id: string }>;
 }
 
-interface ProcessedMessage {
-  id: string;
-  content: string | MessageSegment[];
-  role: 'user' | 'assistant' | 'error';
+export type ProcessedMessage = CoreMessage & {
   name: string;
-  /** Entity-context chips for user bubbles (optimistic send only). */
-  contextItems?: ChatContextItem[];
-  /** Author avatar, resolved to a full/absolute URL (relative `imageUrl`s from
-   *  GraphQL/the auth store are prefixed via `getFullImageUrl`). */
-  avatar?: string | null;
-  authorType?: AuthorType;
   assistantType?: 'fae' | 'mingo';
   timestamp: Date;
-  /** Synthetic row the model must see but the reader must not (e.g. an
-   *  auto-continuation directive). Part of the conversation, never rendered —
-   *  the lib's message list skips it. Every field-by-field seam between the
-   *  reducer and the lib has to forward this or the raw directive text (or a
-   *  bare author label) leaks into the transcript. */
-  hidden?: boolean;
-}
+  sources?: UnifiedChatMessage['sources'];
+};
 
 interface UseMingoChat {
   // Messages
@@ -83,19 +69,14 @@ function isContentEqual(a: ProcessedMessage['content'], b: ProcessedMessage['con
 /** Whether two processed messages render identically — drives reference reuse
  *  so the lib's reference-equality memo can skip unchanged messages. */
 function isSameProcessedMessage(a: ProcessedMessage, b: ProcessedMessage): boolean {
-  return (
-    a.role === b.role &&
-    a.name === b.name &&
-    a.avatar === b.avatar &&
-    a.authorType === b.authorType &&
-    a.assistantType === b.assistantType &&
-    a.hidden === b.hidden &&
-    a.timestamp.getTime() === b.timestamp.getTime() &&
-    // Reference equality — contextItems is set once on the optimistic send and
-    // never mutated, so a stable reference means the chips are unchanged.
-    a.contextItems === b.contextItems &&
-    isContentEqual(a.content, b.content)
-  );
+  if (a.timestamp.getTime() !== b.timestamp.getTime() || !isContentEqual(a.content, b.content)) return false;
+
+  const aFields = a as unknown as Record<string, unknown>;
+  const bFields = b as unknown as Record<string, unknown>;
+  const keys = new Set([...Object.keys(aFields), ...Object.keys(bFields)]);
+  keys.delete('content');
+  keys.delete('timestamp');
+  return [...keys].every(key => aFields[key] === bFields[key]);
 }
 
 export function useMingoChat(dialogId: string | null): UseMingoChat {
@@ -140,7 +121,9 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
     const processed: ProcessedMessage[] = [];
 
     for (const msg of stripPendingApprovals(currentMessages)) {
+      const messageWithRichMetadata = msg as CoreMessage & Pick<UnifiedChatMessage, 'sources'>;
       processed.push({
+        ...messageWithRichMetadata,
         id: msg.id,
         content: msg.content,
         role: msg.role,
