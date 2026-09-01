@@ -16,14 +16,12 @@ interface MingoLauncherStore {
   isOpen: boolean;
   /**
    * Whether a drawer is actually mounted to receive an open request — `AppShell`'s
-   * `chatEnabled` (the `mingo-sidebar` flag AND an unlocked workspace), published
-   * here so non-React callers can ask.
+   * `chatEnabled` (an unlocked workspace), published here so non-React callers can ask.
    *
    * Without it `setOpen(true)` from a notification click on a locked workspace sets
    * state nothing renders, while the caller goes on to mark the notification read —
-   * consuming it with nothing to show. The `mingo-sidebar` flag alone cannot answer
-   * this: the subscription lock suppresses the drawer independently of it, and so does
-   * the shell being unmounted entirely (`AppShell` republishes `false` on unmount).
+   * consuming it with nothing to show. The subscription lock is not the only way to
+   * lose the drawer either: the shell being unmounted entirely republishes `false` too.
    */
   canOpen: boolean;
   /** One-shot prompt to auto-send on the next drawer open; null once consumed. */

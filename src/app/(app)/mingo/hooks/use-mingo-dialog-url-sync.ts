@@ -3,8 +3,6 @@
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { MINGO_DIALOG_PARAM, withMingoDialog } from '@/lib/routes';
 import { useMingoLauncherStore } from '../stores/mingo-launcher-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
@@ -24,7 +22,6 @@ export interface MingoUrlSyncInput {
   /** The id this sync last put in the URL — how a param WE wrote is told apart
    *  from one the URL brought us, and a param we removed from one that vanished. */
   mirroredDialogId: string | null;
-  mingoGate: FeatureFlagGate;
   /** A drawer is actually mounted to receive a dialog (flag on, not lock-screened). */
   canOpenDrawer: boolean;
   drawerOpen: boolean;
@@ -48,7 +45,6 @@ export function resolveMingoUrlSync({
   navigated,
   urlDialogId,
   mirroredDialogId,
-  mingoGate,
   canOpenDrawer,
   drawerOpen,
   activeDialogId,
@@ -62,24 +58,18 @@ export function resolveMingoUrlSync({
   //    non-modal, so following a nav link or an in-chat link should land on the
   //    new page rather than leave a panel covering it. It lives here, and not in
   //    its own effect in `AppShell`, because a navigation can CARRY an instruction
-  //    — the `/mingo` deep-link hop redirects to `?mingoDialog=` — and a close in
-  //    a separate effect would race that open within the same commit.
+  //    — a deep link lands on `?mingoDialog=` on a fresh route — and a close in a
+  //    separate effect would race that open within the same commit.
   if (!urlDialogId && (navigated || mirroredDialogId)) {
     return { type: 'close' };
   }
 
-  // 2. An instruction we have not consumed yet.
+  // 2. An instruction we have not consumed yet. Hold it — WITHOUT marking it
+  //    consumed — until there is a drawer to honour it in: a push tap on cold start
+  //    beats the session, and dropping the id there would drop exactly the deep
+  //    links this exists to serve.
   if (urlDialogId && urlDialogId !== mirroredDialogId) {
-    // Hold it — WITHOUT marking it consumed — until there is a drawer to honour
-    // it in. A push tap beats the feature-flags query on cold start, and a plain
-    // flag read says "off" for that whole window, so treating `loading` as `off`
-    // here would drop exactly the deep links this exists to serve.
-    if (mingoGate === 'loading') return { type: 'none' };
-    if (mingoGate === 'on') {
-      return canOpenDrawer ? { type: 'adopt', dialogId: urlDialogId } : { type: 'none' };
-    }
-    // Flag definitively off: nothing will ever render this dialog for this
-    // tenant, so fall through and let the projection strip the dead param.
+    return canOpenDrawer ? { type: 'adopt', dialogId: urlDialogId } : { type: 'none' };
   }
 
   // 3. Project state onto the URL. A drawer open on nothing stays out of it —
@@ -131,7 +121,6 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
   // Subscribed purely so the effect re-runs when the URL changes; the value it acts
   // on is re-read from `window.location` (see the effect).
   const urlDialogId = useSearchParams().get(MINGO_DIALOG_PARAM);
-  const mingoGate = useFeatureFlagGate('mingo-sidebar');
 
   const isOpen = useMingoLauncherStore(state => state.isOpen);
   const activeDialogId = useMingoMessagesStore(state => state.activeDialogId);
@@ -155,7 +144,6 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
       navigated,
       urlDialogId: new URLSearchParams(window.location.search).get(MINGO_DIALOG_PARAM),
       mirroredDialogId: mirroredRef.current,
-      mingoGate,
       canOpenDrawer,
       drawerOpen: useMingoLauncherStore.getState().isOpen,
       activeDialogId: useMingoMessagesStore.getState().activeDialogId,
@@ -185,5 +173,5 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
       case 'none':
         return;
     }
-  }, [pathname, urlDialogId, isOpen, activeDialogId, mingoGate, canOpenDrawer]);
+  }, [pathname, urlDialogId, isOpen, activeDialogId, canOpenDrawer]);
 }

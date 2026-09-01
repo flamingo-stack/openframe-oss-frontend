@@ -23,6 +23,7 @@ import {
   isScheduleStartInPast,
   isStartInPastAndChanged,
   MIN_REPEAT_MINUTES,
+  NO_SLOTS_TODAY_MESSAGE,
   PAST_START_MESSAGE,
   slotToLabel,
   snapRepeatInterval,
@@ -151,6 +152,20 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
   const pastDateError = startsInPast && scheduledDate && scheduledDate < minDate ? PAST_START_MESSAGE : undefined;
   const pastTimeError = startsInPast && !pastDateError ? PAST_START_MESSAGE : undefined;
 
+  /**
+   * Today, picked after its last slot has gone by: `timeSlots` is empty and the
+   * Time dropdown has nothing to give. Reported on the DATE — that is the field
+   * the user has to move — and shown immediately, for the same reason
+   * `pastDateError` is: the calendar accepted the day, so nothing else says it
+   * cannot work until Save refuses it for a missing time.
+   *
+   * `timeSlots` is only ever empty in this exact case. A future day keeps all 48
+   * slots, a PAST day keeps them too, and a stored slot that has gone by is
+   * re-added above — so an empty list means today, and no way to finish.
+   */
+  const noSlotsLeftToday = !eventDriven && timeSlots.length === 0;
+  const dateError = pastDateError ?? (noSlotsLeftToday ? NO_SLOTS_TODAY_MESSAGE : undefined);
+
   return (
     <div
       inert={eventDriven}
@@ -179,8 +194,8 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                     fromDate={minDate}
                     disabled={disabled}
                     className="w-full"
-                    error={pastDateError ?? (showErrors ? fieldState.error?.message : undefined)}
-                    invalid={!!pastDateError || (showErrors && !!fieldState.error)}
+                    error={dateError ?? (showErrors ? fieldState.error?.message : undefined)}
+                    invalid={!!dateError || (showErrors && !!fieldState.error)}
                   />
                   {field.value && !disabled && (
                     <button
@@ -219,11 +234,22 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                     <SelectValue placeholder="Select time" />
                   </SelectTrigger>
                   <SelectContent>
-                    {timeSlots.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
+                    {timeSlots.length === 0 ? (
+                      // Deliberately NOT a `SelectItem` — there is nothing here
+                      // to select, and a selectable row would put a bogus value
+                      // in the form. It replaces a popup that opened blank; the
+                      // Date field carries the same sentence for whoever never
+                      // opens this one.
+                      <p className="px-[var(--spacing-system-s)] py-[var(--spacing-system-xs)] text-h6 text-ods-text-secondary">
+                        {NO_SLOTS_TODAY_MESSAGE}
+                      </p>
+                    ) : (
+                      timeSlots.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               )}

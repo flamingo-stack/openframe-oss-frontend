@@ -7,7 +7,6 @@ import {
   natsMirrorOptions,
   toUnifiedMessage,
 } from '@/lib/chat-stream-thread';
-import { featureFlags } from '@/lib/feature-flags';
 import { useAuthStore } from '@/stores';
 
 export type ChatSide = 'client' | 'admin';
@@ -41,7 +40,6 @@ const BOTH_SIDES: readonly ChatSide[] = ['client', 'admin'];
  *  pre-creates with them) and the STORE-level default below. */
 const ticketReducerOptions = natsMirrorOptions<ChatSide>(
   side => handlersBySide.get(side),
-  () => featureFlags.batchApproval.enabled(),
   () => useAuthStore.getState().user?.id,
 );
 

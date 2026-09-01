@@ -405,6 +405,20 @@ export function isScheduleStartInPast(date: Date | null | undefined, slot: strin
 export const PAST_START_MESSAGE = 'Start time must be in the future';
 
 /**
+ * What a picked TODAY says once its last 30-minute slot has gone by.
+ *
+ * The dead end this names: `getTimeSlotOptions` correctly withholds every slot,
+ * so the Time dropdown has nothing to offer — and an empty popup states no
+ * reason and offers no way on. It is the DATE that has to change, which is why
+ * the message says so and why the field showing it is the date's.
+ *
+ * Not a schema rule: a schedule with no time already fails the save on
+ * `scheduledTime` being required. This is the earlier, more useful half of the
+ * same fact, said while the user can still act on it.
+ */
+export const NO_SLOTS_TODAY_MESSAGE = 'No start times left today — pick another day';
+
+/**
  * The "no start in the past" rule as the FORM applies it — stated once, and read
  * by both the fields (which show it the moment it happens) and the schema (which
  * refuses the save).

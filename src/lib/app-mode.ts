@@ -143,12 +143,6 @@ export function isRouteAllowedInCurrentMode(pathname: string): boolean {
     return isAppShell() || !pathname.startsWith('/auth');
   }
 
-  if (mode === 'oss-tenant') {
-    if (pathname.startsWith('/mingo')) {
-      return false;
-    }
-  }
-
   return true;
 }
 

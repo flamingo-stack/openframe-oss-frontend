@@ -1,7 +1,7 @@
 'use client';
 
-import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input, PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Filter02Icon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Button, Input, PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { InlineSkeleton, TableSkeleton } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { isBillingHidden } from '@/lib/billing-visibility';
@@ -118,7 +118,24 @@ export function BillingUsageSkeleton() {
 
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <h2 className="text-h2 text-ods-text-primary">Invoices History</h2>
-        <Input startAdornment={<SearchIcon />} placeholder="Search for Invoice" className="w-full" readOnly />
+        {/* The live table's toolbar, inert — including the mobile filter button,
+            which exists below `md` only. Omitting it made the search input shift
+            left the moment the invoices landed, on exactly the width where the
+            button is the only way to filter at all. */}
+        <div className="flex items-center gap-[var(--spacing-system-m)]">
+          <div className="flex-1">
+            <Input startAdornment={<SearchIcon />} placeholder="Search for Invoice" className="w-full" readOnly />
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="md:hidden"
+            disabled
+            aria-hidden
+            tabIndex={-1}
+            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+          />
+        </div>
         <TableSkeleton columns={INVOICES_TABLE_COLUMNS} rows={INVOICE_SKELETON_ROWS} />
       </div>
     </PageLayout>

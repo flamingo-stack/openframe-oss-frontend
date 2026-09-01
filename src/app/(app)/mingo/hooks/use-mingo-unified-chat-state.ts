@@ -40,7 +40,6 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
-import { featureFlags } from '@/lib/feature-flags';
 import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
@@ -375,13 +374,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // imperatively (`getState`) so `sendMessage` doesn't re-create on every
   // navigation — it only needs the value at send time.
   const buildSendContext = useCallback((options?: UnifiedSendMessageOptions): MingoSendContext => {
-    // The entire entity-context feature is gated behind `mingo-sidebar-context`.
-    // When off, send NO context at all — not the picker selection, and not the
-    // background navigation context (`openView` / `recentViews`). The store keeps
-    // tracking views (harmless); it just never rides out on the message.
-    if (!featureFlags.mingoSidebarContext.enabled()) {
-      return { contextItems: undefined, openView: undefined, recentViews: [] };
-    }
     const { openView, recentViews } = useMingoContextStore.getState();
     return {
       // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a

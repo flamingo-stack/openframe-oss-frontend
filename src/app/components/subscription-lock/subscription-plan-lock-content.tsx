@@ -7,6 +7,7 @@ import {
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { SubscriptionStatus } from '@/generated/schema-enums';
 import { useSubscriptionLock } from './subscription-guard';
+import { UnpaidInvoicesLoading, UnpaidInvoicesScreen } from './unpaid-invoices-screen';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
 /**
@@ -21,19 +22,27 @@ function noAccessCopy(status: SubscriptionStatus): { title: string; description:
   const description =
     'Only the workspace owner or an admin can restore it. Contact one of them to bring the workspace back for your team.';
 
-  return status === SubscriptionStatus.TRIAL_EXPIRED
-    ? { title: 'The free trial has ended.', description }
-    : { title: 'The subscription has ended.', description };
+  if (status === SubscriptionStatus.TRIAL_EXPIRED) {
+    return { title: 'The free trial has ended.', description };
+  }
+  // Deliberately names no invoice and no amount: what this viewer can do about
+  // it is identical either way, and a member has no business reading the
+  // workspace's balance off a screen they cannot pay from.
+  if (status === SubscriptionStatus.SUSPENDED) {
+    return { title: 'This workspace has been suspended.', description };
+  }
+  return { title: 'The subscription has ended.', description };
 }
 
 /**
- * The lock screen on a build that may show payments: either the paywall, or the
- * explanation for someone whose role cannot open it.
+ * The lock screen on a build that may show payments. Three of them, in fact:
+ * the paywall, the outstanding invoices of a suspended workspace, and the
+ * explanation for someone whose role cannot open either.
  *
  * Its own module, loaded lazily by `subscription-lock-content.tsx`, so the plan
- * cards, prices and Stripe Checkout entry point are not in the import graph of
- * every page that renders `AppLayout` — which is what pulled them into the
- * mobile bundles' shared chunk. Default export: `next/dynamic` entry point.
+ * cards, prices, invoice amounts and Stripe entry points are not in the import
+ * graph of every page that renders `AppLayout` — which is what pulled them into
+ * the mobile bundles' shared chunk. Default export: `next/dynamic` entry point.
  *
  * The role check lives HERE, past the lazy boundary, for one reason: waiting on
  * it has to look like the paywall, and the paywall's markup only exists on this
@@ -56,12 +65,25 @@ export default function SubscriptionPlanLockContent() {
     return <WorkspaceInactiveScreen {...noAccessCopy(status)} />;
   }
 
+  // A suspension has a bill attached, so the remedy is that bill — not a plan.
+  // Decided on the status alone, which the app shell resolved before this module
+  // was fetched, so the screen is picked on the first paint and only its invoice
+  // query has to land.
+  const suspended = status === SubscriptionStatus.SUSPENDED;
+
   // Not yet known whether this viewer can pay — show the page they are most
-  // likely about to get, unpriced. `SubscriptionSettingsView` renders the same
-  // thing while its own query is in flight, so the two waits read as one.
+  // likely about to get, unfilled. Each branch waits as ITSELF, which is why the
+  // suspension case does not borrow the paywall's loading state: the two screens
+  // are not the same screen, and reflowing from one to the other is a worse wait
+  // than either.
+  //
+  // The invoice screen in particular must not be rendered with its DATA here.
+  // Plan prices are a public catalog; an amount owed is the workspace's own
+  // money, and this viewer may still turn out to be a member who never gets to
+  // see it (the `denied` branch above). Waiting shows the screen, not the sum.
   if (access === 'loading') {
-    return <SubscriptionSettingsLoading />;
+    return suspended ? <UnpaidInvoicesLoading /> : <SubscriptionSettingsLoading />;
   }
 
-  return <SubscriptionSettingsView />;
+  return suspended ? <UnpaidInvoicesScreen /> : <SubscriptionSettingsView />;
 }

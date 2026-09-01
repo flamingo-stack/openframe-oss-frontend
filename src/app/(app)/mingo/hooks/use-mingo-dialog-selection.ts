@@ -374,7 +374,6 @@ export function useMingoDialogSelection() {
       onApprove: handleApproveRef.current,
       onReject: handleRejectRef.current,
       approvalStatuses: Object.fromEntries(Object.entries(approvalStatusesRef.current).map(([k, v]) => [k, v as any])),
-      batchApprovalsEnabled: featureFlags.batchApproval.enabled(),
       // Must match the realtime processor (use-mingo-realtime-subscription):
       // an omitted option is not guaranteed to include ADMIN, and a history
       // reprocess (reopen, reconnect invalidation, pagination) would silently
