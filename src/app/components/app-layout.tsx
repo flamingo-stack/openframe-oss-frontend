@@ -455,7 +455,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // browser-only (see `useCachedOnboardingTopBar`).
   const cachedTopBar = useCachedOnboardingTopBar(cacheOwnerId);
   let topBar: React.ReactNode;
-  if (showAiSpendBar && billingBars.ai.tone !== 'default') {
+  if (showLockContent) {
+    // No band of any kind over the lock screen — whatever it would say, this
+    // workspace cannot act on it: the AI and trial bars send you to Billing &
+    // Usage, and both onboarding bars send you into the app. The one that
+    // actually showed up here was the CACHED onboarding band: a locked workspace
+    // never mounts `OnboardingProgressHydrator`, so `onboardingLoaded` stays
+    // false forever and the `else` at the bottom of this chain replayed the last
+    // session's bar over the paywall, CTA and all. Answered first, so no later
+    // branch has to remember the lock.
+    topBar = undefined;
+  } else if (showAiSpendBar && billingBars.ai.tone !== 'default') {
     // Ahead of the onboarding bars, and the only thing that outranks them:
     // finishing a setup tour can wait, agents about to stop answering cannot,
     // and this state is invisible from every page but Billing & Usage. Not
