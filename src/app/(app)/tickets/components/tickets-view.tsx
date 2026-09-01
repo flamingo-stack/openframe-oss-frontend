@@ -4,11 +4,9 @@ import { TableCellIcon, TableColIcon } from '@flamingo-stack/openframe-frontend-
 import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
-import { useIsMobileViewport } from '@/app/hooks/use-is-mobile-viewport';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { resolveTicketsViewMode, type TicketsViewMode } from '../utils/resolve-view-mode';
 import { TicketsBoard } from './tickets-board';
-import { TicketsPageSkeleton } from './tickets-page-skeleton';
 import { CurrentTickets } from './tickets-table';
 
 export function TicketsView() {
@@ -18,20 +16,18 @@ export function TicketsView() {
     assigneeIds: { type: 'array', default: [] },
     tagIds: { type: 'array', default: [] },
     search: { type: 'string', default: '' },
-    // No default: an absent param has to stay distinguishable from an explicit
-    // `viewMode=board` for `resolveTicketsViewMode` to know when it may pick.
+    // No default: an absent param stays distinguishable from an explicit
+    // `viewMode=table`, so clearing the param returns to the board default.
     viewMode: { type: 'string', default: '' },
   });
 
-  const isMobileViewport = useIsMobileViewport();
-  const viewMode = resolveTicketsViewMode(params.viewMode, isMobileViewport);
+  const viewMode = resolveTicketsViewMode(params.viewMode);
 
   // Local search keeps typing responsive; the shared hook debounces the write to
   // the URL param so we don't navigate the router (and re-render the board) on
   // every keystroke.
   const { search, setSearch } = useSearchParam(params.search, value => setParam('search', value), 300);
 
-  const handleStatusFilterChange = useCallback((status: string[]) => setParam('status', status), [setParam]);
   const handleOrganizationIdsChange = useCallback((ids: string[]) => setParam('organizationIds', ids), [setParam]);
   const handleAssigneeIdsChange = useCallback((ids: string[]) => setParam('assigneeIds', ids), [setParam]);
   const handleTagIdsChange = useCallback((ids: string[]) => setParam('tagIds', ids), [setParam]);
@@ -40,29 +36,28 @@ export function TicketsView() {
     (filters: { organizationIds: string[]; assigneeIds: string[] }) => setParams(filters),
     [setParams],
   );
+  // The table's variant also carries the status filter (its mobile modal and
+  // the column-header filters both go through this one atomic write).
+  const handleTableFiltersChange = useCallback(
+    (filters: { status: string[]; assigneeIds: string[]; organizationIds: string[] }) => setParams(filters),
+    [setParams],
+  );
 
+  // Rendered in the header on md+ and as the first row of the "…" menu on
+  // mobile (the `menu-primary` PageActions surfaces the selector there).
   const tabs = useMemo(
     () => (
       <TabSelector
-        // Never rendered before `viewMode` resolves — the guard below returns
-        // the skeleton first — so the fallback here is only to satisfy the type.
-        value={viewMode ?? 'board'}
+        value={viewMode}
         onValueChange={v => setParam('viewMode', v as TicketsViewMode)}
         items={[
-          { id: 'table', icon: <TableCellIcon className="w-6 h-6" /> },
-          { id: 'board', icon: <TableColIcon className="w-6 h-6" /> },
+          { id: 'table', icon: <TableCellIcon className="w-6 h-6" />, ariaLabel: 'Table view' },
+          { id: 'board', icon: <TableColIcon className="w-6 h-6" />, ariaLabel: 'Board view' },
         ]}
       />
     ),
     [viewMode, setParam],
   );
-
-  // The viewport is unknown for the first renders after hydration. Guessing a
-  // mode would mount the wrong subtree and run its fetches before swapping it
-  // out — the exact cost this split exists to avoid.
-  if (!viewMode) {
-    return <TicketsPageSkeleton viewMode={params.viewMode} />;
-  }
 
   if (viewMode === 'board') {
     return (
@@ -84,7 +79,9 @@ export function TicketsView() {
   return (
     <CurrentTickets
       statusFilters={params.status}
-      onStatusFilterChange={handleStatusFilterChange}
+      organizationIds={params.organizationIds}
+      assigneeIds={params.assigneeIds}
+      onFiltersChange={handleTableFiltersChange}
       selector={tabs}
       tagIds={params.tagIds}
       onTagIdsChange={handleTagIdsChange}

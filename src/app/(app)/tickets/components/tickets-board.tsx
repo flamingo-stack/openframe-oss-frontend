@@ -630,8 +630,9 @@ export function TicketsBoard({
                 }
               />
             </div>
-            {/* Mobile keeps these filters in the modal next to the search input. */}
-            <div className="hidden md:grid grid-cols-4 gap-[var(--spacing-system-l)]">
+            {/* Mobile keeps these filters in the modal next to the search input.
+                Tablet lays them out two per row, desktop four (the mock's grid). */}
+            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-l)]">
               <OrganizationFilter
                 value={organizationIds ?? []}
                 onChange={ids => onOrganizationIdsChange?.(ids)}
