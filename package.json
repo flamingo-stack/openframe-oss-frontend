@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p ${PORT:-3000}",
-    "build": "npm run generate-enums && relay-compiler && next build && node scripts/validate-static-chunk-names.mjs",
+    "build": "npm run generate-enums && relay-compiler && next build && node scripts/sanitize-static-chunk-names.mjs && node scripts/validate-static-chunk-names.mjs",
     "generate-enums": "node scripts/generate-schema-enums.mjs",
     "build:export": "OPENFRAME_BUILD_TARGET=export npm run build",
     "build:local": "next build --webpack",
