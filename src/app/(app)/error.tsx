@@ -1,6 +1,6 @@
 'use client';
 
-import { RouteError } from '../components/route-error';
+import { RouteRecovery } from '../components/route-error';
 
 /**
  * Error boundary for the signed-in app, nested INSIDE `(app)/layout.tsx`.
@@ -23,5 +23,5 @@ import { RouteError } from '../components/route-error';
  * the throw came from outside a page's data region.
  */
 export default function AppError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  return <RouteError error={error} reset={reset} label="App Error Boundary" />;
+  return <RouteRecovery error={error} reset={reset} label="App Error Boundary" />;
 }

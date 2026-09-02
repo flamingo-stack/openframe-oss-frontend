@@ -1,6 +1,6 @@
 'use client';
 
-import { RouteError } from './components/route-error';
+import { RouteRecovery } from './components/route-error';
 
 /**
  * Root route-segment boundary: catches throws from the root layout's children.
@@ -12,5 +12,5 @@ import { RouteError } from './components/route-error';
  * `(app)/layout.tsx` itself and the auth/marketing segments.
  */
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  return <RouteError error={error} reset={reset} label="Error Boundary" />;
+  return <RouteRecovery error={error} reset={reset} label="Error Boundary" />;
 }
