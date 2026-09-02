@@ -13,6 +13,7 @@ export const FEATURE_FLAG_NAMES = [
   'notifications',
   'notifications-legacy-path',
   'debug-nats-chunks',
+  'ai-mingo-remote-tools',
   'mingo-ai-chat-settings',
   'customer-ai-assistant-settings',
   'customer-ai-configuration',
@@ -128,6 +129,11 @@ export const featureFlags = {
       // `false` must not silence a log the developer switched on for their own
       // browser, which a plain `envFallback` could not express.
       return isDebugChunkLogForced() || getFlagValue(DEBUG_NATS_CHUNKS_KEY, () => false);
+    },
+  },
+  mingoRemoteTools: {
+    enabled(): boolean {
+      return getFlagValue('ai-mingo-remote-tools', () => false);
     },
   },
   aiEscalation: {

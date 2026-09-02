@@ -1,5 +1,7 @@
 'use client';
 
+import { featureFlags } from '@/lib/feature-flags';
+
 export const VISIBLE_SLASH_COMMAND_IDS: ReadonlySet<string> = new Set([
   'docs',
   'my-tickets',
@@ -11,8 +13,17 @@ export const VISIBLE_SLASH_COMMAND_IDS: ReadonlySet<string> = new Set([
 const COMMANDS_PATH = '/api/docs/commands';
 
 /** Shape of the commands response — the subset this filter needs. */
-interface CommandsResponse {
+export interface CommandsResponse {
   commands?: Array<{ id?: string }>;
+}
+
+export function applySlashCommandVisibility(payload: CommandsResponse, remoteToolsEnabled: boolean): CommandsResponse {
+  if (remoteToolsEnabled || !Array.isArray(payload.commands)) return payload;
+
+  return {
+    ...payload,
+    commands: payload.commands.filter(cmd => cmd.id !== undefined && VISIBLE_SLASH_COMMAND_IDS.has(cmd.id)),
+  };
 }
 
 let installed = false;
@@ -51,13 +62,11 @@ export function installSlashCommandVisibilityFilter(): void {
     } catch {
       return response;
     }
-    if (!Array.isArray(payload.commands)) return response;
-
-    const commands = payload.commands.filter(cmd => cmd.id !== undefined && VISIBLE_SLASH_COMMAND_IDS.has(cmd.id));
-    if (commands.length === payload.commands.length) return response;
+    const visiblePayload = applySlashCommandVisibility(payload, featureFlags.mingoRemoteTools.enabled());
+    if (visiblePayload === payload || visiblePayload.commands?.length === payload.commands?.length) return response;
 
     // Headers rebuilt rather than copied — the original `Content-Length` no longer matches.
-    return new Response(JSON.stringify({ ...payload, commands }), {
+    return new Response(JSON.stringify(visiblePayload), {
       status: response.status,
       statusText: response.statusText,
       headers: { 'Content-Type': 'application/json' },
