@@ -1,4 +1,8 @@
-import type { SlashCommandSummary } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  type HistoricalMessage,
+  processHistoricalMessagesWithErrors,
+  type SlashCommandSummary,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { describe, expect, it, vi } from 'vitest';
 import { mapMingoMessageToUnified, needsAllChatsScope, sendMingoDisplayCommand } from './use-mingo-unified-chat-state';
 
@@ -13,6 +17,73 @@ const sources = [
 ];
 
 describe('mapMingoMessageToUnified', () => {
+  it('maps a persisted GuideData payload into source chips and exact video refs', () => {
+    const history: HistoricalMessage[] = [
+      {
+        id: 'assistant-guide-turn',
+        chatType: 'ADMIN_AI_CHAT',
+        createdAt: '2026-08-26T14:00:00Z',
+        owner: { type: 'ASSISTANT' },
+        messageData: [
+          {
+            type: 'GUIDE',
+            payload: {
+              sources: [
+                {
+                  index: 1,
+                  name: 'Installing the OpenFrame agent',
+                  path: 'docs/agent-installation.md',
+                  documentType: 'markdown',
+                  sourceRepo: 'openframe-docs',
+                },
+              ],
+              videos: [
+                {
+                  ref: '[card://video:mux-9b6586b494]',
+                  id: 'mux-9b6586b494',
+                  title: 'Install the agent',
+                  url: 'https://stream.mux.com/install-agent.m3u8',
+                },
+              ],
+              cards: [{ ref: '[card://device:device-42]' }],
+            },
+          },
+          {
+            type: 'TEXT',
+            text: 'Install the agent [1]. Watch [card://video:mux-9b6586b494].',
+          },
+        ],
+      },
+    ];
+
+    const { messages } = processHistoricalMessagesWithErrors(history, {
+      assistantName: 'Mingo',
+      assistantType: 'mingo',
+      chatTypeFilter: 'ADMIN_AI_CHAT',
+    });
+    const processed = messages[0];
+    const message = mapMingoMessageToUnified({
+      ...processed,
+      name: processed.name ?? 'Mingo',
+      timestamp: processed.timestamp,
+    });
+
+    expect(message.sources).toEqual(sources);
+    expect(message.refs).toEqual([
+      {
+        type: 'video',
+        id: 'mux-9b6586b494',
+        title: 'Install the agent',
+        url: 'https://stream.mux.com/install-agent.m3u8',
+        metadata: { videoUrl: 'https://stream.mux.com/install-agent.m3u8' },
+      },
+    ]);
+    expect(message.segments).toContainEqual({
+      type: 'text',
+      text: 'Install the agent [1]. Watch [card://video:mux-9b6586b494].',
+    });
+  });
+
   it('retains sources on a live text message', () => {
     const message = mapMingoMessageToUnified({
       id: 'live-message',
@@ -30,7 +101,7 @@ describe('mapMingoMessageToUnified', () => {
     const message = mapMingoMessageToUnified({
       id: 'history-message',
       role: 'assistant',
-      content: [{ type: 'guide', text: '## Install the agent' }],
+      content: [{ type: 'text', text: '## Install the agent' }],
       name: 'Mingo',
       timestamp: new Date('2026-08-26T11:00:00Z'),
       sources,
