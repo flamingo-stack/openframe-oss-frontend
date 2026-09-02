@@ -108,7 +108,9 @@ function readStored(param: string): string | undefined {
     let entry: Partial<StoredAttributionEntry> | undefined;
     try {
       entry = JSON.parse(raw);
-    } catch {}
+    } catch {
+      // A stored entry that is not valid JSON was written by an older format or corrupted by hand — `entry` stays undefined and the validity check below discards it.
+    }
     if (
       !entry ||
       typeof entry.v !== 'string' ||
@@ -130,7 +132,9 @@ function writeStored(param: string, value: string): void {
   try {
     const entry: StoredAttributionEntry = { v: value, t: Date.now() };
     window.localStorage.setItem(STORAGE_PREFIX + param, JSON.stringify(entry));
-  } catch {}
+  } catch {
+    // Attribution is analytics: losing it to a full or blocked localStorage must not fail the registration the user is in the middle of.
+  }
 }
 
 /**
@@ -162,7 +166,9 @@ function generateEventId(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
     }
-  } catch {}
+  } catch {
+    // `crypto.randomUUID` is missing on insecure origins and throws in a few older engines; the timestamp-and-random fallback below is the point of the try.
+  }
   return `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
@@ -178,7 +184,9 @@ function publishEventIdToDataLayer(eventId: string): void {
     const w = window as unknown as { dataLayer?: unknown[] };
     w.dataLayer = w.dataLayer || [];
     w.dataLayer.push({ event: 'openframe_registration', metaEventId: eventId });
-  } catch {}
+  } catch {
+    // The dataLayer belongs to GTM, which may not be loaded (or may be blocked outright). A missing analytics push is not worth surfacing.
+  }
 }
 
 /**

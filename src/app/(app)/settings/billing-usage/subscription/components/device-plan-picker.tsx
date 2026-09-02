@@ -20,12 +20,20 @@ export const devicePlanPickerProductFragment = graphql`
     packageOptions {
       id
       billingPeriod
-      priceTiers { from upTo unitPrice }
+      priceTiers {
+        from
+        upTo
+        unitPrice
+      }
     }
     payAsYouGoOption {
       id
       price
-      priceTiers { from upTo unitPrice }
+      priceTiers {
+        from
+        upTo
+        unitPrice
+      }
     }
   }
 `;
@@ -145,12 +153,12 @@ export function DevicePlanPicker({
       )}
 
       <div className="flex w-full flex-col gap-2">
-        <p className="text-h5 text-ods-text-secondary">{mode === 'PAYG' ? 'Pay as you go' : 'Number of devices'}</p>
+        <p className="text-ods-text-secondary text-h5">{mode === 'PAYG' ? 'Pay as you go' : 'Number of devices'}</p>
 
         {mode === 'PAYG' ? (
           <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card">
             <div className="flex flex-col gap-1 border-b border-ods-border p-[var(--spacing-system-mf)]">
-              <p className="text-h4 text-ods-text-primary">
+              <p className="text-ods-text-primary text-h4">
                 Billed monthly for exactly the devices under management. Scales up automatically.
               </p>
               {/* The floor is a catalog figure, so it holds a line while it loads —
@@ -160,7 +168,7 @@ export function DevicePlanPicker({
               ) : (
                 catalog.minDevices > 1 &&
                 minimumMonthlyPrice != null && (
-                  <p className="text-h6 text-ods-text-secondary">
+                  <p className="text-ods-text-secondary text-h6">
                     {`Minimum ${formatCount(catalog.minDevices)} devices (${formatCurrency(minimumMonthlyPrice)} / month).`}
                   </p>
                 )
@@ -197,7 +205,7 @@ export function DevicePlanPicker({
         ) : (
           <div className="flex w-full flex-col gap-4 rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
             {catalog.annualUnitPrice != null && (
-              <p className="text-h4 text-ods-text-primary">
+              <p className="text-ods-text-primary text-h4">
                 {`${formatCurrency(catalog.annualUnitPrice)} per device / month, billed once a year.`}
                 {catalog.discountPercent > 0 && ` That's ${catalog.discountPercent}% off the monthly rate.`}
               </p>
@@ -205,8 +213,8 @@ export function DevicePlanPicker({
 
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-ods-border bg-ods-bg px-[var(--spacing-system-sf)] py-[var(--spacing-system-xsf)]">
               <div className="flex min-w-0 flex-1 flex-col">
-                <p className="text-h3 text-ods-text-primary">Devices to include</p>
-                <p className="text-h6 text-ods-text-primary">Prepaid for 12 months</p>
+                <p className="text-ods-text-primary text-h3">Devices to include</p>
+                <p className="text-ods-text-primary text-h6">Prepaid for 12 months</p>
               </div>
 
               <QuantityStepper
@@ -226,7 +234,7 @@ export function DevicePlanPicker({
               <BillingRow label="Total" value={<PriceValue amount={annualTotal} period="year" />} />
             )}
 
-            {footerNote && <p className="text-h6 text-ods-text-secondary">{footerNote}</p>}
+            {footerNote && <p className="text-ods-text-secondary text-h6">{footerNote}</p>}
           </div>
         )}
       </div>

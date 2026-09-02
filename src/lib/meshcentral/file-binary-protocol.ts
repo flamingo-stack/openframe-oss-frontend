@@ -56,11 +56,13 @@ export class FileBinaryProtocol {
   /**
    * Helper to check if payload is binary
    */
-  isBinaryData(data: any): boolean {
+  isBinaryData(data: unknown): data is ArrayBuffer | Uint8Array {
     return (
       data instanceof ArrayBuffer ||
       data instanceof Uint8Array ||
-      (data && data.constructor && data.constructor.name === 'ArrayBuffer')
+      // Cross-realm buffers (an iframe, a worker) fail `instanceof` against this
+      // realm's constructor, so fall back to the constructor's name.
+      (typeof data === 'object' && data !== null && data.constructor?.name === 'ArrayBuffer')
     );
   }
 }

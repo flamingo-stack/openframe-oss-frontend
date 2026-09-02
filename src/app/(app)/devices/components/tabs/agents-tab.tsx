@@ -4,6 +4,7 @@ import { InfoCard, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
 import { TerminalBrowserIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { formatRelativeTime, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { ReactNode } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device, InstalledAgent, ToolConnection } from '../../types/device.types';
 import { getAgentFooter } from '../../utils/agent-footer';
@@ -124,8 +125,8 @@ export function AgentsTab({ device }: AgentsTabProps) {
 
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <h3 className="text-h5 text-ods-text-secondary uppercase">Agent Versions</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[var(--spacing-system-l)] items-stretch">
+      <h3 className="uppercase text-ods-text-secondary text-h5">Agent Versions</h3>
+      <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] md:grid-cols-2 lg:grid-cols-3">
         {combinedAgents.map((agent, idx) => {
           const toolType = normalizeToolTypeWithFallback(agent.toolType);
           const statusConfig = getDeviceStatusConfig(agent.status ?? 'offline');
@@ -135,7 +136,13 @@ export function AgentsTab({ device }: AgentsTabProps) {
 
           // `value` carries ReactNodes (Tag, ToolBadge); InfoCard's typings only model strings, so
           // the items array stays loosely typed (matching the prior implementation) and renders inline.
-          const items: any[] = [{ label: 'Agent', value: <ToolBadge toolType={toolType} /> }];
+          // InfoCard's own row type says `value: string | string[]`, but the card
+          // renders whatever it is handed and these rows carry ReactNodes (Tag,
+          // ToolBadge). Widened locally rather than cast at the call site so each
+          // push below is still checked against a real shape.
+          const items: Array<{ label?: string; value: ReactNode; copyable?: boolean; icon?: ReactNode }> = [
+            { label: 'Agent', value: <ToolBadge toolType={toolType} /> },
+          ];
 
           if (showStatusBlock && agent.status != null) {
             items.push({ label: 'Status', value: <Tag label={statusConfig.label} variant={statusConfig.variant} /> });
@@ -154,7 +161,10 @@ export function AgentsTab({ device }: AgentsTabProps) {
           return (
             <InfoCard
               key={`${agent.agentType}-${agent.agentToolId || idx}`}
-              data={{ items, footer: getAgentFooter(agent.toolType) }}
+              // The cast is what the loose `any[]` used to be, now confined to the
+              // one boundary that needs it: InfoCard's props model `value` as a
+              // string, and these rows are Tags and badges.
+              data={{ items: items as { label?: string; value: string }[], footer: getAgentFooter(agent.toolType) }}
               className="h-full"
             />
           );

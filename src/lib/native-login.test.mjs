@@ -83,10 +83,9 @@ function resetDesktopShell() {
     NEXT_PUBLIC_SHARED_HOST_URL: SHARED_HOST,
   };
   globalThis.window = {
-    // biome-ignore-start lint/style/useNamingConvention: shell-injected global names
+    // shell-injected global names
     __TAURI__: {},
     __OPENFRAME_SHELL__: { nativeAuth: fakeNativeAuth() },
-    // biome-ignore-end lint/style/useNamingConvention: shell-injected global names
     location: { pathname: '/auth', hostname: 'localhost', origin: 'null', search: '' },
     localStorage: {
       getItem: k => (storage.has(k) ? storage.get(k) : null),

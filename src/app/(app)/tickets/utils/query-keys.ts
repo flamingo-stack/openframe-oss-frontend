@@ -1,3 +1,5 @@
+import type { QueryClient } from '@tanstack/react-query';
+
 /**
  * Query keys for tickets/dialogs React Query hooks
  */
@@ -61,7 +63,7 @@ export const dialogsQueryKeys = {
 /**
  * Utility to invalidate all dialogs queries
  */
-export const invalidateAllDialogs = (queryClient: any) => {
+export const invalidateAllDialogs = (queryClient: QueryClient) => {
   return queryClient.invalidateQueries({ queryKey: dialogsQueryKeys.all });
 };
 

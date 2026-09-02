@@ -177,7 +177,7 @@ export interface ExecutingToolData extends MessageData {
   toolFunction: string;
   title?: string;
   toolExplanation?: string;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   requiresApproval?: boolean;
   approvalStatus?: string;
 }
@@ -208,7 +208,7 @@ export interface ApprovalResultData extends MessageData {
   command?: string;
   description?: string;
   risk?: string;
-  details?: any;
+  details?: unknown;
 }
 
 export interface SystemData extends MessageData {

@@ -17,7 +17,7 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
@@ -144,7 +144,12 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
   const [hasQuery, setHasQuery] = useState(false);
   const [hasName, setHasName] = useState(false);
 
-  useEffect(() => {
+  // Seeded when the fetched query arrives (or is replaced), during render rather
+  // than in an effect: an effect renders the empty form once after the data has
+  // landed, which is a visible flash of blank fields on every load.
+  const [seededFrom, setSeededFrom] = useState(queryDetails);
+  if (queryDetails !== seededFrom) {
+    setSeededFrom(queryDetails);
     if (queryDetails && isExistingQuery) {
       const intervalSeconds = queryDetails.interval ?? 0;
       reset({
@@ -159,7 +164,7 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
       setFrequencyValue(value);
       setFrequencyUnit(unit);
     }
-  }, [queryDetails, isExistingQuery, reset]);
+  }
 
   const handleBack = useSafeBack(
     isExistingQuery && numericId ? routes.monitoring.query(numericId) : routes.monitoring.root({ tab: 'queries' }),
@@ -255,9 +260,9 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
     >
       <div className="space-y-6 md:space-y-8">
         {/* Name & Frequency */}
-        <div className="flex flex-col md:flex-row gap-4 md:items-end">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end">
           {/* Name */}
-          <div className="md:max-w-[280px] w-full">
+          <div className="w-full md:max-w-[280px]">
             <Input
               {...register('name', {
                 onChange: (e: React.ChangeEvent<HTMLInputElement>) => setHasName(!!e.target.value.trim()),
@@ -354,7 +359,7 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
 
         {/* Devices */}
         <div className="space-y-1">
-          <h2 className="text-h2 text-ods-text-primary">Devices</h2>
+          <h2 className="text-ods-text-primary text-h2">Devices</h2>
           <DeviceSelector
             devices={queryDevices}
             loading={isLoadingDevices}

@@ -1,10 +1,10 @@
 'use client';
 
 import type { ApprovalLevel } from '@flamingo-stack/openframe-frontend-core';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { buildPolicyGroups } from './build-policy-groups';
-import { CUSTOM_CREATION_TEMPLATE_ID, CUSTOM_POLICY_DESCRIPTION, CUSTOM_POLICY_TYPE } from './guardrails.types';
 import type { GuardrailsTemplateOption } from './guardrails-template-picker';
+import { CUSTOM_CREATION_TEMPLATE_ID, CUSTOM_POLICY_DESCRIPTION, CUSTOM_POLICY_TYPE } from './guardrails.types';
 import { applyEditsToRules, buildBaseLevels, withCategoryEdits, withPolicyEdit } from './rule-edits';
 import {
   useActivateGuardrailsTemplate,
@@ -44,20 +44,24 @@ export function useGuardrailsEditor({ isEditMode }: UseGuardrailsEditorArgs) {
   const defaultTemplateId = activeTemplateId ?? templates[0]?.id ?? null;
   const customTemplateId = customTemplate?.id ?? null;
 
-  useEffect(() => {
-    if (!isEditMode) {
-      setDraft(null);
-      return;
-    }
-    if (!defaultTemplateId) return; // templates still loading
+  // Leaving edit mode drops the draft during render — an effect would render the
+  // read-only view once with the abandoned draft still in state.
+  const [wasEditMode, setWasEditMode] = useState(isEditMode);
+  if (isEditMode !== wasEditMode) {
+    setWasEditMode(isEditMode);
+    if (!isEditMode) setDraft(null);
+  }
+
+  // Opened the editor with templates already loaded (or they landed while it was
+  // open): seed the draft during render — an effect renders the editor once with
+  // no draft at all, which is a frame of empty rule list.
+  if (isEditMode && defaultTemplateId && !draft) {
     setDraft(
-      prev =>
-        prev ??
-        (customTemplateId === defaultTemplateId
-          ? { kind: 'existing-custom', edits: new Map() }
-          : { kind: 'template', templateId: defaultTemplateId }),
+      customTemplateId === defaultTemplateId
+        ? { kind: 'existing-custom', edits: new Map() }
+        : { kind: 'template', templateId: defaultTemplateId },
     );
-  }, [isEditMode, defaultTemplateId, customTemplateId]);
+  }
 
   // Which template's rules are on screen. For `existing-custom` that's the
   // custom policy itself (rules arrive pre-merged); for `new-custom` the base

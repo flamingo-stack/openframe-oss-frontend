@@ -1,4 +1,4 @@
-import type { Message as LibMessage } from '@flamingo-stack/openframe-frontend-core';
+import type { Message as LibMessage, MessageData } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatType, OwnerType } from '../../tickets/constants';
 
 export interface GraphQlMessage {
@@ -12,7 +12,13 @@ export interface GraphQlMessage {
     type: OwnerType;
     model?: string;
   };
-  messageData: any;
+  /**
+   * The per-message payload as the chat service sends it — one shape per message
+   * type, single or batched. Typed as the library's own `MessageData` union, the
+   * same one `HistoricalMessage` carries, so the two stay in step; readers narrow
+   * on `type` (see the approval-result branch in `use-mingo-dialog-selection`).
+   */
+  messageData: MessageData | MessageData[];
 }
 
 /**
@@ -56,10 +62,10 @@ export interface MessagePage {
   };
 }
 
-export function isGraphQlMessage(message: any): message is GraphQlMessage {
+export function isGraphQlMessage(message: object): message is GraphQlMessage {
   return 'messageData' in message;
 }
 
-export function isCoreMessage(message: any): message is CoreMessage {
+export function isCoreMessage(message: object): message is CoreMessage {
   return 'content' in message;
 }

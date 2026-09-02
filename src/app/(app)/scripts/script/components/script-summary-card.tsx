@@ -41,7 +41,7 @@ export type ScriptSummaryStat = keyof typeof STAT_LABELS;
 /** Shared cell wrapper of the metadata strip — used by the loaded card AND the skeleton so they never drift. */
 function MetaCell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-[1_0_0] min-w-[140px] flex-col justify-center gap-[var(--spacing-system-xxs)]">
+    <div className="flex min-w-[140px] flex-[1_0_0] flex-col justify-center gap-[var(--spacing-system-xxs)]">
       {children}
     </div>
   );
@@ -94,7 +94,7 @@ export function ScriptSummaryCard({
   ];
 
   return (
-    <div className="bg-ods-card border border-ods-border rounded-[8px] overflow-hidden">
+    <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
         <TruncateText variant="h4">{name}</TruncateText>
         {description && (
@@ -146,7 +146,7 @@ export function ScriptSummaryCardSkeleton({
   stats?: readonly ScriptSummaryStat[];
 }) {
   return (
-    <div className="bg-ods-card border border-ods-border rounded-[8px] overflow-hidden">
+    <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
         <Skeleton className="h-6 w-56" />
       </div>

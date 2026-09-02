@@ -33,7 +33,7 @@ export function ScriptRunningModal({ isOpen, onClose, onViewDeviceLogs }: Script
         </>
       }
     >
-      <p className="text-h4 text-ods-text-primary">You can check the results in the device logs section.</p>
+      <p className="text-ods-text-primary text-h4">You can check the results in the device logs section.</p>
     </SimpleModal>
   );
 }

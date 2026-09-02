@@ -293,7 +293,7 @@ export function DevicesList({
         ? {
             id: 'actions',
             cell: ({ row }: { row: { original: Device } }) => (
-              <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+              <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
                 {rowActions(row.original)}
               </div>
             ),

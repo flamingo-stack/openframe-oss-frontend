@@ -58,12 +58,22 @@ export function useHistoricalMessages({
   const getHighestStreamSeq = useTicketDetailsStore(s => s.getHighestStreamSeq);
 
   const approvalStatusesRef = useRef(approvalStatuses);
-  approvalStatusesRef.current = approvalStatuses;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    approvalStatusesRef.current = approvalStatuses;
+  });
 
   const onApproveRef = useRef(onApprove);
   const onRejectRef = useRef(onReject);
-  onApproveRef.current = onApprove;
-  onRejectRef.current = onReject;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    onApproveRef.current = onApprove;
+    onRejectRef.current = onReject;
+  });
 
   const processedPageCountRef = useRef(0);
   const prevDialogIdRef = useRef<string | null>(null);

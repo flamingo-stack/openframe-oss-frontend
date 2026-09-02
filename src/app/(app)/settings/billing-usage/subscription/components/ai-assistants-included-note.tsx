@@ -16,8 +16,8 @@ export function AiAssistantsIncludedNote() {
         <MagicWandIcon className="size-6 text-ods-text-primary" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <p className="text-h3 text-ods-text-primary">AI Assistants are Included</p>
-        <p className="text-h6 text-ods-text-secondary">
+        <p className="text-ods-text-primary text-h3">AI Assistants are Included</p>
+        <p className="text-ods-text-secondary text-h6">
           Fae and Mingo are already built in. Running them on any supported model is billed pay as you go, on top of
           your device plan.
         </p>

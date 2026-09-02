@@ -1,8 +1,8 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useMemo, useState } from 'react';
-import { type SettingsTab } from '@/lib/routes';
+import { useMemo, useState } from 'react';
+import type { SettingsTab } from '@/lib/routes';
 import { SettingsTabContent } from './settings-tab-content';
 import { getSettingsTabs, SettingsTabNavigation } from './tabs';
 
@@ -18,22 +18,22 @@ export function SettingsView() {
 
   const validTabIds = useMemo(() => new Set(getSettingsTabs().map(t => t.id)), []);
 
-  const initialTab = useMemo<TabId>(() => {
+  const urlTab = useMemo<TabId>(() => {
     const fromUrl = (searchParams?.get(TAB_PARAM) || '').toLowerCase();
     return validTabIds.has(fromUrl) ? (fromUrl as TabId) : DEFAULT_TAB;
   }, [searchParams, validTabIds]);
 
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
-
-  // Keep state in sync when the URL changes (e.g., back/forward navigation)
-  useEffect(() => {
-    const fromUrl = (searchParams?.get(TAB_PARAM) || '').toLowerCase();
-    const next = validTabIds.has(fromUrl) ? (fromUrl as TabId) : DEFAULT_TAB;
-    if (next !== activeTab) {
-      setActiveTab(next);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, activeTab, validTabIds.has]);
+  // The URL is the source of truth; local state exists only so a click paints the
+  // new tab before the router round-trip lands. Reconciled DURING render (the
+  // adjusting-state-on-prop-change pattern) rather than in an effect: an effect
+  // renders the old tab once, and then a second time — a visible flash of the
+  // previous panel on every back/forward navigation.
+  const [activeTab, setActiveTab] = useState<TabId>(urlTab);
+  const [lastUrlTab, setLastUrlTab] = useState<TabId>(urlTab);
+  if (urlTab !== lastUrlTab) {
+    setLastUrlTab(urlTab);
+    setActiveTab(urlTab);
+  }
 
   const handleTabChange = (tabId: string) => {
     const next = tabId as TabId;
@@ -45,7 +45,7 @@ export function SettingsView() {
   };
 
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex w-full flex-col">
       <SettingsTabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
       <SettingsTabContent activeTab={activeTab} />
     </div>

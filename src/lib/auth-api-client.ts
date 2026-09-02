@@ -39,7 +39,7 @@ function getDomainSuffix(): string {
 
 export const SAAS_DOMAIN_SUFFIX = getDomainSuffix();
 
-export interface AuthApiResponse<T = any> {
+export interface AuthApiResponse<T = unknown> {
   data?: T;
   error?: string;
   status: number;
@@ -103,16 +103,14 @@ class AuthApiClient {
     }
 
     if (outcome === 'refreshed') {
-      if (isBearerAuthMode()) {
-        const newToken = getAccessTokenSync();
-        if (newToken) {
-          headers.Authorization = `Bearer ${newToken}`;
-        }
-      }
+      // A copy, not a write into the caller's object: `headers` belongs to the
+      // request that already failed, and the caller keeps using it afterwards.
+      const newToken = isBearerAuthMode() ? getAccessTokenSync() : null;
+      const retryHeaders = newToken ? { ...headers, Authorization: `Bearer ${newToken}` } : headers;
 
       const retryRes = await fetch(url, {
         credentials: 'include',
-        headers,
+        headers: retryHeaders,
         ...init,
       });
 
@@ -121,7 +119,9 @@ class AuthApiClient {
       if (retryContentType.includes('application/json')) {
         try {
           retryData = await retryRes.json();
-        } catch {}
+        } catch {
+          // A response that claims JSON but does not parse leaves `retryData` undefined, which the caller reads as "no body" — the HTTP status is what actually decides the outcome.
+        }
       }
 
       return {
@@ -137,7 +137,7 @@ class AuthApiClient {
   }
 
   /** No `tenantId` — the BFF resolves it from the refresh token. See `token-refresh-manager.ts`. */
-  refresh<T = any>() {
+  refresh<T = unknown>() {
     return requestRefresh<T>('/oauth/refresh', { method: 'POST' });
   }
 
@@ -151,7 +151,7 @@ class AuthApiClient {
     });
   }
 
-  oauth<T = any>(path: string, body?: any, init: RequestInit = {}) {
+  oauth<T = unknown>(path: string, body?: unknown, init: RequestInit = {}) {
     return request<T>(`/oauth/${path.replace(/^\//, '')}`, {
       method: body ? 'POST' : init.method || 'GET',
       body: body ? JSON.stringify(body) : init.body,
@@ -159,28 +159,28 @@ class AuthApiClient {
     });
   }
 
-  discoverTenants<T = any>(email: string) {
+  discoverTenants<T = unknown>(email: string) {
     const path = `/sas/tenant/discover?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'GET' });
   }
 
-  checkDomainAvailability<T = any>(subdomain: string, organizationName: string) {
+  checkDomainAvailability<T = unknown>(subdomain: string, organizationName: string) {
     const fullDomain = `${subdomain}.${SAAS_DOMAIN_SUFFIX}`;
     const path = `/api/tenant/availability?domain=${encodeURIComponent(fullDomain)}&organizationName=${encodeURIComponent(organizationName)}`;
     return requestPublic<T>(path, { method: 'GET' });
   }
 
-  checkEmailAvailability<T = any>(email: string) {
+  checkEmailAvailability<T = unknown>(email: string) {
     const path = `/sas/tenant/email-available?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'GET' });
   }
 
-  resendVerificationEmail<T = any>(email: string) {
+  resendVerificationEmail<T = unknown>(email: string) {
     const path = `/sas/email/verify/resend?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'POST' });
   }
 
-  registerOrganization<T = any>(payload: {
+  registerOrganization<T = unknown>(payload: {
     email: string;
     firstName: string;
     lastName: string;
@@ -243,19 +243,19 @@ class AuthApiClient {
     return buildAuthUrl(`/sas/oauth/register/sso?${params.toString()}`);
   }
 
-  getRegistrationProviders<T = any>() {
+  getRegistrationProviders<T = unknown>() {
     return request<T>('/sas/sso/providers/registration', {
       method: 'GET',
     });
   }
 
-  getInviteProviders<T = any>(invitationId: string) {
+  getInviteProviders<T = unknown>(invitationId: string) {
     return request<T>(`/sas/sso/providers/invite?invitationId=${encodeURIComponent(invitationId)}`, {
       method: 'GET',
     });
   }
 
-  acceptInvitation<T = any>(payload: {
+  acceptInvitation<T = unknown>(payload: {
     invitationId: string;
     password: string;
     firstName: string;
@@ -296,14 +296,14 @@ class AuthApiClient {
     return Promise.resolve({ ok: true, status: 302, data: null, error: null });
   }
 
-  confirmPasswordReset<T = any>(payload: { token: string; newPassword: string }) {
+  confirmPasswordReset<T = unknown>(payload: { token: string; newPassword: string }) {
     return request<T>('/sas/password-reset/confirm', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
-  requestPasswordReset<T = any>(payload: { email: string }) {
+  requestPasswordReset<T = unknown>(payload: { email: string }) {
     return request<T>('/sas/password-reset/request', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -370,12 +370,12 @@ class AuthApiClient {
 
 const authApiClient = new AuthApiClient();
 
-async function requestRefresh<T = any>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
+async function requestRefresh<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
   const url = buildAuthUrl(path);
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    ...(init.headers || ({} as any)),
+    ...(init.headers as Record<string, string> | undefined),
   };
 
   if (isBearerAuthMode()) {
@@ -397,7 +397,9 @@ async function requestRefresh<T = any>(path: string, init: RequestInit = {}): Pr
     if (contentType.includes('application/json')) {
       try {
         data = await res.json();
-      } catch {}
+      } catch {
+        // Same as above: `data` stays undefined and the status carries the result.
+      }
     }
 
     if (isBearerAuthMode() && res.ok) {
@@ -424,12 +426,12 @@ async function requestRefresh<T = any>(path: string, init: RequestInit = {}): Pr
   }
 }
 
-async function request<T = any>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
+async function request<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
   const url = buildAuthUrl(path);
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    ...(init.headers || ({} as any)),
+    ...(init.headers as Record<string, string> | undefined),
   };
   if (isBearerAuthMode()) {
     const token = getAccessTokenSync();
@@ -465,7 +467,9 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<A
     if (contentType.includes('application/json')) {
       try {
         data = await res.json();
-      } catch {}
+      } catch {
+        // Same as above: `data` stays undefined and the status carries the result.
+      }
     }
 
     return {
@@ -479,14 +483,14 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<A
   }
 }
 
-async function requestPublic<T = any>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
+async function requestPublic<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
   const url = buildAuthUrl(path);
   try {
     const res = await fetch(url, {
       credentials: 'omit',
       headers: {
         Accept: 'application/json',
-        ...(init.headers || ({} as any)),
+        ...(init.headers as Record<string, string> | undefined),
       },
       ...init,
     });
@@ -496,7 +500,9 @@ async function requestPublic<T = any>(path: string, init: RequestInit = {}): Pro
     if (contentType.includes('application/json')) {
       try {
         data = await res.json();
-      } catch {}
+      } catch {
+        // Same as above: `data` stays undefined and the status carries the result.
+      }
     }
 
     return {
@@ -512,4 +518,4 @@ async function requestPublic<T = any>(path: string, init: RequestInit = {}): Pro
 
 export { authApiClient };
 
-export type AuthApiResponseAlias<T = any> = AuthApiResponse<T>;
+export type AuthApiResponseAlias<T = unknown> = AuthApiResponse<T>;

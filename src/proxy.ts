@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 
 type AppMode = 'oss-tenant' | 'saas-tenant' | 'saas-shared';
 

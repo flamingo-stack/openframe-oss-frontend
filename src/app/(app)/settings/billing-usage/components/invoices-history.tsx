@@ -159,7 +159,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
         cell: ({ row }: { row: Row<InvoiceItem> }) => (
           <>
             <TruncateText>{row.original.invoiceNumber ?? '—'}</TruncateText>
-            <span className="truncate text-h6 text-ods-text-secondary">{formatDateOrDash(row.original.createdAt)}</span>
+            <span className="truncate text-ods-text-secondary text-h6">{formatDateOrDash(row.original.createdAt)}</span>
           </>
         ),
         enableSorting: false,
@@ -203,13 +203,13 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
       {
         id: 'actions',
         cell: ({ row }: { row: Row<InvoiceItem> }) => (
-          <div data-no-row-click className="flex justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex justify-end">
             <a
               href={row.original.hostedInvoiceUrl}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Open invoice"
-              className="flex items-center justify-center p-3 bg-ods-card border border-ods-border rounded-md text-ods-text-secondary hover:text-ods-text-primary transition-colors"
+              className="flex items-center justify-center rounded-md border border-ods-border bg-ods-card p-3 text-ods-text-secondary transition-colors hover:text-ods-text-primary"
             >
               <ExternalLinkIcon className="size-6" />
             </a>
@@ -321,7 +321,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <h2 className="text-h2 text-ods-text-primary">Invoices History</h2>
+      <h2 className="text-ods-text-primary text-h2">Invoices History</h2>
 
       {/* Below `md` the whole table header is gone (`hidden md:flex`), and the
           STATUS funnel with it — so the filter moves next to the search, the same

@@ -33,10 +33,9 @@ import {
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation } from 'react-relay';
 import type { startTimerMutation as StartTimerMutationType } from '@/__generated__/startTimerMutation.graphql';
 import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
@@ -251,7 +250,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       createdAt: note.createdAt,
       isOwn: currentUser?.id === note.authorId,
     }));
-  }, [dialog?.notes, currentUser?.id]);
+  }, [dialog, currentUser]);
 
   // The URL param is the ticket ID; messages belong to the linked dialog
   const messageDialogId = dialog?.dialogId ?? null;
@@ -336,7 +335,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   );
 
   useEffect(() => {
-    if (!ticketId) return;
+    if (!ticketId) return undefined;
 
     return () => {
       clearChatState();
@@ -659,14 +658,15 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       label: 'Assigned',
       value: {
         type: 'assignee',
-        currentAssignee: dialog.assignedName
-          ? {
-              id: dialog.assignedTo!,
-              name: dialog.assignedName,
-              avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
-              deleted: isUserDeleted(dialog.assignedTo),
-            }
-          : undefined,
+        currentAssignee:
+          dialog.assignedName && dialog.assignedTo
+            ? {
+                id: dialog.assignedTo,
+                name: dialog.assignedName,
+                avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+                deleted: isUserDeleted(dialog.assignedTo),
+              }
+            : undefined,
         options: assigneeOptions.options.map(o => ({ ...o, imageUrl: getFullImageUrl(o.imageUrl) })),
         isLoading: assigneeOptions.isLoading,
         isPending: assignTicketMutation.isPending,
@@ -752,7 +752,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
   const clientChatBody = (
     <>
-      <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
+      <div className="relative flex min-h-0 flex-1 flex-col rounded-md border border-ods-border bg-ods-bg">
         <ChatMessageList
           // The bordered card IS the visual frame here, so a native scrollbar
           // sits inside its rounded edge and reads as chrome bolted onto the
@@ -771,13 +771,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           hasNextPage={clientChat.hasNextPage}
           isFetchingNextPage={clientChat.isFetchingNextPage}
           onLoadMore={clientChat.fetchNextPage}
-          contentClassName="px-[var(--spacing-system-mf)] !max-w-full"
+          contentClassName="!max-w-full px-[var(--spacing-system-mf)]"
         />
       </div>
 
       {!isClosed && !isDirectMode && (
         <div className="mt-[var(--spacing-system-xsf)] flex items-start gap-[var(--spacing-system-m)]">
-          <p className="flex-1 min-w-0 text-h6 text-ods-text-secondary">
+          <p className="min-w-0 flex-1 text-ods-text-secondary text-h6">
             The AI assistant will be stopped and you will be able to communicate with the user directly.
           </p>
           <Button
@@ -797,7 +797,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           onSend={sendClientMessageWithReject}
           sending={isSendingClientMessage || isClientChatTyping || isClientCompacting}
           autoFocus={false}
-          className="mt-[var(--spacing-system-xsf)] bg-ods-card rounded-lg !max-w-full"
+          className="mt-[var(--spacing-system-xsf)] !max-w-full rounded-lg bg-ods-card"
         />
       )}
       {showTokenMemory && (displayClientModel || clientTokenUsage) && (
@@ -824,8 +824,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     <>
       {hasDescription ? (
         <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <p className="text-h5 text-ods-text-secondary">Ticket Description</p>
-          <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-mf)]">
+          <p className="text-ods-text-secondary text-h5">Ticket Description</p>
+          <div className="rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
             <SimpleMarkdownRenderer content={dialog.description ?? ''} />
           </div>
         </section>
@@ -838,7 +838,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       )}
       {hasAssignedItems && (
         <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <p className="text-h5 text-ods-text-secondary">Assigned Items</p>
+          <p className="text-ods-text-secondary text-h5">Assigned Items</p>
           <AssignedItemsView showTitle={false} itemId={dialog.id} itemType="TICKET" />
         </section>
       )}
@@ -874,21 +874,21 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       <PageLayout
         title={dialog.title || 'Untitled Dialog'}
         backButton={{ label: 'Back', onClick: handleBackToTickets }}
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] h-[calc(100%)]"
+        className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         actions={sidebarActions}
         actionsVariant="icon-buttons"
-        contentClassName="flex flex-col min-h-0"
+        contentClassName="flex min-h-0 flex-col"
       >
-        <div className="flex-1 flex flex-col lg:flex-row gap-[var(--spacing-system-l)] min-h-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] lg:flex-row">
           {/* Desktop (lg+): main pane (tabs / chat / details) beside a persistent details sidebar */}
-          <div className="hidden lg:flex flex-1 min-w-0 flex-col gap-[var(--spacing-system-xxs)] min-h-0">
+          <div className="hidden min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] lg:flex">
             {showDetailsTabs ? (
               <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
                 {active =>
                   active === 'chat' ? (
-                    <div className="flex-1 min-h-0 flex flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
+                    <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
                   ) : (
-                    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-mf)]">
+                    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
                       {ticketDetailsBody}
                     </div>
                   )
@@ -896,11 +896,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
               </TabNavigation>
             ) : hasClientChat ? (
               <>
-                <h2 className="text-h5 text-ods-text-secondary">Client Chat</h2>
+                <h2 className="text-ods-text-secondary text-h5">Client Chat</h2>
                 {clientChatBody}
               </>
             ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[var(--spacing-system-l)]">
+              <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
                 {ticketDetailsBody}
               </div>
             )}
@@ -908,14 +908,14 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
           {/* Tablet/mobile (<lg): single column — ticket info/attachments/tags fold into the
               Ticket Details tab; the client chat (when present) gets its own tab without them. */}
-          <div className="flex lg:hidden flex-1 min-w-0 flex-col gap-[var(--spacing-system-xxs)] min-h-0">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] lg:hidden">
             {hasClientChat ? (
               <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
                 {active =>
                   active === 'chat' ? (
-                    <div className="flex-1 min-h-0 flex flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
+                    <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
                   ) : (
-                    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-mf)]">
+                    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
                       {ticketDetailsBody}
                       {sidebarContent}
                     </div>
@@ -923,7 +923,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
                 }
               </TabNavigation>
             ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[var(--spacing-system-l)]">
+              <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
                 {ticketDetailsBody}
                 {sidebarContent}
               </div>
@@ -931,7 +931,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           </div>
 
           {/* Right sidebar — desktop only */}
-          <aside className="hidden lg:flex shrink-0 lg:w-80 flex-col gap-[var(--spacing-system-l)] min-h-0 lg:overflow-auto">
+          <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] lg:flex lg:w-80 lg:overflow-auto">
             {sidebarContent}
           </aside>
         </div>

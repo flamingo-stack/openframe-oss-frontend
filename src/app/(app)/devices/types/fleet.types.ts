@@ -97,7 +97,7 @@ export interface FleetMdmInfo {
   server_url: string;
   name: string;
   encryption_key_available: boolean;
-  profiles: any[] | null;
+  profiles: unknown[] | null;
   device_status: string;
   pending_action: string;
   connected_to_fleet: boolean;
@@ -183,8 +183,8 @@ export interface FleetHost {
   // Policies & Labels
   policies: FleetHostPolicy[];
   labels: FleetLabel[];
-  packs: any[];
-  pack_stats: any[] | null;
+  packs: unknown[];
+  pack_stats: unknown[] | null;
 
   // Issues
   issues: FleetIssues;

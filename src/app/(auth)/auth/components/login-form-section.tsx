@@ -42,19 +42,32 @@ export function LoginSection({ onDiscover, onSso, allProviders, isLoading }: Log
   // The parent recreates onDiscover every render; a ref keeps the effect keyed
   // to the debounced email only, without re-running discovery per render.
   const onDiscoverRef = useRef(onDiscover);
-  onDiscoverRef.current = onDiscover;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    onDiscoverRef.current = onDiscover;
+  });
+
+  // The verdict for the CURRENT input is decided during render; the effect below
+  // only performs the lookup. An effect would leave the previous email's provider
+  // list on screen for a frame after the field changes.
+  const trimmedEmail = debouncedEmail.trim();
+  const checkable = EMAIL_REGEX.test(trimmedEmail);
+  const [lastEmail, setLastEmail] = useState(debouncedEmail);
+  if (debouncedEmail !== lastEmail) {
+    setLastEmail(debouncedEmail);
+    setStatus(checkable ? 'checking' : 'idle');
+    setEnabledProviders([]);
+  }
 
   useEffect(() => {
     const trimmed = debouncedEmail.trim();
     if (!EMAIL_REGEX.test(trimmed)) {
-      setStatus('idle');
-      setEnabledProviders([]);
-      return;
+      return undefined;
     }
 
     let cancelled = false;
-    setStatus('checking');
-    setEnabledProviders([]);
 
     onDiscoverRef.current(trimmed).then(result => {
       if (cancelled) return;

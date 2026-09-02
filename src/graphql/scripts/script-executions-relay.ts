@@ -41,15 +41,15 @@ export const scriptExecutionsRelayQuery = graphql`
 
 export const scriptExecutionsRelayFragment = graphql`
   fragment scriptExecutionsRelay_query on Query
-    @refetchable(queryName: "scriptExecutionsRelayPaginationQuery")
-    @argumentDefinitions(
-      scriptId: { type: "ID!" }
-      filter: { type: "ScriptExecutionFilterInput" }
-      search: { type: "String" }
-      sort: { type: "SortInput" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "scriptExecutionsRelayPaginationQuery")
+  @argumentDefinitions(
+    scriptId: { type: "ID!" }
+    filter: { type: "ScriptExecutionFilterInput" }
+    search: { type: "String" }
+    sort: { type: "SortInput" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     scriptExecutions(scriptId: $scriptId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
       @connection(key: "scriptExecutionsRelay_scriptExecutions") {
       filteredCount

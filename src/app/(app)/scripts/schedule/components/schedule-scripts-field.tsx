@@ -24,8 +24,8 @@ export function ScheduleScriptsField({ showErrors, disabled = false }: { showErr
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-lf)]">
-      <div className="flex items-end min-h-[72px] pt-[var(--spacing-system-l)]">
-        <h2 className="text-h2 text-ods-text-primary">Scheduled Scripts</h2>
+      <div className="flex min-h-[72px] items-end pt-[var(--spacing-system-l)]">
+        <h2 className="text-ods-text-primary text-h2">Scheduled Scripts</h2>
       </div>
 
       {/* Rows are keyed by the `useFieldArray` field id, stable across reorders

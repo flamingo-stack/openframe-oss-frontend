@@ -149,8 +149,8 @@ function SuspendedWorkspaceMain({ invoices }: { invoices: readonly PendingInvoic
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[var(--spacing-system-xl)]">
       <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)] text-center">
-        <h1 className="text-h2 text-ods-text-primary">{TITLE}</h1>
-        <p className="text-h4 text-ods-text-secondary">
+        <h1 className="text-ods-text-primary text-h2">{TITLE}</h1>
+        <p className="text-ods-text-secondary text-h4">
           {nothingOutstanding
             ? "This workspace's access is paused and we can't find an open invoice to settle. Contact support and we'll sort it out."
             : "The invoice wasn't paid within 30 days, so access to OpenFrame has been paused. Pay the outstanding balance to restore access instantly."}
@@ -214,11 +214,11 @@ function InvoiceCell({ caption, children }: { caption: string; children: ReactNo
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center">
       {typeof children === 'string' ? (
-        <span className="truncate text-h4 text-ods-text-primary">{children}</span>
+        <span className="truncate text-ods-text-primary text-h4">{children}</span>
       ) : (
         <span className="flex items-center">{children}</span>
       )}
-      <span className="truncate text-h6 text-ods-text-secondary">{caption}</span>
+      <span className="truncate text-ods-text-secondary text-h6">{caption}</span>
     </div>
   );
 }

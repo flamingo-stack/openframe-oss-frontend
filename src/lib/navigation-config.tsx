@@ -12,7 +12,7 @@ import {
   Settings02Icon,
   TagIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { NavigationSidebarItem } from '@flamingo-stack/openframe-frontend-core/types/navigation';
+import type { NavigationSidebarItem } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import type { UnreadCountsByCategory } from '@/app/components/notifications/unread-counts-hydrator';
 import { NotificationCategory } from '@/generated/schema-enums';
 import { isAuthOnlyMode, isSaasTenantMode } from './app-mode';

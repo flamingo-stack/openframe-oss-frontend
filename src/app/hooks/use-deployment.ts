@@ -67,6 +67,15 @@ export function useDeployment() {
   const { deployment, isInitialized, initialize } = useDeploymentStore();
   const [isLoading, setIsLoading] = useState(!isInitialized);
 
+  // Already initialized (another consumer got there first): nothing to wait for.
+  // Derived here rather than set from the effect, which would render a spinner
+  // for one frame on every later mount.
+  const [lastInitialized, setLastInitialized] = useState(isInitialized);
+  if (isInitialized !== lastInitialized) {
+    setLastInitialized(isInitialized);
+    if (isInitialized) setIsLoading(false);
+  }
+
   useEffect(() => {
     // Initialize deployment detection if not already done
     if (!isInitialized) {
@@ -79,9 +88,8 @@ export function useDeployment() {
       }, 0);
 
       return () => clearTimeout(timer);
-    } else {
-      setIsLoading(false);
     }
+    return undefined;
   }, [isInitialized, initialize]);
 
   // Convenience getters

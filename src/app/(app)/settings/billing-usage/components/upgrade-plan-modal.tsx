@@ -107,7 +107,7 @@ export function UpgradePlanModal({ isOpen, needsCheckout, onClose, onUpdated }: 
       }
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <p className="text-h4 text-ods-text-primary">Choose how you'd like to be billed.</p>
+        <p className="text-ods-text-primary text-h4">Choose how you'd like to be billed.</p>
         {/* The picker draws its own pending state, so the wait shows the real
             controls rather than a spinner where the plan will be — the same
             component, with no refs to read yet. */}
@@ -128,7 +128,9 @@ function UpgradePlanBody({ onSelectionChange }: { onSelectionChange: (selection:
     { fetchPolicy: 'store-and-network' },
   );
 
-  const products = data.billingPlan?.products ?? [];
+  // Memoized: the `?? []` fallback is a new array on every render, and
+  // `otherProducts` below depends on it.
+  const products = useMemo(() => data.billingPlan?.products ?? [], [data.billingPlan]);
   const deviceProduct = products.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;
   const deviceSubscriptionProduct =
     data.subscription?.products.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;

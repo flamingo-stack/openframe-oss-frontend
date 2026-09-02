@@ -2,6 +2,8 @@
 
 import { Button, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import type { FitAddon } from '@xterm/addon-fit';
+import type { Terminal } from '@xterm/xterm';
 import { TerminalSquare } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -10,7 +12,7 @@ import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { MeshControlClient } from '@/lib/meshcentral/meshcentral-control';
-import { MeshTunnel, TunnelState } from '@/lib/meshcentral/meshcentral-tunnel';
+import { MeshTunnel, type TunnelState } from '@/lib/meshcentral/meshcentral-tunnel';
 import { routes } from '@/lib/routes';
 
 const WINDOWS_POWERSHELL_CMD =
@@ -58,8 +60,14 @@ export default function RemoteShellPage() {
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const termRef = useRef<any | null>(null);
-  const fitRef = useRef<any | null>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  /**
+   * Teardown for the terminal built inside the async IIFE below. It cannot be a
+   * local: the effect's cleanup runs on a different tick and has to reach
+   * whatever the IIFE ended up creating.
+   */
+  const cleanupRef = useRef<(() => void) | null>(null);
   const tunnelRef = useRef<MeshTunnel | null>(null);
   const controlRef = useRef<MeshControlClient | null>(null);
   const [state, setState] = useState<TunnelState>(0);
@@ -73,10 +81,11 @@ export default function RemoteShellPage() {
       const timer = setTimeout(() => setIsPageReady(true), 0);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [meshcentralAgentId]);
 
   useEffect(() => {
-    if (!isPageReady) return;
+    if (!isPageReady) return undefined;
 
     let isDisposed = false;
 
@@ -92,7 +101,12 @@ export default function RemoteShellPage() {
       });
       const fit = new FitAddon();
       term.loadAddon(fit);
-      term.open(containerRef.current!);
+      const container = containerRef.current;
+      if (!container) {
+        term.dispose();
+        return;
+      }
+      term.open(container);
       fit.fit();
       term.focus();
       termRef.current = term;
@@ -101,7 +115,9 @@ export default function RemoteShellPage() {
       const handleResize = () => {
         try {
           fit.fit();
-        } catch {}
+        } catch {
+          // xterm throws from `fit()` when the container has no layout yet (a resize observed mid-unmount, a hidden tab). The next resize re-fits.
+        }
         if (tunnelRef.current && termRef.current) {
           tunnelRef.current.sendCtrl({ ctrlChannel: 102938, type: 'termsize', cols: term.cols, rows: term.rows });
         }
@@ -110,7 +126,7 @@ export default function RemoteShellPage() {
       const disposeResize = term.onResize(() => handleResize);
       const disposeData = term.onData((d: string) => tunnelRef.current?.sendBinary(new TextEncoder().encode(d)));
 
-      (termRef as any).cleanup = () => {
+      cleanupRef.current = () => {
         window.removeEventListener('resize', handleResize);
         disposeResize.dispose();
         disposeData.dispose();
@@ -123,8 +139,8 @@ export default function RemoteShellPage() {
 
     return () => {
       isDisposed = true;
-      const assignedCleanup = (termRef as any).cleanup as (() => void) | undefined;
-      if (assignedCleanup) assignedCleanup();
+      cleanupRef.current?.();
+      cleanupRef.current = null;
     };
   }, [isPageReady]);
 
@@ -146,7 +162,7 @@ export default function RemoteShellPage() {
   }, [state, shellType, hasReceivedData]);
 
   useEffect(() => {
-    if (!isPageReady || !meshcentralAgentId) return;
+    if (!isPageReady || !meshcentralAgentId) return undefined;
 
     let control: MeshControlClient | undefined;
     (async () => {
@@ -169,7 +185,9 @@ export default function RemoteShellPage() {
               if (ctrl && !ctrl.isConnected()) {
                 await ctrl.openSession();
               }
-            } catch {}
+            } catch {
+              // Best-effort warm-up: re-opening the control session here only saves the reconnect a round trip. The tunnel reconnects either way and re-opens the session itself if this failed.
+            }
           },
           onData: data => {
             setHasReceivedData(true);
@@ -188,14 +206,18 @@ export default function RemoteShellPage() {
               const cookies = await ctrl.getAuthCookies();
               tunnelRef.current?.updateAuthCookie(cookies.authCookie);
               ctrl.sendRelayTunnel(meshcentralAgentId, relayId, 1);
-            } catch {}
+            } catch {
+              // The re-announce races the socket coming back. If it loses, the tunnel raises its own state change and the retry path above runs again — throwing out of a reconnect callback would strand the session instead.
+            }
           },
           onStateChange: s => setState(s),
         });
         tunnelRef.current = tunnel;
         try {
           await control.openSession();
-        } catch {}
+        } catch {
+          // The session is opened again by the tunnel if this failed; starting the tunnel is what matters here.
+        }
         tunnel.start();
       } catch (e) {
         toastRef.current({ title: 'Remote Shell failed', description: (e as Error).message, variant: 'destructive' });
@@ -227,32 +249,32 @@ export default function RemoteShellPage() {
   // Loading skeleton
   if (isDeviceLoading) {
     return (
-      <div className="p-4 md:p-6 h-full flex flex-col overflow-hidden animate-pulse">
-        <div className="bg-ods-bg py-2 flex-shrink-0">
+      <div className="flex h-full animate-pulse flex-col overflow-hidden p-4 md:p-6">
+        <div className="flex-shrink-0 bg-ods-bg py-2">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-ods-border rounded" />
-            <div className="w-28 h-5 bg-ods-border rounded" />
+            <div className="h-6 w-6 rounded bg-ods-border" />
+            <div className="h-5 w-28 rounded bg-ods-border" />
           </div>
         </div>
-        <div className="bg-ods-card border rounded-md border-ods-border flex items-center justify-between py-2 px-4 mb-2 flex-shrink-0">
+        <div className="mb-2 flex flex-shrink-0 items-center justify-between rounded-md border border-ods-border bg-ods-card px-4 py-2">
           <div className="flex items-center gap-4">
-            <div className="bg-ods-card border border-ods-border rounded-md p-2">
-              <div className="w-4 h-4 bg-ods-border rounded" />
+            <div className="rounded-md border border-ods-border bg-ods-card p-2">
+              <div className="h-4 w-4 rounded bg-ods-border" />
             </div>
             <div className="flex flex-col gap-1">
-              <div className="w-48 h-5 bg-ods-border rounded" />
-              <div className="w-36 h-4 bg-ods-border rounded" />
+              <div className="h-5 w-48 rounded bg-ods-border" />
+              <div className="h-4 w-36 rounded bg-ods-border" />
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="w-24 h-10 bg-ods-border rounded-md" />
+            <div className="h-10 w-24 rounded-md bg-ods-border" />
           </div>
         </div>
-        <div className="flex-1 min-h-0 pb-4">
-          <div className="h-full bg-ods-card rounded-lg border border-ods-border overflow-hidden flex items-center justify-center">
+        <div className="min-h-0 flex-1 pb-4">
+          <div className="flex h-full items-center justify-center overflow-hidden rounded-lg border border-ods-border bg-ods-card">
             <div className="flex flex-col items-center gap-4">
-              <TerminalSquare className="w-16 h-16 text-ods-border" />
-              <div className="w-48 h-4 bg-ods-border rounded" />
+              <TerminalSquare className="h-16 w-16 text-ods-border" />
+              <div className="h-4 w-48 rounded bg-ods-border" />
             </div>
           </div>
         </div>
@@ -263,7 +285,7 @@ export default function RemoteShellPage() {
   // Error state
   if (deviceError) {
     return (
-      <div className="p-4 md:p-6 h-full flex flex-col items-center justify-center gap-4">
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-4 md:p-6">
         <div className="text-ods-error text-h4">Error: {deviceError}</div>
         <Button onClick={safeBackToDevices}>Back</Button>
       </div>
@@ -273,7 +295,7 @@ export default function RemoteShellPage() {
   // Missing MeshCentral agent
   if (!meshcentralAgentId) {
     return (
-      <div className="p-4 md:p-6 h-full flex flex-col items-center justify-center gap-4">
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-4 md:p-6">
         <div className="text-ods-error text-h4">Error: MeshCentral Agent ID not available for this device</div>
         <p className="text-ods-text-secondary">Remote shell requires MeshCentral agent to be connected.</p>
         <Button onClick={safeBackToDevice}>Back</Button>
@@ -284,20 +306,20 @@ export default function RemoteShellPage() {
   return (
     <PageLayout
       title="Remote Shell"
-      className="px-4 md:px-6 pb-4 md:pb-6 h-full"
+      className="h-full px-4 pb-4 md:px-6 md:pb-6"
       contentClassName="flex flex-col"
       backButton={{
         label: 'Back',
         onClick: handleBack,
       }}
     >
-      <div className="bg-ods-card border rounded-md border-ods-border flex items-center justify-between py-2 px-4 mb-2 flex-shrink-0">
+      <div className="mb-2 flex flex-shrink-0 items-center justify-between rounded-md border border-ods-border bg-ods-card px-4 py-2">
         {/* Device info */}
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="bg-ods-card border border-ods-border rounded-md p-2 shrink-0">
-            <TerminalSquare className="w-4 h-4 text-ods-text-primary" />
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="shrink-0 rounded-md border border-ods-border bg-ods-card p-2">
+            <TerminalSquare className="h-4 w-4 text-ods-text-primary" />
           </div>
-          <div className="flex flex-col min-w-0">
+          <div className="flex min-w-0 flex-col">
             <TruncateText>{hostname || `Device ${deviceId}`}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {`${shellLabel}${organizationName ? ` \u2022 ${organizationName}` : ''}`}
@@ -314,7 +336,7 @@ export default function RemoteShellPage() {
           <Button
             onClick={() => tunnelRef.current?.stop()}
             variant="outline"
-            className="bg-ods-card border border-ods-border text-ods-text-primary"
+            className="border border-ods-border bg-ods-card text-ods-text-primary"
             disabled={state !== 3}
           >
             Disconnect
@@ -323,9 +345,9 @@ export default function RemoteShellPage() {
       </div>
 
       {/* Terminal */}
-      <div className="flex-1 min-h-0 pb-4">
-        <div className="h-full bg-black rounded-lg overflow-hidden">
-          <div ref={containerRef} className="w-full h-full p-2" />
+      <div className="min-h-0 flex-1 pb-4">
+        <div className="h-full overflow-hidden rounded-lg bg-black">
+          <div ref={containerRef} className="h-full w-full p-2" />
         </div>
       </div>
     </PageLayout>

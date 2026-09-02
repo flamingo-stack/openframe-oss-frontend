@@ -30,8 +30,8 @@ function ButtonSkeleton({ className }: { className?: string }) {
 function HeaderSkeleton() {
   return (
     <div className="flex flex-col">
-      <Skeleton className="h-6 w-56 md:h-8 md:w-80 my-1" />
-      <Skeleton className="h-4 w-72 md:h-5 md:w-96 max-w-full my-0.5" />
+      <Skeleton className="my-1 h-6 w-56 md:h-8 md:w-80" />
+      <Skeleton className="my-0.5 h-4 w-72 max-w-full md:h-5 md:w-96" />
     </div>
   );
 }

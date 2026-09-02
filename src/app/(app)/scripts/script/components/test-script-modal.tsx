@@ -65,13 +65,13 @@ export function TestScriptModal({ isOpen, onClose, onDeviceSelected, supportedPl
   }, [onClose]);
 
   return (
-    <ModalV2 isOpen={isOpen} onClose={handleClose} className="max-w-6xl h-[90vh] max-h-[900px]">
+    <ModalV2 isOpen={isOpen} onClose={handleClose} className="h-[90vh] max-h-[900px] max-w-6xl">
       <ModalV2Header>
         <ModalV2Title>Select Device</ModalV2Title>
       </ModalV2Header>
       <ModalV2Content>
         {!hasPlatforms ? (
-          <div className="flex items-center justify-center h-64 bg-ods-card border border-ods-border rounded-[6px]">
+          <div className="flex h-64 items-center justify-center rounded-[6px] border border-ods-border bg-ods-card">
             <p className="text-ods-text-secondary">Select at least one supported platform to see available devices.</p>
           </div>
         ) : (

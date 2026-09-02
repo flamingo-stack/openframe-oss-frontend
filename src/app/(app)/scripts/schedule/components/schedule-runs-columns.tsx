@@ -126,7 +126,7 @@ function InitiatorCell({ run }: { run: UiRun }) {
 
   if (!href) {
     return (
-      <div className="flex flex-1 items-center gap-[var(--spacing-system-xsf)] min-w-0">
+      <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
         {avatar}
         <div className="min-w-0 flex-1">
           <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>{run.initiatorName}</TruncateText>
@@ -136,11 +136,11 @@ function InitiatorCell({ run }: { run: UiRun }) {
   }
 
   return (
-    <div data-no-row-click className="flex min-w-0 flex-1 pointer-events-auto">
+    <div data-no-row-click className="pointer-events-auto flex min-w-0 flex-1">
       <button
         type="button"
         onClick={openInNewTab(href)}
-        className="flex w-full items-center gap-[var(--spacing-system-xsf)] min-w-0 text-left"
+        className="flex w-full min-w-0 items-center gap-[var(--spacing-system-xsf)] text-left"
       >
         {avatar}
         <div className="min-w-0 flex-1">
@@ -175,7 +175,7 @@ export function useScheduleRunColumns(
             {
               id: 'copy-execution-id',
               label: 'Copy Execution ID',
-              icon: <Copy01Icon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <Copy01Icon className="h-6 w-6 text-ods-text-secondary" />,
               onClick: () => {
                 navigator.clipboard
                   ?.writeText(run.executionId)
@@ -202,7 +202,7 @@ export function useScheduleRunColumns(
         // place it is shown in full (it is what the Execution History drill-down
         // and "Copy Execution ID" key on).
         cell: ({ row }: { row: Row<UiRun> }) => (
-          <div className="flex flex-col justify-center gap-[var(--spacing-system-xxs)] min-w-0">
+          <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
             <TruncateText>{row.original.timestamp}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {row.original.executionId}
@@ -235,7 +235,7 @@ export function useScheduleRunColumns(
         // on the number that moves; no slack around the slash, it reads as one
         // value rather than two.
         cell: ({ row }: { row: Row<UiRun> }) => (
-          <span className="text-h4 text-ods-text-primary whitespace-nowrap">
+          <span className="whitespace-nowrap text-ods-text-primary text-h4">
             {row.original.responded}
             <span className="text-ods-text-secondary">/{row.original.total}</span>
           </span>
@@ -257,7 +257,7 @@ export function useScheduleRunColumns(
         cell: ({ row }: { row: Row<UiRun> }) => (
           <div
             data-no-row-click
-            className="flex gap-[var(--spacing-system-xsf)] items-center justify-end pointer-events-auto"
+            className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-xsf)]"
           >
             {renderRowActions(row.original)}
           </div>
@@ -268,12 +268,12 @@ export function useScheduleRunColumns(
       {
         id: 'open',
         cell: ({ row }: { row: Row<UiRun> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={() => router.push(runDetailsHref(row.original))}
               variant="outline"
               size="icon"
-              leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
               aria-label="Open run details"
               className="bg-ods-card"
             />

@@ -43,8 +43,8 @@ export function CheckoutResultCard({
         </div>
 
         <div className="flex flex-col gap-2">
-          <h1 className="text-h2 text-ods-text-primary">{title}</h1>
-          <p className="text-h4 text-ods-text-secondary">{description}</p>
+          <h1 className="text-ods-text-primary text-h2">{title}</h1>
+          <p className="text-ods-text-secondary text-h4">{description}</p>
         </div>
 
         <div className="flex w-full flex-col gap-3">

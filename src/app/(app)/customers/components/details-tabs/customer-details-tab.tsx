@@ -19,8 +19,8 @@ function InfoCell({ value, label, icon, href }: InfoCellProps) {
   const isEmpty = display === EMPTY_VALUE;
 
   const content = (
-    <div className="flex flex-col justify-center min-w-0 flex-1">
-      <div className="flex items-center gap-1 min-w-0">
+    <div className="flex min-w-0 flex-1 flex-col justify-center">
+      <div className="flex min-w-0 items-center gap-1">
         {icon}
         <div className="min-w-0 flex-1">
           <TruncateText>{display}</TruncateText>
@@ -38,14 +38,14 @@ function InfoCell({ value, label, icon, href }: InfoCellProps) {
         href={href}
         target="_blank"
         rel="noreferrer"
-        className="flex items-center min-w-0 flex-1 hover:opacity-80 transition-opacity"
+        className="flex min-w-0 flex-1 items-center transition-opacity hover:opacity-80"
       >
         {content}
       </a>
     );
   }
 
-  return <div className="flex items-center min-w-0 flex-1">{content}</div>;
+  return <div className="flex min-w-0 flex-1 items-center">{content}</div>;
 }
 
 interface CustomerDetailsTabProps {
@@ -61,16 +61,16 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
     : undefined;
 
   return (
-    <div className="bg-ods-card border border-ods-border rounded-[6px] flex flex-col">
-      <div className="flex gap-4 px-4 h-20 items-center border-b border-ods-border">
+    <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-card">
+      <div className="flex h-20 items-center gap-4 border-b border-ods-border px-4">
         <InfoCell
           value={organization.website}
           label="Website"
-          icon={<ExternalLinkIcon className="w-6 h-6 text-ods-text-secondary shrink-0" />}
+          icon={<ExternalLinkIcon className="h-6 w-6 shrink-0 text-ods-text-secondary" />}
           href={websiteHref}
         />
       </div>
-      <div className="flex flex-col md:flex-row md:gap-4 px-4 py-4 md:py-0 md:h-20 md:items-center">
+      <div className="flex flex-col px-4 py-4 md:h-20 md:flex-row md:items-center md:gap-4 md:py-0">
         <InfoCell value={organization.physicalAddress} label="Physical Address" />
         <InfoCell value={organization.mailingAddress} label="Mailing Address" />
       </div>

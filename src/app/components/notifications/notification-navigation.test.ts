@@ -117,10 +117,15 @@ describe('mingo dialog deep links', () => {
  * rather than at mapping time by a feature flag that has not loaded yet.
  */
 describe('mingoDrawerDialogId', () => {
-  const mingoAction = () =>
-    resolveNotificationAction({
+  // Throws rather than returning null so each test below reads the action directly:
+  // an unresolvable ADMIN_AI_MESSAGE is a failure of the fixture, not of the case.
+  const mingoAction = () => {
+    const action = resolveNotificationAction({
       meta: { contextType: 'ADMIN_AI_MESSAGE', dialogId: 'd-1' },
     } as unknown as Notification);
+    if (!action) throw new Error('resolveNotificationAction did not resolve the mingo fixture');
+    return action;
+  };
 
   beforeEach(() => {
     useMingoLauncherStore.setState({ canOpen: false });
@@ -128,14 +133,14 @@ describe('mingoDrawerDialogId', () => {
 
   it('yields the dialog id once the shell reports a drawer', () => {
     useMingoLauncherStore.setState({ canOpen: true });
-    expect(mingoDrawerDialogId(mingoAction()!)).toBe('d-1');
+    expect(mingoDrawerDialogId(mingoAction())).toBe('d-1');
   });
 
   it('yields null with no drawer, so the caller navigates to the canonical route instead', () => {
     // See `MingoLauncherStore.canOpen` for the cases this covers.
     const action = mingoAction();
-    expect(mingoDrawerDialogId(action!)).toBeNull();
-    expect(action?.route).toBe('/dashboard?mingoDialog=d-1');
+    expect(mingoDrawerDialogId(action)).toBeNull();
+    expect(action.route).toBe('/dashboard?mingoDialog=d-1');
   });
 
   it('yields null for an action that names no dialog, drawer or not', () => {
@@ -143,7 +148,8 @@ describe('mingoDrawerDialogId', () => {
     const ticket = resolveNotificationAction({
       meta: { contextType: 'TICKET_ASSIGNED', ticketId: 't-1' },
     } as unknown as Notification);
-    expect(mingoDrawerDialogId(ticket!)).toBeNull();
+    if (!ticket) throw new Error('resolveNotificationAction did not resolve the ticket fixture');
+    expect(mingoDrawerDialogId(ticket)).toBeNull();
   });
 });
 

@@ -272,17 +272,17 @@ function ScheduleTabsIsland({ scheduleId }: ScheduleDetailsViewProps) {
  * that flows in, and it does not change; `TabNavigation` reads `?tab=` itself,
  * so browser back/forward still moves the tab.
  */
-export const ScheduleDetailsView = memo(function ScheduleDetailsView({ scheduleId }: ScheduleDetailsViewProps) {
+export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ scheduleId }: ScheduleDetailsViewProps) {
   return (
     // `PageLayout`'s own two boxes, with its own `gap-l` between the page's
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
-    <div className="flex flex-col w-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+    <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
       <Suspense fallback={<ScheduleHeaderSkeleton />}>
         <ScheduleHeader scheduleId={scheduleId} />
       </Suspense>
 
-      <div className="flex flex-col flex-1 gap-[var(--spacing-system-l)]">
+      <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
         <Suspense fallback={<ScheduleInfoBarSkeleton />}>
           <ScheduleInfoBar scheduleId={scheduleId} />
         </Suspense>
@@ -299,3 +299,4 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsView({ scheduleI
     </div>
   );
 });
+ScheduleDetailsView.displayName = 'ScheduleDetailsView';

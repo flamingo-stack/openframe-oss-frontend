@@ -25,7 +25,7 @@ import { routes } from '@/lib/routes';
  */
 export default function AccountDeletionPage() {
   return (
-    <div className="of-standalone-shell min-h-screen bg-ods-bg flex flex-col items-center p-[var(--spacing-system-xlf)] gap-[var(--spacing-system-xlf)]">
+    <div className="of-standalone-shell flex min-h-screen flex-col items-center gap-[var(--spacing-system-xlf)] bg-ods-bg p-[var(--spacing-system-xlf)]">
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
         <OpenFrameLogo
           className="h-10 w-auto"
@@ -35,18 +35,18 @@ export default function AccountDeletionPage() {
         <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
       </div>
 
-      <main className="w-full max-w-[640px] flex flex-col gap-[var(--spacing-system-lf)]">
+      <main className="flex w-full max-w-[640px] flex-col gap-[var(--spacing-system-lf)]">
         <header className="flex flex-col gap-[var(--spacing-system-xsf)]">
-          <h1 className="text-h2 text-ods-text-primary">Delete your OpenFrame account</h1>
-          <p className="text-h6 text-ods-text-secondary">
+          <h1 className="text-ods-text-primary text-h2">Delete your OpenFrame account</h1>
+          <p className="text-ods-text-secondary text-h6">
             OpenFrame accounts belong to a workspace created by the organization you work with. You can delete your own
             account at any time, whether or not you still have access to it.
           </p>
         </header>
 
         <section className="flex flex-col gap-[var(--spacing-system-sf)]">
-          <h2 className="text-h4 text-ods-text-primary">If you can sign in</h2>
-          <ol className="flex flex-col gap-[var(--spacing-system-xxs)] text-h6 text-ods-text-secondary list-decimal pl-[var(--spacing-system-mf)]">
+          <h2 className="text-ods-text-primary text-h4">If you can sign in</h2>
+          <ol className="flex list-decimal flex-col gap-[var(--spacing-system-xxs)] pl-[var(--spacing-system-mf)] text-ods-text-secondary text-h6">
             <li>Sign in to OpenFrame.</li>
             <li>
               Open <span className="text-ods-text-primary">Settings</span> →{' '}
@@ -56,10 +56,10 @@ export default function AccountDeletionPage() {
               Select <span className="text-ods-text-primary">Delete Account</span> and confirm.
             </li>
           </ol>
-          <p className="text-h6 text-ods-text-secondary">
+          <p className="text-ods-text-secondary text-h6">
             Deletion takes effect immediately and signs you out on every device.
           </p>
-          <p className="text-h6 text-ods-text-secondary">
+          <p className="text-ods-text-secondary text-h6">
             If you are the <span className="text-ods-text-primary">owner</span> of the workspace, the dialog first asks
             you to hand ownership to another active member, and the button reads{' '}
             <span className="text-ods-text-primary">Transfer &amp; Delete Account</span>. A workspace cannot be left
@@ -68,15 +68,15 @@ export default function AccountDeletionPage() {
           </p>
           <a
             href={routes.auth.login}
-            className="self-start text-h6 font-semibold text-ods-text-primary px-[var(--spacing-system-mf)] py-[var(--spacing-system-xsf)] rounded-md bg-ods-card hover:bg-ods-bg-hover transition-colors"
+            className="self-start rounded-md bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-xsf)] font-semibold text-ods-text-primary transition-colors text-h6 hover:bg-ods-bg-hover"
           >
             Sign in to delete your account
           </a>
         </section>
 
         <section className="flex flex-col gap-[var(--spacing-system-sf)]">
-          <h2 className="text-h4 text-ods-text-primary">If you can&apos;t sign in</h2>
-          <p className="text-h6 text-ods-text-secondary">
+          <h2 className="text-ods-text-primary text-h4">If you can&apos;t sign in</h2>
+          <p className="text-ods-text-secondary text-h6">
             If you have left the organization, forgotten your password, or an administrator has disabled your account,
             email{' '}
             <a href="mailto:support@openframe.ai" className="text-ods-text-primary underline">
@@ -89,8 +89,8 @@ export default function AccountDeletionPage() {
         </section>
 
         <section className="flex flex-col gap-[var(--spacing-system-sf)]">
-          <h2 className="text-h4 text-ods-text-primary">What happens to your data</h2>
-          <ul className="flex flex-col gap-[var(--spacing-system-xsf)] text-h6 text-ods-text-secondary list-disc pl-[var(--spacing-system-mf)]">
+          <h2 className="text-ods-text-primary text-h4">What happens to your data</h2>
+          <ul className="flex list-disc flex-col gap-[var(--spacing-system-xsf)] pl-[var(--spacing-system-mf)] text-ods-text-secondary text-h6">
             <li>
               Your personal profile information is anonymized on our servers and can no longer be used to identify you.
             </li>
@@ -115,11 +115,11 @@ export default function AccountDeletionPage() {
         href="https://flamingo.run"
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-auto flex items-center gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-mf)] text-ods-text-secondary rounded-md bg-transparent hover:bg-ods-bg-hover transition-colors"
+        className="mt-auto flex items-center gap-[var(--spacing-system-xsf)] rounded-md bg-transparent p-[var(--spacing-system-mf)] text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
       >
         <span className="text-h6">Powered by</span>
         <FlamingoLogo className="h-5 w-5" fill="currentColor" />
-        <span className="text-code font-semibold">Flamingo</span>
+        <span className="font-semibold text-code">Flamingo</span>
       </a>
     </div>
   );

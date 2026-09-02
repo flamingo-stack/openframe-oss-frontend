@@ -105,7 +105,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
 
   return (
     <div className={cn('flex flex-col gap-[var(--spacing-system-l)]', className)}>
-      <span className="text-h2 text-ods-text-primary">{title}</span>
+      <span className="text-ods-text-primary text-h2">{title}</span>
 
       <Controller
         name="quickActionsIsDefault"
@@ -122,10 +122,10 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
               // uses the same type ramp as the view banner: 18/24 title, 14/20
               // caption, 12px padding, centered 24px checkbox.
               className={cn(
-                'items-center rounded-md p-[var(--spacing-system-sf)] gap-[var(--spacing-system-s)]',
-                '[&_button]:size-6 [&_button]:mt-0',
-                '[&>div>label]:text-h4 [&>div>label]:leading-6 [&>div>label]:mb-0',
-                '[&>div>span]:text-h6 [&>div>span]:leading-5',
+                'items-center gap-[var(--spacing-system-s)] rounded-md p-[var(--spacing-system-sf)]',
+                '[&_button]:mt-0 [&_button]:size-6',
+                '[&>div>label]:mb-0 [&>div>label]:leading-6 [&>div>label]:text-h4',
+                '[&>div>span]:leading-5 [&>div>span]:text-h6',
               )}
             />
             <ConfirmDialog
@@ -153,7 +153,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
             actions={defaultActions}
             isDefault={copy.previewIsOpenFrame}
             agentConfig={agentConfig}
-            className="opacity-50 pointer-events-none"
+            className="pointer-events-none opacity-50"
           />
         )
       ) : (
@@ -163,7 +163,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
               type="button"
               variant="transparent"
               onClick={() => replace([])}
-              className="self-end !p-0 !h-auto text-h6 text-ods-error underline hover:text-ods-error"
+              className="!h-auto self-end !p-0 text-ods-error underline text-h6 hover:text-ods-error"
             >
               Delete All
             </Button>
@@ -196,7 +196,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
             type="button"
             variant="transparent"
             onClick={() => append({ name: '', instructions: '' })}
-            leftIcon={<PlusCircleIcon className="w-5 h-5 text-ods-text-secondary" />}
+            leftIcon={<PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />}
             className="self-start"
           >
             Add Quick Action
@@ -238,9 +238,9 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
             // fixed 8px, so the grid gap matches the controls-cluster gap.
             'grid grid-cols-[minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xsf)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
           : 'grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xs)] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto]',
-        'gap-y-[var(--spacing-system-m)] items-start',
-        'border border-ods-border rounded-md p-[var(--spacing-system-m)]',
-        drag.isDragging && 'opacity-70 shadow-lg bg-ods-bg',
+        'items-start gap-y-[var(--spacing-system-m)]',
+        'rounded-md border border-ods-border p-[var(--spacing-system-m)]',
+        drag.isDragging && 'bg-ods-bg opacity-70 shadow-lg',
       )}
     >
       {/* Drag rail: a 44/48px hit box matching the input height, icon 16/24. */}

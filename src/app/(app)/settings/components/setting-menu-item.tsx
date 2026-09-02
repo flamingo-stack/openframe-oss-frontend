@@ -41,11 +41,11 @@ export function SettingMenuItemSkeleton() {
           whole line box made the two bars touch and read as one slab; leading is what
           separates real text, so the placeholder borrows it — and the block still totals
           exactly what the two `<p>`s do. */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center h-[var(--font-line-space-h3-body)]">
+      <div className="min-w-0 flex-1">
+        <div className="flex h-[var(--font-line-space-h3-body)] items-center">
           <Skeleton className="h-[var(--font-size-h3-body)] w-32 max-w-full rounded-md" />
         </div>
-        <div className="flex items-center h-[var(--font-line-space-h6-caption)]">
+        <div className="flex h-[var(--font-line-space-h6-caption)] items-center">
           <Skeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
         </div>
       </div>
@@ -60,9 +60,9 @@ export function SettingMenuItem({ href, icon, title, description }: SettingMenuI
   return (
     <div className={CARD_SHELL_CLASSES}>
       <div className={ICON_FRAME_CLASSES}>{icon}</div>
-      <div className="flex-1 min-w-0">
-        <p className="text-h3 text-ods-text-primary">{title}</p>
-        <p className="text-h6 text-ods-text-secondary">{description}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-ods-text-primary text-h3">{title}</p>
+        <p className="text-ods-text-secondary text-h6">{description}</p>
       </div>
       <Link
         href={href}

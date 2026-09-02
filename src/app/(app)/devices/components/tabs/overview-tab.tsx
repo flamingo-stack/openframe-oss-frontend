@@ -32,6 +32,7 @@ export function OverviewTab({ device }: OverviewTabProps) {
       }, 100);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [refreshParam]);
 
   return (

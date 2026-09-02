@@ -76,7 +76,7 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
     cell: ({ row }: { row: Row<Dialog> }) => {
       const ticket = row.original;
       return (
-        <div className="flex flex-col justify-center min-w-0">
+        <div className="flex min-w-0 flex-col justify-center">
           <TruncateText>{ticket.title || 'Untitled Ticket'}</TruncateText>
           <TruncateText variant="h6" tone="secondary">
             {formatTimestamp(ticket.createdAt)}
@@ -111,7 +111,7 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
       if (ticket.assignedName) {
         // Assigned: display only — re-assigning lives on the details page.
         return (
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
             {isDeletedAssignee ? (
               <DeletedUserAvatar size="sm" />
             ) : (
@@ -180,7 +180,7 @@ export function getTicketOpenColumn(getUnreadCount?: (ticket: Dialog) => number 
       if (unread) {
         return (
           <span
-            className="inline-flex h-12 min-w-12 items-center justify-center rounded-md bg-ods-accent px-[var(--spacing-system-xsf)] text-h3 font-bold text-ods-text-on-accent"
+            className="inline-flex h-12 min-w-12 items-center justify-center rounded-md bg-ods-accent px-[var(--spacing-system-xsf)] font-bold text-ods-text-on-accent text-h3"
             aria-label={`${unread} unread ${unread === 1 ? 'message' : 'messages'}`}
           >
             {unread > 99 ? '99+' : unread}
@@ -188,12 +188,12 @@ export function getTicketOpenColumn(getUnreadCount?: (ticket: Dialog) => number 
         );
       }
       return (
-        <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+        <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
           <Button
             onClick={openInNewTab(ticketRowHref(row.original))}
             variant="outline"
             size="icon"
-            leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+            leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
             aria-label="Open in new tab"
             className="bg-ods-card"
           />

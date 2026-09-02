@@ -67,7 +67,7 @@ export function ArticleFormFields({ form, initialTags, tempAttachments }: Articl
   return (
     <>
       {/* Title + Folder */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-lf)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] md:grid-cols-2">
         <Controller
           name="title"
           control={control}

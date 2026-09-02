@@ -24,13 +24,13 @@ interface PlanTotalSummaryProps {
  */
 export function PlanTotalSummary({ total, showAiNote, loading = false, className }: PlanTotalSummaryProps) {
   return (
-    <div className={cn('flex flex-col text-h4 text-ods-text-secondary', className)}>
+    <div className={cn('flex flex-col text-ods-text-secondary text-h4', className)}>
       {showAiNote && <p>Devices and AI are billed together at checkout.</p>}
       {loading && <Skeleton className="mt-1 h-5 w-56" />}
       {total && (
         <p>
           {total.prepaid ? 'Total due today: ' : 'Estimated total: '}
-          <span className="text-h3 text-ods-text-primary">
+          <span className="text-ods-text-primary text-h3">
             {formatCurrency(total.amount)}
             {!total.prepaid && ` / ${total.period}`}
           </span>

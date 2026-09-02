@@ -51,11 +51,11 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="bg-ods-card border border-ods-border rounded-md flex items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-s)]">
-        <InfoCircleIcon className="size-6 text-ods-text-secondary shrink-0" />
-        <div className="flex flex-col min-w-0">
-          <p className="text-h4 text-ods-text-primary">Default settings for all customers</p>
-          <p className="text-h6 text-ods-text-secondary">
+      <div className="flex items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]">
+        <InfoCircleIcon className="size-6 shrink-0 text-ods-text-secondary" />
+        <div className="flex min-w-0 flex-col">
+          <p className="text-ods-text-primary text-h4">Default settings for all customers</p>
+          <p className="text-ods-text-secondary text-h6">
             Individual customers can be customized separately in their settings.
           </p>
         </div>

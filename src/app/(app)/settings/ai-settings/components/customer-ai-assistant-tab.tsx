@@ -73,8 +73,8 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
       onSubmit={handleSubmit}
       className="flex flex-col gap-[var(--spacing-system-l)] max-md:[&_input]:!text-[14px] max-md:[&_textarea]:!text-[14px]"
     >
-      <div className="flex flex-col md:flex-row md:items-start gap-[var(--spacing-system-l)]">
-        <div className="flex flex-col gap-[var(--spacing-system-l)] flex-1 min-w-0">
+      <div className="flex flex-col gap-[var(--spacing-system-l)] md:flex-row md:items-start">
+        <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
           <Controller
             name="assistantName"
             control={form.control}
@@ -91,7 +91,7 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
           />
         </div>
 
-        <div className="w-full md:w-[274px] shrink-0">
+        <div className="w-full shrink-0 md:w-[274px]">
           <ImageUploader
             fieldLabel="Assistant Avatar"
             value={avatarUrl}
@@ -128,7 +128,7 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <p className="text-h3 text-ods-text-primary">Accent Color</p>
+                <p className="text-ods-text-primary text-h3">Accent Color</p>
                 <Controller
                   name="accentColor"
                   control={form.control}

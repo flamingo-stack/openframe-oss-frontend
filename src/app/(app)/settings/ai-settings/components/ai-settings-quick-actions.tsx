@@ -79,7 +79,7 @@ export function AiSettingsQuickActionsSection({
 }) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <span className="text-h2 text-ods-text-primary">{title}</span>
+      <span className="text-ods-text-primary text-h2">{title}</span>
       <QuickActionsSourceBanner isDefault={isDefault} copy={bannerCopy} />
       <AiSettingsQuickActions actions={actions} isDefault={isDefault} agentConfig={agentConfig} />
     </div>
@@ -108,7 +108,7 @@ export function AiSettingsQuickActions({ actions, isDefault, agentConfig, classN
         accessorKey: 'name',
         header: `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
         cell: ({ row }: { row: Row<AiQuickAction> }) => (
-          <div className="flex flex-col justify-center min-h-[60px]">
+          <div className="flex min-h-[60px] flex-col justify-center">
             <TruncateText>{row.original.name}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {row.original.instructions}

@@ -64,8 +64,8 @@ export function WorkspaceInactiveScreen({ title, description }: WorkspaceInactiv
 
       <div className="flex w-full max-w-[600px] flex-col items-center gap-[var(--spacing-system-xl)]">
         <div className="flex flex-col gap-[var(--spacing-system-xs)] text-center">
-          <h1 className="text-h2 text-ods-text-primary">{title ?? 'Workspace access is inactive'}</h1>
-          <p className="text-h4 text-ods-text-secondary">
+          <h1 className="text-ods-text-primary text-h2">{title ?? 'Workspace access is inactive'}</h1>
+          <p className="text-ods-text-secondary text-h4">
             {description ??
               "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team."}
           </p>
@@ -95,7 +95,7 @@ export function WorkspaceInactiveScreen({ title, description }: WorkspaceInactiv
         >
           <span className="text-h6">Powered by</span>
           <FlamingoLogo className="h-5 w-5" fill="currentColor" />
-          <span className="text-code font-semibold">Flamingo</span>
+          <span className="font-semibold text-code">Flamingo</span>
         </a>
       </div>
     </div>

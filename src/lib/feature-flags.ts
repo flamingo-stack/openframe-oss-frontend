@@ -1,5 +1,4 @@
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
-import { runtimeEnv } from './runtime-config';
 
 /**
  * Server-known flag names. Must be passed to `feFeatureFlags(names: ...)`;

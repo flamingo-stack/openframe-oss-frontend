@@ -10,7 +10,7 @@ import {
 import type { RoadmapItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { EntityVideoSection } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { embedAuthedFetch } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
 
 /**
@@ -27,12 +27,13 @@ import { EP, HELP_CENTER_BASE } from '../../endpoints';
 function useRelease(slug: string | undefined) {
   const query = useQuery({
     queryKey: ['help-center', 'product-release', slug],
-    queryFn: async () => {
-      const res = await embedAuthedFetch(EP.productReleaseBySlug(slug!));
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      return res.json();
-    },
-    enabled: !!slug,
+    queryFn: slug
+      ? async () => {
+          const res = await embedAuthedFetch(EP.productReleaseBySlug(slug));
+          if (!res.ok) throw new Error(`Request failed (${res.status})`);
+          return res.json();
+        }
+      : skipToken,
   });
   return { data: query.data, error: (query.error as Error) ?? null, isLoading: query.isLoading };
 }

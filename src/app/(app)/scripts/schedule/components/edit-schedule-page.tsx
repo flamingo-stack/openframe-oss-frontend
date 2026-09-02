@@ -15,9 +15,7 @@ import { ScheduleFormFields } from './schedule-form-fields';
 
 /** What the page knows about the record it is editing. */
 type ScheduleRecordState =
-  | { status: 'loading' }
-  | { status: 'missing' }
-  | { status: 'ready'; values: EditScheduleFormData | null };
+  { status: 'loading' } | { status: 'missing' } | { status: 'ready'; values: EditScheduleFormData | null };
 
 const RECORD_LOADING: ScheduleRecordState = { status: 'loading' };
 /** The create page owns no record: nothing to seed, and the form is live at once. */

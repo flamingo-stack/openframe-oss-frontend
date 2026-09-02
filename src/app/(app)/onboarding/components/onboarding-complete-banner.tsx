@@ -54,8 +54,8 @@ export function OnboardingCompleteBanner({
           <span aria-hidden>{emoji}</span>
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <p className="text-h3 text-ods-text-primary">{title}</p>
-          <p className="text-h6 text-ods-text-secondary">{description}</p>
+          <p className="text-ods-text-primary text-h3">{title}</p>
+          <p className="text-ods-text-secondary text-h6">{description}</p>
         </div>
       </div>
 

@@ -474,7 +474,7 @@ export function getRelayEnvironment(): IEnvironment {
       network: Network.create(fetchRelay),
       store: new Store(new RecordSource()),
       isServer: true,
-      // biome-ignore lint/style/useNamingConvention: Relay's Environment option key is fixed.
+      // Relay's Environment option key is fixed.
       getDataID: resolveDataId,
     });
   }
@@ -487,7 +487,7 @@ export function getRelayEnvironment(): IEnvironment {
     relayEnvironment = new Environment({
       network: Network.create(fetchRelay),
       store,
-      // biome-ignore lint/style/useNamingConvention: Relay's Environment option key is fixed.
+      // Relay's Environment option key is fixed.
       getDataID: resolveDataId,
     });
   }

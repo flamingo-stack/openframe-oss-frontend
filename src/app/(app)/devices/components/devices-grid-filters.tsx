@@ -44,7 +44,7 @@ export function DevicesGridFilters({
   }
 
   return (
-    <div className="sticky top-[96px] z-10 bg-ods-bg flex items-start flex-wrap gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)]">
+    <div className="sticky top-[96px] z-10 flex flex-wrap items-start gap-[var(--spacing-system-m)] bg-ods-bg px-[var(--spacing-system-m)]">
       {filterableColumns.map(column => {
         const selected = currentFilters[column.key] ?? [];
         const active = selected.length > 0;
@@ -55,15 +55,15 @@ export function DevicesGridFilters({
             triggerElement={
               <button
                 type="button"
-                className="group inline-flex items-center gap-[var(--spacing-system-xsf)] py-[var(--spacing-system-sf)] cursor-pointer select-none"
+                className="group inline-flex cursor-pointer select-none items-center gap-[var(--spacing-system-xsf)] py-[var(--spacing-system-sf)]"
                 aria-label={`Filter by ${column.label}`}
               >
-                <span className="text-h5 text-ods-text-secondary uppercase whitespace-nowrap transition-colors group-hover:text-ods-text-primary">
+                <span className="whitespace-nowrap uppercase text-ods-text-secondary transition-colors text-h5 group-hover:text-ods-text-primary">
                   {column.label}
                 </span>
                 <Filter02Icon
                   className={cn(
-                    'w-4 h-4 transition-colors',
+                    'h-4 w-4 transition-colors',
                     active ? 'text-ods-accent' : 'text-ods-text-secondary group-hover:text-ods-text-primary',
                   )}
                 />
@@ -90,8 +90,8 @@ export function DevicesGridFilters({
         );
       })}
       {totalCount !== undefined && (
-        <div className="absolute right-0 inset-y-0 flex items-center">
-          <span className="text-h6 text-ods-text-secondary whitespace-nowrap">{totalCount} results</span>
+        <div className="absolute inset-y-0 right-0 flex items-center">
+          <span className="whitespace-nowrap text-ods-text-secondary text-h6">{totalCount} results</span>
         </div>
       )}
     </div>

@@ -16,14 +16,19 @@ import { useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { relayItemsDevices_query$key } from '@/__generated__/relayItemsDevices_query.graphql';
 import type { relayItemsDevicesListQuery } from '@/__generated__/relayItemsDevicesListQuery.graphql';
+import type { relayItemsDevicesPaginationQuery } from '@/__generated__/relayItemsDevicesPaginationQuery.graphql';
 import type { relayItemsKb_query$key } from '@/__generated__/relayItemsKb_query.graphql';
 import type { relayItemsKbListQuery } from '@/__generated__/relayItemsKbListQuery.graphql';
+import type { relayItemsKbPaginationQuery } from '@/__generated__/relayItemsKbPaginationQuery.graphql';
 import type { relayItemsOrgs_query$key } from '@/__generated__/relayItemsOrgs_query.graphql';
 import type { relayItemsOrgsListQuery } from '@/__generated__/relayItemsOrgsListQuery.graphql';
+import type { relayItemsOrgsPaginationQuery } from '@/__generated__/relayItemsOrgsPaginationQuery.graphql';
 import type { relayItemsSchedules_query$key } from '@/__generated__/relayItemsSchedules_query.graphql';
 import type { relayItemsSchedulesListQuery } from '@/__generated__/relayItemsSchedulesListQuery.graphql';
+import type { relayItemsSchedulesPaginationQuery } from '@/__generated__/relayItemsSchedulesPaginationQuery.graphql';
 import type { relayItemsScripts_query$key } from '@/__generated__/relayItemsScripts_query.graphql';
 import type { relayItemsScriptsListQuery } from '@/__generated__/relayItemsScriptsListQuery.graphql';
+import type { relayItemsScriptsPaginationQuery } from '@/__generated__/relayItemsScriptsPaginationQuery.graphql';
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
@@ -54,7 +59,16 @@ const DEVICES_FRAGMENT = graphql`
   ) {
     devices(filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "relayItemsDevices_devices") {
-      edges { node { id machineId hostname displayName nickname status } }
+      edges {
+        node {
+          id
+          machineId
+          hostname
+          displayName
+          nickname
+          status
+        }
+      }
     }
   }
 `;
@@ -71,10 +85,10 @@ export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextI
     search: query || null,
     first: MINGO_CONTEXT_PAGE_SIZE,
   });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment(
-    DEVICES_FRAGMENT,
-    root as relayItemsDevices_query$key,
-  );
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsDevicesPaginationQuery,
+    relayItemsDevices_query$key
+  >(DEVICES_FRAGMENT, root as relayItemsDevices_query$key);
   const items = useMemo(
     () =>
       (data.devices?.edges ?? []).flatMap(e =>
@@ -120,9 +134,19 @@ export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextI
 const ORGS_FRAGMENT = graphql`
   fragment relayItemsOrgs_query on Query
   @refetchable(queryName: "relayItemsOrgsPaginationQuery")
-  @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 10 }, after: { type: "String" }) {
+  @argumentDefinitions(
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
     organizations(search: $search, first: $first, after: $after) @connection(key: "relayItemsOrgs_organizations") {
-      edges { node { id name category } }
+      edges {
+        node {
+          id
+          name
+          category
+        }
+      }
     }
   }
 `;
@@ -138,10 +162,10 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
     search: query || null,
     first: MINGO_CONTEXT_PAGE_SIZE,
   });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment(
-    ORGS_FRAGMENT,
-    root as relayItemsOrgs_query$key,
-  );
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsOrgsPaginationQuery,
+    relayItemsOrgs_query$key
+  >(ORGS_FRAGMENT, root as relayItemsOrgs_query$key);
   const items = useMemo(
     () =>
       (data.organizations?.edges ?? []).flatMap(e =>
@@ -179,10 +203,20 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
 const KB_FRAGMENT = graphql`
   fragment relayItemsKb_query on Query
   @refetchable(queryName: "relayItemsKbPaginationQuery")
-  @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 10 }, after: { type: "String" }) {
+  @argumentDefinitions(
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
     knowledgeBaseItems(filter: { type: ARTICLE }, search: $search, first: $first, after: $after)
       @connection(key: "relayItemsKb_knowledgeBaseItems") {
-      edges { node { id name type } }
+      edges {
+        node {
+          id
+          name
+          type
+        }
+      }
     }
   }
 `;
@@ -198,7 +232,10 @@ export function KnowledgeBaseItems({ query, selectedKeys, onToggle, atLimit }: C
     search: query || null,
     first: MINGO_CONTEXT_PAGE_SIZE,
   });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment(KB_FRAGMENT, root as relayItemsKb_query$key);
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsKbPaginationQuery,
+    relayItemsKb_query$key
+  >(KB_FRAGMENT, root as relayItemsKb_query$key);
   const items = useMemo(
     () =>
       (data.knowledgeBaseItems?.edges ?? []).flatMap(e =>
@@ -240,10 +277,20 @@ export function KnowledgeBaseItems({ query, selectedKeys, onToggle, atLimit }: C
 const SCRIPTS_FRAGMENT = graphql`
   fragment relayItemsScripts_query on Query
   @refetchable(queryName: "relayItemsScriptsPaginationQuery")
-  @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 10 }, after: { type: "String" }) {
+  @argumentDefinitions(
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
     scripts(filter: { statuses: [ACTIVE] }, search: $search, first: $first, after: $after)
       @connection(key: "relayItemsScripts_scripts") {
-      edges { node { id name description } }
+      edges {
+        node {
+          id
+          name
+          description
+        }
+      }
     }
   }
 `;
@@ -259,10 +306,10 @@ export function ScriptItems({ query, selectedKeys, onToggle, atLimit }: ContextI
     search: query || null,
     first: MINGO_CONTEXT_PAGE_SIZE,
   });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment(
-    SCRIPTS_FRAGMENT,
-    root as relayItemsScripts_query$key,
-  );
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsScriptsPaginationQuery,
+    relayItemsScripts_query$key
+  >(SCRIPTS_FRAGMENT, root as relayItemsScripts_query$key);
   const items = useMemo(
     () =>
       (data.scripts?.edges ?? []).flatMap(e => {
@@ -307,10 +354,20 @@ export function ScriptItems({ query, selectedKeys, onToggle, atLimit }: ContextI
 const SCHEDULES_FRAGMENT = graphql`
   fragment relayItemsSchedules_query on Query
   @refetchable(queryName: "relayItemsSchedulesPaginationQuery")
-  @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 10 }, after: { type: "String" }) {
+  @argumentDefinitions(
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
     scriptSchedules(filter: { statuses: [ACTIVE] }, search: $search, first: $first, after: $after)
       @connection(key: "relayItemsSchedules_scriptSchedules") {
-      edges { node { id name description } }
+      edges {
+        node {
+          id
+          name
+          description
+        }
+      }
     }
   }
 `;
@@ -326,10 +383,10 @@ export function ScheduleItems({ query, selectedKeys, onToggle, atLimit }: Contex
     search: query || null,
     first: MINGO_CONTEXT_PAGE_SIZE,
   });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment(
-    SCHEDULES_FRAGMENT,
-    root as relayItemsSchedules_query$key,
-  );
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsSchedulesPaginationQuery,
+    relayItemsSchedules_query$key
+  >(SCHEDULES_FRAGMENT, root as relayItemsSchedules_query$key);
   const items = useMemo(
     () =>
       (data.scriptSchedules?.edges ?? []).flatMap(e => {

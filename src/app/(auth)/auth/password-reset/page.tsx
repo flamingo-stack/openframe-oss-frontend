@@ -52,7 +52,7 @@ export default function PasswordResetPage() {
       });
 
       if (!response.ok) {
-        const error = response.data as any;
+        const error = response.data as { code?: string; message?: string } | undefined;
         throw new Error(error?.message || response.error || 'Failed to reset password');
       }
 

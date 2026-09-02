@@ -125,7 +125,8 @@ export interface ToolConnection {
   lastSeen?: string;
   /** Fleet detail_updated_at — when host details were last fetched */
   lastFetched?: string;
-  metadata?: any;
+  /** Raw JSON string from the tool connection record — parsed by whoever needs it. */
+  metadata?: string | null;
   connectedAt?: string;
   lastSyncAt?: string;
   disconnectedAt?: string;
@@ -315,7 +316,7 @@ export interface GraphQlResponse<T> {
   data?: T;
   errors?: Array<{
     message: string;
-    extensions?: any;
+    extensions?: unknown;
   }>;
 }
 

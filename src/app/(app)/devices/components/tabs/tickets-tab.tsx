@@ -142,7 +142,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
       {showChrome && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" />
         </div>

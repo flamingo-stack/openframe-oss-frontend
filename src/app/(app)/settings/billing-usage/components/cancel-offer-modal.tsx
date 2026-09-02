@@ -126,21 +126,21 @@ export function CancelOfferModal({
         </>
       }
     >
-      <p className="text-h4 text-ods-text-primary">{preset.description}</p>
+      <p className="text-ods-text-primary text-h4">{preset.description}</p>
 
       <button
         type="button"
         onClick={handleCtaClick}
-        className="flex items-center gap-[var(--spacing-system-s)] h-20 px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] rounded-md border border-ods-border bg-ods-bg hover:bg-ods-card transition-colors text-left w-full"
+        className="flex h-20 w-full items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-bg px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-left transition-colors hover:bg-ods-card"
       >
-        <div className="flex items-center justify-center size-12 rounded-sm border border-ods-border bg-ods-bg shrink-0">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-sm border border-ods-border bg-ods-bg">
           <CtaIcon className="size-6 text-ods-text-primary" />
         </div>
-        <div className="flex flex-col flex-1 min-w-0">
-          <span className="text-h3 font-bold text-ods-text-primary">{preset.ctaTitle}</span>
-          <span className="text-h6 text-ods-text-secondary">{preset.ctaDescription}</span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="font-bold text-ods-text-primary text-h3">{preset.ctaTitle}</span>
+          <span className="text-ods-text-secondary text-h6">{preset.ctaDescription}</span>
         </div>
-        <div className="flex items-center justify-center p-[var(--spacing-system-sf)] rounded-md border border-ods-border bg-ods-card shrink-0">
+        <div className="flex shrink-0 items-center justify-center rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-sf)]">
           <Chevron02RightIcon className="size-6 text-ods-text-primary" />
         </div>
       </button>

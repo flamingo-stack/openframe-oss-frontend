@@ -7,7 +7,7 @@ import {
   InputTrigger,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { type FolderChildrenAction, useDeleteFolder } from '../hooks/use-delete-folder';
 import { buildFolderTree, useKnowledgeBaseFolders } from '../hooks/use-knowledge-base-items';
@@ -84,7 +84,7 @@ function FolderPicker({ selection, onSelect, excludeFolderId, disabled }: Folder
 }
 
 function FolderPickerSkeleton() {
-  return <div className="h-12 w-full rounded-[6px] bg-ods-card animate-pulse" />;
+  return <div className="h-12 w-full animate-pulse rounded-[6px] bg-ods-card" />;
 }
 
 export function DeleteFolderModal({ isOpen, onClose, folder, sourceConnectionId, onDeleted }: DeleteFolderModalProps) {
@@ -92,9 +92,13 @@ export function DeleteFolderModal({ isOpen, onClose, folder, sourceConnectionId,
   const { deleteFolder, isPending } = useDeleteFolder();
   const [selection, setSelection] = useState<DeleteSelection>(DEFAULT_SELECTION);
 
-  useEffect(() => {
+  // Cleared on the close transition, during render rather than in an effect: an
+  // effect leaves the old value on screen for a frame of the closing animation.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (!isOpen) setSelection(DEFAULT_SELECTION);
-  }, [isOpen]);
+  }
 
   if (!folder) return null;
 
@@ -133,7 +137,7 @@ export function DeleteFolderModal({ isOpen, onClose, folder, sourceConnectionId,
       onConfirm={handleConfirm}
       extraContent={
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <p className="text-h4 text-ods-text-primary">Move Articles to</p>
+          <p className="text-ods-text-primary text-h4">Move Articles to</p>
           <Suspense fallback={<FolderPickerSkeleton />}>
             <FolderPicker
               selection={selection}
