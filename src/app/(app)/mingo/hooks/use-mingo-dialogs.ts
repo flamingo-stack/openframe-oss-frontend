@@ -114,8 +114,8 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     // Titles are generated asynchronously on the backend with no realtime
     // event — while the list holds a fresh title-less dialog ("New Chat"),
     // poll faster so the generated title replaces it promptly.
-    refetchInterval: query => {
-      const pages = query.state.data?.pages;
+    refetchInterval: liveQuery => {
+      const pages = liveQuery.state.data?.pages;
       const awaitingTitle = pages?.some(page => page.dialogs.some(dialog => isAwaitingGeneratedTitle(dialog)));
       return awaitingTitle ? 10 * 1000 : 60 * 1000;
     },
