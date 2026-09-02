@@ -99,15 +99,6 @@ jobs:
             echo "BUILD_ARGS=${args[*]}" >> "$GITHUB_ENV"
             docker buildx build "${args[@]}" "."
 
-      - name: Scan image
-        continue-on-error: true
-        uses: ./.github/steps/trivy
-        with:
-          scan: image
-          image-name: ${{ env.REPOSITORY }}
-          dockerfile: ./Dockerfile
-          context: .
-
       - name: Push image
         id: docker_push
         uses: nick-fields/retry@v4
@@ -117,6 +108,14 @@ jobs:
           timeout_minutes: 12
           shell: bash
           command: docker buildx build $BUILD_ARGS --push --provenance=false --sbom=true "."
+
+      - name: Scan image
+        uses: ./.github/steps/trivy
+        with:
+          scan: image
+          image-name: ${{ env.REPOSITORY }}
+          dockerfile: ./Dockerfile
+          context: .
 
 
 
