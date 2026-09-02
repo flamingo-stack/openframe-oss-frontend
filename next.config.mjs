@@ -32,6 +32,23 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // React Compiler: auto-memoizes components and hooks, so a re-render of a
+  // parent stops re-rendering children whose props did not actually change and
+  // most hand-written useMemo/useCallback becomes redundant. Left at the default
+  // `compilationMode: 'infer'` (Next's SWC pass picks the files that hold JSX or
+  // hooks and runs Babel only on those) and `panicThreshold: 'none'` (a function
+  // the compiler cannot prove safe is skipped, not a build failure), so this is
+  // additive — nothing that compiles today stops compiling.
+  //
+  // It requires `babel-plugin-react-compiler`: the compiler itself is still a
+  // Babel plugin, there is no Rust/SWC port of it in Next 16. Only the file
+  // FILTER is SWC.
+  //
+  // The rules it relies on are already enforced — the shared ESLint config runs
+  // react-hooks v7 (the compiler's own diagnostics: `set-state-in-effect`,
+  // `purity`, `refs`, `preserve-manual-memoization`) at zero findings, so a
+  // component that would silently bail out shows up as a lint error first.
+  reactCompiler: true,
   compiler: {
     relay: {
       src: './src',

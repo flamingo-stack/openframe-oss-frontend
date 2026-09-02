@@ -71,6 +71,7 @@
     "@types/react-relay": "^18.2.1",
     "@types/relay-runtime": "^20.1.1",
     "autoprefixer": "^10.4.0",
+    "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9.39.5",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
