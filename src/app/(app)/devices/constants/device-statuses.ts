@@ -60,6 +60,21 @@ export const DEFAULT_DEVICES_LIST_STATUSES = [
   DEVICE_STATUS.PENDING_DELETION,
 ] as const satisfies string[];
 
+// Statuses a script picker may offer for assignment: everything except
+// PENDING_DELETION (a device scheduled for uninstall cannot meaningfully run a
+// script; the backend also skips such devices at dispatch time) and the
+// archive pair. An include-list because the `statuses` filter has no exclude
+// form — a status added on the BE stays out of the pickers until listed here.
+export const SCRIPT_TARGETABLE_STATUSES = [
+  DEVICE_STATUS.ONLINE,
+  DEVICE_STATUS.OFFLINE,
+  DEVICE_STATUS.PENDING,
+  DEVICE_STATUS.ACTIVE,
+  DEVICE_STATUS.INACTIVE,
+  DEVICE_STATUS.MAINTENANCE,
+  DEVICE_STATUS.DECOMMISSIONED,
+] as const satisfies string[];
+
 // Statuses fetched when the device list is used as an enrichment registry
 // (e.g. monitoring query/policy tables mapping fleet hosts → device metadata).
 // Includes DELETED (and legacy ARCHIVED) so archived-but-monitored hosts keep

@@ -19,6 +19,18 @@ export interface ConnectionNarrowing {
 }
 
 /**
+ * One narrowing PER HALF, because the halves are no longer read under the same
+ * filter: Available carries the script-targetable status scope on top of the
+ * user's narrowing (`toAvailableDeviceFilter`), Selected carries the narrowing
+ * alone. An updater keyed by the wrong half's filter patches a connection
+ * record nothing on screen is subscribed to.
+ */
+export interface AssignmentNarrowings {
+  available: ConnectionNarrowing;
+  assigned: ConnectionNarrowing;
+}
+
+/**
  * The store writes for one device joining or leaving the assignment.
  *
  * Everything a single +/− changes is something the client already knows, so it
@@ -27,9 +39,10 @@ export interface ConnectionNarrowing {
  * - **Available** keeps the row and flips its `assigned` flag. The connection
  *   marks rather than excludes, so membership of that list does not move.
  * - **Selected** gains or loses the row. Safe to decide here, not a guess about
- *   what the server would return: both lists are queried with the SAME
- *   narrowing, so a device visible in Available necessarily satisfies the
- *   filter and search the Selected list is under.
+ *   what the server would return: Available's filter is Selected's plus a
+ *   statuses scope on top (see `AssignmentNarrowings`), so a device visible in
+ *   Available necessarily satisfies the filter and search the Selected list is
+ *   under.
  * - **`deviceCount`** moves by one, and stays moved — the payload no longer
  *   restates it; see `addDevicesToScheduleMutation` for why.
  *
@@ -46,7 +59,7 @@ export function assignmentUpdaters(
   scheduleId: string,
   deviceId: string,
   assigned: boolean,
-  narrowing: ConnectionNarrowing,
+  narrowing: AssignmentNarrowings,
 ) {
   const delta = assigned ? 1 : -1;
 
@@ -54,12 +67,12 @@ export function assignmentUpdaters(
     const schedule = store.get(scheduleId);
     if (!schedule) return;
 
-    const available = ConnectionHandler.getConnection(schedule, AVAILABLE_CONNECTION_KEY, narrowing);
+    const available = ConnectionHandler.getConnection(schedule, AVAILABLE_CONNECTION_KEY, narrowing.available);
     for (const edge of available?.getLinkedRecords('edges') ?? []) {
       if (edge?.getLinkedRecord('node')?.getDataID() === deviceId) edge.setValue(assigned, 'assigned');
     }
 
-    const selected = ConnectionHandler.getConnection(schedule, ASSIGNED_CONNECTION_KEY, narrowing);
+    const selected = ConnectionHandler.getConnection(schedule, ASSIGNED_CONNECTION_KEY, narrowing.assigned);
     if (!selected) return;
     const present = (selected.getLinkedRecords('edges') ?? []).some(
       edge => edge?.getLinkedRecord('node')?.getDataID() === deviceId,

@@ -28,21 +28,29 @@ import { graphql } from 'react-relay';
  * `tagKeys` comes back empty from both fields for now (the backend documents it),
  * which is why the tag chips are fed from the fleet-wide facets instead — a
  * backend gap, not a wiring one.
+ *
+ * The two halves take SEPARATE filter variables because they describe different
+ * sets by definition, not just by narrowing: Available is scoped to the statuses
+ * a script may target (no PENDING_DELETION — see `toAvailableDeviceFilter`),
+ * while Assigned must keep describing the whole assignment, strays included.
+ * One shared variable would either offer "Pending deletion" as an available
+ * option or hide an assigned stray from the Selected funnel.
  */
 export const scheduleDeviceFiltersRelayQuery = graphql`
   query scheduleDeviceFiltersRelayQuery(
     $scheduleId: ID!
-    $filter: DeviceFilterInput
+    $availableFilter: DeviceFilterInput
+    $assignedFilter: DeviceFilterInput
     $search: String
     $available: Boolean!
     $assigned: Boolean!
   ) {
     scriptSchedule(id: $scheduleId) {
       id
-      availableDeviceFilters(filter: $filter, search: $search) @include(if: $available) {
+      availableDeviceFilters(filter: $availableFilter, search: $search) @include(if: $available) {
         ...scheduleDeviceFiltersRelay_facets
       }
-      assignedDeviceFilters(filter: $filter, search: $search) @include(if: $assigned) {
+      assignedDeviceFilters(filter: $assignedFilter, search: $search) @include(if: $assigned) {
         ...scheduleDeviceFiltersRelay_facets
       }
     }

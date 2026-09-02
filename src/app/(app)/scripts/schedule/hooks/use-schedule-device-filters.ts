@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useFragment, useLazyLoadQuery } from 'react-relay';
 import type { scheduleDeviceFiltersRelay_facets$key as FacetsFragmentKey } from '@/__generated__/scheduleDeviceFiltersRelay_facets.graphql';
 import type { scheduleDeviceFiltersRelayQuery as ScheduleDeviceFiltersQueryType } from '@/__generated__/scheduleDeviceFiltersRelayQuery.graphql';
+import { SCRIPT_TARGETABLE_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import type { DeviceFilters } from '@/app/(app)/devices/types/device.types';
 import { useRetryKey } from '@/app/components/shared';
@@ -12,7 +13,7 @@ import {
   scheduleDeviceFiltersRelayFacetsFragment,
   scheduleDeviceFiltersRelayQuery,
 } from '@/graphql/scripts/schedule-device-filters-relay';
-import { UNFILTERED } from '../utils/schedule-device-filters';
+import { TARGETABLE_UNFILTERED, UNFILTERED } from '../utils/schedule-device-filters';
 
 /** What a facet-less answer looks like — a schedule that resolved to nothing. */
 const EMPTY_FILTERS: DeviceFilters = {
@@ -84,7 +85,10 @@ export function useScheduleDeviceFilters(
     {
       scheduleId,
       // See above: the options describe the half, not the current narrowing.
-      filter: toRelayDeviceFilter(UNFILTERED),
+      // The available half is additionally scoped to script-targetable statuses
+      // — that is its definition now, not a narrowing (see the query's doc).
+      availableFilter: toRelayDeviceFilter(TARGETABLE_UNFILTERED),
+      assignedFilter: toRelayDeviceFilter(UNFILTERED),
       search: null,
       // Not `half === …` alone: with `prefetchOtherHalf` the variables stay
       // constant across a tab switch, which is what keeps that switch free.
@@ -109,8 +113,18 @@ export function useScheduleDeviceFilters(
   // groups on every keystroke in the search box.
   return useMemo(() => {
     if (!facets) return { ...EMPTY_FILTERS, tagKeys: fleetFacets.tagKeys };
+    // The `availableFilter` statuses scope does NOT reach the statuses facet:
+    // the backend resolves that dimension excluding its own filter, so a
+    // "Pending deletion" option comes back offering devices the list never
+    // shows (observed on test-env). Stripped here for the available half; the
+    // assigned half keeps every status so a stray assigned device stays
+    // findable.
+    const statuses =
+      half === 'available'
+        ? facets.statuses.filter(option => (SCRIPT_TARGETABLE_STATUSES as readonly string[]).includes(option.value))
+        : [...facets.statuses];
     return {
-      statuses: [...facets.statuses],
+      statuses,
       deviceTypes: [...facets.deviceTypes],
       osTypes: [...facets.osTypes],
       organizationIds: [...facets.organizationIds],
@@ -119,5 +133,5 @@ export function useScheduleDeviceFilters(
       tagKeys: facets.tagKeys.length > 0 ? [...facets.tagKeys] : fleetFacets.tagKeys,
       filteredCount: facets.filteredCount,
     };
-  }, [facets, fleetFacets.tagKeys]);
+  }, [facets, fleetFacets.tagKeys, half]);
 }

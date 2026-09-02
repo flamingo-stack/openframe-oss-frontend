@@ -1,6 +1,7 @@
 import type { DeviceFilterInput as RelayDeviceFilterInput } from '@/__generated__/addAllDevicesToScheduleMutation.graphql';
 import type { deviceSelectorFields_machine$key } from '@/__generated__/deviceSelectorFields_machine.graphql';
 import type { ScheduleDeviceCriteriaInput } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
+import { SCRIPT_TARGETABLE_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
 import { machineSelectorToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { DeviceSelectorNarrowing } from '@/app/components/shared/device-selector/device-selector.types';
@@ -17,6 +18,34 @@ export const EMPTY_NARROWING: DeviceSelectorNarrowing = { columnFilters: [], tag
  * makes the second unpickable. Module-level so the query key stays stable.
  */
 export const UNFILTERED: DeviceFilterInput = {};
+
+/**
+ * The AVAILABLE half offers only devices a script can still land on — the fleet
+ * minus PENDING_DELETION (and the archive pair). `statuses` is an include-list,
+ * so the exclusion is expressed by listing everything else.
+ *
+ * Applied to the available list, its facets and Add All, and deliberately NOT to
+ * the Selected list or Remove All: a device assigned before it went into pending
+ * deletion must stay visible and removable there, not linger invisibly on the
+ * schedule. (The backend additionally skips such devices at dispatch time, so an
+ * assignment holding one is stale, not dangerous.)
+ *
+ * Picked statuses are INTERSECTED with the targetable set, not trusted: the
+ * funnel is fed from `availableDeviceFilters`, whose statuses facet comes back
+ * unscoped by its own dimension (verified against test-env — a statuses-scoped
+ * filter still returned a "Pending deletion" option), so `useScheduleDeviceFilters`
+ * strips it client-side, and this intersection is the backstop for any narrowing
+ * that reaches the query anyway. An empty result of that intersection falls back
+ * to the full targetable list — an empty `statuses` array would mean "any".
+ */
+export function toAvailableDeviceFilter(filter: DeviceFilterInput): DeviceFilterInput {
+  const targetable = SCRIPT_TARGETABLE_STATUSES as readonly string[];
+  const picked = filter.statuses?.filter(status => targetable.includes(status));
+  return { ...filter, statuses: picked?.length ? picked : [...SCRIPT_TARGETABLE_STATUSES] };
+}
+
+/** The available half with no user narrowing — module-level so query keys stay stable. */
+export const TARGETABLE_UNFILTERED: DeviceFilterInput = toAvailableDeviceFilter(UNFILTERED);
 
 /**
  * Turns the picker's narrowing vocabulary into the backend's.

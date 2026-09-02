@@ -24,7 +24,12 @@ import {
   scheduleDevicePickerRelayQuery,
 } from '@/graphql/scripts/schedule-device-picker-relay';
 import { useScheduleDeviceFilters } from '../hooks/use-schedule-device-filters';
-import { DEVICE_PICKER_PAGE_SIZE, toDevices, toRelayFilter } from '../utils/schedule-device-filters';
+import {
+  DEVICE_PICKER_PAGE_SIZE,
+  toAvailableDeviceFilter,
+  toDevices,
+  toRelayFilter,
+} from '../utils/schedule-device-filters';
 
 /**
  * The info bar and the mode radio are rendered by the PAGE, above the subtree
@@ -75,7 +80,20 @@ export function SchedulePickerLists({
   onAddAll,
   onRemoveAll,
 }: SchedulePickerListsProps) {
-  const variables = {
+  // The halves are read under DIFFERENT filters, not one: Available is scoped to
+  // script-targetable statuses (no PENDING_DELETION — see
+  // `toAvailableDeviceFilter`), while Selected keeps the narrowing as typed, so
+  // a device that went into pending deletion after being assigned stays visible
+  // and removable. Everything keyed by these filters — the mutation updaters and
+  // `refreshLists` in `useScheduleDeviceAssignment` — splits the same way.
+  const availableVariables = {
+    scheduleId,
+    filter: toRelayFilter(toAvailableDeviceFilter(deferredFilter)),
+    search: deferredSearch || null,
+    first: DEVICE_PICKER_PAGE_SIZE,
+    after: null,
+  };
+  const assignedVariables = {
     scheduleId,
     filter: toRelayFilter(deferredFilter),
     search: deferredSearch || null,
@@ -87,10 +105,10 @@ export function SchedulePickerLists({
   // mutation's updaters, so these re-render from it once and are then already
   // right; only the bulk actions, which replace the assignment wholesale, go
   // back to the network.
-  const availableData = useLazyLoadQuery<AvailableQueryType>(scheduleDevicePickerRelayQuery, variables, {
+  const availableData = useLazyLoadQuery<AvailableQueryType>(scheduleDevicePickerRelayQuery, availableVariables, {
     fetchPolicy: 'store-and-network',
   });
-  const assignedData = useLazyLoadQuery<AssignedQueryType>(scheduleDevicePickerRelayAssignedQuery, variables, {
+  const assignedData = useLazyLoadQuery<AssignedQueryType>(scheduleDevicePickerRelayAssignedQuery, assignedVariables, {
     fetchPolicy: 'store-and-network',
   });
 

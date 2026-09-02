@@ -19,9 +19,14 @@ import {
 } from '@/graphql/scripts/schedule-device-picker-relay';
 import { setScheduleDeviceCriteriaMutation } from '@/graphql/scripts/set-schedule-device-criteria-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { assignmentUpdaters, type ConnectionNarrowing } from '../utils/schedule-assignment-updaters';
+import { type AssignmentNarrowings, assignmentUpdaters } from '../utils/schedule-assignment-updaters';
 import type { ScheduleCriteria } from '../utils/schedule-criteria';
-import { DEVICE_PICKER_PAGE_SIZE, toRelayCriteria, toRelayFilter } from '../utils/schedule-device-filters';
+import {
+  DEVICE_PICKER_PAGE_SIZE,
+  toAvailableDeviceFilter,
+  toRelayCriteria,
+  toRelayFilter,
+} from '../utils/schedule-device-filters';
 
 interface UseScheduleDeviceAssignmentOptions {
   scheduleId: string;
@@ -93,9 +98,14 @@ export function useScheduleDeviceAssignment({
     queryVarsRef.current = { filter: deferredFilter, search: deferredSearch };
   }, [deferredFilter, deferredSearch]);
 
-  const connectionNarrowing = useCallback((): ConnectionNarrowing => {
+  // Per half, mirroring how the picker reads them: Available under the
+  // script-targetable status scope, Selected under the narrowing as typed.
+  const connectionNarrowing = useCallback((): AssignmentNarrowings => {
     const { filter: f, search: term } = queryVarsRef.current;
-    return { filter: toRelayFilter(f), search: term || null };
+    return {
+      available: { filter: toRelayFilter(toAvailableDeviceFilter(f)), search: term || null },
+      assigned: { filter: toRelayFilter(f), search: term || null },
+    };
   }, []);
 
   const errorHandler = useCallback(
@@ -116,17 +126,19 @@ export function useScheduleDeviceAssignment({
    * store directly.
    */
   const refreshLists = useCallback(() => {
-    const variables = { scheduleId, ...connectionNarrowing(), first: DEVICE_PICKER_PAGE_SIZE, after: null };
+    const { available, assigned } = connectionNarrowing();
+    const availableVariables = { scheduleId, ...available, first: DEVICE_PICKER_PAGE_SIZE, after: null };
+    const assignedVariables = { scheduleId, ...assigned, first: DEVICE_PICKER_PAGE_SIZE, after: null };
     // Both halves report their own failure, and they have to. The mutation that
     // called this one has already toasted its success, and these re-reads are the
     // only thing that puts the new assignment on screen — so a failure swallowed
     // here leaves the user looking at the PREVIOUS lists having just been told
     // the new ones were saved.
     const onError = errorHandler('Devices were saved, but the lists could not be refreshed');
-    fetchQuery(environment, scheduleDevicePickerRelayQuery, variables, { fetchPolicy: 'network-only' }).subscribe({
-      error: onError,
-    });
-    fetchQuery(environment, scheduleDevicePickerRelayAssignedQuery, variables, {
+    fetchQuery(environment, scheduleDevicePickerRelayQuery, availableVariables, {
+      fetchPolicy: 'network-only',
+    }).subscribe({ error: onError });
+    fetchQuery(environment, scheduleDevicePickerRelayAssignedQuery, assignedVariables, {
       fetchPolicy: 'network-only',
     }).subscribe({ error: onError });
   }, [environment, scheduleId, connectionNarrowing, errorHandler]);
@@ -180,7 +192,12 @@ export function useScheduleDeviceAssignment({
   const addAllDevices = useCallback(() => {
     const { filter: f, search: s } = narrowingRef.current;
     commitAddAll({
-      variables: { scheduleId, filter: toRelayFilter(f), search: s || null },
+      // The AVAILABLE filter, not the raw narrowing: "Add All" adds what the
+      // Available list shows, and that list is scoped to script-targetable
+      // statuses — the raw narrowing would quietly re-include PENDING_DELETION
+      // devices the list never offered. Remove All below stays raw, mirroring
+      // the Selected list the same way.
+      variables: { scheduleId, filter: toRelayFilter(toAvailableDeviceFilter(f)), search: s || null },
       onCompleted: response => {
         toast({
           title: 'Devices assigned',
