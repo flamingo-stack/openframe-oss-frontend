@@ -1,43 +1,21 @@
 /**
- * Files that use react-hook-form AT RUNTIME must opt out of the React Compiler
- * with a module-level `'use no memo'` directive.
+ * Requires a module-level `'use no memo'` in files that drive react-hook-form state.
  *
- * Why: react-hook-form's core objects are interiorly mutable by design — `control`
- * is mutated in place, and `formState` is a Proxy that decides what to re-render
- * from which properties were touched. The compiler memoizes on the assumption that
- * values it has already seen do not change underneath it, so a mutation it cannot
- * observe is not re-read: `watch()` returns stale values inside `useFormContext()`
- * children, `formState` read through context stops triggering re-renders, and a
- * plain `register()` + `reset()` leaves the mount set empty so the input never
- * receives the restored value. See
- * https://github.com/orgs/react-hook-form/discussions/12524.
+ * The library mutates `control` in place and proxies `formState`; memoization on top of
+ * that does not re-read what it cannot see change, so `watch()` goes stale inside
+ * `useFormContext()` children and `register()` + `reset()` leaves the input empty.
+ * https://github.com/orgs/react-hook-form/discussions/12524
  *
- * None of that is a rule violation the compiler's own diagnostics can catch —
- * the mutation happens inside the library — so nothing else in the lint set
- * reports it. Hence this rule.
+ * Module-scoped, not per-function: form state spans a hook file and the fields it feeds.
+ * Type-only imports count when they name a handle on the live form (see
+ * {@link FORM_STATE_CARRIER_TYPES}) — `use-seed-form.ts` imports types only and calls
+ * `form.reset()`.
  *
- * The directive is module-scoped on purpose (the compiler honours it via
- * `hasModuleScopeOptOut`): the form state usually spans a hook file and the field
- * components it feeds, so opting out one function while its neighbours stay
- * compiled reintroduces the same split the bug lives in.
- *
- * Type-only imports are ignored — with one exception. A type erases at build time,
- * so a file that only names `FieldValues` runs no library code and de-optimizing it
- * would cost memoization for nothing. But some of these types are HANDLES on the
- * live form object: a file typed `UseFormReturn` or `Control` calls `reset()`,
- * reads the `formState` proxy and passes `control` on, which is the mutation this
- * rule exists for, whether or not the import survives compilation. Those names are
- * listed in {@link FORM_STATE_CARRIER_TYPES} and count like a runtime import.
- * `use-seed-form.ts` is the case that forced the distinction: type-only imports,
- * and it does nothing but `form.reset()` behind a `formState.isDirty` check.
- *
- * This is a workaround with an exit: the discussion reports most cases fixed on
- * react-hook-form 7.75 + React 19.2.5. When this repo is on those, re-test and
- * delete the rule plus the directives it required — a module-scope opt-out is
- * invisible once it is in place, so it will not remove itself.
- *
- * @type {import('eslint').Rule.RuleModule}
+ * Delete this rule and its directives on react-hook-form 7.75 + React 19.2.5, where the
+ * discussion reports these cases fixed.
  */
+
+/** Types that hand a file the live form object, so a type-only import still counts. */
 const FORM_STATE_CARRIER_TYPES = new Set([
   'Control',
   'ControllerRenderProps',
@@ -53,6 +31,7 @@ const FORM_STATE_CARRIER_TYPES = new Set([
   'UseFormWatch',
 ]);
 
+/** @type {import('eslint').Rule.RuleModule} */
 export const reactHookFormNeedsNoMemo = {
   meta: {
     type: 'problem',
@@ -76,8 +55,7 @@ export const reactHookFormNeedsNoMemo = {
         if (offendingImport !== null || node.source.value !== 'react-hook-form') return;
 
         const isTypeOnlyDeclaration = node.importKind === 'type';
-        // A bare `import 'react-hook-form'` has no specifiers and IS runtime;
-        // otherwise at least one specifier has to survive erasure.
+        // A bare `import 'react-hook-form'` is runtime; otherwise a specifier must survive erasure.
         const hasRuntimeSpecifier =
           !isTypeOnlyDeclaration &&
           (node.specifiers.length === 0 || node.specifiers.some(specifier => specifier.importKind !== 'type'));
@@ -105,9 +83,8 @@ export const reactHookFormNeedsNoMemo = {
           messageId: 'missingDirective',
           fix(fixer) {
             const last = directives.at(-1);
-            // After the last existing directive so `'use client'` stays first —
-            // Next reads it off the prologue and a displaced one silently turns
-            // the file into a Server Component.
+            // After any existing directive: `'use client'` must stay first or Next stops
+            // seeing it.
             return last === undefined
               ? fixer.insertTextBeforeRange([0, 0], "'use no memo';\n\n")
               : fixer.insertTextAfter(last, "\n'use no memo';");

@@ -342,22 +342,11 @@ export default defineConfig([
   },
 
   {
-    // React Compiler + react-hook-form. The library mutates `control` in place and
-    // hands out `formState` as a Proxy that tracks which properties were read;
-    // memoization the compiler applies on top of that does not re-read what it
-    // cannot see changing, which is how `watch()` goes stale inside
-    // `useFormContext()` children and a `register()` + `reset()` leaves the input
-    // empty. The compiler's own diagnostics cannot catch it — the mutation is
-    // inside the library — so this is the rule that does.
-    //
-    // Local because it encodes a fact about THIS repo's dependency set, not a
-    // React rule: the shared config has no business asserting which libraries a
-    // consumer pins. If the other Flamingo frontends adopt the compiler with
-    // react-hook-form, promote it there instead of copying it.
-    //
-    // Remove both the rule and the directives it required once this repo is on
-    // react-hook-form 7.75 + React 19.2.5, where the discussion reports most of
-    // these cases fixed — see the rule's own header.
+    // react-hook-form mutates `control` and proxies `formState`, which the React
+    // Compiler's memoization cannot observe (stale `watch()`, dead `reset()`), and its
+    // own diagnostics cannot catch it. Local rather than shared: it encodes this repo's
+    // dependency set, not a React rule. Drop it, and the directives, on react-hook-form
+    // 7.75 + React 19.2.5 — see the rule's header.
     name: 'openframe-frontend/react-hook-form-react-compiler',
     files: ['**/*.{ts,tsx}'],
     plugins: { openframe: openframeRules },

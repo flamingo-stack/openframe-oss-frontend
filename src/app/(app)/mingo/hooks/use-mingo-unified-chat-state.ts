@@ -264,12 +264,8 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // source object yields a stable UnifiedChatMessage too — the lib's reference-
   // equality memo then re-renders only the streaming bubble, not the whole list
   // (which would otherwise collapse open menus/cards on every chunk).
-  // A lazy `useState` initializer rather than a ref: the map is read while
-  // RENDERING the message list, and a ref read during render is the one thing
-  // refs are not for — the compiler refuses to optimize a function that does it
-  // (and bailed out of this entire hook). `useState` gives the same
-  // create-once-per-mount identity with none of that; nothing ever calls the
-  // setter, so the value is stable for the hook's lifetime.
+  // `useState`, not `useRef`: the map is read while rendering, and a ref read during
+  // render is what the compiler bails out over. Same create-once identity.
   const [unifiedCache] = useState(() => new WeakMap<object, UnifiedChatMessage>());
   const messages = useMemo<UnifiedChatMessage[]>(() => {
     const cache = unifiedCache;

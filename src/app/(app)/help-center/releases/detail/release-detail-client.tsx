@@ -83,18 +83,9 @@ function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; i
   );
 }
 
-/**
- * The React Compiler skips this component, and it stays that way: `ReleaseDetailPage`
- * takes its data hook AS A PROP (`useRelease: (slug) => UseReleaseResult`), which is
- * "passing a hook around as a regular value" — a React rule violation the compiler
- * refuses to compile past. The contract belongs to the core library and is shared
- * across the Flamingo frontends, so it cannot be changed from here, and renaming
- * `useRelease` to hide it from the compiler would also hide it from the hooks lint
- * rules that legitimately apply inside it.
- *
- * The cost is nil in practice: this component is a prop-forwarding wrapper with no
- * state and no derived values, so there is nothing here to memoize.
- */
+// The React Compiler skips this one: `ReleaseDetailPage` takes its data hook as a prop,
+// which is "passing a hook around as a value". The contract is the core library's. Costs
+// nothing — this is a prop-forwarding wrapper with nothing to memoize.
 export function ReleaseDetailClient({ slug }: { slug: string }) {
   return (
     <ReleaseDetailPage

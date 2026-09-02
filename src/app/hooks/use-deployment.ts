@@ -65,11 +65,8 @@ const useDeploymentStore = create<DeploymentState>()(
  */
 export function useDeployment() {
   const { deployment, isInitialized, initialize } = useDeploymentStore();
-  // Through the hook, not `useDeploymentStore.getState().reset` in the returned
-  // object: naming a hook as a value (rather than calling it) is a React rule
-  // violation the compiler enforces, and it bailed out of this whole hook over it.
-  // The action is created once by the store, so the subscription this adds never
-  // fires.
+  // Through the hook, not `useDeploymentStore.getState().reset`: naming a hook as a value
+  // is a rule violation the compiler bails out over. The action never changes.
   const reset = useDeploymentStore(state => state.reset);
   const [isLoading, setIsLoading] = useState(!isInitialized);
 
