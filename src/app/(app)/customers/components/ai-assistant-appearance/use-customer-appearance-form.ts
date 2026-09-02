@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';

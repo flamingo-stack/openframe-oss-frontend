@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {

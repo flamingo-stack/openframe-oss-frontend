@@ -4,6 +4,8 @@ import relay from '@flamingo-stack/openframe-frontend-core/eslint-config/relay';
 import tests from '@flamingo-stack/openframe-frontend-core/eslint-config/tests';
 import { defineConfig } from 'eslint/config';
 
+import openframeRules from './eslint-rules/react-hook-form-needs-no-memo.mjs';
+
 /*
  * The fast pass — no type-aware rules. This is what the editor loads (see
  * .vscode/settings.json) and what `npm run lint` runs; the type-aware half
@@ -337,6 +339,29 @@ export default defineConfig([
     name: 'openframe-frontend/testing-library-imports-only',
     files: ['**/*.{test,spec}.{js,mjs,cjs,jsx,ts,tsx}', '**/__tests__/**/*.{js,mjs,cjs,jsx,ts,tsx}'],
     settings: { 'testing-library/utils-module': 'off' },
+  },
+
+  {
+    // React Compiler + react-hook-form. The library mutates `control` in place and
+    // hands out `formState` as a Proxy that tracks which properties were read;
+    // memoization the compiler applies on top of that does not re-read what it
+    // cannot see changing, which is how `watch()` goes stale inside
+    // `useFormContext()` children and a `register()` + `reset()` leaves the input
+    // empty. The compiler's own diagnostics cannot catch it — the mutation is
+    // inside the library — so this is the rule that does.
+    //
+    // Local because it encodes a fact about THIS repo's dependency set, not a
+    // React rule: the shared config has no business asserting which libraries a
+    // consumer pins. If the other Flamingo frontends adopt the compiler with
+    // react-hook-form, promote it there instead of copying it.
+    //
+    // Remove both the rule and the directives it required once this repo is on
+    // react-hook-form 7.75 + React 19.2.5, where the discussion reports most of
+    // these cases fixed — see the rule's own header.
+    name: 'openframe-frontend/react-hook-form-react-compiler',
+    files: ['**/*.{ts,tsx}'],
+    plugins: { openframe: openframeRules },
+    rules: { 'openframe/react-hook-form-needs-no-memo': 'error' },
   },
 
   {

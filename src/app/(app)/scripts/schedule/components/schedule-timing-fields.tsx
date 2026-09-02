@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {

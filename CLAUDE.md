@@ -432,9 +432,33 @@ What it changes about how you write code here:
 - **`panicThreshold` is the default `'none'`**: a function the compiler cannot compile is skipped,
   never a build error. So enabling this cannot break the build — but it also means a bail-out is
   invisible unless the lint rules catch it.
-- **Escape hatch:** the `'use no memo'` directive at the top of a function opts that one
-  component/hook out. There is no use of it in `src/` today; adding one needs a comment saying
-  what broke, because it is a silent, permanent de-optimization otherwise.
+- **Escape hatch:** the `'use no memo'` directive opts a function — or, at the top of a file,
+  the whole module (`hasModuleScopeOptOut`) — out of compilation. Adding one needs a stated
+  reason, because it is a silent, permanent de-optimization otherwise. The only ones in `src/`
+  today are the react-hook-form opt-outs below.
+
+**react-hook-form files are opted out, and a lint rule enforces it.** The library mutates
+`control` in place and hands out `formState` as a Proxy that decides re-renders from which
+properties were read; memoization on top of that does not re-read what it cannot see change, so
+`watch()` goes stale inside `useFormContext()` children, `formState` read through context stops
+re-rendering, and `register()` + `reset()` leaves the input empty
+([discussion](https://github.com/orgs/react-hook-form/discussions/12524)). The compiler's own
+diagnostics cannot see it — the mutation is inside the library.
+
+`eslint-rules/react-hook-form-needs-no-memo.mjs` (wired in as `openframe/…`, at `error`) requires a
+module-level `'use no memo'` in any file that imports react-hook-form at runtime **or** imports one
+of its form-state handle types (`UseFormReturn`, `Control`, …) — a type-only import still means the
+file calls `reset()` and reads the proxy. It autofixes, placing the directive below `'use client'`.
+34 files, costing 41 functions their memoization.
+
+The compiler ships its own knowledge of this in `DefaultModuleTypeProvider`, but only for
+`useForm().watch` (plus `@tanstack/react-table`'s `useReactTable` and `react-virtual`'s
+`useVirtualizer`, neither of which `src/` calls — the core lib does, and **node_modules is never
+compiled**, `transpilePackages` or not). Our rule covers the paths it does not know about.
+
+This is a workaround with an exit: the discussion reports most cases fixed on react-hook-form 7.75 +
+React 19.2.5 (this repo is on 7.71 / 19.2.4). On that upgrade, re-test and delete the rule and its
+directives — a module-scope opt-out never removes itself.
 
 Cost measured on this repo when it was turned on: `next build` 18.0s → 20.6s, client chunks
 17.8 MB → 18.4 MB raw (+3.3%) — the compiler emits memo-cache bookkeeping into every component it
@@ -733,6 +757,7 @@ library, the same one the library and every other Flamingo frontend loads.
 
 ```
 eslint.config.mjs   next + relay + tests + prettier-compat  ← the fast pass, what the editor loads
+eslint-rules/       repo-local rules, registered under the `openframe/` prefix
 eslint.ci.mjs       − relay/unused-fields                   ← npm run lint:ci, the PR gate
 eslint.types.mjs    + type-checked                          ← npm run lint:types
 eslint.cycles.mjs   + cycles (import/no-cycle)              ← npm run lint:cycles

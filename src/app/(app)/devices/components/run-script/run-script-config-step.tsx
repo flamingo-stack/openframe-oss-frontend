@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
 import { Button, CheckboxBlock, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';

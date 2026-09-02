@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { Input, Label } from '@flamingo-stack/openframe-frontend-core';
 import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
