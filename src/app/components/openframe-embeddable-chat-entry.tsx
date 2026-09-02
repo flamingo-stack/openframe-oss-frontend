@@ -45,6 +45,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
 import { mingoDialogLink } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
+import { KNOWLEDGE_BASE_ROUTE } from '../(app)/help-center/endpoints';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../(app)/mingo/context/context-sources';
 import { CONTEXT_ITEMS_MAX } from '../(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoMention } from '../(app)/mingo/context/mention-chips/render-mention';
@@ -293,6 +294,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         // the uncontrolled active mode defaults to 'mingo'.
         modes={{}}
         mingoState={state}
+        baseRoute={KNOWLEDGE_BASE_ROUTE}
         // PENDING approval cards are FILTERED OUT of their bubble by
         // `useMingoChat` (dedupe for interrupted retries), so a card that the
         // reducer built renders nowhere unless it is handed back here — the
