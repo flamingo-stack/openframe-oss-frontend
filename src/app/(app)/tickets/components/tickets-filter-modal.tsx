@@ -2,7 +2,7 @@
 
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete, Button, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { AssigneeFilter } from './assignee-filter';
 import { OrganizationFilter } from './organization-filter';
@@ -40,13 +40,19 @@ export function TicketsFilterModal({
   const [localAssigneeIds, setLocalAssigneeIds] = useState(assigneeIds);
   const [localStatus, setLocalStatus] = useState<string[]>(status?.value ?? []);
 
-  useEffect(() => {
+  // Seeded on the open transition, during render rather than in an effect: an
+  // effect paints the previous values once before correcting them, and keying off
+  // the transition alone stops a background refresh from resetting the user's
+  // in-progress selection while the modal is up.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setLocalOrganizationIds(organizationIds);
       setLocalAssigneeIds(assigneeIds);
       setLocalStatus(status?.value ?? []);
     }
-  }, [isOpen, organizationIds, assigneeIds, status?.value]);
+  }
 
   const handleReset = () => {
     onApply({ organizationIds: [], assigneeIds: [], ...(status && { status: [] }) });
@@ -69,10 +75,10 @@ export function TicketsFilterModal({
       title="Filter Tickets"
       footer={
         <>
-          <Button variant="outline" className="flex-1 h-11" onClick={handleReset}>
+          <Button variant="outline" className="h-11 flex-1" onClick={handleReset}>
             Reset Filters
           </Button>
-          <Button variant="accent" className="flex-1 h-11" onClick={handleApply}>
+          <Button variant="accent" className="h-11 flex-1" onClick={handleApply}>
             Apply Filters
           </Button>
         </>

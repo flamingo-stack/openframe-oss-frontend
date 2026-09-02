@@ -24,6 +24,7 @@ interface AiSpendLimitFieldsProps {
    * limit switched off (`null`). Surfaces that write immediately hang the
    * mutation here; the modal leaves it out and saves from its own button.
    */
+
   onCommit?: (capUsd: number | null) => void;
 }
 
@@ -80,7 +81,7 @@ export function AiSpendLimitFields({ limit, disabled = false, onCommit }: AiSpen
       {limit.enabled && (
         <>
           <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
-            <p className="text-h5 text-ods-text-secondary">Set a monthly spending limit</p>
+            <p className="text-ods-text-secondary text-h5">Set a monthly spending limit</p>
             <div className="grid grid-cols-1 gap-[var(--spacing-system-xsf)] sm:grid-cols-2">
               {PRESET_TOKEN_LIMITS.map(tokens => {
                 const usd = limit.tokensToUsd(tokens);
@@ -117,7 +118,7 @@ export function AiSpendLimitFields({ limit, disabled = false, onCommit }: AiSpen
                 placeholder="0"
                 value={limit.customMillions}
                 disabled={disabled}
-                endAdornment={<span className="text-h6 text-ods-text-secondary">million tokens</span>}
+                endAdornment={<span className="text-ods-text-secondary text-h6">million tokens</span>}
                 onChange={event => limit.setCustomMillions(event.target.value.replace(/[^\d.]/g, ''))}
                 onBlur={handleCustomCommit}
                 onKeyDown={event => {
@@ -126,7 +127,7 @@ export function AiSpendLimitFields({ limit, disabled = false, onCommit }: AiSpen
               />
               {/* Holds its line whether or not there is an amount yet, so typing
                   one does not push the rest of the form down. */}
-              <p className="min-h-5 text-h6 text-ods-text-secondary">
+              <p className="min-h-5 text-ods-text-secondary text-h6">
                 {customUsd != null ? `~${formatCurrency(customUsd)}` : ''}
               </p>
             </div>
@@ -164,7 +165,7 @@ function LimitTile({ selected, disabled, title, subtitle, onSelect }: LimitTileP
       )}
     >
       <span className="flex min-w-0 flex-1 flex-col justify-center">
-        <span className="truncate text-h4 text-ods-text-primary">{title}</span>
+        <span className="truncate text-ods-text-primary text-h4">{title}</span>
         <span className={cn('truncate text-h6', selected ? 'text-ods-accent' : 'text-ods-text-secondary')}>
           {subtitle}
         </span>

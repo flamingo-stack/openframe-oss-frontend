@@ -6,14 +6,7 @@ import type { EmptyStateProps } from './empty-state';
 
 /** Sections whose empty state carries an onboarding-guide footer button. */
 export type OnboardingGuideSource =
-  | 'queries'
-  | 'customers'
-  | 'policies'
-  | 'scripts'
-  | 'script-schedules'
-  | 'logs'
-  | 'devices'
-  | 'tickets';
+  'queries' | 'customers' | 'policies' | 'scripts' | 'script-schedules' | 'logs' | 'devices' | 'tickets';
 
 interface OnboardingGuide {
   /** Section noun, spliced into the button label ("… about Script Schedules"). */

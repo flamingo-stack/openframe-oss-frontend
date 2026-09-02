@@ -20,11 +20,8 @@ const tagsEditorRootQuery = graphql`
 // Exported so useTagKeySuggestions can import the fragment
 export const keySuggestionsFragment = graphql`
   fragment tagsEditor_keySuggestions on Query
-    @refetchable(queryName: "tagsEditorKeySuggestionsRefetchQuery")
-    @argumentDefinitions(
-      search: { type: "String" }
-      limit: { type: "Int" }
-    ) {
+  @refetchable(queryName: "tagsEditorKeySuggestionsRefetchQuery")
+  @argumentDefinitions(search: { type: "String" }, limit: { type: "Int" }) {
     tagKeySuggestions(search: $search, limit: $limit) {
       id
       key
@@ -85,7 +82,7 @@ export function TagsEditor({ tags, onTagsChange, addLabel = 'Add Tag' }: TagsEdi
           type="button"
           variant="outline"
           size="small"
-          className="text-ods-text-primary self-start"
+          className="self-start text-ods-text-primary"
           onClick={addTag}
           leftIcon={<PlusCircle className="size-6" />}
         >

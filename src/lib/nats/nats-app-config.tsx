@@ -38,7 +38,7 @@ function useNatsAppConfigState(): NatsAppConfig {
   const [token, setToken] = useState<string | null>(isDevTicketEnabled ? getAccessToken() : null);
 
   useEffect(() => {
-    if (!isDevTicketEnabled) return;
+    if (!isDevTicketEnabled) return undefined;
     // Web: token rotations land in localStorage and surface as `storage` events.
     // Native: tokens live only in the token-store memory cache + Keychain, so the
     // `storage` event never fires — subscribe to the store's change emitter so the

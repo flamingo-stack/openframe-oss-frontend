@@ -22,12 +22,12 @@ export function AiSettingsAdminCard({ aiConfig, providerModelLabel }: AiSettings
   const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : '—';
 
   return (
-    <div className="bg-ods-card border border-ods-border rounded-md grid grid-cols-1 sm:grid-cols-3">
+    <div className="grid grid-cols-1 rounded-md border border-ods-border bg-ods-card sm:grid-cols-3">
       <div className={CELL}>
         <InfoCell
           value={LLM_PROVIDER_LABEL[aiConfig.llmProvider]}
           label="Mingo LLM Provider"
-          icon={<ProviderIcon className="w-6 h-6 text-ods-text-secondary" />}
+          icon={<ProviderIcon className="h-6 w-6 text-ods-text-secondary" />}
         />
       </div>
       <div className={CELL}>

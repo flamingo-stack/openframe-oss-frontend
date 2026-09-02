@@ -60,12 +60,12 @@ export function DateColumnHeader({ label, filter, actionHint = 'Sort and filter 
   // the skeleton's inert <div> and the live <button> lay out identically.
   const content = (
     <>
-      <span className="text-h5 text-ods-text-secondary whitespace-nowrap transition-colors duration-200 group-hover:text-ods-text-primary">
+      <span className="whitespace-nowrap text-ods-text-secondary transition-colors duration-200 text-h5 group-hover:text-ods-text-primary">
         {label}
       </span>
       <CalendarIcon
         className={cn(
-          'w-4 h-4 transition-colors duration-200',
+          'h-4 w-4 transition-colors duration-200',
           active ? 'text-ods-accent' : 'text-ods-text-secondary group-hover:text-ods-text-primary',
         )}
       />

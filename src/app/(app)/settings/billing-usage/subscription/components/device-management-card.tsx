@@ -39,10 +39,10 @@ export function DeviceManagementCard({
   onUpdatesChange,
 }: DeviceManagementCardProps) {
   return (
-    <Card className="relative flex flex-1 flex-col gap-6 p-6 bg-ods-bg border-ods-border">
+    <Card className="relative flex flex-1 flex-col gap-6 border-ods-border bg-ods-bg p-6">
       <div className="flex flex-col gap-2">
-        <h2 className="text-h2 text-ods-text-primary">Device Management</h2>
-        <p className="text-h4 text-ods-text-primary">
+        <h2 className="text-ods-text-primary text-h2">Device Management</h2>
+        <p className="text-ods-text-primary text-h4">
           Manage every device across your customers. Choose how you'd like to be billed.
         </p>
       </div>

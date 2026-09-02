@@ -92,19 +92,23 @@ import { DeviceCard } from './device-card';
 import type { Device } from '../types/device.types';
 ```
 
-### Formatting
+### Linting and formatting
 
-The project uses [Biome](https://biomejs.dev/) for all formatting. Let it do its job:
+[ESLint](https://eslint.org/) owns the rules, [Prettier](https://prettier.io/) owns the formatting.
+Both rule sets come from the shared config inside `@flamingo-stack/openframe-frontend-core`
+(`eslint-config/`), not from this repo — see its README.
 
 ```bash
-# Auto-fix formatting
-npm run format:fix
-
-# Check without fixing
-npm run lint:biome
+npm run lint         # ESLint, the fast pass
+npm run lint:ci      # What CI blocks on (the fast pass minus the relay/unused-fields backlog)
+npm run lint:fix     # ESLint autofix
+npm run format:fix   # Auto-fix formatting
+npm run format       # Check without fixing
 ```
 
-Do not manually configure tab/space counts or line lengths — let Biome handle it.
+Do not manually configure tab/space counts or line lengths — let Prettier handle it, and note that
+`// eslint-disable` comments do nothing here (`noInlineConfig`): fix the finding, or add a named,
+`files:`-scoped block to `eslint.config.mjs` explaining why it cannot be fixed.
 
 ---
 
@@ -123,7 +127,7 @@ Use descriptive branch names following this convention:
 | `chore/` | Maintenance, deps, tooling | `chore/update-relay-to-v21` |
 | `refactor/` | Code refactoring without behavior change | `refactor/extract-api-client` |
 | `docs/` | Documentation updates | `docs/add-architecture-diagram` |
-| `style/` | Pure formatting/style changes | `style/biome-format-fix` |
+| `style/` | Pure formatting/style changes | `style/prettier-format-fix` |
 
 ### Examples
 
@@ -188,9 +192,9 @@ Run all quality checks locally:
 # Type check
 npm run type-check
 
-# Lint
+# Lint + formatting
 npm run lint
-npm run lint:biome
+npm run format
 
 # Relay compilation
 npm run relay
@@ -226,8 +230,8 @@ Include in your PR description:
 Before requesting review, verify:
 
 - [ ] `npm run type-check` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run lint:biome` passes
+- [ ] `npm run lint` reports nothing new in the files you touched
+- [ ] `npm run format` passes
 - [ ] `npm run relay` compiles successfully
 - [ ] No hardcoded credentials, secrets, or tokens
 - [ ] No `console.log` statements (use proper error handling)

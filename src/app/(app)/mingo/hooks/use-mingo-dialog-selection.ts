@@ -144,11 +144,16 @@ export function useMingoDialogSelection() {
   );
 
   const handleApproveRef = useRef(handleApprove);
-  handleApproveRef.current = handleApprove;
   const handleRejectRef = useRef(handleReject);
-  handleRejectRef.current = handleReject;
   const approvalStatusesRef = useRef(approvalStatuses);
-  approvalStatusesRef.current = approvalStatuses;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    handleApproveRef.current = handleApprove;
+    handleRejectRef.current = handleReject;
+    approvalStatusesRef.current = approvalStatuses;
+  });
 
   // Composer-busy watchdog inputs. `typing without an open streaming message`
   // is the suspicious state: it is asserted by approve/reject clicks and by
@@ -321,7 +326,12 @@ export function useMingoDialogSelection() {
 
   // Busy without an open stream → keep the dialog poll alive (read by
   // refetchInterval at poll time) so the branch-2 heal gets its fresh fetch.
-  suspiciousBusyRef.current = isActiveTyping && !streamingEntryId;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    suspiciousBusyRef.current = isActiveTyping && !streamingEntryId;
+  });
 
   const selectDialogMutation = useMutation({
     mutationFn: async (dialogId: string) => {
@@ -340,17 +350,22 @@ export function useMingoDialogSelection() {
 
   useEffect(() => {
     if (chronologicalMessages.length > 0 && activeDialogId) {
-      const extractedStatuses = chronologicalMessages.reduce<Record<string, ApprovalStatus>>((acc, msg) => {
-        const messageDataArray = Array.isArray(msg.messageData) ? msg.messageData : [msg.messageData];
+      // Only the three fields an approval result carries are read here; the rest
+      // of the (untyped) message payload is none of this hook's business.
+      type ApprovalResultPayload = { type?: string; approvalRequestId?: string; approved?: boolean };
 
-        messageDataArray.forEach((data: any) => {
+      const extractedStatuses: Record<string, ApprovalStatus> = {};
+      for (const msg of chronologicalMessages) {
+        const payloads: ApprovalResultPayload[] = Array.isArray(msg.messageData) ? msg.messageData : [msg.messageData];
+
+        for (const data of payloads) {
           if (data?.type === MESSAGE_TYPE.APPROVAL_RESULT && data.approvalRequestId) {
-            acc[data.approvalRequestId] = data.approved ? APPROVAL_STATUS.APPROVED : APPROVAL_STATUS.REJECTED;
+            extractedStatuses[data.approvalRequestId] = data.approved
+              ? APPROVAL_STATUS.APPROVED
+              : APPROVAL_STATUS.REJECTED;
           }
-        });
-
-        return acc;
-      }, {});
+        }
+      }
 
       if (Object.keys(extractedStatuses).length > 0) {
         setApprovalStatuses(prev => {
@@ -412,7 +427,7 @@ export function useMingoDialogSelection() {
       chatTypeFilter: CHAT_TYPE.ADMIN,
       onApprove: handleApproveRef.current,
       onReject: handleRejectRef.current,
-      approvalStatuses: Object.fromEntries(Object.entries(approvalStatusesRef.current).map(([k, v]) => [k, v as any])),
+      approvalStatuses: { ...approvalStatusesRef.current },
       // Must match the realtime processor (use-mingo-realtime-subscription):
       // an omitted option is not guaranteed to include ADMIN, and a history
       // reprocess (reopen, reconnect invalidation, pagination) would silently

@@ -62,7 +62,7 @@ export function PresenceHeartbeat() {
   const subscriptionOpen = useSubscriptionOpen();
 
   useEffect(() => {
-    if (!subscriptionOpen) return;
+    if (!subscriptionOpen) return undefined;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;

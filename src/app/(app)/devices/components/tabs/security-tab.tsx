@@ -49,17 +49,17 @@ const VALUE_COLOR: Record<SecurityStatus, string> = {
 function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
   const icon =
     status === 'success' ? (
-      <CheckCircleIcon size={16} className="text-ods-success shrink-0" />
+      <CheckCircleIcon size={16} className="shrink-0 text-ods-success" />
     ) : status === 'error' ? (
-      <AlertTriangleIcon size={16} className="text-ods-error shrink-0" />
+      <AlertTriangleIcon size={16} className="shrink-0 text-ods-error" />
     ) : status === 'warning' ? (
-      <AlertTriangleIcon size={16} className="text-ods-warning shrink-0" />
+      <AlertTriangleIcon size={16} className="shrink-0 text-ods-warning" />
     ) : null;
 
   return (
-    <div className="flex h-6 items-center gap-[var(--spacing-system-xs)] w-full">
-      <span className="text-h4 text-ods-text-secondary whitespace-nowrap">{label}</span>
-      <div className="flex-1 h-px bg-ods-divider" />
+    <div className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
+      <span className="whitespace-nowrap text-ods-text-secondary text-h4">{label}</span>
+      <div className="h-px flex-1 bg-ods-divider" />
       <div className="min-w-0">
         <TruncateText className={VALUE_COLOR[status]}>{value}</TruncateText>
       </div>
@@ -71,9 +71,9 @@ function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
 /** Host-local replica of the design's posture card (core `InfoCard` can't color values or add status icons). */
 function SecurityStatusCard({ title, rows }: SecurityCard) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-m)] bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-m)] w-full">
+    <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
       {title && <TruncateText>{title}</TruncateText>}
-      <div className="flex flex-col gap-[var(--spacing-system-xs)] w-full">
+      <div className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
         {rows.map(row => (
           <StatusRow key={row.label} {...row} />
         ))}
@@ -85,7 +85,7 @@ function SecurityStatusCard({ title, rows }: SecurityCard) {
 function SecuritySectionBlock({ title, cards }: Omit<SecuritySection, 'id'>) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <h3 className="text-h5 text-ods-text-secondary uppercase">{title}</h3>
+      <h3 className="uppercase text-ods-text-secondary text-h5">{title}</h3>
       <div className={cn('grid grid-cols-1 gap-[var(--spacing-system-l)]', cards.length > 1 && 'lg:grid-cols-3')}>
         {cards.map((card, index) => (
           <SecurityStatusCard key={card.title ?? index} {...card} />

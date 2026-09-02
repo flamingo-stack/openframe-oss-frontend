@@ -16,7 +16,7 @@ import {
   RESOLVE_TICKET_MUTATION,
   TRANSITION_TICKET_MUTATION,
 } from '../queries/ticket-queries';
-import type { Dialog, DialogStatus, Message } from '../types/dialog.types';
+import type { Dialog, DialogOwnerEnum, DialogStatus, Message } from '../types/dialog.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import type {
@@ -70,7 +70,7 @@ interface TicketNode {
       toolType?: string;
       requiresApproval: boolean;
       approvalType?: string | null;
-      toolCallArguments?: Record<string, any> | null;
+      toolCallArguments?: Record<string, unknown> | null;
     }>;
   } | null;
   notes?: Array<{
@@ -168,7 +168,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
             machineId: ticket.owner.machineId || '',
             machine: ticket.owner.machine,
           }
-        : { type: ticket.owner.type as any },
+        : { type: ticket.owner.type as DialogOwnerEnum },
     createdAt: ticket.createdAt,
     statusUpdatedAt: ticket.updatedAt || null,
     resolvedAt: ticket.resolvedAt || null,

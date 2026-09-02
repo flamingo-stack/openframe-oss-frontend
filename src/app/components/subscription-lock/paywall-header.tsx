@@ -32,10 +32,10 @@ export function PaywallHeader({ copy, deviceCount = null }: PaywallHeaderProps) 
   return (
     <div className="flex flex-col gap-2 pt-6">
       <div className="flex items-start justify-between gap-[var(--spacing-system-mf)]">
-        <h1 className="text-h2 text-ods-text-primary">{copy.title}</h1>
+        <h1 className="text-ods-text-primary text-h2">{copy.title}</h1>
         <LockScreenActionsMenu triggerClassName="shrink-0" />
       </div>
-      <p className="text-h6 text-ods-text-secondary">
+      <p className="text-ods-text-secondary text-h6">
         {deviceCount == null
           ? copy.description
           : `We've detected ${deviceCount.toLocaleString('en-US')} active device${deviceCount === 1 ? '' : 's'} in your OpenFrame instance that ${deviceCount === 1 ? 'requires' : 'require'} a subscription to continue management.`}

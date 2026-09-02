@@ -84,7 +84,7 @@ export function UsageStatCard({ title, value, caption, tone = 'default' }: Usage
  */
 export function StatSuffix({ children }: { children: ReactNode }) {
   return (
-    <span className="text-ods-text-secondary group-data-[tone=warning]/stat:text-ods-warning group-data-[tone=error]/stat:text-ods-error">
+    <span className="text-ods-text-secondary group-data-[tone=error]/stat:text-ods-error group-data-[tone=warning]/stat:text-ods-warning">
       {children}
     </span>
   );
@@ -98,7 +98,7 @@ export function StatSuffix({ children }: { children: ReactNode }) {
  */
 export function StatEmphasis({ children }: { children: ReactNode }) {
   return (
-    <span className="text-ods-text-primary group-data-[tone=warning]/stat:text-ods-warning group-data-[tone=error]/stat:text-ods-error">
+    <span className="text-ods-text-primary group-data-[tone=error]/stat:text-ods-error group-data-[tone=warning]/stat:text-ods-warning">
       {children}
     </span>
   );

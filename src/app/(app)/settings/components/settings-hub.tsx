@@ -4,7 +4,6 @@ import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import {
   ChartDonutIcon,
   CompassIcon,
-  CreditCardIcon,
   Hierarchy02Icon,
   Logout01Icon,
   PasscodeIcon,
@@ -142,12 +141,17 @@ export function SettingsHub() {
 
       setIsUpdating(true);
       try {
-        const res = await apiClient.put(`api/users/${encodeURIComponent(user.id)}`, data);
+        const res = await apiClient.put<{ firstName?: string; lastName?: string }>(
+          `api/users/${encodeURIComponent(user.id)}`,
+          data,
+        );
         if (!res.ok) {
           throw new Error(res.error || 'Failed to update profile');
         }
 
-        const updatedData = res.data;
+        // A 2xx with no body means the server accepted the change without echoing
+        // it back; keep the values that were just submitted.
+        const updatedData = res.data ?? data;
 
         updateUser({
           firstName: updatedData.firstName,
@@ -168,7 +172,9 @@ export function SettingsHub() {
         setIsUpdating(false);
       }
     },
-    [user?.id, updateUser, toast],
+    // `setIsEditModalOpen` is listed because the compiler infers it; a useState
+    // setter is stable, so it changes nothing at runtime.
+    [user, updateUser, toast, setIsEditModalOpen],
   );
 
   const handleResendVerification = async () => {
@@ -217,7 +223,7 @@ export function SettingsHub() {
       </div>
 
       {/* Navigation Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-m)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
         {gatesResolved
           ? visibleItems.map(item => {
               const {

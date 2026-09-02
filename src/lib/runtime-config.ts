@@ -1,6 +1,11 @@
 import { env } from 'next-runtime-env';
 import { APP_SCHEME, getStoredTenantHost } from './native-shell';
 
+/** The `process.env` shim `next-runtime-env` injects into the browser. */
+interface WindowWithProcessEnv {
+  process?: { env?: Record<string, string | undefined> };
+}
+
 function getEnvVar(key: string): string | undefined {
   try {
     const value = env(key);
@@ -9,8 +14,10 @@ function getEnvVar(key: string): string | undefined {
     }
     return value;
   } catch {
-    if (typeof window !== 'undefined' && (window as any).process?.env) {
-      return (window as any).process.env[key];
+    // next-runtime-env's injected shim, when the module-level accessor above threw.
+    const injected = typeof window === 'undefined' ? undefined : (window as unknown as WindowWithProcessEnv).process;
+    if (injected?.env) {
+      return injected.env[key];
     }
     if (typeof process !== 'undefined' && process.env) {
       return process.env[key];

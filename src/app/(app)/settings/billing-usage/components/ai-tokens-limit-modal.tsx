@@ -69,7 +69,7 @@ function AiTokensLimitModalBody({ onClose, tokenPrice, capUsd }: Omit<AiTokensLi
       }
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <p className="text-h4 text-ods-text-primary">{AI_LIMIT_EXPLANATION}</p>
+        <p className="text-ods-text-primary text-h4">{AI_LIMIT_EXPLANATION}</p>
         {/* Only the save gates the fields: the amounts disable themselves when
             the metered rate is missing, so switching the limit off stays
             possible even then. */}

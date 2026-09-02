@@ -92,10 +92,19 @@ export function CancelSubscriptionModal({
     cancelSubscriptionModalPreviewQuery,
   );
 
-  useEffect(() => {
+  // The form reset moves out of the effect (see below) — an effect that resets
+  // state renders the filled form once more on the way out.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (!isOpen) {
       setReason('');
       setComment('');
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
       return;
     }
     // Load lazily on first open and reuse the cached result on subsequent opens
@@ -135,7 +144,7 @@ export function CancelSubscriptionModal({
         </>
       }
     >
-      <div className="text-h4 text-ods-text-primary gap-[var(--spacing-system-xs)] flex">
+      <div className="flex gap-[var(--spacing-system-xs)] text-ods-text-primary text-h4">
         <span>Your subscription will remain active until:</span>
         {previewRef ? (
           <Suspense fallback={<Skeleton className="h-5 w-20" />}>
@@ -145,7 +154,7 @@ export function CancelSubscriptionModal({
           <span className="text-ods-warning">{formatEndDate(endDate)}</span>
         )}
       </div>
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Pay-as-you-go top-ups are disabled immediately. Any usage already accrued will be charged at the end of the
         billing period.
       </p>
@@ -153,11 +162,11 @@ export function CancelSubscriptionModal({
       {isStatsLoading || !stats ? <DataLossSkeleton /> : <DataLossBox stats={stats} />}
 
       <div className="flex flex-col gap-1">
-        <label className="text-h3 text-ods-text-primary" htmlFor={reasonId}>
+        <label className="text-ods-text-primary text-h3" htmlFor={reasonId}>
           {`What's the main reason you're cancelling?`}
         </label>
         <Select value={reason} onValueChange={v => setReason(v as CancelReason)}>
-          <SelectTrigger id={reasonId} className="bg-ods-card w-full">
+          <SelectTrigger id={reasonId} className="w-full bg-ods-card">
             <SelectValue placeholder="Select the Reason" />
           </SelectTrigger>
           <SelectContent>
@@ -172,7 +181,7 @@ export function CancelSubscriptionModal({
 
       {reason === 'OTHER' && (
         <div className="flex flex-col gap-1">
-          <label className="text-h3 text-ods-text-primary" htmlFor={commentId}>
+          <label className="text-ods-text-primary text-h3" htmlFor={commentId}>
             {`What's on your mind?`}
           </label>
           <Textarea
@@ -203,7 +212,7 @@ function CancellationEffectiveDate({
 
 function DataLossItem({ children }: { children: React.ReactNode }) {
   return (
-    <li className="flex items-start text-h3 text-ods-text-primary">
+    <li className="flex items-start text-ods-text-primary text-h3">
       <DotIcon aria-hidden className="size-6 shrink-0 text-ods-warning" />
       <span className="flex-1">{children}</span>
     </li>
@@ -211,7 +220,7 @@ function DataLossItem({ children }: { children: React.ReactNode }) {
 }
 
 function Stat({ value }: { value: number }) {
-  return <span className="text-h4 text-ods-warning">{formatCount(value)}</span>;
+  return <span className="text-ods-warning text-h4">{formatCount(value)}</span>;
 }
 
 // Rows with a zero metric are hidden. The policies/queries row is dropped only
@@ -299,10 +308,10 @@ function DataLossBox({ stats }: { stats: DataLossStats }) {
     // against the rounded border) opts this box out of that protection, so it was
     // the ONE child the column could crush: it collapsed to a sliver instead of
     // pushing the body into a scroll.
-    <div className="shrink-0 rounded-md border border-ods-warning overflow-hidden bg-ods-bg">
-      <div className="flex items-center gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] bg-[var(--ods-open-yellow-secondary)] border-b border-ods-warning">
-        <AlertCircleIcon className="size-6 text-ods-warning shrink-0" />
-        <p className="text-h6 flex-1 text-ods-warning">
+    <div className="shrink-0 overflow-hidden rounded-md border border-ods-warning bg-ods-bg">
+      <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-warning bg-[var(--ods-open-yellow-secondary)] p-[var(--spacing-system-xsf)]">
+        <AlertCircleIcon className="size-6 shrink-0 text-ods-warning" />
+        <p className="flex-1 text-ods-warning text-h6">
           Once your subscription ends, this data will no longer be accessible.
         </p>
       </div>
@@ -319,16 +328,16 @@ function DataLossSkeleton() {
   return (
     // Same `shrink-0`, same reason as `DataLossBox` — and it has to match, or the
     // loading state is the one that collapses.
-    <div className="shrink-0 rounded-md border border-ods-warning overflow-hidden bg-ods-bg">
-      <div className="flex items-center gap-[var(--spacing-system-xs)] p-[var(--spacing-system-xsf)] bg-[var(--ods-open-yellow-secondary)] border-b border-ods-warning">
-        <AlertCircleIcon className="size-6 text-ods-warning shrink-0" />
-        <p className="text-h6 flex-1 text-ods-warning">
+    <div className="shrink-0 overflow-hidden rounded-md border border-ods-warning bg-ods-bg">
+      <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-warning bg-[var(--ods-open-yellow-secondary)] p-[var(--spacing-system-xsf)]">
+        <AlertCircleIcon className="size-6 shrink-0 text-ods-warning" />
+        <p className="flex-1 text-ods-warning text-h6">
           Once your subscription ends, this data will no longer be accessible.
         </p>
       </div>
       <ul className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-s)]">
         {SKELETON_ROW_WIDTHS.map((width, i) => (
-          <li key={i} className="flex items-center h-6">
+          <li key={i} className="flex h-6 items-center">
             <DotIcon aria-hidden className="size-6 shrink-0 text-ods-warning" />
             <Skeleton className={`h-4 ${width}`} />
           </li>

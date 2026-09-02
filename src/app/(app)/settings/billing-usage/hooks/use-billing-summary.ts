@@ -186,8 +186,7 @@ export function useBillingSummary(subscription: SubscriptionData, billingPlan: B
     isAnnual: hasScheduledPackage && managedDevicesPending?.billingPeriod === BillingPeriod.YEARLY,
     deviceRate: hasScheduledPackage ? committedRate(managedDevicesPending) : paygDeviceRate,
     startsOn: (hasScheduledPackage ? (managedDevicesPending?.startDate ?? null) : deviceCommitmentEndsOn) as
-      | string
-      | null,
+      string | null,
     /** Derived, not fetched — see `freeTokensForPlan`. A package keeps the larger grant. */
     freeTokens: freeTokensForPlan(hasScheduledPackage),
   };

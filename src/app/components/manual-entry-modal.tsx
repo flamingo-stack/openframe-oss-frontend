@@ -179,8 +179,11 @@ export function ManualEntryModal({
     defaultValues: defaultFormValues(),
   });
 
-  useEffect(() => {
-    if (!isOpen) return;
+  // Seeded on the open transition, during render rather than in an effect: an
+  // effect paints the previous entry's values once before resetting them.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen && !wasOpen) {
+    setWasOpen(isOpen);
     setAssignedUserId(entry?.userId ?? currentUserId ?? null);
     reset(
       entry
@@ -210,7 +213,10 @@ export function ManualEntryModal({
             }
           : undefined,
     );
-  }, [isOpen, entry, defaultCustomer, currentUserId, reset, resetTicketCustomer]);
+  }
+  if (!isOpen && wasOpen) {
+    setWasOpen(false);
+  }
 
   useEffect(() => {
     if (ticketCustomer.ticketId) clearErrors('notes');

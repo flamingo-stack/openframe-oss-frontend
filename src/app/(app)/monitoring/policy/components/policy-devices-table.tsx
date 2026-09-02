@@ -61,14 +61,14 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const r = row.original;
           return (
-            <div className="box-border content-stretch flex gap-4 h-20 items-center justify-start py-0 relative shrink-0 w-full">
-              <div className="flex h-8 w-8 items-center justify-center relative rounded-[6px] shrink-0 border border-ods-border">
+            <div className="relative box-border flex h-20 w-full shrink-0 content-stretch items-center justify-start gap-4 py-0">
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border">
                 {r.deviceType &&
                   getDeviceTypeIcon(r.deviceType.toLowerCase() as DeviceType, {
                     className: 'w-5 h-5 text-ods-text-secondary',
                   })}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <TruncateText>{r.displayName || r.hostname}</TruncateText>
               </div>
             </div>
@@ -86,8 +86,8 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
           return (
             <div className="flex items-center gap-3">
               <EntityImage src={fullImageUrl} alt={r.organization || 'Customer'} className="size-12 md:size-12" />
-              <div className="flex flex-col justify-center flex-1 min-w-0">
-                <span className="text-h4 text-ods-text-primary break-words">{r.organization || ''}</span>
+              <div className="flex min-w-0 flex-1 flex-col justify-center">
+                <span className="break-words text-ods-text-primary text-h4">{r.organization || ''}</span>
               </div>
             </div>
           );
@@ -99,7 +99,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
         accessorKey: 'osType',
         header: 'OS',
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
-          <div className="flex items-start gap-2 shrink-0">
+          <div className="flex shrink-0 items-start gap-2">
             <OSTypeBadge osType={row.original.osType} />
           </div>
         ),
@@ -125,12 +125,12 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
         id: 'open',
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) =>
           row.original.machineId ? (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={openInNewTab(routes.devices.details(row.original.machineId))}
                 variant="outline"
                 size="icon"
-                leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
                 aria-label="Open in new tab"
                 className="bg-ods-card"
               />
@@ -144,17 +144,17 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const isOpen = quickQueryIds.has(String(row.original.id));
           return (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={() => toggleQuickQuery(String(row.original.id))}
                 variant="outline"
                 disabled={!isOpen && !hasQuery}
                 leftIcon={
-                  isOpen ? <XmarkCircleIcon className="w-5 h-5" /> : <BracketCurlyEllipsisVrIcon className="w-5 h-5" />
+                  isOpen ? <XmarkCircleIcon className="h-5 w-5" /> : <BracketCurlyEllipsisVrIcon className="h-5 w-5" />
                 }
                 aria-label={isOpen ? 'Close quick query' : 'Open quick query'}
                 aria-expanded={isOpen}
-                className="bg-ods-card w-full"
+                className="w-full bg-ods-card"
               >
                 {/* Icon-only on mobile, per design. */}
                 <span className="hidden md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>

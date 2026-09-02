@@ -151,7 +151,7 @@ export function Queries() {
         <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
           <div
             ref={toolbarRef}
-            className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+            className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
           >
             <Input
               placeholder="Search for Queries"

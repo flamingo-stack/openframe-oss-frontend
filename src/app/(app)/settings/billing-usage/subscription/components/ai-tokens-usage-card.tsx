@@ -54,13 +54,13 @@ export function AiTokensUsageCard({ loading, deviceMode, limit }: AiTokensUsageC
 
   return (
     <Card
-      className="relative flex flex-1 flex-col gap-6 p-6 bg-ods-bg border-ods-border"
+      className="relative flex flex-1 flex-col gap-6 border-ods-border bg-ods-bg p-6"
       aria-busy={loading || undefined}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
-          <h2 className="text-h2 text-ods-text-primary">AI Tokens Usage</h2>
-          <p className="text-h4 text-ods-text-primary">
+          <h2 className="text-ods-text-primary text-h2">AI Tokens Usage</h2>
+          <p className="text-ods-text-primary text-h4">
             Fae and Mingo are billed for what they actually use. No prepayment needed.
           </p>
         </div>
@@ -71,12 +71,12 @@ export function AiTokensUsageCard({ loading, deviceMode, limit }: AiTokensUsageC
             <button
               type="button"
               aria-label="Per-model token rates"
-              className="shrink-0 text-ods-text-secondary hover:text-ods-text-primary transition-colors"
+              className="shrink-0 text-ods-text-secondary transition-colors hover:text-ods-text-primary"
             >
               <QuestionCircleIcon className="size-6" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={8} className="p-0 bg-transparent border-0 shadow-none">
+          <DropdownMenuContent align="end" sideOffset={8} className="border-0 bg-transparent p-0 shadow-none">
             <ModelTokenRates />
           </DropdownMenuContent>
         </DropdownMenu>
@@ -90,8 +90,8 @@ export function AiTokensUsageCard({ loading, deviceMode, limit }: AiTokensUsageC
         {freeTokens == null ? (
           <Skeleton className="h-5 w-full max-w-[22rem]" />
         ) : (
-          <p className="text-h4 text-ods-text-primary">
-            <span className="text-h3 text-ods-accent">{formatCompactCount(freeTokens)}</span> free tokens every month.
+          <p className="text-ods-text-primary text-h4">
+            <span className="text-ods-accent text-h3">{formatCompactCount(freeTokens)}</span> free tokens every month.
             Usage beyond that is billed at the end of each cycle.
           </p>
         )}
@@ -100,7 +100,7 @@ export function AiTokensUsageCard({ loading, deviceMode, limit }: AiTokensUsageC
       {/* No `onCommit`: nothing is written until the page is submitted. */}
       <AiSpendLimitFields limit={limit} disabled={loading} />
 
-      {limit.enabled && <p className="text-h6 text-ods-text-primary">{AI_LIMIT_EXPLANATION}</p>}
+      {limit.enabled && <p className="text-ods-text-primary text-h6">{AI_LIMIT_EXPLANATION}</p>}
     </Card>
   );
 }

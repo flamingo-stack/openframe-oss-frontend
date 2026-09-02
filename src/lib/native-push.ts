@@ -182,5 +182,7 @@ export async function unregisterNativePush(): Promise<void> {
   await unregisterPushDevice(token);
   try {
     window.localStorage.removeItem(PUSH_TOKEN_STORAGE_KEY);
-  } catch {}
+  } catch {
+    // The token has already been unregistered server-side; failing to clear the local copy only means the next start re-registers a token the backend no longer knows.
+  }
 }

@@ -141,7 +141,7 @@ export function CompanyAndUsersTab() {
               : row.original.email;
 
           return (
-            <div className="flex items-center gap-[var(--spacing-system-xs)] min-w-0">
+            <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
               {isDeletedUserStatus(row.original.status) ? (
                 <DeletedUserAvatar size="sm" />
               ) : (
@@ -152,7 +152,7 @@ export function CompanyAndUsersTab() {
                   variant="round"
                 />
               )}
-              <div className="flex flex-col min-w-0">
+              <div className="flex min-w-0 flex-col">
                 <TruncateText>{displayName}</TruncateText>
                 {/* SELF_DELETED emails are synthetic (`deleted-{id}@deleted.invalid`) — hidden.
                     Admin-DELETED users keep their real email (account is revivable). */}
@@ -200,7 +200,7 @@ export function CompanyAndUsersTab() {
 
             if (isExpired) {
               return (
-                <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+                <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
                   <MoreActionsMenu
                     className="px-4"
                     items={[
@@ -220,7 +220,7 @@ export function CompanyAndUsersTab() {
             }
 
             return (
-              <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+              <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
                 <MoreActionsMenu
                   className="px-4"
                   items={[
@@ -247,12 +247,12 @@ export function CompanyAndUsersTab() {
             return null;
           }
           return (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={openInNewTab(employeeDetailHref(row.original.id))}
                 variant="outline"
                 size="icon"
-                leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
                 aria-label="Open in new tab"
                 className="bg-ods-card"
               />

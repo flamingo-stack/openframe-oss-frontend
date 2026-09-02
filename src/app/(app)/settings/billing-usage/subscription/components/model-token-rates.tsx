@@ -75,8 +75,8 @@ function ModelTokenRatesUnavailable() {
       <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-ods-bg text-ods-text-secondary">
         <AlertTriangleIcon className="size-5" />
       </div>
-      <p className="text-h3 text-ods-text-primary">Rates unavailable</p>
-      <p className="text-h6 text-ods-text-secondary">
+      <p className="text-ods-text-primary text-h3">Rates unavailable</p>
+      <p className="text-ods-text-secondary text-h6">
         We couldn't load the per-model token rates. They're a reference only — your plan and its price are unaffected.
       </p>
     </div>
@@ -99,8 +99,8 @@ function ModelTokenRatesContent() {
   if (rates.length === 0) return null;
 
   return (
-    <div className="flex flex-col bg-ods-card border border-ods-border rounded-[6px] overflow-hidden min-w-[260px] max-h-[min(60vh,420px)]">
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-ods-border text-h5 text-ods-text-secondary uppercase tracking-[-0.02em]">
+    <div className="flex max-h-[min(60vh,420px)] min-w-[260px] flex-col overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
+      <div className="flex shrink-0 items-center gap-2 border-b border-ods-border px-3 py-2 uppercase tracking-[-0.02em] text-ods-text-secondary text-h5">
         <span className="flex-1">Model</span>
         <span>OpenFrame Token</span>
       </div>
@@ -111,11 +111,11 @@ function ModelTokenRatesContent() {
           return (
             <div key={`${rate.providerType}-${rate.modelName}`} className="flex items-center gap-2 px-3 py-2">
               {Icon && <Icon className="size-6 shrink-0" />}
-              <span className="text-h6 text-ods-text-primary whitespace-nowrap">
+              <span className="whitespace-nowrap text-ods-text-primary text-h6">
                 {rate.displayName || rate.modelName}
               </span>
-              <div className="flex-1 h-px bg-ods-border min-w-8" />
-              <span className="text-h6 text-ods-text-primary whitespace-nowrap">
+              <div className="h-px min-w-8 flex-1 bg-ods-border" />
+              <span className="whitespace-nowrap text-ods-text-primary text-h6">
                 {formatRate(rate.inputTokenRate)}
                 {rate.outputTokenRate !== rate.inputTokenRate && (
                   <span className="text-ods-text-secondary"> / {formatRate(rate.outputTokenRate)}</span>
@@ -131,15 +131,15 @@ function ModelTokenRatesContent() {
 
 function ModelTokenRatesSkeleton() {
   return (
-    <div className="flex flex-col bg-ods-card border border-ods-border rounded-[6px] overflow-hidden min-w-[260px]">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-ods-border">
+    <div className="flex min-w-[260px] flex-col overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
+      <div className="flex items-center gap-2 border-b border-ods-border px-3 py-2">
         <Skeleton className="h-4 w-12" />
         <div className="flex-1" />
         <Skeleton className="h-4 w-28" />
       </div>
       {SKELETON_ROW_KEYS.map(key => (
         <div key={key} className="flex items-center gap-2 px-3 py-2">
-          <Skeleton className="size-6 rounded-full shrink-0" />
+          <Skeleton className="size-6 shrink-0 rounded-full" />
           <Skeleton className="h-4 w-40" />
           <div className="flex-1" />
           <Skeleton className="h-4 w-12" />

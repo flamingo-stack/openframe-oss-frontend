@@ -78,7 +78,7 @@ function useSidebarWidthVar(enabled: boolean): void {
 
     if (!enabled) {
       write(0);
-      return;
+      return undefined;
     }
 
     const sidebar = document.querySelector(SIDEBAR_ELEMENT_SELECTOR);
@@ -86,7 +86,7 @@ function useSidebarWidthVar(enabled: boolean): void {
       // Degrade to the old fixed clearance rather than to zero: a missing
       // element must never resolve to "card sits on top of the navigation".
       write(SIDEBAR_EXPANDED_WIDTH);
-      return;
+      return undefined;
     }
 
     // `getBoundingClientRect` (not `contentRect`) so the 1px right border is

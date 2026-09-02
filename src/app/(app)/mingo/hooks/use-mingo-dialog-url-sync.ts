@@ -135,7 +135,7 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
   // default-lane store update landing in that window — React flushes it BEFORE the
   // pending transition — would compare a fresh `mirroredRef` against a stale
   // `urlDialogId` and pick `close`, or adopt the conversation the user just left.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: these are re-run triggers; the body re-reads each one so it is never a commit stale
+  // these are re-run triggers; the body re-reads each one so it is never a commit stale
   useEffect(() => {
     const navigated = prevPathnameRef.current !== pathname;
     prevPathnameRef.current = pathname;

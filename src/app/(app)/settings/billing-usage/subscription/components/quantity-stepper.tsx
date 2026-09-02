@@ -143,7 +143,7 @@ export function QuantityStepper({ value, min, step = 1, label, error, onChange, 
         </Button>
       </div>
       {error && (
-        <p id={errorId} className="text-h6 text-ods-error">
+        <p id={errorId} className="text-ods-error text-h6">
           {error}
         </p>
       )}

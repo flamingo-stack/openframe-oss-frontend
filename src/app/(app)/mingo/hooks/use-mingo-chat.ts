@@ -1,6 +1,6 @@
 'use client';
 
-import { AuthorType, type MessageSegment } from '@flamingo-stack/openframe-frontend-core';
+import type { AuthorType, MessageSegment } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';

@@ -1,6 +1,5 @@
 'use client';
-import { routes } from '@/lib/routes';
-
+import { type ReactNode, Suspense } from 'react';
 /**
  * Self-fetching mention chips for the GraphQL-resolvable entity types (device,
  * organization, kb article) — the `@marker:id` analogue of `[card://]` entity
@@ -30,8 +29,6 @@ import { routes } from '@/lib/routes';
  *     dedicated query on a GLOBAL id, and the `/scripts/schedules/details`
  *     route keys on the global id too).
  */
-
-import { type ReactNode, Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { relayMentionChipsKbQuery } from '@/__generated__/relayMentionChipsKbQuery.graphql';
 import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChipsNodeQuery.graphql';
@@ -39,6 +36,7 @@ import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentio
 import type { relayMentionChipsScriptQuery } from '@/__generated__/relayMentionChipsScriptQuery.graphql';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
+import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
 import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
 

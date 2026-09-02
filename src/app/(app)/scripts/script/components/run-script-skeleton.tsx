@@ -37,7 +37,7 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
       {/* Same 3 stats as the loaded card (`showTimeout` is off on the run page). */}
       <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)] items-end">
+      <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] lg:grid-cols-2">
         <div>
           <Label className="text-ods-text-primary text-h3">Timeout</Label>
           <Input
@@ -52,7 +52,7 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
         <CheckboxBlock checked={false} onCheckedChange={noop} label="Run as User" disabled />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] lg:grid-cols-2">
         <ScriptArguments
           arguments={EMPTY_ARGUMENTS}
           onArgumentsChange={noop}

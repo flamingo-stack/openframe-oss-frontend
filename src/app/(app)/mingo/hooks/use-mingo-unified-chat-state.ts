@@ -36,7 +36,7 @@ import type {
   UnifiedSendMessageOptions,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { buildDiscussPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
@@ -202,24 +202,29 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // what you're looking at", which is only ever true in one direction, and
   // re-deciding on every render would fight a user who then picks a tab themselves.
   const currentUserId = useAuthStore(state => state.user?.id);
-  const scopeReconciledForRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!activeDialogId || !dialogData) return;
-    if (scopeReconciledForRef.current === activeDialogId) return;
-    scopeReconciledForRef.current = activeDialogId;
-
+  // Reconciled during render, and latched in state rather than a ref: the scope
+  // decides which list is on screen, so an effect would show the wrong tab —
+  // the one that cannot list this dialog — for a frame after opening the link.
+  const [scopeReconciledFor, setScopeReconciledFor] = useState<string | null>(null);
+  if (activeDialogId && dialogData && scopeReconciledFor !== activeDialogId) {
+    setScopeReconciledFor(activeDialogId);
     // Absent on a client (machine-owned) dialog, which neither admin scope lists —
     // nothing to reconcile there.
     const ownerId = dialogData.owner?.userId;
     if (needsAllChatsScope(ownerId, currentUserId)) setDialogScope('all');
-  }, [activeDialogId, dialogData, currentUserId]);
+  }
 
   // ─── Live model metadata (refined per-turn by `metadata` frames) ──────────
   const [liveModel, setLiveModel] = useState<{ displayName: string; provider: string } | null>(null);
   const onMetadata = useCallback((meta: MetadataFrame) => {
     setLiveModel({ displayName: meta.modelDisplayName, provider: meta.providerName });
   }, []);
-  const model = liveModel ?? (aiModel ? { displayName: aiModel.displayName, provider: aiModel.provider } : null);
+  // Memoized: the object literal in the fallback is new on every render, and the
+  // chat-state memo below takes `model` as a dependency.
+  const model = useMemo(
+    () => liveModel ?? (aiModel ? { displayName: aiModel.displayName, provider: aiModel.provider } : null),
+    [liveModel, aiModel],
+  );
 
   // ─── Token usage: store (kept live by realtime) first, dialog query fallback ─
   const tokenUsage = useMemo<DialogTokenUsage | null>(() => {
@@ -539,6 +544,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       stopMessage,
       clearMessages,
       discussRef,
+      displayRef,
       model,
       tokenUsage,
       dialogs,

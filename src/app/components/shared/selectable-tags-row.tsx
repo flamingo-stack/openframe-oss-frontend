@@ -105,7 +105,7 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd }: SelectableTagsRo
       <div
         ref={measureRef}
         aria-hidden
-        className="absolute left-0 top-0 flex gap-[var(--spacing-system-xxs)] pointer-events-none invisible -z-10"
+        className="pointer-events-none invisible absolute left-0 top-0 -z-10 flex gap-[var(--spacing-system-xxs)]"
       >
         {available.map(tag => (
           <Tag key={tag.id} variant="outline" label={formatTagLabel(tag.key)} />

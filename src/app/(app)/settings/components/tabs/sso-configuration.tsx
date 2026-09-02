@@ -326,8 +326,8 @@ export function SsoConfigurationTab() {
         accessorKey: 'provider',
         header: 'OAuth Provider',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <div className="flex items-center min-w-0">
-            <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 items-center">
+            <div className="flex min-w-0 flex-col justify-center">
               <TruncateText>{row.original.displayName}</TruncateText>
               <TruncateText variant="h5" tone="secondary">
                 {row.original.provider}
@@ -385,7 +385,7 @@ export function SsoConfigurationTab() {
           return (
             // A square edit icon button on every breakpoint (designs 1614-66071/66116);
             // it must not trigger the row's Configuration Details click.
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 variant="outline"
                 size="icon"
@@ -423,7 +423,7 @@ export function SsoConfigurationTab() {
   return (
     <PageLayout
       title="SSO Configurations"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] bg-ods-bg"
+      className="bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: handleBack }}
       actions={
         availableForCreate.length > 0
@@ -440,12 +440,12 @@ export function SsoConfigurationTab() {
     >
       {/* Tenant-wide sign-in options: built-in OpenFrame login + open access for the tenant domain */}
       {isOpenframeLoading || isDomainLoading ? (
-        <Card className="bg-ods-card border-ods-border p-4">
+        <Card className="border-ods-border bg-ods-card p-4">
           <div className="flex flex-col gap-6">
             {[0, 1].map(row => (
               <div key={row} className="flex items-start gap-3">
-                <Skeleton className="h-5 w-5 rounded shrink-0" />
-                <div className="flex flex-col gap-1 flex-1">
+                <Skeleton className="h-5 w-5 shrink-0 rounded" />
+                <div className="flex flex-1 flex-col gap-1">
                   <Skeleton className="h-5 w-48 md:w-64" />
                   <Skeleton className="h-4 w-full md:w-96" />
                 </div>
@@ -455,7 +455,7 @@ export function SsoConfigurationTab() {
         </Card>
       ) : (
         (openframeSso || tenantDomain) && (
-          <Card className="bg-ods-card border-ods-border overflow-hidden">
+          <Card className="overflow-hidden border-ods-border bg-ods-card">
             {openframeSso && (
               <CheckboxWithDescription
                 id="openframe-sso-enabled"
@@ -464,7 +464,7 @@ export function SsoConfigurationTab() {
                 disabled={isOpenframeUpdating}
                 title="Enable OpenFrame SSO"
                 description="Allow users to sign up and sign in with an OpenFrame account."
-                className="border-0 rounded-none bg-transparent items-center [&_label]:text-h4 [&>button]:mt-0 [&>button]:bg-transparent"
+                className="items-center rounded-none border-0 bg-transparent [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4"
               />
             )}
             {tenantDomain && (
@@ -480,7 +480,7 @@ export function SsoConfigurationTab() {
                     : 'Anyone with an account on your allowed domains can sign in to OpenFrame without an invitation. Their account is created automatically the first time they sign in.'
                 }
                 className={cn(
-                  'border-0 rounded-none bg-transparent items-center [&_label]:text-h4 [&>button]:mt-0 [&>button]:bg-transparent',
+                  'items-center rounded-none border-0 bg-transparent [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4',
                   openframeSso && 'border-t border-ods-border',
                 )}
               />

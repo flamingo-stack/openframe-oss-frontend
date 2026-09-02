@@ -88,19 +88,19 @@ export function LockScreenActionsMenu({ triggerClassName }: { triggerClassName?:
         {
           id: 'log-out',
           label: 'Log Out',
-          icon: <Logout01Icon className="w-6 h-6 text-ods-text-secondary" />,
+          icon: <Logout01Icon className="h-6 w-6 text-ods-text-secondary" />,
           onClick: logOut,
         },
         {
           id: 'contact-support',
           label: 'Contact Support',
-          icon: <HeadphoneIcon className="w-6 h-6 text-ods-text-secondary" />,
+          icon: <HeadphoneIcon className="h-6 w-6 text-ods-text-secondary" />,
           onClick: contactSupport,
         },
         {
           id: 'delete-account',
           // No color class — `danger` paints label and icon via currentColor.
-          icon: <UserXmarkIcon className="w-6 h-6" />,
+          icon: <UserXmarkIcon className="h-6 w-6" />,
           label: 'Delete Account',
           danger: true,
           onClick: deleteAccount,

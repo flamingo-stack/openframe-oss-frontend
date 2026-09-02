@@ -177,7 +177,7 @@ export function NewDeviceContent() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col gap-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <Controller
             name="organizationId"
             control={form.control}
@@ -201,7 +201,7 @@ export function NewDeviceContent() {
                 renderOption={option => {
                   const org = orgs.find(o => o.organizationId === option.value);
                   return (
-                    <div className="flex items-center gap-2 w-full min-w-0">
+                    <div className="flex w-full min-w-0 items-center gap-2">
                       <OrgAvatar imageUrl={org?.imageUrl} hash={org?.imageHash} name={org?.name ?? option.label} />
                       <div className="min-w-0 flex-1">
                         <TruncateText className="text-current">{option.label}</TruncateText>
@@ -284,7 +284,7 @@ export function NewDeviceContent() {
             className="self-end"
             onClick={copyCommand}
             leftIcon={
-              commandCopied ? <CheckIcon className="w-5 h-5 text-ods-success" /> : <Copy02Icon className="w-5 h-5" />
+              commandCopied ? <CheckIcon className="h-5 w-5 text-ods-success" /> : <Copy02Icon className="h-5 w-5" />
             }
           >
             {installMethod === 'script' ? 'Copy Install Command' : 'Copy Install & Register Command'}

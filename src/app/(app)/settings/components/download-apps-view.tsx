@@ -19,8 +19,8 @@ function AppCard({ title, description, children }: AppCardProps) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
       <div className="flex flex-col">
-        <p className="text-h3 text-ods-text-primary">{title}</p>
-        <p className="text-h4 text-ods-text-secondary">{description}</p>
+        <p className="text-ods-text-primary text-h3">{title}</p>
+        <p className="text-ods-text-secondary text-h4">{description}</p>
       </div>
       {children}
     </div>
@@ -84,7 +84,7 @@ export function DownloadAppsView({ pending = false }: DownloadAppsViewProps) {
     >
       <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-2">
         <AppCard title="Desktop App" description="System notifications and auto-start on boot.">
-          {degradedMessage && <p className="text-h6 text-ods-warning">{degradedMessage}</p>}
+          {degradedMessage && <p className="text-ods-warning text-h6">{degradedMessage}</p>}
           {/* Both platform logos are `#888888` in the design (the Windows one is even named
               "windows-logo-grey") against the white label — the icons default to
               `currentColor`, which would render them at the label's colour. */}

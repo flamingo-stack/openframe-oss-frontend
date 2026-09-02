@@ -15,7 +15,7 @@ import { refreshIfStale } from '@/lib/token-refresh-manager';
  */
 export function TokenFreshnessWatcher() {
   useEffect(() => {
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined') return undefined;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;

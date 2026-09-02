@@ -113,7 +113,7 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         accessorKey: 'cve',
         header: VULNERABILITY_COLUMNS.cve.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
-          <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <TruncateText>{row.original.cve}</TruncateText>
             {/* SOFTWARE has a column of its own from `md` up; below that it is folded
                 in here, so a mobile row still says which package the CVE is in. */}
@@ -134,9 +134,9 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
           const severity = getSeverity(row.original);
           const score = row.original.cvss_score;
           return (
-            <div className="flex flex-col gap-1 items-start min-w-0">
+            <div className="flex min-w-0 flex-col items-start gap-1">
               <Tag label={severity.toUpperCase()} variant={SEVERITY_VARIANT[severity]} />
-              {typeof score === 'number' && <span className="text-h6 text-ods-text-secondary">CVSS {score}</span>}
+              {typeof score === 'number' && <span className="text-ods-text-secondary text-h6">CVSS {score}</span>}
             </div>
           );
         },
@@ -149,7 +149,7 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         accessorKey: 'software_name',
         header: VULNERABILITY_COLUMNS.software.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
-          <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <TruncateText>{row.original.software_name}</TruncateText>
             {row.original.software_version && (
               <TruncateText variant="h6" tone="secondary">
@@ -166,13 +166,13 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => {
           const discovered = new Date(row.original.created_at);
           if (Number.isNaN(discovered.getTime())) {
-            return <span className="text-h4 text-ods-text-secondary">—</span>;
+            return <span className="text-ods-text-secondary text-h4">—</span>;
           }
           const days = differenceInCalendarDays(new Date(), discovered);
           return (
-            <div className="flex flex-col justify-center min-w-0">
-              <span className="text-h4 truncate">{formatDate(row.original.created_at)}</span>
-              <span className="text-h6 text-ods-text-secondary truncate">
+            <div className="flex min-w-0 flex-col justify-center">
+              <span className="truncate text-h4">{formatDate(row.original.created_at)}</span>
+              <span className="truncate text-ods-text-secondary text-h6">
                 {days} {days === 1 ? 'day' : 'days'}
               </span>
             </div>
@@ -188,12 +188,12 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         header: '',
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) =>
           row.original.details_link ? (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={() => window.open(row.original.details_link, '_blank', 'noopener,noreferrer')}
                 variant="outline"
                 size="icon"
-                leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
                 aria-label={`Open ${row.original.cve} details`}
                 className="bg-ods-card"
               />
@@ -245,14 +245,14 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <Input
             placeholder="Search for Vulnerability"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full"
-            startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
           />
         </div>
       )}

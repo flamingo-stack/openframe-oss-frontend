@@ -1,6 +1,5 @@
 'use client';
-import { routes } from '@/lib/routes';
-
+import { useSuspenseQuery } from '@tanstack/react-query';
 /**
  * Self-fetching mention chips for the REST / ai-agent-GraphQL entity types. One
  * generic component (`RestMentionChip`) backed by a per-marker async resolver,
@@ -19,11 +18,10 @@ import { routes } from '@/lib/routes';
  * via the Relay `GraphqlMentionChip`; `render-mention.tsx` dispatches by id shape
  * (24-char ObjectId → new, numeric → this Tactical resolver) so BOTH resolve.
  */
-
-import { useSuspenseQuery } from '@tanstack/react-query';
 import { type ReactNode, Suspense } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
+import { routes } from '@/lib/routes';
 import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
 
 interface Resolved {

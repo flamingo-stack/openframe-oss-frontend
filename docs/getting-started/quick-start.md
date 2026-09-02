@@ -94,9 +94,10 @@ You will see the OpenFrame login screen. Log in with credentials from your conne
 | `npm run dev` | Start development server with hot reload |
 | `npm run build` | Generate schema enums + Relay artifacts + Next.js production build |
 | `npm run start` | Start the production server (after build) |
-| `npm run lint` | Run ESLint on all TypeScript files |
-| `npm run lint:biome` | Run Biome linter |
-| `npm run format:fix` | Auto-fix formatting with Biome |
+| `npm run lint` | Run ESLint (the fast pass; rules come from the core library's shared config) |
+| `npm run lint:fix` | ESLint autofix |
+| `npm run lint:types` | ESLint type-aware pass (slow — needs an 8 GB heap) |
+| `npm run format:fix` | Auto-fix formatting with Prettier |
 | `npm run type-check` | Run TypeScript type checking without emitting |
 | `npm run relay` | Compile Relay GraphQL fragments |
 | `npm run relay:watch` | Watch and recompile Relay fragments on change |

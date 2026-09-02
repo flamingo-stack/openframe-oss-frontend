@@ -49,7 +49,7 @@ interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
  */
 export const REQUEST_TIMEOUT_MS = 30_000;
 
-interface ApiResponse<T = any> {
+interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   status: number;
@@ -110,7 +110,7 @@ class ApiClient {
   /**
    * Make an authenticated API request
    */
-  async request<T = any>(
+  async request<T = unknown>(
     path: string,
     options: ApiRequestOptions = {},
     isRetry: boolean = false,
@@ -245,7 +245,7 @@ class ApiClient {
       // Extract error message from response body if available
       let errorMessage: string | undefined;
       if (!response.ok) {
-        const errorData = data as any;
+        const errorData = data as { message?: string; error?: string } | undefined;
         errorMessage = errorData?.message || errorData?.error || `Request failed with status ${response.status}`;
       }
 
@@ -281,11 +281,11 @@ class ApiClient {
   /**
    * Convenience methods for common HTTP methods
    */
-  async get<T = any>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async get<T = unknown>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, { ...options, method: 'GET' });
   }
 
-  async post<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async post<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'POST',
@@ -293,7 +293,7 @@ class ApiClient {
     });
   }
 
-  async put<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async put<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'PUT',
@@ -301,7 +301,7 @@ class ApiClient {
     });
   }
 
-  async patch<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async patch<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'PATCH',
@@ -309,18 +309,18 @@ class ApiClient {
     });
   }
 
-  async delete<T = any>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async delete<T = unknown>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
   /**
    * Special method for requests to external APIs (non-base URL)
    */
-  async external<T = any>(url: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
+  async external<T = unknown>(url: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
     return this.request<T>(url, options);
   }
 
-  me<T = any>() {
+  me<T = unknown>() {
     // Bootstrap call: this is what opens the session latch.
     return this.request<T>('/api/me', { skipSessionGate: true });
   }

@@ -123,9 +123,14 @@ export function useDevicePlanSelection({ product, subscriptionProduct, onUpdates
 
   const [state, setState] = useState<DevicePlanState>(() => buildInitialDevicePlan(catalog, subscriptionProduct));
 
-  useEffect(() => {
+  // Re-seed when the catalog or the current subscription is replaced. Done during
+  // render rather than in an effect: the picker is a priced control, and an effect
+  // renders it once against the previous plan's numbers before correcting them.
+  const [lastInputs, setLastInputs] = useState({ catalog, subscriptionProduct });
+  if (catalog !== lastInputs.catalog || subscriptionProduct !== lastInputs.subscriptionProduct) {
+    setLastInputs({ catalog, subscriptionProduct });
     setState(buildInitialDevicePlan(catalog, subscriptionProduct));
-  }, [catalog, subscriptionProduct]);
+  }
 
   const unitSize = Number(product?.unitSize ?? 1) || 1;
   const { mode, quantity } = state;
@@ -157,7 +162,12 @@ export function useDevicePlanSelection({ product, subscriptionProduct, onUpdates
   const valid = mode === 'PAYG' || (quantity > 0 && !quantityTooSmall && !quantityNotDivisible);
 
   const onUpdatesChangeRef = useRef(onUpdatesChange);
-  onUpdatesChangeRef.current = onUpdatesChange;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    onUpdatesChangeRef.current = onUpdatesChange;
+  });
 
   // Primitive deps only: the effect calls back into the parent, which re-renders
   // this card, so a freshly-built object in the dependency list would loop.

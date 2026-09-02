@@ -31,21 +31,20 @@ export const scheduleDevicePickerRelayQuery = graphql`
   ) {
     scriptSchedule(id: $scheduleId) {
       id
-      ...scheduleDevicePickerRelay_available
-        @arguments(filter: $filter, search: $search, first: $first, after: $after)
+      ...scheduleDevicePickerRelay_available @arguments(filter: $filter, search: $search, first: $first, after: $after)
     }
   }
 `;
 
 export const scheduleDevicePickerRelayFragment = graphql`
   fragment scheduleDevicePickerRelay_available on ScriptSchedule
-    @refetchable(queryName: "scheduleDevicePickerRelayPaginationQuery")
-    @argumentDefinitions(
-      filter: { type: "DeviceFilterInput" }
-      search: { type: "String" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "scheduleDevicePickerRelayPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "DeviceFilterInput" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     availableDevices(filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "scheduleDevicePickerRelay_availableDevices") {
       filteredCount
@@ -97,21 +96,20 @@ export const scheduleDevicePickerRelayAssignedQuery = graphql`
     scriptSchedule(id: $scheduleId) {
       id
       deviceCount
-      ...scheduleDevicePickerRelay_schedule
-        @arguments(filter: $filter, search: $search, first: $first, after: $after)
+      ...scheduleDevicePickerRelay_schedule @arguments(filter: $filter, search: $search, first: $first, after: $after)
     }
   }
 `;
 
 export const scheduleDevicePickerRelayAssignedFragment = graphql`
   fragment scheduleDevicePickerRelay_schedule on ScriptSchedule
-    @refetchable(queryName: "scheduleDevicePickerRelayAssignedPaginationQuery")
-    @argumentDefinitions(
-      filter: { type: "DeviceFilterInput" }
-      search: { type: "String" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "scheduleDevicePickerRelayAssignedPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "DeviceFilterInput" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     assignedDevices(filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "scheduleDevicePickerRelay_assignedDevices") {
       filteredCount

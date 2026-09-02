@@ -40,13 +40,18 @@ const subscriptionSettingsViewQuery = graphql`
       products {
         id
         name
-        packageOptions { billingPeriod }
+        packageOptions {
+          billingPeriod
+        }
         # AI's metered rate. Read here rather than inside the AI card because the
         # spending limit it prices is owned by this page now — the card no longer
         # saves anything of its own. unitSize is what price is quoted per (AI:
         # a block of tokens), so both are needed to price one token.
         unitSize
-        payAsYouGoOption { id price }
+        payAsYouGoOption {
+          id
+          price
+        }
         ...devicePlanPickerProductFragment
       }
     }
@@ -78,6 +83,12 @@ const subscriptionSettingsViewQuery = graphql`
  * A parallel skeleton file is what this page used to have, and it drifted from
  * the real thing every time either was touched.
  */
+/** Shown in place of the plans when their catalog cannot be loaded at all. */
+const PLANS_UNAVAILABLE_COPY = {
+  title: "We couldn't load the plans.",
+  description: 'Something went wrong on our side. Try again in a moment, or contact support if it keeps happening.',
+};
+
 export function SubscriptionSettingsView() {
   const { status } = useSubscriptionLock();
   // Resolved here rather than carried on the context, so the plan-lock wording
@@ -100,12 +111,6 @@ export function SubscriptionSettingsView() {
     </PageLayout>
   );
 }
-
-/** Shown in place of the plans when their catalog cannot be loaded at all. */
-const PLANS_UNAVAILABLE_COPY = {
-  title: "We couldn't load the plans.",
-  description: 'Something went wrong on our side. Try again in a moment, or contact support if it keeps happening.',
-};
 
 /** The page while its gates (feature flag, role) are still resolving. */
 export function SubscriptionSettingsLoading() {
@@ -154,7 +159,9 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
     status === SubscriptionStatus.CANCELED;
 
   const loading = data == null;
-  const products = data?.billingPlan?.products ?? [];
+  // Memoized: the `?? []` fallback is a new array on every render, and the
+  // plan memo below depends on it.
+  const products = useMemo(() => data?.billingPlan?.products ?? [], [data?.billingPlan]);
   const subscriptionProducts = data?.subscription?.products ?? [];
 
   const deviceProduct = products.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;
@@ -228,7 +235,7 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
           of different heights read as one unfinished. Each card keeps its content
           top-aligned (they are `flex-col`), so the shorter one gains empty space
           at the bottom rather than stretched rows. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
         {showDeviceCard && (
           <DeviceManagementCard
             productRef={deviceProduct}
@@ -244,12 +251,12 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
           to rides in the page flow above it rather than inside it. */}
       <PlanTotalSummary total={selectionTotal} showAiNote={showAiCard} loading={loading} className="md:hidden" />
 
-      <div className="hidden md:flex flex-row gap-6 items-center">
+      <div className="hidden flex-row items-center gap-6 md:flex">
         <PlanTotalSummary
           total={selectionTotal}
           showAiNote={showAiCard}
           loading={loading}
-          className="flex-1 max-w-[500px]"
+          className="max-w-[500px] flex-1"
         />
         <div className="flex flex-1 justify-end">
           <SubscriptionSubmitButton
@@ -271,7 +278,7 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
           gives `/settings` and `/tickets` `pb-0`), and as a lock screen this renders
           under whatever route the user was on. Its own reservation is the only one
           that holds on all of them. */}
-      <div className="md:hidden fixed inset-x-0 bottom-0 z-20 border-t border-ods-border bg-ods-card p-[var(--spacing-system-l)]">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ods-border bg-ods-card p-[var(--spacing-system-l)] md:hidden">
         <div className="flex">
           <SubscriptionSubmitButton
             needsCheckout={needsCheckout}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import {
@@ -315,7 +315,7 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
 
   // 2.5) Fetch Fleet MDM details if present
   const fleet = node.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');
-  let fleetData: any | null = null;
+  let fleetData: FleetHost | null = null;
   if (fleet?.agentToolId) {
     // Validate that agentToolId is a valid numeric string before calling Fleet API
     const fleetHostId = Number(fleet.agentToolId);
@@ -359,14 +359,13 @@ export function useDeviceDetails(machineId: string | null | undefined, options?:
 
   const query = useQuery({
     queryKey: deviceQueryKeys.detail(machineId ?? ''),
-    queryFn: () => fetchDeviceDetails(machineId!),
-    enabled: !!machineId,
+    queryFn: machineId ? () => fetchDeviceDetails(machineId) : skipToken,
     staleTime: 3_000,
     retry: 1,
     retryDelay: 1_000,
     refetchInterval: polling
-      ? query => {
-          const data = query.state.data as Device | undefined;
+      ? liveQuery => {
+          const data = liveQuery.state.data as Device | undefined;
           if (!data) return false;
           const meshcentralAgentId = data.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL')?.agentToolId;
           return meshcentralAgentId ? 10_000 : 5_000;

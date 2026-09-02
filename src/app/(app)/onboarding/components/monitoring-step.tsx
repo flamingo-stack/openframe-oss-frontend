@@ -114,7 +114,7 @@ export function MonitoringStep({
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Policies are rule sets that watch your devices. Set a threshold for things like CPU, disk, or memory, then
         assign the policy to devices. When a device crosses the line, you get an alert right away.
       </p>
@@ -125,7 +125,7 @@ export function MonitoringStep({
         control={form.control}
         render={({ field, fieldState }) => (
           <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <Label className="text-h4 text-ods-text-primary">Name</Label>
+            <Label className="text-ods-text-primary text-h4">Name</Label>
             <Input
               type="text"
               value={field.value}
@@ -144,7 +144,7 @@ export function MonitoringStep({
         control={form.control}
         render={({ field }) => (
           <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <Label className="text-h4 text-ods-text-primary">Query</Label>
+            <Label className="text-ods-text-primary text-h4">Query</Label>
             <ScriptEditor value={field.value} onChange={field.onChange} shell="sql" height="240px" />
           </div>
         )}

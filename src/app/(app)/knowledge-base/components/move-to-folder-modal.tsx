@@ -8,7 +8,7 @@ import {
   InputTrigger,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import {
   buildFolderTree,
@@ -65,7 +65,7 @@ function FolderPicker({ selected, onSelect, excludeFolderId }: FolderPickerProps
 }
 
 function FolderPickerSkeleton() {
-  return <div className="h-12 w-full rounded-[6px] bg-ods-card animate-pulse" />;
+  return <div className="h-12 w-full animate-pulse rounded-[6px] bg-ods-card" />;
 }
 
 export function MoveToFolderModal({ isOpen, onClose, item, sourceConnectionId }: MoveToFolderModalProps) {
@@ -73,9 +73,13 @@ export function MoveToFolderModal({ isOpen, onClose, item, sourceConnectionId }:
   const { moveToFolder, isPending } = useMoveToFolder();
   const [selected, setSelected] = useState<FolderMenuTarget | null>(null);
 
-  useEffect(() => {
+  // Cleared on the close transition, during render rather than in an effect: an
+  // effect leaves the old value on screen for a frame of the closing animation.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (!isOpen) setSelected(null);
-  }, [isOpen]);
+  }
 
   const excludeFolderId = item?.type === 'folder' ? item.id : null;
 
@@ -98,7 +102,9 @@ export function MoveToFolderModal({ isOpen, onClose, item, sourceConnectionId }:
         variant: 'success',
       });
       onClose();
-    } catch {}
+    } catch {
+      // The mutation hook already toasts and rejects on failure (see use-archive-article.ts and its siblings). Catching here keeps the rejection from going unhandled and leaves the modal open on the data the user still has, instead of closing it as if the action had succeeded.
+    }
   };
 
   return (
@@ -125,7 +131,7 @@ export function MoveToFolderModal({ isOpen, onClose, item, sourceConnectionId }:
         </>
       }
     >
-      <p className="text-h4 text-ods-text-primary">Folder Name</p>
+      <p className="text-ods-text-primary text-h4">Folder Name</p>
       {item ? (
         <Suspense fallback={<FolderPickerSkeleton />}>
           <FolderPicker selected={selected} onSelect={setSelected} excludeFolderId={excludeFolderId} />
