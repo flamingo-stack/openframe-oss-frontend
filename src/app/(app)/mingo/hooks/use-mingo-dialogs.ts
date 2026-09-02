@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { GET_MINGO_DIALOGS_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
+import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
 
 // TODO(unread-from-entity): re-enable per-dialog unread highlighting once the backend exposes
 // unread counts on the dialog entity itself. Matching unread notifications to dialogs by id is a
@@ -25,7 +26,10 @@ function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): Dia
   const ownerName = [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(' ');
   return {
     id: dialog.id,
-    title: dialog.title || 'Untitled Dialog',
+    // The backend generates the title asynchronously after the first message;
+    // until it lands the dialog has no title — show a provisional name, not an
+    // error-looking "Untitled Dialog".
+    title: dialog.title || 'New Chat',
     timestamp: new Date(dialog.createdAt),
     unreadMessagesCount: unreadCount,
     owner: dialog.owner?.userId
@@ -107,7 +111,14 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     // realtime subscription, and mutation invalidations (rename/archive/new).
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
-    refetchInterval: 60 * 1000,
+    // Titles are generated asynchronously on the backend with no realtime
+    // event — while the list holds a fresh title-less dialog ("New Chat"),
+    // poll faster so the generated title replaces it promptly.
+    refetchInterval: query => {
+      const pages = query.state.data?.pages;
+      const awaitingTitle = pages?.some(page => page.dialogs.some(dialog => isAwaitingGeneratedTitle(dialog)));
+      return awaitingTitle ? 10 * 1000 : 60 * 1000;
+    },
     // Keep the current list visible while a new `search` term refetches, so
     // typing doesn't flash an empty list / "No chats found" between keystrokes.
     placeholderData: keepPreviousData,
