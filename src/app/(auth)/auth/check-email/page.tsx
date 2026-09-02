@@ -62,7 +62,7 @@ export default function CheckEmailPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-[var(--spacing-system-xl)]">
+    <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-[var(--spacing-system-l)] md:p-[var(--spacing-system-xl)]">
       {/* Logo */}
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
         <OpenFrameLogo
@@ -75,18 +75,20 @@ export default function CheckEmailPage() {
 
       {/* Content */}
       <main className="flex max-w-[600px] flex-col items-center gap-[var(--spacing-system-xl)] text-center">
-        <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
+        <div className="flex flex-col gap-[var(--spacing-system-xs)]">
           <h1 className="text-ods-text-primary text-h2">Check your Email</h1>
-          <p className="text-ods-text-secondary text-h4">
-            We sent a confirmation link to <span className="text-ods-text-primary">{email}</span>. Click it to verify
-            your address and finish setting up your account.
-          </p>
+          <div className="text-ods-text-secondary text-h4">
+            <p>
+              We sent a confirmation link to <span className="text-ods-text-primary">{email}</span>.
+            </p>
+            <p>Click it to verify your address and finish setting up your account.</p>
+          </div>
         </div>
 
         {/* 200px per the mockup, shrinking evenly when the viewport is narrower than the design's 430px frame */}
         <div className="flex w-full justify-center gap-[var(--spacing-system-m)]">
-          <Button variant="outline" className="w-full max-w-[200px]" onClick={() => router.push(routes.auth.root)}>
-            Back to Sign Up
+          <Button variant="outline" className="w-full max-w-[200px]" onClick={() => router.push(routes.auth.login)}>
+            Back to Login
           </Button>
           <Button variant="outline" className="w-full max-w-[200px]" onClick={handleResend} disabled={isResending}>
             {isResending ? 'Sending...' : 'Resend Email'}
