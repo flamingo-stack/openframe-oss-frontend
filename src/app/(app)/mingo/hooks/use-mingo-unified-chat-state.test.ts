@@ -166,8 +166,7 @@ describe('sendMingoDisplayCommand', () => {
         sendMessage,
       ),
     ).toBe(true);
-    expect(sendMessage).toHaveBeenCalledOnce();
-    expect(sendMessage).toHaveBeenCalledWith('/product-docs display "agent\\\\\\"install"');
+    expect(sendMessage).toHaveBeenCalledExactlyOnceWith('/product-docs display "agent\\\\\\"install"');
   });
 
   it('falls back to the document-type table mapping when source repo has no display command', () => {
