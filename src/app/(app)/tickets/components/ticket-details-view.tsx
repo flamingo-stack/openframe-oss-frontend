@@ -86,6 +86,7 @@ import { TicketAttachmentsSection } from './ticket-attachments-section';
 import { TicketDetailsSkeleton } from './ticket-details-skeleton';
 import { TicketDialogSubscription } from './ticket-dialog-subscription';
 import { TicketNotesSection } from './ticket-notes-section';
+import { TicketNotificationsAutoReader } from './ticket-notifications-auto-reader';
 import { TicketTagsSection } from './ticket-tags-section';
 
 interface TicketDetailsViewProps {
@@ -623,6 +624,17 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   );
   const hasTicketDetails = hasDescription || hasAssignedItems;
   const showDetailsTabs = hasClientChat && hasTicketDetails;
+
+  // Is the ticket's client chat the pane the user is looking at? `?tab=chat` is the same param
+  // the notification routes point at, which is what makes it the right signal here.
+  //
+  // Known under-fire, deliberately left: with `showDetailsTabs` false the desktop column
+  // renders the chat bare (`mainTab` stays 'details') while the mobile column shows tabs on
+  // Details. Both columns are mounted and only CSS picks one, so no boolean is right for both
+  // without `matchMedia` — and under-firing leaves a badge up, which is the safe direction for
+  // an irreversible cross-device read.
+  const clientChatOnScreen = hasClientChat && mainTab === 'chat';
+
   const customerName =
     dialog.organizationName ||
     (isClientOwner(dialog.owner) ? dialog.owner.machine?.organizationId : undefined) ||
@@ -871,6 +883,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         isInitialOptStartSeqReady={isInitialOptStartSeqReady}
         onReconnected={handleNatsReconnected}
       />
+      <TicketNotificationsAutoReader ticketId={ticketId} clientChatOnScreen={clientChatOnScreen} />
       <PageLayout
         title={dialog.title || 'Untitled Dialog'}
         backButton={{ label: 'Back', onClick: handleBackToTickets }}
