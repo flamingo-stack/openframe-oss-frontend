@@ -7,7 +7,7 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 // Build target selector. `export` produces a static SPA bundle for the native
 // shells (Capacitor mobile / Tauri desktop); anything else keeps the SSR
 // `standalone` server build used by the web deployment. Gating on env lets ONE
-// codebase serve browser + desktop + mobile — see docs/static-export-migration.md.
+// codebase serve browser + desktop + mobile.
 // Build-time only (not NEXT_PUBLIC_): never shipped to the client bundle.
 const isStaticExport = process.env.OPENFRAME_BUILD_TARGET === 'export';
 
