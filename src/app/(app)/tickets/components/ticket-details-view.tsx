@@ -70,11 +70,10 @@ import { useTicketDetail } from '../hooks/use-ticket-detail';
 import { useTicketMessages } from '../hooks/use-ticket-messages';
 import { useAddTicketNote, useDeleteTicketNote, useUpdateTicketNote } from '../hooks/use-ticket-notes';
 import { useAssigneeOptions } from '../hooks/use-ticket-options';
-import { useTicketStatus } from '../hooks/use-ticket-status';
 import { useTransitionTicket } from '../hooks/use-transition-ticket';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import { useTicketDetailsStore } from '../stores/ticket-details-store';
-import type { ClientDialogOwner, Dialog, DialogOwner } from '../types/dialog.types';
+import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
@@ -257,7 +256,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
   const clientChat = useTicketMessages(messageDialogId, CHAT_TYPE.CLIENT);
 
-  const { activate, archive, isUpdating } = useTicketStatus();
   const transitionTicket = useTransitionTicket();
   // Target-status kinds, to recognize a resolve at click time (availableTransitions
   // carries no `kind`). Cached/shared with the board & table, so no extra fetch.
@@ -376,28 +374,23 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     void refetchClientChat();
   }, [refetchClientChat]);
 
-  const applyStatus = useCallback(
-    (nextStatus: Dialog['status']) => {
-      queryClient.setQueryData<Dialog | null>(ticketsQueryKeys.detail(ticketId), prev =>
-        prev ? { ...prev, status: nextStatus } : prev,
-      );
-    },
-    [queryClient, ticketId],
-  );
+  // Archive / Unarchive are plain lifecycle transitions (the per-status legacy
+  // mutations are rejected by the backend): Archive targets the ARCHIVED-kind
+  // status, Unarchive the first non-archived status from the snapshot
+  // (position order).
+  const handleArchive = useCallback(() => {
+    if (!dialog || transitionTicket.isPending) return;
+    const toStatusId = statusesData?.snapshot.find(s => s.kind === TICKET_STATUS_KIND.ARCHIVED)?.id;
+    if (!toStatusId) return;
+    transitionTicket.mutate({ ticketId, toStatusId });
+  }, [dialog, transitionTicket, statusesData, ticketId]);
 
-  const handleArchive = useCallback(async () => {
-    if (!dialog || isUpdating) return;
-
-    const nextStatus = await archive(ticketId);
-    if (nextStatus) applyStatus(nextStatus);
-  }, [dialog, isUpdating, archive, ticketId, applyStatus]);
-
-  const handleUnarchive = useCallback(async () => {
-    if (!dialog || isUpdating) return;
-
-    const nextStatus = await activate(ticketId);
-    if (nextStatus) applyStatus(nextStatus);
-  }, [dialog, isUpdating, activate, ticketId, applyStatus]);
+  const handleUnarchive = useCallback(() => {
+    if (!dialog || transitionTicket.isPending) return;
+    const toStatusId = statusesData?.snapshot.find(s => s.kind !== TICKET_STATUS_KIND.ARCHIVED)?.id;
+    if (!toStatusId) return;
+    transitionTicket.mutate({ ticketId, toStatusId });
+  }, [dialog, transitionTicket, statusesData, ticketId]);
 
   // Starting a direct chat on an AI-worked ticket is a take-over (confirm
   // status + assignee first); without an active AI dialog it starts directly.
@@ -731,19 +724,19 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   if (isResolved) {
     sidebarMenuItems.push({
       id: 'archive',
-      label: isUpdating ? 'Updating...' : 'Archive Ticket',
+      label: transitionTicket.isPending ? 'Updating...' : 'Archive Ticket',
       icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
       onClick: handleArchive,
-      disabled: isUpdating,
+      disabled: transitionTicket.isPending,
     });
   }
   if (isArchived) {
     sidebarMenuItems.push({
       id: 'unarchive',
-      label: isUpdating ? 'Updating...' : 'Unarchive Ticket',
+      label: transitionTicket.isPending ? 'Updating...' : 'Unarchive Ticket',
       icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
       onClick: handleUnarchive,
-      disabled: isUpdating,
+      disabled: transitionTicket.isPending,
     });
   }
   if (sidebarMenuItems.length > 0) {

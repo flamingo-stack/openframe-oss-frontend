@@ -556,42 +556,6 @@ export const UPDATE_TICKET_MUTATION = `
   }
 `;
 
-export const PUT_TICKET_ON_HOLD_MUTATION = `
-  mutation PutTicketOnHold($input: TicketIdInput!) {
-    putTicketOnHold(input: $input) {
-      ticket { id status }
-      userErrors { field message }
-    }
-  }
-`;
-
-export const RESOLVE_TICKET_MUTATION = `
-  mutation ResolveTicket($input: TicketIdInput!) {
-    resolveTicket(input: $input) {
-      ticket { id status resolvedAt }
-      userErrors { field message }
-    }
-  }
-`;
-
-export const ARCHIVE_TICKET_MUTATION = `
-  mutation ArchiveTicket($input: TicketIdInput!) {
-    archiveTicket(input: $input) {
-      ticket { id status }
-      userErrors { field message }
-    }
-  }
-`;
-
-export const REOPEN_TICKET_MUTATION = `
-  mutation ReopenTicket($input: TicketIdInput!) {
-    reopenTicket(input: $input) {
-      ticket { id status }
-      userErrors { field message }
-    }
-  }
-`;
-
 /**
  * The reopen verb (ClickUp 86ajnyctz): flips a Resolved/Archived ticket back
  * open, records the optional reason (backend trims, <=1000 chars), and fires
@@ -669,15 +633,6 @@ export const UNLINK_ORGANIZATION_FROM_TICKET_MUTATION = `
     unlinkOrganizationFromTicket(input: $input) {
       ticket { id organizationId organizationName }
       userErrors { field message }
-    }
-  }
-`;
-
-export const GET_TICKET_STATUS_TRANSITIONS_QUERY = `
-  query TicketStatusTransitions {
-    ticketStatusTransitions {
-      from
-      to
     }
   }
 `;
