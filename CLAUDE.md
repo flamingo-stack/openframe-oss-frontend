@@ -39,15 +39,17 @@ Access: http://localhost:3000
 | `npm run relay:watch` | Relay compiler in watch mode |
 | `npm run fetch-schema` | Pull `schema.graphql` from a backend via introspection (`-- --endpoint <url> --token <JWT>`) |
 | `npm run generate-enums` | Regenerate `src/generated/schema-enums.ts` (enum const+type) from `schema.graphql` |
-| `npm run lint` | Next.js ESLint check |
-| `npm run lint:biome` | Biome check (linting + formatting) |
-| `npm run lint:biome:fix` | Biome auto-fix |
-| `npm run format` | Biome format check |
-| `npm run format:fix` | Biome auto-format |
+| `npm run lint` | ESLint — the fast pass (`eslint.config.mjs`), cached |
+| `npm run lint:ci` | What CI blocks on: the fast pass minus the `relay/unused-fields` backlog (`eslint.ci.mjs`) |
+| `npm run lint:fix` | ESLint autofix (import order, unused imports, type imports) |
+| `npm run lint:types` | ESLint type-aware pass (`eslint.types.mjs`; slow, needs an 8 GB heap) |
+| `npm run lint:cycles` | ESLint `import/no-cycle` pass (`eslint.cycles.mjs`; walks the whole import graph) |
+| `npm run format` | Prettier check |
+| `npm run format:fix` | Prettier write |
 | `npm run core:link` / `core:unlink` | yalc-link/unlink the core library for local lib development |
 
 ### Pre-commit Hooks
-Husky (`.husky/pre-commit`) is **staged-file-scoped**: it runs Biome check on the staged frontend files and `tsc --noEmit` with errors filtered to staged files only. A clean commit does not require the whole repo to pass — but don't rely on that; keep `npm run lint:biome` and `npm run type-check` green.
+Husky (`.husky/pre-commit`) is **staged-file-scoped**: it runs ESLint and `prettier --check` on the staged frontend files, plus `tsc --noEmit` with errors filtered to staged files only. A clean commit does not require the whole repo to pass, but today it very nearly does: `npm run lint:ci` — the fast pass minus the `relay/unused-fields` backlog — is green, and CI blocks on it. Keep `npm run type-check` and `npm run format` green too.
 
 ### Environment Variables
 
@@ -137,7 +139,8 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 | Date Utils | date-fns | 4.1 |
 | Icons | lucide-react | 0.454 |
 | Runtime Env | next-runtime-env | 3.2 |
-| Code Quality | Biome (primary) + ESLint (Next.js) | 2.4.4 + 9.27 |
+| Linting | ESLint + `@flamingo-stack/openframe-frontend-core/eslint-config` | 9.39 |
+| Formatting | Prettier + the shared preset (Tailwind class sorting) | 3.9 |
 | Git Hooks | Husky | 9.1 |
 
 ### Core Library is External
@@ -688,26 +691,63 @@ export const useMyStore = create<MyState>()(
 - `useDevicesStore` — `src/stores/devices-store.ts` (persist key `devices-store`; mostly unused — devices flow through react-query)
 - Domain stores live in their modules (tickets, mingo, scripts); central re-exports from `src/stores/index.ts`
 
-### Code Quality with Biome
+### Code Quality: ESLint + Prettier
 
-**Biome 2.4.4** is the primary linter and formatter (configured in `biome.jsonc`).
+Biome was removed on 2026-09-01. **ESLint owns the rules, Prettier owns the formatting**, and
+neither rule set lives in this repo: both come from the shared config shipped inside the core
+library, the same one the library and every other Flamingo frontend loads.
 
-**Key rules:**
-- `useConst` — always use `const` when possible
-- `noUnusedVariables` — error
-- `useHookAtTopLevel` — error (enforces React hooks rules)
-- `useExhaustiveDependencies` — warn
-- `useNamingConvention` — enforced (camelCase for variables, PascalCase for types/classes)
-- `noUndeclaredDependencies` — error (off in test files)
+```
+eslint.config.mjs   next + relay + tests + prettier-compat  ← the fast pass, what the editor loads
+eslint.ci.mjs       − relay/unused-fields                   ← npm run lint:ci, the PR gate
+eslint.types.mjs    + type-checked                          ← npm run lint:types
+eslint.cycles.mjs   + cycles (import/no-cycle)              ← npm run lint:cycles
+prettier.config.mjs the shared preset, re-exported unchanged
+```
 
-**Formatter settings:**
-- 2-space indent, 120 char line width, single quotes, trailing commas, semicolons always
+Rules are documented in `node_modules/@flamingo-stack/openframe-frontend-core/eslint-config/README.md`.
+The parts that change how you write code here:
+
+- **No inline suppressions.** `noInlineConfig` is on: an `// eslint-disable-next-line` comment does
+  nothing and is itself reported as an error. A finding is fixed, or it is carried by a **named,
+  `files:`-scoped block in `eslint.config.mjs` that states its reason** — reviewable, unlike a
+  comment buried in a diff.
+- **Severity means autofixable.** `error` is what `eslint --fix` and the editor's
+  `source.fixAll.eslint` clear. `warn` is what a human has to decide, so `npm run lint` runs with
+  `--max-warnings 0`.
+- **Import order is an ESLint rule** (`perfectionist/sort-imports`), not a formatter concern — one
+  save-time actor, no fight with Prettier. Do not add VS Code's `source.organizeImports`.
+- **Prettier settings reproduce the old Biome formatter** (2-space, 120 cols, single quotes,
+  trailing commas, semicolons, avoided arrow parens) and add Tailwind class sorting on top.
+- **Type-aware rules are a separate pass.** `npm run lint:types` (floating promises, the unsafe-`any`
+  family, misused await) needs a TypeScript program and an 8 GB heap, so the editor does not run it.
+
+Two rules the shared config deliberately omits, and this repo does not add back: `no-console` (the
+frontends use it as a logging channel) and `@typescript-eslint/naming-convention` (Biome's
+`useNamingConvention` equivalent, never actually enforced).
+
+**The one remaining backlog: `relay/unused-fields` (543).** Everything else is at zero.
+
+The migration surfaced ~1 130 errors, because the old `eslint.config.mjs` declared no `files:`
+patterns, matched no `.ts`/`.tsx` file at all, and `npm run lint` therefore linted **nothing**. All
+of them are now fixed except this rule, which cannot be cleared mechanically — each finding is a
+decision about whether a query should stop selecting a field or a consumer should start reading it
+through a fragment.
+
+**CI runs `npm run lint:ci`** (`.github/workflows/test.yml`, job `Lint`), which is the fast pass with
+`relay/unused-fields` turned off, so a PR is not blocked by somebody else's over-fetched field. The
+rule stays ON in `eslint.config.mjs` — the editor and the pre-commit hook still report it in the
+files you touch. Delete `eslint.ci.mjs` and point CI at `npm run lint` once the count reaches zero.
+
+There is no suppressions file anywhere, so no count can drift back up: what is not fixed is carried
+by a named `files:`-scoped block that states its reason.
 
 **Run manually:**
 ```bash
-npm run lint:biome       # Check
-npm run lint:biome:fix   # Auto-fix
-npm run format:fix       # Auto-format
+npm run lint         # fast pass — everything, including the backlog rule
+npm run lint:ci      # what CI blocks on
+npm run lint:fix     # autofix
+npm run format:fix   # Prettier
 ```
 
 ## URL State Management (useApiParams)
@@ -866,7 +906,8 @@ from the installed package. Edit the rules in the core lib, not here:
 | Command | Purpose |
 |---------|---------|
 | `npm run type-check` | TypeScript validation |
-| `npm run lint:biome` | Biome linting + formatting |
+| `npm run lint` | ESLint (fast pass) |
+| `npm run format` | Prettier formatting check |
 | `npm run build` | Production build verification |
 
 ### Build & Deployment
@@ -901,11 +942,13 @@ npm run core:link && npm install
 npm run core:unlink   # back to the registry version
 ```
 
-**Biome Errors:**
+**Lint / format errors:**
 ```bash
-npm run lint:biome:fix    # Auto-fix most issues
+npm run lint:fix          # Auto-fix most issues
 npm run format:fix        # Fix formatting
 ```
+An `// eslint-disable` comment will not silence anything — `noInlineConfig` is on. See
+Code Quality above for what to do instead.
 
 **API Connection:**
 - Verify `NEXT_PUBLIC_TENANT_HOST_URL` matches backend
@@ -963,6 +1006,7 @@ if (response.ok) {
 4. **Use ODS design tokens** — never hardcode colors or styles
 5. **Use react-relay for GraphQL** (gradual migration — prefer it wherever possible); **TanStack React Query for REST** — no Apollo Client, no new raw-POST GraphQL
 6. **Use react-hook-form + zod** for forms
-7. **Biome is the primary linter** — must pass before commits
+7. **ESLint + Prettier, rules from the core library's shared config** — no inline
+   `eslint-disable`; keep the files you touch clean
 8. **Normalize multi-source device data** — Fleet-first priority; merge logic in `use-device-details.ts` `createDevice()`
 9. **Build internal URLs via `routes.*` from `src/lib/routes.ts`** — no raw path strings; new pages/tabs must be added to the registry (see `src/lib/ROUTES.md`)

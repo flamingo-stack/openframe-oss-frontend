@@ -9,7 +9,7 @@ This document covers the testing approach for the OpenFrame OSS Frontend, includ
 The OpenFrame OSS Frontend focuses testing efforts on:
 
 1. **Type safety** via TypeScript type checking (catches entire classes of bugs at compile time)
-2. **Static analysis** via Biome and ESLint (catches antipatterns and style issues)
+2. **Static analysis** via ESLint (catches antipatterns and style issues)
 3. **Relay compiler validation** (ensures all GraphQL fragments are valid against the schema)
 4. **Integration and E2E testing** for critical user flows (handled at the platform level)
 
@@ -30,19 +30,29 @@ This runs `tsc --noEmit` and reports any type errors without emitting files. Thi
 ### Linting
 
 ```bash
-# ESLint (TypeScript/TSX files)
+# The fast pass — what the editor loads
 npm run lint
 
-# Biome (all files)
-npm run lint:biome
+# What CI blocks a PR on (the fast pass minus the relay/unused-fields backlog)
+npm run lint:ci
+
+# Type-aware pass — slow, needs an 8 GB heap
+npm run lint:types
+
+# Circular imports — walks the whole import graph
+npm run lint:cycles
 ```
 
-Both tools catch:
+Between them they catch:
 - Unused variables and imports
-- Type unsafe patterns
-- Security antipatterns (e.g., `dangerouslySetInnerHTML`)
+- Type-unsafe patterns (the `any` family, non-null assertions, unchecked `ts-expect-error`)
+- Missing `await` and floating promises (`lint:types`)
+- Render-correctness bugs the React Compiler can prove (`react-hooks` v7)
+- Security antipatterns (`no-eval`, `no-new-func`, `no-script-url`)
 - Relay-specific issues (`eslint-plugin-relay`)
-- Import cycle issues
+- Import cycles (`lint:cycles`)
+
+Formatting is Prettier's job, not the linter's — `npm run format`.
 
 ### Relay Compiler Validation
 
@@ -63,7 +73,7 @@ The project does not currently include a dedicated unit/component test runner (n
 | Level | Tool | What It Tests |
 |-------|------|---------------|
 | Static types | TypeScript (`tsc`) | Type correctness, interface compatibility |
-| Linting | ESLint + Biome | Code quality, security antipatterns |
+| Linting | ESLint (shared config) | Code quality, security antipatterns |
 | GraphQL | Relay compiler | Fragment validity vs schema |
 | Integration | Platform-level E2E | User flows (separate test suite) |
 
@@ -178,10 +188,12 @@ If a fragment references a field that doesn't exist in the schema, the Relay com
 
 The project uses Husky to enforce quality checks on every commit. The pre-commit hook runs:
 
-1. TypeScript type checking
-2. Biome linting/formatting checks
+1. ESLint and `prettier --check` on the **staged** files
+2. TypeScript type checking, with the errors filtered down to the staged files
 
-This means type errors and lint violations are caught before they can be pushed to the repository.
+Both halves are staged-file-scoped on purpose, so the `relay/unused-fields` backlog — the one rule
+still carrying findings — cannot block a commit that does not touch it. CI runs `npm run lint:ci`,
+which is the same pass with that rule off.
 
 ---
 
@@ -190,8 +202,9 @@ This means type errors and lint violations are caught before they can be pushed 
 While there is no automated coverage threshold enforced by a test runner, the following should be met before a PR is merged:
 
 - [ ] `npm run type-check` passes with 0 errors
-- [ ] `npm run lint` passes with 0 errors
-- [ ] `npm run lint:biome` passes with 0 errors
+- [ ] `npm run lint:ci` passes (CI runs it)
+- [ ] `npm run lint` reports nothing new in the files you touched
+- [ ] `npm run format` passes
 - [ ] `npm run relay` compiles successfully
 - [ ] New hooks have explicit TypeScript return types
 - [ ] New API-consuming code validates responses with Zod where the schema is uncertain

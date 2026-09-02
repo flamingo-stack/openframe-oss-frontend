@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  REGISTRY: "ghcr.io"
+  REGISTRY: 'ghcr.io'
   ORGANISATION: ${{ github.repository_owner }}
   REPOSITORY: ${{ github.event.repository.name }}
 
@@ -23,8 +23,37 @@ env:
 # =============================================================================
 
 jobs:
+  lint:
+    name: 'Lint'
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.state == 'open' && !github.event.pull_request.draft
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # No codegen step on purpose: the fast pass carries no type-aware rules, so
+      # it reports the same findings with or without `src/__generated__` and
+      # `src/generated` present (verified). Skipping relay-compiler and
+      # generate-enums keeps this job a fraction of the image build's cost.
+      - name: ESLint
+        run: npm run lint:ci
+
   build_image:
-    name: "Test Frontend"
+    name: 'Test Frontend'
     runs-on: ubuntu-latest
     if: github.event.pull_request.state == 'open' && !github.event.pull_request.draft
     permissions:
@@ -78,7 +107,6 @@ jobs:
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" .
 
-
   cleanup:
     name: Cleanup
     runs-on: ubuntu-latest
@@ -98,10 +126,9 @@ jobs:
           delete-tags: pr-${{ github.event.pull_request.number }},pr-${{ github.event.pull_request.number }}-*
           delete-ghost-images: true
 
-
   all-checks:
-    name: "All Checks"
-    needs: [build_image]
+    name: 'All Checks'
+    needs: [lint, build_image]
     runs-on: ubuntu-latest
     if: |
       always() &&
