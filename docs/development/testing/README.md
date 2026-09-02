@@ -191,9 +191,9 @@ The project uses Husky to enforce quality checks on every commit. The pre-commit
 1. ESLint and `prettier --check` on the **staged** files
 2. TypeScript type checking, with the errors filtered down to the staged files
 
-Both halves are staged-file-scoped on purpose, so the `relay/unused-fields` backlog — the one rule
-still carrying findings — cannot block a commit that does not touch it. CI runs `npm run lint:ci`,
-which is the same pass with that rule off.
+Both halves are staged-file-scoped on purpose. The ESLint half runs `eslint.ci.mjs` — the same set
+CI blocks on, with `relay/unused-fields` off — so the one rule still carrying a backlog cannot refuse
+a commit over a field the change did not introduce.
 
 ---
 

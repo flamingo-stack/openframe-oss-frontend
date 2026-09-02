@@ -51,11 +51,17 @@ fi
 # NUL list and are scoped to staged files, so the repo-wide lint backlog cannot
 # block a commit that does not touch it.
 #
+# --config eslint.ci.mjs: the SAME set CI blocks on, so the hook and the PR gate
+# can never disagree. It is the fast pass minus `relay/unused-fields`, the one
+# rule still carrying a backlog — with it on, touching any file that over-fetches
+# a field would refuse the commit over something the change did not introduce.
+# The rule stays on in eslint.config.mjs, which is what the editor loads.
+#
 # --no-warn-ignored: a staged file the config ignores (a __generated__ artifact)
 # would otherwise fail the run with "File ignored" instead of being skipped.
 # --max-warnings 0: the relay ts-recommended rules ship at `warn`, and a warning
 # nobody is forced to read is a rule that does not exist.
-staged_files | xargs -0 npx eslint --no-warn-ignored --max-warnings 0
+staged_files | xargs -0 npx eslint --config eslint.ci.mjs --no-warn-ignored --max-warnings 0
 staged_files | xargs -0 npx prettier --check --ignore-unknown
 
 TSC_STATUS=0

@@ -44,21 +44,21 @@ interface ProfileCardProps {
 function ProfileCardSkeleton() {
   return (
     <div className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]" aria-busy="true">
-      <Skeleton className="h-12 w-12 rounded-full shrink-0" />
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1 overflow-hidden">
         {/* `min-h-8` because the loaded name line carries role tags, and `Tag` is a fixed
             32px — taller than the 24px text line box, so IT sets the row's height (16 +
             32 + 20 + 16 = 84px). Without this the placeholder came out 80px and the row
             grew 4px on handoff. The real line below is pinned the same way so the height
             no longer depends on whether a user happens to have roles. */}
-        <div className="flex items-center min-h-8">
+        <div className="flex min-h-8 items-center">
           <Skeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
         </div>
-        <div className="flex items-center h-[var(--font-line-space-h6-caption)]">
+        <div className="flex h-[var(--font-line-space-h6-caption)] items-center">
           <Skeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
         </div>
       </div>
-      <Skeleton className="h-11 w-11 md:h-12 md:w-12 rounded-md shrink-0" />
+      <Skeleton className="h-11 w-11 shrink-0 rounded-md md:h-12 md:w-12" />
     </div>
   );
 }
@@ -120,11 +120,11 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
           variant="round"
         />
 
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="min-w-0 flex-1 overflow-hidden">
           {/* `min-h-8` = the `Tag` height, so this line is 32px whether or not the user
               has role tags. It is what makes the row a constant 84px and lets the
               placeholder above match it instead of guessing at a role count. */}
-          <div className="flex items-center gap-2 min-h-8">
+          <div className="flex min-h-8 items-center gap-2">
             <div className="min-w-0">
               <TruncateText>{displayName}</TruncateText>
             </div>
@@ -142,10 +142,10 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
               <button
                 type="button"
                 onClick={onVerifyEmail}
-                className="flex items-center gap-1 text-ods-warning hover:text-ods-warning/80 transition-colors"
+                className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
                 title="Email not verified - click to resend verification"
               >
-                <AlertCircleIcon className="w-4 h-4" />
+                <AlertCircleIcon className="h-4 w-4" />
                 <span className="text-h6">Not verified</span>
               </button>
             )}
@@ -153,7 +153,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
         </div>
 
         {/* Action menu — Edit Profile + (flag-gated) Reset Onboarding, per the design's "…" kebab */}
-        <div className="shrink-0 flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           <ActionsMenuDropdown
             align="end"
             triggerAriaLabel="Profile actions"
@@ -163,13 +163,13 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                   {
                     id: 'edit-profile',
                     label: 'Edit Profile',
-                    icon: <PenEditIcon className="w-5 h-5 text-ods-text-secondary" />,
+                    icon: <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />,
                     onClick: onEditProfile,
                   },
                   {
                     id: 'notification-settings',
                     label: 'Notification Settings',
-                    icon: <BellIcon className="w-5 h-5 text-ods-text-secondary" />,
+                    icon: <BellIcon className="h-5 w-5 text-ods-text-secondary" />,
                     onClick: () => setIsNotificationSettingsOpen(true),
                   },
                   ...(canResetOnboarding
@@ -177,7 +177,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                         {
                           id: 'reset-onboarding',
                           label: 'Reset Onboarding',
-                          icon: <RotateCcw className="w-5 h-5 text-ods-text-secondary" />,
+                          icon: <RotateCcw className="h-5 w-5 text-ods-text-secondary" />,
                           onClick: () => setIsResetConfirmOpen(true),
                           disabled: isResettingOnboarding,
                         },
@@ -191,7 +191,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                   {
                     id: 'delete-account',
                     label: 'Delete Account',
-                    icon: <UserXmarkIcon className="w-5 h-5 text-ods-error" />,
+                    icon: <UserXmarkIcon className="h-5 w-5 text-ods-error" />,
                     danger: true,
                     onClick: () => setIsDeleteAccountOpen(true),
                   },

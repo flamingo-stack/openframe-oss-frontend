@@ -96,9 +96,7 @@ export function useScheduleDeviceFilters(
 
   const schedule = data.scriptSchedule;
   const facetsKey = (half === 'assigned' ? schedule?.assignedDeviceFilters : schedule?.availableDeviceFilters) as
-    | FacetsFragmentKey
-    | null
-    | undefined;
+    FacetsFragmentKey | null | undefined;
   const facets = useFragment(scheduleDeviceFiltersRelayFacetsFragment, facetsKey ?? null);
 
   // Tags only — see above. Unfiltered for the same reason the scoped query is:

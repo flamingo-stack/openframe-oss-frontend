@@ -37,10 +37,10 @@ export function TicketDetailsSkeleton({ onBack }: TicketDetailsSkeletonProps) {
     <PageLayout
       loading
       backButton={{ label: 'Back', onClick: onBack }}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] h-[calc(100%)]"
+      className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       actions={SIDEBAR_ACTIONS}
       actionsVariant="icon-buttons"
-      contentClassName="flex flex-col min-h-0"
+      contentClassName="flex min-h-0 flex-col"
     >
       <SidebarLayoutSkeleton />
     </PageLayout>
@@ -50,9 +50,9 @@ export function TicketDetailsSkeleton({ onBack }: TicketDetailsSkeletonProps) {
 /** The chat pane the layout is built around, with the details column beside it. */
 function MainChatPaneSkeleton() {
   return (
-    <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)] min-h-0">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
       <Skeleton className="h-5 w-24" />
-      <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
+      <div className="relative flex min-h-0 flex-1 flex-col rounded-md border border-ods-border bg-ods-bg">
         <ChatMessageListSkeleton fullWidth contentClassName="px-[var(--spacing-system-mf)]" />
       </div>
       <Skeleton className="mt-[var(--spacing-system-xsf)] h-12 w-full rounded-lg" />
@@ -63,12 +63,12 @@ function MainChatPaneSkeleton() {
 /** A main pane beside a Ticket Details / Attachments / Tags sidebar. */
 function SidebarLayoutSkeleton() {
   return (
-    <div className="flex-1 flex flex-col lg:flex-row gap-[var(--spacing-system-l)] min-h-0">
+    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] lg:flex-row">
       {/* Main pane — chat is the most common case; transitions seamlessly into it */}
       <MainChatPaneSkeleton />
 
       {/* Right sidebar — desktop only, matching the loaded layout */}
-      <aside className="hidden lg:flex shrink-0 lg:w-80 flex-col gap-[var(--spacing-system-l)] min-h-0">
+      <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] lg:flex lg:w-80">
         {/* Ticket Details info card */}
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <Skeleton className="h-5 w-28" />
@@ -76,7 +76,7 @@ function SidebarLayoutSkeleton() {
             {Array.from({ length: 6 }, (_, i) => (
               <div key={`info-${i}`} className="flex items-center gap-[var(--spacing-system-xsf)]">
                 <Skeleton className="h-5 w-16 shrink-0" />
-                <div className="flex-1 h-px bg-ods-border" />
+                <div className="h-px flex-1 bg-ods-border" />
                 <Skeleton className="h-5 w-24 shrink-0" />
               </div>
             ))}
@@ -86,14 +86,14 @@ function SidebarLayoutSkeleton() {
         {/* Attachments */}
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <Skeleton className="h-5 w-24" />
-          <div className="rounded-md border border-ods-border overflow-hidden">
+          <div className="overflow-hidden rounded-md border border-ods-border">
             {Array.from({ length: 2 }, (_, i) => (
               <div
                 key={`attachment-${i}`}
-                className="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] bg-ods-card border-b border-ods-border last:border-b-0"
+                className="flex items-center gap-[var(--spacing-system-mf)] border-b border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] last:border-b-0"
               >
-                <Skeleton className="size-10 rounded-md shrink-0" />
-                <div className="flex-1 flex flex-col gap-[var(--spacing-system-xxs)] min-w-0">
+                <Skeleton className="size-10 shrink-0 rounded-md" />
+                <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
                   <Skeleton className="h-4 w-32" />
                   <Skeleton className="h-3 w-16" />
                 </div>

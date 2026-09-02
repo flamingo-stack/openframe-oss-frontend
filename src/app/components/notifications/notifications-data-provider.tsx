@@ -538,7 +538,7 @@ function EntityViewAutoReader() {
   const [activityEdge, setActivityEdge] = useState(0);
   useEffect(() => subscribeSessionActivity(() => setActivityEdge(edge => edge + 1)), []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: activityEdge is the re-run trigger, not read in the body.
+  // activityEdge is the re-run trigger, not read in the body.
   useEffect(() => {
     // Called live rather than snapshotted into state: the idle timer lapsing fires no
     // event, so a captured boolean would go stale and re-open the very hole this closes.
@@ -690,14 +690,24 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
   const { showDesktopPopups, markRead } = useNotifications();
   const subject = `${NOTIFICATION_SUBJECT_PREFIX}.${userId}.${NOTIFICATION_SUBJECT_SUFFIX}`;
   const environmentRef = useRef(environment);
-  environmentRef.current = environment;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    environmentRef.current = environment;
+  });
   // Refs keep the NATS subscription callback dependency-free (no resubscribe on toggle/navigation).
   const showDesktopPopupsRef = useRef(showDesktopPopups);
-  showDesktopPopupsRef.current = showDesktopPopups;
   const markReadRef = useRef(markRead);
-  markReadRef.current = markRead;
   const routerRef = useRef(router);
-  routerRef.current = router;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    showDesktopPopupsRef.current = showDesktopPopups;
+    markReadRef.current = markRead;
+    routerRef.current = router;
+  });
 
   useNatsJsonSubscription<NatsNotificationPayload>(
     subject,

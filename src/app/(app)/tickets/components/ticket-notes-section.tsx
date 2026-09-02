@@ -57,7 +57,7 @@ function NoteEditor({ initialText = '', isPending, onSave, onCancel }: NoteEdito
   };
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xxs)] w-full">
+    <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)]">
       <Textarea
         value={draft}
         onChange={e => setDraft(e.target.value)}
@@ -79,7 +79,7 @@ function NoteEditor({ initialText = '', isPending, onSave, onCancel }: NoteEdito
         <button
           type="button"
           onClick={onCancel}
-          className="text-h6 text-ods-text-secondary underline transition-colors hover:text-ods-text-primary"
+          className="text-ods-text-secondary underline transition-colors text-h6 hover:text-ods-text-primary"
         >
           Cancel
         </button>
@@ -112,8 +112,8 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
   }
 
   return (
-    <div className="group flex flex-col gap-[var(--spacing-system-xs)] bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-s)]">
-      <div className="flex items-center gap-[var(--spacing-system-xs)] w-full">
+    <div className="group flex flex-col gap-[var(--spacing-system-xs)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]">
+      <div className="flex w-full items-center gap-[var(--spacing-system-xs)]">
         <SquareAvatar
           src={note.authorAvatar}
           alt={note.authorName}
@@ -121,7 +121,7 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
           size="sm"
           variant="round"
         />
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           <TruncateText className="text-ods-open-yellow">{note.authorName}</TruncateText>
           <TruncateText variant="h6" tone="secondary">
             {formatDateTime(note.createdAt)}
@@ -130,7 +130,7 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
         {note.isOwn && (
           <span
             className={cn(
-              'shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
+              'shrink-0 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100',
               menuOpen && 'opacity-100',
             )}
           >
@@ -170,7 +170,7 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
         )}
       </div>
 
-      <p className="text-h4 text-ods-text-primary break-words">{note.text}</p>
+      <p className="break-words text-ods-text-primary text-h4">{note.text}</p>
     </div>
   );
 }
@@ -186,7 +186,7 @@ export function TicketNotesSection({
 
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <p className="text-h5 text-ods-text-secondary">Notes</p>
+      <p className="text-ods-text-secondary text-h5">Notes</p>
       {notes.map(note => (
         <NoteCard key={note.id} note={note} onEdit={onEditNote} onDelete={onDeleteNote} />
       ))}

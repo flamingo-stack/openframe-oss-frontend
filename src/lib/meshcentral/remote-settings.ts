@@ -52,15 +52,24 @@ export const DEFAULT_SETTINGS: RemoteSettingsConfig = {
   invertScrollDirection: false,
 };
 
+/**
+ * The slice of the desktop tunnel these settings need — just the binary sender.
+ * Structural on purpose: the settings module has no reason to depend on the
+ * tunnel implementation, and `MeshTunnel` satisfies this by shape.
+ */
+interface SettingsTransport {
+  sendBinary(data: Uint8Array): void;
+}
+
 export class RemoteDesktopSettings {
   private settings: RemoteSettingsConfig;
-  private websocket: any | null = null;
+  private websocket: SettingsTransport | null = null;
 
   constructor(initialSettings: RemoteSettingsConfig = DEFAULT_SETTINGS) {
     this.settings = { ...initialSettings };
   }
 
-  setWebSocket(ws: any) {
+  setWebSocket(ws: SettingsTransport) {
     this.websocket = ws;
   }
 

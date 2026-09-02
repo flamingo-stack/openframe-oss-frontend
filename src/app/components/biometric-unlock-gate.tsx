@@ -69,9 +69,9 @@ export function BiometricUnlockGate({ onUnlocked, onUseAnotherLogin }: Biometric
   }, [onUseAnotherLogin]);
 
   return (
-    <main className="min-h-screen bg-ods-bg flex items-center justify-center p-6">
-      <div className="max-w-md w-full space-y-6 text-center">
-        <h1 ref={headingRef} tabIndex={-1} className="text-h2 text-ods-text-primary focus:outline-none">
+    <main className="flex min-h-screen items-center justify-center bg-ods-bg p-6">
+      <div className="w-full max-w-md space-y-6 text-center">
+        <h1 ref={headingRef} tabIndex={-1} className="text-ods-text-primary text-h2 focus:outline-none">
           Unlock OpenFrame
         </h1>
         <p className="text-ods-text-secondary">Use {label} to unlock your account.</p>

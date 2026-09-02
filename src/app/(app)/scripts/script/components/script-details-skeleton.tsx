@@ -1,7 +1,7 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { ScriptSummaryCardSkeleton } from './script-summary-card';

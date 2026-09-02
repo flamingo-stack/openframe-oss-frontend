@@ -18,12 +18,12 @@ function Value({ width }: { width: string }) {
 // optional progress ring (shown for committed packages, hidden for PAYG).
 function InfoCardSkeleton({ title, withProgress = true }: { title: string; withProgress?: boolean }) {
   return (
-    <div className="h-[94px] bg-ods-card border border-ods-border rounded-sm p-[var(--spacing-system-m)] flex gap-[var(--spacing-system-s)] items-center">
-      <div className="flex-1 flex flex-col gap-2">
-        <p className="text-h5 text-ods-text-secondary">{title}</p>
+    <div className="flex h-[94px] items-center gap-[var(--spacing-system-s)] rounded-sm border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
+      <div className="flex flex-1 flex-col gap-2">
+        <p className="text-ods-text-secondary text-h5">{title}</p>
         <Skeleton className="h-7 w-24" />
       </div>
-      {withProgress && <Skeleton className="size-12 rounded-full shrink-0" />}
+      {withProgress && <Skeleton className="size-12 shrink-0 rounded-full" />}
     </div>
   );
 }
@@ -42,10 +42,10 @@ function StatCardSkeleton({ title, caption }: { title: string; caption?: string 
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xsf)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
       <div className="flex flex-col gap-1">
-        <p className="truncate text-h5 text-ods-text-secondary">{title}</p>
+        <p className="truncate text-ods-text-secondary text-h5">{title}</p>
         <Skeleton className="h-8 w-24" />
       </div>
-      <p className="truncate text-h6 text-ods-text-secondary">{caption ?? <InlineSkeleton className="h-3 w-32" />}</p>
+      <p className="truncate text-ods-text-secondary text-h6">{caption ?? <InlineSkeleton className="h-3 w-32" />}</p>
     </div>
   );
 }
@@ -71,12 +71,12 @@ export function BillingUsageSkeleton() {
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         backButton={{ label: 'Back', onClick: handleBack }}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-m)]">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
           <InfoCardSkeleton title="Device Usage" />
           <InfoCardSkeleton title="AI Usage" withProgress={false} />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-l)] items-stretch">
+        <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] md:grid-cols-2">
           <SectionBlock title="Usage Overview">
             <BillingRow label="Active devices" value={<Value width="w-8" />} />
             <BillingRow label="Inactive devices" value={<Value width="w-8" />} />
@@ -117,7 +117,7 @@ export function BillingUsageSkeleton() {
       </SectionBlock>
 
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <h2 className="text-h2 text-ods-text-primary">Invoices History</h2>
+        <h2 className="text-ods-text-primary text-h2">Invoices History</h2>
         {/* The live table's toolbar, inert — including the mobile filter button,
             which exists below `md` only. Omitting it made the search input shift
             left the moment the invoices landed, on exactly the width where the

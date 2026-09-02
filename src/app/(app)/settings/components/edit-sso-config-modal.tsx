@@ -19,7 +19,8 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { validateEmailDomain } from '@flamingo-stack/openframe-frontend-core/utils';
-import React, { useEffect, useMemo, useState } from 'react';
+import type React from 'react';
+import { useMemo, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -94,7 +95,13 @@ export function SsoConfigModal({
 
   const handleCopyRedirectUrl = () => copyToClipboard(redirectUrl);
 
-  useEffect(() => {
+  // Seeded on the open transition, during render rather than in an effect: an
+  // effect paints the previous provider's values once before correcting them, and
+  // keying off the transition alone stops a background config refresh from
+  // discarding half-entered credentials while the modal is up.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setClientId(initialClientId || '');
       setClientSecret(initialClientSecret || '');
@@ -105,23 +112,20 @@ export function SsoConfigModal({
       setDomainError(null);
       setShowSecret(false);
     }
-  }, [
-    isOpen,
-    initialClientId,
-    initialClientSecret,
-    initialMsTenantId,
-    initialAutoProvisionUsers,
-    initialAllowedDomains,
-  ]);
+  }
 
   // Create mode: preselect the first free provider. Idempotent under
-  // `providerOptions` identity churn — an in-options selection is kept.
-  useEffect(() => {
-    if (!isOpen || !isCreate) return;
-    setSelectedProvider(prev =>
-      providerOptions?.some(option => option.provider === prev) ? prev : (providerOptions?.[0]?.provider ?? ''),
-    );
-  }, [isOpen, isCreate, providerOptions]);
+  // `providerOptions` identity churn — an in-options selection is kept. Done
+  // during render so the picker never shows an empty selection for a frame.
+  const [lastProviderOptions, setLastProviderOptions] = useState(providerOptions);
+  if (providerOptions !== lastProviderOptions || isOpen !== wasOpen) {
+    setLastProviderOptions(providerOptions);
+    if (isOpen && isCreate) {
+      setSelectedProvider(prev =>
+        providerOptions?.some(option => option.provider === prev) ? prev : (providerOptions?.[0]?.provider ?? ''),
+      );
+    }
+  }
 
   const canSubmit = useMemo(() => {
     if (isCreate && !effectiveProviderKey) return false;
@@ -190,7 +194,7 @@ export function SsoConfigModal({
     <SimpleModal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-[600px] w-full"
+      className="w-full max-w-[600px]"
       header={<ModalV2Title>{isCreate ? 'New SSO Configuration' : 'Edit SSO Configuration'}</ModalV2Title>}
       footer={
         <div className="flex w-full gap-2">
@@ -216,26 +220,26 @@ export function SsoConfigModal({
       contentClassName="flex flex-col gap-6"
     >
       {/* Redirect URL Section — measured from the mockups: mobile box 12 / row 40 / icon 16 / gaps 4, desktop box 16 / row 56 / icon 24 / gaps 8; the copy control is a bare icon with no padding of its own */}
-      <div className="bg-ods-card border border-ods-border rounded-lg p-3 space-y-1 md:p-4 md:space-y-2">
+      <div className="space-y-1 rounded-lg border border-ods-border bg-ods-card p-3 md:space-y-2 md:p-4">
         <Label variant="large">Authorized redirect URL for your SSO provider settings:</Label>
-        <div className="bg-ods-bg border border-ods-border rounded-lg h-10 px-3 md:h-14 md:px-4 flex items-center gap-3">
-          <div className="flex-1 min-w-0">
+        <div className="flex h-10 items-center gap-3 rounded-lg border border-ods-border bg-ods-bg px-3 md:h-14 md:px-4">
+          <div className="min-w-0 flex-1">
             <TruncateText className="text-code">{redirectUrl}</TruncateText>
           </div>
           <button
             type="button"
             aria-label="Copy redirect URL"
             onClick={handleCopyRedirectUrl}
-            className="shrink-0 flex items-center"
+            className="flex shrink-0 items-center"
           >
             {copied ? (
-              <CheckIcon className="h-4 w-4 md:h-6 md:w-6 text-ods-success" />
+              <CheckIcon className="h-4 w-4 text-ods-success md:h-6 md:w-6" />
             ) : (
-              <Copy02Icon className="h-4 w-4 md:h-6 md:w-6 text-ods-text-secondary" />
+              <Copy02Icon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />
             )}
           </button>
         </div>
-        <p className="text-h4 text-ods-text-primary">
+        <p className="text-ods-text-primary text-h4">
           The callback URL must match exactly. Authentication will fail if not properly configured in your SSO provider.
         </p>
       </div>
@@ -260,7 +264,7 @@ export function SsoConfigModal({
       </div>
 
       {/* Credentials — side by side on desktop (design 1-38427), stacked on mobile */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <Label variant="large">OAuth Client ID</Label>
           <Input
@@ -307,7 +311,7 @@ export function SsoConfigModal({
             }}
             title="Single Tenant"
             description="Use single-tenant authentication for this provider"
-            className="items-center [&_label]:text-h4 [&>button]:mt-0 [&>button]:bg-transparent"
+            className="items-center [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4"
           />
 
           {isSingleTenant && (
@@ -330,7 +334,7 @@ export function SsoConfigModal({
         onCheckedChange={setAutoProvisionUsers}
         title="Allow All Users from Domain"
         description="Automatically grant access to all users with email addresses from your organization's domain."
-        className="items-center [&_label]:text-h4 [&>button]:mt-0 [&>button]:bg-transparent"
+        className="items-center [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4"
       />
 
       {autoProvisionUsers && (
@@ -349,7 +353,7 @@ export function SsoConfigModal({
           placeholder="openframe.com"
           disabled={isSubmitting}
           error={domainError}
-          className="[&_label]:text-h4 [&>button>span]:text-h4"
+          className="[&>button>span]:text-h4 [&_label]:text-h4"
         />
       )}
     </SimpleModal>

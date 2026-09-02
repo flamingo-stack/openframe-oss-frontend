@@ -50,7 +50,7 @@ function ScriptPlatformIcons({ platforms }: { platforms: string[] }) {
   return (
     <span className="inline-flex shrink-0 items-center gap-0.5">
       {OS_PLATFORMS.filter(p => platforms.includes(p.id)).map(p => (
-        <p.icon key={p.id} className="w-3.5 h-3.5 text-ods-text-secondary opacity-60" />
+        <p.icon key={p.id} className="h-3.5 w-3.5 text-ods-text-secondary opacity-60" />
       ))}
     </span>
   );
@@ -161,7 +161,7 @@ export function ScheduleScriptPickerCard({
       ref={itemRef}
       // No inline style here — the list writes `transform` straight onto this
       // node during a drag (see `SortableList`).
-      className={`bg-ods-bg border rounded-[6px] p-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-sf)] md:gap-[var(--spacing-system-lf)] ${
+      className={`flex flex-col gap-[var(--spacing-system-sf)] rounded-[6px] border bg-ods-bg p-[var(--spacing-system-l)] md:gap-[var(--spacing-system-lf)] ${
         isDragging ? 'relative z-10 border-ods-accent shadow-lg' : 'border-ods-border'
       }`}
     >
@@ -173,7 +173,7 @@ export function ScheduleScriptPickerCard({
         className={`flex flex-col gap-[var(--spacing-system-sf)] md:gap-[var(--spacing-system-lf)] ${dragAndDropEnabled ? 'md:flex-row md:items-end' : ''}`}
       >
         <div
-          className={`flex-1 min-w-0 flex items-end ${
+          className={`flex min-w-0 flex-1 items-end ${
             dragAndDropEnabled ? 'gap-[var(--spacing-system-xs)]' : 'gap-[var(--spacing-system-xsf)]'
           }`}
         >
@@ -183,7 +183,7 @@ export function ScheduleScriptPickerCard({
               {...dragHandleProps}
               disabled={disabled}
               aria-label={`Reorder ${selected?.name || `script ${index + 1}`}`}
-              className={`size-12 shrink-0 flex items-center justify-center rounded-[6px] text-ods-text-secondary hover:text-ods-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ods-border-focus disabled:opacity-30 disabled:cursor-not-allowed ${
+              className={`flex size-12 shrink-0 items-center justify-center rounded-[6px] text-ods-text-secondary hover:text-ods-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ods-border-focus disabled:cursor-not-allowed disabled:opacity-30 ${
                 isDragging ? 'cursor-grabbing text-ods-text-primary' : 'cursor-grab'
               }`}
             >
@@ -192,7 +192,7 @@ export function ScheduleScriptPickerCard({
           )}
 
           <div
-            className="flex-1 flex flex-col gap-[var(--spacing-system-xxs)] min-w-0"
+            className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]"
             onFocus={onOpen}
             onBlur={handleBlur}
           >
@@ -251,8 +251,8 @@ export function ScheduleScriptPickerCard({
           )}
         </div>
 
-        <div className="flex-1 min-w-0 flex gap-[var(--spacing-system-xs)] items-end">
-          <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)]">
+        <div className="flex min-w-0 flex-1 items-end gap-[var(--spacing-system-xs)]">
+          <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
             <Label className="text-h4">Timeout</Label>
             <Controller
               name={`scripts.${index}.timeoutSeconds`}
@@ -270,7 +270,7 @@ export function ScheduleScriptPickerCard({
                   value={field.value ? String(field.value) : ''}
                   onChange={e => field.onChange(e.target.value ? Number(e.target.value) : UNSET_TIMEOUT)}
                   disabled={runParamsLocked}
-                  endAdornment={<span className="text-h6 text-ods-text-secondary">Seconds</span>}
+                  endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                   error={showErrors ? fieldState.error?.message : undefined}
                   invalid={showErrors && !!fieldState.error}
                 />
@@ -302,7 +302,7 @@ export function ScheduleScriptPickerCard({
       {isMdUp === false ? (
         <Accordion type="multiple" className="overflow-hidden rounded-[6px] border border-ods-border">
           <AccordionItem value="args" className="border-ods-border data-[state=closed]:bg-ods-card">
-            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:text-ods-text-secondary">
+            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-ods-text-primary text-h6 hover:no-underline [&>svg]:text-ods-text-secondary">
               Edit Default Script Arguments
             </AccordionTrigger>
             {/* The editor's own title would duplicate the trigger — an empty
@@ -326,7 +326,7 @@ export function ScheduleScriptPickerCard({
             </AccordionContent>
           </AccordionItem>
           <AccordionItem value="env" className="border-b-0 border-ods-border data-[state=closed]:bg-ods-card">
-            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-h6 text-ods-text-primary hover:no-underline [&>svg]:text-ods-text-secondary">
+            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-ods-text-primary text-h6 hover:no-underline [&>svg]:text-ods-text-secondary">
               Edit Default Environment Vars
             </AccordionTrigger>
             <AccordionContent className="px-[var(--spacing-system-sf)] [&_label:empty]:hidden">
@@ -349,8 +349,8 @@ export function ScheduleScriptPickerCard({
           </AccordionItem>
         </Accordion>
       ) : (
-        <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] items-start">
-          <div className="flex-1 min-w-0 w-full [&_label]:text-h4">
+        <div className="flex flex-col items-start gap-[var(--spacing-system-lf)] md:flex-row">
+          <div className="w-full min-w-0 flex-1 [&_label]:text-h4">
             <Controller
               name={`scripts.${index}.args`}
               control={control}
@@ -367,7 +367,7 @@ export function ScheduleScriptPickerCard({
               )}
             />
           </div>
-          <div className="flex-1 min-w-0 w-full [&_label]:text-h4">
+          <div className="w-full min-w-0 flex-1 [&_label]:text-h4">
             <Controller
               name={`scripts.${index}.envVars`}
               control={control}

@@ -108,10 +108,10 @@ export function ContactSupportModal({ open, onOpenChange }: ContactSupportModalP
 
   const handleFilesPicked = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-      const { files } = event.target;
-      if (files?.length) addFiles(files);
+      const input = event.target;
+      if (input.files?.length) addFiles(input.files);
       // Cleared so picking the SAME file again still fires `change`.
-      event.target.value = '';
+      input.value = '';
     },
     [addFiles],
   );
@@ -198,7 +198,7 @@ export function ContactSupportModal({ open, onOpenChange }: ContactSupportModalP
       </div>
 
       {supportSystemDown && (
-        <p className="text-h6 text-ods-error">Support system temporarily unavailable. Please try again shortly.</p>
+        <p className="text-ods-error text-h6">Support system temporarily unavailable. Please try again shortly.</p>
       )}
     </SimpleModal>
   );

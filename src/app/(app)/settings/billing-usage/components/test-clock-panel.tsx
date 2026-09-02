@@ -96,11 +96,11 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
     <div className="flex flex-col gap-[var(--spacing-system-s)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]">
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
         <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
-        <p className="text-h3 font-bold text-ods-warning">Stripe Test Clock</p>
-        <span className="rounded-sm bg-ods-warning px-[var(--spacing-system-xxs)] text-h5 text-ods-bg">Dev only</span>
+        <p className="font-bold text-ods-warning text-h3">Stripe Test Clock</p>
+        <span className="rounded-sm bg-ods-warning px-[var(--spacing-system-xxs)] text-ods-bg text-h5">Dev only</span>
       </div>
 
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         {frozenTime ? (
           <>
             Virtual time: <span className="text-ods-warning">{formatDateTime(frozenTime)}</span>
@@ -114,7 +114,7 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
           registration) the schedulers spend a few minutes rebuilding the Stripe
           customer, and the billing data on this page is stale until they finish. */}
       {provisioning.status && (
-        <p className="text-h4 text-ods-text-primary">
+        <p className="text-ods-text-primary text-h4">
           Provisioning:{' '}
           <span className={isProvisioningReady ? 'text-ods-success' : 'text-ods-warning'}>
             {provisioning.status.message}
@@ -130,7 +130,7 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
         }}
       >
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <label htmlFor={daysInputId} className="text-h6 text-ods-text-secondary">
+          <label htmlFor={daysInputId} className="text-ods-text-secondary text-h6">
             Days
           </label>
           <Input
@@ -159,7 +159,7 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
       </form>
 
       <div className="flex flex-col gap-[var(--spacing-system-xs)] border-t border-ods-border pt-[var(--spacing-system-s)]">
-        <p className="text-h5 font-bold text-ods-text-primary">Seed usage</p>
+        <p className="font-bold text-ods-text-primary text-h5">Seed usage</p>
         <div className="flex flex-wrap items-end gap-[var(--spacing-system-l)]">
           {/* Devices SET the day's peak count — a value below the real device count changes nothing. */}
           <SeedUsageField
@@ -227,7 +227,7 @@ function SeedUsageField({ label, metricType, successMessage, onSeeded }: SeedUsa
       }}
     >
       <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-        <label htmlFor={inputId} className="text-h6 text-ods-text-secondary">
+        <label htmlFor={inputId} className="text-ods-text-secondary text-h6">
           {label}
         </label>
         <Input

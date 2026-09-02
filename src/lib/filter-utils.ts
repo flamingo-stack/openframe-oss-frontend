@@ -10,7 +10,7 @@
 export interface FilterOption {
   id: string;
   label: string;
-  value: any;
+  value: string;
 }
 
 /**

@@ -53,8 +53,7 @@ import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-ce
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { installSlashCommandVisibilityFilter } from '@/app/components/chat-slash-command-visibility';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
-import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
-
+import { refreshAccessToken } from '@/lib/token-refresh-manager';
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
  * Center pages (single source of truth in `help-center-content-href.ts`): every
@@ -66,8 +65,7 @@ import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token
  * case-study / …) still opens OUT to its RAG-authoritative `externalUrl` on
  * the content hub.
  */
-
-import { refreshAccessToken } from '@/lib/token-refresh-manager';
+import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between

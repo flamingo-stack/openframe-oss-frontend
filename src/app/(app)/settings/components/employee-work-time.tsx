@@ -9,9 +9,9 @@ export function EmployeeWorkTime({ userId }: { userId: string }) {
   const [addOpen, setAddOpen] = useState(false);
 
   return (
-    <section className="flex flex-col pt-[var(--spacing-system-l)] gap-[var(--spacing-system-l)]">
+    <section className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
       <div className="flex items-center justify-between gap-[var(--spacing-system-m)]">
-        <h2 className="text-h2 text-ods-text-primary">Employee Work Time</h2>
+        <h2 className="text-ods-text-primary text-h2">Employee Work Time</h2>
         <Button
           variant="outline"
           onClick={() => setAddOpen(true)}

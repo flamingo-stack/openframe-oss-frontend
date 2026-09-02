@@ -104,16 +104,7 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
         tempAttachments.initializeExisting(ticket.attachments);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- tempAttachments.initializeExisting is stable (useCallback)
-  }, [
-    ticket,
-    isEditMode,
-    form,
-    tempAttachments.initializeExisting,
-    assignedItems.isReady,
-    assignedItems.value,
-    currentStatus?.id,
-  ]);
+  }, [ticket, isEditMode, form, tempAttachments, assignedItems.isReady, assignedItems.value, currentStatus?.id]);
 
   const handleSave = form.handleSubmit(async data => {
     const nextAssignments = data.assignments ?? {};

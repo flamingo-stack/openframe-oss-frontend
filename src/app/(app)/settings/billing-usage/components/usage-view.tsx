@@ -114,8 +114,8 @@ export function UsageView() {
         <div className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]">
           <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
           <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <p className="text-h3 font-bold text-ods-text-primary">You're over your device limit</p>
-            <p className="text-h4 text-ods-text-secondary">
+            <p className="font-bold text-ods-text-primary text-h3">You're over your device limit</p>
+            <p className="text-ods-text-secondary text-h4">
               Your workspace administrator can raise the limit for your team.
             </p>
           </div>
@@ -123,7 +123,7 @@ export function UsageView() {
       )}
 
       <div
-        className={cn('grid grid-cols-1 gap-[var(--spacing-system-l)] items-stretch', showLimits && 'md:grid-cols-2')}
+        className={cn('grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)]', showLimits && 'md:grid-cols-2')}
       >
         <SectionBlock title="Usage Overview">
           <BillingRow label="Active devices" value={formatCount(activeDevices)} />

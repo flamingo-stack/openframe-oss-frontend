@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { RunScriptConfigStep } from './run-script-config-step';
 import { RunScriptSelectStep } from './run-script-select-step';
@@ -30,14 +30,17 @@ export function RunScriptModal({ isOpen, onClose, machineId, onViewDeviceLogs }:
   const [scriptId, setScriptId] = useState<string | null>(null);
   const [ran, setRan] = useState(false);
 
-  // Reset to the first step whenever the modal (re)opens.
-  useEffect(() => {
+  // Reset to the first step whenever the modal (re)opens — during render rather
+  // than in an effect, which would show the previous step for a frame.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setStep('select');
       setScriptId(null);
       setRan(false);
     }
-  }, [isOpen]);
+  }
 
   const handleSelect = useCallback((id: string) => {
     setScriptId(id);
@@ -58,7 +61,7 @@ export function RunScriptModal({ isOpen, onClose, machineId, onViewDeviceLogs }:
         isOpen={isOpen && !ran}
         onClose={onClose}
         title={step === 'select' ? 'Select Script' : 'Run Script'}
-        className="md:max-w-[680px] h-[90vh] max-h-[760px]"
+        className="h-[90vh] max-h-[760px] md:max-w-[680px]"
         contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
       >
         {step === 'select' || !scriptId ? (

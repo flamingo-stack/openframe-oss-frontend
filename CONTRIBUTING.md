@@ -111,10 +111,10 @@ know before your first PR:
 - **`// eslint-disable` does nothing.** `noInlineConfig` is on and the comment is itself reported as
   an error. Fix the finding, or add a named, `files:`-scoped block to `eslint.config.mjs` that says
   why it cannot be fixed.
-- **CI runs `npm run lint:ci`,** which is the fast pass with `relay/unused-fields` switched off —
-  the one rule still carrying a backlog (543 findings, each a real decision about a query's
-  selections). It is green, so your PR is expected to keep it green. `npm run lint` additionally
-  reports that backlog, and so do the editor and the pre-commit hook, in the files you touch.
+- **CI and the pre-commit hook both run `eslint.ci.mjs`** (`npm run lint:ci`): the fast pass with
+  `relay/unused-fields` switched off — the one rule still carrying a backlog (543 findings, each a
+  real decision about a query's selections). It is green, so your PR is expected to keep it green.
+  `npm run lint` additionally reports that backlog, and so does the editor in the file you are in.
 
 ---
 

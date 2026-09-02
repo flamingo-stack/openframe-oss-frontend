@@ -9,11 +9,19 @@ function isCompleteTag(tag: string): boolean {
   return i > 0 && i < tag.length - 1;
 }
 
+/** One selectable value in a FilterModal group. */
+interface FilterOption {
+  id: string;
+  label: string;
+  count?: number;
+}
+
 interface UseTagFilterModalParams {
   tags: string[];
   deviceFilters: DeviceFilters | null;
-  columns: Array<{ key: string; label: string; filterable?: boolean; filterOptions?: any[] }>;
-  setParams: (params: Record<string, any>) => void;
+  columns: Array<{ key: string; label: string; filterable?: boolean; filterOptions?: FilterOption[] }>;
+  /** `useApiParams`' setter — each device list param is a list of ids. */
+  setParams: (params: Record<string, string[]>) => void;
 }
 
 export function useTagFilterModal({ tags, deviceFilters, columns, setParams }: UseTagFilterModalParams) {
@@ -22,7 +30,7 @@ export function useTagFilterModal({ tags, deviceFilters, columns, setParams }: U
 
   // FilterModal calls onFilterChange first, then onTagsChange.
   // We buffer column filters in a ref so onTagsChange can flush everything in one setParams call.
-  const pendingFiltersRef = useRef<Record<string, any[]>>({});
+  const pendingFiltersRef = useRef<Record<string, string[]>>({});
 
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
@@ -43,18 +51,17 @@ export function useTagFilterModal({ tags, deviceFilters, columns, setParams }: U
     const grouped = new Map<string, { id: string; label: string; count?: number }[]>();
     for (const tag of deviceFilters.tagKeys) {
       if (tag.key === 'null') continue;
-      if (!grouped.has(tag.key)) {
-        grouped.set(tag.key, []);
-      }
+      const values = grouped.get(tag.key) ?? [];
+      grouped.set(tag.key, values);
       if (tag.value !== 'null') {
-        grouped.get(tag.key)!.push({ id: tag.value, label: tag.value, count: tag.count });
+        values.push({ id: tag.value, label: tag.value, count: tag.count });
       }
     }
     return Array.from(grouped, ([key, values]) => ({ key, label: key, values }));
-  }, [deviceFilters?.tagKeys]);
+  }, [deviceFilters]);
 
   // Step 1: buffer column filters (called first by FilterModal)
-  const handleFilterChange = useCallback((columnFilters: Record<string, any[]>) => {
+  const handleFilterChange = useCallback((columnFilters: Record<string, string[]>) => {
     pendingFiltersRef.current = columnFilters;
   }, []);
 

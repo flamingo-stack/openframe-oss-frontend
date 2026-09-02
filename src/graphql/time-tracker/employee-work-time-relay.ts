@@ -15,19 +15,15 @@ export const employeeWorkTimeRelayQuery = graphql`
 
 export const employeeWorkTimeRelayFragment = graphql`
   fragment employeeWorkTimeRelay_query on Query
-    @refetchable(queryName: "employeeWorkTimeRelayPaginationQuery")
-    @argumentDefinitions(
-      filter: { type: "TimeEntryFilterInput" }
-      search: { type: "String" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
-    employeeTimeEntries(
-      filter: $filter
-      search: $search
-      first: $first
-      after: $after
-    ) @connection(key: "EmployeeWorkTime_employeeTimeEntries", filters: ["filter", "search"]) {
+  @refetchable(queryName: "employeeWorkTimeRelayPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "TimeEntryFilterInput" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
+    employeeTimeEntries(filter: $filter, search: $search, first: $first, after: $after)
+      @connection(key: "EmployeeWorkTime_employeeTimeEntries", filters: ["filter", "search"]) {
       filteredCount
       edges {
         cursor

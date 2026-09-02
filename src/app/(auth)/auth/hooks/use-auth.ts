@@ -128,14 +128,14 @@ export function useAuth() {
       const data = response.data as TenantDiscoveryResponse;
 
       if (data.has_existing_accounts && data.tenant_id) {
-        const tenantInfo = {
+        const discovered = {
           tenantId: data.tenant_id,
           tenantName: '',
           tenantDomain: data.domain || 'localhost',
         };
         const providers = data.auth_providers || ['openframe'];
 
-        setTenantInfo(tenantInfo);
+        setTenantInfo(discovered);
         setAvailableProviders(providers);
         setHasDiscoveredTenants(true);
         setTenantId(data.tenant_id);
@@ -177,11 +177,14 @@ export function useAuth() {
       });
 
       if (!response.ok) {
-        const code = (response.data as any)?.code;
-        const message = (response.data as any)?.message || response.error || 'Registration failed';
+        // The auth service answers a rejected registration with a code + message
+        // body; both are optional because a transport failure carries neither.
+        const body = response.data as { code?: string; message?: string } | undefined;
+        const code = body?.code;
+        const message = body?.message || response.error || 'Registration failed';
         let userMessage = 'Registration failed';
         let title = 'Registration Failed';
-        const variant: any = 'destructive';
+        const variant = 'destructive' as const;
 
         switch (code) {
           case AUTH_ERROR_CODE.TENANT_REGISTRATION_BLOCKED:
@@ -211,7 +214,7 @@ export function useAuth() {
       // Client-side replace (not window.location.href) so the success toast
       // survives the transition; replace keeps signup out of the back stack.
       router.replace(routes.auth.checkEmail);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Registration Failed',
         description: error instanceof Error ? error.message : 'Unable to create organization',
@@ -262,7 +265,7 @@ export function useAuth() {
       markPendingSignup();
       await authApiClient.registerOrganizationSso(data);
       return true;
-    } catch (error: any) {
+    } catch (error) {
       if (!isUserCanceled(error)) {
         toast({
           title: 'SSO Registration Failed',

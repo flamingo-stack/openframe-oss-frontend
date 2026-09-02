@@ -62,7 +62,7 @@ function ReconnectWindowFields({
   const controlWidth = fluid ? 'flex-1 min-w-0' : 'w-[120px]';
   return (
     <div className={cn('flex items-center gap-[var(--spacing-system-xsf)]', className)}>
-      <span className={cn('text-h4 shrink-0', disabled ? 'text-ods-text-disabled' : 'text-ods-text-secondary')}>
+      <span className={cn('shrink-0 text-h4', disabled ? 'text-ods-text-disabled' : 'text-ods-text-secondary')}>
         Stop Retry after
       </span>
       <ScheduleIntervalInput
@@ -174,9 +174,9 @@ export function ScheduleOfflineFields({ showErrors, disabled = false }: { showEr
         gridTemplateRows: eventDriven ? '0fr' : '1fr',
         opacity: eventDriven ? 0 : 1,
       }}
-      className="grid mb-[calc(-1*var(--spacing-system-lf))] transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
+      className="mb-[calc(-1*var(--spacing-system-lf))] grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
     >
-      <div className="overflow-hidden min-h-0">
+      <div className="min-h-0 overflow-hidden">
         {/* The bottom padding is the room the error below renders into, and it
             sits on a wrapper INSIDE the clipping box rather than on the box
             itself: a box is never shorter than its own padding — border-box
@@ -202,7 +202,7 @@ export function ScheduleOfflineFields({ showErrors, disabled = false }: { showEr
               disabled={disabled}
               options={options}
             />
-            <div className="md:hidden pt-[var(--spacing-system-xs)]">{windowFieldsFor(true)}</div>
+            <div className="pt-[var(--spacing-system-xs)] md:hidden">{windowFieldsFor(true)}</div>
             {intervalError && (
               <div className="absolute bottom-0 left-0 right-0 translate-y-full">
                 <TruncateText variant="h6" className="text-ods-error">

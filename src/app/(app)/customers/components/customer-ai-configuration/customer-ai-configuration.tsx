@@ -76,7 +76,7 @@ interface CustomerAiConfigurationProps {
  * the `validate()` / `commit()` ref handle.
  */
 export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle, CustomerAiConfigurationProps>(
-  function CustomerAiConfiguration({ organizationId }, ref) {
+  function CustomerAiConfigurationImpl({ organizationId }, ref) {
     const router = useRouter();
     const queryClient = useQueryClient();
     const { toast } = useToast();
@@ -281,7 +281,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 read-only, showing the tenant default set (editing lives in
                 custom mode). */}
             <div className="flex flex-col gap-[var(--spacing-system-l)]">
-              <span className="text-h2 text-ods-text-primary">Assistant Quick Actions</span>
+              <span className="text-ods-text-primary text-h2">Assistant Quick Actions</span>
               <AiSettingsQuickActions
                 actions={inheritedQuickActions}
                 isDefault={inheritedQuickActionsAreDefault}
@@ -291,8 +291,8 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
           </>
         ) : (
           <>
-            <div className="flex flex-col md:flex-row md:items-start gap-[var(--spacing-system-l)]">
-              <div className="flex flex-col gap-[var(--spacing-system-l)] flex-1 min-w-0">
+            <div className="flex flex-col gap-[var(--spacing-system-l)] md:flex-row md:items-start">
+              <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
                 <Controller
                   name="assistantName"
                   control={form.control}
@@ -309,7 +309,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 />
               </div>
 
-              <div className="w-full md:w-[274px] shrink-0">
+              <div className="w-full shrink-0 md:w-[274px]">
                 <ImageUploader
                   fieldLabel="Assistant Avatar"
                   value={avatarUrl}
@@ -344,7 +344,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 </div>
 
                 <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
-                  <p className="text-h3 text-ods-text-primary">Accent Color</p>
+                  <p className="text-ods-text-primary text-h3">Accent Color</p>
                   <Controller
                     name="accentColor"
                     control={form.control}
@@ -416,3 +416,4 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
     );
   },
 );
+CustomerAiConfiguration.displayName = 'CustomerAiConfiguration';

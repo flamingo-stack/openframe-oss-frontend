@@ -39,7 +39,7 @@ export function TicketDialogSubscription({
   // we've already applied.
   const lastClientStreamSeqRef = useRef<number>(-1);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: dialogId change is the reset trigger
+  // dialogId change is the reset trigger
   useEffect(() => {
     lastClientStreamSeqRef.current = -1;
   }, [dialogId]);

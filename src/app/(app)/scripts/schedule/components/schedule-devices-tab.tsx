@@ -193,10 +193,11 @@ export function ScheduleDevicesTabSkeleton() {
  *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
-export const ScheduleDevicesTab = memo(function ScheduleDevicesTab({ scheduleId }: { scheduleId: string }) {
+export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
     <Suspense fallback={<ScheduleDevicesTabSkeleton />}>
       <ScheduleDevicesTabContent scheduleId={scheduleId} />
     </Suspense>
   );
 });
+ScheduleDevicesTab.displayName = 'ScheduleDevicesTab';

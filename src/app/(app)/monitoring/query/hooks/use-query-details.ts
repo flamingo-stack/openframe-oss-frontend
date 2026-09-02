@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { queriesQueryKeys } from '../../hooks/use-queries';
 import type { Query } from '../../types/queries.types';
@@ -16,9 +16,8 @@ async function fetchQuery(id: number): Promise<Query> {
 
 export function useQueryDetails(queryId: number | null) {
   const query = useQuery({
-    queryKey: queriesQueryKeys.detail(queryId!),
-    queryFn: () => fetchQuery(queryId!),
-    enabled: queryId !== null,
+    queryKey: queriesQueryKeys.detail(queryId),
+    queryFn: queryId === null ? skipToken : () => fetchQuery(queryId),
   });
 
   return {

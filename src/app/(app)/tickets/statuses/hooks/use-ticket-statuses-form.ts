@@ -44,7 +44,12 @@ export function useTicketStatusesForm() {
   // order with the still-stale pre-refetch `data` (a visible flick) until the
   // refetch lands.
   const isDirtyRef = useRef(formState.isDirty);
-  isDirtyRef.current = formState.isDirty;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    isDirtyRef.current = formState.isDirty;
+  });
 
   // Adopt server data only while the form is pristine — never clobber edits in
   // progress. After a save clears dirty state, the next refetch repopulates with

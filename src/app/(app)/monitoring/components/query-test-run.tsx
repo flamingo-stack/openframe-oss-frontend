@@ -17,7 +17,7 @@ export function useQueryTestRun() {
   const { run: runStart } = test;
   const run = useCallback(
     (query: string, hostIds: number[]) => runStart(() => campaign.startCampaign(query, hostIds)),
-    [runStart, campaign.startCampaign],
+    [runStart, campaign],
   );
 
   return { ...test, run };

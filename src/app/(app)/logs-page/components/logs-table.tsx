@@ -9,7 +9,6 @@ import {
   Filter01ListIcon,
   Filter02Icon,
   Refresh02HrIcon,
-  ScanIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -61,7 +60,7 @@ import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { LogFilterInput } from '../types/log.types';
-import { LogCopyButton } from './log-copy-button';
+import { LogCopyButton, type LogCopyTarget } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
 import { LogsTableSkeleton } from './logs-table-skeleton';
 
@@ -79,8 +78,7 @@ const logsTableRelayQuery = graphql`
     $search: String
     $sort: LogSortInput
   ) {
-    ...logsTableRelay_query
-      @arguments(filter: $filter, first: $first, after: $after, search: $search, sort: $sort)
+    ...logsTableRelay_query @arguments(filter: $filter, first: $first, after: $after, search: $search, sort: $sort)
     logFilters(filter: $filter) {
       toolTypes
       eventTypes
@@ -95,14 +93,14 @@ const logsTableRelayQuery = graphql`
 
 const logsTableRelayFragment = graphql`
   fragment logsTableRelay_query on Query
-    @refetchable(queryName: "logsTableRelayPaginationQuery")
-    @argumentDefinitions(
-      filter: { type: "LogFilterInput" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-      search: { type: "String" }
-      sort: { type: "LogSortInput" }
-    ) {
+  @refetchable(queryName: "logsTableRelayPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "LogFilterInput" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+    search: { type: "String" }
+    sort: { type: "LogSortInput" }
+  ) {
     logs(filter: $filter, first: $first, after: $after, search: $search, sort: $sort)
       @connection(key: "logsTableRelay_logs") {
       edges {
@@ -161,8 +159,21 @@ interface UiLogEntry {
     title: string;
     details?: string;
   };
-  originalLogEntry?: any;
+  /**
+   * The API row this table row was built from. The row shape drops fields the
+   * drawer, the copy button and the details link still need (the composite key
+   * `ingestDay`/`toolType`/`eventType`/`timestamp`, and the device id), so the
+   * source row rides along.
+   */
+  originalLogEntry: LogCopyTarget & { deviceId?: string | null };
 }
+
+/**
+ * TanStack's column-filter state as `useDataTable` hands it back. Declared
+ * structurally rather than imported: @tanstack/react-table is the core library's
+ * dependency, not this app's, so importing it here would be an undeclared one.
+ */
+type ColumnFilterState = { id: string; value: unknown }[];
 
 interface LogsTableProps {
   deviceId?: string;
@@ -189,7 +200,7 @@ interface LogsTableContentProps {
   dateFilter: TableDateFilter;
   debouncedSearch: string;
   tableFilters: Record<string, string[]>;
-  onFilterChange: (filters: Record<string, any[]>) => void;
+  onFilterChange: (filters: Record<string, string[]>) => void;
   onRefreshRef: React.RefObject<(() => void) | null>;
   /** Reports the genuinely-empty (onboarding) state up so the outer layout can
    *  hide the search field while the empty state is shown. */
@@ -309,7 +320,12 @@ function LogsTableContent({
   }, [refetch, backendFilters, debouncedSearch, sort]);
 
   // Expose refresh to parent via mutable ref
-  onRefreshRef.current = resetToFirstPage;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    onRefreshRef.current = resetToFirstPage;
+  });
 
   const transformedLogs: UiLogEntry[] = useMemo(() => {
     return logs.map(log => ({
@@ -345,7 +361,7 @@ function LogsTableContent({
   }, [logs]);
 
   const getLogDetailsUrl = useCallback((log: UiLogEntry): string => {
-    const original = log.originalLogEntry || log;
+    const original = log.originalLogEntry;
     const id = log.id || log.logId;
     return `/log-details?id=${id}&ingestDay=${original.ingestDay}&toolType=${original.toolType}&eventType=${original.eventType}&timestamp=${encodeURIComponent(original.timestamp || '')}`;
   }, []);
@@ -358,7 +374,7 @@ function LogsTableContent({
         // filter — the same control every other date-filtered list renders.
         header: () => <DateColumnHeader label="Log ID" filter={dateFilter} />,
         cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <div className="flex flex-col justify-center shrink-0">
+          <div className="flex shrink-0 flex-col justify-center">
             <TruncateText>{row.original.timestamp}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {row.original.logId}
@@ -396,7 +412,7 @@ function LogsTableContent({
         cell: ({ row }: { row: Row<UiLogEntry> }) => (
           <ToolBadge
             toolType={normalizeToolTypeWithFallback(row.original.source.toolType)}
-            iconClassName="w-4 h-4 md:w-6 md:h-6"
+            iconClassName="h-4 w-4 md:h-6 md:w-6"
           />
         ),
         enableSorting: false,
@@ -421,7 +437,7 @@ function LogsTableContent({
           const deviceName = row.original.device.name === 'null' ? 'System' : row.original.device.name;
           const organization = row.original.device.organization;
           return (
-            <div className="flex flex-col justify-center gap-1 py-2 min-h-[60px]">
+            <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
               {deviceName && <TruncateText>{deviceName}</TruncateText>}
               {organization && (
                 <TruncateText variant="h6" tone="secondary">
@@ -447,7 +463,7 @@ function LogsTableContent({
         accessorKey: 'description',
         header: 'Log Details',
         cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <TruncateText lines={3} className="text-h6 text-ods-text-secondary">
+          <TruncateText lines={3} className="text-ods-text-secondary text-h6">
             {row.original.description.title}
           </TruncateText>
         ),
@@ -457,7 +473,7 @@ function LogsTableContent({
       {
         id: 'copy',
         cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <LogCopyButton log={row.original.originalLogEntry} />
           </div>
         ),
@@ -467,12 +483,12 @@ function LogsTableContent({
       {
         id: 'quickView',
         cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={() => setSelectedLog(row.original)}
               variant="outline"
               size="icon"
-              leftIcon={<EyeIcon className="w-5 h-5" />}
+              leftIcon={<EyeIcon className="h-5 w-5" />}
               aria-label="Quick view"
               className="bg-ods-card"
             />
@@ -484,12 +500,12 @@ function LogsTableContent({
       {
         id: 'open',
         cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={openInNewTab(getLogDetailsUrl(row.original))}
               variant="outline"
               size="icon"
-              leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
               aria-label="Open in new tab"
               className="bg-ods-card"
             />
@@ -525,11 +541,12 @@ function LogsTableContent({
   );
 
   const handleColumnFiltersChange = useCallback(
-    (updater: any) => {
+    // TanStack's updater signature: either the next state or a reducer over it.
+    (updater: ColumnFilterState | ((prev: ColumnFilterState) => ColumnFilterState)) => {
       const next = typeof updater === 'function' ? updater(columnFilters) : updater;
-      const nextFilters: Record<string, any[]> = {};
+      const nextFilters: Record<string, string[]> = {};
       for (const f of next) {
-        nextFilters[f.id] = Array.isArray(f.value) ? f.value : [f.value];
+        nextFilters[f.id] = Array.isArray(f.value) ? (f.value as string[]) : [String(f.value)];
       }
       onFilterChange(nextFilters);
     },
@@ -653,10 +670,10 @@ function LogsTableContent({
         description={
           selectedLog ? (
             <LogDrawerDetails
-              ingestDay={selectedLog.originalLogEntry?.ingestDay}
-              toolType={selectedLog.originalLogEntry?.toolType}
-              eventType={selectedLog.originalLogEntry?.eventType}
-              timestamp={selectedLog.originalLogEntry?.timestamp}
+              ingestDay={selectedLog.originalLogEntry.ingestDay}
+              toolType={selectedLog.originalLogEntry.toolType}
+              eventType={selectedLog.originalLogEntry.eventType}
+              timestamp={selectedLog.originalLogEntry.timestamp}
               toolEventId={selectedLog.logId}
               fallback={selectedLog.description.title}
             />
@@ -666,7 +683,7 @@ function LogsTableContent({
         }
         statusTag={selectedLog?.status}
         timestamp={selectedLog?.timestamp}
-        deviceId={selectedLog?.originalLogEntry?.deviceId}
+        deviceId={selectedLog?.originalLogEntry.deviceId ?? undefined}
         infoFields={
           selectedLog
             ? [
@@ -688,7 +705,7 @@ function LogsTableContent({
 // Outer component — layout shell with internal Suspense
 // ----------------------------------------------------------------
 
-export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsTable(
+export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsTableImpl(
   { deviceId, organizationId, embedded, showHeader }: LogsTableProps,
   ref,
 ) {
@@ -779,7 +796,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
   );
 
   const handleFilterChange = useCallback(
-    (columnFilters: Record<string, any[]>) => {
+    (columnFilters: Record<string, string[]>) => {
       queueParamsWrite({
         severities: columnFilters.status || [],
         toolTypes: columnFilters.tool || [],
@@ -826,13 +843,13 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       {/* Search toolbar - outside the Suspense boundary so it keeps focus across
           re-queries, and hidden while the empty state is shown. */}
       {!isEmpty && (
-        <div className="sticky top-0 z-20 flex items-center gap-[var(--spacing-system-m)] bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]">
+        <div className="sticky top-0 z-20 -my-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] bg-ods-bg py-[var(--spacing-system-l)]">
           <Input
             placeholder="Search for Logs"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
             className="flex-1"
-            startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
           />
           <Button
             variant="outline"
@@ -864,3 +881,4 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
     </PageLayout>
   );
 });
+LogsTable.displayName = 'LogsTable';

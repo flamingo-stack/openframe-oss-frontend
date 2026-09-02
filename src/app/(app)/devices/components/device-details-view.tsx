@@ -77,19 +77,24 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle action params from URL (e.g., from table dropdown navigation)
-  useEffect(() => {
-    const action = searchParams.get('action');
-    if (!action || isLoading) return;
+  // Handle action params from URL (e.g., from table dropdown navigation). Opening
+  // the modal is derived state and happens during render — an effect draws the
+  // page once without it, so arriving from the table shows a flash of the plain
+  // detail view. Clearing the param stays in the effect: it is a navigation.
+  const runScriptRequested = searchParams.get('action') === 'runScript' && !isLoading;
+  const [handledRunScript, setHandledRunScript] = useState(false);
+  if (runScriptRequested && !handledRunScript) {
+    setHandledRunScript(true);
+    setIsScriptsModalOpen(true);
+  }
 
-    if (action === 'runScript') {
-      setIsScriptsModalOpen(true);
-      // Clear the action param to avoid re-triggering
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.delete('action');
-      router.replace(`/devices/details${newParams.toString() ? `?${newParams.toString()}` : ''}`);
-    }
-  }, [searchParams, isLoading, router]);
+  useEffect(() => {
+    if (!runScriptRequested) return;
+    // Clear the action param to avoid re-triggering
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.delete('action');
+    router.replace(`/devices/details${newParams.toString() ? `?${newParams.toString()}` : ''}`);
+  }, [runScriptRequested, searchParams, router]);
 
   const normalizedDevice = deviceDetails;
 

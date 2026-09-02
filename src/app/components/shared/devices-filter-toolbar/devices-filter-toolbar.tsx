@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Button,
   FilterModal,
   TagSearchInput,
   type TagSearchOption,
@@ -82,12 +81,12 @@ export function DevicesFilterToolbar({
       <div
         ref={toolbarRef}
         className={cn(
-          'flex gap-[var(--spacing-system-m)] items-center',
+          'flex items-center gap-[var(--spacing-system-m)]',
           sticky &&
-            'sticky top-0 z-20 bg-ods-bg -mx-[var(--spacing-system-l)] p-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]',
+            'sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] bg-ods-bg p-[var(--spacing-system-l)]',
         )}
       >
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <TagSearchInput
             tags={tags}
             searchValue={searchValue}

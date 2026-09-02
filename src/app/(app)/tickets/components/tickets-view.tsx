@@ -51,8 +51,8 @@ export function TicketsView() {
         value={viewMode}
         onValueChange={v => setParam('viewMode', v as TicketsViewMode)}
         items={[
-          { id: 'table', icon: <TableCellIcon className="w-6 h-6" />, ariaLabel: 'Table view' },
-          { id: 'board', icon: <TableColIcon className="w-6 h-6" />, ariaLabel: 'Board view' },
+          { id: 'table', icon: <TableCellIcon className="h-6 w-6" />, ariaLabel: 'Table view' },
+          { id: 'board', icon: <TableColIcon className="h-6 w-6" />, ariaLabel: 'Board view' },
         ]}
       />
     ),

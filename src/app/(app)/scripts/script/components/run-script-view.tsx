@@ -232,7 +232,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
           showTimeout={false}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)] items-end">
+        <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] lg:grid-cols-2">
           <div>
             <Label className="text-ods-text-primary text-h3">Timeout</Label>
             <Controller
@@ -263,7 +263,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)]">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] lg:grid-cols-2">
           <Controller
             name="scriptArgs"
             control={control}

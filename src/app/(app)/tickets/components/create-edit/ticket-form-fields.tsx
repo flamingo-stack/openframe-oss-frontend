@@ -125,7 +125,7 @@ export function TicketFormFields({
         control={control}
         render={({ field, fieldState }) => (
           <div>
-            <Label className="text-h4 text-ods-text-primary">Title</Label>
+            <Label className="text-ods-text-primary text-h4">Title</Label>
             <Input
               type="text"
               value={field.value}
@@ -139,7 +139,7 @@ export function TicketFormFields({
       />
 
       {/* Organization, Device, Assigned, Status — 4-column grid (2 on mobile) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
         <Controller
           name="organizationId"
           control={control}

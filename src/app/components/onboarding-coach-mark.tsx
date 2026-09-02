@@ -36,8 +36,8 @@ export function OnboardingCoachMark() {
     <div className="fixed bottom-[var(--spacing-system-l)] right-[var(--spacing-system-l)] z-[60] w-[min(360px,calc(100vw-2rem))]">
       <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-accent bg-ods-open-yellow-secondary p-[var(--spacing-system-m)] shadow-lg">
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <h3 className="text-h3 text-ods-accent">{content.title}</h3>
-          <p className="text-h4 text-ods-accent">{content.body}</p>
+          <h3 className="text-ods-accent text-h3">{content.title}</h3>
+          <p className="text-ods-accent text-h4">{content.body}</p>
         </div>
         <Button variant="accent" leftIcon={ctaIcon} onClick={() => router.push(returnPath)} className="w-full">
           {ctaLabel}

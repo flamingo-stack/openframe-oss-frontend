@@ -49,7 +49,7 @@ Access: http://localhost:3000
 | `npm run core:link` / `core:unlink` | yalc-link/unlink the core library for local lib development |
 
 ### Pre-commit Hooks
-Husky (`.husky/pre-commit`) is **staged-file-scoped**: it runs ESLint and `prettier --check` on the staged frontend files, plus `tsc --noEmit` with errors filtered to staged files only. A clean commit does not require the whole repo to pass, but today it very nearly does: `npm run lint:ci` — the fast pass minus the `relay/unused-fields` backlog — is green, and CI blocks on it. Keep `npm run type-check` and `npm run format` green too.
+Husky (`.husky/pre-commit`) is **staged-file-scoped**: it runs ESLint (via `eslint.ci.mjs`, the same set CI blocks on) and `prettier --check` on the staged frontend files, plus `tsc --noEmit` with errors filtered to staged files only. A clean commit does not require the whole repo to pass, but today it very nearly does: `npm run lint:ci` — the fast pass minus the `relay/unused-fields` backlog — is green, and CI blocks on it. Keep `npm run type-check` and `npm run format` green too.
 
 ### Environment Variables
 
@@ -734,10 +734,11 @@ of them are now fixed except this rule, which cannot be cleared mechanically —
 decision about whether a query should stop selecting a field or a consumer should start reading it
 through a fragment.
 
-**CI runs `npm run lint:ci`** (`.github/workflows/test.yml`, job `Lint`), which is the fast pass with
-`relay/unused-fields` turned off, so a PR is not blocked by somebody else's over-fetched field. The
-rule stays ON in `eslint.config.mjs` — the editor and the pre-commit hook still report it in the
-files you touch. Delete `eslint.ci.mjs` and point CI at `npm run lint` once the count reaches zero.
+**CI and the pre-commit hook both run `eslint.ci.mjs`** (`npm run lint:ci`;
+`.github/workflows/test.yml`, job `Lint`) — the fast pass with `relay/unused-fields` turned off, so
+neither gate refuses a change over a field somebody else over-fetched. The rule stays ON in
+`eslint.config.mjs`, which is what the editor loads, so you still see it in the file you are in.
+Delete `eslint.ci.mjs` and point both at `npm run lint` once the count reaches zero.
 
 There is no suppressions file anywhere, so no count can drift back up: what is not fixed is carried
 by a named `files:`-scoped block that states its reason.

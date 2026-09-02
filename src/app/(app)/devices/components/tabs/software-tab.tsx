@@ -74,7 +74,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
         accessorKey: 'name',
         header: SOFTWARE_COLUMNS.name.header,
         cell: ({ row }: { row: Row<Software> }) => (
-          <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <TruncateText>{row.original.name}</TruncateText>
             {row.original.version && (
               <TruncateText variant="h6" tone="secondary">
@@ -92,8 +92,8 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
         cell: ({ row }: { row: Row<Software> }) => {
           const { Icon, label } = getSourceIcon(row.original.source);
           return (
-            <div className="inline-flex items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary min-w-0">
-              <Icon className="w-4 h-4 md:w-6 md:h-6 shrink-0" />
+            <div className="inline-flex min-w-0 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary">
+              <Icon className="h-4 w-4 shrink-0 md:h-6 md:w-6" />
               <div className="min-w-0">
                 <TruncateText tone="secondary">{label}</TruncateText>
               </div>
@@ -134,7 +134,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
           return path ? (
             <TruncateText>{path}</TruncateText>
           ) : (
-            <span className="text-h4 text-ods-text-secondary">—</span>
+            <span className="text-ods-text-secondary text-h4">—</span>
           );
         },
         enableSorting: false,
@@ -144,7 +144,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
         accessorKey: 'last_opened_at',
         header: SOFTWARE_COLUMNS.lastUsed.header,
         cell: ({ row }: { row: Row<Software> }) => (
-          <div className="text-h6 text-ods-text-primary">{formatLastUsed(row.original.last_opened_at)}</div>
+          <div className="text-ods-text-primary text-h6">{formatLastUsed(row.original.last_opened_at)}</div>
         ),
         enableSorting: true,
         meta: liveColumnMeta(SOFTWARE_COLUMNS.lastUsed),
@@ -192,7 +192,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <SearchInput value={search} onChange={setSearch} placeholder="Search for Software" />
         </div>

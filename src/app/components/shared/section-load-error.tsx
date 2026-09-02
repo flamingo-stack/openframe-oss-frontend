@@ -22,13 +22,13 @@ export interface SectionLoadErrorProps {
 export function SectionLoadError({ message, onRetry }: SectionLoadErrorProps) {
   return (
     <div role="status" className="flex items-center gap-[var(--spacing-system-xs)] pb-[var(--spacing-system-xs)]">
-      <span className="text-h6 text-ods-text-secondary">{message}</span>
+      <span className="text-ods-text-secondary text-h6">{message}</span>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
           aria-label={`Retry: ${message}`}
-          className="text-h6 text-ods-accent underline transition-colors hover:text-ods-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
+          className="text-ods-accent underline transition-colors text-h6 hover:text-ods-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
         >
           Retry
         </button>

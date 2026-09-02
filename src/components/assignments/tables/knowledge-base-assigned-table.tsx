@@ -34,7 +34,7 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
         placeholder="Search for Knowledge Article"
         value={search}
         onChange={e => setSearch(e.target.value)}
-        startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+        startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
       />
       <KnowledgeBaseTableBody
         items={filtered}

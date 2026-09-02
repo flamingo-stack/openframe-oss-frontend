@@ -1,9 +1,4 @@
-import {
-  ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE,
-  type ApprovalToolCallMeta,
-  type Notification,
-  type NotificationVariant,
-} from '@flamingo-stack/openframe-frontend-core';
+import type { Notification, NotificationVariant } from '@flamingo-stack/openframe-frontend-core';
 import { ConnectionHandler, type RecordSourceSelectorProxy, readInlineData } from 'relay-runtime';
 import type {
   notificationFields_notification$data as NotificationFieldsData,
@@ -12,7 +7,6 @@ import type {
 import type { NotificationSeverity } from '@/generated/schema-enums';
 import { featureFlags } from '@/lib/feature-flags';
 import {
-  isApprovalNotificationType,
   NOTIFICATION_ATTR,
   normalizeToolCalls,
   parseAttributeToolCalls,

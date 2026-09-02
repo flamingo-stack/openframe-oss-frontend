@@ -48,7 +48,7 @@ export function CreateOrganizationSection({
   const [isCheckingDomain, setIsCheckingDomain] = useState(false);
   const [suggestedDomains, setSuggestedDomains] = useState<string[]>([]);
 
-  const orgNameRegex = /^[\p{L}\p{M}0-9&\.,'"()\- ]{2,100}$/u;
+  const orgNameRegex = /^[\p{L}\p{M}0-9&.,'"()\- ]{2,100}$/u;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email.trim());
   const isOrgNameValid = orgNameRegex.test(organizationName.trim());
@@ -165,7 +165,7 @@ export function CreateOrganizationSection({
 
   const domainSuggestionsSlot =
     isSharedAuth && domainSuggestions.length > 0 ? (
-      <div className="flex flex-col gap-2 text-h6 text-ods-text-secondary">
+      <div className="flex flex-col gap-2 text-ods-text-secondary text-h6">
         <p>Available suggestions:</p>
         <div className="flex flex-wrap gap-2">
           {domainSuggestions.map(suggestion => (

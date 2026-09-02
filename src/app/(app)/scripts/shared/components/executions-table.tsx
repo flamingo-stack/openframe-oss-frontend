@@ -300,7 +300,7 @@ export function ExecutionsTable({
             {
               id: 'copy-execution-id',
               label: 'Copy Execution ID',
-              icon: <Copy01Icon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <Copy01Icon className="h-6 w-6 text-ods-text-secondary" />,
               onClick: () => {
                 navigator.clipboard
                   ?.writeText(execution.executionId)
@@ -325,7 +325,7 @@ export function ExecutionsTable({
         // on a column of its own.
         header: () => <DateColumnHeader label={EXECUTION_COLUMNS.executionId.header} filter={dateFilter} />,
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div className="flex flex-col justify-center gap-1 min-w-0">
+          <div className="flex min-w-0 flex-col justify-center gap-1">
             <TruncateText>{row.original.timestamp}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {row.original.executionId}
@@ -361,8 +361,8 @@ export function ExecutionsTable({
         // sits on its own line beneath, left-aligned to the icon (not indented
         // under the name) — matching the design.
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div className="flex flex-col justify-center gap-1 min-w-0">
-            <div className="flex items-center gap-1 min-w-0">
+          <div className="flex min-w-0 flex-col justify-center gap-1">
+            <div className="flex min-w-0 items-center gap-1">
               <MonitorIcon className="size-6 shrink-0 text-ods-text-secondary" />
               {/* min-w-0 flex-1 wrapper so the name can shrink and ellipsize next to the icon. */}
               <div className="min-w-0 flex-1">
@@ -397,7 +397,7 @@ export function ExecutionsTable({
           const isDeleted = row.original.initiatorDeleted;
 
           return (
-            <div className="flex flex-1 items-center gap-[var(--spacing-system-xsf)] min-w-0">
+            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
               {isDeleted ? (
                 <DeletedUserAvatar size="md" />
               ) : (
@@ -411,12 +411,12 @@ export function ExecutionsTable({
                 />
               )}
               {/* min-w-0 flex-1 so the FloatingTooltip's block div can shrink and the text ellipsizes. */}
-              <div className="flex flex-col justify-center min-w-0 flex-1">
+              <div className="flex min-w-0 flex-1 flex-col justify-center">
                 {/* Name and the source chip share the first line: a schedule or
                     Mingo dispatches on a technician's behalf, so the chip
                     qualifies the name instead of standing in for it. The name is
                     the part that ellipsizes — the chip keeps its width. */}
-                <div className="flex items-center gap-[var(--spacing-system-xxs)] min-w-0">
+                <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
                   {href ? (
                     // Only the NAME opts out of the row link — the rest of the cell
                     // still navigates to the execution, like every other cell.
@@ -424,7 +424,7 @@ export function ExecutionsTable({
                       data-no-row-click
                       type="button"
                       onClick={openInNewTab(href)}
-                      className="min-w-0 text-left pointer-events-auto"
+                      className="pointer-events-auto min-w-0 text-left"
                     >
                       <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
                         {row.original.initiatorName}
@@ -462,7 +462,7 @@ export function ExecutionsTable({
       {
         id: 'actions',
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
             {renderRowActions(row.original)}
           </div>
         ),
@@ -472,12 +472,12 @@ export function ExecutionsTable({
       {
         id: 'open',
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={() => router.push(executionHref(row.original))}
               variant="outline"
               size="icon"
-              leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
               aria-label="Open execution details"
               className="bg-ods-card"
             />
@@ -843,14 +843,14 @@ export function ExecutionsTabShell({
       {!isEmpty && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 flex items-center gap-[var(--spacing-system-m)] bg-ods-bg pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 flex items-center gap-[var(--spacing-system-m)] bg-ods-bg pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
         >
           <div className="flex-1">
             <Input
               placeholder="Search for Executions"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+              startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
             />
           </div>
           <Button

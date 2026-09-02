@@ -23,7 +23,7 @@ export function ScriptShellBadge({ value, className, iconClassName }: ScriptShel
     <span className={cn('flex items-center gap-2', className)}>
       {/* Force the system-greys/grey (#888) tint over the icon's default currentColor;
           iconClassName comes after so callers keep size/override control. */}
-      {Icon && <Icon className={cn('w-5 h-5 text-ods-text-secondary', iconClassName)} />}
+      {Icon && <Icon className={cn('h-5 w-5 text-ods-text-secondary', iconClassName)} />}
       <span>{shell?.label ?? value}</span>
     </span>
   );

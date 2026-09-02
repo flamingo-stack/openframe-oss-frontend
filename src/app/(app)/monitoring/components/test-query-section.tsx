@@ -68,7 +68,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
       const status = statusByHostId.get(option.value);
       return (
         <>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <TruncateText>{option.label}</TruncateText>
           </div>
           {status && <Tag label={status.label} variant={status.variant} />}
@@ -106,7 +106,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
           variant="outline"
           onClick={handleToggle}
           disabled={!isOpen && !hasQuery}
-          leftIcon={isOpen ? <XmarkCircleIcon className="w-4 h-4" /> : <FlaskVialIcon className="w-4 h-4" />}
+          leftIcon={isOpen ? <XmarkCircleIcon className="h-4 w-4" /> : <FlaskVialIcon className="h-4 w-4" />}
           className="!h-8 !px-[var(--spacing-system-xs)] !py-0 text-h5"
         >
           {isOpen ? 'Cancel Test' : 'Test Query'}
@@ -115,7 +115,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
           href="https://osquery.io/schema"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-[var(--spacing-system-xxs)] text-h6 text-ods-text-secondary hover:text-ods-text-primary transition-colors"
+          className="inline-flex items-center gap-[var(--spacing-system-xxs)] text-ods-text-secondary transition-colors text-h6 hover:text-ods-text-primary"
         >
           <InfoCircleIcon size={16} />
           Osquery Documentation
@@ -126,11 +126,11 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
           it, the results (skeleton / table / empty state), per design. */}
       {isOpen && (
         <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-[6px] border border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-s)]">
-          <div className="grid grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-[var(--spacing-system-m)] items-end">
+          <div className="grid grid-cols-2 items-end gap-[var(--spacing-system-m)] lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
             {/* Device — searchable select (search field is the first dropdown
                 item), same pattern as the ticket assignee picker. */}
-            <div className="flex flex-col gap-[var(--spacing-system-xxs)] min-w-0 order-1">
-              <span className="text-h4 text-ods-text-primary">Device</span>
+            <div className="order-1 flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
+              <span className="text-ods-text-primary text-h4">Device</span>
               <SearchableSelect
                 value={selectedHostId || null}
                 onValueChange={setSelectedHostId}
@@ -151,14 +151,14 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
             {/* Action. The column is fixed-width on desktop and every button
                 fills it (and matches the SelectTrigger height), so swapping
                 Run Test / Stop Test / Test Again never shifts the layout. */}
-            <div className="flex items-end justify-end order-2 lg:order-5 lg:w-[150px]">
+            <div className="order-2 flex items-end justify-end lg:order-5 lg:w-[150px]">
               {test.isActive ? (
                 <Button
                   type="button"
                   variant="outline"
                   onClick={test.stop}
                   leftIcon={<Square size={16} />}
-                  className="w-full h-11 md:h-12"
+                  className="h-11 w-full md:h-12"
                 >
                   Stop Test
                 </Button>
@@ -169,7 +169,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                   onClick={handleRun}
                   disabled={!canRun}
                   leftIcon={<RotateCcw size={16} />}
-                  className="w-full h-11 md:h-12"
+                  className="h-11 w-full md:h-12"
                 >
                   Test Again
                 </Button>
@@ -179,7 +179,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                   variant="accent"
                   onClick={handleRun}
                   disabled={!canRun}
-                  className="w-full h-11 md:h-12"
+                  className="h-11 w-full md:h-12"
                 >
                   Run Test
                 </Button>

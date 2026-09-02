@@ -20,7 +20,7 @@ export default function AuthErrorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-ods-bg flex flex-col items-center justify-between p-10">
+    <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
       {/* Logo */}
       <div className="flex items-center gap-2">
         <OpenFrameLogo
@@ -32,10 +32,10 @@ export default function AuthErrorPage() {
       </div>
 
       {/* Error Content */}
-      <div className="flex flex-col items-center gap-10 max-w-[600px] text-center">
+      <div className="flex max-w-[600px] flex-col items-center gap-10 text-center">
         <div className="flex flex-col gap-2">
-          <h1 className="text-h2 text-ods-text-primary">{title}</h1>
-          <p className="text-h4 text-ods-text-secondary">{description}</p>
+          <h1 className="text-ods-text-primary text-h2">{title}</h1>
+          <p className="text-ods-text-secondary text-h4">{description}</p>
         </div>
 
         <div className="flex gap-4">
@@ -56,11 +56,11 @@ export default function AuthErrorPage() {
         href="https://flamingo.run"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2 p-4 text-ods-text-secondary rounded-md bg-transparent hover:bg-ods-bg-hover transition-colors"
+        className="flex items-center gap-2 rounded-md bg-transparent p-4 text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
       >
         <span className="text-h6">Powered by</span>
         <FlamingoLogo className="h-5 w-5" fill="currentColor" />
-        <span className="text-code font-semibold">Flamingo</span>
+        <span className="font-semibold text-code">Flamingo</span>
       </a>
     </div>
   );

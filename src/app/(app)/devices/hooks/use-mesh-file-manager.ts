@@ -103,7 +103,7 @@ export function useMeshFileManager({
 
   useEffect(() => {
     if (!meshcentralAgentId) {
-      return;
+      return undefined;
     }
 
     let mounted = true;
@@ -277,7 +277,6 @@ export function useMeshFileManager({
         if (initTokenRef.current === token) {
           initTokenRef.current = null;
         }
-        const deviceKey = `${meshcentralAgentId}-${isRemote ? 'remote' : 'server'}`;
         if (!initSucceeded) {
           activeFileManagers.delete(deviceKey);
         }
@@ -700,7 +699,7 @@ export function useMeshFileManager({
 
     const downloader = fileManager.getDownloader();
     if (downloader.hasActiveDownload()) {
-      const activeDownloadId = (downloader as any).activeDownloadId;
+      const activeDownloadId = downloader.getActiveDownloadId();
       if (activeDownloadId) {
         downloader.cancelDownload(activeDownloadId);
         setDownloadProgress(null);
@@ -750,12 +749,13 @@ export function useMeshFileManager({
           }
           break;
 
-        case 'new-folder':
+        case 'new-folder': {
           const folderName = prompt('Enter folder name:');
           if (folderName) {
             await createFolder(folderName);
           }
           break;
+        }
 
         case 'rename':
           if (targetFiles.length === 1) {

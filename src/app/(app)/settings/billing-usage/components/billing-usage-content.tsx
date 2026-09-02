@@ -36,6 +36,106 @@ import { TestClockPanel } from './test-clock-panel';
 import { UpgradePlanModal } from './upgrade-plan-modal';
 import { StatEmphasis, StatSuffix, UsageStatCard } from './usage-stat-card';
 
+const billingUsageContentQuery = graphql`
+  query billingUsageContentQuery {
+    # The catalog, for the two things the subscription does not state itself:
+    #
+    #  - what a price is quoted per. AI is priced by the block of tokens, so
+    #    without unitSize the metered rate cannot be turned into a per-token one
+    #    (see lib/ai-token-price.ts).
+    #  - what a billing period costs per device. A committed option on the
+    #    subscription leaves its own price empty, and this is where the plan
+    #    picker has always read the rate from (see useDevicePlanSelection).
+    billingPlan {
+      id
+      products {
+        id
+        name
+        unitSize
+        # The same two fields on both, so one helper can read either: an option
+        # states its rate as a flat price or as a price band, and which one is
+        # filled depends on the option (see catalogDeviceRate).
+        packageOptions {
+          id
+          billingPeriod
+          price
+          priceTiers {
+            from
+            upTo
+            unitPrice
+          }
+        }
+        payAsYouGoOption {
+          id
+          price
+          priceTiers {
+            from
+            upTo
+            unitPrice
+          }
+        }
+      }
+    }
+    subscription {
+      id
+      status
+      currentPeriodEnd
+      cancellationEffectiveAt
+      trialExpirationDate
+      products {
+        name
+        packageOptions {
+          id
+          billingPeriod
+          quantity
+          # Empty on a committed option, which is why the rate is read from the
+          # catalog above. Kept because a negotiated rate, if one is ever stated
+          # here, is what this tenant actually pays and must win.
+          price
+          status
+          startDate
+          endDate
+        }
+        payAsYouGoOption {
+          id
+          price
+        }
+      }
+      pendingInvoices {
+        id
+        invoiceNumber
+        status
+        hostedInvoiceUrl
+        amountDue
+        createdAt
+        dueDate
+      }
+      usage {
+        devicesUsed
+        activeDevices
+        # The AI counters the top row is built from: the period's free grant and
+        # how much of it is gone, then the tokens billed past it and what they
+        # have cost so far. aiSpendUsd is what aiSpendCapUsd is measured against
+        # — the page compares those two and nothing else.
+        aiTokensFree
+        aiTokensFreeUsed
+        aiTokensOverage
+        aiSpendUsd
+      }
+      # Customer-set ceiling on the AI overage one period may accrue, in USD.
+      # Null means uncapped; 0 is a real cap.
+      aiSpendCapUsd
+      currentInvoice {
+        estimatedOverage
+      }
+      # Projected next-invoice total, computed server-side (PAYG overage accrued
+      # so far + package charges due next cycle). This is the SSOT for the
+      # "Next Payment" row — the UI no longer re-derives it from product prices.
+      nextPayment
+    }
+  }
+`;
+
 export function BillingUsageContent() {
   const handleBack = useSafeBack(routes.settings.root());
   // Bumped after a resume so the billing query refetches from the network — the
@@ -114,7 +214,7 @@ export function BillingUsageContent() {
               {
                 id: 'ai-limit',
                 label: 'Set AI Limit',
-                icon: <Settings02Icon className="w-6 h-6 text-ods-text-secondary" />,
+                icon: <Settings02Icon className="h-6 w-6 text-ods-text-secondary" />,
                 onClick: () => setAiLimitModalOpen(true),
               },
             ]
@@ -124,7 +224,7 @@ export function BillingUsageContent() {
               {
                 id: 'change-plan',
                 label: 'Change Plan',
-                icon: <TagPercentIcon className="w-6 h-6 text-ods-text-secondary" />,
+                icon: <TagPercentIcon className="h-6 w-6 text-ods-text-secondary" />,
                 onClick: () => setPlanModalOpen(true),
               },
             ]
@@ -134,7 +234,7 @@ export function BillingUsageContent() {
           // Stripe mints the portal session per click, so this runs a mutation
           // and then navigates — there is no stable URL to hang a link on.
           label: 'Customer Portal',
-          icon: <ExternalLinkIcon className="w-6 h-6 text-ods-text-secondary" />,
+          icon: <ExternalLinkIcon className="h-6 w-6 text-ods-text-secondary" />,
           onClick: () => billingPortal.mutate(),
           disabled: billingPortal.isPending,
         },
@@ -143,7 +243,7 @@ export function BillingUsageContent() {
               {
                 id: 'cancel-subscription',
                 label: 'Cancel Subscription',
-                icon: <AlertTriangleIcon className="w-6 h-6 text-ods-error" />,
+                icon: <AlertTriangleIcon className="h-6 w-6 text-ods-error" />,
                 onClick: () => {
                   setCancelReason(null);
                   setCancelStep('reason');
@@ -204,7 +304,7 @@ export function BillingUsageContent() {
         label: 'Expand AI Limit',
         // Secondary, like the menu's icons: the label carries the action, and a
         // white glyph beside a white label reads as two emphases in one button.
-        icon: <PlusCircleIcon className="w-6 h-6 text-ods-text-secondary" />,
+        icon: <PlusCircleIcon className="h-6 w-6 text-ods-text-secondary" />,
         onClick: () => setAiLimitModalOpen(true),
         variant: 'outline' as const,
       }
@@ -327,14 +427,14 @@ export function BillingUsageContent() {
             className={cn('size-6 shrink-0', ai.tone === 'error' ? 'text-ods-error' : 'text-ods-warning')}
           />
           <div className="flex min-w-0 flex-col">
-            <p className="text-h3 font-bold text-ods-text-primary">
+            <p className="font-bold text-ods-text-primary text-h3">
               {ai.capReached ? 'AI agents are paused. Your AI balance is empty.' : 'AI agents will pause soon.'}
             </p>
             {/* No figures: the card above states the spend and the limit in full,
                 and a block that repeats them turns one fact into two to compare.
                 The "balance" here is the headroom left under the cap the user set
                 — not the token bank this product stopped selling. */}
-            <p className="text-h4 text-ods-text-secondary">
+            <p className="text-ods-text-secondary text-h4">
               {ai.capReached
                 ? // Not "top up": nothing can be bought to resume. The cap is
                   // self-imposed and raising it is the only way out, which is
@@ -362,8 +462,8 @@ export function BillingUsageContent() {
           <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border p-[var(--spacing-system-m)]">
             <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
             <div className="flex min-w-[16rem] flex-1 flex-col">
-              <p className="text-h3 font-bold text-ods-text-primary">You're over your device package limit</p>
-              <p className="text-h4 text-ods-text-secondary">
+              <p className="font-bold text-ods-text-primary text-h3">You're over your device package limit</p>
+              <p className="text-ods-text-secondary text-h4">
                 Extra devices will be billed at pay-as-you-go rates, charged separately from your plan.
               </p>
             </div>
@@ -392,7 +492,7 @@ export function BillingUsageContent() {
           own, Current Plan takes the full width. */}
       <div
         className={cn(
-          'grid grid-cols-1 gap-[var(--spacing-system-l)] items-start',
+          'grid grid-cols-1 items-start gap-[var(--spacing-system-l)]',
           (flags.hasPendingPlan || ai.paid > 0) && 'md:grid-cols-2',
         )}
       >
@@ -462,7 +562,7 @@ export function BillingUsageContent() {
           <SectionBlock title="AI Usage Beyond Free Tokens">
             <div className="flex items-start gap-[var(--spacing-system-xsf)] pb-[var(--spacing-system-xsf)]">
               <InfoCircleIcon className="size-6 shrink-0 text-ods-accent" />
-              <p className="text-h4 text-ods-text-primary">
+              <p className="text-ods-text-primary text-h4">
                 Extra token usage continues at pay-as-you-go rates and appears on your next invoice.
               </p>
             </div>
@@ -576,98 +676,6 @@ export function BillingUsageContent() {
   );
 }
 
-const billingUsageContentQuery = graphql`
-  query billingUsageContentQuery {
-    # The catalog, for the two things the subscription does not state itself:
-    #
-    #  - what a price is quoted per. AI is priced by the block of tokens, so
-    #    without unitSize the metered rate cannot be turned into a per-token one
-    #    (see lib/ai-token-price.ts).
-    #  - what a billing period costs per device. A committed option on the
-    #    subscription leaves its own price empty, and this is where the plan
-    #    picker has always read the rate from (see useDevicePlanSelection).
-    billingPlan {
-      id
-      products {
-        id
-        name
-        unitSize
-        # The same two fields on both, so one helper can read either: an option
-        # states its rate as a flat price or as a price band, and which one is
-        # filled depends on the option (see catalogDeviceRate).
-        packageOptions {
-          id
-          billingPeriod
-          price
-          priceTiers { from upTo unitPrice }
-        }
-        payAsYouGoOption {
-          id
-          price
-          priceTiers { from upTo unitPrice }
-        }
-      }
-    }
-    subscription {
-      id
-      status
-      currentPeriodEnd
-      cancellationEffectiveAt
-      trialExpirationDate
-      products {
-        name
-        packageOptions {
-          id
-          billingPeriod
-          quantity
-          # Empty on a committed option, which is why the rate is read from the
-          # catalog above. Kept because a negotiated rate, if one is ever stated
-          # here, is what this tenant actually pays and must win.
-          price
-          status
-          startDate
-          endDate
-        }
-        payAsYouGoOption {
-          id
-          price
-        }
-      }
-      pendingInvoices {
-        id
-        invoiceNumber
-        status
-        hostedInvoiceUrl
-        amountDue
-        createdAt
-        dueDate
-      }
-      usage {
-        devicesUsed
-        activeDevices
-        # The AI counters the top row is built from: the period's free grant and
-        # how much of it is gone, then the tokens billed past it and what they
-        # have cost so far. aiSpendUsd is what aiSpendCapUsd is measured against
-        # — the page compares those two and nothing else.
-        aiTokensFree
-        aiTokensFreeUsed
-        aiTokensOverage
-        aiSpendUsd
-      }
-      # Customer-set ceiling on the AI overage one period may accrue, in USD.
-      # Null means uncapped; 0 is a real cap.
-      aiSpendCapUsd
-      currentInvoice {
-        estimatedOverage
-      }
-      # Projected next-invoice total, computed server-side (PAYG overage accrued
-      # so far + package charges due next cycle). This is the SSOT for the
-      # "Next Payment" row — the UI no longer re-derives it from product prices.
-      nextPayment
-    }
-  }
-`;
-
 interface DeviceUsageCaptionProps {
   isTrial: boolean;
   trialEndsOn: string | null;
@@ -736,8 +744,8 @@ function MonthlyTokens({ tokens }: { tokens: number }) {
 function OverageStat({ value, label }: { value: string; label: string }) {
   return (
     <div className="flex flex-col">
-      <p className="text-h4 text-ods-text-primary">{value}</p>
-      <p className="text-h6 text-ods-text-secondary">{label}</p>
+      <p className="text-ods-text-primary text-h4">{value}</p>
+      <p className="text-ods-text-secondary text-h6">{label}</p>
     </div>
   );
 }

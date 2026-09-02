@@ -4,7 +4,6 @@ import { XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/compone
 import {
   CheckboxBlock,
   DatePickerInputSimple,
-  Input,
   Label,
   Select,
   SelectContent,
@@ -173,11 +172,11 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
         gridTemplateRows: eventDriven ? '0fr' : '1fr',
         opacity: eventDriven ? 0 : 1,
       }}
-      className="grid mb-[calc(-1*var(--spacing-system-lf))] transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
+      className="mb-[calc(-1*var(--spacing-system-lf))] grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
     >
-      <div className="overflow-hidden min-h-0">
-        <div className="pb-[var(--spacing-system-lf)] flex flex-col md:flex-row gap-[var(--spacing-system-lf)] md:items-end">
-          <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)]">
+      <div className="min-h-0 overflow-hidden">
+        <div className="flex flex-col gap-[var(--spacing-system-lf)] pb-[var(--spacing-system-lf)] md:flex-row md:items-end">
+          <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
             <Label className="text-h4">Date</Label>
             <Controller
               name="scheduledDate"
@@ -212,7 +211,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
             />
           </div>
 
-          <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)]">
+          <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
             <Label className="text-h4">Time</Label>
             <Controller
               name="scheduledTime"
@@ -240,7 +239,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                       // in the form. It replaces a popup that opened blank; the
                       // Date field carries the same sentence for whoever never
                       // opens this one.
-                      <p className="px-4 py-[var(--spacing-system-sf)] text-h6 text-ods-text-secondary">
+                      <p className="px-4 py-[var(--spacing-system-sf)] text-ods-text-secondary text-h6">
                         {NO_SLOTS_TODAY_MESSAGE}
                       </p>
                     ) : (
@@ -256,7 +255,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
             />
           </div>
 
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <Controller
               name="repeatEnabled"
               control={control}
@@ -277,8 +276,8 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
             />
           </div>
 
-          <div className="flex-1 min-w-0 flex gap-[var(--spacing-system-xs)] items-end">
-            <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)]">
+          <div className="flex min-w-0 flex-1 items-end gap-[var(--spacing-system-xs)]">
+            <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
               <Label className="text-h4">Repeat in</Label>
               <Controller
                 name="repeatInterval"
@@ -300,7 +299,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                 )}
               />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <Controller
                 name="repeatUnit"
                 control={control}

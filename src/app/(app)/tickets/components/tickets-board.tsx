@@ -390,13 +390,25 @@ export function TicketsBoard({
 
   // Release the hold once the data itself shows the ticket in the target lane
   // (the post-take-over refetch or a NATS tick caught up).
+  // Released during render rather than in an effect: `displayColumns` above is
+  // computed from `heldMove`, so an effect would draw the board once with the
+  // ticket in BOTH lanes — the held one and the settled one.
+  const heldMoveSettled =
+    heldMove != null &&
+    Boolean(
+      boardColumns.find(column => column.id === heldMove.toColumnId)?.tickets.some(t => t.id === heldMove.ticketId),
+    );
+  if (heldMoveSettled) {
+    // `setHeldMoveState`, not the `setHeldMove` wrapper: the wrapper also writes
+    // `heldMoveRef`, and a ref write during render is what `react-hooks/refs`
+    // forbids. The ref is read by the drag handlers, which re-read state anyway
+    // on their next call — and the effect below keeps it in step.
+    setHeldMoveState(null);
+  }
+
   useEffect(() => {
-    if (!heldMove) return;
-    const settled = boardColumns
-      .find(column => column.id === heldMove.toColumnId)
-      ?.tickets.some(t => t.id === heldMove.ticketId);
-    if (settled) setHeldMove(null);
-  }, [boardColumns, heldMove, setHeldMove]);
+    if (heldMove === null) heldMoveRef.current = null;
+  }, [heldMove]);
 
   // Remember the lane set so the route skeleton can lay out the same board on
   // the next cold start (see `board-columns-cache`). Only the layout-defining
@@ -442,7 +454,12 @@ export function TicketsBoard({
   // on every column tick; written during render (not an effect) so a card
   // mounting into a lane sees the membership computed in the same pass.
   const aiOwnedTicketIdsRef = useRef(aiOwnedTicketIds);
-  aiOwnedTicketIdsRef.current = aiOwnedTicketIds;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    aiOwnedTicketIdsRef.current = aiOwnedTicketIds;
+  });
   const handleApprove = useCallback(
     (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, true),
     [handleApprovalAction],
@@ -513,7 +530,12 @@ export function TicketsBoard({
   // The dialog map is read through a ref like the AI-owned set above — its
   // identity changes on every column tick, and this callback sits in every card.
   const dialogByIdRef = useRef(dialogById);
-  dialogByIdRef.current = dialogById;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    dialogByIdRef.current = dialogById;
+  });
 
   // AI-owned cards (AI Handling lane, AI/user-closed Resolved) render no
   // assign control at all — assignment stays on the dialog page. The rest
@@ -606,7 +628,7 @@ export function TicketsBoard({
         actionsVariant="menu-primary"
         selector={selector}
         className="h-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        contentClassName="flex flex-col min-h-0"
+        contentClassName="flex min-h-0 flex-col"
       >
         {/* Default rich empty state (no data, no query): search + filters are hidden per the
             Figma data-placeholder-onboarding pattern — only the title bar chrome stays. */}
@@ -632,7 +654,7 @@ export function TicketsBoard({
             </div>
             {/* Mobile keeps these filters in the modal next to the search input.
                 Tablet lays them out two per row, desktop four (the mock's grid). */}
-            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-l)]">
+            <div className="hidden gap-[var(--spacing-system-l)] md:grid md:grid-cols-2 lg:grid-cols-4">
               <OrganizationFilter
                 value={organizationIds ?? []}
                 onChange={ids => onOrganizationIdsChange?.(ids)}
@@ -658,7 +680,7 @@ export function TicketsBoard({
         {showEmptyState ? (
           <TicketsEmptyState />
         ) : (
-          <div aria-busy={isLoading || movingIds.size > 0} className="flex-1 min-h-0 -mx-[var(--spacing-system-l)]">
+          <div aria-busy={isLoading || movingIds.size > 0} className="-mx-[var(--spacing-system-l)] min-h-0 flex-1">
             <Board
               columns={displayColumns}
               onChange={handleChange}

@@ -16,14 +16,20 @@ export function useEmailAvailability(email: string, delay = 400): AvailabilitySt
   const debounced = useDebounce(email.trim(), delay);
   const [status, setStatus] = useState<AvailabilityStatus>('idle');
 
+  // Nothing to check → idle, decided during render: an effect would leave the
+  // previous verdict (a red "taken") on screen for a frame after the field is
+  // cleared.
+  const [lastDebounced, setLastDebounced] = useState(debounced);
+  const checkable = Boolean(debounced) && EMAIL_REGEX.test(debounced);
+  if (debounced !== lastDebounced) {
+    setLastDebounced(debounced);
+    setStatus(checkable ? 'checking' : 'idle');
+  }
+
   useEffect(() => {
-    if (!debounced || !EMAIL_REGEX.test(debounced)) {
-      setStatus('idle');
-      return;
-    }
+    if (!checkable) return undefined;
 
     let cancelled = false;
-    setStatus('checking');
 
     authApiClient
       .checkEmailAvailability(debounced)
@@ -44,7 +50,7 @@ export function useEmailAvailability(email: string, delay = 400): AvailabilitySt
     return () => {
       cancelled = true;
     };
-  }, [debounced]);
+  }, [debounced, checkable]);
 
   return status;
 }
@@ -62,16 +68,25 @@ export function useDomainAvailability(
   const [status, setStatus] = useState<AvailabilityStatus>('idle');
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
+  // The verdict for the CURRENT input is decided during render — an effect would
+  // leave the previous domain's "taken" badge (and its suggestions) on screen for
+  // a frame after the field changes. The effect below only performs the request.
+  const checkable = enabled && Boolean(debounced);
+  const [lastInputs, setLastInputs] = useState({ debounced, debouncedOrgName, enabled });
+  if (
+    debounced !== lastInputs.debounced ||
+    debouncedOrgName !== lastInputs.debouncedOrgName ||
+    enabled !== lastInputs.enabled
+  ) {
+    setLastInputs({ debounced, debouncedOrgName, enabled });
+    setStatus(checkable ? 'checking' : 'idle');
+    setSuggestions([]);
+  }
+
   useEffect(() => {
-    if (!enabled || !debounced) {
-      setStatus('idle');
-      setSuggestions([]);
-      return;
-    }
+    if (!checkable) return undefined;
 
     let cancelled = false;
-    setStatus('checking');
-    setSuggestions([]);
 
     authApiClient
       .checkDomainAvailability(debounced, debouncedOrgName)
@@ -97,7 +112,7 @@ export function useDomainAvailability(
     return () => {
       cancelled = true;
     };
-  }, [debounced, debouncedOrgName, enabled]);
+  }, [debounced, debouncedOrgName, checkable]);
 
   return { status, suggestions };
 }

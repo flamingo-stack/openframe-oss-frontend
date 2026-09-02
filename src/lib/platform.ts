@@ -22,10 +22,28 @@
 
 export type ShellKind = 'web' | 'mobile' | 'desktop';
 
+/**
+ * The globals each shell injects before any page script runs. Only the members
+ * this module probes are declared — `native-shell.ts` owns the typed access to
+ * everything hanging off them.
+ */
+interface ShellGlobals {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI__?: unknown;
+  Capacitor?: {
+    isNativePlatform?: () => boolean;
+    getPlatform?: () => string;
+  };
+}
+
+function shellGlobals(): ShellGlobals {
+  return window as unknown as ShellGlobals;
+}
+
 let cachedShellKind: ShellKind | null = null;
 
 function detectShellKind(): ShellKind {
-  const globals = window as any;
+  const globals = shellGlobals();
   // Each shell is identified by a global only it has: Tauri's IPC object on
   // desktop, Capacitor's native bridge on mobile. Disjoint, so the order below
   // isn't load-bearing — but Tauri stays first deliberately. The desktop shell
@@ -76,7 +94,7 @@ export function isDesktopShell(): boolean {
 /** The phone OS; null everywhere else — on the web AND on desktop. */
 export function mobilePlatform(): 'ios' | 'android' | null {
   if (!isMobileShell()) return null;
-  const platform = (window as any).Capacitor?.getPlatform?.();
+  const platform = shellGlobals().Capacitor?.getPlatform?.();
   return platform === 'ios' || platform === 'android' ? platform : null;
 }
 

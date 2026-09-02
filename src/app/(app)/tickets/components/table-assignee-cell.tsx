@@ -46,7 +46,7 @@ function UnassignedFace({ interactive }: { interactive?: boolean }) {
  *
  * Memoized: one per unassigned row, re-rendered on every table update.
  */
-export const UnassignedTicketCell = memo(function UnassignedTicketCell({
+export const UnassignedTicketCell = memo(function UnassignedTicketCellImpl({
   ticketId,
   interactive,
 }: UnassignedTicketCellProps) {
@@ -106,3 +106,4 @@ export const UnassignedTicketCell = memo(function UnassignedTicketCell({
     </div>
   );
 });
+UnassignedTicketCell.displayName = 'UnassignedTicketCell';

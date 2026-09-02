@@ -118,7 +118,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
 
     const allDialogs = query.data.pages.flatMap(page => page.dialogs);
     return allDialogs.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.id) ?? 0));
-  }, [query.data?.pages, unreadByDialog]);
+  }, [query.data, unreadByDialog]);
 
   return {
     dialogs: dialogsWithUnread,

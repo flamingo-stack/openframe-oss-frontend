@@ -43,7 +43,10 @@ export function useInviteProviders(invitationId: string | null) {
           setEmail(response.data.email ?? '');
         } else {
           setProviders([]);
-          const errorMessage = (response.data as any)?.message || response.error || 'Failed to fetch providers';
+          const errorMessage =
+            (response.data as { code?: string; message?: string } | undefined)?.message ||
+            response.error ||
+            'Failed to fetch providers';
           console.log({ response });
           setError(errorMessage);
         }

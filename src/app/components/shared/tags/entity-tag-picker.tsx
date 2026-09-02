@@ -2,7 +2,7 @@
 
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { entityTagPickerQuery as EntityTagPickerQueryType } from '@/__generated__/entityTagPickerQuery.graphql';
 import type { TagEntityType } from '@/generated/schema-enums';
@@ -134,7 +134,12 @@ export function EntityTagPicker({
   // latest value (not a stale snapshot) — otherwise concurrent tag creations
   // would overwrite each other. Assigning during render is safe for a ref.
   const selectedIdsRef = useRef(selectedIds);
-  selectedIdsRef.current = selectedIds;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  });
 
   const options = useMemo(() => {
     // Dedupe by id, merging vocabulary with assigned / created / in-flight tags.

@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
  */
 export function TabEmptyState({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xsf)] w-full">
+    <div className="flex w-full flex-col gap-[var(--spacing-system-xsf)]">
       <NoData icon={icon} title={title} description={description} className="py-[var(--spacing-system-xxl)]" />
     </div>
   );

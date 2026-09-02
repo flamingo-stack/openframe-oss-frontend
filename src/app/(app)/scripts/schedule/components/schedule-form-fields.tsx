@@ -83,7 +83,7 @@ export function ScheduleFormFields({ showErrors, disabled = false }: ScheduleFor
               value={field.value}
               onChange={field.onChange}
               disabled={disabled}
-              className="w-full min-h-[96px]"
+              className="min-h-[96px] w-full"
             />
           )}
         />
@@ -114,14 +114,14 @@ export function ScheduleFormFields({ showErrors, disabled = false }: ScheduleFor
         data-invalid={(showErrors && !!formState.errors.supportedPlatforms) || undefined}
       >
         <Label className="text-h4">Supported Platform</Label>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-[var(--spacing-system-mf)]">
+        <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] md:grid-cols-4">
           {AVAILABLE_PLATFORMS.map(platform => {
             const comingSoon = DISABLED_PLATFORMS.includes(platform.id);
             return (
               <SelectButton
                 key={platform.id}
                 title={platform.name}
-                icon={<platform.icon className="w-5 h-5" />}
+                icon={<platform.icon className="h-5 w-5" />}
                 selected={!comingSoon && supportedPlatforms.includes(platform.id)}
                 disabled={comingSoon || disabled}
                 tag={comingSoon ? (isMdUp ? 'Coming Soon' : 'Soon') : undefined}

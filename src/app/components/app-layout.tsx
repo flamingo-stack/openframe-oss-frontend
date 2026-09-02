@@ -121,13 +121,17 @@ const CHROME_LOADING_FAIL_OPEN_MS = 10_000;
 function useFailOpen(loading: boolean, afterMs: number): boolean {
   const [failedOpen, setFailedOpen] = useState(false);
 
+  // Re-arm during render: a later load gets its own full window rather than
+  // inheriting a previous timeout's verdict, and doing it here means the chrome
+  // is never drawn once in the failed-open state after a fresh load begins.
+  const [wasLoading, setWasLoading] = useState(loading);
+  if (loading !== wasLoading) {
+    setWasLoading(loading);
+    if (!loading) setFailedOpen(false);
+  }
+
   useEffect(() => {
-    if (!loading) {
-      // Re-arm: a later load gets its own full window rather than inheriting a
-      // previous timeout's verdict.
-      setFailedOpen(false);
-      return;
-    }
+    if (!loading) return undefined;
     const timer = setTimeout(() => setFailedOpen(true), afterMs);
     return () => clearTimeout(timer);
   }, [loading, afterMs]);
@@ -178,13 +182,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // resolves ONCE and survives close/reopen, but never fetches before the user
   // opens the chat at all.
   const [chatIdentityEnabled, setChatIdentityEnabled] = useState(false);
-  useEffect(() => {
-    // In the native shell, identity rides the `/content` proxy which
-    // `embedAuthedFetch` refuses from the capacitor:// origin — a SYNCHRONOUS
-    // throw inside the resolver effect that unmounts the whole shell. Leave
-    // identity disabled there; the lib's designed fallback is anon identity.
-    if (chatOpen && !isAppShell()) setChatIdentityEnabled(true);
-  }, [chatOpen]);
+  // Latched during render, not in an effect: the provider below reads this flag,
+  // so an effect would render the drawer's first frame with identity still off
+  // and start the fetch one paint later than the user opened it.
+  //
+  // In the native shell, identity rides the `/content` proxy which
+  // `embedAuthedFetch` refuses from the capacitor:// origin — a SYNCHRONOUS
+  // throw inside the resolver effect that unmounts the whole shell. Leave
+  // identity disabled there; the lib's designed fallback is anon identity.
+  if (chatOpen && !chatIdentityEnabled && !isAppShell()) {
+    setChatIdentityEnabled(true);
+  }
 
   const handleNavigate = useCallback(
     (path: string) => {
@@ -212,7 +220,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // context value's render-to-render identity.
   const notificationsCtx = useOptionalNotifications();
   const closeNotificationsRef = useRef(notificationsCtx?.close);
-  closeNotificationsRef.current = notificationsCtx?.close;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    closeNotificationsRef.current = notificationsCtx?.close;
+  });
 
   // Close the notifications drawer on route navigation. It is non-modal (header
   // and sidebar stay interactive while open), so clicking a nav link should land
@@ -225,10 +238,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // `useMingoDialogUrlSync` below — why it can't be its own effect is on the
   // resolver's step 1.
   //
-  // `pathname` is the intentional trigger but isn't read in the body (the
-  // close action is read imperatively via a ref so it isn't a dependency),
-  // so biome's exhaustive-deps rule sees it as "extra".
-  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the intentional re-run trigger; the close() action is read imperatively
+  // `pathname` is the intentional trigger but isn't read in the body — the
+  // close action is read imperatively via a ref, so it isn't a dependency.
   useEffect(() => {
     closeNotificationsRef.current?.();
   }, [pathname]);
@@ -583,8 +594,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // menu — which is why the user props below are gone rather than kept unused:
       // the core header only reads them under `showUser`.
       showUser: false,
-      // These three are core `AppHeader` prop names (the "AI" digraph trips
-      // biome's strictCase camelCase rule); they're external API, not ours.
+      // `showMingoAI` / `onMingoAI` / `isMingoAIActive` below are core
+      // `AppHeader` prop names — external API, not ours.
       // Support-ticket alerts cell — Help Center unread indication.
       // Attention-only: renders nothing unless <TicketLiveProvider> is
       // mounted (same helpCenterEnabled gate below), the viewer is
@@ -592,11 +603,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       showTicketAlerts: helpCenterEnabled,
       ticketAlertsHref: routes.helpCenter.tickets,
       onTicketAlerts: openHelpCenterTickets,
-      // biome-ignore lint/style/useNamingConvention: external lib prop name
       showMingoAI: chatEnabled,
-      // biome-ignore lint/style/useNamingConvention: external lib prop name
       onMingoAI: toggleChat,
-      // biome-ignore lint/style/useNamingConvention: external lib prop name
       isMingoAIActive: chatOpen,
     }),
     [

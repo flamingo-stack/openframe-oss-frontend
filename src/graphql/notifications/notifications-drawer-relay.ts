@@ -8,11 +8,8 @@ export const notificationsDrawerRelayQuery = graphql`
 
 export const notificationsDrawerRelayFragment = graphql`
   fragment notificationsDrawerRelay_query on Query
-    @refetchable(queryName: "notificationsDrawerRelayPaginationQuery")
-    @argumentDefinitions(
-      first: { type: "Int", defaultValue: 30 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "notificationsDrawerRelayPaginationQuery")
+  @argumentDefinitions(first: { type: "Int", defaultValue: 30 }, after: { type: "String" }) {
     notifications(first: $first, after: $after, filter: { read: false }, search: null)
       @connection(key: "NotificationsList_notifications", filters: ["filter", "search"]) {
       edges {
