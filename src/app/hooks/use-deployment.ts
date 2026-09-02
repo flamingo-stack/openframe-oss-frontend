@@ -65,6 +65,12 @@ const useDeploymentStore = create<DeploymentState>()(
  */
 export function useDeployment() {
   const { deployment, isInitialized, initialize } = useDeploymentStore();
+  // Through the hook, not `useDeploymentStore.getState().reset` in the returned
+  // object: naming a hook as a value (rather than calling it) is a React rule
+  // violation the compiler enforces, and it bailed out of this whole hook over it.
+  // The action is created once by the store, so the subscription this adds never
+  // fires.
+  const reset = useDeploymentStore(state => state.reset);
   const [isLoading, setIsLoading] = useState(!isInitialized);
 
   // Already initialized (another consumer got there first): nothing to wait for.
@@ -117,7 +123,7 @@ export function useDeployment() {
     hostname,
 
     // Actions (rarely needed)
-    reset: useDeploymentStore.getState().reset,
+    reset,
   };
 }
 

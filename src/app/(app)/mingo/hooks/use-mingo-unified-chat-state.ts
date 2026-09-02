@@ -36,7 +36,7 @@ import type {
   UnifiedSendMessageOptions,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { buildDiscussPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
@@ -264,9 +264,15 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // source object yields a stable UnifiedChatMessage too — the lib's reference-
   // equality memo then re-renders only the streaming bubble, not the whole list
   // (which would otherwise collapse open menus/cards on every chunk).
-  const unifiedCacheRef = useRef(new WeakMap<object, UnifiedChatMessage>());
+  // A lazy `useState` initializer rather than a ref: the map is read while
+  // RENDERING the message list, and a ref read during render is the one thing
+  // refs are not for — the compiler refuses to optimize a function that does it
+  // (and bailed out of this entire hook). `useState` gives the same
+  // create-once-per-mount identity with none of that; nothing ever calls the
+  // setter, so the value is stable for the hook's lifetime.
+  const [unifiedCache] = useState(() => new WeakMap<object, UnifiedChatMessage>());
   const messages = useMemo<UnifiedChatMessage[]>(() => {
-    const cache = unifiedCacheRef.current;
+    const cache = unifiedCache;
     return processedMessages.map(m => {
       const cached = cache.get(m);
       if (cached) return cached;
@@ -312,7 +318,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       cache.set(m, unified);
       return unified;
     });
-  }, [processedMessages]);
+  }, [processedMessages, unifiedCache]);
 
   // ─── Streaming phase: idle → thinking → streaming ─────────────────────────
   // The lib reducer's phase machine is the source of truth (mirrored per
