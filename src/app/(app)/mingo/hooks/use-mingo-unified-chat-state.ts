@@ -199,6 +199,10 @@ export function sendMingoDisplayCommand(
   return true;
 }
 
+export function hasMingoDisplayCommand(commands: SlashCommandSummary[]): boolean {
+  return commands.some(command => command.actions.some(action => action.id === 'display'));
+}
+
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const { aiModel } = useAiModelStatus();
   const commandsUrl = useChatRuntime()?.endpoints.commandsUrl ?? '';
@@ -515,12 +519,13 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     },
     [sendMessage],
   );
-  const displayRef = useCallback(
+  const handleDisplayRef = useCallback(
     (reference: ChatRef) => {
       sendMingoDisplayCommand(reference, slashCommands, sendMessage);
     },
     [sendMessage, slashCommands],
   );
+  const displayRef = hasMingoDisplayCommand(slashCommands) ? handleDisplayRef : undefined;
 
   const state = useMemo<UnifiedChatState>(
     () => ({

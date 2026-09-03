@@ -4,7 +4,12 @@ import {
   type SlashCommandSummary,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { describe, expect, it, vi } from 'vitest';
-import { mapMingoMessageToUnified, needsAllChatsScope, sendMingoDisplayCommand } from './use-mingo-unified-chat-state';
+import {
+  hasMingoDisplayCommand,
+  mapMingoMessageToUnified,
+  needsAllChatsScope,
+  sendMingoDisplayCommand,
+} from './use-mingo-unified-chat-state';
 
 const sources = [
   {
@@ -199,6 +204,16 @@ describe('sendMingoDisplayCommand', () => {
       ),
     ).toBe(false);
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('hasMingoDisplayCommand', () => {
+  it('returns true when at least one command supports display', () => {
+    expect(hasMingoDisplayCommand(displayCommands)).toBe(true);
+  });
+
+  it('returns false when commands are unavailable', () => {
+    expect(hasMingoDisplayCommand([])).toBe(false);
   });
 });
 
