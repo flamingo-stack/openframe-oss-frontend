@@ -120,7 +120,7 @@ function ScheduleRunsContent({
   const statusOptions = useMemo(
     () =>
       statusFacet && statusFacet.length > 0
-        ? statusFacet.map(s => ({ id: s.value, label: executionStatusLabel(s.value), value: s.value }))
+        ? statusFacet.map(s => ({ id: s.value, label: executionStatusLabel(s.value), value: s.value, count: s.count }))
         : FALLBACK_STATUS_OPTIONS,
     [statusFacet],
   );

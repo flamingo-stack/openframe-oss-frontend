@@ -334,7 +334,17 @@ export function DeviceSelector({
   // hold; when the server is paging, it supplies the real facets instead.
   const deviceFilters = server?.filterOptions ?? clientDeviceFilters;
 
-  const filterColumns = useMemo(() => getDeviceFilterColumns(deviceFilters), [deviceFilters]);
+  // Counts ride along only when the facets are the server's. The client-side
+  // ones describe the page in hand, which is not what a count claims to answer.
+  const serverFaceted = Boolean(server?.filterOptions);
+  const filterColumns = useMemo(() => {
+    const columns = getDeviceFilterColumns(deviceFilters);
+    if (serverFaceted) return columns;
+    return columns.map(column => ({
+      ...column,
+      filterOptions: column.filterOptions?.map(({ count: _count, ...option }) => option),
+    }));
+  }, [deviceFilters, serverFaceted]);
 
   // The column funnels read `deviceFilters` — the SERVER's facets whenever the
   // consumer is server-narrowed — rather than the rows in hand.

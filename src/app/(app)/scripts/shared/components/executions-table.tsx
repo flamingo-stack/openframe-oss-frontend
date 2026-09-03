@@ -223,7 +223,13 @@ export function useExecutionFacetOptions(ref: ExecutionFacetsKey | null | undefi
   const machines = facets?.machines;
 
   const statusOptions = useMemo(
-    () => (statuses ?? []).map(s => ({ id: s.value, label: executionStatusLabel(s.value), value: s.value })),
+    () =>
+      (statuses ?? []).map(s => ({
+        id: s.value,
+        label: executionStatusLabel(s.value),
+        value: s.value,
+        count: s.count,
+      })),
     [statuses],
   );
   const initiatorOptions = useMemo(() => facetToSortedOptions(initiators), [initiators]);

@@ -194,57 +194,55 @@ export interface DeviceFilterColumn {
   key: string;
   label: string;
   filterable?: boolean;
-  filterOptions?: Array<{ id: string; label: string; value: string }>;
+  filterOptions?: DeviceFilterOption[];
+}
+
+/** A device filter dropdown entry: `meta.filter.options` plus the facet count. */
+export interface DeviceFilterOption {
+  id: string;
+  label: string;
+  value: string;
+  count?: number;
+}
+
+/** Status / OS / customer options, shared by the table headers and the grid row. */
+function buildDeviceFilterOptions(deviceFilters?: DeviceFilters | null): {
+  status: DeviceFilterOption[];
+  os: DeviceFilterOption[];
+  organization: DeviceFilterOption[];
+} {
+  // Show only DEFAULT_VISIBLE_STATUSES (DELETED and legacy ARCHIVED live on /devices/archive)
+  const status = (deviceFilters?.statuses ?? [])
+    .filter(s => (DEFAULT_VISIBLE_STATUSES as readonly string[]).includes(s.value))
+    .map(s => ({ id: s.value, label: getDeviceStatusConfig(s.value).label, value: s.value, count: s.count }));
+
+  const os = (deviceFilters?.osTypes ?? []).map(o => ({ id: o.value, label: o.value, value: o.value, count: o.count }));
+
+  const organization = deduplicateFilterOptions(
+    (deviceFilters?.organizationIds ?? []).map(org => ({
+      id: org.value,
+      label: org.label,
+      value: org.value,
+      count: org.count,
+    })),
+  );
+
+  return { status, os, organization };
 }
 
 // Filter column metadata used by the external filter modal (useTagFilterModal).
 // Kept separate from the table ColumnDef because DataTable doesn't carry the
 // filter metadata that the external mobile filter modal needs.
 export function getDeviceFilterColumns(deviceFilters?: DeviceFilters | null): DeviceFilterColumn[] {
+  const options = buildDeviceFilterOptions(deviceFilters);
   return [
     {
       key: 'device',
       label: 'DEVICE',
     },
-    {
-      key: 'status',
-      label: 'STATUS',
-      filterable: true,
-      filterOptions: (() => {
-        const statuses = deviceFilters?.statuses || [];
-        // Show only DEFAULT_VISIBLE_STATUSES (DELETED and legacy ARCHIVED live on /devices/archive)
-        return statuses
-          .filter(s => (DEFAULT_VISIBLE_STATUSES as readonly string[]).includes(s.value))
-          .map(status => ({
-            id: status.value,
-            label: getDeviceStatusConfig(status.value).label,
-            value: status.value,
-          }));
-      })(),
-    },
-    {
-      key: 'os',
-      label: 'OS',
-      filterable: true,
-      filterOptions:
-        deviceFilters?.osTypes?.map(os => ({
-          id: os.value,
-          label: os.value,
-          value: os.value,
-        })) || [],
-    },
-    {
-      key: 'organization',
-      label: 'CUSTOMER',
-      filterable: true,
-      filterOptions: deduplicateFilterOptions(
-        deviceFilters?.organizationIds?.map(org => ({
-          id: org.value,
-          label: org.label,
-          value: org.value,
-        })) || [],
-      ),
-    },
+    { key: 'status', label: 'STATUS', filterable: true, filterOptions: options.status },
+    { key: 'os', label: 'OS', filterable: true, filterOptions: options.os },
+    { key: 'organization', label: 'CUSTOMER', filterable: true, filterOptions: options.organization },
   ];
 }
 
@@ -258,18 +256,11 @@ export function getDeviceTableColumns(
   deviceFilters?: DeviceFilters | null,
   filtersPending?: boolean,
 ): ColumnDef<Device>[] {
-  const statusFilterOptions = (() => {
-    const statuses = deviceFilters?.statuses || [];
-    return statuses
-      .filter(s => (DEFAULT_VISIBLE_STATUSES as readonly string[]).includes(s.value))
-      .map(s => ({ id: s.value, label: getDeviceStatusConfig(s.value).label, value: s.value }));
-  })();
-
-  const osFilterOptions = deviceFilters?.osTypes?.map(os => ({ id: os.value, label: os.value, value: os.value })) ?? [];
-
-  const orgFilterOptions = deduplicateFilterOptions(
-    deviceFilters?.organizationIds?.map(org => ({ id: org.value, label: org.label, value: org.value })) ?? [],
-  );
+  const {
+    status: statusFilterOptions,
+    os: osFilterOptions,
+    organization: orgFilterOptions,
+  } = buildDeviceFilterOptions(deviceFilters);
 
   return [
     {
