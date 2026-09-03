@@ -65,6 +65,9 @@ const useDeploymentStore = create<DeploymentState>()(
  */
 export function useDeployment() {
   const { deployment, isInitialized, initialize } = useDeploymentStore();
+  // Through the hook, not `useDeploymentStore.getState().reset`: naming a hook as a value
+  // is a rule violation the compiler bails out over. The action never changes.
+  const reset = useDeploymentStore(state => state.reset);
   const [isLoading, setIsLoading] = useState(!isInitialized);
 
   // Already initialized (another consumer got there first): nothing to wait for.
@@ -117,7 +120,7 @@ export function useDeployment() {
     hostname,
 
     // Actions (rarely needed)
-    reset: useDeploymentStore.getState().reset,
+    reset,
   };
 }
 

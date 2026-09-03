@@ -109,54 +109,24 @@ function normalizeVersion(version: string | undefined): string | undefined {
  */
 function buildSections(device: Device): SecuritySection[] {
   const sections: SecuritySection[] = [];
-  const { mdm } = device;
 
-  // Encryption — the BitLocker/FileVault analog we can populate (single boolean + key escrow).
-  const encryptionRows: SecurityRow[] = [];
+  // Encryption — the BitLocker/FileVault analog we can populate (single boolean).
   if (device.disk_encryption_enabled !== undefined) {
-    encryptionRows.push({
-      label: 'Disk Encryption',
-      value: device.disk_encryption_enabled ? 'Encrypted' : 'Not Encrypted',
-      status: device.disk_encryption_enabled ? 'success' : 'error',
-    });
-  }
-  if (mdm) {
-    encryptionRows.push({
-      label: 'Recovery Key Escrow',
-      value: mdm.encryption_key_available ? 'Available' : 'Not Available',
-      status: mdm.encryption_key_available ? 'success' : 'error',
-    });
-  }
-  if (encryptionRows.length > 0) {
     sections.push({
       id: 'encryption',
       title: 'Encryption',
-      cards: [{ title: 'Disk Encryption', rows: encryptionRows }],
-    });
-  }
-
-  // Device management posture (Fleet MDM enrollment).
-  if (mdm) {
-    const mdmRows: SecurityRow[] = [
-      { label: 'Enrollment', value: mdm.enrollment_status || 'Unknown' },
-      { label: 'Device Status', value: mdm.device_status || 'Unknown' },
-      { label: 'Pending Action', value: mdm.pending_action || 'None' },
-      {
-        label: 'Connected to Fleet',
-        value: mdm.connected_to_fleet ? 'Yes' : 'No',
-        status: mdm.connected_to_fleet ? 'success' : 'error',
-      },
-    ];
-    if (typeof mdm.profiles_count === 'number' && mdm.profiles_count > 0) {
-      mdmRows.push({ label: 'Config Profiles', value: String(mdm.profiles_count) });
-    }
-    if (mdm.dep_profile_error) {
-      mdmRows.push({ label: 'DEP Profile', value: 'Error', status: 'error' });
-    }
-    sections.push({
-      id: 'mdm',
-      title: 'Device Management',
-      cards: [{ title: mdm.name || 'MDM', rows: mdmRows }],
+      cards: [
+        {
+          title: 'Disk Encryption',
+          rows: [
+            {
+              label: 'Disk Encryption',
+              value: device.disk_encryption_enabled ? 'Encrypted' : 'Not Encrypted',
+              status: device.disk_encryption_enabled ? 'success' : 'error',
+            },
+          ],
+        },
+      ],
     });
   }
 

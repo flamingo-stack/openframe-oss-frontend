@@ -33,6 +33,16 @@ export const runtimeEnv = {
     // can serve any tenant.
     return getEnvVar('NEXT_PUBLIC_TENANT_HOST_URL') || getStoredTenantHost() || '';
   },
+  /**
+   * The build-time tenant pin ONLY — never the host learned at a previous login.
+   *
+   * Callers deciding which gateway a NEW sign-in belongs to must use this: the stored host is a
+   * previous tenant's and is never cleared (not even on logout), so {@link tenantHostUrl} would
+   * confidently hand back the wrong origin for a different organization's identity.
+   */
+  pinnedTenantHostUrl(): string {
+    return getEnvVar('NEXT_PUBLIC_TENANT_HOST_URL') || '';
+  },
   sharedHostUrl(): string {
     return getEnvVar('NEXT_PUBLIC_SHARED_HOST_URL') || '';
   },

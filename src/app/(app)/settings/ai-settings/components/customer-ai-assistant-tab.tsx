@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { MonitorIcon, MoonStarIcon, Sun01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {

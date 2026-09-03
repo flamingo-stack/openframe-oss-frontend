@@ -14,8 +14,9 @@ export interface MessagePage {
 }
 
 export interface FetchTicketsParams {
-  statuses: string[];
-  statusIds?: string[];
+  // Lifecycle status ids; callers resolve them from the status snapshot before
+  // firing (there is no enum fallback — an empty list sends no status filter).
+  statusIds: string[];
   search?: string;
   organizationIds?: string[];
   assigneeIds?: string[];
@@ -34,20 +35,13 @@ export interface FetchBoardColumnByStatusIdParams {
   limit: number;
 }
 
-export type BoardStatus = 'ACTIVE' | 'TECH_REQUIRED' | 'ON_HOLD' | 'RESOLVED';
-
 export interface ReorderTicketParams {
   id: string;
   afterTicketId: string | null;
   beforeTicketId: string | null;
-  status?: BoardStatus;
   // Lifecycle column id (custom statuses); forwarded as ReorderTicketInput.statusId.
+  // Omitted on a same-column reorder.
   statusId?: string;
-}
-
-export interface TicketStatusTransition {
-  from: DialogStatus;
-  to: DialogStatus[];
 }
 
 export interface TicketStatusTransitionRule {
@@ -69,14 +63,11 @@ export interface TicketService {
   fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage>;
   fetchDialog(id: string): Promise<Dialog | null>;
   fetchMessages(params: FetchMessagesParams): Promise<MessagePage>;
-  updateStatus(ticketId: string, status: DialogStatus): Promise<boolean>;
   transitionTicket(ticketId: string, toStatusId: string): Promise<void>;
   reorderTicket(params: ReorderTicketParams): Promise<DialogStatus>;
-  fetchTicketStatusTransitions(): Promise<TicketStatusTransition[]>;
   fetchTicketStatusTransitionRules(): Promise<TicketStatusTransitionRule[]>;
   sendMessage(dialogId: string, content: string, chatType: ChatType): Promise<void>;
   approveRequest(requestId: string): Promise<void>;
   rejectRequest(requestId: string): Promise<void>;
-  archiveDialog(ticketId: string): Promise<boolean>;
   fetchChunks(dialogId: string, chatType: ChatType, fromSequenceId?: number | null): Promise<ChunkData[]>;
 }

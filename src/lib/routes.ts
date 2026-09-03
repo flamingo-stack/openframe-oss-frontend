@@ -188,12 +188,17 @@ export const routes = {
   auth: {
     root: '/auth',
     login: '/auth/login',
-    signup: '/auth/signup',
     checkEmail: '/auth/check-email',
     verify: '/auth/verify',
     invite: '/auth/invite',
     passwordReset: '/auth/password-reset',
     error: '/auth/error',
+    /**
+     * Where the auth server sends an SSO login whose identity has no account yet
+     * (`openframe.sso.login.signup-continue-url`). The page reads the asserted identity from the
+     * SAS session and collects only what SSO cannot supply: organization name and domain.
+     */
+    ssoContinue: '/auth/sso-continue',
   },
 
   customers: {

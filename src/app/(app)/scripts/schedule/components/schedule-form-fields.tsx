@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { SelectButton } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {

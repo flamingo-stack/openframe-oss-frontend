@@ -1,6 +1,5 @@
 'use client';
 
-import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -24,10 +23,10 @@ import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
 
-// TODO(unread-from-entity): re-enable per-ticket unread highlighting once the backend exposes
-// unread counts on the ticket entity itself. Matching unread notifications to tickets by id is a
-// temporary workaround — disabled for now; flip this flag to restore it.
-const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
+// Per-row unread count comes from the ticket entity itself (`Ticket.unreadNotificationCount`).
+// Viewing a ticket's client chat marks its notifications read (`useMarkEntityNotificationsRead`),
+// clearing the badge in lockstep with the drawer and the sidebar nav count.
+const getUnreadCount = (ticket: Dialog) => ticket.unreadNotificationCount;
 
 interface TicketsTableProps {
   isArchived: boolean;
@@ -87,22 +86,6 @@ export function TicketsTable({
     menuActions,
     dialog: ticketsActionsDialog,
   } = useTicketsActions({ isLoading, enabled: !isArchived, filter: archiveFilter });
-
-  // Tickets have no unread field of their own; the per-row count comes from notifications (a
-  // separate entity) matched by ticket id, mirroring how the Mingo sidebar derives per-dialog
-  // unread badges. Opening a ticket marks those read (EntityViewAutoReader), clearing the badge.
-  const notifications = useOptionalNotifications();
-  const unreadByTicketId = useMemo(() => {
-    const counts = new Map<string, number>();
-    if (!HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS) return counts;
-    for (const notification of notifications?.notifications ?? []) {
-      if (notification.read) continue;
-      const ticketId = notification.meta?.ticketId;
-      if (typeof ticketId === 'string') counts.set(ticketId, (counts.get(ticketId) ?? 0) + 1);
-    }
-    return counts;
-  }, [notifications?.notifications]);
-  const getUnreadCount = useCallback((ticket: Dialog) => unreadByTicketId.get(ticket.id), [unreadByTicketId]);
 
   // Status filter options (value = status id).
   const statusesQuery = useTicketStatusesQuery({ enabled: !isArchived });

@@ -1,45 +1,41 @@
 'use client';
 
-import { AuthShell, type AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { AppleNativeSignupSection } from '@/app/(auth)/auth/components/apple-native-signup-section';
 import { CreateOrganizationSection } from '@/app/(auth)/auth/components/create-organization-section';
+import { useAppleSignupTakeover } from '@/app/(auth)/auth/hooks/use-apple-signup-takeover';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
-import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
-import { isAuthOnlyMode } from '@/lib/app-mode';
+import { SsoRegistrationRequiredError } from '@/lib/native-login';
 import { routes } from '@/lib/routes';
 
 export default function AuthPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
-  const { isLoading, registerOrganizationSso } = useAuth();
+  const { isLoading, loginWithSso, registerOrganization } = useAuth();
   const { providers } = useRegistrationProviders();
 
-  useEffect(() => {
-    if (isAuthenticated && !isAuthOnlyMode()) {
-      // replace, not push: an authenticated user landing on /auth (e.g. via back)
-      // is redirected without leaving /auth in the back stack — no login flash,
-      // no back-loop. Pairs with the replace at login success in use-auth.ts.
-      router.replace(routes.dashboard);
-    }
-  }, [isAuthenticated, router]);
+  const appleSignup = useAppleSignupTakeover();
 
-  // Warm the Login tab's chunk so switching tabs (a router.replace, which unlike
-  // <Link> isn't auto-prefetched) swaps the form instantly instead of flashing
-  // the route loading skeleton.
-  useEffect(() => {
-    router.prefetch(routes.auth.login);
-  }, [router]);
-
-  const handleCreateOrganization = (orgName: string, domain: string, email: string) => {
-    // Store org details and navigate to signup screen
-    sessionStorage.setItem('auth:org_name', orgName);
-    sessionStorage.setItem('auth:domain', domain);
-    sessionStorage.setItem('auth:email', email);
-    router.push('/auth/signup/');
+  // Organization and personal details are collected on one screen now, so the signup lands here
+  // directly instead of handing off through sessionStorage to /auth/signup.
+  const handleRegister = (payload: {
+    orgName: string;
+    domain: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+  }) => {
+    registerOrganization({
+      tenantName: payload.orgName,
+      tenantDomain: payload.domain,
+      email: payload.email,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      password: payload.password,
+    });
   };
 
   // External providers offered by the backend for registration; Apple only on Apple devices.
@@ -48,39 +44,41 @@ export default function AuthPage() {
     provider => (provider !== 'apple' || isApple) && providers.some(sp => sp.provider === provider),
   );
 
-  const handleSsoRegister = (orgName: string, domain: string, email: string, provider: AuthSsoProvider) => {
-    if (provider === 'openframe') return;
-    void registerOrganizationSso({
-      tenantName: orgName,
-      tenantDomain: domain,
-      email,
-      provider,
-      redirectTo: '/auth/login',
-    });
+  // Signing up with Apple is the expected case on this tab, so the no-account answer must land
+  // here too — not just on Login. Without the catch the rethrow from loginWithSso becomes an
+  // unhandled rejection and the single-use authorization code is lost with no UI at all.
+  const handleSsoLogin = async (provider: AuthSsoProvider) => {
+    try {
+      await loginWithSso(provider);
+    } catch (error) {
+      // Not a failure: the identity verified, it just has no organization yet.
+      // No account yet: finish the signup on our own screen instead of in the browser sheet.
+      if (error instanceof SsoRegistrationRequiredError) {
+        router.replace(`${routes.auth.ssoContinue}?signupTicket=${encodeURIComponent(error.signupTicket)}`);
+        return;
+      }
+      appleSignup.capture(error);
+    }
   };
 
-  const tabs = (
-    <TabSelector
-      value="signup"
-      onValueChange={value => {
-        if (value === 'login') router.replace(routes.auth.login);
-      }}
-      variant="primary"
-      items={[
-        { id: 'signup', label: 'Sign Up' },
-        { id: 'login', label: 'Login' },
-      ]}
-    />
-  );
+  // The tab selector stays visible (the shell owns it), so leaving this screen is possible and
+  // discards the credential — the same thing "Back to sign in" does deliberately.
+  if (appleSignup.credential) {
+    return (
+      <AppleNativeSignupSection
+        credential={appleSignup.credential}
+        onRegistered={appleSignup.onRegistered}
+        onExit={appleSignup.onExit}
+      />
+    );
+  }
 
   return (
-    <AuthShell tabs={tabs}>
-      <CreateOrganizationSection
-        onCreateOrganization={handleCreateOrganization}
-        ssoProviders={ssoProviders}
-        onSsoRegister={handleSsoRegister}
-        isLoading={isLoading}
-      />
-    </AuthShell>
+    <CreateOrganizationSection
+      onRegister={handleRegister}
+      ssoProviders={ssoProviders}
+      onSsoLogin={handleSsoLogin}
+      isLoading={isLoading}
+    />
   );
 }

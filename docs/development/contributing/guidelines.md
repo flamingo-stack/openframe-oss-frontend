@@ -249,7 +249,9 @@ When reviewing a PR, check:
 - [ ] TypeScript types are accurate and not over-widened
 - [ ] No security issues (XSS, exposed secrets, unvalidated input)
 - [ ] Consistent with existing patterns in the codebase
-- [ ] Performance implications (unnecessary re-renders, missing `useMemo`/`useCallback`)
+- [ ] Performance implications — but NOT missing `useMemo`/`useCallback`: the React Compiler
+      (`reactCompiler: true`) memoizes automatically. What to look for instead is a
+      `react-hooks` lint finding, which means the compiler bailed out of that component
 - [ ] New queries use proper cache key arrays
 - [ ] Relay fragments follow the established pattern
 
