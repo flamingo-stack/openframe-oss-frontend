@@ -2,11 +2,10 @@
 
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useState } from 'react';
+import { EMAIL_REGEX } from '@/app/(auth)/auth/constants/registration-validation';
 import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 
 export type AvailabilityStatus = 'idle' | 'checking' | 'available' | 'taken' | 'blocked' | 'error';
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const BLOCKED_EMAIL_DOMAIN_MESSAGE =
   'Disposable and privacy-focused email providers are not allowed. Please use your work or personal email.';
@@ -14,16 +13,19 @@ export const BLOCKED_EMAIL_DOMAIN_MESSAGE =
 /** Debounced check of whether an email is already registered. Runs only on valid email format. */
 export function useEmailAvailability(email: string, delay = 400): AvailabilityStatus {
   const debounced = useDebounce(email.trim(), delay);
-  const [status, setStatus] = useState<AvailabilityStatus>('idle');
+  // The address each verdict belongs to, not just the verdict. Comparing against the debounced
+  // value instead would still report a stale answer for one commit — the render in which the
+  // debounce fires but the effect has not yet run.
+  const [result, setResult] = useState<{ email: string; status: AvailabilityStatus } | null>(null);
 
-  // Nothing to check → idle, decided during render: an effect would leave the
-  // previous verdict (a red "taken") on screen for a frame after the field is
-  // cleared.
+  // The idle/checking transition happens during render, not in an effect: an effect would leave the
+  // previous verdict (a red "taken") on screen for a frame after the field changes, and setting
+  // state synchronously inside one is what `react-hooks/set-state-in-effect` forbids.
   const [lastDebounced, setLastDebounced] = useState(debounced);
   const checkable = Boolean(debounced) && EMAIL_REGEX.test(debounced);
   if (debounced !== lastDebounced) {
     setLastDebounced(debounced);
-    setStatus(checkable ? 'checking' : 'idle');
+    setResult({ email: debounced, status: checkable ? 'checking' : 'idle' });
   }
 
   useEffect(() => {
@@ -36,15 +38,18 @@ export function useEmailAvailability(email: string, delay = 400): AvailabilitySt
       .then(res => {
         if (cancelled) return;
         if (!res.ok || !res.data) {
-          setStatus('error');
+          setResult({ email: debounced, status: 'error' });
           return;
         }
         const { available, reason } = res.data as { available?: boolean; reason?: 'TAKEN' | 'BLOCKED_DOMAIN' };
         // Older backends omit `reason` — treat unavailable-without-reason as taken.
-        setStatus(available ? 'available' : reason === 'BLOCKED_DOMAIN' ? 'blocked' : 'taken');
+        setResult({
+          email: debounced,
+          status: available ? 'available' : reason === 'BLOCKED_DOMAIN' ? 'blocked' : 'taken',
+        });
       })
       .catch(() => {
-        if (!cancelled) setStatus('error');
+        if (!cancelled) setResult({ email: debounced, status: 'error' });
       });
 
     return () => {
@@ -52,7 +57,16 @@ export function useEmailAvailability(email: string, delay = 400): AvailabilitySt
     };
   }, [debounced, checkable]);
 
-  return status;
+  // A verdict for a different address is not an answer about this one. Reporting it would say
+  // "available" about something never checked — and a caller that gates on the status settling
+  // (the signup step-one Continue) would let that through to a step where the email is read-only
+  // and a late "taken" can no longer be corrected.
+  const trimmed = email.trim();
+  if (result?.email !== trimmed) {
+    return EMAIL_REGEX.test(trimmed) ? 'checking' : 'idle';
+  }
+
+  return result.status;
 }
 
 /** Debounced check of subdomain availability; returns status plus suggested alternatives when taken. */

@@ -66,10 +66,18 @@ export interface NativeAuthPlugin {
    * from the Access-Token / Refresh-Token response headers. Paired with
    * `signInWithApple`; same availability caveat.
    */
-  exchangeApple?(options: {
-    url: string;
-    body: Record<string, string>;
-  }): Promise<{ accessToken?: string; refreshToken?: string }>;
+  exchangeApple?(options: { url: string; body: Record<string, string> }): Promise<{
+    /**
+     * Present on shells that resolve every HTTP status instead of rejecting non-2xx. Absent on
+     * older binaries, where a 4xx arrives as a rejection — callers must treat `undefined` as
+     * "this shell cannot report status" and fall back rather than assume success.
+     */
+    status?: number;
+    /** Raw response body, when the server sent one. JSON for the `{"error": …}` cases. */
+    body?: string;
+    accessToken?: string;
+    refreshToken?: string;
+  }>;
   /**
    * Reads the stored tokens. When biometric login is enabled the shell gates
    * this behind a biometric prompt, so it may reject with `BIOMETRIC_CANCELED`
