@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { SortableList } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';

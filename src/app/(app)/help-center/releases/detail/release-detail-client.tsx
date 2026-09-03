@@ -83,6 +83,9 @@ function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; i
   );
 }
 
+// The React Compiler skips this one: `ReleaseDetailPage` takes its data hook as a prop,
+// which is "passing a hook around as a value". The contract is the core library's. Costs
+// nothing — this is a prop-forwarding wrapper with nothing to memoize.
 export function ReleaseDetailClient({ slug }: { slug: string }) {
   return (
     <ReleaseDetailPage
