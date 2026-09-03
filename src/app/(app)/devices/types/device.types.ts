@@ -111,8 +111,17 @@ export interface ToolConnection {
   /** Raw JSON string from the tool connection record — parsed by whoever needs it. */
   metadata?: string | null;
   connectedAt?: string;
-  lastSyncAt?: string;
   disconnectedAt?: string;
+}
+
+/**
+ * Outcome of the Fleet detail fan-out on the device details page — the tabs use
+ * it to tell "still collecting" from "Fleet failed" from "genuinely empty".
+ * 'error' covers a failed request AND an ok response without a host (the host
+ * was deleted from Fleet) AND a malformed agentToolId.
+ */
+export interface DeviceDataSources {
+  fleet: 'skipped-pending' | 'skipped-disconnected' | 'ok' | 'error';
 }
 
 /**
@@ -233,6 +242,8 @@ export interface Device {
 
   // Fleet-derived metadata
   software_updated_at?: string; // Fleet software inventory last-scanned timestamp
+  /** Per-source fan-out outcome — set only by the details fetch, absent on list rows. */
+  sources?: DeviceDataSources;
   fleetTeamName?: string;
   fleetTeamId?: number | null;
   fleetLabels?: string[];

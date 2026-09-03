@@ -10,6 +10,7 @@ import {
   TabNavigation,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
+import { WarningBlock } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -21,6 +22,7 @@ import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { getDeviceName } from '../utils/device-name';
 import { getDeviceStatusConfig } from '../utils/device-status';
+import { isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { DeviceDetailsSkeleton } from './device-details-skeleton';
 import { RunScriptModal } from './run-script/run-script-modal';
 import { DEVICE_TABS } from './tabs/device-tabs';
@@ -189,6 +191,15 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
       titleAdornment={<Tag label={statusConfig.label} variant={statusConfig.variant} />}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
+      {/* First-connect indication: shown only until every agent has registered
+          (per design 447-29739); a later disconnect never re-triggers it. */}
+      {isDeviceStillConnecting(normalizedDevice) && (
+        <WarningBlock
+          title="Device is still connecting — some data and features aren't available yet."
+          className="mb-[var(--spacing-system-l)]"
+        />
+      )}
+
       {/* Tab Navigation */}
       <TabNavigation tabs={DEVICE_TABS} activeTab={activeTab} onTabChange={handleTabChange}>
         {tabId => (

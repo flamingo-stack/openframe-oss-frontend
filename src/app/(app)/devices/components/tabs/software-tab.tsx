@@ -20,10 +20,13 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
+import { useQueryClient } from '@tanstack/react-query';
 import { type ComponentType, useMemo, useState } from 'react';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device, Software } from '../../types/device.types';
+import { fleetTimestampMs } from '../../utils/fleet-timestamp';
+import { deviceQueryKeys } from '../../utils/query-keys';
 import { SOFTWARE_COLUMNS } from './device-tab-columns';
 import { TabEmptyState } from './tab-empty-state';
 
@@ -54,6 +57,7 @@ function formatLastUsed(dateString?: string): string {
 }
 
 export function SoftwareTab({ device }: SoftwareTabProps) {
+  const queryClient = useQueryClient();
   const allSoftware = device?.software || EMPTY_SOFTWARE;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [search, setSearch] = useState('');
@@ -173,6 +177,42 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
   }
 
   if (allSoftware.length === 0) {
+    const fleetSource = device.sources?.fleet;
+
+    if (fleetSource === 'error') {
+      return (
+        <TabEmptyState
+          icon={<WebDesignIcon />}
+          title="Couldn't load software data"
+          description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
+          buttonLabel="Retry"
+          onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
+        />
+      );
+    }
+
+    if (fleetSource === 'skipped-disconnected') {
+      return (
+        <TabEmptyState
+          icon={<WebDesignIcon />}
+          title="Fleet is not connected"
+          description="The Fleet agent for this device is disconnected, so its software inventory is unavailable."
+        />
+      );
+    }
+
+    // Not yet collected: the agent is still installing, or the host has never
+    // completed a software inventory scan (software_updated_at unset/sentinel).
+    if (fleetSource === 'skipped-pending' || fleetTimestampMs(device.software_updated_at) === null) {
+      return (
+        <TabEmptyState
+          icon={<WebDesignIcon />}
+          title="Collecting software inventory"
+          description="This device hasn't reported its installed software yet. It will appear here once the inventory arrives."
+        />
+      );
+    }
+
     return (
       <TabEmptyState
         icon={<WebDesignIcon />}

@@ -93,7 +93,9 @@ export function AgentsTab({ device }: AgentsTabProps) {
         status: getAgentDisplayStatus(tc.toolType, tc),
         lastSeen: tc.lastSeen,
         lastFetched: tc.lastFetched,
-        updatedAt: tc.lastSyncAt,
+        // lastSyncAt is dead on the backend (never written on normal syncs) — the
+        // "Updated" line falls back to lastFetched via showStatusBlock instead.
+        updatedAt: undefined,
       });
     }
   });
