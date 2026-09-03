@@ -1,12 +1,33 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { type InfiniteData, type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { NotificationEntityType } from '@/generated/schema-enums';
 import { useMarkEntityNotificationsRead } from '@/graphql/notifications/use-mark-entity-notifications-read';
 import { ATTENTION_IDLE_MS, isSessionActive, subscribeSessionActivity } from '@/lib/session-activity';
+import type { TicketsPage } from '../services/ticket-service.types';
 import { dialogsQueryKeys } from '../utils/query-keys';
+
+/**
+ * Zero the ticket's badge in every cached board column and table page.
+ *
+ * Written rather than invalidated: invalidation only marks those queries stale while they
+ * are unmounted behind this page, so navigating back paints the cached pages and the card
+ * kept its badge until the column's 15s poll. The count is known to be zero here.
+ */
+function clearCachedUnreadCount(queryClient: QueryClient, ticketId: string): void {
+  queryClient.setQueriesData<InfiniteData<TicketsPage>>({ queryKey: dialogsQueryKeys.all }, prev => {
+    if (!prev?.pages?.some(page => page.dialogs.some(d => d.id === ticketId && d.unreadNotificationCount))) return prev;
+    return {
+      ...prev,
+      pages: prev.pages.map(page => ({
+        ...page,
+        dialogs: page.dialogs.map(d => (d.id === ticketId ? { ...d, unreadNotificationCount: 0 } : d)),
+      })),
+    };
+  });
+}
 
 interface TicketNotificationsAutoReaderProps {
   ticketId: string;
@@ -49,11 +70,9 @@ export function TicketNotificationsAutoReader({ ticketId, clientChatOnScreen }: 
     if (markedReadTicketRef.current === ticketId) return;
     if (!isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) return;
     markedReadTicketRef.current = ticketId;
-    markEntityNotificationsRead(NotificationEntityType.TICKET, ticketId, () => {
-      // Clears the `unreadNotificationCount` badge on the board/table: both are unmounted
-      // here, so this only marks them stale and they refetch when the user navigates back.
-      queryClient.invalidateQueries({ queryKey: dialogsQueryKeys.all });
-    });
+    markEntityNotificationsRead(NotificationEntityType.TICKET, ticketId, () =>
+      clearCachedUnreadCount(queryClient, ticketId),
+    );
   }, [ticketId, clientChatOnScreen, notificationsEnabled, activityEdge, markEntityNotificationsRead, queryClient]);
 
   return null;

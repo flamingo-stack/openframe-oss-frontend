@@ -212,6 +212,9 @@ export class TicketService implements TicketServiceInterface {
     if (params.tagIds?.length) {
       filter.tagIds = params.tagIds;
     }
+    if (params.unreadOnly) {
+      filter.hasUnreadNotifications = true;
+    }
 
     const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
       query: GET_TICKETS_QUERY,
@@ -248,6 +251,7 @@ export class TicketService implements TicketServiceInterface {
         organizationIds: params.organizationIds?.length ? params.organizationIds : undefined,
         assigneeIds: params.assigneeIds?.length ? params.assigneeIds : undefined,
         tagIds: params.tagIds?.length ? params.tagIds : undefined,
+        hasUnreadNotifications: params.unreadOnly || undefined,
       },
     });
 

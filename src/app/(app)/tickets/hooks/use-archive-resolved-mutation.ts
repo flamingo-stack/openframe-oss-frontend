@@ -22,6 +22,7 @@ export interface ArchiveResolvedFilter {
   organizationIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
+  unreadOnly?: boolean;
 }
 
 export function useArchiveResolvedMutation() {
@@ -37,6 +38,7 @@ export function useArchiveResolvedMutation() {
             organizationIds: filter.organizationIds?.length ? filter.organizationIds : undefined,
             assigneeIds: filter.assigneeIds?.length ? filter.assigneeIds : undefined,
             tagIds: filter.tagIds?.length ? filter.tagIds : undefined,
+            hasUnreadNotifications: filter.unreadOnly || undefined,
           },
         },
       });

@@ -12,6 +12,8 @@ export interface DialogsQueryParams {
   organizationIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
+  /** Only tickets the caller has unread notifications about. */
+  unreadOnly?: boolean;
   /** Page size override (default 20). Part of the query key — lists fetched
    *  with different page sizes must not share a cache entry. */
   pageSize?: number;
@@ -36,6 +38,7 @@ export const dialogsQueryKeys = {
         organizationIds: params.organizationIds || [],
         assigneeIds: params.assigneeIds || [],
         tagIds: params.tagIds || [],
+        unreadOnly: params.unreadOnly ?? false,
         pageSize: params.pageSize ?? 20,
       },
     ] as const,
@@ -46,7 +49,13 @@ export const dialogsQueryKeys = {
   // Specific board column keyed by statusId + search + filters
   boardColumn: (
     statusId: string,
-    params: { search?: string; organizationIds?: string[]; assigneeIds?: string[]; tagIds?: string[] },
+    params: {
+      search?: string;
+      organizationIds?: string[];
+      assigneeIds?: string[];
+      tagIds?: string[];
+      unreadOnly?: boolean;
+    },
   ) =>
     [
       ...dialogsQueryKeys.boardColumns(),
@@ -56,6 +65,7 @@ export const dialogsQueryKeys = {
         organizationIds: params.organizationIds || [],
         assigneeIds: params.assigneeIds || [],
         tagIds: params.tagIds || [],
+        unreadOnly: params.unreadOnly ?? false,
       },
     ] as const,
 } as const;

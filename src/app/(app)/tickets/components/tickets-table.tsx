@@ -33,12 +33,19 @@ interface TicketsTableProps {
   statusFilters?: string[];
   organizationIds?: string[];
   assigneeIds?: string[];
+  /** Only tickets the caller has unread notifications about. */
+  unreadOnly?: boolean;
   /**
-   * Applies status/assignee/customer atomically in ONE call — the values are
-   * URL params, and two sequential writes would clobber each other. Fired by
-   * the column-header filters (md+) and the mobile Filter Tickets modal alike.
+   * Applies status/assignee/customer/new-messages atomically in ONE call — the
+   * values are URL params, and two sequential writes would clobber each other.
+   * Fired by the column-header filters (md+) and the Filter Tickets modal alike.
    */
-  onFiltersChange?: (filters: { status: string[]; assigneeIds: string[]; organizationIds: string[] }) => void;
+  onFiltersChange?: (filters: {
+    status: string[];
+    assigneeIds: string[];
+    organizationIds: string[];
+    unreadOnly: boolean;
+  }) => void;
   backButton?: { label?: string; onClick: () => void };
   selector?: ReactNode;
   search: string;
@@ -52,6 +59,7 @@ export function TicketsTable({
   statusFilters,
   organizationIds,
   assigneeIds,
+  unreadOnly,
   onFiltersChange,
   backButton,
   selector,
@@ -61,7 +69,7 @@ export function TicketsTable({
   onTagIdsChange,
 }: TicketsTableProps) {
   const debouncedSearch = useDebounce(search, 300);
-  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const {
@@ -78,6 +86,7 @@ export function TicketsTable({
     organizationIds,
     assigneeIds,
     tagIds,
+    unreadOnly,
   });
 
   const archiveFilter = useMemo(() => ({ tagIds }), [tagIds]);
@@ -132,21 +141,23 @@ export function TicketsTable({
       onFiltersChange?.({
         status: (next.find(f => f.id === 'status')?.value as string[] | undefined) ?? [],
         assigneeIds: (next.find(f => f.id === 'assignee')?.value as string[] | undefined) ?? [],
-        // The header has no customer filter — carry the current value through.
+        // The header has neither a customer nor a new-messages filter — carry the current values through.
         organizationIds: organizationIds ?? [],
+        unreadOnly: unreadOnly ?? false,
       });
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [columnFilters, isArchived, onFiltersChange, organizationIds],
+    [columnFilters, isArchived, onFiltersChange, organizationIds, unreadOnly],
   );
 
   const handleModalApply = useCallback(
-    (filters: { organizationIds: string[]; assigneeIds: string[]; status?: string[] }) => {
+    (filters: { organizationIds: string[]; assigneeIds: string[]; unreadOnly: boolean; status?: string[] }) => {
       if (isArchived) return;
       onFiltersChange?.({
         status: filters.status ?? [],
         assigneeIds: filters.assigneeIds,
         organizationIds: filters.organizationIds,
+        unreadOnly: filters.unreadOnly,
       });
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
@@ -158,7 +169,8 @@ export function TicketsTable({
     ? 'No archived tickets found. Try adjusting your search or filters.'
     : 'No tickets found. Try adjusting your search or filters.';
 
-  const hasMobileFilter = !isArchived;
+  // The archive has no status/assignee/customer/new-messages filters at all.
+  const hasFilterModal = !isArchived;
 
   const showEmptyState =
     !isLoading &&
@@ -167,6 +179,7 @@ export function TicketsTable({
     (organizationIds?.length ?? 0) === 0 &&
     (assigneeIds?.length ?? 0) === 0 &&
     tagIds.length === 0 &&
+    !unreadOnly &&
     tickets.length === 0;
 
   const actions = useMemo(() => emphasizeNewTicketAction(baseActions, showEmptyState), [baseActions, showEmptyState]);
@@ -201,12 +214,14 @@ export function TicketsTable({
                 tagIds={tagIds}
                 onTagIdsChange={onTagIdsChange}
                 filterButton={
-                  hasMobileFilter ? (
+                  hasFilterModal ? (
+                    // Shown on every breakpoint, unlike the board's: the column
+                    // headers carry status/assignee on md+ but have no room for the
+                    // "New Messages Only" checkbox, so the modal is its desktop surface too.
                     <Button
                       variant="outline"
                       size="icon"
-                      className="md:hidden"
-                      onClick={() => setMobileFilterOpen(true)}
+                      onClick={() => setFilterModalOpen(true)}
                       aria-label="Open filters"
                       leftIcon={<Filter02Icon className="text-ods-text-primary" />}
                     />
@@ -216,12 +231,13 @@ export function TicketsTable({
             </div>
           )}
 
-          {hasMobileFilter && (
+          {hasFilterModal && (
             <TicketsFilterModal
-              isOpen={mobileFilterOpen}
-              onClose={() => setMobileFilterOpen(false)}
+              isOpen={filterModalOpen}
+              onClose={() => setFilterModalOpen(false)}
               organizationIds={organizationIds ?? []}
               assigneeIds={assigneeIds ?? []}
+              unreadOnly={unreadOnly ?? false}
               status={{ value: statusFilters ?? [], options: statusModalOptions }}
               onApply={handleModalApply}
             />
