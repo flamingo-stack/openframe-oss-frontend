@@ -23,6 +23,7 @@ export default function AuthPage() {
     firstName: string;
     lastName: string;
     password: string;
+    prNumber?: number;
   }) => {
     registerOrganization({
       tenantName: payload.orgName,
@@ -31,6 +32,7 @@ export default function AuthPage() {
       firstName: payload.firstName,
       lastName: payload.lastName,
       password: payload.password,
+      ...(payload.prNumber !== undefined ? { prNumber: payload.prNumber } : {}),
     });
   };
 

@@ -5,6 +5,7 @@ import {
   CreateOrganizationForm,
   LoginForm,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRef, useState } from 'react';
 import { DomainSuggestions } from '@/app/(auth)/auth/components/domain-suggestions';
 import {
@@ -25,6 +26,7 @@ import { isSharedAuthUi } from '@/lib/app-mode';
 import { SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 import { pushSignupStarted } from '@/lib/posthog/posthog-events';
+import { runtimeEnv } from '@/lib/runtime-config';
 
 interface CreateOrganizationSectionProps {
   /**
@@ -38,6 +40,7 @@ interface CreateOrganizationSectionProps {
     firstName: string;
     lastName: string;
     password: string;
+    prNumber?: number;
   }) => void;
   /** Provider buttons, rendered above the email field on step one where they need nothing typed. */
   ssoProviders?: AuthSsoProvider[];
@@ -74,6 +77,9 @@ export function CreateOrganizationSection({
   const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  // Dev environments only: links the registration to a PR so the tenant lands on that preview.
+  const [prNumber, setPrNumber] = useState('');
+  const showPrNumber = runtimeEnv.prNumberEnabled();
   // Email first, then everything else. The providers above the email need nothing typed, so this
   // step is also the one that keeps them reachable on a cold screen.
   const [step, setStep] = useState<'email' | 'details'>('email');
@@ -116,6 +122,7 @@ export function CreateOrganizationSection({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       password,
+      ...(showPrNumber && prNumber ? { prNumber: Number(prNumber) } : {}),
     });
   };
 
@@ -201,6 +208,18 @@ export function CreateOrganizationSection({
           confirmPassword.length > 0 && password !== confirmPassword ? PASSWORDS_DO_NOT_MATCH_ERROR : undefined,
         organizationName: organizationName.trim() && !isOrgNameValid ? ORG_NAME_ERROR : undefined,
       }}
-    />
+    >
+      {showPrNumber && (
+        <Input
+          label="PR Number (optional)"
+          placeholder="Enter PR Number"
+          inputMode="numeric"
+          value={prNumber}
+          disabled={isLoading}
+          // Digits only — typing or pasting anything else (minus sign included) is stripped.
+          onChange={event => setPrNumber(event.target.value.replace(/\D/g, ''))}
+        />
+      )}
+    </CreateOrganizationForm>
   );
 }
