@@ -11,7 +11,7 @@ import {
 import { BenefitCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useState } from 'react';
-
+import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 import { clearStoredRedditClickId, getStoredRedditClickId } from '@/lib/reddit-click-id';
 import { runtimeEnv } from '@/lib/runtime-config';
 
@@ -117,8 +117,8 @@ export function AuthBenefitsSection() {
                 geoApiUrl={null}
                 submitLabel="Join Waitlist"
                 successLabel="You're in!"
-                privacyPolicyUrl="https://www.flamingo.run/privacy-policy"
-                termsOfServiceUrl="https://www.flamingo.run/terms-of-service"
+                privacyPolicyUrl={PRIVACY_POLICY_URL}
+                termsOfServiceUrl={TERMS_URL}
               />
             </div>
           </div>
