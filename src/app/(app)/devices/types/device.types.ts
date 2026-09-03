@@ -72,23 +72,6 @@ export interface User {
   isLoggedIn?: boolean;
 }
 
-/**
- * Unified MDM Info type
- */
-export interface MdmInfo {
-  enrollment_status: string;
-  server_url: string;
-  name: string;
-  encryption_key_available: boolean;
-  device_status: string;
-  pending_action: string;
-  connected_to_fleet: boolean;
-  /** Fleet `mdm.dep_profile_error` — DEP enrollment profile assignment failed. */
-  dep_profile_error?: boolean;
-  /** Count of configuration profiles from Fleet `mdm.profiles`. */
-  profiles_count?: number;
-}
-
 /** Host geolocation derived from Fleet's built-in GeoIP (`geolocation`). */
 export interface DeviceGeolocation {
   city?: string;
@@ -223,9 +206,6 @@ export interface Device {
   batteries?: Battery[];
   users?: User[];
   policies?: DevicePolicy[];
-
-  // MDM Info
-  mdm?: MdmInfo;
 
   // Organization
   organizationId?: string;
