@@ -10,7 +10,7 @@ import {
   parseMeshCentralLastSeen,
 } from '@/lib/meshcentral/meshcentral-api';
 import { fetchDeviceNode } from '../queries/devices-api';
-import type { Battery, Device, DeviceGraphQlNode, DevicePolicy, MdmInfo, Software, User } from '../types/device.types';
+import type { Battery, Device, DeviceGraphQlNode, DevicePolicy, Software, User } from '../types/device.types';
 import type { FleetHost } from '../types/fleet.types';
 import { toDeviceTags } from '../utils/device-transform';
 import { deviceQueryKeys } from '../utils/query-keys';
@@ -98,21 +98,6 @@ function createDevice(
       shell: fu.shell,
       isLoggedIn: fu.type === 'person',
     })) || [];
-
-  // Transform Fleet MDM to unified MDMInfo type
-  const mdm: MdmInfo | undefined = fleetData?.mdm
-    ? {
-        enrollment_status: fleetData.mdm.enrollment_status,
-        server_url: fleetData.mdm.server_url,
-        name: fleetData.mdm.name,
-        encryption_key_available: fleetData.mdm.encryption_key_available,
-        device_status: fleetData.mdm.device_status,
-        pending_action: fleetData.mdm.pending_action,
-        connected_to_fleet: fleetData.mdm.connected_to_fleet,
-        dep_profile_error: fleetData.mdm.dep_profile_error,
-        profiles_count: Array.isArray(fleetData.mdm.profiles) ? fleetData.mdm.profiles.length : undefined,
-      }
-    : undefined;
 
   // Helper to check if IP is private
   const isPrivateIp = (ip: string): boolean => {
@@ -238,9 +223,6 @@ function createDevice(
     batteries,
     users,
     policies,
-
-    // MDM Info
-    mdm,
 
     // Organization
     organizationId: node.organization?.organizationId,

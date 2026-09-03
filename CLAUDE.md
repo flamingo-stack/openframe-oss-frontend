@@ -831,7 +831,7 @@ OpenFrame integrates device monitoring data from multiple sources with normaliza
 
 **Priority rules** (in `createDevice()`):
 ```
-Hardware (CPU/RAM/storage/battery/software/users/mdm):  Fleet only
+Hardware (CPU/RAM/storage/battery/software/users):  Fleet only
 Serial/manufacturer/model/OS:  Fleet -> GraphQL node
 Status:                        GraphQL node -> Fleet
 Last seen:                     Fleet -> GraphQL node
