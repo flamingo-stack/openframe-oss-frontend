@@ -21,6 +21,9 @@ export interface FetchTicketsParams {
   organizationIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
+  // Sent as `TicketFilterInput.hasUnreadNotifications: true`; the backend
+  // treats false and null alike (no filter), so only `true` is ever sent.
+  unreadOnly?: boolean;
   cursor?: string;
   limit: number;
 }
@@ -31,6 +34,7 @@ export interface FetchBoardColumnByStatusIdParams {
   organizationIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
+  unreadOnly?: boolean;
   cursor?: string;
   limit: number;
 }

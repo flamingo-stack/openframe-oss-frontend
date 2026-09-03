@@ -376,9 +376,9 @@ const boardCardTicketFragment = () => `
 `;
 
 export const getBoardColumnTicketsQuery = () => `
-  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!]) {
+  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!], $hasUnreadNotifications: Boolean) {
     tickets(
-      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds }
+      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds, hasUnreadNotifications: $hasUnreadNotifications }
       pagination: { limit: $limit, cursor: $cursor }
       search: $search
       sort: { field: "order", direction: ASC }

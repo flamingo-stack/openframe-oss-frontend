@@ -9,6 +9,7 @@ import {
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
+  CheckboxBlock,
   PageError,
   PageLayout,
   type TakeOverTicketSelection,
@@ -124,8 +125,11 @@ interface TicketsBoardProps {
   onAssigneeIdsChange?: (ids: string[]) => void;
   tagIds?: string[];
   onTagIdsChange?: (ids: string[]) => void;
-  /** Applies organization+assignee filters atomically (mobile filter modal). */
-  onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[] }) => void;
+  /** Only tickets the caller has unread notifications about. */
+  unreadOnly?: boolean;
+  onUnreadOnlyChange?: (value: boolean) => void;
+  /** Applies organization+assignee+new-messages filters atomically (mobile filter modal). */
+  onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[]; unreadOnly: boolean }) => void;
   search: string;
   onSearchChange: (value: string) => void;
 }
@@ -196,6 +200,8 @@ export function TicketsBoard({
   onAssigneeIdsChange,
   tagIds,
   onTagIdsChange,
+  unreadOnly,
+  onUnreadOnlyChange,
   onFiltersChange,
   search,
   onSearchChange,
@@ -268,9 +274,11 @@ export function TicketsBoard({
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
 
+  // Every filter the lanes are fetched under, so "Archive Resolved" archives
+  // exactly the tickets the Resolved lane shows (its count is the lane total).
   const archiveFilter = useMemo(
-    () => ({ organizationIds, assigneeIds, tagIds }),
-    [organizationIds, assigneeIds, tagIds],
+    () => ({ organizationIds, assigneeIds, tagIds, unreadOnly }),
+    [organizationIds, assigneeIds, tagIds, unreadOnly],
   );
   const filteredResolvedTotal = useMemo(() => {
     const resolvedId = statuses.find(s => s.kind === 'RESOLVED')?.id;
@@ -299,8 +307,8 @@ export function TicketsBoard({
   }, []);
 
   const params = useMemo(
-    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds }),
-    [debouncedSearch, organizationIds, assigneeIds, tagIds],
+    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly }),
+    [debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly],
   );
 
   const allowedFromByStatusId = useMemo<Record<string, string[]>>(() => {
@@ -575,6 +583,7 @@ export function TicketsBoard({
     (organizationIds?.length ?? 0) === 0 &&
     (assigneeIds?.length ?? 0) === 0 &&
     (tagIds?.length ?? 0) === 0 &&
+    !unreadOnly &&
     boardColumns.length > 0 &&
     boardColumns.every(column => column.tickets.length === 0);
 
@@ -643,6 +652,12 @@ export function TicketsBoard({
                 onChange={ids => onAssigneeIdsChange?.(ids)}
                 className="col-span-1"
               />
+              <CheckboxBlock
+                checked={unreadOnly ?? false}
+                onCheckedChange={checked => onUnreadOnlyChange?.(checked)}
+                label="New Messages Only"
+                className="col-span-1"
+              />
             </div>
           </div>
         )}
@@ -652,6 +667,7 @@ export function TicketsBoard({
           onClose={() => setMobileFiltersOpen(false)}
           organizationIds={organizationIds ?? []}
           assigneeIds={assigneeIds ?? []}
+          unreadOnly={unreadOnly ?? false}
           onApply={filters => onFiltersChange?.(filters)}
         />
 

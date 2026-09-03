@@ -15,6 +15,9 @@ export function TicketsView() {
     organizationIds: { type: 'array', default: [] },
     assigneeIds: { type: 'array', default: [] },
     tagIds: { type: 'array', default: [] },
+    // Written as `unread=true` or dropped: a boolean param serializes `false`
+    // literally, and the URL should carry the filter only while it is on.
+    unread: { type: 'boolean', default: false },
     search: { type: 'string', default: '' },
     // No default: an absent param stays distinguishable from an explicit
     // `viewMode=table`, so clearing the param returns to the board default.
@@ -31,15 +34,25 @@ export function TicketsView() {
   const handleOrganizationIdsChange = useCallback((ids: string[]) => setParam('organizationIds', ids), [setParam]);
   const handleAssigneeIdsChange = useCallback((ids: string[]) => setParam('assigneeIds', ids), [setParam]);
   const handleTagIdsChange = useCallback((ids: string[]) => setParam('tagIds', ids), [setParam]);
+  const handleUnreadOnlyChange = useCallback((value: boolean) => setParam('unread', value || null), [setParam]);
   // Single URL write: two sequential setParam calls read the same snapshot and clobber each other.
   const handleFiltersChange = useCallback(
-    (filters: { organizationIds: string[]; assigneeIds: string[] }) => setParams(filters),
+    ({ unreadOnly, ...filters }: { organizationIds: string[]; assigneeIds: string[]; unreadOnly: boolean }) =>
+      setParams({ ...filters, unread: unreadOnly || null }),
     [setParams],
   );
   // The table's variant also carries the status filter (its mobile modal and
   // the column-header filters both go through this one atomic write).
   const handleTableFiltersChange = useCallback(
-    (filters: { status: string[]; assigneeIds: string[]; organizationIds: string[] }) => setParams(filters),
+    ({
+      unreadOnly,
+      ...filters
+    }: {
+      status: string[];
+      assigneeIds: string[];
+      organizationIds: string[];
+      unreadOnly: boolean;
+    }) => setParams({ ...filters, unread: unreadOnly || null }),
     [setParams],
   );
 
@@ -69,6 +82,8 @@ export function TicketsView() {
         onAssigneeIdsChange={handleAssigneeIdsChange}
         tagIds={params.tagIds}
         onTagIdsChange={handleTagIdsChange}
+        unreadOnly={params.unread}
+        onUnreadOnlyChange={handleUnreadOnlyChange}
         onFiltersChange={handleFiltersChange}
         search={search}
         onSearchChange={setSearch}
@@ -81,6 +96,7 @@ export function TicketsView() {
       statusFilters={params.status}
       organizationIds={params.organizationIds}
       assigneeIds={params.assigneeIds}
+      unreadOnly={params.unread}
       onFiltersChange={handleTableFiltersChange}
       selector={tabs}
       tagIds={params.tagIds}
