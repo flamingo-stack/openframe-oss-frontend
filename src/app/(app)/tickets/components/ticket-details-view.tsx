@@ -70,11 +70,10 @@ import { useTicketDetail } from '../hooks/use-ticket-detail';
 import { useTicketMessages } from '../hooks/use-ticket-messages';
 import { useAddTicketNote, useDeleteTicketNote, useUpdateTicketNote } from '../hooks/use-ticket-notes';
 import { useAssigneeOptions } from '../hooks/use-ticket-options';
-import { useTicketStatus } from '../hooks/use-ticket-status';
 import { useTransitionTicket } from '../hooks/use-transition-ticket';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import { useTicketDetailsStore } from '../stores/ticket-details-store';
-import type { ClientDialogOwner, Dialog, DialogOwner } from '../types/dialog.types';
+import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
@@ -86,6 +85,7 @@ import { TicketAttachmentsSection } from './ticket-attachments-section';
 import { TicketDetailsSkeleton } from './ticket-details-skeleton';
 import { TicketDialogSubscription } from './ticket-dialog-subscription';
 import { TicketNotesSection } from './ticket-notes-section';
+import { TicketNotificationsAutoReader } from './ticket-notifications-auto-reader';
 import { TicketTagsSection } from './ticket-tags-section';
 
 interface TicketDetailsViewProps {
@@ -257,7 +257,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
   const clientChat = useTicketMessages(messageDialogId, CHAT_TYPE.CLIENT);
 
-  const { activate, archive, isUpdating } = useTicketStatus();
   const transitionTicket = useTransitionTicket();
   // Target-status kinds, to recognize a resolve at click time (availableTransitions
   // carries no `kind`). Cached/shared with the board & table, so no extra fetch.
@@ -376,28 +375,23 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     void refetchClientChat();
   }, [refetchClientChat]);
 
-  const applyStatus = useCallback(
-    (nextStatus: Dialog['status']) => {
-      queryClient.setQueryData<Dialog | null>(ticketsQueryKeys.detail(ticketId), prev =>
-        prev ? { ...prev, status: nextStatus } : prev,
-      );
-    },
-    [queryClient, ticketId],
-  );
+  // Archive / Unarchive are plain lifecycle transitions (the per-status legacy
+  // mutations are rejected by the backend): Archive targets the ARCHIVED-kind
+  // status, Unarchive the first non-archived status from the snapshot
+  // (position order).
+  const handleArchive = useCallback(() => {
+    if (!dialog || transitionTicket.isPending) return;
+    const toStatusId = statusesData?.snapshot.find(s => s.kind === TICKET_STATUS_KIND.ARCHIVED)?.id;
+    if (!toStatusId) return;
+    transitionTicket.mutate({ ticketId, toStatusId });
+  }, [dialog, transitionTicket, statusesData, ticketId]);
 
-  const handleArchive = useCallback(async () => {
-    if (!dialog || isUpdating) return;
-
-    const nextStatus = await archive(ticketId);
-    if (nextStatus) applyStatus(nextStatus);
-  }, [dialog, isUpdating, archive, ticketId, applyStatus]);
-
-  const handleUnarchive = useCallback(async () => {
-    if (!dialog || isUpdating) return;
-
-    const nextStatus = await activate(ticketId);
-    if (nextStatus) applyStatus(nextStatus);
-  }, [dialog, isUpdating, activate, ticketId, applyStatus]);
+  const handleUnarchive = useCallback(() => {
+    if (!dialog || transitionTicket.isPending) return;
+    const toStatusId = statusesData?.snapshot.find(s => s.kind !== TICKET_STATUS_KIND.ARCHIVED)?.id;
+    if (!toStatusId) return;
+    transitionTicket.mutate({ ticketId, toStatusId });
+  }, [dialog, transitionTicket, statusesData, ticketId]);
 
   // Starting a direct chat on an AI-worked ticket is a take-over (confirm
   // status + assignee first); without an active AI dialog it starts directly.
@@ -623,6 +617,17 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   );
   const hasTicketDetails = hasDescription || hasAssignedItems;
   const showDetailsTabs = hasClientChat && hasTicketDetails;
+
+  // Is the ticket's client chat the pane the user is looking at? `?tab=chat` is the same param
+  // the notification routes point at, which is what makes it the right signal here.
+  //
+  // Known under-fire, deliberately left: with `showDetailsTabs` false the desktop column
+  // renders the chat bare (`mainTab` stays 'details') while the mobile column shows tabs on
+  // Details. Both columns are mounted and only CSS picks one, so no boolean is right for both
+  // without `matchMedia` — and under-firing leaves a badge up, which is the safe direction for
+  // an irreversible cross-device read.
+  const clientChatOnScreen = hasClientChat && mainTab === 'chat';
+
   const customerName =
     dialog.organizationName ||
     (isClientOwner(dialog.owner) ? dialog.owner.machine?.organizationId : undefined) ||
@@ -731,19 +736,19 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   if (isResolved) {
     sidebarMenuItems.push({
       id: 'archive',
-      label: isUpdating ? 'Updating...' : 'Archive Ticket',
+      label: transitionTicket.isPending ? 'Updating...' : 'Archive Ticket',
       icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
       onClick: handleArchive,
-      disabled: isUpdating,
+      disabled: transitionTicket.isPending,
     });
   }
   if (isArchived) {
     sidebarMenuItems.push({
       id: 'unarchive',
-      label: isUpdating ? 'Updating...' : 'Unarchive Ticket',
+      label: transitionTicket.isPending ? 'Updating...' : 'Unarchive Ticket',
       icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
       onClick: handleUnarchive,
-      disabled: isUpdating,
+      disabled: transitionTicket.isPending,
     });
   }
   if (sidebarMenuItems.length > 0) {
@@ -871,6 +876,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         isInitialOptStartSeqReady={isInitialOptStartSeqReady}
         onReconnected={handleNatsReconnected}
       />
+      <TicketNotificationsAutoReader ticketId={ticketId} clientChatOnScreen={clientChatOnScreen} />
       <PageLayout
         title={dialog.title || 'Untitled Dialog'}
         backButton={{ label: 'Back', onClick: handleBackToTickets }}

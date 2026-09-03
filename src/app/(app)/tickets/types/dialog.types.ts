@@ -67,6 +67,10 @@ export interface Dialog {
   assigneeImageUrl?: string;
   assigneeImageHash?: string;
   tags?: Array<{ id: string; key: string; color?: string }>;
+  // How many notifications about this ticket the caller has not read
+  // (`Ticket.unreadNotificationCount`). Drives the per-row count in the table
+  // and the "New Message" highlight on the board card.
+  unreadNotificationCount?: number;
   escalatedByUser?: boolean | null;
   // Latest pending tool-approval request for this ticket's dialog (from Ticket.pendingApproval).
   pendingApproval?: BoardTicketPendingApproval;

@@ -3,142 +3,121 @@
 import {
   type AuthSsoProvider,
   CreateOrganizationForm,
+  LoginForm,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useState } from 'react';
-import { AUTH_ERROR_CODE } from '@/app/(auth)/auth/constants/auth-error-codes';
+import { useRef, useState } from 'react';
+import { DomainSuggestions } from '@/app/(auth)/auth/components/domain-suggestions';
+import {
+  EMAIL_REGEX,
+  INVALID_EMAIL_ERROR,
+  MIN_PASSWORD_LENGTH,
+  ORG_NAME_ERROR,
+  ORG_NAME_REGEX,
+  PASSWORD_TOO_SHORT_ERROR,
+  PASSWORDS_DO_NOT_MATCH_ERROR,
+} from '@/app/(auth)/auth/constants/registration-validation';
+import { useOrganizationDomain } from '@/app/(auth)/auth/hooks/use-organization-domain';
 import {
   BLOCKED_EMAIL_DOMAIN_MESSAGE,
-  useDomainAvailability,
   useEmailAvailability,
 } from '@/app/(auth)/auth/hooks/use-registration-availability';
 import { isSharedAuthUi } from '@/lib/app-mode';
-import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
+import { SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
+import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
+import { pushSignupStarted } from '@/lib/posthog/posthog-events';
 
 interface CreateOrganizationSectionProps {
-  onCreateOrganization: (orgName: string, domain: string, email: string) => void;
-  /** SSO registration alternatives shown below the primary submit ("or continue with"). */
+  /**
+   * Submits the whole signup in one call. Organization and personal details are collected on the
+   * same screen now, so there is no intermediate hand-off through storage.
+   */
+  onRegister: (payload: {
+    orgName: string;
+    domain: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+  }) => void;
+  /** Provider buttons, rendered above the email field on step one where they need nothing typed. */
   ssoProviders?: AuthSsoProvider[];
-  /** SSO registration with the validated org details (same validation path as the primary submit). */
-  onSsoRegister?: (orgName: string, domain: string, email: string, provider: AuthSsoProvider) => void;
+  /**
+   * Provider sign-up with nothing filled in. Runs the shared SSO login: the server resolves the
+   * tenant from the asserted identity and, finding no account, routes to the page that collects
+   * the organization — so the provider supplies the identity rather than the form doing it first.
+   */
+  onSsoLogin?: (provider: AuthSsoProvider) => void;
   isLoading?: boolean;
 }
 
 /**
- * Wires the shared CreateOrganizationForm to the sign-up flow. Owns field
- * state, client-side validation and live email availability; where auth is the
- * SaaS shared-auth UX (isSharedAuthUi) also handles subdomain sanitizing,
- * live/submit-time domain availability and the tenant-registration capacity
- * check. Delegates submission upward.
+ * Wires the shared forms to the sign-up flow, in two steps on one screen: providers and the email
+ * that unlocks the rest, then the organization and account details.
+ *
+ * Owns the email, organization-name and credential state plus live email availability. The whole
+ * subdomain concern — sanitizing, live and submit-time availability, and the tenant-registration
+ * capacity case — belongs to `useOrganizationDomain`, shared with the two SSO screens so all three
+ * answer it identically. Delegates submission upward.
  */
 export function CreateOrganizationSection({
-  onCreateOrganization,
+  onRegister,
   ssoProviders,
-  onSsoRegister,
+  onSsoLogin,
   isLoading,
 }: CreateOrganizationSectionProps) {
-  const { toast } = useToast();
   const isSharedAuth = isSharedAuthUi();
 
   const [email, setEmail] = useState('');
   const [organizationName, setOrganizationName] = useState('');
-  const [domain, setDomain] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [isCheckingDomain, setIsCheckingDomain] = useState(false);
-  const [suggestedDomains, setSuggestedDomains] = useState<string[]>([]);
-
-  const orgNameRegex = /^[\p{L}\p{M}0-9&.,'"()\- ]{2,100}$/u;
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const isEmailValid = emailRegex.test(email.trim());
-  const isOrgNameValid = orgNameRegex.test(organizationName.trim());
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  // Email first, then everything else. The providers above the email need nothing typed, so this
+  // step is also the one that keeps them reachable on a cold screen.
+  const [step, setStep] = useState<'email' | 'details'>('email');
+  // Funnel event, fired once when the user commits to the details step — the "signup started"
+  // edge of the password funnel.
+  const signupStartedFired = useRef(false);
+  const isEmailValid = EMAIL_REGEX.test(email.trim());
+  const isOrgNameValid = ORG_NAME_REGEX.test(organizationName.trim());
 
   const emailStatus = useEmailAvailability(email);
   const isEmailBlocked = emailStatus === 'taken' || emailStatus === 'blocked' || emailStatus === 'checking';
 
-  // Live subdomain availability — shared-auth UX only.
-  const { status: domainStatus, suggestions: liveDomainSuggestions } = useDomainAvailability(
-    domain,
-    organizationName,
-    isSharedAuth,
-  );
-  const isDomainBlocked = isSharedAuth && (domainStatus === 'taken' || domainStatus === 'checking');
+  const domainField = useOrganizationDomain(organizationName);
 
-  // Prefer live suggestions from the real-time check; fall back to submit-time ones.
-  const domainSuggestions = liveDomainSuggestions.length > 0 ? liveDomainSuggestions : suggestedDomains;
+  const isOrganizationValid =
+    isEmailValid &&
+    !isEmailBlocked &&
+    isOrgNameValid &&
+    !!domainField.domain.trim() &&
+    !domainField.isBlocked &&
+    agreedToTerms;
 
-  const isValid =
-    isEmailValid && !isEmailBlocked && isOrgNameValid && !!domain.trim() && !isDomainBlocked && agreedToTerms;
+  const isPasswordTooShort = password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
+  const passwordsMatch = password.length > 0 && password === confirmPassword;
+  const isDetailsValid =
+    isOrganizationValid &&
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    password.length >= MIN_PASSWORD_LENGTH &&
+    passwordsMatch;
 
-  const handleDomainChange = (value: string) => {
-    // Subdomains allow only lowercase letters, digits and dashes.
-    setDomain(isSharedAuth ? value.toLowerCase().replace(/[^a-z0-9-]/g, '') : value);
-    setSuggestedDomains([]);
+  const handleSubmit = async () => {
+    if (!isDetailsValid || domainField.isChecking) return;
+    const tenantDomain = await domainField.confirmAvailability();
+    if (!tenantDomain) return;
+    onRegister({
+      orgName: organizationName.trim(),
+      domain: tenantDomain,
+      email: email.trim(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      password,
+    });
   };
-
-  // Shared submit path for the primary button and the SSO alternatives: both
-  // need validated org details, plus a submit-time domain check in shared auth.
-  const runWithValidatedOrg = async (action: (orgName: string, domain: string, email: string) => void) => {
-    if (!isValid || isCheckingDomain) return;
-
-    if (!isSharedAuth) {
-      action(organizationName.trim(), domain.trim(), email.trim());
-      return;
-    }
-
-    // Shared auth: re-check the subdomain at submit time before proceeding.
-    setIsCheckingDomain(true);
-    try {
-      const subdomain = domain.trim();
-      const response = await authApiClient.checkDomainAvailability(subdomain, organizationName.trim());
-
-      if (response.ok && response.data) {
-        const { available, suggestedUrl } = response.data as { available: boolean; suggestedUrl?: string[] };
-        if (available) {
-          action(organizationName.trim(), `${subdomain}.${SAAS_DOMAIN_SUFFIX}`, email.trim());
-        } else {
-          toast({
-            title: 'Domain Not Available',
-            description: `The subdomain '${subdomain}' is already taken. Please try another one.`,
-            variant: 'destructive',
-          });
-          if (suggestedUrl && suggestedUrl.length > 0) {
-            setSuggestedDomains(suggestedUrl.map(url => url.replace(`.${SAAS_DOMAIN_SUFFIX}`, '')));
-          }
-        }
-      } else {
-        const errorData = response.data as { code?: string; message?: string } | undefined;
-
-        // 409 with TENANT_REGISTRATION_BLOCKED — no cluster capacity for new tenants.
-        if (response.status === 409 && errorData?.code === AUTH_ERROR_CODE.TENANT_REGISTRATION_BLOCKED) {
-          toast({
-            title: 'Registration Unavailable',
-            description:
-              errorData.message ||
-              'Registration is currently unavailable because there is no cluster capacity. Please contact your administrator or try again later.',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        throw new Error(response.error || 'Failed to check domain availability');
-      }
-    } catch (error) {
-      console.error('Domain check error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to check domain availability. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsCheckingDomain(false);
-    }
-  };
-
-  const handleSubmit = () => runWithValidatedOrg(onCreateOrganization);
-
-  const handleSso = (provider: AuthSsoProvider) =>
-    runWithValidatedOrg((orgName, orgDomain, orgEmail) => onSsoRegister?.(orgName, orgDomain, orgEmail, provider));
 
   const emailStatusMessage = !isEmailValid
     ? undefined
@@ -152,67 +131,75 @@ export function CreateOrganizationSection({
             ? { message: 'Email is available', variant: 'success' as const }
             : undefined;
 
-  const domainStatusMessage =
-    !isSharedAuth || !domain.trim()
-      ? undefined
-      : domainStatus === 'checking'
-        ? { message: 'Checking availability…', variant: 'muted' as const }
-        : domainStatus === 'taken'
-          ? { message: 'This domain is already taken. Please try another one.', variant: 'error' as const }
-          : domainStatus === 'available'
-            ? { message: 'Domain is available', variant: 'success' as const }
-            : undefined;
-
-  const domainSuggestionsSlot =
-    isSharedAuth && domainSuggestions.length > 0 ? (
-      <div className="flex flex-col gap-2 text-ods-text-secondary text-h6">
-        <p>Available suggestions:</p>
-        <div className="flex flex-wrap gap-2">
-          {domainSuggestions.map(suggestion => (
-            <Button
-              key={suggestion}
-              type="button"
-              variant="outline"
-              size="small-legacy"
-              onClick={() => {
-                setDomain(suggestion);
-                setSuggestedDomains([]);
-              }}
-            >
-              {suggestion}.{SAAS_DOMAIN_SUFFIX}
-            </Button>
-          ))}
-        </div>
-      </div>
-    ) : undefined;
+  // Step one: providers, then the email that unlocks the rest. Reuses the login shape so both tabs
+  // present the same thing on arrival — providers first, email second.
+  if (step === 'email') {
+    return (
+      <LoginForm
+        title="Create Organization"
+        subtitle="Start your journey with OpenFrame."
+        email={email}
+        onEmailChange={setEmail}
+        loading={isLoading}
+        emailStatus={emailStatusMessage}
+        ssoProviders={ssoProviders ?? []}
+        onSsoClick={provider => onSsoLogin?.(provider)}
+        dividerLabel="or enter email to continue with OpenFrame SSO"
+        onSubmitClick={() => {
+          if (!signupStartedFired.current) {
+            signupStartedFired.current = true;
+            pushSignupStarted();
+          }
+          setStep('details');
+        }}
+        submitLabel="Continue"
+        // Waits for the debounced availability check to SETTLE, not merely to be un-blocked: an
+        // untouched `idle` also passes `!isEmailBlocked`, and leaving on it strands the user on
+        // step two, where the address is read-only and a late `taken` can never be corrected.
+        // `error` passes so a failed check does not block signup; the server re-validates anyway.
+        submitDisabled={!isEmailValid || emailStatus === 'idle' || emailStatus === 'checking' || isEmailBlocked}
+        errors={{ email: email.trim() && !isEmailValid ? INVALID_EMAIL_ERROR : undefined }}
+      />
+    );
+  }
 
   return (
     <CreateOrganizationForm
       email={email}
+      emailReadOnly
       organizationName={organizationName}
-      domain={domain}
+      domain={domainField.domain}
       agreedToTerms={agreedToTerms}
-      onEmailChange={setEmail}
+      firstName={firstName}
+      lastName={lastName}
+      password={password}
+      confirmPassword={confirmPassword}
       onOrganizationNameChange={setOrganizationName}
-      onDomainChange={handleDomainChange}
+      onDomainChange={domainField.setDomain}
       onAgreedToTermsChange={setAgreedToTerms}
+      onFirstNameChange={setFirstName}
+      onLastNameChange={setLastName}
+      onPasswordChange={setPassword}
+      onConfirmPasswordChange={setConfirmPassword}
       onSubmit={handleSubmit}
+      onBack={() => setStep('email')}
       submitLabel="Create Account"
-      submitDisabled={!isValid}
-      loading={isLoading || isCheckingDomain}
-      ssoProviders={ssoProviders}
-      onSsoClick={handleSso}
-      ssoDisabled={!isValid}
+      submitDisabled={!isDetailsValid}
+      loading={isLoading || domainField.isChecking}
       domainSuffix={isSharedAuth ? `.${SAAS_DOMAIN_SUFFIX}` : undefined}
-      termsUrl="https://www.flamingo.run/terms-of-service"
-      privacyPolicyUrl="https://www.flamingo.run/privacy-policy"
-      emailStatus={emailStatusMessage}
-      domainStatus={domainStatusMessage}
-      domainSlot={domainSuggestionsSlot}
+      termsUrl={TERMS_URL}
+      privacyPolicyUrl={PRIVACY_POLICY_URL}
+      domainStatus={domainField.statusMessage}
+      domainSlot={
+        domainField.suggestions.length > 0 ? (
+          <DomainSuggestions suggestions={domainField.suggestions} onSelect={domainField.setDomain} />
+        ) : undefined
+      }
       errors={{
-        email: email.trim() && !isEmailValid ? 'Enter a valid email address' : undefined,
-        organizationName:
-          organizationName.trim() && !isOrgNameValid ? 'Organization Name must be 2-100 characters' : undefined,
+        password: isPasswordTooShort ? PASSWORD_TOO_SHORT_ERROR : undefined,
+        confirmPassword:
+          confirmPassword.length > 0 && password !== confirmPassword ? PASSWORDS_DO_NOT_MATCH_ERROR : undefined,
+        organizationName: organizationName.trim() && !isOrgNameValid ? ORG_NAME_ERROR : undefined,
       }}
     />
   );

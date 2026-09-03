@@ -1,6 +1,5 @@
 'use client';
 
-import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import {
   Board,
   type BoardChange,
@@ -46,11 +45,6 @@ import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-tick
 import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
-
-// TODO(unread-from-entity): re-enable per-ticket unread highlighting once the backend exposes
-// unread counts on the ticket entity itself. Matching unread notifications to tickets by id is a
-// temporary workaround — disabled for now; flip this flag to restore it.
-const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
 
 /** How long a CONFIRMED take-over drop may keep standing in for the refetched
  *  columns. Exists so a ticket the refetch never returns to the target lane
@@ -149,22 +143,19 @@ type IsUserDeleted = (id?: string | null) => boolean;
  * the 15s refetch, each optimistic move. Handing the memoized cards a fresh
  * object each time would re-render the whole board (and every assignee picker
  * in it), so cache per dialog: react-query's structural sharing keeps unchanged
- * dialogs identical, and the two derived inputs are part of the cache key.
+ * dialogs identical, and the one derived input is part of the cache key.
  */
-const boardTicketCache = new WeakMap<
-  Dialog,
-  { hasNewMessage: boolean; isUserDeleted?: IsUserDeleted; ticket: BoardTicket }
->();
+const boardTicketCache = new WeakMap<Dialog, { isUserDeleted?: IsUserDeleted; ticket: BoardTicket }>();
 
-function toBoardTicket(dialog: Dialog, hasNewMessage: boolean, isUserDeleted?: IsUserDeleted): BoardTicket {
+function toBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTicket {
   const cached = boardTicketCache.get(dialog);
-  if (cached && cached.hasNewMessage === hasNewMessage && cached.isUserDeleted === isUserDeleted) return cached.ticket;
-  const ticket = dialogToBoardTicket(dialog, hasNewMessage, isUserDeleted);
-  boardTicketCache.set(dialog, { hasNewMessage, isUserDeleted, ticket });
+  if (cached && cached.isUserDeleted === isUserDeleted) return cached.ticket;
+  const ticket = dialogToBoardTicket(dialog, isUserDeleted);
+  boardTicketCache.set(dialog, { isUserDeleted, ticket });
   return ticket;
 }
 
-function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false, isUserDeleted?: IsUserDeleted): BoardTicket {
+function dialogToBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTicket {
   return {
     id: dialog.id,
     title: dialog.title,
@@ -188,7 +179,10 @@ function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false, isUserDelete
     // bumps `Ticket.updatedAt`), not the creation time — a ticket reopened
     // minutes ago otherwise still reads as untouched since it was created.
     createdAt: dialog.statusUpdatedAt ?? dialog.createdAt,
-    hasNewMessage,
+    // The card has no numeric affordance — `BoardTicket` carries a boolean, which
+    // draws the column-coloured border and the "New Message" tag. The exact count
+    // lives on the table row; here any unread at all is the signal.
+    hasNewMessage: (dialog.unreadNotificationCount ?? 0) > 0,
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
   };
@@ -213,7 +207,6 @@ export function TicketsBoard({
   const { data: transitionRules } = useTicketStatusTransitionRules();
   const { mutate: moveTicket } = useMoveTicket();
   const movingIds = useMovingTicketIds();
-  const notifications = useOptionalNotifications();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isUserDeleted } = useUserStatusMap();
@@ -252,18 +245,6 @@ export function TicketsBoard({
     [handleApproveRequest, handleRejectRequest, toast, queryClient],
   );
 
-  // Tickets have no unread field of their own; unread state comes from notifications (a separate
-  // entity) matched by ticket id.
-  const ticketIdsWithUnread = useMemo(() => {
-    const ids = new Set<string>();
-    if (!HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS) return ids;
-    for (const notification of notifications?.notifications ?? []) {
-      if (notification.read) continue;
-      const ticketId = notification.meta?.ticketId;
-      if (typeof ticketId === 'string') ids.add(ticketId);
-    }
-    return ids;
-  }, [notifications?.notifications]);
   const [columnUpdates, setColumnUpdates] = useState<Record<string, BoardColumnUpdate>>({});
   // Bumped when an intercepted drag is discarded (Take Over cancelled): nothing
   // was persisted, but the Board's internal drag state still shows the card in
@@ -356,9 +337,7 @@ export function TicketsBoard({
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
-        tickets: (state?.tickets ?? []).map(ticket =>
-          toBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
-        ),
+        tickets: (state?.tickets ?? []).map(ticket => toBoardTicket(ticket, isUserDeleted)),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
@@ -376,7 +355,6 @@ export function TicketsBoard({
     allowedFromByStatusId,
     isLoading,
     canArchiveResolved,
-    ticketIdsWithUnread,
     isUserDeleted,
     boardResetNonce,
   ]);
