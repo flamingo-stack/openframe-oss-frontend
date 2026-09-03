@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { CommandBox } from '@flamingo-stack/openframe-frontend-core/components/features';

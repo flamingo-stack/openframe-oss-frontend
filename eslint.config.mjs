@@ -4,6 +4,8 @@ import relay from '@flamingo-stack/openframe-frontend-core/eslint-config/relay';
 import tests from '@flamingo-stack/openframe-frontend-core/eslint-config/tests';
 import { defineConfig } from 'eslint/config';
 
+import openframeRules from './eslint-rules/react-hook-form-needs-no-memo.mjs';
+
 /*
  * The fast pass — no type-aware rules. This is what the editor loads (see
  * .vscode/settings.json) and what `npm run lint` runs; the type-aware half
@@ -337,6 +339,18 @@ export default defineConfig([
     name: 'openframe-frontend/testing-library-imports-only',
     files: ['**/*.{test,spec}.{js,mjs,cjs,jsx,ts,tsx}', '**/__tests__/**/*.{js,mjs,cjs,jsx,ts,tsx}'],
     settings: { 'testing-library/utils-module': 'off' },
+  },
+
+  {
+    // react-hook-form mutates `control` and proxies `formState`, which the React
+    // Compiler's memoization cannot observe (stale `watch()`, dead `reset()`), and its
+    // own diagnostics cannot catch it. Local rather than shared: it encodes this repo's
+    // dependency set, not a React rule. Drop it, and the directives, on react-hook-form
+    // 7.75 + React 19.2.5 — see the rule's header.
+    name: 'openframe-frontend/react-hook-form-react-compiler',
+    files: ['**/*.{ts,tsx}'],
+    plugins: { openframe: openframeRules },
+    rules: { 'openframe/react-hook-form-needs-no-memo': 'error' },
   },
 
   {
