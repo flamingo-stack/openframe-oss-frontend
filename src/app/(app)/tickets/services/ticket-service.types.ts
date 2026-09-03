@@ -43,8 +43,10 @@ export interface ReorderTicketParams {
   id: string;
   afterTicketId: string | null;
   beforeTicketId: string | null;
-  // Lifecycle column id (custom statuses); forwarded as ReorderTicketInput.statusId.
-  // Omitted on a same-column reorder.
+  // Lifecycle column id, forwarded as ReorderTicketInput.statusId. Always send it,
+  // on a same-column reorder too: the backend uses its presence to choose between
+  // the lifecycle ranking (statusId columns — what the board shows) and the legacy
+  // one (the deprecated `status` enum). See `moveTicketRequest`.
   statusId?: string;
 }
 

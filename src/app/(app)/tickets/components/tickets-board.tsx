@@ -478,8 +478,9 @@ export function TicketsBoard({
       takeOverConfirmedRef.current = true;
       const held = heldMoveRef.current;
       if (!held) return;
-      // The user may have picked a different status in the modal than the lane
-      // they dropped into — hold the card in the CONFIRMED lane instead.
+      // The user may have picked a different status in the modal than the lane they
+      // dropped into — hold the card in the CONFIRMED lane, and drop the anchors
+      // with it: they describe slots in a lane the ticket is no longer headed for.
       if (held.toColumnId !== selection.statusId) {
         setHeldMove({
           ticketId: held.ticketId,
@@ -488,9 +489,24 @@ export function TicketsBoard({
           afterTicketId: null,
           beforeTicketId: null,
         });
+        return;
       }
+      // `takeOverTicket` carries no ordering, so the dropped slot is lost and the
+      // ticket lands wherever the backend ranks it. Replay the drop as a reorder now
+      // that the take-over has put it in the lane those anchors belong to.
+      // `sourceStatusId` is the lane it came FROM — the entry the optimistic update
+      // has to lift the card out of; the request is a plain re-rank either way,
+      // since the ticket already has the status it asks for.
+      if (held.afterTicketId === null && held.beforeTicketId === null) return;
+      moveTicket({
+        ticketId: held.ticketId,
+        sourceStatusId: held.fromColumnId,
+        targetStatusId: selection.statusId,
+        afterTicketId: held.afterTicketId,
+        beforeTicketId: held.beforeTicketId,
+      });
     },
-    [setHeldMove],
+    [moveTicket, setHeldMove],
   );
 
   const handleTakeOverClose = useCallback(() => {
