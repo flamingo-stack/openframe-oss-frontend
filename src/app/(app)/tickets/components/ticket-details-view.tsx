@@ -32,7 +32,7 @@ import {
   type TabItem,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useLgUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -137,6 +137,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const handleBackToTickets = useSafeBack(routes.tickets.list);
   const { toast } = useToast();
   const timeTrackerEnabled = useFeatureFlag('time-tracker');
+  // Which of the two always-mounted layout columns is showing. Same 1280px the core preset
+  // gives the `lg:` classes below; `undefined` until the client viewport is known.
+  const isLgUp = useLgUp();
   const assignedItems = useAssignedItems({ itemId: ticketId, itemType: 'TICKET' });
   const { modelsByProvider } = useSupportedModels();
   const [currentClientModel, setCurrentClientModel] = useState<AiModel | null>(null);
@@ -618,15 +621,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const hasTicketDetails = hasDescription || hasAssignedItems;
   const showDetailsTabs = hasClientChat && hasTicketDetails;
 
-  // Is the ticket's client chat the pane the user is looking at? `?tab=chat` is the same param
-  // the notification routes point at, which is what makes it the right signal here.
-  //
-  // Known under-fire, deliberately left: with `showDetailsTabs` false the desktop column
-  // renders the chat bare (`mainTab` stays 'details') while the mobile column shows tabs on
-  // Details. Both columns are mounted and only CSS picks one, so no boolean is right for both
-  // without `matchMedia` — and under-firing leaves a badge up, which is the safe direction for
-  // an irreversible cross-device read.
-  const clientChatOnScreen = hasClientChat && mainTab === 'chat';
+  // Is the client chat the pane on screen? Usually `?tab=chat`, the param notification routes
+  // point at. But with nothing to put in a Details tab — every AI-dialog ticket — the desktop
+  // column renders the chat bare while `mainTab` still reads 'details', and the mobile column
+  // keeps its tabs, so only the breakpoint separates the two.
+  const clientChatOnScreen = hasClientChat && (mainTab === 'chat' || (isLgUp === true && !showDetailsTabs));
 
   const customerName =
     dialog.organizationName ||
