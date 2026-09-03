@@ -1,6 +1,6 @@
 # OpenFrame Frontend - Claude Development Guide
 
-**Next.js 16 + React 19 + TypeScript 5.8 + @flamingo-stack/openframe-frontend-core (^0.0.360)**
+**Next.js 16 + React 19 + TypeScript 5.8 + @flamingo-stack/openframe-frontend-core (^0.0.586)**
 
 > Comprehensive instructions for Claude when working with the OpenFrame Frontend service.
 
@@ -127,7 +127,7 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 | UI Library | React | 19 (^19.2.0) |
 | Auto-memoization | React Compiler (`reactCompiler: true` + babel-plugin-react-compiler) | 1.0 |
 | Type System | TypeScript | 5.8 (^5.8.3) |
-| Component Library | @flamingo-stack/openframe-frontend-core | ^0.0.360 (npm registry) |
+| Component Library | @flamingo-stack/openframe-frontend-core | ^0.0.586 (npm registry) |
 | GraphQL Data Fetching | react-relay + relay-runtime + relay-compiler | 20.1 |
 | REST / Legacy Data Fetching | @tanstack/react-query | 5.90 |
 | Forms | react-hook-form + @hookform/resolvers | 7.71 + 5.2 |
@@ -151,7 +151,7 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 **Key Facts:**
 - **Source repo**: `openframe-oss-lib/openframe-frontend-core/`
 - **Ownership**: Shared across Flamingo Stack projects (OpenFrame, OpenMSP, Flamingo, TMCG, hubs, openframe-chat)
-- **Normal state**: installed from the **npm registry** (`"@flamingo-stack/openframe-frontend-core": "^0.0.360"`); the lib repo's own `package.json` version lags the registry (CI bumps at publish)
+- **Normal state**: installed from the **npm registry** (`"@flamingo-stack/openframe-frontend-core": "^0.0.586"`); the lib repo's own `package.json` version lags the registry (CI bumps at publish)
 - **Local lib development**: link via **yalc** — `npm run core:link` here, and in the lib repo `npm run build && yalc push` after every change (consumers see `dist/`, not `src/`)
 - **Updates**: Changes affect ALL Flamingo Stack projects
 
