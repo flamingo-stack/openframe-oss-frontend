@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { NotFoundError, PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
 import {

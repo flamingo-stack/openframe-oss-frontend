@@ -125,6 +125,7 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 |----------|-----------|---------|
 | Framework | Next.js | 16 (^16.2.4) |
 | UI Library | React | 19 (^19.2.0) |
+| Auto-memoization | React Compiler (`reactCompiler: true` + babel-plugin-react-compiler) | 1.0 |
 | Type System | TypeScript | 5.8 (^5.8.3) |
 | Component Library | @flamingo-stack/openframe-frontend-core | ^0.0.360 (npm registry) |
 | GraphQL Data Fetching | react-relay + relay-runtime + relay-compiler | 20.1 |
@@ -405,6 +406,65 @@ export function MyComponent() {
 1. Move all hooks to the top of the component
 2. Use conditional logic INSIDE hooks (useEffect, useMemo), not around them
 3. Never wrap hooks in try-catch — handle errors inside the hook instead
+
+### React Compiler (on)
+
+`reactCompiler: true` in `next.config.mjs` — the compiler memoizes components and hooks
+automatically, client bundles only (Next passes `isServer` and skips the server compile). It runs
+in `dev` as well as in both production targets (`build`, `build:export`).
+
+What it changes about how you write code here:
+
+- **Stop adding `useMemo`/`useCallback`/`React.memo` for render performance.** The compiler
+  produces the same memoization from the plain code, and it does it per-value instead of
+  per-hook. Keep a manual memo only when it is *semantically* required — a value used as a
+  `useEffect` dependency that must stay referentially stable, an object handed to a third-party
+  library that compares by identity. The existing manual memos stay: `preserve-manual-memoization`
+  (already at `error`) makes the compiler honour them rather than fight them.
+- **The lint rules ARE the compiler's diagnostics.** The shared config runs react-hooks v7
+  (`set-state-in-effect`, `purity`, `refs`, `immutability`, `preserve-manual-memoization`,
+  `static-components`) at `error`, and they were cleared to zero before this was switched on. A
+  new violation is not a style nit: it is the compiler telling you it will bail out of that
+  component, so the file silently loses the optimization.
+  The one exception is `react-hooks/incompatible-library`, which the shared config turns off — it
+  reports a *missed* optimization (a third-party hook like `useReactTable` returning functions
+  the compiler cannot prove stable), not a bug.
+- **`panicThreshold` is the default `'none'`**: a function the compiler cannot compile is skipped,
+  never a build error. So enabling this cannot break the build — but it also means a bail-out is
+  invisible unless the lint rules catch it.
+- **Escape hatch:** the `'use no memo'` directive opts a function — or, at the top of a file,
+  the whole module (`hasModuleScopeOptOut`) — out of compilation. Adding one needs a stated
+  reason, because it is a silent, permanent de-optimization otherwise. The only ones in `src/`
+  today are the react-hook-form opt-outs below.
+
+**react-hook-form files are opted out, and `openframe/react-hook-form-needs-no-memo`
+(`eslint-rules/`, at `error`, autofixable) enforces it.** The library mutates `control` and proxies
+`formState`, so memoization on top of it does not re-read what it cannot see change — stale
+`watch()`, dead `reset()`
+([discussion](https://github.com/orgs/react-hook-form/discussions/12524)) — and the compiler's own
+diagnostics cannot see it. The rule requires a module-level `'use no memo'` in any file importing
+react-hook-form at runtime, or importing one of its live-form handle types (`UseFormReturn`,
+`Control`, …). 34 files, 41 functions' worth of memoization. The compiler knows only about
+`useForm().watch` itself, plus `@tanstack/react-table`, which only the core lib calls (its
+`react-virtual` entry matches nothing — neither repo depends on it). Delete the rule and its
+directives on react-hook-form 7.75 + React 19.2.5.
+
+**The core library IS compiled.** Next skips node_modules for the compiler loader, but
+`transpilePackages` packages are exempted from that skip (`exclude()` in
+`next/dist/build/webpack-config.js`), so every `@flamingo-stack/openframe-frontend-core` `dist`
+file goes through it. A `'use no memo'` there is load-bearing in this app, not decoration.
+
+**A hook that WRAPS an incompatible library hides it from the compiler.** Calling
+`useReactTable` directly makes the compiler skip that component (`IncompatibleLibrary`); calling
+it through a wrapper like the core lib's `useDataTable` does not — the caller compiles, and
+whatever the wrapper returns is cached on its identity. TanStack's table instance is one mutated
+object whose identity never changes, so every `DataTable` froze on its first page and the
+infinite-scroll footer re-requested forever. Fixed in `useDataTable` (it publishes a fresh handle
+per render); the same shape of bug is waiting in any other wrapper over a mutated instance.
+
+Cost measured on this repo when it was turned on: `next build` 18.0s → 20.6s, client chunks
+17.8 MB → 18.4 MB raw (+3.3%) — the compiler emits memo-cache bookkeeping into every component it
+touches.
 
 ### Data Fetching Strategy
 
@@ -699,6 +759,7 @@ library, the same one the library and every other Flamingo frontend loads.
 
 ```
 eslint.config.mjs   next + relay + tests + prettier-compat  ← the fast pass, what the editor loads
+eslint-rules/       repo-local rules, registered under the `openframe/` prefix
 eslint.ci.mjs       − relay/unused-fields                   ← npm run lint:ci, the PR gate
 eslint.types.mjs    + type-checked                          ← npm run lint:types
 eslint.cycles.mjs   + cycles (import/no-cycle)              ← npm run lint:cycles
@@ -831,7 +892,7 @@ OpenFrame integrates device monitoring data from multiple sources with normaliza
 
 **Priority rules** (in `createDevice()`):
 ```
-Hardware (CPU/RAM/storage/battery/software/users/mdm):  Fleet only
+Hardware (CPU/RAM/storage/battery/software/users):  Fleet only
 Serial/manufacturer/model/OS:  Fleet -> GraphQL node
 Status:                        GraphQL node -> Fleet
 Last seen:                     Fleet -> GraphQL node

@@ -203,15 +203,18 @@ export function normalizeAttribution(attribution: RegistrationAttribution): Regi
 }
 
 /**
- * Serialize an attribution set into `attribution.<field>` query parameters for the SSO
- * registration start URL. Nested `attribution.*` keys are what Spring's @ModelAttribute
- * binds on the backend. Blank values are skipped — same "omit, never send empty" contract
- * as the password-flow body. Kept here (not in the API client) so the field set that rides
- * the SSO redirect provably matches what `collectRegistrationAttribution` produces.
+ * Serialize an attribution set into query parameters for the SSO signup-continue URL. Blank values
+ * are skipped — same "omit, never send empty" contract as the password-flow body. Kept here (not in
+ * the API client) so the field set that rides the SSO redirect provably matches what
+ * `collectRegistrationAttribution` produces.
+ *
+ * Keys are BARE, matching the `@ModelAttribute RegistrationAttribution` the endpoint binds
+ * directly. Prefixing them (as a wrapper DTO would need) does not error — the params simply never
+ * bind and the attribution is lost silently.
  */
 export function appendAttributionQueryParams(params: URLSearchParams, attribution: RegistrationAttribution): void {
   for (const [field, value] of Object.entries(normalizeAttribution(attribution) ?? {})) {
-    params.append(`attribution.${field}`, value);
+    params.append(field, value);
   }
 }
 

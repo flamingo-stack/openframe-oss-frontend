@@ -69,6 +69,12 @@ function fakeNativeAuth() {
   };
 }
 
+/** Minimal unsigned JWT — only the payload is ever read, to recover the account after login. */
+function makeJwt(payload) {
+  const b64 = obj => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  return `${b64({ alg: 'none' })}.${b64(payload)}.sig`;
+}
+
 /**
  * Desktop shell (Tauri globals) in saas-shared mode — the mode whose browser logins
  * deliberately drop a caller-supplied redirectTo.
@@ -102,7 +108,7 @@ function resetDesktopShell() {
 // platform.ts memoizes the shell kind per module instance, so this file is desktop-only
 // by construction — mobile/web belong in their own file if they ever get one.
 resetDesktopShell();
-const { nativeLogin, nativeSsoRegister } = await import('./native-login.ts');
+const { nativeLogin } = await import('./native-login.ts');
 const { APP_SCHEME } = await import('./native-shell.ts');
 
 beforeEach(resetDesktopShell);
@@ -169,50 +175,47 @@ test('a callback without a ticket fails loudly', async () => {
   await assert.rejects(() => nativeLogin({ tenantId: 'tenant-1' }), /without a ticket/);
 });
 
-const SIGNUP = {
-  tenantName: 'Acme',
-  tenantDomain: 'acme.openframe.example',
-  email: 'owner@acme.example',
-  provider: 'apple',
-};
-
-test('SSO signup runs the registration URL in the shell browser instead of navigating to it', async () => {
-  await nativeSsoRegister(SIGNUP);
-
-  assert.equal(startCalls.length, 1);
-  const url = new URL(startCalls[0].url);
-
-  assert.equal(url.origin, SHARED_HOST, 'registration always runs on the shared auth host');
-  assert.equal(url.pathname, '/sas/oauth/register/sso');
-  assert.equal(
-    url.searchParams.get('redirectTo'),
-    `${APP_SCHEME}://auth`,
-    'the scheme is the only redirect target the gateway honours verbatim in every environment',
-  );
-  assert.equal(url.searchParams.get('tenantName'), 'Acme');
-  assert.equal(url.searchParams.get('tenantDomain'), 'acme.openframe.example');
-  assert.equal(url.searchParams.get('provider'), 'apple');
-  // The authz service replays this onto the /oauth/continue that finalizes the
-  // signup — without it the callback carries no ticket wherever dev-ticket
-  // issuance is off (prod), and the shell is left signed out of a tenant that
-  // now exists.
-  assert.equal(url.searchParams.get('authMobile'), 'true');
-  assert.equal(startCalls[0].callbackScheme, APP_SCHEME, 'the shell cancels the navigation to this scheme');
-});
-
-test('SSO signup exchanges the ticket and adopts the domain it just registered', async () => {
-  const result = await nativeSsoRegister({ ...SIGNUP, tenantDomain: 'other.openframe.example', provider: 'google' });
-
-  assert.deepEqual(storedTokens, { accessToken: 'access-1', refreshToken: 'refresh-1' });
-  assert.equal(result.tenantHostChanged, true, 'the tenant just created is not the host the app booted with');
-});
-
-test('a signup callback without a ticket names the recoverable state', async () => {
-  // An authz service that drops authMobile, or a gateway with mobile auth off,
-  // lands here — and by then the tenant already exists.
-  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
-    callbackUrl: `${APP_SCHEME}://auth`,
+// The shipped mobile lanes bake no NEXT_PUBLIC_TENANT_HOST_URL, so an identity-first login (nothing
+// typed, no discovery) has nothing naming the tenant gateway. Recovering it from the token is what
+// keeps that path from dead-ending — it is the whole reason the button works on a cold screen.
+test('identity-first login recovers the tenant host from the issued token', async () => {
+  globalThis.testEnv.NEXT_PUBLIC_TENANT_HOST_URL = '';
+  const jwt = makeJwt({ sub: 'owner@acme.example' });
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.exchangeTicket = async () => ({
+    accessToken: jwt,
+    refreshToken: 'refresh-1',
   });
 
-  await assert.rejects(() => nativeSsoRegister(SIGNUP), /organization was created/);
+  let discoveryUrl = null;
+  globalThis.fetch = async url => {
+    discoveryUrl = String(url);
+    return new Response(JSON.stringify({ domain: 'acme.openframe.example' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  const result = await nativeLogin({ provider: 'google' });
+
+  assert.match(discoveryUrl, /owner%40acme\.example/, 'looks the tenant up by the token subject');
+  assert.equal(storedTokens.accessToken, jwt, 'tokens are kept once a gateway is known');
+  assert.equal(
+    globalThis.localStorage.getItem('native:tenant-host-url'),
+    'https://acme.openframe.example',
+    'the discovered domain becomes the tenant gateway',
+  );
+  assert.equal(result.tenantHostChanged, true, 'boot host was empty, so the caller must reload onto it');
+});
+
+test('identity-first login fails loudly when the tenant host cannot be recovered', async () => {
+  globalThis.testEnv.NEXT_PUBLIC_TENANT_HOST_URL = '';
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.exchangeTicket = async () => ({
+    accessToken: makeJwt({ sub: 'owner@acme.example' }),
+    refreshToken: 'refresh-1',
+  });
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({}), { status: 200, headers: { 'content-type': 'application/json' } });
+
+  await assert.rejects(() => nativeLogin({ provider: 'google' }), /Could not determine your organization/);
+  assert.equal(storedTokens, null, 'a session that cannot reach its gateway is never stored');
 });

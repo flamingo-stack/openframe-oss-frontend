@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { OS_PLATFORMS, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
 import { SortableMoveButtons, useSortableItem } from '@flamingo-stack/openframe-frontend-core/components/features';

@@ -1,6 +1,5 @@
 'use client';
 
-import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import {
   Board,
   type BoardChange,
@@ -10,6 +9,7 @@ import {
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
+  CheckboxBlock,
   PageError,
   PageLayout,
   type TakeOverTicketSelection,
@@ -46,11 +46,6 @@ import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-tick
 import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
-
-// TODO(unread-from-entity): re-enable per-ticket unread highlighting once the backend exposes
-// unread counts on the ticket entity itself. Matching unread notifications to tickets by id is a
-// temporary workaround — disabled for now; flip this flag to restore it.
-const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
 
 /** How long a CONFIRMED take-over drop may keep standing in for the refetched
  *  columns. Exists so a ticket the refetch never returns to the target lane
@@ -130,8 +125,11 @@ interface TicketsBoardProps {
   onAssigneeIdsChange?: (ids: string[]) => void;
   tagIds?: string[];
   onTagIdsChange?: (ids: string[]) => void;
-  /** Applies organization+assignee filters atomically (mobile filter modal). */
-  onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[] }) => void;
+  /** Only tickets the caller has unread notifications about. */
+  unreadOnly?: boolean;
+  onUnreadOnlyChange?: (value: boolean) => void;
+  /** Applies organization+assignee+new-messages filters atomically (mobile filter modal). */
+  onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[]; unreadOnly: boolean }) => void;
   search: string;
   onSearchChange: (value: string) => void;
 }
@@ -149,22 +147,19 @@ type IsUserDeleted = (id?: string | null) => boolean;
  * the 15s refetch, each optimistic move. Handing the memoized cards a fresh
  * object each time would re-render the whole board (and every assignee picker
  * in it), so cache per dialog: react-query's structural sharing keeps unchanged
- * dialogs identical, and the two derived inputs are part of the cache key.
+ * dialogs identical, and the one derived input is part of the cache key.
  */
-const boardTicketCache = new WeakMap<
-  Dialog,
-  { hasNewMessage: boolean; isUserDeleted?: IsUserDeleted; ticket: BoardTicket }
->();
+const boardTicketCache = new WeakMap<Dialog, { isUserDeleted?: IsUserDeleted; ticket: BoardTicket }>();
 
-function toBoardTicket(dialog: Dialog, hasNewMessage: boolean, isUserDeleted?: IsUserDeleted): BoardTicket {
+function toBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTicket {
   const cached = boardTicketCache.get(dialog);
-  if (cached && cached.hasNewMessage === hasNewMessage && cached.isUserDeleted === isUserDeleted) return cached.ticket;
-  const ticket = dialogToBoardTicket(dialog, hasNewMessage, isUserDeleted);
-  boardTicketCache.set(dialog, { hasNewMessage, isUserDeleted, ticket });
+  if (cached && cached.isUserDeleted === isUserDeleted) return cached.ticket;
+  const ticket = dialogToBoardTicket(dialog, isUserDeleted);
+  boardTicketCache.set(dialog, { isUserDeleted, ticket });
   return ticket;
 }
 
-function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false, isUserDeleted?: IsUserDeleted): BoardTicket {
+function dialogToBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTicket {
   return {
     id: dialog.id,
     title: dialog.title,
@@ -188,7 +183,10 @@ function dialogToBoardTicket(dialog: Dialog, hasNewMessage = false, isUserDelete
     // bumps `Ticket.updatedAt`), not the creation time — a ticket reopened
     // minutes ago otherwise still reads as untouched since it was created.
     createdAt: dialog.statusUpdatedAt ?? dialog.createdAt,
-    hasNewMessage,
+    // The card has no numeric affordance — `BoardTicket` carries a boolean, which
+    // draws the column-coloured border and the "New Message" tag. The exact count
+    // lives on the table row; here any unread at all is the signal.
+    hasNewMessage: (dialog.unreadNotificationCount ?? 0) > 0,
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
   };
@@ -202,6 +200,8 @@ export function TicketsBoard({
   onAssigneeIdsChange,
   tagIds,
   onTagIdsChange,
+  unreadOnly,
+  onUnreadOnlyChange,
   onFiltersChange,
   search,
   onSearchChange,
@@ -213,7 +213,6 @@ export function TicketsBoard({
   const { data: transitionRules } = useTicketStatusTransitionRules();
   const { mutate: moveTicket } = useMoveTicket();
   const movingIds = useMovingTicketIds();
-  const notifications = useOptionalNotifications();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isUserDeleted } = useUserStatusMap();
@@ -252,18 +251,6 @@ export function TicketsBoard({
     [handleApproveRequest, handleRejectRequest, toast, queryClient],
   );
 
-  // Tickets have no unread field of their own; unread state comes from notifications (a separate
-  // entity) matched by ticket id.
-  const ticketIdsWithUnread = useMemo(() => {
-    const ids = new Set<string>();
-    if (!HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS) return ids;
-    for (const notification of notifications?.notifications ?? []) {
-      if (notification.read) continue;
-      const ticketId = notification.meta?.ticketId;
-      if (typeof ticketId === 'string') ids.add(ticketId);
-    }
-    return ids;
-  }, [notifications?.notifications]);
   const [columnUpdates, setColumnUpdates] = useState<Record<string, BoardColumnUpdate>>({});
   // Bumped when an intercepted drag is discarded (Take Over cancelled): nothing
   // was persisted, but the Board's internal drag state still shows the card in
@@ -287,9 +274,11 @@ export function TicketsBoard({
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
 
+  // Every filter the lanes are fetched under, so "Archive Resolved" archives
+  // exactly the tickets the Resolved lane shows (its count is the lane total).
   const archiveFilter = useMemo(
-    () => ({ organizationIds, assigneeIds, tagIds }),
-    [organizationIds, assigneeIds, tagIds],
+    () => ({ organizationIds, assigneeIds, tagIds, unreadOnly }),
+    [organizationIds, assigneeIds, tagIds, unreadOnly],
   );
   const filteredResolvedTotal = useMemo(() => {
     const resolvedId = statuses.find(s => s.kind === 'RESOLVED')?.id;
@@ -318,8 +307,8 @@ export function TicketsBoard({
   }, []);
 
   const params = useMemo(
-    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds }),
-    [debouncedSearch, organizationIds, assigneeIds, tagIds],
+    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly }),
+    [debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly],
   );
 
   const allowedFromByStatusId = useMemo<Record<string, string[]>>(() => {
@@ -356,9 +345,7 @@ export function TicketsBoard({
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
-        tickets: (state?.tickets ?? []).map(ticket =>
-          toBoardTicket(ticket, ticketIdsWithUnread.has(ticket.id), isUserDeleted),
-        ),
+        tickets: (state?.tickets ?? []).map(ticket => toBoardTicket(ticket, isUserDeleted)),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
@@ -376,7 +363,6 @@ export function TicketsBoard({
     allowedFromByStatusId,
     isLoading,
     canArchiveResolved,
-    ticketIdsWithUnread,
     isUserDeleted,
     boardResetNonce,
   ]);
@@ -492,8 +478,9 @@ export function TicketsBoard({
       takeOverConfirmedRef.current = true;
       const held = heldMoveRef.current;
       if (!held) return;
-      // The user may have picked a different status in the modal than the lane
-      // they dropped into — hold the card in the CONFIRMED lane instead.
+      // The user may have picked a different status in the modal than the lane they
+      // dropped into — hold the card in the CONFIRMED lane, and drop the anchors
+      // with it: they describe slots in a lane the ticket is no longer headed for.
       if (held.toColumnId !== selection.statusId) {
         setHeldMove({
           ticketId: held.ticketId,
@@ -502,9 +489,24 @@ export function TicketsBoard({
           afterTicketId: null,
           beforeTicketId: null,
         });
+        return;
       }
+      // `takeOverTicket` carries no ordering, so the dropped slot is lost and the
+      // ticket lands wherever the backend ranks it. Replay the drop as a reorder now
+      // that the take-over has put it in the lane those anchors belong to.
+      // `sourceStatusId` is the lane it came FROM — the entry the optimistic update
+      // has to lift the card out of; the request is a plain re-rank either way,
+      // since the ticket already has the status it asks for.
+      if (held.afterTicketId === null && held.beforeTicketId === null) return;
+      moveTicket({
+        ticketId: held.ticketId,
+        sourceStatusId: held.fromColumnId,
+        targetStatusId: selection.statusId,
+        afterTicketId: held.afterTicketId,
+        beforeTicketId: held.beforeTicketId,
+      });
     },
-    [setHeldMove],
+    [moveTicket, setHeldMove],
   );
 
   const handleTakeOverClose = useCallback(() => {
@@ -597,6 +599,7 @@ export function TicketsBoard({
     (organizationIds?.length ?? 0) === 0 &&
     (assigneeIds?.length ?? 0) === 0 &&
     (tagIds?.length ?? 0) === 0 &&
+    !unreadOnly &&
     boardColumns.length > 0 &&
     boardColumns.every(column => column.tickets.length === 0);
 
@@ -665,6 +668,12 @@ export function TicketsBoard({
                 onChange={ids => onAssigneeIdsChange?.(ids)}
                 className="col-span-1"
               />
+              <CheckboxBlock
+                checked={unreadOnly ?? false}
+                onCheckedChange={checked => onUnreadOnlyChange?.(checked)}
+                label="New Messages Only"
+                className="col-span-1"
+              />
             </div>
           </div>
         )}
@@ -674,6 +683,7 @@ export function TicketsBoard({
           onClose={() => setMobileFiltersOpen(false)}
           organizationIds={organizationIds ?? []}
           assigneeIds={assigneeIds ?? []}
+          unreadOnly={unreadOnly ?? false}
           onApply={filters => onFiltersChange?.(filters)}
         />
 

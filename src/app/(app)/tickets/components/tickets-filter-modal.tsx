@@ -1,7 +1,7 @@
 'use client';
 
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Autocomplete, Button, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Autocomplete, Button, CheckboxBlock, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { AssigneeFilter } from './assignee-filter';
@@ -13,6 +13,7 @@ interface TicketsFilterModalProps {
   onClose: () => void;
   organizationIds: string[];
   assigneeIds: string[];
+  unreadOnly: boolean;
   /**
    * Renders the third, Status section (the table view — its status filter
    * lives in the column header on md+ and has no mobile surface otherwise).
@@ -20,24 +21,32 @@ interface TicketsFilterModalProps {
    */
   status?: { value: string[]; options: StatusOption[] };
   /** Applies every filter in one call — sequential URL writes would clobber each other. */
-  onApply: (filters: { organizationIds: string[]; assigneeIds: string[]; status?: string[] }) => void;
+  onApply: (filters: {
+    organizationIds: string[];
+    assigneeIds: string[];
+    unreadOnly: boolean;
+    status?: string[];
+  }) => void;
 }
 
 /**
- * Mobile-only modal hosting the customer/assignee (and, for the table view,
- * status) filters. Selection is buffered locally and flushed on Apply
- * (FilterModal behavior).
+ * Modal hosting the customer/assignee/new-messages (and, for the table view,
+ * status) filters. The board opens it on mobile only (its md+ filters are
+ * inline); the table opens it on every breakpoint. Selection is buffered
+ * locally and flushed on Apply (FilterModal behavior).
  */
 export function TicketsFilterModal({
   isOpen,
   onClose,
   organizationIds,
   assigneeIds,
+  unreadOnly,
   status,
   onApply,
 }: TicketsFilterModalProps) {
   const [localOrganizationIds, setLocalOrganizationIds] = useState(organizationIds);
   const [localAssigneeIds, setLocalAssigneeIds] = useState(assigneeIds);
+  const [localUnreadOnly, setLocalUnreadOnly] = useState(unreadOnly);
   const [localStatus, setLocalStatus] = useState<string[]>(status?.value ?? []);
 
   // Seeded on the open transition, during render rather than in an effect: an
@@ -50,12 +59,13 @@ export function TicketsFilterModal({
     if (isOpen) {
       setLocalOrganizationIds(organizationIds);
       setLocalAssigneeIds(assigneeIds);
+      setLocalUnreadOnly(unreadOnly);
       setLocalStatus(status?.value ?? []);
     }
   }
 
   const handleReset = () => {
-    onApply({ organizationIds: [], assigneeIds: [], ...(status && { status: [] }) });
+    onApply({ organizationIds: [], assigneeIds: [], unreadOnly: false, ...(status && { status: [] }) });
     onClose();
   };
 
@@ -63,6 +73,7 @@ export function TicketsFilterModal({
     onApply({
       organizationIds: localOrganizationIds,
       assigneeIds: localAssigneeIds,
+      unreadOnly: localUnreadOnly,
       ...(status && { status: localStatus }),
     });
     onClose();
@@ -93,6 +104,8 @@ export function TicketsFilterModal({
         <Label>Assignee</Label>
         <AssigneeFilter value={localAssigneeIds} onChange={setLocalAssigneeIds} />
       </div>
+
+      <CheckboxBlock checked={localUnreadOnly} onCheckedChange={setLocalUnreadOnly} label="New Messages Only" />
 
       {status && (
         <div className="space-y-2">
