@@ -445,9 +445,22 @@ What it changes about how you write code here:
 diagnostics cannot see it. The rule requires a module-level `'use no memo'` in any file importing
 react-hook-form at runtime, or importing one of its live-form handle types (`UseFormReturn`,
 `Control`, …). 34 files, 41 functions' worth of memoization. The compiler knows only about
-`useForm().watch` itself (and `@tanstack/react-table` / `react-virtual`, which only the core lib
-calls — **node_modules is never compiled**, `transpilePackages` or not). Delete the rule and its
+`useForm().watch` itself, plus `@tanstack/react-table`, which only the core lib calls (its
+`react-virtual` entry matches nothing — neither repo depends on it). Delete the rule and its
 directives on react-hook-form 7.75 + React 19.2.5.
+
+**The core library IS compiled.** Next skips node_modules for the compiler loader, but
+`transpilePackages` packages are exempted from that skip (`exclude()` in
+`next/dist/build/webpack-config.js`), so every `@flamingo-stack/openframe-frontend-core` `dist`
+file goes through it. A `'use no memo'` there is load-bearing in this app, not decoration.
+
+**A hook that WRAPS an incompatible library hides it from the compiler.** Calling
+`useReactTable` directly makes the compiler skip that component (`IncompatibleLibrary`); calling
+it through a wrapper like the core lib's `useDataTable` does not — the caller compiles, and
+whatever the wrapper returns is cached on its identity. TanStack's table instance is one mutated
+object whose identity never changes, so every `DataTable` froze on its first page and the
+infinite-scroll footer re-requested forever. Fixed in `useDataTable` (it publishes a fresh handle
+per render); the same shape of bug is waiting in any other wrapper over a mutated instance.
 
 Cost measured on this repo when it was turned on: `next build` 18.0s → 20.6s, client chunks
 17.8 MB → 18.4 MB raw (+3.3%) — the compiler emits memo-cache bookkeeping into every component it
