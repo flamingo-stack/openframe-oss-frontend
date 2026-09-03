@@ -17,6 +17,10 @@ export const FEATURE_FLAG_NAMES = [
   'customer-ai-configuration',
   'customer-guardrails',
   'time-tracker',
+  // The "Timezone" control on the script-schedule form (SERVER vs DEVICE_LOCAL
+  // `timeReference`). UI only: a schedule that already carries DEVICE_LOCAL
+  // still reads and saves as one with the flag off, the picker is simply absent.
+  'script-schedule-device-online',
   'cancel-subscription',
   'test-clock',
   'download-apps',

@@ -112,6 +112,8 @@ interface UiScheduleEntry {
   /** `DEVICE_ONLINE` schedules have no startAt/repeat at all — see `isEventTrigger`. */
   trigger: string;
   startAt: string | null;
+  /** Which clock `startAt` is in — the Date & Time cell converts only a SERVER one. */
+  timeReference: string;
   repeat: number | null;
 }
 
@@ -210,6 +212,7 @@ function SchedulesTableContent({
           deviceCount: node.deviceCount,
           trigger: node.trigger,
           startAt: node.startAt ?? null,
+          timeReference: node.timeReference,
           repeat: node.repeat ?? null,
         },
       ];
@@ -396,7 +399,7 @@ function SchedulesTableContent({
           if (isEventTrigger(row.original.trigger)) {
             return <TruncateText tone="secondary">Device Online</TruncateText>;
           }
-          const { date, time } = formatScheduleStartAt(row.original.startAt);
+          const { date, time } = formatScheduleStartAt(row.original.startAt, row.original.timeReference);
           if (!row.original.startAt) {
             return <span className="text-ods-text-secondary text-h4">—</span>;
           }
