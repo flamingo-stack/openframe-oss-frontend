@@ -36,13 +36,17 @@ const LEGACY_ID_ROUTES = [
 ];
 
 /**
- * Routes renamed by the create → `/new` alignment. The `/edit/new` entries
+ * Routes that moved or were removed outright. The `/edit/new` entries
  * catch pre-migration path-param create links directly — without them those
  * would match the `{id}` patterns below with id='new' and depend on the edit
  * pages' `?id=new` compat redirect, adding a hop and coupling this table to
  * that sentinel.
  */
 const LEGACY_RENAMED_ROUTES: Record<string, string> = {
+  // Second step of the old two-step signup. Signup is one screen now and the route is gone; a
+  // direct visit already bounced to /auth back when it existed, since it needed org details a
+  // previous screen had put in sessionStorage.
+  '/auth/signup': '/auth',
   '/scripts/create': '/scripts/new',
   '/scripts/schedules/create': '/scripts/schedules/new',
   '/customers/edit/new': '/customers/new',

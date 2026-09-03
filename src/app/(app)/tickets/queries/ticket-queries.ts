@@ -254,6 +254,8 @@ export const GET_TICKETS_QUERY = `
             key
             color
           }
+          # Unflagged, so it must not outrun the backend — see boardCardTicketFragment.
+          unreadNotificationCount
           createdAt
           updatedAt
           resolvedAt
@@ -280,6 +282,15 @@ export const GET_TICKETS_QUERY = `
  * first GraphQL error — every board column would come back empty rather than
  * merely missing a badge. `resolvedBy` rides the `ai-resolution` flag for the
  * same reason.
+ *
+ * `unreadNotificationCount` is selected UNCONDITIONALLY and carries that same
+ * failure mode, because `ticket.graphqls` declares it with no feature flag —
+ * there is no flag to ride, and borrowing an unrelated one (`notifications`
+ * gates the notifications UI, not the ai-agent schema) would only move the
+ * breakage. It is therefore a deploy-ordering requirement: the saas-ai-agent
+ * carrying the field must ship BEFORE this frontend, or the board columns, the
+ * tickets table and the ticket picker (`use-ticket-options.ts`, same document)
+ * all come back empty. Same constraint at the `GET_TICKETS_QUERY` selection.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
@@ -337,6 +348,7 @@ const boardCardTicketFragment = () => `
       key
       color
     }
+    unreadNotificationCount
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
     ${featureFlags.aiResolution.enabled() ? 'resolvedBy' : ''}
     pendingApproval {

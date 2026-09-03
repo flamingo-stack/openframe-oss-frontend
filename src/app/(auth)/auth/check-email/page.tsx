@@ -23,7 +23,13 @@ export default function CheckEmailPage() {
   const [email, setEmail] = useState('');
 
   useEffect(() => {
-    const storedEmail = sessionStorage.getItem('auth:email');
+    let storedEmail: string | null = null;
+    try {
+      storedEmail = sessionStorage.getItem('auth:email');
+    } catch {
+      // Blocked site data / private mode throws on access rather than returning null. Treat it as
+      // a missing address so this lands on the bounce below instead of taking the page down.
+    }
     if (storedEmail) {
       setEmail(storedEmail);
     } else {

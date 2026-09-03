@@ -48,6 +48,7 @@ interface TicketNode {
   assignedName?: string;
   assigneeImage?: { imageUrl: string; hash?: string };
   tags?: Array<{ id: string; key: string; color?: string }>;
+  unreadNotificationCount?: number;
   escalatedByUser?: boolean | null;
   resolvedBy?: string | null;
   pendingApproval?: {
@@ -172,6 +173,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     assigneeImageUrl: ticket.assigneeImage?.imageUrl,
     assigneeImageHash: ticket.assigneeImage?.hash,
     tags: ticket.tags,
+    unreadNotificationCount: ticket.unreadNotificationCount,
     escalatedByUser: ticket.escalatedByUser,
     pendingApproval: ticket.pendingApproval ?? undefined,
     attachments: ticket.attachments,
