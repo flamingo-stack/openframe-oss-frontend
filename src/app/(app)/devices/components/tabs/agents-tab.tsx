@@ -9,6 +9,7 @@ import { formatDateTime } from '@/lib/format-date';
 import type { Device, InstalledAgent, ToolConnection } from '../../types/device.types';
 import { getAgentFooter } from '../../utils/agent-footer';
 import { getDeviceStatusConfig } from '../../utils/device-status';
+import { getToolConnectionDisplayStatus, type ToolConnectionDisplayStatus } from '../../utils/tool-connection-status';
 import { TabEmptyState } from './tab-empty-state';
 
 interface AgentsTabProps {
@@ -25,22 +26,14 @@ const agentTypeToToolType: Record<string, string> = {
 
 const AGENT_TYPES_WITH_STATUS = new Set(['FLEET_MDM', 'MESHCENTRAL']);
 
-/** Fleet MDM: "online" → online, "offline" | "mia" → offline */
-function parseFleetAgentStatus(raw: string | undefined): 'online' | 'offline' {
-  return raw?.toLowerCase() === 'online' ? 'online' : 'offline';
-}
-
-/** MeshCentral: same as Fleet for display (online/offline) */
-function parseMeshCentralAgentStatus(raw: string | undefined): 'online' | 'offline' {
-  return raw?.toLowerCase() === 'online' ? 'online' : 'offline';
-}
-
-function getAgentDisplayStatus(toolType: string, raw: string | undefined): 'online' | 'offline' {
+function getAgentDisplayStatus(
+  toolType: string,
+  connection: ToolConnection | null | undefined,
+): ToolConnectionDisplayStatus {
   switch (toolType) {
     case 'FLEET_MDM':
-      return parseFleetAgentStatus(raw);
     case 'MESHCENTRAL':
-      return parseMeshCentralAgentStatus(raw);
+      return getToolConnectionDisplayStatus(connection);
     default:
       return 'offline';
   }
@@ -78,7 +71,7 @@ export function AgentsTab({ device }: AgentsTabProps) {
       toolType,
       agentToolId: connection?.agentToolId,
       hasConnection: !!connection,
-      status: getAgentDisplayStatus(toolType, connection?.status),
+      status: getAgentDisplayStatus(toolType, connection),
       lastSeen: connection?.lastSeen,
       lastFetched: connection?.lastFetched,
       updatedAt: agent.updatedAt as string | undefined,
@@ -97,7 +90,7 @@ export function AgentsTab({ device }: AgentsTabProps) {
         toolType: tc.toolType,
         agentToolId: tc.agentToolId,
         hasConnection: true,
-        status: getAgentDisplayStatus(tc.toolType, tc.status),
+        status: getAgentDisplayStatus(tc.toolType, tc),
         lastSeen: tc.lastSeen,
         lastFetched: tc.lastFetched,
         updatedAt: tc.lastSyncAt,
