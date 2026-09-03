@@ -1,22 +1,18 @@
 'use client';
 
 import type { AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { useRouter } from 'next/navigation';
-import { AppleNativeSignupSection } from '@/app/(auth)/auth/components/apple-native-signup-section';
 import { CreateOrganizationSection } from '@/app/(auth)/auth/components/create-organization-section';
-import { useAppleSignupTakeover } from '@/app/(auth)/auth/hooks/use-apple-signup-takeover';
+import { NativeSsoSignupSection } from '@/app/(auth)/auth/components/native-sso-signup-section';
 import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useRegistrationProviders } from '@/app/(auth)/auth/hooks/use-registration-providers';
+import { useSsoSignupTakeover } from '@/app/(auth)/auth/hooks/use-sso-signup-takeover';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
-import { SsoRegistrationRequiredError } from '@/lib/native-login';
-import { routes } from '@/lib/routes';
 
 export default function AuthPage() {
-  const router = useRouter();
   const { isLoading, loginWithSso, registerOrganization } = useAuth();
   const { providers } = useRegistrationProviders();
 
-  const appleSignup = useAppleSignupTakeover();
+  const signup = useSsoSignupTakeover();
 
   // Organization and personal details are collected on one screen now, so the signup lands here
   // directly instead of handing off through sessionStorage to /auth/signup.
@@ -52,24 +48,17 @@ export default function AuthPage() {
       await loginWithSso(provider);
     } catch (error) {
       // Not a failure: the identity verified, it just has no organization yet.
-      // No account yet: finish the signup on our own screen instead of in the browser sheet.
-      if (error instanceof SsoRegistrationRequiredError) {
-        router.replace(`${routes.auth.ssoContinue}?signupTicket=${encodeURIComponent(error.signupTicket)}`);
-        return;
-      }
-      appleSignup.capture(error);
+      // No account yet — from either the Apple sheet or a browser flow: the organization form takes
+      // over this screen. Every other error was already surfaced inside loginWithSso.
+      signup.capture(error);
     }
   };
 
   // The tab selector stays visible (the shell owns it), so leaving this screen is possible and
-  // discards the credential — the same thing "Back to sign in" does deliberately.
-  if (appleSignup.credential) {
+  // discards the pending identity — the same thing the form's Back action does deliberately.
+  if (signup.pending) {
     return (
-      <AppleNativeSignupSection
-        credential={appleSignup.credential}
-        onRegistered={appleSignup.onRegistered}
-        onExit={appleSignup.onExit}
-      />
+      <NativeSsoSignupSection pending={signup.pending} onRegistered={signup.onRegistered} onExit={signup.onExit} />
     );
   }
 

@@ -144,18 +144,28 @@ export async function nativeLogin(options: {
 const UNKNOWN_TENANT_HOST_MESSAGE =
   'Could not determine your organization’s host. Enter your email address and try again.';
 
-/** The `sub` claim of a JWT — the account's email on our access tokens — or null if unreadable. */
-function readJwtSubject(token?: string | null): string | null {
+/** A string claim off an unverified JWT payload, or null if absent or unreadable. */
+function readJwtClaim(token: string | null | undefined, claim: string): string | null {
   if (!token) return null;
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
     const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
     const decoded = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')));
-    return typeof decoded?.sub === 'string' ? decoded.sub : null;
+    return typeof decoded?.[claim] === 'string' ? decoded[claim] : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The address Apple asserted, read off the identity token so the signup screen can show who is
+ * signing up — the same thing the ticket flow shows. For a Hide My Email user this is the relay,
+ * which is genuinely the address on the account. Display only: the gateway reads the address from
+ * the VERIFIED token, never from anything the app sends.
+ */
+export function appleIdentityEmail(credential: AppleCredential): string | undefined {
+  return readJwtClaim(credential.identityToken, 'email') ?? undefined;
 }
 
 /**
@@ -169,7 +179,7 @@ function readJwtSubject(token?: string | null): string | null {
  * Costs one request, and only on the path that would otherwise have to fail.
  */
 async function learnTenantHostFromToken(accessToken?: string | null): Promise<string> {
-  const email = readJwtSubject(accessToken);
+  const email = readJwtClaim(accessToken, 'sub');
   if (!email) return '';
   try {
     const res = await authApiClient.discoverTenants(email);
@@ -447,6 +457,14 @@ export async function completeNativeSsoSignup(options: {
   await setTokens({ accessToken, refreshToken });
   await persistTenantHost(plugin, new URL(tenantOrigin(options.tenantDomain)).origin);
 }
+
+/**
+ * A verified SSO identity that has no OpenFrame account yet, in whichever form the flow handed it
+ * back: Apple's native sheet returns the credential itself, the browser flows return a ticket that
+ * names the identity server-side. Both are memory-only and both complete without a second trip
+ * through the provider.
+ */
+export type PendingSsoSignup = { kind: 'apple'; credential: AppleCredential } | { kind: 'ticket'; ticket: string };
 
 export interface AppleCredential {
   identityToken: string;
