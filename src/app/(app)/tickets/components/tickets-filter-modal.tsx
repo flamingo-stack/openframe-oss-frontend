@@ -4,6 +4,8 @@ import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components
 import { Autocomplete, Button, CheckboxBlock, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import type { TicketActivityFilter } from '../types/dialog.types';
+import { ActivityFilter } from './activity-filter';
 import { AssigneeFilter } from './assignee-filter';
 import { OrganizationFilter } from './organization-filter';
 import { renderStatusOption, type StatusOption } from './status-autocomplete';
@@ -14,6 +16,8 @@ interface TicketsFilterModalProps {
   organizationIds: string[];
   assigneeIds: string[];
   unreadOnly: boolean;
+  /** Renders the Activity section (board view only — the table has no activity filter). */
+  activity?: TicketActivityFilter[];
   /**
    * Renders the third, Status section (the table view — its status filter
    * lives in the column header on md+ and has no mobile surface otherwise).
@@ -25,6 +29,7 @@ interface TicketsFilterModalProps {
     organizationIds: string[];
     assigneeIds: string[];
     unreadOnly: boolean;
+    activity?: TicketActivityFilter[];
     status?: string[];
   }) => void;
 }
@@ -41,12 +46,14 @@ export function TicketsFilterModal({
   organizationIds,
   assigneeIds,
   unreadOnly,
+  activity,
   status,
   onApply,
 }: TicketsFilterModalProps) {
   const [localOrganizationIds, setLocalOrganizationIds] = useState(organizationIds);
   const [localAssigneeIds, setLocalAssigneeIds] = useState(assigneeIds);
   const [localUnreadOnly, setLocalUnreadOnly] = useState(unreadOnly);
+  const [localActivity, setLocalActivity] = useState<TicketActivityFilter[]>(activity ?? []);
   const [localStatus, setLocalStatus] = useState<string[]>(status?.value ?? []);
 
   // Seeded on the open transition, during render rather than in an effect: an
@@ -60,12 +67,19 @@ export function TicketsFilterModal({
       setLocalOrganizationIds(organizationIds);
       setLocalAssigneeIds(assigneeIds);
       setLocalUnreadOnly(unreadOnly);
+      setLocalActivity(activity ?? []);
       setLocalStatus(status?.value ?? []);
     }
   }
 
   const handleReset = () => {
-    onApply({ organizationIds: [], assigneeIds: [], unreadOnly: false, ...(status && { status: [] }) });
+    onApply({
+      organizationIds: [],
+      assigneeIds: [],
+      unreadOnly: false,
+      ...(activity && { activity: [] }),
+      ...(status && { status: [] }),
+    });
     onClose();
   };
 
@@ -74,6 +88,7 @@ export function TicketsFilterModal({
       organizationIds: localOrganizationIds,
       assigneeIds: localAssigneeIds,
       unreadOnly: localUnreadOnly,
+      ...(activity && { activity: localActivity }),
       ...(status && { status: localStatus }),
     });
     onClose();
@@ -104,6 +119,13 @@ export function TicketsFilterModal({
         <Label>Assignee</Label>
         <AssigneeFilter value={localAssigneeIds} onChange={setLocalAssigneeIds} />
       </div>
+
+      {activity && (
+        <div className="space-y-2">
+          <Label>Activity</Label>
+          <ActivityFilter value={localActivity} onChange={setLocalActivity} />
+        </div>
+      )}
 
       <CheckboxBlock checked={localUnreadOnly} onCheckedChange={setLocalUnreadOnly} label="New Messages Only" />
 

@@ -16,7 +16,7 @@ import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device } from '../../types/device.types';
 import { USER_COLUMNS } from './device-tab-columns';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface UsersTabProps {
   device: Device | null;
@@ -159,6 +159,9 @@ export function UsersTab({ device }: UsersTabProps) {
   }
 
   if (rows.length === 0) {
+    if (device.sources?.fleet === 'skipped-pending') {
+      return <TabDeployingEmptyState icon={<UsersIcon />} section="Users" />;
+    }
     return (
       <TabEmptyState
         icon={<UsersIcon />}

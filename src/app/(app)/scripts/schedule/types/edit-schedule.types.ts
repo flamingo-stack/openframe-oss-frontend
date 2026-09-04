@@ -84,7 +84,7 @@ export const editScheduleFormSchema = z
      * the Repeat controls lock when it is picked.
      *
      * Held by the form even when the control is not rendered (the picker is
-     * behind the `script-schedule-device-online` flag): a schedule that already
+     * behind the `script-schedule-device-time` flag): a schedule that already
      * carries DEVICE_LOCAL is then displayed and saved as one, rather than
      * silently re-timed by an edit made with the flag off.
      */

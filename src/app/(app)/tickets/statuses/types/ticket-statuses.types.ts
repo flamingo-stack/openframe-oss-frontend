@@ -21,6 +21,10 @@ export interface TicketStatusDefinition {
   kind: TicketStatusKind;
   isSystem: boolean;
   systemKey?: string | null;
+  // Effective staleness threshold for this column, resolved server-side (the
+  // status's own override, else the tenant default of 120 minutes). Drives the
+  // board card's "No activity for N hours" indicator.
+  staleAfterMinutes: number;
 }
 
 type SystemTagVariant = 'outline' | 'primary';

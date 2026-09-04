@@ -96,6 +96,15 @@ export function installMethodLabel(method: InstallMethod): string {
   return method === 'script' ? 'Script' : PACKAGE_MANAGER_METHODS[method].label;
 }
 
+/**
+ * Package-manager installs are not live yet (packages pending DevOps
+ * publishing), so every method except the install script is shown disabled in
+ * the Install Method dropdown until they ship.
+ */
+export function isInstallMethodEnabled(method: InstallMethod): boolean {
+  return method === 'script';
+}
+
 export function installMethodsForPlatform(platform: OSPlatformId): InstallMethod[] {
   if (platform === 'windows') return ['script', 'winget', 'chocolatey'];
   if (platform === 'darwin') return ['script', 'brew'];

@@ -9,7 +9,7 @@ import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface SecurityTabProps {
   device: Device | null;
@@ -213,6 +213,9 @@ export function SecurityTab({ device }: SecurityTabProps) {
   const sections = buildSections(device);
 
   if (sections.length === 0) {
+    if (device.sources?.fleet === 'skipped-pending') {
+      return <TabDeployingEmptyState icon={<ShieldIcon />} section="Security" />;
+    }
     return (
       <TabEmptyState
         icon={<ShieldIcon />}

@@ -19,6 +19,7 @@ import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
+import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
@@ -90,12 +91,18 @@ function RemoteDesktopSession() {
     error: deviceError,
   } = useDeviceDetails(!legacyDeviceData ? deviceId : null, { polling: false });
 
-  // Extract device info from either legacy data or fetched data
+  // Extract device info from either legacy data or fetched data. The legacy
+  // snapshot carries a bare agent id (no connection row), so it can't be state-
+  // checked — treat it as live, exactly as before.
+  const meshcentralState = legacyDeviceData?.meshcentralAgentId
+    ? 'live'
+    : getToolConnectionState(deviceDetails?.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL'));
   const meshcentralAgentId = useMemo(() => {
     if (legacyDeviceData?.meshcentralAgentId) {
       return legacyDeviceData.meshcentralAgentId;
     }
-    return deviceDetails?.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL')?.agentToolId;
+    const connection = deviceDetails?.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL');
+    return getToolConnectionState(connection) === 'live' ? connection?.agentToolId : undefined;
   }, [legacyDeviceData, deviceDetails]);
 
   const hostname = useMemo(() => {
@@ -530,10 +537,11 @@ function RemoteDesktopSession() {
   }
 
   if (!meshcentralAgentId) {
+    const copy = getMeshCentralBlockedCopy(meshcentralState, 'Remote desktop');
     return (
       <div className="flex h-full flex-col items-center justify-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-l)]">
-        <div className="text-ods-error text-h4">Error: MeshCentral Agent ID not available for this device</div>
-        <p className="text-ods-text-secondary">Remote desktop requires MeshCentral agent to be connected.</p>
+        <div className="text-ods-error text-h4">{copy.title}</div>
+        <p className="text-ods-text-secondary">{copy.description}</p>
         <Button onClick={safeBackToDevice}>Back</Button>
       </div>
     );
