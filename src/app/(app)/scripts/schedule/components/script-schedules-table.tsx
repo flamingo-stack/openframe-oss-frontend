@@ -74,6 +74,7 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { SCHEDULE_COLUMNS, SCHEDULES_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
+import { facetToMappedOptions } from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import { formatScheduleStartAt, isEventTrigger, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
@@ -228,13 +229,7 @@ function SchedulesTableContent({
   // Server-driven platform facet, mapped from the backend enum to the UI id the
   // column filter + `backendFilters` use (windows / darwin / linux).
   const platformOptions = useMemo(
-    () =>
-      (queryData.scriptScheduleFilters?.platforms ?? [])
-        .map(p => {
-          const id = platformsToIds([p.value])[0];
-          return id ? { id, label: p.label, value: id } : null;
-        })
-        .filter((o): o is { id: string; label: string; value: string } => o !== null),
+    () => facetToMappedOptions(queryData.scriptScheduleFilters?.platforms, value => platformsToIds([value])[0]),
     [queryData.scriptScheduleFilters?.platforms],
   );
 

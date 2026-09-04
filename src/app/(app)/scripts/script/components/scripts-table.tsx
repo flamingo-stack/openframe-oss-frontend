@@ -69,7 +69,7 @@ import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { SCRIPT_COLUMNS, SCRIPTS_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
 import { initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
-import { facetToSortedOptions } from '../../shared/utils/facet-options';
+import { facetToMappedOptions, facetToSortedOptions } from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds, shellToEnum, shellToId } from '../../shared/utils/script-mappers';
 import { ArchiveScriptModal } from './archive-script-modal';
 import { RestoreScriptModal } from './restore-script-modal';
@@ -209,22 +209,12 @@ function ScriptsTableContent({
   // option `value`s are mapped from the backend enum to the UI id the table's
   // column filter + `backendFilters` already use; author `value` is the user id.
   const shellOptions = useMemo(
-    () =>
-      (queryData.scriptFilters?.shells ?? []).map(s => {
-        const id = shellToId(s.value);
-        return { id, label: s.label, value: id };
-      }),
+    () => facetToMappedOptions(queryData.scriptFilters?.shells, shellToId),
     [queryData.scriptFilters?.shells],
   );
 
   const platformOptions = useMemo(
-    () =>
-      (queryData.scriptFilters?.platforms ?? [])
-        .map(p => {
-          const id = platformsToIds([p.value])[0];
-          return id ? { id, label: p.label, value: id } : null;
-        })
-        .filter((o): o is { id: string; label: string; value: string } => o !== null),
+    () => facetToMappedOptions(queryData.scriptFilters?.platforms, value => platformsToIds([value])[0]),
     [queryData.scriptFilters?.platforms],
   );
 
