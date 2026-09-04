@@ -25,6 +25,7 @@ import {
 import { collectScriptCustomParams } from '../utils/schedule-script-params';
 import {
   applyTimeSlot,
+  isDeviceLocalTime,
   isEventTrigger,
   isRetryOnReconnect,
   resolveDurationSeconds,
@@ -79,10 +80,18 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
       // Day + time of day become one instant here. Both are guaranteed present
       // for a DATE_TIME schedule (schema `superRefine`), so a null start can only
       // mean "event-driven".
+      // Written under the reading the form holds: SERVER converts the local pair
+      // to the instant it names, DEVICE_LOCAL stores the wall clock itself for
+      // the runner to re-base per device (see `toScheduleInstant`).
       const startAt =
         !isEventDriven && data.scheduledDate && data.scheduledTime
-          ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime))
+          ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime), data.timeReference)
           : null;
+      // A device-local start is one-shot by contract — the schema does not take
+      // `repeat` for it. The Repeat controls are cleared and locked when it is
+      // picked, so this only backs that up; what it does guarantee is that a
+      // cadence can never ride along with a reading that cannot carry one.
+      const deviceLocal = isDeviceLocalTime(data.timeReference);
       // The window is written only when the behavior that uses it is in force,
       // and an event-driven schedule has neither.
       const retriesOnReconnect = !isEventDriven && isRetryOnReconnect(data.offlineBehavior);
@@ -106,6 +115,11 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // PUT semantics: null clears the timing / recurrence. `repeat` needs a
         // start to anchor it, which a DATE_TIME schedule always has by now.
         startAt,
+        // Which clock `startAt` is in. Sent explicitly rather than left to the
+        // input's null-means-SERVER default: this is a PUT, and the form holds
+        // the schedule's own reading even where the picker is hidden by its
+        // flag — omitting it would re-time a device-local schedule on any edit.
+        timeReference: data.timeReference,
         // `resolveDurationSeconds`, not the raw parts: a stored cadence the unit
         // dropdown can't express is displayed rounded, and writing that display
         // back would change how often the schedule runs on an edit that never
@@ -114,7 +128,7 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // typing; validation has already refused a null one by the time a
         // repeating schedule reaches here, so the guard is only for the type.
         repeat:
-          startAt && data.repeatEnabled && data.repeatInterval !== null
+          startAt && !deviceLocal && data.repeatEnabled && data.repeatInterval !== null
             ? resolveDurationSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
             : null,
         // "If device is offline at scheduled time" — meaningless without one, so
