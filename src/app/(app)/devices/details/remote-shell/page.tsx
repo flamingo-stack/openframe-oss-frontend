@@ -8,6 +8,7 @@ import { TerminalSquare } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
+import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -41,9 +42,12 @@ export default function RemoteShellPage() {
     error: deviceError,
   } = useDeviceDetails(deviceId, { polling: false });
 
-  const meshcentralAgentId = useMemo(() => {
-    return deviceDetails?.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL')?.agentToolId;
-  }, [deviceDetails]);
+  const meshcentralConnection = useMemo(
+    () => deviceDetails?.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL'),
+    [deviceDetails],
+  );
+  const meshcentralState = getToolConnectionState(meshcentralConnection);
+  const meshcentralAgentId = meshcentralState === 'live' ? meshcentralConnection?.agentToolId : undefined;
 
   const hostname = useMemo(() => {
     return deviceDetails?.hostname || deviceDetails?.displayName;
@@ -292,12 +296,13 @@ export default function RemoteShellPage() {
     );
   }
 
-  // Missing MeshCentral agent
+  // MeshCentral connection not usable: still installing (no agent id yet) or torn down.
   if (!meshcentralAgentId) {
+    const copy = getMeshCentralBlockedCopy(meshcentralState, 'Remote shell');
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-4 md:p-6">
-        <div className="text-ods-error text-h4">Error: MeshCentral Agent ID not available for this device</div>
-        <p className="text-ods-text-secondary">Remote shell requires MeshCentral agent to be connected.</p>
+        <div className="text-ods-error text-h4">{copy.title}</div>
+        <p className="text-ods-text-secondary">{copy.description}</p>
         <Button onClick={safeBackToDevice}>Back</Button>
       </div>
     );

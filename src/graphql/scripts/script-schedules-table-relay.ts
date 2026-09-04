@@ -56,6 +56,11 @@ export const scriptSchedulesTableRelayFragment = graphql`
           supportedPlatforms
           deviceCount
           trigger
+          # Which clock startAt is in — SERVER (an absolute instant) or
+          # DEVICE_LOCAL (a wall clock re-based per device). The Date & Time
+          # column reads it to decide whether to convert through the viewer's
+          # offset.
+          timeReference
           startAt
           repeat
         }

@@ -175,7 +175,7 @@ function ScheduleInfoBar({ scheduleId }: ScheduleDetailsViewProps) {
     return <NotFoundError message="Schedule not found" />;
   }
 
-  const { date, time } = formatScheduleStartAt(schedule.startAt);
+  const { date, time } = formatScheduleStartAt(schedule.startAt, schedule.timeReference);
 
   // A DEVICE_ONLINE schedule waits for the device by definition, so the offline
   // setting does not apply — the edit form hides its block for the same reason,

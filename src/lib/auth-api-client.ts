@@ -96,10 +96,13 @@ class AuthApiClient {
       const newToken = isBearerAuthMode() ? getAccessTokenSync() : null;
       const retryHeaders = newToken ? { ...headers, Authorization: `Bearer ${newToken}` } : headers;
 
+      // `headers` LAST: it already has `init.headers` merged into it by the
+      // caller, plus the freshly rotated bearer. Spreading `init` over it instead
+      // would hand the retry back the very headers whose token just 401'd.
       const retryRes = await fetch(url, {
         credentials: 'include',
-        headers: retryHeaders,
         ...init,
+        headers: retryHeaders,
       });
 
       let retryData: T | undefined;
@@ -140,10 +143,12 @@ class AuthApiClient {
   }
 
   oauth<T = unknown>(path: string, body?: unknown, init: RequestInit = {}) {
+    // `init` FIRST: both fields below already read it, and re-applying it over
+    // them would hand back the raw `init.body` in place of the serialized one.
     return request<T>(`/oauth/${path.replace(/^\//, '')}`, {
+      ...init,
       method: body ? 'POST' : init.method || 'GET',
       body: body ? JSON.stringify(body) : init.body,
-      ...init,
     });
   }
 
@@ -436,10 +441,12 @@ async function requestRefresh<T = unknown>(path: string, init: RequestInit = {})
   }
 
   try {
+    // `headers` LAST: `init.headers` is already merged into it above, so
+    // spreading `init` over it would only drop the `Refresh-Token` added here.
     const res = await fetch(url, {
       credentials: 'include',
-      headers,
       ...init,
+      headers,
     });
 
     let data: T | undefined;
@@ -493,10 +500,13 @@ async function request<T = unknown>(path: string, init: RequestInit = {}): Promi
   // credential has already rotated needs a retry, not another rotation.
   const sentAtEpoch = getTokenEpoch();
   try {
+    // `headers` LAST: `init.headers` is already merged into it above, so
+    // spreading `init` over it would only drop the bearer added here — the
+    // request would go out unauthenticated and 401 on its own headers.
     const res = await fetch(url, {
       credentials: 'include',
-      headers,
       ...init,
+      headers,
     });
 
     if (res.status === 401) {
@@ -535,14 +545,17 @@ async function request<T = unknown>(path: string, init: RequestInit = {}): Promi
 
 async function requestPublic<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
   const url = buildAuthUrl(path);
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(init.headers as Record<string, string> | undefined),
+  };
   try {
+    // `headers` LAST: `init.headers` is already merged into it above, so
+    // spreading `init` over it would only drop the `Accept` added here.
     const res = await fetch(url, {
       credentials: 'omit',
-      headers: {
-        Accept: 'application/json',
-        ...(init.headers as Record<string, string> | undefined),
-      },
       ...init,
+      headers,
     });
 
     let data: T | undefined;

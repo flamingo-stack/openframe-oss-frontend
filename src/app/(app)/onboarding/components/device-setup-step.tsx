@@ -57,13 +57,16 @@ export function DeviceSetupStep({
   // Default the customer to the tenant's default org (then the first one) once
   // loaded — during render rather than in an effect, so the install command below
   // is never built for one frame with no organization at all.
-  const [seededFrom, setSeededFrom] = useState(orgs);
-  if (orgs !== seededFrom) {
-    setSeededFrom(orgs);
-    if (orgs.length > 0 && !organizationId) {
-      const defaultOrg = orgs.find(o => o.isDefault) ?? orgs[0];
-      if (defaultOrg) setOrganizationId(defaultOrg.organizationId);
-    }
+  //
+  // Guarded on the selection being empty, not on `orgs` changing: this list comes
+  // from a `useSuspenseQuery`, so the first render that survives ALWAYS has it in
+  // full (a suspended mount is discarded and replayed once the data is there). A
+  // change-detection guard seeded with that list never fires, and no customer is
+  // ever preselected. Idempotent and self-terminating — one pass sets the id, the
+  // next sees it.
+  if (orgs.length > 0 && !organizationId) {
+    const defaultOrg = orgs.find(o => o.isDefault) ?? orgs[0];
+    if (defaultOrg) setOrganizationId(defaultOrg.organizationId);
   }
 
   const { command, initialKey } = useInstallCommand({ organizationId, platform });
