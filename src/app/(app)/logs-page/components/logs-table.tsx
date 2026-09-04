@@ -596,7 +596,7 @@ function LogsTableContent({
   const guideButton = onboardingGuideButton('logs');
 
   if (showEmptyState) {
-    // Device-scoped tab: icon + title + description only (design 447-29739) —
+    // Device-scoped tab: icon + title + description only —
     // the onboarding action rows and guide button belong to the standalone page.
     if (deviceId) {
       return (

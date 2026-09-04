@@ -192,9 +192,9 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       {/* First-connect indication: shown only until every agent has registered
-          (per design 447-29739); a later disconnect never re-triggers it. The
-          design is a bare warning strip (447-29965), so the component's outer
-          card is neutralized — tailwind-merge keeps the overrides. */}
+          per design; a later disconnect never re-triggers it. The design is a
+          bare warning strip, so the component's outer card is neutralized —
+          tailwind-merge keeps the overrides. */}
       {isDeviceStillConnecting(normalizedDevice) && (
         <WarningBlock
           title="Device is still connecting — some data and features aren't available yet."

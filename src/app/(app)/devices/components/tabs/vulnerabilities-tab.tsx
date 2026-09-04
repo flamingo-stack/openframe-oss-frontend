@@ -268,7 +268,7 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
     }
 
     if (reason === 'collecting') {
-      // Agent still deploying → the design's connecting-state copy (447-29965);
+      // Agent still deploying → the design's connecting-state copy;
       // agent live but the first inventory scan hasn't finished → collecting copy.
       if (device.sources?.fleet === 'skipped-pending') {
         return <TabDeployingEmptyState icon={<BracketSquareCheckIcon />} section="Vulnerabilities" />;

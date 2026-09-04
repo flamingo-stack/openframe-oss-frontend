@@ -69,7 +69,7 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
   }
 
   // Genuinely no policies (no data before any search/filter manipulation) → the
-  // plain design empty state (447-29878): icon + title + description only — the
+  // plain design empty state: icon + title + description only — the
   // rich onboarding version stays on the Monitoring page. A search with zero
   // matches keeps the table chrome and its compact empty state below.
   if (policies.length === 0) {

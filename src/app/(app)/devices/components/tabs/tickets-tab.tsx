@@ -131,7 +131,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
   const showChrome = isLoading || !isEmpty || hasSearch;
 
   // Genuinely no tickets (no data before any search manipulation) → the plain
-  // design empty state (447-30474): icon + title + description only — the rich
+  // design empty state: icon + title + description only — the rich
   // onboarding version stays on the Tickets page. A search with zero matches
   // keeps the table chrome and its compact empty state below.
   if (!isLoading && isEmpty && !hasSearch) {

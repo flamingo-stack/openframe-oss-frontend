@@ -201,7 +201,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
       );
     }
 
-    // Agent still deploying → the design's connecting-state copy (447-30846).
+    // Agent still deploying → the design's connecting-state copy.
     if (fleetSource === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<WebDesignIcon />} section="Software" />;
     }

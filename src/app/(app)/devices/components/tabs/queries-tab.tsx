@@ -59,7 +59,7 @@ export function QueriesTab({ device }: QueriesTabProps) {
   }
 
   // No queries assigned to this host at all → the centered design empty state
-  // (447-30124), matching the other tabs; the in-table empty stays for searches.
+  // matching the other tabs; the in-table empty stays for searches.
   if (!reportsLoading && !queriesLoading && hostReports.length === 0) {
     return (
       <TabEmptyState
