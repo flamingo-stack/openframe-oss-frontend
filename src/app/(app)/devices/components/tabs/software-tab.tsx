@@ -28,7 +28,7 @@ import type { Device, Software } from '../../types/device.types';
 import { fleetTimestampMs } from '../../utils/fleet-timestamp';
 import { deviceQueryKeys } from '../../utils/query-keys';
 import { SOFTWARE_COLUMNS } from './device-tab-columns';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface SoftwareTabProps {
   device: Device | null;
@@ -201,9 +201,14 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
       );
     }
 
-    // Not yet collected: the agent is still installing, or the host has never
-    // completed a software inventory scan (software_updated_at unset/sentinel).
-    if (fleetSource === 'skipped-pending' || fleetTimestampMs(device.software_updated_at) === null) {
+    // Agent still deploying → the design's connecting-state copy (447-30846).
+    if (fleetSource === 'skipped-pending') {
+      return <TabDeployingEmptyState icon={<WebDesignIcon />} section="Software" />;
+    }
+
+    // Not yet collected: the host has never completed a software inventory scan
+    // (software_updated_at unset/sentinel).
+    if (fleetTimestampMs(device.software_updated_at) === null) {
       return (
         <TabEmptyState
           icon={<WebDesignIcon />}

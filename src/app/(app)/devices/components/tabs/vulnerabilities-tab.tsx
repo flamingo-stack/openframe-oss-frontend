@@ -26,7 +26,7 @@ import type { Device, Software, Vulnerability } from '../../types/device.types';
 import { deviceQueryKeys } from '../../utils/query-keys';
 import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty-state';
 import { VULNERABILITY_COLUMNS } from './device-tab-columns';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface VulnerabilitiesTabProps {
   device: Device | null;
@@ -270,16 +270,14 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
     if (reason === 'collecting') {
       // Agent still deploying → the design's connecting-state copy (447-29965);
       // agent live but the first inventory scan hasn't finished → collecting copy.
-      const isDeploying = device.sources?.fleet === 'skipped-pending';
+      if (device.sources?.fleet === 'skipped-pending') {
+        return <TabDeployingEmptyState icon={<BracketSquareCheckIcon />} section="Vulnerabilities" />;
+      }
       return (
         <TabEmptyState
           icon={<BracketSquareCheckIcon />}
-          title={isDeploying ? 'Vulnerabilities data unavailable' : 'Collecting software inventory'}
-          description={
-            isDeploying
-              ? 'This information will appear once the agent finishes deploying.'
-              : "This device hasn't reported its installed software yet. Vulnerabilities will appear once the inventory arrives."
-          }
+          title="Collecting software inventory"
+          description="This device hasn't reported its installed software yet. Vulnerabilities will appear once the inventory arrives."
         />
       );
     }

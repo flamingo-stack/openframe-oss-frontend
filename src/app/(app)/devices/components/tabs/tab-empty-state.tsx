@@ -9,6 +9,22 @@ import { EmptyState } from '@/app/components/shared/empty-state';
  * `buttonLabel`/`onButtonClick` forward to `NoData`'s action button (e.g. a
  * Retry for the fleet-error state).
  */
+/**
+ * Data tabs while the agent is still deploying (design 447-30289…447-31097):
+ * the section is empty because the device is still connecting, not because it
+ * genuinely has no data — every tab shares the same design copy, titled by
+ * section.
+ */
+export function TabDeployingEmptyState({ icon, section }: { icon: ReactNode; section: string }) {
+  return (
+    <TabEmptyState
+      icon={icon}
+      title={`${section} data unavailable`}
+      description="This information will appear once the agent finishes deploying"
+    />
+  );
+}
+
 export function TabEmptyState({
   icon,
   title,

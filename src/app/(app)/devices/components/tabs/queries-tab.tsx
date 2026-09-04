@@ -58,6 +58,18 @@ export function QueriesTab({ device }: QueriesTabProps) {
     );
   }
 
+  // No queries assigned to this host at all → the centered design empty state
+  // (447-30124), matching the other tabs; the in-table empty stays for searches.
+  if (!reportsLoading && !queriesLoading && hostReports.length === 0) {
+    return (
+      <TabEmptyState
+        icon={<BracketCurlyEllipsisVrIcon />}
+        title="No queries yet"
+        description="Real-time questions you ask across your fleet (which devices have Chrome installed, who is on an outdated OS, which machines are low on disk) will be displayed here."
+      />
+    );
+  }
+
   // Hide the search on a truly empty table (no rows, no active search, not loading) so the
   // tab shows only the centered empty state — matching the table's hidden header.
   const showSearch = reportsLoading || queriesLoading || rows.length > 0 || search.trim().length > 0;
