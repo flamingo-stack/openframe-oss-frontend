@@ -5,7 +5,7 @@ import { HardDrivesIcon } from '@flamingo-stack/openframe-frontend-core/componen
 import { type ReactNode, useState } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface HardwareTabProps {
   device: Device | null;
@@ -134,6 +134,9 @@ export function HardwareTab({ device }: HardwareTabProps) {
   const hasAnyData =
     hasSystem || bootItems.length > 0 || hasCpu || memoryItems.length > 0 || hasFleetStorage || batteries.length > 0;
   if (!hasAnyData) {
+    if (device.sources?.fleet === 'skipped-pending') {
+      return <TabDeployingEmptyState icon={<HardDrivesIcon />} section="Hardware" />;
+    }
     return <HardwareEmptyState />;
   }
 

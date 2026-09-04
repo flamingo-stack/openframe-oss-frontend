@@ -4,7 +4,7 @@ import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { Hierarchy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
 import type { Device } from '../../types/device.types';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface NetworkTabProps {
   device: Device | null;
@@ -83,6 +83,9 @@ export function NetworkTab({ device }: NetworkTabProps) {
   const hasIpv6 = sortedIpv6.length > 0;
 
   if (interfaceItems.length === 0 && locationItems.length === 0 && !hasIpv4 && !hasIpv6) {
+    if (device.sources?.fleet === 'skipped-pending') {
+      return <TabDeployingEmptyState icon={<Hierarchy02Icon />} section="Network" />;
+    }
     return (
       <TabEmptyState
         icon={<Hierarchy02Icon />}

@@ -18,10 +18,10 @@ import {
   ticketRowHref,
 } from '../../../tickets/components/ticket-table-columns';
 import { DEVICE_TICKET_COLUMNS } from '../../../tickets/components/ticket-table-layout';
-import { TicketsEmptyState } from '../../../tickets/components/tickets-empty-state';
 import { useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
 import type { ClientDialogOwner, Dialog } from '../../../tickets/types/dialog.types';
 import type { Device } from '../../types/device.types';
+import { TabEmptyState } from './tab-empty-state';
 
 interface TicketsTabProps {
   device: Device | null;
@@ -130,11 +130,18 @@ export function TicketsTab({ device }: TicketsTabProps) {
   const isEmpty = deviceTickets.length === 0;
   const showChrome = isLoading || !isEmpty || hasSearch;
 
-  // Genuinely no tickets (no data before any search manipulation) → the default
-  // EmptyState replaces the whole table, with the same content as the Tickets page.
-  // A search with zero matches keeps the table chrome and its compact empty state below.
+  // Genuinely no tickets (no data before any search manipulation) → the plain
+  // design empty state: icon + title + description only — the rich
+  // onboarding version stays on the Tickets page. A search with zero matches
+  // keeps the table chrome and its compact empty state below.
   if (!isLoading && isEmpty && !hasSearch) {
-    return <TicketsEmptyState />;
+    return (
+      <TabEmptyState
+        icon={<TagIcon />}
+        title="Ticket history empty"
+        description="Conversations will appear here when available"
+      />
+    );
   }
 
   return (
