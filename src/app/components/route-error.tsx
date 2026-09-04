@@ -35,7 +35,7 @@ import { useEffect, useRef } from 'react';
  * retry-nonce, so they predate `OfflineError` and show a dead Retry offline.
  * Converting them is tracked with the rest of the rollout.
  */
-export function RouteError({
+export function RouteRecovery({
   error,
   reset,
   label,

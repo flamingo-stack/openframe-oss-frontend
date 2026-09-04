@@ -30,12 +30,19 @@ import type {
   DialogItem,
   DialogTokenUsage,
   MessageSegment,
+  SlashCommandSummary,
   StreamingPhase,
   UnifiedChatMessage,
   UnifiedChatState,
   UnifiedSendMessageOptions,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { buildDiscussPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  buildDiscussPrompt,
+  defaultTableIdForDocumentType,
+  sanitizeTitleForChat,
+  useSlashCommandRegistry,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
@@ -43,7 +50,7 @@ import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import { type MingoSendContext, useMingoChat } from './use-mingo-chat';
+import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
 import { useMingoDialogs } from './use-mingo-dialogs';
@@ -127,8 +134,79 @@ export function needsAllChatsScope(ownerUserId: string | undefined, currentUserI
   return ownerUserId !== currentUserId;
 }
 
+export function mapMingoMessageToUnified(message: ProcessedMessage): UnifiedChatMessage {
+  const {
+    content,
+    role: messageRole,
+    name,
+    avatar,
+    authorType,
+    assistantType: _assistantType,
+    contextItems,
+    ...metadata
+  } = message;
+  const role: 'user' | 'assistant' = messageRole === 'user' ? 'user' : 'assistant';
+  const identity =
+    role === 'user'
+      ? {
+          name: name && name !== 'Unknown' ? name : undefined,
+          avatar: avatar ?? null,
+          authorType,
+        }
+      : {};
+  const context = role === 'user' && contextItems?.length ? { contextItems } : {};
+
+  return Array.isArray(content)
+    ? {
+        ...metadata,
+        role,
+        content: '',
+        segments: content,
+        ...identity,
+        ...context,
+      }
+    : {
+        ...metadata,
+        role,
+        content,
+        ...identity,
+        ...context,
+      };
+}
+
+export function sendMingoDisplayCommand(
+  reference: ChatRef,
+  commands: SlashCommandSummary[],
+  sendMessage: (text: string) => unknown,
+): boolean {
+  const tableIds = [reference.sourceRepo, defaultTableIdForDocumentType(reference.type)].filter(
+    (tableId, index, values): tableId is string => Boolean(tableId) && values.indexOf(tableId) === index,
+  );
+  const command = tableIds
+    .map(tableId =>
+      commands.find(
+        candidate => candidate.primarySourceId === tableId && candidate.actions.some(a => a.id === 'display'),
+      ),
+    )
+    .find((candidate): candidate is SlashCommandSummary => Boolean(candidate));
+  if (!command) return false;
+
+  const slug =
+    typeof reference.metadata?.slug === 'string' && reference.metadata.slug.length > 0 ? reference.metadata.slug : '';
+  const queryValue = slug || sanitizeTitleForChat(reference.title) || reference.id;
+  const escaped = queryValue.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  void sendMessage(`/${command.id} display "${escaped}"`);
+  return true;
+}
+
+export function hasMingoDisplayCommand(commands: SlashCommandSummary[]): boolean {
+  return commands.some(command => command.actions.some(action => action.id === 'display'));
+}
+
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const { aiModel } = useAiModelStatus();
+  const commandsUrl = useChatRuntime()?.endpoints.commandsUrl ?? '';
+  const { commands: slashCommands } = useSlashCommandRegistry(commandsUrl, { enabled: Boolean(commandsUrl) });
 
   const { activeDialogId, setActiveDialogId, resetUnread, addMessage, tokenUsageByDialog } = useMingoMessagesStore();
 
@@ -272,45 +350,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     return processedMessages.map(m => {
       const cached = cache.get(m);
       if (cached) return cached;
-
-      const role: 'user' | 'assistant' = m.role === 'user' ? 'user' : 'assistant';
-      const identity =
-        role === 'user'
-          ? {
-              name: m.name && m.name !== 'Unknown' ? m.name : undefined,
-              avatar: m.avatar ?? null,
-              authorType: m.authorType,
-            }
-          : {};
-      // Forward the real message timestamp so the lib renders the actual
-      // send time AND its memoized message keeps a stable `getTime()` across
-      // realtime chunks (a missing/`new Date()` timestamp would re-render the
-      // whole list and collapse open menus on every chunk).
-      // Forward attached entity-context items on user messages so the lib
-      // renders the read-only chip strip under the bubble (Figma 1:6437). They
-      // ride the optimistic message (full `ChatContextItem` with labels) and the
-      // realtime `MESSAGE_REQUEST` echo; the lib resolves each chip's icon from
-      // `contextPicker.entityTypes` by `type`.
-      const context = role === 'user' && m.contextItems?.length ? { contextItems: m.contextItems } : {};
-      // `hidden` is load-bearing, NOT cosmetic: it marks synthetic rows (e.g.
-      // an auto-continuation directive) that the model must see but the reader
-      // must not. This field-by-field rebuild drops anything not listed, so the
-      // flag has to be forwarded explicitly — without it the lib's message list
-      // has nothing to skip on and renders an author label with no body (or the
-      // raw directive text) in the transcript.
-      const visibility = m.hidden ? { hidden: true as const } : {};
-      const unified: UnifiedChatMessage = Array.isArray(m.content)
-        ? {
-            id: m.id,
-            role,
-            content: '',
-            segments: m.content,
-            timestamp: m.timestamp,
-            ...identity,
-            ...context,
-            ...visibility,
-          }
-        : { id: m.id, role, content: m.content, timestamp: m.timestamp, ...identity, ...context, ...visibility };
+      const unified = mapMingoMessageToUnified(m);
       cache.set(m, unified);
       return unified;
     });
@@ -481,12 +521,13 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     },
     [sendMessage],
   );
-  // Display dumps a row's raw body via a `/<cmd> display "<x>"` slash command, which
-  // only the hub's SSE transport has a registry for — the agent has no verbatim-dump
-  // path. Left UNDEFINED rather than stubbed: the lib gates the affordance on this
-  // callback, so a stub renders a dead "Display" row where "Ask Mingo" (which works)
-  // belongs. The lib's type makes it optional for exactly this case.
-  const displayRef: UnifiedChatState['displayRef'] = undefined;
+  const handleDisplayRef = useCallback(
+    (reference: ChatRef) => {
+      sendMingoDisplayCommand(reference, slashCommands, sendMessage);
+    },
+    [sendMessage, slashCommands],
+  );
+  const displayRef = hasMingoDisplayCommand(slashCommands) ? handleDisplayRef : undefined;
 
   const state = useMemo<UnifiedChatState>(
     () => ({
