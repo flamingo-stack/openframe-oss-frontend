@@ -596,6 +596,17 @@ function LogsTableContent({
   const guideButton = onboardingGuideButton('logs');
 
   if (showEmptyState) {
+    // Device-scoped tab: icon + title + description only —
+    // the onboarding action rows and guide button belong to the standalone page.
+    if (deviceId) {
+      return (
+        <EmptyState
+          icon={<ClipboardListIcon />}
+          title="No logs yet"
+          description="A timeline of every action taken across the platform (scripts run, policies applied, devices connected, tickets updated) will be displayed here."
+        />
+      );
+    }
     return (
       <EmptyState
         icon={<ClipboardListIcon />}

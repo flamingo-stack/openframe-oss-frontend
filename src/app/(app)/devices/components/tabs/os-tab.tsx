@@ -5,7 +5,7 @@ import { TerminalMonitorIcon } from '@flamingo-stack/openframe-frontend-core/com
 import { type ReactNode, useState } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface OsTabProps {
   device: Device | null;
@@ -97,6 +97,9 @@ export function OsTab({ device }: OsTabProps) {
   ]);
 
   if (!hasOs && bootItems.length === 0 && managementItems.length === 0) {
+    if (device.sources?.fleet === 'skipped-pending') {
+      return <TabDeployingEmptyState icon={<TerminalMonitorIcon />} section="OS" />;
+    }
     return <OsEmptyState />;
   }
 
