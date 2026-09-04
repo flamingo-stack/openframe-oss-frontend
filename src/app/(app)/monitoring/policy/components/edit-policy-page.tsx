@@ -114,7 +114,13 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
   // Seeded when the fetched policy arrives (or is replaced), during render rather
   // than in an effect: an effect renders the empty form once after the data has
   // landed, which is a visible flash of blank fields on every load.
-  const [seededFrom, setSeededFrom] = useState(policyDetails);
+  //
+  // `undefined` is a sentinel, NOT the initial value: `policyDetails` is
+  // `Policy | null` and never `undefined`, so the block below also runs on the
+  // FIRST render. Seeding the tracker with the current value instead would skip
+  // it entirely whenever react-query already holds the record — the standard
+  // Policy details -> Edit journey — and the form would open blank.
+  const [seededFrom, setSeededFrom] = useState<typeof policyDetails | undefined>(undefined);
   if (policyDetails !== seededFrom) {
     setSeededFrom(policyDetails);
     if (policyDetails && isExistingPolicy) {
