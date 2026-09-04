@@ -47,7 +47,7 @@ import { ScheduleIntervalInput } from './schedule-interval-input';
  * **Timezone** (`timeReference`, design node 793:61340) says what that pair
  * MEANS — the account's clock (SERVER, one instant worldwide) or each device's
  * (DEVICE_LOCAL, one reading re-based per device). It is behind the
- * `script-schedule-device-online` flag, and it is the field that makes this a
+ * `script-schedule-device-time` flag, and it is the field that makes this a
  * five-control row: with the picker on, the design wraps Repeat onto a second
  * line, which is why the row is a 4-column GRID rather than the flex row it
  * used to be — the wrap is then a `col-start-1` on one cell instead of a second
@@ -86,7 +86,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
   // LOCKED instead: the same treatment the page already gives fields whose
   // record has not landed, and it means the control cannot appear beside a
   // choice the user has already made.
-  const deviceTimeGate = useFeatureFlagGate('script-schedule-device-online');
+  const deviceTimeGate = useFeatureFlagGate('script-schedule-device-time');
   const showTimeReference = deviceTimeGate === 'on';
   const fieldsDisabled = disabled || deviceTimeGate === 'loading';
 
