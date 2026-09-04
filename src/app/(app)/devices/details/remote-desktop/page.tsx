@@ -153,13 +153,14 @@ function RemoteDesktopSession() {
     remoteSettingsRef.current = remoteSettings;
   }, [remoteSettings]);
 
-  // Derived from the id the render already has — an effect would hold the page
-  // in its not-ready state for one extra frame on every mount.
-  const [lastAgentId, setLastAgentId] = useState(meshcentralAgentId);
-  if (meshcentralAgentId !== lastAgentId) {
-    setLastAgentId(meshcentralAgentId);
-    if (meshcentralAgentId) setIsPageReady(true);
-  }
+  // Derived from the id the render already has - an effect would hold the page
+  // in its not-ready state for one extra frame on every mount. Guarded on the
+  // current state, not on the id changing: the id is routinely already known on
+  // the FIRST render (react-query cache hit after the device details page, or
+  // the legacy deviceData param), and a change-detection guard seeded with that
+  // value never fires, leaving the page permanently not ready - no tunnel, no
+  // stream, black screen.
+  if (meshcentralAgentId && !isPageReady) setIsPageReady(true);
 
   useEffect(() => {
     const onFullscreenChange = () => {

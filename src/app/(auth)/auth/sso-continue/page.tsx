@@ -1,29 +1,18 @@
 'use client';
 
-import {
-  AuthShell,
-  type AuthSsoProvider,
-  PROVIDER_META,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { AuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ssoProviderLabel } from '@/app/(auth)/auth/components/native-sso-signup-section';
 import { SsoOrganizationSetup } from '@/app/(auth)/auth/components/sso-organization-setup';
 import { authApiClient, type PendingSsoIdentity } from '@/lib/auth-api-client';
-import { completeNativeSsoSignup } from '@/lib/native-login';
 import { markPendingSignup } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
 
-/** The authorization server's id for the built-in provider; the design system calls it `openframe`. */
-const OPENFRAME_SSO_ID = 'openframe-sso';
-
-function providerLabel(provider: string): string {
-  const key = (provider === OPENFRAME_SSO_ID ? 'openframe' : provider) as AuthSsoProvider;
-  return PROVIDER_META[key]?.name ?? provider;
-}
-
 /**
- * Continues an SSO login whose identity has no OpenFrame account yet.
+ * Continues a browser-flow SSO login whose identity has no OpenFrame account yet. The native shells
+ * never come here: their signup renders in-tab from a ticket (see NativeSsoSignupSection).
  *
  * The auth server redirects here (`openframe.sso.login.signup-continue-url`) after a provider has
  * authenticated someone it cannot route to a tenant. The identity is already established and lives
@@ -40,8 +29,6 @@ function providerLabel(provider: string): string {
 export default function SsoContinuePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const searchParams = useSearchParams();
-  const signupTicket = searchParams.get('signupTicket');
 
   const [identity, setIdentity] = useState<PendingSsoIdentity | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'expired'>('loading');
@@ -53,11 +40,7 @@ export default function SsoContinuePage() {
   useEffect(() => {
     let active = true;
     void (async () => {
-      // Ticket in the URL means the shell brought us here after a browser-flow signup: the identity
-      // is named by the ticket, not by a session cookie the app's WebView never received.
-      const res = signupTicket
-        ? await authApiClient.pendingSsoIdentityByTicket(signupTicket)
-        : await authApiClient.pendingSsoIdentity();
+      const res = await authApiClient.pendingSsoIdentity();
       if (!active) return;
 
       if (res.ok && res.data?.email) {
@@ -80,43 +63,20 @@ export default function SsoContinuePage() {
     return () => {
       active = false;
     };
-  }, [router, toast, signupTicket]);
+  }, [router, toast]);
 
-  const handleSubmit = useCallback(
-    async (values: { tenantName: string; tenantDomain: string }) => {
-      if (hasNavigated.current) return;
-      hasNavigated.current = true;
-      setIsNavigating(true);
-      // Marked before either path leaves: `signup_completed` is deferred to the first identified
-      // session and gated on this, so every signup path has to set it or the funnel loses its
-      // SSO half.
-      markPendingSignup();
-
-      if (!signupTicket) {
-        // Browser flow. A TOP-LEVEL navigation, not a fetch: the response is a 302 chain into
-        // `/oauth/continue` that sets the auth cookies, and a fetch would follow those redirects
-        // without ever committing them, landing the user back here signed out.
-        window.location.href = authApiClient.completeSsoRegistrationUrl(values);
-        return;
-      }
-
-      // Native flow. No cookies to commit — the server answers with a devTicket, and the shell
-      // exchanges it the same way it does for a login.
-      try {
-        await completeNativeSsoSignup({ ticket: signupTicket, ...values });
-        window.location.replace(routes.dashboard);
-      } catch (error) {
-        hasNavigated.current = false;
-        setIsNavigating(false);
-        toast({
-          title: "Couldn't create your organization",
-          description: error instanceof Error && error.message ? error.message : 'Please try again.',
-          variant: 'destructive',
-        });
-      }
-    },
-    [signupTicket, toast],
-  );
+  const handleSubmit = useCallback((values: { tenantName: string; tenantDomain: string }) => {
+    if (hasNavigated.current) return;
+    hasNavigated.current = true;
+    setIsNavigating(true);
+    // Before the navigation, not after: this leaves the page, and `signup_completed` is deferred to
+    // the first identified session and gated on this marker. Every signup path has to set it or the
+    // funnel simply loses its SSO half.
+    markPendingSignup();
+    // A TOP-LEVEL navigation, not a fetch: the response is a 302 chain into `/oauth/continue` that
+    // sets the auth cookies, and a fetch would follow those redirects without ever committing them.
+    window.location.href = authApiClient.completeSsoRegistrationUrl(values);
+  }, []);
 
   if (loadState !== 'ready' || !identity) {
     return (
@@ -126,7 +86,7 @@ export default function SsoContinuePage() {
     );
   }
 
-  const label = providerLabel(identity.provider);
+  const label = ssoProviderLabel(identity.provider);
 
   return (
     <AuthShell>
