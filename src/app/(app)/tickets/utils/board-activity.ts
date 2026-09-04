@@ -9,8 +9,14 @@ import type { Dialog } from '../types/dialog.types';
  */
 export const DEFAULT_STALE_AFTER_MINUTES = 120;
 
-/** Staleness is meaningless once a ticket is closed out. */
-const STALE_EXEMPT_KINDS: ReadonlySet<TicketStatusKind> = new Set(['RESOLVED', 'ARCHIVED']);
+/**
+ * Closed-out lanes show no live-activity signals at all: staleness is
+ * meaningless there, and a lingering `AWAITING_EXTERNAL` (the resolution flow
+ * ends with a message to the client, which arms `awaitingClientSince`) would
+ * paint "Waiting for client response" across the whole Resolved lane. The
+ * Figma resolved variant carries only the check mark.
+ */
+const ACTIVITY_EXEMPT_KINDS: ReadonlySet<TicketStatusKind> = new Set(['RESOLVED', 'ARCHIVED']);
 
 /**
  * Picks the single live-activity indicator a board card shows, per the agreed
@@ -20,18 +26,22 @@ const STALE_EXEMPT_KINDS: ReadonlySet<TicketStatusKind> = new Set(['RESOLVED', '
  *
  * Staleness compares the backend's canonical `lastActivityAt` (any chat action
  * by any actor; falls back to `createdAt` server-side) against the column's
- * server-resolved `staleAfterMinutes`, matching the `STALE` server filter, so
- * the indicator and the activity filter can never disagree about a card.
+ * server-resolved `staleAfterMinutes` — the same inputs the `STALE` server
+ * filter evaluates. A `STALE`-filtered lane can still show cards without the
+ * indicator, though: a higher-priority signal (approval, escalation, unread)
+ * suppresses it on the card, and the FE re-evaluates on the minute tick while
+ * the server evaluated at query time.
  */
 export function resolveBoardActivity(
   dialog: Dialog,
   status: TicketStatusDefinition,
   now: number,
 ): BoardTicketActivity | undefined {
+  if (ACTIVITY_EXEMPT_KINDS.has(status.kind)) return undefined;
+
   if (dialog.activityState === 'AI_WORKING') return { kind: 'ai-working' };
   if (dialog.activityState === 'AWAITING_EXTERNAL') return { kind: 'waiting-external' };
 
-  if (STALE_EXEMPT_KINDS.has(status.kind)) return undefined;
   const hasNewMessage = (dialog.unreadNotificationCount ?? 0) > 0;
   if (dialog.pendingApproval || dialog.escalatedByUser || hasNewMessage) return undefined;
 

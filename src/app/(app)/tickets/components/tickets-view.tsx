@@ -10,6 +10,20 @@ import { resolveTicketsViewMode, type TicketsViewMode } from '../utils/resolve-v
 import { TicketsBoard } from './tickets-board';
 import { CurrentTickets } from './tickets-table';
 
+const ACTIVITY_FILTER_VALUES: readonly TicketActivityFilter[] = ['ACTIVE', 'STALE', 'AWAITING_EXTERNAL'];
+
+/**
+ * The only URL param that lands in a GraphQL enum position: a hand-edited
+ * `?activity=FOO` (or a duplicated value overflowing the server's max-3
+ * validation) would fail enum coercion for EVERY lane query and error the
+ * whole board. Intersecting with the canonical value list both whitelists
+ * and dedupes; unknown entries are silently dropped, like an unknown
+ * `viewMode` falls back to the board.
+ */
+function sanitizeActivityParam(raw: readonly string[]): TicketActivityFilter[] {
+  return ACTIVITY_FILTER_VALUES.filter(value => raw.includes(value));
+}
+
 export function TicketsView() {
   const { params, setParam, setParams } = useApiParams({
     status: { type: 'array', default: [] },
@@ -29,6 +43,7 @@ export function TicketsView() {
   });
 
   const viewMode = resolveTicketsViewMode(params.viewMode);
+  const activity = useMemo(() => sanitizeActivityParam(params.activity), [params.activity]);
 
   // Local search keeps typing responsive; the shared hook debounces the write to
   // the URL param so we don't navigate the router (and re-render the board) on
@@ -47,14 +62,14 @@ export function TicketsView() {
   const handleFiltersChange = useCallback(
     ({
       unreadOnly,
-      activity,
+      activity: nextActivity,
       ...filters
     }: {
       organizationIds: string[];
       assigneeIds: string[];
       unreadOnly: boolean;
       activity: TicketActivityFilter[];
-    }) => setParams({ ...filters, unread: unreadOnly || null, activity }),
+    }) => setParams({ ...filters, unread: unreadOnly || null, activity: nextActivity }),
     [setParams],
   );
   // The table's variant also carries the status filter (its mobile modal and
@@ -100,7 +115,7 @@ export function TicketsView() {
         onTagIdsChange={handleTagIdsChange}
         unreadOnly={params.unread}
         onUnreadOnlyChange={handleUnreadOnlyChange}
-        activity={params.activity as TicketActivityFilter[]}
+        activity={activity}
         onActivityChange={handleActivityChange}
         onFiltersChange={handleFiltersChange}
         search={search}
