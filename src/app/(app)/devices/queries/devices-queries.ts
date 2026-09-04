@@ -117,6 +117,7 @@ export const GET_DEVICE_QUERY = `
         metadata
         connectedAt
         disconnectedAt
+        vulnerabilitiesUpdatedAt
       }
       installedAgents {
         id

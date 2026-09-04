@@ -16,12 +16,15 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useQueryClient } from '@tanstack/react-query';
 import { differenceInCalendarDays } from 'date-fns';
 import { useCallback, useMemo, useState } from 'react';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { formatDate } from '@/lib/format-date';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
+import { deviceQueryKeys } from '../../utils/query-keys';
+import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty-state';
 import { VULNERABILITY_COLUMNS } from './device-tab-columns';
 import { TabEmptyState } from './tab-empty-state';
 
@@ -74,6 +77,7 @@ function getSeverity(vuln: { cve: string; cvss_score?: number | null }): Severit
 }
 
 export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -226,6 +230,63 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
   }, []);
 
   if (!device) {
+    return (
+      <TabEmptyState
+        icon={<BracketSquareCheckIcon />}
+        title="No vulnerabilities found"
+        description="Detected vulnerabilities for this device will appear here."
+      />
+    );
+  }
+
+  // An empty list is only "no vulnerabilities" once the pipeline actually ran —
+  // otherwise say which stage it is at. A non-empty list renders as usual (a
+  // stale scan alongside existing results is intentionally not flagged).
+  if (vulnerabilities.length === 0) {
+    const reason = getVulnerabilitiesEmptyReason(device);
+
+    if (reason === 'error') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Couldn't load vulnerability data"
+          description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
+          buttonLabel="Retry"
+          onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
+        />
+      );
+    }
+
+    if (reason === 'disconnected') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Fleet is not connected"
+          description="The Fleet agent for this device is disconnected, so vulnerability data is unavailable."
+        />
+      );
+    }
+
+    if (reason === 'collecting') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Collecting software inventory"
+          description="This device hasn't reported its installed software yet. Vulnerabilities will appear once the inventory arrives."
+        />
+      );
+    }
+
+    if (reason === 'scan-pending') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Vulnerability scan pending"
+          description="The latest software inventory hasn't been checked for vulnerabilities yet. Check back shortly."
+        />
+      );
+    }
+
     return (
       <TabEmptyState
         icon={<BracketSquareCheckIcon />}

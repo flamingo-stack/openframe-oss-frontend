@@ -112,6 +112,14 @@ export interface ToolConnection {
   metadata?: string | null;
   connectedAt?: string;
   disconnectedAt?: string;
+  /**
+   * FLEET_MDM only — when Fleet's vulnerability matching last completed
+   * (instance-level `counts_updated_at`; the same value for every device, and
+   * runs hourly). `null` = matching never completed OR the backend could not
+   * reach Fleet — both deliberately read as "pending", never as "clean". The
+   * per-device meaning comes from comparing it with `software_updated_at`.
+   */
+  vulnerabilitiesUpdatedAt?: string | null;
 }
 
 /**
