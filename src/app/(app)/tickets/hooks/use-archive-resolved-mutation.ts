@@ -1,11 +1,12 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { type InfiniteData, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { API_ENDPOINTS } from '../constants';
 import { ARCHIVE_RESOLVED_TICKETS_MUTATION } from '../queries/ticket-queries';
-import type { Dialog } from '../types/dialog.types';
+import type { TicketsPage } from '../services/ticket-service.types';
+import type { Dialog, TicketActivityFilter } from '../types/dialog.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import { dialogsQueryKeys, invalidateAllDialogs, ticketsQueryKeys } from '../utils/query-keys';
@@ -21,6 +22,11 @@ export interface ArchiveResolvedFilter {
   organizationIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
+  unreadOnly?: boolean;
+  // Must mirror every filter the Resolved lane is fetched under — the confirm
+  // dialog's count is the filtered lane total, so a filter dropped here would
+  // archive more than the dialog stated.
+  activity?: TicketActivityFilter[];
 }
 
 export function useArchiveResolvedMutation() {
@@ -36,6 +42,8 @@ export function useArchiveResolvedMutation() {
             organizationIds: filter.organizationIds?.length ? filter.organizationIds : undefined,
             assigneeIds: filter.assigneeIds?.length ? filter.assigneeIds : undefined,
             tagIds: filter.tagIds?.length ? filter.tagIds : undefined,
+            hasUnreadNotifications: filter.unreadOnly || undefined,
+            activity: filter.activity?.length ? filter.activity : undefined,
           },
         },
       });
@@ -55,17 +63,23 @@ export function useArchiveResolvedMutation() {
 
       const previousQueries = queryClient.getQueriesData({ queryKey: dialogsQueryKeys.lists() });
 
-      queryClient.setQueriesData({ queryKey: dialogsQueryKeys.lists() }, (oldData: any) => {
-        if (!oldData?.pages) return oldData;
+      // Every dialogs list is an infinite query over `TicketsPage`s. Typed loosely
+      // on the outside because `setQueriesData` runs against every matching key,
+      // including one that has not loaded a page yet.
+      queryClient.setQueriesData<InfiniteData<TicketsPage> | undefined>(
+        { queryKey: dialogsQueryKeys.lists() },
+        oldData => {
+          if (!oldData?.pages) return oldData;
 
-        return {
-          ...oldData,
-          pages: oldData.pages.map((page: any) => ({
-            ...page,
-            dialogs: page.dialogs.filter((dialog: Dialog) => dialog.status !== 'RESOLVED'),
-          })),
-        };
-      });
+          return {
+            ...oldData,
+            pages: oldData.pages.map(page => ({
+              ...page,
+              dialogs: page.dialogs.filter((dialog: Dialog) => dialog.status !== 'RESOLVED'),
+            })),
+          };
+        },
+      );
 
       return { previousQueries };
     },

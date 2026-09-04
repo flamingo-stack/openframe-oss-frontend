@@ -86,12 +86,12 @@ function ArticleFormFallback({ isEditMode }: { isEditMode: boolean }) {
       backButton={{ label: 'Back', onClick: handleBack }}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-lf)]">
-        <div className="h-12 w-full rounded bg-ods-card animate-pulse" />
-        <div className="h-12 w-full rounded bg-ods-card animate-pulse" />
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] md:grid-cols-2">
+        <div className="h-12 w-full animate-pulse rounded bg-ods-card" />
+        <div className="h-12 w-full animate-pulse rounded bg-ods-card" />
       </div>
-      <div className="h-12 w-full rounded bg-ods-card animate-pulse" />
-      <div className="h-64 w-full rounded bg-ods-card animate-pulse" />
+      <div className="h-12 w-full animate-pulse rounded bg-ods-card" />
+      <div className="h-64 w-full animate-pulse rounded bg-ods-card" />
     </PageLayout>
   );
 }

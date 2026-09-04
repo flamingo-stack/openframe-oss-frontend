@@ -46,7 +46,7 @@ const runUndo = () =>
     undo({ state: view().state, dispatch: t => view().dispatch(t) });
   });
 
-function render(props: { value: string; onChange?: (v: string) => void; readOnly?: boolean }) {
+function renderEditor(props: { value: string; onChange?: (v: string) => void; readOnly?: boolean }) {
   act(() => {
     root.render(
       <ScriptEditorView
@@ -63,8 +63,8 @@ function render(props: { value: string; onChange?: (v: string) => void; readOnly
 describe('ScriptEditorView', () => {
   it('does not let undo wipe a script that arrived from outside', () => {
     const seen: string[] = [];
-    render({ value: '', onChange: v => seen.push(v) });
-    render({ value: '#!/bin/bash\necho hi', onChange: v => seen.push(v) });
+    renderEditor({ value: '', onChange: v => seen.push(v) });
+    renderEditor({ value: '#!/bin/bash\necho hi', onChange: v => seen.push(v) });
     expect(view().state.doc.toString()).toBe('#!/bin/bash\necho hi');
 
     runUndo();
@@ -77,14 +77,14 @@ describe('ScriptEditorView', () => {
 
   it('does not echo an external push back through onChange', () => {
     const seen: string[] = [];
-    render({ value: 'a', onChange: v => seen.push(v) });
-    render({ value: 'pushed from the parent', onChange: v => seen.push(v) });
+    renderEditor({ value: 'a', onChange: v => seen.push(v) });
+    renderEditor({ value: 'pushed from the parent', onChange: v => seen.push(v) });
     expect(seen).toEqual([]);
   });
 
   it('still reports a real user edit through onChange', () => {
     const seen: string[] = [];
-    render({ value: 'a', onChange: v => seen.push(v) });
+    renderEditor({ value: 'a', onChange: v => seen.push(v) });
     act(() => {
       view().dispatch({ changes: { from: 1, insert: 'b' } });
     });
@@ -92,7 +92,7 @@ describe('ScriptEditorView', () => {
   });
 
   it("still undoes the user's own edits", () => {
-    render({ value: 'a' });
+    renderEditor({ value: 'a' });
     act(() => {
       view().dispatch({ changes: { from: 1, insert: 'bc' } });
     });
@@ -103,36 +103,36 @@ describe('ScriptEditorView', () => {
   });
 
   it('keeps the caret across an external push instead of collapsing it to 0', () => {
-    render({ value: 'hello world' });
+    renderEditor({ value: 'hello world' });
     act(() => {
       view().dispatch({ selection: { anchor: 7 } });
     });
     expect(view().state.selection.main.anchor).toBe(7);
 
-    render({ value: 'hello there world' });
+    renderEditor({ value: 'hello there world' });
     expect(view().state.selection.main.anchor).toBe(7);
   });
 
   it('clamps the caret when the arriving value is shorter', () => {
-    render({ value: 'hello world' });
+    renderEditor({ value: 'hello world' });
     act(() => {
       view().dispatch({ selection: { anchor: 11 } });
     });
 
-    render({ value: 'hi' });
+    renderEditor({ value: 'hi' });
     expect(view().state.doc.toString()).toBe('hi');
     expect(view().state.selection.main.anchor).toBe(2);
   });
 
   it('drops both active-line marks when read-only and restores them when editable', () => {
-    render({ value: 'x', readOnly: true });
+    renderEditor({ value: 'x', readOnly: true });
     expect(container.querySelector('.cm-activeLine')).toBeNull();
     expect(container.querySelector('.cm-activeLineGutter')).toBeNull();
     // The rail itself must survive: both marks left the base extension list, and
     // only `lineNumbers()` still puts numbers there.
     expect(container.querySelector('.cm-lineNumbers')).not.toBeNull();
 
-    render({ value: 'x', readOnly: false });
+    renderEditor({ value: 'x', readOnly: false });
     expect(container.querySelector('.cm-activeLine')).not.toBeNull();
     expect(container.querySelector('.cm-activeLineGutter')).not.toBeNull();
   });
@@ -141,19 +141,19 @@ describe('ScriptEditorView', () => {
   // document SHORTER than the string that made it; clamping the carried caret to
   // the string's length rather than the document's throws.
   it('takes a CRLF script with the caret at the end without throwing', () => {
-    render({ value: 'a'.repeat(40) });
+    renderEditor({ value: 'a'.repeat(40) });
     act(() => {
       view().dispatch({ selection: { anchor: 40 } });
     });
 
-    render({ value: 'line one\r\nline two\r\nline three' });
+    renderEditor({ value: 'line one\r\nline two\r\nline three' });
     expect(view().state.doc.toString()).toBe('line one\nline two\nline three');
     expect(view().state.selection.main.anchor).toBe(view().state.doc.length);
   });
 
   it('hands a CRLF script back with its line endings intact', () => {
     const seen: string[] = [];
-    render({ value: 'Write-Host one\r\nWrite-Host two', onChange: v => seen.push(v) });
+    renderEditor({ value: 'Write-Host one\r\nWrite-Host two', onChange: v => seen.push(v) });
     act(() => {
       view().dispatch({ changes: { from: view().state.doc.length, insert: '!' } });
     });
@@ -163,7 +163,7 @@ describe('ScriptEditorView', () => {
 
   it('leaves an LF script on LF', () => {
     const seen: string[] = [];
-    render({ value: 'echo one\necho two', onChange: v => seen.push(v) });
+    renderEditor({ value: 'echo one\necho two', onChange: v => seen.push(v) });
     act(() => {
       view().dispatch({ changes: { from: view().state.doc.length, insert: '!' } });
     });
@@ -174,9 +174,9 @@ describe('ScriptEditorView', () => {
     // The seed only sees the FIRST value, so mounting on LF and pushing CRLF is
     // the one path that exercises the refresh in the sync effect.
     const seen: string[] = [];
-    render({ value: 'echo one\necho two', onChange: v => seen.push(v) });
+    renderEditor({ value: 'echo one\necho two', onChange: v => seen.push(v) });
 
-    render({ value: 'Write-Host one\r\nWrite-Host two', onChange: v => seen.push(v) });
+    renderEditor({ value: 'Write-Host one\r\nWrite-Host two', onChange: v => seen.push(v) });
     act(() => {
       view().dispatch({ changes: { from: view().state.doc.length, insert: '!' } });
     });
@@ -187,7 +187,7 @@ describe('ScriptEditorView', () => {
     // One stray CRLF must not convert the whole script: a bash file handed back
     // as CRLF has `#!/bin/bash\r` for a shebang, which the endpoint rejects.
     const seen: string[] = [];
-    render({ value: '#!/bin/bash\nsetup\r\necho hi', onChange: v => seen.push(v) });
+    renderEditor({ value: '#!/bin/bash\nsetup\r\necho hi', onChange: v => seen.push(v) });
     act(() => {
       view().dispatch({ changes: { from: view().state.doc.length, insert: '!' } });
     });
@@ -196,7 +196,7 @@ describe('ScriptEditorView', () => {
 
   it('does not report a selection-only change through onChange', () => {
     const seen: string[] = [];
-    render({ value: 'echo one\necho two', onChange: v => seen.push(v) });
+    renderEditor({ value: 'echo one\necho two', onChange: v => seen.push(v) });
     act(() => {
       view().dispatch({ selection: { anchor: 4 } });
     });
@@ -211,14 +211,14 @@ describe('ScriptEditorView', () => {
     // stored undo events onto an empty document and drops them. The observable
     // consequence is that the user's own edit stops being undoable.
     const seen: string[] = [];
-    render({ value: 'one\r\ntwo', onChange: v => seen.push(v) });
+    renderEditor({ value: 'one\r\ntwo', onChange: v => seen.push(v) });
 
     act(() => {
       view().dispatch({ changes: { from: view().state.doc.length, insert: '!' } });
     });
     expect(seen).toEqual(['one\r\ntwo!']);
 
-    render({ value: seen[0], onChange: v => seen.push(v) });
+    renderEditor({ value: seen[0], onChange: v => seen.push(v) });
 
     runUndo();
     expect(view().state.doc.toString()).toBe('one\ntwo');

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-statuses';
@@ -36,8 +36,7 @@ export function useQueryDevicesTable(queryId: number | null) {
   // The Fleet hosts assigned to this query (id + hostname only).
   const hostsQuery = useQuery({
     queryKey: ['query-assigned-hosts', queryId],
-    queryFn: () => fetchQueryHosts(queryId!),
-    enabled: queryId !== null,
+    queryFn: queryId === null ? skipToken : () => fetchQueryHosts(queryId),
   });
 
   // The full device registry, used to enrich each assigned host with display,

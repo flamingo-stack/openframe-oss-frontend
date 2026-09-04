@@ -1,10 +1,10 @@
 'use client';
+'use no memo';
 
 import { XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   CheckboxBlock,
   DatePickerInputSimple,
-  Input,
   Label,
   Select,
   SelectContent,
@@ -12,29 +12,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import type { EditScheduleFormData } from '../types/edit-schedule.types';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import type { ScheduleTimeReference } from '@/generated/schema-enums';
+import { type EditScheduleFormData, TIME_REFERENCE_OPTIONS } from '../types/edit-schedule.types';
 import {
+  DURATION_UNIT_OPTIONS,
+  type DurationUnit,
   getTimeSlotOptions,
+  isDeviceLocalTime,
   isEventTrigger,
   isScheduleStartInPast,
+  isSlotOnGrid,
   isStartInPastAndChanged,
   MIN_REPEAT_MINUTES,
+  NO_SLOTS_TODAY_MESSAGE,
   PAST_START_MESSAGE,
-  REPEAT_UNIT_OPTIONS,
-  type RepeatUnit,
   slotToLabel,
   snapRepeatInterval,
   startOfToday,
 } from '../utils/schedule-timing';
+import { ScheduleIntervalInput } from './schedule-interval-input';
 
 /**
- * Date | Time | Repeat | Repeat in — the timing a DATE_TIME schedule fires on.
+ * Date | Time | Timezone | Repeat | Repeat in — the timing a DATE_TIME schedule
+ * fires on.
  *
  * `scheduledDate` + `scheduledTime` combine into the backend's `startAt` (30-min
  * boundary, enforced by the Time slots) and are both required; the repeat toggle
  * + interval + unit become `repeat` seconds.
+ *
+ * **Timezone** (`timeReference`, design node 793:61340) says what that pair
+ * MEANS — the account's clock (SERVER, one instant worldwide) or each device's
+ * (DEVICE_LOCAL, one reading re-based per device). It is behind the
+ * `script-schedule-device-time` flag, and it is the field that makes this a
+ * five-control row: with the picker on, the design wraps Repeat onto a second
+ * line, which is why the row is a 4-column GRID rather than the flex row it
+ * used to be — the wrap is then a `col-start-1` on one cell instead of a second
+ * layout. DEVICE_LOCAL rules out recurrence (the schema does not accept
+ * `repeat` for it), so picking it clears and locks the Repeat controls.
  *
  * Only DATE_TIME schedules have timing, so the row collapses when the event
  * trigger is picked. It stays MOUNTED (a toggle back restores what was typed)
@@ -47,17 +65,60 @@ import {
  * the fields — and field errors are absolutely positioned there (out of flow, so
  * showing one never reflows the form). The bottom padding is the room they render
  * into; the constant negative margin cancels it again, so the spacing below the
- * row is unchanged and a COLLAPSED row still leaves no 24px hole (a 0fr track
- * zeroes the padding too — `border-box`).
+ * row is unchanged and a COLLAPSED row leaves no 24px hole.
+ *
+ * That padding sits on the field row INSIDE the clipping box, not on the box
+ * itself, and the difference is load-bearing: a box is never shorter than its own
+ * padding — `border-box` does not change that, it only decides what a specified
+ * height includes — so padding on the grid item survives the 0fr track as 24px of
+ * residue. The negative margin then spends itself cancelling that instead of
+ * closing the section gap, and the collapsed row leaves the hole this was written
+ * to avoid. Nested one level down it is clipped like everything else, and the row
+ * measures 0.
  */
 export function ScheduleTimingFields({ showErrors, disabled = false }: { showErrors: boolean; disabled?: boolean }) {
-  const { control, getValues, setValue } = useFormContext<EditScheduleFormData>();
+  const { control, getValues, setValue, trigger: triggerValidation } = useFormContext<EditScheduleFormData>();
+
+  // The Timezone picker is a layout switch — it turns one row into two — so the
+  // flag is read as a GATE and the unanswered window is not guessed at. There is
+  // nothing to draw for it (a picker shown and then withdrawn is exactly what a
+  // both-directions gate must not do), so the window is spent with the row
+  // LOCKED instead: the same treatment the page already gives fields whose
+  // record has not landed, and it means the control cannot appear beside a
+  // choice the user has already made.
+  const deviceTimeGate = useFeatureFlagGate('script-schedule-device-time');
+  const showTimeReference = deviceTimeGate === 'on';
+  const fieldsDisabled = disabled || deviceTimeGate === 'loading';
+
+  /**
+   * Re-checks the reconnect window after the cadence moves.
+   *
+   * The rule "the window must be shorter than the cadence" is attached to
+   * `reconnectInterval`, and react-hook-form only refreshes the error of the
+   * field that just fired an event — so fixing the CADENCE left the complaint
+   * sitting under the offline block until the next Save, pointing at a value
+   * that was already legal.
+   *
+   * Called on the cadence's blur and on its two discrete controls, never
+   * per-keystroke: the half-typed "6" of "60" is briefly shorter than the
+   * window, and grading it would flash an error at a number still being
+   * written. Silent until the first Save, like every other rule here.
+   */
+  const recheckReconnectWindow = useCallback(() => {
+    if (showErrors) triggerValidation('reconnectInterval');
+  }, [showErrors, triggerValidation]);
   const trigger = useWatch({ control, name: 'trigger' });
   const repeatEnabled = useWatch({ control, name: 'repeatEnabled' });
   const repeatUnit = useWatch({ control, name: 'repeatUnit' });
   const scheduledDate = useWatch({ control, name: 'scheduledDate' });
   const scheduledTime = useWatch({ control, name: 'scheduledTime' });
+  const timeReference = useWatch({ control, name: 'timeReference' });
   const eventDriven = isEventTrigger(trigger);
+  // Recurrence is a SERVER-only setting: the schema documents `repeat` as
+  // unsupported for DEVICE_LOCAL (one-shot only). Watched rather than read off
+  // the control, so a schedule seeded with it locks the Repeat pair on arrival
+  // and not only when the dropdown is touched.
+  const deviceLocal = isDeviceLocalTime(timeReference);
   // Minutes are the one unit that can express a cadence finer than the runner's
   // 30-minute grid, so they are the one unit the stepper has to constrain — it
   // then produces only legal values, and the schema rule behind it is left to
@@ -71,11 +132,16 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
   // value the form holds and will save if nothing else changes, and a Select
   // whose value is missing from its list renders as the placeholder — the field
   // would read empty on a schedule that has a perfectly good start time.
+  //
+  // The grid itself also depends on the READING: a DEVICE_LOCAL start stores its
+  // wall clock verbatim, so the boundary applies to the picked digits and the
+  // slots are the plain xx:00 / xx:30 — which differs from the SERVER grid in
+  // the 45-minute zones, and only there.
   const timeSlots = useMemo(() => {
-    const slots = getTimeSlotOptions(scheduledDate);
+    const slots = getTimeSlotOptions(scheduledDate, timeReference);
     if (!scheduledTime || slots.some(slot => slot.value === scheduledTime)) return slots;
     return [{ value: scheduledTime, label: slotToLabel(scheduledTime) }, ...slots];
-  }, [scheduledDate, scheduledTime]);
+  }, [scheduledDate, scheduledTime, timeReference]);
   // Today, recomputed per mount so a tab left open overnight cannot still treat
   // yesterday as selectable. Handed to the picker as `fromDate`, which greys out
   // every earlier day and stops the calendar paging past it.
@@ -112,17 +178,62 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
     [getValues, setValue, minDate],
   );
 
+  /**
+   * Switching the reading changes two things under the fields, and both have to
+   * be settled here rather than left to Save.
+   *
+   * DEVICE_LOCAL cannot repeat, so the toggle is cleared as well as locked —
+   * leaving it checked would submit a cadence the schema refuses, from a control
+   * the user can no longer see the state of.
+   *
+   * And the two readings do not share a slot grid in the 45-minute zones (see
+   * `getTimeSlotOptions`), so a time already picked can stop being offered. It
+   * is cleared for the same reason a day change clears it: a value the dropdown
+   * no longer lists renders as an empty-looking Select that fails on Save.
+   * Asked of the GRID, not of the option list — a stored slot that has merely
+   * gone by is legal and must survive.
+   */
+  const handleTimeReferenceChange = useCallback(
+    (onChange: (next: ScheduleTimeReference) => void, next: ScheduleTimeReference) => {
+      onChange(next);
+      if (isDeviceLocalTime(next) && getValues('repeatEnabled')) {
+        setValue('repeatEnabled', false);
+        // Recurrence is what the reconnect window is measured against, so the
+        // rule that compares them stops applying.
+        recheckReconnectWindow();
+      }
+      const time = getValues('scheduledTime');
+      if (time && !isSlotOnGrid(time, next)) setValue('scheduledTime', '');
+    },
+    [getValues, setValue, recheckReconnectWindow],
+  );
+
   // Shown IMMEDIATELY, unlike every other rule on this form, which waits for
   // Save: the calendar cannot withhold a past day itself (see `minDate`), so a
   // picked one has to say so at once rather than look accepted until Save
   // refuses it. Same predicate the schema uses — stored past starts exempt — so
   // the field and the save can never disagree.
   const startAtStored = useWatch({ control, name: 'startAtStored' });
-  const startsInPast = !eventDriven && isStartInPastAndChanged(scheduledDate, scheduledTime, startAtStored);
+  const startsInPast =
+    !eventDriven && isStartInPastAndChanged(scheduledDate, scheduledTime, startAtStored, timeReference);
   // On the field the user can act on: a past DAY is the date's problem, a past
   // slot of today is the time's.
   const pastDateError = startsInPast && scheduledDate && scheduledDate < minDate ? PAST_START_MESSAGE : undefined;
   const pastTimeError = startsInPast && !pastDateError ? PAST_START_MESSAGE : undefined;
+
+  /**
+   * Today, picked after its last slot has gone by: `timeSlots` is empty and the
+   * Time dropdown has nothing to give. Reported on the DATE — that is the field
+   * the user has to move — and shown immediately, for the same reason
+   * `pastDateError` is: the calendar accepted the day, so nothing else says it
+   * cannot work until Save refuses it for a missing time.
+   *
+   * `timeSlots` is only ever empty in this exact case. A future day keeps all 48
+   * slots, a PAST day keeps them too, and a stored slot that has gone by is
+   * re-added above — so an empty list means today, and no way to finish.
+   */
+  const noSlotsLeftToday = !eventDriven && timeSlots.length === 0;
+  const dateError = pastDateError ?? (noSlotsLeftToday ? NO_SLOTS_TODAY_MESSAGE : undefined);
 
   return (
     <div
@@ -131,11 +242,15 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
         gridTemplateRows: eventDriven ? '0fr' : '1fr',
         opacity: eventDriven ? 0 : 1,
       }}
-      className="grid mb-[calc(-1*var(--spacing-system-lf))] transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
+      className="mb-[calc(-1*var(--spacing-system-lf))] grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
     >
-      <div className="overflow-hidden min-h-0 pb-[var(--spacing-system-lf)]">
-        <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] md:items-end">
-          <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)]">
+      <div className="min-h-0 overflow-hidden">
+        {/* Four equal columns, as the design lays them out. A grid rather than a
+            flex row because the Timezone picker makes it five cells: the wrap is
+            then the one `col-start-1` below, and both layouts are the same
+            markup. */}
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] pb-[var(--spacing-system-lf)] md:grid-cols-4 md:items-end">
+          <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
             <Label className="text-h4">Date</Label>
             <Controller
               name="scheduledDate"
@@ -150,12 +265,12 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                     onChange={date => handleDateChange(field.onChange, date ?? null)}
                     // No day before today: a schedule cannot start in the past.
                     fromDate={minDate}
-                    disabled={disabled}
+                    disabled={fieldsDisabled}
                     className="w-full"
-                    error={pastDateError ?? (showErrors ? fieldState.error?.message : undefined)}
-                    invalid={!!pastDateError || (showErrors && !!fieldState.error)}
+                    error={dateError ?? (showErrors ? fieldState.error?.message : undefined)}
+                    invalid={!!dateError || (showErrors && !!fieldState.error)}
                   />
-                  {field.value && !disabled && (
+                  {field.value && !fieldsDisabled && (
                     <button
                       type="button"
                       onClick={() => field.onChange(null)}
@@ -170,7 +285,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
             />
           </div>
 
-          <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)]">
+          <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
             <Label className="text-h4">Time</Label>
             <Controller
               name="scheduledTime"
@@ -179,7 +294,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                 // `''` reads as "no selection" to Radix, so the placeholder shows
                 // until a slot is picked — a date at midnight no longer
                 // masquerades as a chosen 12:00 AM.
-                <Select value={field.value} onValueChange={field.onChange} disabled={disabled}>
+                <Select value={field.value} onValueChange={field.onChange} disabled={fieldsDisabled}>
                   {/* No `border-ods-border` here: the trigger already sets it, and
                       a repeat of it in `className` lands AFTER the invalid branch
                       in the component's `cn()`, so tailwind-merge would drop the
@@ -192,18 +307,63 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                     <SelectValue placeholder="Select time" />
                   </SelectTrigger>
                   <SelectContent>
-                    {timeSlots.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
+                    {timeSlots.length === 0 ? (
+                      // Deliberately NOT a `SelectItem` — there is nothing here
+                      // to select, and a selectable row would put a bogus value
+                      // in the form. It replaces a popup that opened blank; the
+                      // Date field carries the same sentence for whoever never
+                      // opens this one.
+                      <p className="px-4 py-[var(--spacing-system-sf)] text-ods-text-secondary text-h6">
+                        {NO_SLOTS_TODAY_MESSAGE}
+                      </p>
+                    ) : (
+                      timeSlots.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               )}
             />
           </div>
 
-          <div className="flex-1 min-w-0">
+          {showTimeReference && (
+            <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
+              <Label className="text-h4">Timezone</Label>
+              <Controller
+                name="timeReference"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(next: ScheduleTimeReference) => handleTimeReferenceChange(field.onChange, next)}
+                    disabled={fieldsDisabled}
+                  >
+                    {/* No placeholder: the field always holds one of the two
+                        readings — SERVER is the default a schedule carries when
+                        nothing was picked, not an empty state. */}
+                    <SelectTrigger className="w-full" aria-label="Timezone">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIME_REFERENCE_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          )}
+
+          {/* Back to column 1 when the Timezone picker took the third: the
+              design wraps Repeat onto its own line rather than squeezing five
+              controls into four columns. */}
+          <div className={cn('min-w-0', showTimeReference && 'md:col-start-1')}>
             <Controller
               name="repeatEnabled"
               control={control}
@@ -211,36 +371,46 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                 <CheckboxBlock
                   label="Repeat Script Run"
                   checked={field.value}
-                  onCheckedChange={field.onChange}
-                  disabled={disabled}
+                  onCheckedChange={next => {
+                    field.onChange(next);
+                    // Turning recurrence off removes the cadence the window is
+                    // measured against, so the rule stops applying entirely.
+                    recheckReconnectWindow();
+                  }}
+                  // Locked under DEVICE_LOCAL, where a cadence has nothing to
+                  // repeat FROM: the reading is re-based per device, and the
+                  // schema takes `repeat` for the SERVER reading only.
+                  disabled={fieldsDisabled || deviceLocal}
                   className="w-full"
                 />
               )}
             />
           </div>
 
-          <div className="flex-1 min-w-0 flex gap-[var(--spacing-system-xs)] items-end">
-            <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)]">
+          <div className="flex min-w-0 items-end gap-[var(--spacing-system-xs)]">
+            <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
               <Label className="text-h4">Repeat in</Label>
               <Controller
                 name="repeatInterval"
                 control={control}
                 render={({ field, fieldState }) => (
-                  <Input
-                    type="number"
+                  <ScheduleIntervalInput
                     min={intervalStep}
-                    step={intervalStep}
                     className="w-full"
-                    value={String(field.value ?? '')}
-                    onChange={e => field.onChange(e.target.value ? Number(e.target.value) : intervalStep)}
-                    disabled={disabled || !repeatEnabled}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={() => {
+                      field.onBlur();
+                      recheckReconnectWindow();
+                    }}
+                    disabled={fieldsDisabled || !repeatEnabled || deviceLocal}
                     error={showErrors ? fieldState.error?.message : undefined}
                     invalid={showErrors && !!fieldState.error}
                   />
                 )}
               />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <Controller
                 name="repeatUnit"
                 control={control}
@@ -252,18 +422,19 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                     // value the user never typed and the form cannot save. The
                     // other direction needs nothing — every coarser unit is
                     // already a whole number of slots at any interval.
-                    onValueChange={(next: RepeatUnit) => {
+                    onValueChange={(next: DurationUnit) => {
                       field.onChange(next);
                       const snapped = snapRepeatInterval(getValues('repeatInterval'), next);
                       if (snapped !== getValues('repeatInterval')) setValue('repeatInterval', snapped);
+                      recheckReconnectWindow();
                     }}
-                    disabled={disabled || !repeatEnabled}
+                    disabled={fieldsDisabled || !repeatEnabled || deviceLocal}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {REPEAT_UNIT_OPTIONS.map(opt => (
+                      {DURATION_UNIT_OPTIONS.map(opt => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
                         </SelectItem>

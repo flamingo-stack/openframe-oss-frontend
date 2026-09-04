@@ -5,7 +5,8 @@ import { FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/com
 import { useSearchParams } from 'next/navigation';
 import { FileManagerContainer } from '@/app/(app)/devices/details/file-manager/components/file-manager-container';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
-import { getMeshCentralAgentId } from '@/app/(app)/devices/utils/device-action-utils';
+import { getToolConnection } from '@/app/(app)/devices/utils/device-action-utils';
+import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -21,7 +22,9 @@ export default function FileManagerPage() {
 
   const { deviceDetails, isLoading, error } = useDeviceDetails(deviceId, { polling: false });
 
-  const meshcentralAgentId = deviceDetails ? getMeshCentralAgentId(deviceDetails) : undefined;
+  const meshcentralConnection = getToolConnection(deviceDetails?.toolConnections, 'MESHCENTRAL');
+  const meshcentralState = getToolConnectionState(meshcentralConnection);
+  const meshcentralAgentId = meshcentralState === 'live' ? meshcentralConnection?.agentToolId : undefined;
 
   // Keep this device as the Mingo "open view" while on the file-manager surface
   // (the parent detail page unmounted on navigation, clearing its own openView).
@@ -45,10 +48,10 @@ export default function FileManagerPage() {
       <PageLayout
         title="File Manager"
         className={`${PAGE_PADDING} h-full`}
-        contentClassName="flex flex-col min-h-0 overflow-hidden"
+        contentClassName="flex min-h-0 flex-col overflow-hidden"
         backButton={{ label: 'Back', onClick: handleBack }}
       >
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4">
           <div className="text-ods-error text-h4">Error: {error}</div>
           <Button variant="outline" onClick={handleBack}>
             Return to Device Details
@@ -63,12 +66,16 @@ export default function FileManagerPage() {
       <PageLayout
         title="File Manager"
         className={`${PAGE_PADDING} h-full`}
-        contentClassName="flex flex-col min-h-0 overflow-hidden"
+        contentClassName="flex min-h-0 flex-col overflow-hidden"
         backButton={{ label: 'Back', onClick: handleBack }}
       >
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <div className="text-ods-error text-h4">MeshCentral Agent ID is required for file manager functionality</div>
-          <p className="text-ods-text-secondary">File manager requires MeshCentral agent to be connected.</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4">
+          <div className="text-ods-error text-h4">
+            {getMeshCentralBlockedCopy(meshcentralState, 'File manager').title}
+          </div>
+          <p className="text-ods-text-secondary">
+            {getMeshCentralBlockedCopy(meshcentralState, 'File manager').description}
+          </p>
           <Button variant="outline" onClick={handleBack}>
             Return to Device Details
           </Button>
@@ -98,13 +105,13 @@ function FileManagerPageSkeleton({ onBack }: FileManagerPageSkeletonProps) {
     <PageLayout
       title="File Manager"
       className={`${PAGE_PADDING} h-full`}
-      contentClassName="flex flex-col min-h-0 overflow-hidden"
+      contentClassName="flex min-h-0 flex-col overflow-hidden"
       backButton={{
         label: 'Back',
         onClick: onBack,
       }}
     >
-      <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col">
         <FileManagerSkeleton />
       </div>
     </PageLayout>

@@ -14,7 +14,7 @@ interface GraphQlResponse<T> {
   data?: T;
   errors?: Array<{
     message: string;
-    extensions?: any;
+    extensions?: unknown;
   }>;
 }
 
@@ -57,9 +57,9 @@ export function useLogDetails() {
 
         setLogDetails(graphqlResponse.data.logDetails);
         return graphqlResponse.data.logDetails;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch log details';
-        console.error('Failed to fetch log details:', error);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch log details';
+        console.error('Failed to fetch log details:', err);
         setError(errorMessage);
 
         toast({
@@ -68,7 +68,7 @@ export function useLogDetails() {
           variant: 'destructive',
         });
 
-        throw error;
+        throw err;
       } finally {
         setIsLoading(false);
       }

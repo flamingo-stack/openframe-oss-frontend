@@ -38,7 +38,7 @@ export function AntivirusWarning({ platform }: AntivirusWarningProps) {
         title="If blocked, add these folders to your antivirus exclusions list:"
         onCopyPath={copyPath}
       />
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Or temporarily disable protection during installation. OpenFrame is safe open-source software. Blocks happen
         because new software needs time to build reputation with security vendors.
       </p>

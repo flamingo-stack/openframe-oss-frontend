@@ -10,6 +10,7 @@ import {
   TabNavigation,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
+import { WarningBlock } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -21,6 +22,7 @@ import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { getDeviceName } from '../utils/device-name';
 import { getDeviceStatusConfig } from '../utils/device-status';
+import { isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { DeviceDetailsSkeleton } from './device-details-skeleton';
 import { RunScriptModal } from './run-script/run-script-modal';
 import { DEVICE_TABS } from './tabs/device-tabs';
@@ -77,19 +79,24 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle action params from URL (e.g., from table dropdown navigation)
-  useEffect(() => {
-    const action = searchParams.get('action');
-    if (!action || isLoading) return;
+  // Handle action params from URL (e.g., from table dropdown navigation). Opening
+  // the modal is derived state and happens during render — an effect draws the
+  // page once without it, so arriving from the table shows a flash of the plain
+  // detail view. Clearing the param stays in the effect: it is a navigation.
+  const runScriptRequested = searchParams.get('action') === 'runScript' && !isLoading;
+  const [handledRunScript, setHandledRunScript] = useState(false);
+  if (runScriptRequested && !handledRunScript) {
+    setHandledRunScript(true);
+    setIsScriptsModalOpen(true);
+  }
 
-    if (action === 'runScript') {
-      setIsScriptsModalOpen(true);
-      // Clear the action param to avoid re-triggering
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.delete('action');
-      router.replace(`/devices/details${newParams.toString() ? `?${newParams.toString()}` : ''}`);
-    }
-  }, [searchParams, isLoading, router]);
+  useEffect(() => {
+    if (!runScriptRequested) return;
+    // Clear the action param to avoid re-triggering
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.delete('action');
+    router.replace(`/devices/details${newParams.toString() ? `?${newParams.toString()}` : ''}`);
+  }, [runScriptRequested, searchParams, router]);
 
   const normalizedDevice = deviceDetails;
 
@@ -184,12 +191,23 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
       titleAdornment={<Tag label={statusConfig.label} variant={statusConfig.variant} />}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
+      {/* First-connect indication: shown only until every agent has registered
+          per design; a later disconnect never re-triggers it. The design is a
+          bare warning strip, so the component's outer card is neutralized —
+          tailwind-merge keeps the overrides. */}
+      {isDeviceStillConnecting(normalizedDevice) && (
+        <WarningBlock
+          title="Device is still connecting — some data and features aren't available yet."
+          className="mb-[var(--spacing-system-l)] border-0 bg-transparent p-0"
+        />
+      )}
+
       {/* Tab Navigation */}
       <TabNavigation tabs={DEVICE_TABS} activeTab={activeTab} onTabChange={handleTabChange}>
         {tabId => (
           <TabContent
             activeTab={tabId}
-            TabComponent={getTabComponent(DEVICE_TABS, tabId)}
+            TabComponent={getTabComponent(DEVICE_TABS, tabId) ?? null}
             componentProps={{ device: normalizedDevice }}
           />
         )}

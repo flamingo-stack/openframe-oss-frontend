@@ -34,7 +34,7 @@ interface UseSideChunkProcessorOptions {
  */
 export function useSideChunkProcessor(
   side: ChatSide,
-  { ticketId, userDisplayName, isDirectMode, onMetadata }: UseSideChunkProcessorOptions,
+  { userDisplayName, isDirectMode, onMetadata }: UseSideChunkProcessorOptions,
 ) {
   const messages = useTicketDetailsStore(s => s[side].messages);
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
@@ -42,7 +42,12 @@ export function useSideChunkProcessor(
   const setChatHandlers = useTicketDetailsStore(s => s.setChatHandlers);
 
   const userDisplayNameRef = useRef(userDisplayName);
-  userDisplayNameRef.current = userDisplayName;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    userDisplayNameRef.current = userDisplayName;
+  });
 
   // Direct-mode barrier: engage optimistically from the host-known mode so
   // the reducer drops AI events the moment the technician takes over.

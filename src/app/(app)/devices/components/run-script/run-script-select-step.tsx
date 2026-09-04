@@ -7,6 +7,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scriptsRunPickerRelay_query$key } from '@/__generated__/scriptsRunPickerRelay_query.graphql';
+import type { scriptsRunPickerRelayPaginationQuery } from '@/__generated__/scriptsRunPickerRelayPaginationQuery.graphql';
 import type { scriptsRunPickerRelayQuery as ScriptsRunPickerQueryType } from '@/__generated__/scriptsRunPickerRelayQuery.graphql';
 import { platformsToIds } from '@/app/(app)/scripts/shared/utils/script-mappers';
 import { scriptsRunPickerRelayFragment, scriptsRunPickerRelayQuery } from '@/graphql/scripts/scripts-run-picker-relay';
@@ -27,10 +28,10 @@ function PickerList({ search, tagIds, onSelect }: PickerListProps) {
     { search: search || null, tagIds: tagIds.length > 0 ? tagIds : null, first: PICKER_PAGE_SIZE },
     { fetchPolicy: 'store-and-network' },
   );
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment(
-    scriptsRunPickerRelayFragment,
-    root as scriptsRunPickerRelay_query$key,
-  );
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    scriptsRunPickerRelayPaginationQuery,
+    scriptsRunPickerRelay_query$key
+  >(scriptsRunPickerRelayFragment, root as scriptsRunPickerRelay_query$key);
   const scripts = useMemo(
     () => (data.scripts?.edges ?? []).flatMap(e => (e?.node ? [e.node] : [])),
     [data.scripts?.edges],
@@ -42,7 +43,7 @@ function PickerList({ search, tagIds, onSelect }: PickerListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || !hasNext) return;
+    if (!el || !hasNext) return undefined;
     const io = new IntersectionObserver(
       entries => {
         if (entries[0]?.isIntersecting && !isLoadingNext) loadNext(PICKER_PAGE_SIZE);

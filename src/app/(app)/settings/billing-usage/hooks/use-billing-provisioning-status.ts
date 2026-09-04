@@ -38,7 +38,7 @@ export function useBillingProvisioningStatus() {
   const [status, setStatus] = useState<ProvisioningStatus | null>(null);
   const [restartKey, setRestartKey] = useState(0);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: restartKey is the re-run trigger, not read in the body.
+  // restartKey is the re-run trigger, not read in the body.
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -47,11 +47,15 @@ export function useBillingProvisioningStatus() {
     // the `cancelled` guard only stops state updates, it doesn't cancel the fetch.
     let subscription: { unsubscribe: () => void } | null = null;
 
-    const scheduleNext = () => {
+    // `scheduleNext` and `poll` are mutually recursive, so one of them is read
+    // above its own definition no matter how they are ordered. Hoisted function
+    // declarations rather than `const` arrows: the binding exists from the top
+    // of the block, so neither reference sits in a temporal dead zone.
+    function scheduleNext() {
       timer = setTimeout(poll, POLL_INTERVAL_MS);
-    };
+    }
 
-    const poll = () => {
+    function poll() {
       subscription = fetchQuery<UseBillingProvisioningStatusQueryType>(
         environment,
         billingProvisioningStatusQuery,
@@ -73,7 +77,7 @@ export function useBillingProvisioningStatus() {
           if (consecutiveErrors < MAX_CONSECUTIVE_ERRORS) scheduleNext();
         },
       });
-    };
+    }
 
     poll();
 

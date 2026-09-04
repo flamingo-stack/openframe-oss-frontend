@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import {
   Label,
@@ -79,15 +80,15 @@ export function ScriptFormFields({
       {/* `data-invalid`: the block has no input of its own, so it carries the
           marker itself — that is what `scrollToFirstInvalidField` looks for. */}
       <div className="relative" data-invalid={(showErrors && !!errors.supported_platforms) || undefined}>
-        <Label className="text-h4 text-ods-text-primary">Supported Platform</Label>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-1">
+        <Label className="text-ods-text-primary text-h4">Supported Platform</Label>
+        <div className="mt-1 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {AVAILABLE_PLATFORMS.map(p => {
             const isDisabled = DISABLED_PLATFORMS.includes(p.id);
             return (
               <SelectButton
                 key={p.id}
                 title={p.name}
-                icon={<p.icon className="w-5 h-5" />}
+                icon={<p.icon className="h-5 w-5" />}
                 selected={!isDisabled && watchedSupportedPlatforms.includes(p.id)}
                 disabled={isDisabled || disabled}
                 tag={isDisabled ? (isMdUp ? 'Coming Soon' : 'Soon') : undefined}
@@ -119,7 +120,7 @@ export function ScriptFormFields({
                   disabled={disabled}
                   // Match the SelectButton card height (h-11 md:h-16) — the block's
                   // own min-height is shorter, so override it on the inner label.
-                  className="[&>label]:h-11 md:[&>label]:h-16 [&>label]:min-h-0"
+                  className="[&>label]:h-11 [&>label]:min-h-0 md:[&>label]:h-16"
                 />
               )}
             />
@@ -135,13 +136,13 @@ export function ScriptFormFields({
       </div>
 
       {/* Form Fields */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
         <Controller
           name="name"
           control={control}
           render={({ field, fieldState }) => (
             <div className="space-y-1">
-              <Label className="text-h4 text-ods-text-primary">Name</Label>
+              <Label className="text-ods-text-primary text-h4">Name</Label>
               <Input
                 type="text"
                 value={field.value}
@@ -160,7 +161,7 @@ export function ScriptFormFields({
           control={control}
           render={({ field, fieldState }) => (
             <div className="space-y-1">
-              <Label className="text-h4 text-ods-text-primary">Shell Type</Label>
+              <Label className="text-ods-text-primary text-h4">Shell Type</Label>
               <Select value={field.value} onValueChange={field.onChange} disabled={disabled}>
                 <SelectTrigger
                   error={showErrors ? fieldState.error?.message : undefined}
@@ -172,7 +173,7 @@ export function ScriptFormFields({
                   {shellTypes.map(s => (
                     <SelectItem key={s.value} value={s.value}>
                       <div className="flex items-center gap-2">
-                        <s.icon className="w-5 h-5" />
+                        <s.icon className="h-5 w-5" />
                         <span>{s.label}</span>
                       </div>
                     </SelectItem>
@@ -189,7 +190,7 @@ export function ScriptFormFields({
             control={control}
             render={({ field, fieldState }) => (
               <div className="space-y-1">
-                <Label className="text-h4 text-ods-text-primary">Category</Label>
+                <Label className="text-ods-text-primary text-h4">Category</Label>
                 <Select value={field.value} onValueChange={field.onChange} disabled={disabled}>
                   <SelectTrigger
                     error={showErrors ? fieldState.error?.message : undefined}
@@ -215,14 +216,14 @@ export function ScriptFormFields({
           control={control}
           render={({ field, fieldState }) => (
             <div className="space-y-1">
-              <Label className="text-h4 text-ods-text-primary">Timeout</Label>
+              <Label className="text-ods-text-primary text-h4">Timeout</Label>
               <Input
                 type="number"
                 value={field.value}
                 onChange={e => field.onChange(e.target.value ? Number(e.target.value) : '')}
                 disabled={disabled}
                 placeholder="90"
-                endAdornment={<span className="text-h6 text-ods-text-secondary">Seconds</span>}
+                endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                 error={showErrors ? fieldState.error?.message : undefined}
                 invalid={showErrors && !!fieldState.error}
               />
@@ -237,7 +238,7 @@ export function ScriptFormFields({
         control={control}
         render={({ field }) => (
           <div>
-            <Label className="text-h4 text-ods-text-primary">Description</Label>
+            <Label className="text-ods-text-primary text-h4">Description</Label>
             <Textarea
               value={field.value}
               onChange={field.onChange}
@@ -253,7 +254,7 @@ export function ScriptFormFields({
       {tagsField}
 
       {/* Script Arguments and Environment Variables */}
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col gap-6 lg:flex-row">
         <Controller
           name="args"
           control={control}
@@ -296,7 +297,7 @@ export function ScriptFormFields({
           // The editor is not a focusable control the marker can sit on, so the
           // wrapper carries it (the scroll helper falls back to scrolling).
           <div data-invalid={(showErrors && !!fieldState.error) || undefined}>
-            <Label className="text-h4 text-ods-text-primary">Syntax</Label>
+            <Label className="text-ods-text-primary text-h4">Syntax</Label>
             <ScriptEditor
               value={field.value}
               onChange={field.onChange}

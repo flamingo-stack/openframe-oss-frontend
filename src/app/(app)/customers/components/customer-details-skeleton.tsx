@@ -26,28 +26,28 @@ export function CustomerHeaderSkeleton() {
         'md:flex-col md:items-start md:justify-start lg:flex-row lg:items-end lg:justify-between',
         'pt-[var(--spacing-system-l)]',
         // card variant: card bg/border + padding on mobile only
-        'bg-ods-card border-b border-ods-border px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]',
-        'md:bg-transparent md:border-b-0 md:px-0 md:pb-0 md:mb-[var(--spacing-system-l)]',
+        'border-b border-ods-border bg-ods-card px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]',
+        'md:mb-[var(--spacing-system-l)] md:border-b-0 md:bg-transparent md:px-0 md:pb-0',
       )}
     >
-      <div className="flex flex-col gap-[var(--spacing-system-xs)] flex-1 min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xs)]">
         {/* Back button (hidden on mobile to match TitleBlock) */}
-        <Skeleton className="h-10 w-44 hidden md:block" />
+        <Skeleton className="hidden h-10 w-44 md:block" />
         {/* Identity row: logo + (title + subtitle) */}
-        <div className="flex items-center gap-[var(--spacing-system-m)] min-w-0 w-full">
-          <Skeleton className="size-12 md:size-16 shrink-0 rounded-md" />
-          <div className="flex flex-col justify-center gap-1 flex-1 min-w-0">
-            <Skeleton className="h-7 md:h-9 w-72 max-w-full" />
+        <div className="flex w-full min-w-0 items-center gap-[var(--spacing-system-m)]">
+          <Skeleton className="size-12 shrink-0 rounded-md md:size-16" />
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+            <Skeleton className="h-7 w-72 max-w-full md:h-9" />
             <Skeleton className="h-5 w-56 max-w-full" />
           </div>
         </div>
       </div>
-      <div className="shrink-0 flex gap-2 items-center">
+      <div className="flex shrink-0 items-center gap-2">
         {/* Mobile: single icon button (icon-buttons variant collapses on mobile) */}
         <Skeleton className="h-12 w-12 rounded-[6px] md:hidden" />
         {/* Desktop: full action buttons */}
-        <Skeleton className="h-12 w-[200px] rounded-[6px] hidden md:block" />
-        <Skeleton className="h-12 w-[180px] rounded-[6px] hidden md:block" />
+        <Skeleton className="hidden h-12 w-[200px] rounded-[6px] md:block" />
+        <Skeleton className="hidden h-12 w-[180px] rounded-[6px] md:block" />
       </div>
     </div>
   );
@@ -56,10 +56,10 @@ export function CustomerHeaderSkeleton() {
 /** Tab navigation skeleton — 4 tabs with icon + label and an underline. */
 export function CustomerTabNavigationSkeleton() {
   return (
-    <div className="relative w-full h-14 border-b border-ods-border">
-      <div className="flex gap-1 items-center h-full overflow-hidden">
+    <div className="relative h-14 w-full border-b border-ods-border">
+      <div className="flex h-full items-center gap-1 overflow-hidden">
         {['w-[110px]', 'w-[100px]', 'w-[90px]', 'w-[100px]'].map((w, i) => (
-          <div key={i} className={`flex gap-2 items-center justify-center p-4 shrink-0 h-14 ${w}`}>
+          <div key={i} className={`flex h-14 shrink-0 items-center justify-center gap-2 p-4 ${w}`}>
             <Skeleton className="h-6 w-6 shrink-0" />
             <Skeleton className="h-5 flex-1" />
           </div>
@@ -85,21 +85,21 @@ function TabTitleSkeleton({ titleWidth = 'w-32', actionWidth }: { titleWidth?: s
  */
 export function CustomerDetailsTabSkeleton() {
   return (
-    <div className="bg-ods-card border border-ods-border rounded-[6px] flex flex-col">
+    <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-card">
       {/* Row 1: Website (with leading icon) */}
-      <div className="flex gap-4 px-4 h-20 items-center border-b border-ods-border">
-        <div className="flex-1 min-w-0 flex items-center gap-1">
+      <div className="flex h-20 items-center gap-4 border-b border-ods-border px-4">
+        <div className="flex min-w-0 flex-1 items-center gap-1">
           <Skeleton className="size-6 shrink-0" />
-          <div className="flex flex-col gap-1 flex-1 min-w-0">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
             <Skeleton className="h-5 w-40 max-w-full" />
             <Skeleton className="h-4 w-20" />
           </div>
         </div>
       </div>
       {/* Row 2: Physical + Mailing Address — stacks on mobile, side-by-side on md+ */}
-      <div className="flex flex-col md:flex-row md:gap-4 px-4 py-4 md:py-0 md:h-20 md:items-center gap-4">
+      <div className="flex flex-col gap-4 px-4 py-4 md:h-20 md:flex-row md:items-center md:gap-4 md:py-0">
         {[0, 1].map(i => (
-          <div key={i} className="flex-1 min-w-0 flex flex-col gap-1">
+          <div key={i} className="flex min-w-0 flex-1 flex-col gap-1">
             <Skeleton className="h-5 w-72 max-w-full" />
             <Skeleton className="h-4 w-32" />
           </div>
@@ -210,7 +210,7 @@ interface CustomerDetailsSkeletonProps {
  */
 export function CustomerDetailsSkeleton({ activeTab = 'devices' }: CustomerDetailsSkeletonProps) {
   return (
-    <div className="flex flex-col w-full md:px-[var(--spacing-system-l)] md:pb-[var(--spacing-system-l)]">
+    <div className="flex w-full flex-col md:px-[var(--spacing-system-l)] md:pb-[var(--spacing-system-l)]">
       <CustomerHeaderSkeleton />
       <div className="flex flex-col gap-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] md:px-0 md:pb-0">
         <CustomerTabNavigationSkeleton />

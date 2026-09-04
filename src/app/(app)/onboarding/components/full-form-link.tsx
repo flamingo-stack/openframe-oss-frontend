@@ -25,7 +25,7 @@ export function FullFormLink({ href, label }: { href: string; label: string }) {
       className="flex flex-1 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary transition-colors hover:text-ods-text-primary"
     >
       <ExternalLinkIcon size={24} className="shrink-0" />
-      <span className="text-h4 underline">{label}</span>
+      <span className="underline text-h4">{label}</span>
     </Link>
   );
 }

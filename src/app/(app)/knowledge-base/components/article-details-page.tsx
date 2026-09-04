@@ -116,14 +116,18 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
     try {
       await publishArticle(article.id);
       toast({ title: 'Published', description: article.name, variant: 'success' });
-    } catch {}
+    } catch {
+      // The publish hook toasts and rejects on failure; this only stops the rejection from going unhandled — the page stays on the unpublished article.
+    }
   }, [publishArticle, article.id, article.name, toast]);
 
   const handleUnpublish = useCallback(async () => {
     try {
       await unpublishArticle(article.id);
       toast({ title: 'Moved to draft', description: article.name, variant: 'success' });
-    } catch {}
+    } catch {
+      // Same: the mutation reports its own failure, and the page keeps showing what it already had.
+    }
   }, [unpublishArticle, article.id, article.name, toast]);
 
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {
@@ -134,13 +138,13 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
           {
             id: 'archive',
             label: 'Archive',
-            icon: <BoxArchiveIcon className="w-6 h-6 text-ods-text-secondary" />,
+            icon: <BoxArchiveIcon className="h-6 w-6 text-ods-text-secondary" />,
             onClick: () => setArchiveOpen(true),
           },
           {
             id: 'move-to-folder',
             label: 'Move to Folder',
-            icon: <FolderEditIcon className="w-6 h-6 text-ods-text-secondary" />,
+            icon: <FolderEditIcon className="h-6 w-6 text-ods-text-secondary" />,
             onClick: () => setMoveOpen(true),
           },
           ...(status === 'PUBLISHED'
@@ -148,7 +152,7 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
                 {
                   id: 'move-to-draft',
                   label: isUnpublishing ? 'Saving...' : 'Move to Draft',
-                  icon: <FileEditIcon className="w-6 h-6 text-ods-text-secondary" />,
+                  icon: <FileEditIcon className="h-6 w-6 text-ods-text-secondary" />,
                   onClick: handleUnpublish,
                   disabled: isUnpublishing,
                 },
@@ -205,9 +209,9 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
         </div>
       )}
 
-      <Card className="px-[var(--spacing-system-mf)] py-0 border-ods-border">
+      <Card className="border-ods-border px-[var(--spacing-system-mf)] py-0">
         <div className="grid grid-cols-2 gap-x-[var(--spacing-system-mf)] lg:grid-cols-3">
-          <div className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)] h-20">
+          <div className="flex h-20 min-w-0 items-center gap-[var(--spacing-system-xsf)]">
             {isDeletedAuthor ? (
               <DeletedUserAvatar size="md" />
             ) : (
@@ -219,24 +223,24 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
                 variant="round"
               />
             )}
-            <div className="flex flex-col min-w-0 flex-1">
+            <div className="flex min-w-0 flex-1 flex-col">
               <TruncateText className={isDeletedAuthor ? 'text-ods-error' : undefined}>
                 {authorName ?? 'Unknown'}
               </TruncateText>
-              <p className="text-heading-5 text-ods-text-secondary truncate">Author</p>
+              <p className="truncate text-heading-5 text-ods-text-secondary">Author</p>
             </div>
           </div>
 
-          <div className="flex flex-col min-w-0 h-20 justify-center">
+          <div className="flex h-20 min-w-0 flex-col justify-center">
             <TruncateText>{updatedAt ? formatDate(updatedAt) : '-'}</TruncateText>
-            <p className="text-heading-5 text-ods-text-secondary truncate">Updated</p>
+            <p className="truncate text-heading-5 text-ods-text-secondary">Updated</p>
           </div>
 
           <div className="col-span-2 -mx-[var(--spacing-system-mf)] border-t border-ods-border lg:hidden" aria-hidden />
 
-          <div className="flex flex-col min-w-0 h-20 justify-center items-start gap-[var(--spacing-system-xxs)]">
+          <div className="flex h-20 min-w-0 flex-col items-start justify-center gap-[var(--spacing-system-xxs)]">
             <Tag variant={STATUS_VARIANT[status]} label={status} />
-            <p className="text-heading-5 text-ods-text-secondary truncate">Status</p>
+            <p className="truncate text-heading-5 text-ods-text-secondary">Status</p>
           </div>
         </div>
       </Card>
@@ -281,8 +285,8 @@ function ArticleDetailsFallback() {
       backButton={{ label: 'Back', onClick: handleBack }}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <div className="h-32 w-full rounded bg-ods-card animate-pulse" />
-      <div className="h-64 w-full rounded bg-ods-card animate-pulse" />
+      <div className="h-32 w-full animate-pulse rounded bg-ods-card" />
+      <div className="h-64 w-full animate-pulse rounded bg-ods-card" />
     </PageLayout>
   );
 }

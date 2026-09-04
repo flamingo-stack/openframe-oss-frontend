@@ -145,20 +145,20 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       {/* Query Info */}
-      <div className="bg-ods-card border border-ods-border rounded-lg p-6">
+      <div className="rounded-lg border border-ods-border bg-ods-card p-6">
         {queryDetails.description && (
           <div className="mb-6">
-            <p className="text-h4 text-ods-text-primary">{queryDetails.description}</p>
-            <p className="text-h6 text-ods-text-secondary mt-1">Description</p>
+            <p className="text-ods-text-primary text-h4">{queryDetails.description}</p>
+            <p className="mt-1 text-ods-text-secondary text-h6">Description</p>
           </div>
         )}
 
         <div
-          className={`grid grid-cols-2 md:grid-cols-4 gap-6 ${queryDetails.description ? 'border-t border-ods-border pt-4' : ''}`}
+          className={`grid grid-cols-2 gap-6 md:grid-cols-4 ${queryDetails.description ? 'border-t border-ods-border pt-4' : ''}`}
         >
           <div>
-            <p className="text-h4 text-ods-text-primary">{formatInterval(queryDetails.interval)}</p>
-            <p className="text-h6 text-ods-text-secondary mt-1">Frequency</p>
+            <p className="text-ods-text-primary text-h4">{formatInterval(queryDetails.interval)}</p>
+            <p className="mt-1 text-ods-text-secondary text-h6">Frequency</p>
           </div>
         </div>
       </div>
@@ -166,7 +166,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
       {/* Query + inline test block */}
       {queryDetails.query && (
         <div className="mt-6 space-y-[var(--spacing-system-xxs)]">
-          <h3 className="text-h5 text-ods-text-secondary">QUERY</h3>
+          <h3 className="text-ods-text-secondary text-h5">QUERY</h3>
           <ScriptEditor value={queryDetails.query} shell="sql" readOnly height="300px" />
           {/* 8px gap under the editor, matching the section's internal gap
               (the parent's space-y would give 4px). */}

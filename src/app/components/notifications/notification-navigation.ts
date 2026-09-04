@@ -59,8 +59,8 @@ const TICKET_CONTEXT_TYPES = new Set<string>([
 /**
  * Ticket contexts announcing a new message in the ticket's client chat; they land on the
  * Chat tab instead of Details. Mingo ticket messages (`ADMIN_AI_TICKET_MESSAGE`) are
- * excluded — with `mingo-sidebar-context` on, that conversation lives in the sidebar
- * drawer, not the page's Client Chat tab.
+ * excluded — that conversation lives in the sidebar drawer, not the page's Client Chat
+ * tab.
  */
 const TICKET_CHAT_CONTEXT_TYPES = new Set<string>([
   CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE,
@@ -87,11 +87,9 @@ const ticketRoute = (ticketId: string, tab?: 'chat') => routes.tickets.dialog(ti
 /**
  * Action for a Mingo dialog: the canonical route ALWAYS, plus the drawer id.
  *
- * Deliberately reads no feature flag. This mapping is called from transports that
- * run before the flags query has answered — a cold-start push tap beats it every
- * time — and `featureFlags.*.enabled()` reports the env default in that window, so
- * a flag read here decides the destination by coin-flip. `/mingo` resolves it
- * instead, and that page already waits on a tri-state gate.
+ * The route is the fallback for when there is no drawer to open into (subscription
+ * lock, shell unmounted); `mingoDrawerDialogId` below decides between the two when
+ * the user actually acts, rather than here, where nothing can answer yet.
  */
 const mingoDialogAction = (dialogId: string): NotificationAction => ({
   label: 'Open Chat',
@@ -148,7 +146,7 @@ function resolveAction(
   // by the entity ids rather than giving up.
   //
   // A ticket id is unambiguous. A bare dialog id is NOT: CLIENT_AI_MESSAGE carries a CLIENT
-  // chat's dialogId, and `/mingo?dialogId=` resolves admin dialogs only, so following one
+  // chat's dialogId, and the Mingo drawer resolves admin dialogs only, so following one
   // blindly would land on an empty chat. The category is what tells the two apart.
   if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
   if (dialogId && category === MINGO_CATEGORY) return mingoDialogAction(dialogId);
@@ -266,10 +264,10 @@ export function notificationTargetsDialog(notification: Notification, activeDial
  * auto-marking a notification read once the user opens its entity, uniformly for every entity
  * type the route mapping covers (mingo dialog, ticket, …).
  *
- * A Mingo dialog matches here only with `mingo-sidebar` OFF, where `/mingo?dialogId=` is the
- * legacy page's resting URL. With the flag on that route only ever redirects, and the drawer's
- * resting URL is `?mingoDialog=` on some other path — so the drawer's auto-read runs through
- * `notificationTargetsDialog` instead, off the set of dialogs actually on screen.
+ * A Mingo dialog never matches here: the drawer floats over whatever route is showing, so its
+ * resting URL is `?mingoDialog=` on an arbitrary path rather than a route this can compare
+ * against. The drawer's auto-read runs through `notificationTargetsDialog` instead, off the set
+ * of dialogs actually on screen.
  */
 export function notificationTargetsLocation(
   notification: Notification,

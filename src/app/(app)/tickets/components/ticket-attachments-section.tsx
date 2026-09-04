@@ -33,9 +33,11 @@ export function TicketAttachmentsSection({ ticketId, attachments }: TicketAttach
   }));
 
   const handleFilesSelected = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const input = e.target;
+    const files = Array.from(input.files ?? []);
     if (files.length > 0) addAttachments.mutate(files);
-    e.target.value = '';
+    // Cleared so picking the SAME file again still fires `change`.
+    input.value = '';
   };
 
   // On mobile the OS picker runs natively, so the upload can stream from a file
@@ -70,7 +72,7 @@ export function TicketAttachmentsSection({ ticketId, attachments }: TicketAttach
 
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <p className="text-h5 text-ods-text-secondary">Attachments</p>
+      <p className="text-ods-text-secondary text-h5">Attachments</p>
       {uiAttachments.length > 0 && <TicketAttachmentsList attachments={uiAttachments} />}
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilesSelected} />
       <Button

@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import {
   Label,
@@ -122,18 +123,18 @@ export function ScriptingStep({
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Scripts automate routine work across your devices. Restart a service, clear a cache, check disk space. Every run
         is logged, so you always know what ran where.
       </p>
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Start with something simple. Give it a name and paste your commands. Once saved, you can run it on any connected
         device.
       </p>
 
       {/* Supported Platform + Run as User */}
       <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)]">
-        <Label className="text-h4 text-ods-text-primary">Supported Platform</Label>
+        <Label className="text-ods-text-primary text-h4">Supported Platform</Label>
         <div className="grid grid-cols-2 gap-[var(--spacing-system-m)] lg:grid-cols-4">
           {AVAILABLE_PLATFORMS.map(p => {
             const isDisabled = DISABLED_PLATFORMS.includes(p.id);
@@ -169,7 +170,7 @@ export function ScriptingStep({
                 onCheckedChange={checked => field.onChange(checked)}
                 label="Run as User"
                 // Match the SelectButton card height (h-11 md:h-16).
-                className="[&>label]:h-11 md:[&>label]:h-16 [&>label]:min-h-0"
+                className="[&>label]:h-11 [&>label]:min-h-0 md:[&>label]:h-16"
               />
             )}
           />
@@ -183,7 +184,7 @@ export function ScriptingStep({
           control={form.control}
           render={({ field, fieldState }) => (
             <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <Label className="text-h4 text-ods-text-primary">Name</Label>
+              <Label className="text-ods-text-primary text-h4">Name</Label>
               <Input
                 type="text"
                 value={field.value}
@@ -200,7 +201,7 @@ export function ScriptingStep({
           control={form.control}
           render={({ field, fieldState }) => (
             <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <Label className="text-h4 text-ods-text-primary">Shell Type</Label>
+              <Label className="text-ods-text-primary text-h4">Shell Type</Label>
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger error={fieldState.error?.message} invalid={!!fieldState.error}>
                   <SelectValue placeholder="Select Shell Type" />
@@ -224,13 +225,13 @@ export function ScriptingStep({
           control={form.control}
           render={({ field, fieldState }) => (
             <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <Label className="text-h4 text-ods-text-primary">Timeout</Label>
+              <Label className="text-ods-text-primary text-h4">Timeout</Label>
               <Input
                 type="number"
                 value={field.value}
                 onChange={e => field.onChange(e.target.value ? Number(e.target.value) : '')}
                 placeholder="90"
-                endAdornment={<span className="text-h6 text-ods-text-secondary">Seconds</span>}
+                endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                 error={fieldState.error?.message}
                 invalid={!!fieldState.error}
               />
@@ -245,7 +246,7 @@ export function ScriptingStep({
         control={form.control}
         render={({ field, fieldState }) => (
           <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <Label className="text-h4 text-ods-text-primary">Syntax</Label>
+            <Label className="text-ods-text-primary text-h4">Syntax</Label>
             <ScriptEditor
               value={field.value}
               onChange={field.onChange}

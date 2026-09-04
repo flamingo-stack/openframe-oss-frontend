@@ -16,9 +16,8 @@ import { graphql } from 'react-relay';
  * with because both take the same `filter`/`search`.
  *
  * Only `statuses` is wired to a funnel. `initiators` comes back too, but
- * `ScheduleRunFilterInput` has no field to apply it — see §11 of
- * docs/script-schedules-graphql-gaps.md — so selecting from it could not
- * narrow anything, and it is not offered.
+ * `ScheduleRunFilterInput` has no field to apply it, so selecting from it could
+ * not narrow anything, and it is not offered.
  *
  * `sort` (`{ field: "dispatchedAt", direction }`) and `dispatchedAtFrom` /
  * `dispatchedAtTo` inside `filter` are the Execution column's calendar — the
@@ -47,15 +46,15 @@ export const scheduleRunsRelayQuery = graphql`
 
 export const scheduleRunsRelayFragment = graphql`
   fragment scheduleRunsRelay_query on Query
-    @refetchable(queryName: "scheduleRunsRelayPaginationQuery")
-    @argumentDefinitions(
-      scheduleId: { type: "ID!" }
-      filter: { type: "ScheduleRunFilterInput" }
-      search: { type: "String" }
-      sort: { type: "SortInput" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "scheduleRunsRelayPaginationQuery")
+  @argumentDefinitions(
+    scheduleId: { type: "ID!" }
+    filter: { type: "ScheduleRunFilterInput" }
+    search: { type: "String" }
+    sort: { type: "SortInput" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     scheduleRuns(scheduleId: $scheduleId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
       @connection(key: "scheduleRunsRelay_scheduleRuns") {
       filteredCount

@@ -1,11 +1,12 @@
 import { getApprovalMeta, isApprovalNotification } from '@flamingo-stack/openframe-frontend-core';
+import type ReactRelay from 'react-relay';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // `graphql` tags are compiled away by the relay babel transform, which vitest doesn't run;
 // the tag would throw at module scope on import. The mapper under test takes already-read
 // data, so the fragment object itself is never touched here.
 vi.mock('react-relay', async importOriginal => ({
-  ...(await importOriginal<typeof import('react-relay')>()),
+  ...(await importOriginal<typeof ReactRelay>()),
   graphql: () => ({}),
 }));
 
@@ -50,7 +51,7 @@ function node(overrides: Record<string, unknown>): NotificationFieldsData {
 
 /** A legacy typed context record, keyed by its GraphQL `__typename` the way Relay flattens it. */
 function legacyContext(typename: string, fields: Record<string, unknown>) {
-  // biome-ignore lint/style/useNamingConvention: __typename is GraphQL's discriminator, not ours
+  // __typename is GraphQL's discriminator, not ours
   return { __typename: typename, ...fields };
 }
 

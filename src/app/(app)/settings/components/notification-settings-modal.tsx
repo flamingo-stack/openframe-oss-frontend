@@ -39,6 +39,7 @@ const GROUPS = Object.values(NotificationSettingGroup);
 
 const GROUP_LABELS: Record<NotificationSettingGroup, string> = {
   TICKET_ASSIGNED: 'Ticket assigned',
+  TICKET_CREATED: 'Ticket created by client',
   TICKET_STATUS_CHANGED: 'Ticket status changed',
   CUSTOMER_REPLIED: 'Customer replied',
   ADMIN_REPLIED: 'Admin replied',
@@ -107,7 +108,7 @@ export function NotificationSettingsModal({ onClose }: NotificationSettingsModal
             variant="outline"
             onClick={onClose}
             disabled={isSaving}
-            className="flex-1 h-12 bg-ods-card border-ods-border text-ods-text-primary text-h3 hover:bg-ods-bg"
+            className="h-12 flex-1 border-ods-border bg-ods-card text-ods-text-primary text-h3 hover:bg-ods-bg"
           >
             Cancel
           </Button>
@@ -115,22 +116,22 @@ export function NotificationSettingsModal({ onClose }: NotificationSettingsModal
             variant="accent"
             onClick={handleSave}
             disabled={isSaving}
-            className="flex-1 h-12 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90"
+            className="h-12 flex-1 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90"
           >
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </>
       }
     >
-      <div className="flex items-center gap-[var(--spacing-system-s)] rounded-md ring-1 ring-inset ring-ods-border bg-ods-card p-[var(--spacing-system-sf)] min-h-[44px] md:min-h-[48px]">
+      <div className="flex min-h-[44px] items-center gap-[var(--spacing-system-s)] rounded-md bg-ods-card p-[var(--spacing-system-sf)] ring-1 ring-inset ring-ods-border md:min-h-[48px]">
         <Switch id={masterSwitchId} checked={enabled} onCheckedChange={setEnabled} disabled={isSaving} />
-        <label htmlFor={masterSwitchId} className="text-h4 text-ods-text-primary cursor-pointer">
+        <label htmlFor={masterSwitchId} className="cursor-pointer text-ods-text-primary text-h4">
           Enable Notifications
         </label>
       </div>
 
       <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-        <span className="text-h5 text-ods-text-secondary uppercase">Notify about</span>
+        <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
         {GROUPS.map(group => (
           <CheckboxBlock
             key={group}

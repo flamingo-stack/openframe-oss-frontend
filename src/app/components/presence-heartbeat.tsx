@@ -6,6 +6,7 @@ import type { recordPresenceMutation as RecordPresenceMutationType } from '@/__g
 import { recordPresenceMutation } from '@/graphql/notifications/record-presence-mutation';
 import { isOnline, subscribeConnectivity } from '@/lib/connectivity';
 import { isSessionActive, PRESENCE_IDLE_MS, subscribeSessionActivity } from '@/lib/session-activity';
+import { useSubscriptionOpen } from './subscription-lock/subscription-guard';
 
 /** `openframe.presence.ttl-seconds` in configs/base/application.yml. Named once so the
  *  invariant below is checkable rather than asserted in prose. */
@@ -50,8 +51,19 @@ let lastBeatAt = 0;
  */
 export function PresenceHeartbeat() {
   const environment = useRelayEnvironment();
+  // A mutation on a timer, which is the one shape the subscription gate cannot
+  // catch: mutations bypass it by design (see `useSubscriptionOpen`). Without
+  // this, a locked workspace beat one failing `recordPresence` — and one console
+  // error — every ten seconds behind the lock screen, for nothing: presence
+  // steers push timing, and a workspace that is not paid for sends no push.
+  //
+  // False while the answer is still in flight too. A beat is worth nothing until
+  // the app is open, and the guard's answer arrives in the same second anyway.
+  const subscriptionOpen = useSubscriptionOpen();
 
   useEffect(() => {
+    if (!subscriptionOpen) return undefined;
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;
 
@@ -106,7 +118,7 @@ export function PresenceHeartbeat() {
       unsubscribeActivity();
       unsubscribeConnectivity();
     };
-  }, [environment]);
+  }, [environment, subscriptionOpen]);
 
   return null;
 }

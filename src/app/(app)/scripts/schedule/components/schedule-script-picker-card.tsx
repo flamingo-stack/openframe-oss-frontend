@@ -1,19 +1,23 @@
 'use client';
+'use no memo';
 
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { OS_PLATFORMS, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { SortableMoveButtons, useSortableItem } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DraggerIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Autocomplete,
   Button,
   Input,
   Label,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { FocusEvent } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
-import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import { parseKeyValues } from '../../shared/utils/script-key-values';
 import { envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleScriptsAutocomplete } from '../hooks/use-schedule-scripts-autocomplete';
@@ -27,9 +31,9 @@ const DEFAULT_TIMEOUT_SECONDS = 90;
 const UNSET_TIMEOUT = 0;
 
 interface ScheduleScriptPickerCardProps {
-  /** Sortable id — the `useFieldArray` field id, stable across reorders. */
-  id: string;
   index: number;
+  /** How many cards the list has — disables the move buttons at the ends. */
+  count: number;
   /** UI platform ids the schedule targets — narrows the script search server-side. */
   supportedPlatforms: string[];
   onRemove: () => void;
@@ -47,7 +51,7 @@ function ScriptPlatformIcons({ platforms }: { platforms: string[] }) {
   return (
     <span className="inline-flex shrink-0 items-center gap-0.5">
       {OS_PLATFORMS.filter(p => platforms.includes(p.id)).map(p => (
-        <p.icon key={p.id} className="w-3.5 h-3.5 text-ods-text-secondary opacity-60" />
+        <p.icon key={p.id} className="h-3.5 w-3.5 text-ods-text-secondary opacity-60" />
       ))}
     </span>
   );
@@ -60,12 +64,13 @@ function ScriptPlatformIcons({ platforms }: { platforms: string[] }) {
  * **Order is the payload.** The card index IS the run order — the backend
  * stores `scriptIds: [ID!]` in run order, so reordering rewrites that array.
  *
- * Sorting runs on dnd-kit (`useSortable`), the same stack the core library's
- * board uses. Only the handle is an activator (`setActivatorNodeRef` +
- * `listeners`), so text selection inside the fields keeps working; dnd-kit's
- * `attributes` make that handle a full keyboard drag control (Space to lift,
- * arrows to move, Space to drop, Esc to cancel) with live-region announcements
- * wired up by the list — no separate keyboard affordance needed.
+ * Sorting runs on the core library's `SortableList` (`useSortableItem`), the
+ * same Pragmatic stack the ticket board uses. Only the handle starts a drag,
+ * so text selection inside the fields keeps working, and the handle carries
+ * the keyboard path (Arrow Up / Arrow Down, one press one move) with
+ * live-region announcements wired up by the list. On touch/narrow viewports
+ * no drag exists at all — an up/down button pair renders beside the delete
+ * button instead.
  *
  * Arguments and env vars ARE persisted, as this schedule's per-script override
  * (`scriptCustomParams`): they seed from the picked script's defaults, and only
@@ -73,13 +78,13 @@ function ScriptPlatformIcons({ platforms }: { platforms: string[] }) {
  * untouched keeps the schedule following later edits to the script itself.
  *
  * ⚠ **Timeout is still editable but not persisted**: the override input carries
- * args and env vars only (docs/script-schedules-graphql-gaps.md §3). It is
+ * args and env vars only. It is
  * seeded from the script's own default, which is what the run actually uses, so
  * the card shows the truth — it just cannot be changed per schedule yet.
  */
 export function ScheduleScriptPickerCard({
-  id,
   index,
+  count,
   supportedPlatforms,
   onRemove,
   canRemove,
@@ -93,15 +98,10 @@ export function ScheduleScriptPickerCard({
   // seeded from it, so they stay locked until there is a script to belong to.
   const runParamsLocked = disabled || !selected?.scriptId;
 
-  // dnd-kit drives the sortable slide from an inline style, which no CSS media
-  // query can opt out of — so drop the transition for reduced-motion users and
-  // let the cards snap into place instead.
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id,
-    disabled,
-    transition: prefersReducedMotion ? null : undefined,
-  });
+  const { itemRef, dragHandleProps, isDragging, dragAndDropEnabled } = useSortableItem();
+  // Mobile folds the args/env editors into accordions; `undefined` (SSR/first
+  // render) keeps the expanded variant and settles before first paint.
+  const isMdUp = useMdUp();
 
   const { scripts, isLoading, inputValue, onInputChange, onOpen, onClose } =
     useScheduleScriptsAutocomplete(supportedPlatforms);
@@ -159,34 +159,41 @@ export function ScheduleScriptPickerCard({
 
   return (
     <div
-      ref={setNodeRef}
-      // `Translate` (not `Transform`): the card must slide, never scale — a
-      // scaled form card would blur its inputs mid-drag.
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`bg-ods-bg border rounded-[6px] p-[var(--spacing-system-lf)] flex flex-col gap-[var(--spacing-system-lf)] ${
+      ref={itemRef}
+      // No inline style here — the list writes `transform` straight onto this
+      // node during a drag (see `SortableList`).
+      className={`flex flex-col gap-[var(--spacing-system-sf)] rounded-[6px] border bg-ods-bg p-[var(--spacing-system-l)] md:gap-[var(--spacing-system-lf)] ${
         isDragging ? 'relative z-10 border-ods-accent shadow-lg' : 'border-ods-border'
       }`}
     >
-      <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] md:items-end">
-        <div className="flex-1 min-w-0 flex gap-[var(--spacing-system-xs)] items-end">
-          <button
-            type="button"
-            ref={setActivatorNodeRef}
-            {...attributes}
-            {...listeners}
-            disabled={disabled}
-            aria-label={`Reorder ${selected?.name || `script ${index + 1}`}`}
-            // `touch-none` hands touch gestures to the pointer sensor instead of
-            // letting the page scroll steal them.
-            className={`size-12 shrink-0 flex items-center justify-center rounded-[6px] touch-none text-ods-text-secondary hover:text-ods-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ods-border-focus disabled:opacity-30 disabled:cursor-not-allowed ${
-              isDragging ? 'cursor-grabbing text-ods-text-primary' : 'cursor-grab'
-            }`}
-          >
-            <DraggerIcon size={24} />
-          </button>
+      {/* Touch (no DnD): the mock stacks the rows on every width and puts the
+          move buttons + delete in the Select Script row, spaced by a fixed 8px;
+          with DnD the approved desktop layout stays — handle beside the select,
+          delete beside the timeout, the two halves side by side from md. */}
+      <div
+        className={`flex flex-col gap-[var(--spacing-system-sf)] md:gap-[var(--spacing-system-lf)] ${dragAndDropEnabled ? 'md:flex-row md:items-end' : ''}`}
+      >
+        <div
+          className={`flex min-w-0 flex-1 items-end ${
+            dragAndDropEnabled ? 'gap-[var(--spacing-system-xs)]' : 'gap-[var(--spacing-system-xsf)]'
+          }`}
+        >
+          {dragAndDropEnabled && (
+            <button
+              type="button"
+              {...dragHandleProps}
+              disabled={disabled}
+              aria-label={`Reorder ${selected?.name || `script ${index + 1}`}`}
+              className={`flex size-12 shrink-0 items-center justify-center rounded-[6px] text-ods-text-secondary hover:text-ods-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ods-border-focus disabled:cursor-not-allowed disabled:opacity-30 ${
+                isDragging ? 'cursor-grabbing text-ods-text-primary' : 'cursor-grab'
+              }`}
+            >
+              <DraggerIcon size={24} />
+            </button>
+          )}
 
           <div
-            className="flex-1 flex flex-col gap-[var(--spacing-system-xxs)] min-w-0"
+            className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]"
             onFocus={onOpen}
             onBlur={handleBlur}
           >
@@ -227,10 +234,26 @@ export function ScheduleScriptPickerCard({
               )}
             />
           </div>
+
+          {!dragAndDropEnabled && (
+            <>
+              <SortableMoveButtons index={index} count={count} label={selected?.name || `script ${index + 1}`} />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={onRemove}
+                disabled={!canRemove || disabled}
+                aria-label="Remove script from schedule"
+                className="text-ods-error disabled:opacity-30"
+              >
+                <TrashIcon size={20} />
+              </Button>
+            </>
+          )}
         </div>
 
-        <div className="flex-1 min-w-0 flex gap-[var(--spacing-system-xs)] items-end">
-          <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)]">
+        <div className="flex min-w-0 flex-1 items-end gap-[var(--spacing-system-xs)]">
+          <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
             <Label className="text-h4">Timeout</Label>
             <Controller
               name={`scripts.${index}.timeoutSeconds`}
@@ -248,7 +271,7 @@ export function ScheduleScriptPickerCard({
                   value={field.value ? String(field.value) : ''}
                   onChange={e => field.onChange(e.target.value ? Number(e.target.value) : UNSET_TIMEOUT)}
                   disabled={runParamsLocked}
-                  endAdornment={<span className="text-h6 text-ods-text-secondary">Seconds</span>}
+                  endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                   error={showErrors ? fieldState.error?.message : undefined}
                   invalid={showErrors && !!fieldState.error}
                 />
@@ -256,58 +279,114 @@ export function ScheduleScriptPickerCard({
             />
           </div>
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={onRemove}
-            disabled={!canRemove || disabled}
-            aria-label="Remove script from schedule"
-            className="text-ods-error disabled:opacity-30"
-          >
-            <TrashIcon size={20} />
-          </Button>
+          {dragAndDropEnabled && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onRemove}
+              disabled={!canRemove || disabled}
+              aria-label="Remove script from schedule"
+              className="text-ods-error disabled:opacity-30"
+            >
+              <TrashIcon size={20} />
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Arguments / env vars are the same class of field as Timeout — they
           belong to the picked script and are seeded from it — so they stay
-          locked until there is a script to belong to. */}
-      <div className="flex flex-col md:flex-row gap-[var(--spacing-system-lf)] items-start">
-        <div className="flex-1 min-w-0 w-full">
-          <Controller
-            name={`scripts.${index}.args`}
-            control={control}
-            render={({ field }) => (
-              <ScriptArguments
-                arguments={field.value}
-                onArgumentsChange={field.onChange}
-                keyPlaceholder="Key"
-                valuePlaceholder="Enter Value (empty=flag)"
-                addButtonLabel="Add Script Argument"
-                titleLabel="Script Arguments"
-                disabled={runParamsLocked}
+          locked until there is a script to belong to.
+          Mobile folds the two editors into "Edit Default …" accordions (per the
+          mock); from md up they stay expanded side by side. The editors are the
+          only difference — both branches render the same controlled fields. */}
+      {isMdUp === false ? (
+        <Accordion type="multiple" className="overflow-hidden rounded-[6px] border border-ods-border">
+          <AccordionItem value="args" className="border-ods-border data-[state=closed]:bg-ods-card">
+            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-ods-text-primary text-h6 hover:no-underline [&>svg]:text-ods-text-secondary">
+              Edit Default Script Arguments
+            </AccordionTrigger>
+            {/* The editor's own title would duplicate the trigger — an empty
+                titleLabel renders an empty <label>, hidden by :empty. */}
+            <AccordionContent className="px-[var(--spacing-system-sf)] [&_label:empty]:hidden">
+              <Controller
+                name={`scripts.${index}.args`}
+                control={control}
+                render={({ field }) => (
+                  <ScriptArguments
+                    arguments={field.value}
+                    onArgumentsChange={field.onChange}
+                    keyPlaceholder="Key"
+                    valuePlaceholder="Enter Value (empty=flag)"
+                    addButtonLabel="Add Script Argument"
+                    titleLabel=""
+                    disabled={runParamsLocked}
+                  />
+                )}
               />
-            )}
-          />
-        </div>
-        <div className="flex-1 min-w-0 w-full">
-          <Controller
-            name={`scripts.${index}.envVars`}
-            control={control}
-            render={({ field }) => (
-              <ScriptArguments
-                arguments={field.value}
-                onArgumentsChange={field.onChange}
-                keyPlaceholder="Key"
-                valuePlaceholder="Enter Value"
-                addButtonLabel="Add Environment Var"
-                titleLabel="Environment Vars"
-                disabled={runParamsLocked}
+            </AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="env" className="border-b-0 border-ods-border data-[state=closed]:bg-ods-card">
+            <AccordionTrigger className="h-14 px-[var(--spacing-system-sf)] py-0 text-ods-text-primary text-h6 hover:no-underline [&>svg]:text-ods-text-secondary">
+              Edit Default Environment Vars
+            </AccordionTrigger>
+            <AccordionContent className="px-[var(--spacing-system-sf)] [&_label:empty]:hidden">
+              <Controller
+                name={`scripts.${index}.envVars`}
+                control={control}
+                render={({ field }) => (
+                  <ScriptArguments
+                    arguments={field.value}
+                    onArgumentsChange={field.onChange}
+                    keyPlaceholder="Key"
+                    valuePlaceholder="Enter Value"
+                    addButtonLabel="Add Environment Var"
+                    titleLabel=""
+                    disabled={runParamsLocked}
+                  />
+                )}
               />
-            )}
-          />
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      ) : (
+        <div className="flex flex-col items-start gap-[var(--spacing-system-lf)] md:flex-row">
+          <div className="w-full min-w-0 flex-1 [&_label]:text-h4">
+            <Controller
+              name={`scripts.${index}.args`}
+              control={control}
+              render={({ field }) => (
+                <ScriptArguments
+                  arguments={field.value}
+                  onArgumentsChange={field.onChange}
+                  keyPlaceholder="Key"
+                  valuePlaceholder="Enter Value (empty=flag)"
+                  addButtonLabel="Add Script Argument"
+                  titleLabel="Script Arguments"
+                  disabled={runParamsLocked}
+                />
+              )}
+            />
+          </div>
+          <div className="w-full min-w-0 flex-1 [&_label]:text-h4">
+            <Controller
+              name={`scripts.${index}.envVars`}
+              control={control}
+              render={({ field }) => (
+                <ScriptArguments
+                  arguments={field.value}
+                  onArgumentsChange={field.onChange}
+                  keyPlaceholder="Key"
+                  valuePlaceholder="Enter Value"
+                  addButtonLabel="Add Environment Var"
+                  titleLabel="Environment Vars"
+                  disabled={runParamsLocked}
+                />
+              )}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

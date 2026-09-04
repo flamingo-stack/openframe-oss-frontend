@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fleetApiClient, type PolicyHost } from '@/lib/fleet-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
 import { queriesQueryKeys } from '../../hooks/use-queries';
@@ -12,7 +12,7 @@ const EMPTY_QUERY_HOSTS: PolicyHost[] = [];
 
 export const queryHostsQueryKeys = {
   all: ['query-hosts'] as const,
-  list: (queryId: number) => [...queryHostsQueryKeys.all, 'list', queryId] as const,
+  list: (queryId: number | null) => [...queryHostsQueryKeys.all, 'list', queryId] as const,
 };
 
 // ============ API Functions ============
@@ -47,9 +47,8 @@ async function replaceQueryHostsApi(params: { queryId: number; hostIds: number[]
 
 export function useQueryHosts(queryId: number | null) {
   const query = useQuery({
-    queryKey: queryHostsQueryKeys.list(queryId!),
-    queryFn: () => fetchAllQueryHosts(queryId!),
-    enabled: queryId !== null,
+    queryKey: queryHostsQueryKeys.list(queryId),
+    queryFn: queryId === null ? skipToken : () => fetchAllQueryHosts(queryId),
   });
 
   return {

@@ -39,7 +39,7 @@ function getDomainSuffix(): string {
 
 export const SAAS_DOMAIN_SUFFIX = getDomainSuffix();
 
-export interface AuthApiResponse<T = any> {
+export interface AuthApiResponse<T = unknown> {
   data?: T;
   error?: string;
   status: number;
@@ -54,23 +54,11 @@ function buildAuthUrl(path: string): string {
   return `${base}${cleanPath}`;
 }
 
-export interface SsoRegisterPayload {
-  tenantName: string;
-  tenantDomain: string;
+export interface PendingSsoIdentity {
   email: string;
-  provider: 'google' | 'microsoft' | 'apple';
-  redirectTo?: string;
-  /**
-   * Native shells only, and the counterpart of {@link AuthApiClient.loginUrl}'s
-   * `authMobile`: the authz service stores it in the SSO registration cookie and
-   * replays it on the `/oauth/continue` that logs the new owner in, so the
-   * callback carries a devTicket even where the gateway has dev-ticket issuance
-   * off (prod). Without it registration creates the tenant and the app gets a
-   * ticket-less callback back.
-   */
-  authMobile?: boolean;
-  /** Defaults to whatever is capturable right now; pass explicitly to reuse an existing set. */
-  attribution?: RegistrationAttribution;
+  firstName: string | null;
+  lastName: string | null;
+  provider: string;
 }
 
 class AuthApiClient {
@@ -103,17 +91,18 @@ class AuthApiClient {
     }
 
     if (outcome === 'refreshed') {
-      if (isBearerAuthMode()) {
-        const newToken = getAccessTokenSync();
-        if (newToken) {
-          headers.Authorization = `Bearer ${newToken}`;
-        }
-      }
+      // A copy, not a write into the caller's object: `headers` belongs to the
+      // request that already failed, and the caller keeps using it afterwards.
+      const newToken = isBearerAuthMode() ? getAccessTokenSync() : null;
+      const retryHeaders = newToken ? { ...headers, Authorization: `Bearer ${newToken}` } : headers;
 
+      // `headers` LAST: it already has `init.headers` merged into it by the
+      // caller, plus the freshly rotated bearer. Spreading `init` over it instead
+      // would hand the retry back the very headers whose token just 401'd.
       const retryRes = await fetch(url, {
         credentials: 'include',
-        headers,
         ...init,
+        headers: retryHeaders,
       });
 
       let retryData: T | undefined;
@@ -121,7 +110,9 @@ class AuthApiClient {
       if (retryContentType.includes('application/json')) {
         try {
           retryData = await retryRes.json();
-        } catch {}
+        } catch {
+          // A response that claims JSON but does not parse leaves `retryData` undefined, which the caller reads as "no body" — the HTTP status is what actually decides the outcome.
+        }
       }
 
       return {
@@ -137,7 +128,7 @@ class AuthApiClient {
   }
 
   /** No `tenantId` — the BFF resolves it from the refresh token. See `token-refresh-manager.ts`. */
-  refresh<T = any>() {
+  refresh<T = unknown>() {
     return requestRefresh<T>('/oauth/refresh', { method: 'POST' });
   }
 
@@ -151,36 +142,118 @@ class AuthApiClient {
     });
   }
 
-  oauth<T = any>(path: string, body?: any, init: RequestInit = {}) {
+  oauth<T = unknown>(path: string, body?: unknown, init: RequestInit = {}) {
+    // `init` FIRST: both fields below already read it, and re-applying it over
+    // them would hand back the raw `init.body` in place of the serialized one.
     return request<T>(`/oauth/${path.replace(/^\//, '')}`, {
+      ...init,
       method: body ? 'POST' : init.method || 'GET',
       body: body ? JSON.stringify(body) : init.body,
-      ...init,
     });
   }
 
-  discoverTenants<T = any>(email: string) {
+  discoverTenants<T = unknown>(email: string) {
     const path = `/sas/tenant/discover?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'GET' });
   }
 
-  checkDomainAvailability<T = any>(subdomain: string, organizationName: string) {
+  checkDomainAvailability<T = unknown>(subdomain: string, organizationName: string) {
     const fullDomain = `${subdomain}.${SAAS_DOMAIN_SUFFIX}`;
     const path = `/api/tenant/availability?domain=${encodeURIComponent(fullDomain)}&organizationName=${encodeURIComponent(organizationName)}`;
     return requestPublic<T>(path, { method: 'GET' });
   }
 
-  checkEmailAvailability<T = any>(email: string) {
+  /**
+   * The pending identity for a NATIVE signup, addressed by ticket rather than by session.
+   *
+   * The browser flow reads it from the SAS session, which lives in the auth sheet's cookie jar and
+   * never reaches the app's WebView — the same boundary that makes tokens arrive as a devTicket.
+   * The ticket is the handle that does cross it.
+   */
+  pendingSsoIdentityByTicket<T = PendingSsoIdentity>(ticket: string) {
+    return requestPublic<T>(`/sas/oauth/login/sso/pending?ticket=${encodeURIComponent(ticket)}`, { method: 'GET' });
+  }
+
+  /**
+   * Finishes a native SSO signup. Answers with a devTicket, so the shell completes through the same
+   * `/oauth/dev-exchange` path it already uses for login — no second native surface, and no tokens
+   * in a response the WebView has to hold.
+   */
+  completeSsoRegistrationByTicket<T = { devTicket?: string }>(payload: {
+    ticket: string;
+    tenantName: string;
+    tenantDomain: string;
+  }) {
+    const attribution = collectRegistrationAttribution();
+    // `/oauth/...`, not `/sas/oauth/...`: this one is served by the user-gateway, the same place
+    // `/oauth/dev-exchange` lives, while its sibling `pending` stays on the authorization service.
+    return requestPublic<T>('/oauth/login/sso/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, ...(attribution ? { attribution } : {}) }),
+    });
+  }
+
+  /**
+   * The identity a provider asserted for a login that found no account, read from the SAS session.
+   * Session-cookie authenticated: no bearer token, and no 401 retry — an expired session here is a
+   * 409 with a message for the user, not a credential that can be rotated.
+   */
+  async pendingSsoIdentity(): Promise<AuthApiResponse<PendingSsoIdentity>> {
+    const url = buildAuthUrl('/sas/oauth/login/sso/pending');
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      let data: (PendingSsoIdentity & { message?: string }) | undefined;
+      if ((res.headers.get('content-type') || '').includes('application/json')) {
+        try {
+          data = await res.json();
+        } catch {
+          // A non-JSON or truncated body is the same as no body here: the status carries the answer.
+        }
+      }
+      // Spring serialises a ResponseStatusException reason as `message` only when the service runs
+      // with `server.error.include-message=always`; by default it is absent. Left undefined rather
+      // than filled with a synthesised "status 409", so the caller shows its own copy instead of a
+      // raw status — which is exactly the kind of message App Review flagged.
+      const error = res.ok ? undefined : data?.message || undefined;
+      return { data, error, status: res.status, ok: res.ok };
+    } catch (e) {
+      return { ok: false, status: 0, error: e instanceof Error ? e.message : 'Network error' };
+    }
+  }
+
+  /**
+   * Finishes an SSO login that had no account. Returns the URL rather than navigating: the response
+   * is a 302 chain through /oauth/continue that sets auth cookies, so the caller must perform a
+   * TOP-LEVEL navigation. A fetch would follow the redirects without ever committing the cookies.
+   */
+  completeSsoRegistrationUrl(payload: { tenantName: string; tenantDomain: string }): string {
+    const params = new URLSearchParams({
+      tenantName: payload.tenantName,
+      tenantDomain: payload.tenantDomain,
+    });
+    const attribution = collectRegistrationAttribution();
+    if (attribution) {
+      appendAttributionQueryParams(params, attribution);
+    }
+    return buildAuthUrl(`/sas/oauth/login/sso/complete?${params.toString()}`);
+  }
+
+  checkEmailAvailability<T = unknown>(email: string) {
     const path = `/sas/tenant/email-available?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'GET' });
   }
 
-  resendVerificationEmail<T = any>(email: string) {
+  resendVerificationEmail<T = unknown>(email: string) {
     const path = `/sas/email/verify/resend?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'POST' });
   }
 
-  registerOrganization<T = any>(payload: {
+  registerOrganization<T = unknown>(payload: {
     email: string;
     firstName: string;
     lastName: string;
@@ -201,61 +274,19 @@ class AuthApiClient {
     });
   }
 
-  registerOrganizationSso(payload: SsoRegisterPayload) {
-    window.location.href = this.registerSsoUrl(payload);
-
-    return Promise.resolve({ ok: true, status: 302, data: null, error: null });
-  }
-
-  /**
-   * The SSO tenant-registration entry point, as a URL. Split out of
-   * {@link registerOrganizationSso} for the native shells, which must not
-   * navigate to it: Capacitor hands a top-level https nav to the system
-   * browser, so the tenant gets created in Safari and the app is left signed
-   * out. They run this URL inside a shell-owned browser session instead — see
-   * `nativeSsoRegister`.
-   */
-  registerSsoUrl(payload: SsoRegisterPayload): string {
-    const params = new URLSearchParams({
-      tenantName: payload.tenantName,
-      tenantDomain: payload.tenantDomain,
-      email: payload.email,
-      provider: payload.provider,
-    });
-
-    if (payload.redirectTo) {
-      params.append('redirectTo', payload.redirectTo);
-    }
-
-    if (payload.authMobile) {
-      params.append('authMobile', 'true');
-    }
-
-    // The IdP callback is a fresh request from Google/Microsoft — the landing URL's click ids
-    // and this browser's tracking cookies are unreachable by then. Send them now; the backend
-    // stashes them in the SSO state cookie and replays them when the callback builds the
-    // registration.
-    const attribution = payload.attribution ?? collectRegistrationAttribution();
-    if (attribution) {
-      appendAttributionQueryParams(params, attribution);
-    }
-
-    return buildAuthUrl(`/sas/oauth/register/sso?${params.toString()}`);
-  }
-
-  getRegistrationProviders<T = any>() {
+  getRegistrationProviders<T = unknown>() {
     return request<T>('/sas/sso/providers/registration', {
       method: 'GET',
     });
   }
 
-  getInviteProviders<T = any>(invitationId: string) {
+  getInviteProviders<T = unknown>(invitationId: string) {
     return request<T>(`/sas/sso/providers/invite?invitationId=${encodeURIComponent(invitationId)}`, {
       method: 'GET',
     });
   }
 
-  acceptInvitation<T = any>(payload: {
+  acceptInvitation<T = unknown>(payload: {
     invitationId: string;
     password: string;
     firstName: string;
@@ -273,7 +304,7 @@ class AuthApiClient {
 
   acceptInvitationSso(payload: {
     invitationId: string;
-    provider: 'openframe-sso' | 'google' | 'microsoft' | 'apple';
+    provider: 'openframe' | 'openframe-sso' | 'google' | 'microsoft' | 'apple';
     switchTenant?: boolean;
     redirectTo?: string;
   }) {
@@ -296,23 +327,51 @@ class AuthApiClient {
     return Promise.resolve({ ok: true, status: 302, data: null, error: null });
   }
 
-  confirmPasswordReset<T = any>(payload: { token: string; newPassword: string }) {
+  confirmPasswordReset<T = unknown>(payload: { token: string; newPassword: string }) {
     return request<T>('/sas/password-reset/confirm', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
-  requestPasswordReset<T = any>(payload: { email: string }) {
+  requestPasswordReset<T = unknown>(payload: { email: string }) {
     return request<T>('/sas/password-reset/request', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
+  /**
+   * Provider login with NO tenant known yet. The authorization server runs the flow against its
+   * onboarding pseudo-tenant and resolves the real one from the identity the provider asserts —
+   * so the button works on a cold screen with nothing typed. An identity with no account is routed
+   * to the signup-continue page instead of failing.
+   *
+   * Use {@link AuthApiClient.loginUrl} instead once discovery has produced a tenantId: that path
+   * honours the tenant's own SSO configuration, which an administrator may have set to their own
+   * Google or Microsoft credentials.
+   *
+   * `redirectTo` is encoded here — the opposite of {@link AuthApiClient.loginUrl}, which takes it
+   * pre-encoded. Pass a raw URL.
+   */
+  ssoLoginUrl(provider: string, options?: { redirectTo?: string; authMobile?: boolean }) {
+    const params = new URLSearchParams({ provider });
+    if (options?.redirectTo) {
+      params.append('redirectTo', options.redirectTo);
+    }
+    if (options?.authMobile) {
+      params.append('authMobile', 'true');
+    }
+    return buildAuthUrl(`/sas/oauth/login/sso?${params.toString()}`);
+  }
+
   /** `redirectTo` is pre-encoded by the caller — it is interpolated as-is. */
   loginUrl(tenantId: string, redirectTo: string, provider?: string, options?: { authMobile?: boolean }) {
-    const providerParam = provider && provider !== 'openframe-sso' ? `&provider=${encodeURIComponent(provider)}` : '';
+    // The built-in OpenFrame login has no provider param; 'openframe-sso' is its legacy id.
+    const providerParam =
+      provider && provider !== 'openframe' && provider !== 'openframe-sso'
+        ? `&provider=${encodeURIComponent(provider)}`
+        : '';
     const base = `/oauth/login?tenantId=${encodeURIComponent(tenantId)}${providerParam}`;
     // Shared mode drops a caller-supplied redirectTo — the shared auth host owns
     // where a browser lands after login. Both native shells are the exception:
@@ -366,12 +425,12 @@ class AuthApiClient {
 
 const authApiClient = new AuthApiClient();
 
-async function requestRefresh<T = any>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
+async function requestRefresh<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
   const url = buildAuthUrl(path);
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    ...(init.headers || ({} as any)),
+    ...(init.headers as Record<string, string> | undefined),
   };
 
   if (isBearerAuthMode()) {
@@ -382,10 +441,12 @@ async function requestRefresh<T = any>(path: string, init: RequestInit = {}): Pr
   }
 
   try {
+    // `headers` LAST: `init.headers` is already merged into it above, so
+    // spreading `init` over it would only drop the `Refresh-Token` added here.
     const res = await fetch(url, {
       credentials: 'include',
-      headers,
       ...init,
+      headers,
     });
 
     let data: T | undefined;
@@ -393,7 +454,9 @@ async function requestRefresh<T = any>(path: string, init: RequestInit = {}): Pr
     if (contentType.includes('application/json')) {
       try {
         data = await res.json();
-      } catch {}
+      } catch {
+        // Same as above: `data` stays undefined and the status carries the result.
+      }
     }
 
     if (isBearerAuthMode() && res.ok) {
@@ -420,12 +483,12 @@ async function requestRefresh<T = any>(path: string, init: RequestInit = {}): Pr
   }
 }
 
-async function request<T = any>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
+async function request<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
   const url = buildAuthUrl(path);
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    ...(init.headers || ({} as any)),
+    ...(init.headers as Record<string, string> | undefined),
   };
   if (isBearerAuthMode()) {
     const token = getAccessTokenSync();
@@ -437,10 +500,13 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<A
   // credential has already rotated needs a retry, not another rotation.
   const sentAtEpoch = getTokenEpoch();
   try {
+    // `headers` LAST: `init.headers` is already merged into it above, so
+    // spreading `init` over it would only drop the bearer added here — the
+    // request would go out unauthenticated and 401 on its own headers.
     const res = await fetch(url, {
       credentials: 'include',
-      headers,
       ...init,
+      headers,
     });
 
     if (res.status === 401) {
@@ -461,7 +527,9 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<A
     if (contentType.includes('application/json')) {
       try {
         data = await res.json();
-      } catch {}
+      } catch {
+        // Same as above: `data` stays undefined and the status carries the result.
+      }
     }
 
     return {
@@ -475,16 +543,19 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<A
   }
 }
 
-async function requestPublic<T = any>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
+async function requestPublic<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
   const url = buildAuthUrl(path);
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(init.headers as Record<string, string> | undefined),
+  };
   try {
+    // `headers` LAST: `init.headers` is already merged into it above, so
+    // spreading `init` over it would only drop the `Accept` added here.
     const res = await fetch(url, {
       credentials: 'omit',
-      headers: {
-        Accept: 'application/json',
-        ...(init.headers || ({} as any)),
-      },
       ...init,
+      headers,
     });
 
     let data: T | undefined;
@@ -492,7 +563,9 @@ async function requestPublic<T = any>(path: string, init: RequestInit = {}): Pro
     if (contentType.includes('application/json')) {
       try {
         data = await res.json();
-      } catch {}
+      } catch {
+        // Same as above: `data` stays undefined and the status carries the result.
+      }
     }
 
     return {
@@ -508,4 +581,4 @@ async function requestPublic<T = any>(path: string, init: RequestInit = {}): Pro
 
 export { authApiClient };
 
-export type AuthApiResponseAlias<T = any> = AuthApiResponse<T>;
+export type AuthApiResponseAlias<T = unknown> = AuthApiResponse<T>;

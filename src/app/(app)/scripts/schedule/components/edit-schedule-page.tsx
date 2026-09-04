@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -15,9 +16,7 @@ import { ScheduleFormFields } from './schedule-form-fields';
 
 /** What the page knows about the record it is editing. */
 type ScheduleRecordState =
-  | { status: 'loading' }
-  | { status: 'missing' }
-  | { status: 'ready'; values: EditScheduleFormData | null };
+  { status: 'loading' } | { status: 'missing' } | { status: 'ready'; values: EditScheduleFormData | null };
 
 const RECORD_LOADING: ScheduleRecordState = { status: 'loading' };
 /** The create page owns no record: nothing to seed, and the form is live at once. */

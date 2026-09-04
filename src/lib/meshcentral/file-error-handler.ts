@@ -90,7 +90,7 @@ export class FileErrorHandler {
     this.onError?.(error);
   }
 
-  parseError(message: any): FileError | null {
+  parseError(message: { error?: string; details?: string } | null | undefined): FileError | null {
     if (!message || !message.error) return null;
 
     const errorType = this.mapErrorType(message.error);

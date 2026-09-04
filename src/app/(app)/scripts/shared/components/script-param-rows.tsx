@@ -66,9 +66,9 @@ interface ScriptParamRowsProps {
  */
 export function ScriptParamRows({ rows, emptyText, className }: ScriptParamRowsProps) {
   return (
-    <div className={cn('flex flex-col gap-[var(--spacing-system-sf)] w-full', className)}>
+    <div className={cn('flex w-full flex-col gap-[var(--spacing-system-sf)]', className)}>
       {rows.length === 0
-        ? emptyText && <span className="text-h6 text-ods-text-secondary">{emptyText}</span>
+        ? emptyText && <span className="text-ods-text-secondary text-h6">{emptyText}</span>
         : rows.map(row => (
             <div key={row.id} className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
               <div className="min-w-0 max-w-[50%]">
@@ -79,7 +79,7 @@ export function ScriptParamRows({ rows, emptyText, className }: ScriptParamRowsP
                 {row.hint ? (
                   /* The hint explains the muted mark ("flag"/"empty"), so it must show even when nothing overflows. */
                   <FloatingTooltip content={row.hint} className="max-w-xs">
-                    <span className="block truncate text-h4 text-ods-text-secondary">{row.value}</span>
+                    <span className="block truncate text-ods-text-secondary text-h4">{row.value}</span>
                   </FloatingTooltip>
                 ) : (
                   <TruncateText tone={row.muted ? 'secondary' : 'primary'}>{row.value}</TruncateText>

@@ -14,8 +14,6 @@ import {
   DataTable,
   EntityImage,
   type OnChangeFn,
-  RadioGroupBlock,
-  type RadioGroupBlockOption,
   type Row,
   type TabItem,
   TabNavigation,
@@ -24,7 +22,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getDeviceFilterColumns } from '@/app/(app)/devices/components/devices-table-columns';
 import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
 import { useTagFilterModal } from '@/app/(app)/devices/hooks/use-tag-filter-modal';
@@ -123,7 +121,12 @@ export function DeviceSelector({
   // toggleDevice closure, and a stale closure that captured an outdated
   // selectedIds would corrupt the set on the next click.
   const selectedIdsRef = useRef(selectedIds);
-  selectedIdsRef.current = selectedIds;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  });
 
   const [clientColumnFilters, setClientColumnFilters] = useState<ColumnFiltersState>([]);
   const [clientTags, setClientTags] = useState<string[]>([]);
@@ -187,10 +190,16 @@ export function DeviceSelector({
   // does: memoized rows keep the closure they were rendered with.
   const toggleDevice = useCallback(
     (device: Device) => {
-      if (!server) return clientToggleDevice(device);
+      if (!server) {
+        clientToggleDevice(device);
+        return;
+      }
       if (disabled) return;
       if (isDeviceDisabled?.(device)) return;
-      if (server.activeTab === 'selected') return server.onRemove(device);
+      if (server.activeTab === 'selected') {
+        server.onRemove(device);
+        return;
+      }
       const key = getDeviceKey(device);
       if (key !== undefined && selectedIdsRef.current.has(key)) server.onRemove(device);
       else server.onAdd(device);
@@ -298,8 +307,8 @@ export function DeviceSelector({
         orgCounts.set(orgKey, { label: d.organization ?? orgKey, count: (existing?.count ?? 0) + 1 });
       }
       for (const tag of d.tags ?? []) {
-        if (!tagSeen.has(tag.key)) tagSeen.set(tag.key, new Map());
-        const vc = tagSeen.get(tag.key)!;
+        const vc = tagSeen.get(tag.key) ?? new Map<string, number>();
+        tagSeen.set(tag.key, vc);
         for (const v of tag.values) vc.set(v, (vc.get(v) ?? 0) + 1);
       }
     }
@@ -361,7 +370,7 @@ export function DeviceSelector({
   // Adapter: useTagFilterModal expects a single `setParams({ statuses, osTypes, organizationIds, tags })`
   // call. We split it back into our local state.
   const handleSetParams = useCallback(
-    (params: Record<string, any>) => {
+    (params: Record<string, string[]>) => {
       setColumnFilters([
         ...(params.statuses?.length ? [{ id: 'status', value: params.statuses }] : []),
         ...(params.osTypes?.length ? [{ id: 'os', value: params.osTypes }] : []),
@@ -432,10 +441,10 @@ export function DeviceSelector({
           const device = row.original;
           const lastSeen = device.last_seen || device.lastSeen;
           return (
-            <div className="flex items-center gap-3 h-20">
-              <div className="flex h-8 w-8 items-center justify-center shrink-0 rounded-[6px] border border-ods-border">
+            <div className="flex h-20 items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border">
                 {renderDeviceTypeIcon(device.type, 'w-4 h-4 text-ods-text-secondary') ?? (
-                  <MonitorIcon className="w-4 h-4 text-ods-text-secondary" />
+                  <MonitorIcon className="h-4 w-4 text-ods-text-secondary" />
                 )}
               </div>
               <div className="flex min-w-0 flex-col">
@@ -457,11 +466,11 @@ export function DeviceSelector({
           const device = row.original;
           const fullImageUrl = getFullImageUrl(device.organizationImageUrl, device.organizationImageHash);
           return (
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
               <EntityImage
                 src={fullImageUrl}
                 alt={device.organization || 'Customer'}
-                className="size-10 md:size-10 shrink-0"
+                className="size-10 shrink-0 md:size-10"
               />
               <div className="flex min-w-0 flex-col justify-center">
                 <TruncateText>{device.organization || ''}</TruncateText>
@@ -516,15 +525,15 @@ export function DeviceSelector({
 
           if (disabledReason) {
             return (
-              <div data-no-row-click className="flex items-center justify-end gap-2 w-full pointer-events-auto">
-                <span className="max-md:hidden text-h6 text-ods-text-secondary text-right whitespace-pre-line">
+              <div data-no-row-click className="pointer-events-auto flex w-full items-center justify-end gap-2">
+                <span className="whitespace-pre-line text-right text-ods-text-secondary text-h6 max-md:hidden">
                   {disabledReason}
                 </span>
                 <Button
                   variant="outline"
                   size="icon"
                   leftIcon={<PlusCircleIcon size={24} />}
-                  className="text-ods-text-secondary shrink-0"
+                  className="shrink-0 text-ods-text-secondary"
                   disabled
                 />
               </div>
@@ -540,7 +549,7 @@ export function DeviceSelector({
 
           if (activeSubTab === 'selected') {
             return (
-              <div data-no-row-click className="flex items-center justify-end w-full pointer-events-auto">
+              <div data-no-row-click className="pointer-events-auto flex w-full items-center justify-end">
                 <Button
                   variant="outline"
                   size="icon"
@@ -554,7 +563,7 @@ export function DeviceSelector({
           }
 
           return (
-            <div data-no-row-click className="flex items-center justify-end w-full pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex w-full items-center justify-end">
               <Button
                 variant="outline"
                 size="icon"
@@ -567,7 +576,7 @@ export function DeviceSelector({
                 // — restating them at the same value is what neutralizes them.
                 className={
                   isSelected
-                    ? 'text-ods-accent border-ods-accent hover:border-ods-accent bg-ods-open-yellow-secondary hover:bg-ods-open-yellow-secondary'
+                    ? 'border-ods-accent bg-ods-open-yellow-secondary text-ods-accent hover:border-ods-accent hover:bg-ods-open-yellow-secondary'
                     : 'text-ods-text-secondary hover:text-ods-text-primary'
                 }
                 disabled={disabled}
@@ -660,7 +669,7 @@ export function DeviceSelector({
         type="button"
         onClick={addAllDevices}
         disabled={disabled}
-        className="text-h6 underline text-ods-accent hover:text-ods-accent-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        className="cursor-pointer border-0 bg-transparent text-ods-accent underline text-h6 hover:text-ods-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         Add All Devices
       </button>
@@ -669,7 +678,7 @@ export function DeviceSelector({
         type="button"
         onClick={removeAllSelected}
         disabled={disabled}
-        className="text-h6 underline text-ods-error hover:text-ods-error-hover bg-transparent border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        className="cursor-pointer border-0 bg-transparent text-ods-error underline text-h6 hover:text-ods-error-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         Remove {server ? (server.totalCount ?? devicesForTable.length) : selectedIds.size} Devices
       </button>
@@ -747,7 +756,7 @@ export function DeviceSelector({
               tabs={assignTabs}
               activeTab={activeSubTab}
               onTabChange={handleTabChange}
-              className="rounded-t-[6px] overflow-clip"
+              className="overflow-clip rounded-t-[6px]"
             />
           )}
 

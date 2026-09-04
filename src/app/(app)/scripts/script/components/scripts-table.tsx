@@ -20,7 +20,6 @@ import {
   type ColumnDef,
   DataTable,
   FilterModal,
-  multiSelectFilterFn,
   PageLayout,
   type Row,
   SquareAvatar,
@@ -47,8 +46,8 @@ import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import {
   EmptyState,
   liveColumnMeta,
+  onboardingGuideButton,
   skeletonColumnDefs,
-  useOnboardingGuideButton,
   useRetryKey,
 } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
@@ -67,6 +66,7 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 import { SCRIPT_COLUMNS, SCRIPTS_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
 import { initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
 import { facetToSortedOptions } from '../../shared/utils/facet-options';
@@ -77,6 +77,13 @@ import { ScriptShellBadge } from './script-shell-badge';
 import { ScriptsTagFilter, ScriptsTagFilterSkeleton } from './scripts-tag-filter';
 
 const PAGE_SIZE = 20;
+
+/**
+ * TanStack's column-filter state as `useDataTable` hands it back. Declared
+ * structurally rather than imported: @tanstack/react-table is the core library's
+ * dependency, not this app's, so importing it here would be an undeclared one.
+ */
+type ColumnFilterState = { id: string; value: unknown }[];
 
 interface UiScriptEntry {
   id: string;
@@ -110,7 +117,7 @@ interface ScriptsTableContentProps {
    * guards the empty state so it never flashes on stale data.
    */
   isPending: boolean;
-  onFilterChange: (filters: Record<string, any[]>) => void;
+  onFilterChange: (filters: Record<string, string[]>) => void;
   onEmptyChange: (isEmpty: boolean) => void;
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
@@ -230,7 +237,7 @@ function ScriptsTableContent({
     (script: UiScriptEntry) => {
       const runHref = routes.scripts.run(script.id);
       const editHref = routes.scripts.edit(script.id);
-      const newTabIcon = <ArrowRightUpIcon className="w-5 h-5 text-ods-text-secondary" />;
+      const newTabIcon = <ArrowRightUpIcon className="h-5 w-5 text-ods-text-secondary" />;
       const mutating = isArchiving || isUnarchiving;
 
       // An archived script has exactly one thing that can be done to it, so it gets
@@ -242,7 +249,7 @@ function ScriptsTableContent({
             onClick={() => setConfirmTarget(script)}
             variant="outline"
             size="icon"
-            leftIcon={<InboxArrowUpIcon className="w-5 h-5" />}
+            leftIcon={<InboxArrowUpIcon className="h-5 w-5" />}
             aria-label="Unarchive Script"
             disabled={mutating}
             className="bg-ods-card"
@@ -255,7 +262,7 @@ function ScriptsTableContent({
       const archiveAction = {
         id: 'archive-script',
         label: 'Archive Script',
-        icon: <BoxArchiveIcon className="w-6 h-6 text-ods-text-secondary" />,
+        icon: <BoxArchiveIcon className="h-6 w-6 text-ods-text-secondary" />,
         disabled: mutating,
         onClick: () => setConfirmTarget(script),
       };
@@ -266,7 +273,7 @@ function ScriptsTableContent({
             {
               id: 'run-script',
               label: 'Run Script',
-              icon: <TerminalIcon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <TerminalIcon className="h-6 w-6 text-ods-text-secondary" />,
               href: runHref,
               iconAction: {
                 icon: newTabIcon,
@@ -278,7 +285,7 @@ function ScriptsTableContent({
             {
               id: 'edit-script',
               label: 'Edit Script',
-              icon: <PenEditIcon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <PenEditIcon className="h-6 w-6 text-ods-text-secondary" />,
               href: editHref,
               iconAction: {
                 icon: newTabIcon,
@@ -367,7 +374,7 @@ function ScriptsTableContent({
         accessorKey: 'name',
         header: SCRIPT_COLUMNS.name.header,
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <div className="flex flex-col justify-center gap-1 min-w-0">
+          <div className="flex min-w-0 flex-col justify-center gap-1">
             <TruncateText>{row.original.name}</TruncateText>
             {row.original.description && (
               <TruncateText variant="h6" tone="secondary">
@@ -383,7 +390,7 @@ function ScriptsTableContent({
         accessorKey: 'shellType',
         header: SCRIPT_COLUMNS.shellType.header,
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <ScriptShellBadge value={row.original.shellType} iconClassName="w-4 h-4 md:w-6 md:h-6" />
+          <ScriptShellBadge value={row.original.shellType} iconClassName="h-4 w-4 md:h-6 md:w-6" />
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
@@ -412,7 +419,7 @@ function ScriptsTableContent({
         cell: ({ row }: { row: Row<UiScriptEntry> }) => {
           if (!row.original.hasAuthor) {
             return (
-              <div className="flex flex-1 items-center min-w-0">
+              <div className="flex min-w-0 flex-1 items-center">
                 <TruncateText tone="secondary">—</TruncateText>
               </div>
             );
@@ -436,7 +443,7 @@ function ScriptsTableContent({
           );
           if (!href) {
             return (
-              <div className="flex flex-1 items-center gap-2 min-w-0">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
                 {avatar}
                 {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
                 <div className="min-w-0 flex-1">
@@ -448,11 +455,11 @@ function ScriptsTableContent({
             );
           }
           return (
-            <div data-no-row-click className="flex min-w-0 flex-1 pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex min-w-0 flex-1">
               <button
                 type="button"
                 onClick={openInNewTab(href)}
-                className="flex w-full items-center gap-2 min-w-0 text-left"
+                className="flex w-full min-w-0 items-center gap-2 text-left"
               >
                 {avatar}
                 {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
@@ -478,7 +485,7 @@ function ScriptsTableContent({
       {
         id: 'actions',
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
             {renderRowActions(row.original)}
           </div>
         ),
@@ -488,12 +495,12 @@ function ScriptsTableContent({
       {
         id: 'open',
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={openInNewTab(routes.scripts.details(row.original.id))}
               variant="outline"
               size="icon"
-              leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
               aria-label="Open in new tab"
               className="bg-ods-card"
             />
@@ -524,11 +531,12 @@ function ScriptsTableContent({
   );
 
   const handleColumnFiltersChange = useCallback(
-    (updater: any) => {
+    // TanStack's updater signature: either the next state or a reducer over it.
+    (updater: ColumnFilterState | ((prev: ColumnFilterState) => ColumnFilterState)) => {
       const next = typeof updater === 'function' ? updater(columnFilters) : updater;
-      const nextFilters: Record<string, any[]> = {};
+      const nextFilters: Record<string, string[]> = {};
       for (const f of next) {
-        nextFilters[f.id] = Array.isArray(f.value) ? f.value : [f.value];
+        nextFilters[f.id] = Array.isArray(f.value) ? (f.value as string[]) : [String(f.value)];
       }
       onFilterChange(nextFilters);
     },
@@ -553,7 +561,7 @@ function ScriptsTableContent({
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
-  const guideButton = useOnboardingGuideButton('scripts');
+  const guideButton = onboardingGuideButton('scripts');
 
   if (showEmptyState && archived) {
     return (
@@ -736,7 +744,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
   );
 
   const handleFilterChange = useCallback(
-    (columnFilters: Record<string, any[]>) => {
+    (columnFilters: Record<string, string[]>) => {
       setParams({
         shellType: columnFilters.shellType || [],
         supportedPlatforms: columnFilters.supportedPlatforms || [],
@@ -765,7 +773,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
             {
               label: 'Archive',
               variant: 'outline' as const,
-              icon: <BoxArchiveIcon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <BoxArchiveIcon className="h-6 w-6 text-ods-text-secondary" />,
               onClick: handleOpenArchive,
             },
             {
@@ -802,7 +810,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
         {!isEmpty && (
           <div
             ref={toolbarRef}
-            className="sticky top-0 z-20 flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg -mx-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]"
+            className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
           >
             <Suspense
               fallback={

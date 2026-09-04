@@ -1,11 +1,11 @@
 'use client';
 
-import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core';
+import { Button, Input } from '@flamingo-stack/openframe-frontend-core';
 import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { ImageUploader } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
 import { deleteWithAuth, uploadWithAuth } from '@/lib/upload-with-auth';
 import {
@@ -42,13 +42,26 @@ export function MspSetupStep({
   const [imageHash, setImageHash] = useState<string | undefined>();
   const [isImageBusy, setIsImageBusy] = useState(false);
 
-  useEffect(() => {
-    if (!tenantInfo) return;
-    setName(tenantInfo.name ?? '');
-    setWebsite(tenantInfo.website ?? '');
-    setImageUrl(tenantInfo.image?.imageUrl ?? undefined);
-    setImageHash(tenantInfo.image?.hash ?? undefined);
-  }, [tenantInfo]);
+  // Seeded when the tenant record arrives (or is replaced), during render rather
+  // than in an effect: an effect renders the empty fields once after the data has
+  // landed.
+  //
+  // The tracker starts at `undefined` as a sentinel rather than at the current
+  // value: react-query answers from cache on a remount (collapse and re-expand
+  // this step, or a return to the dashboard), so the record is routinely already
+  // there on the FIRST render, and a tracker seeded with it never fires — the
+  // fields would stay blank. Seeding from an `undefined` `tenantInfo` is a no-op
+  // either way, since the body below acts only on a loaded record.
+  const [seededFrom, setSeededFrom] = useState<typeof tenantInfo>(undefined);
+  if (tenantInfo !== seededFrom) {
+    setSeededFrom(tenantInfo);
+    if (tenantInfo) {
+      setName(tenantInfo.name ?? '');
+      setWebsite(tenantInfo.website ?? '');
+      setImageUrl(tenantInfo.image?.imageUrl ?? undefined);
+      setImageHash(tenantInfo.image?.hash ?? undefined);
+    }
+  }
 
   const handleImageChange = useCallback(
     async (file: File) => {

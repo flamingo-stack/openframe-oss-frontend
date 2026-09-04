@@ -20,8 +20,8 @@ function getServerSnapshot(): boolean {
  * prerendered HTML — including the static export the shells bundle — is produced
  * with no `window`, so the build always answers "web" while the phone answers
  * "mobile", and React regenerates the subtree. This hands hydration the server's
- * answer and re-renders with the real one, the same trade
- * `usePrefersReducedMotion` makes.
+ * answer and re-renders with the real one, the same trade the core lib's
+ * `useMediaQuery` makes.
  *
  * The cost is one frame of the web variant on the phone. For anything that must
  * be right in the FIRST painted frame, key off CSS the shell can set before

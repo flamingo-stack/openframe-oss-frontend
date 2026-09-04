@@ -16,7 +16,7 @@ Install these extensions for the best development experience:
 |-----------|----|---------| 
 | **TypeScript Vue Plugin** / TS Inlay Hints | built-in | TypeScript language support |
 | **ESLint** | `dbaeumer.vscode-eslint` | Inline lint errors |
-| **Biome** | `biomejs.biome` | Formatting and linting |
+| **Prettier** | `esbenp.prettier-vscode` | Formatting |
 | **Tailwind CSS IntelliSense** | `bradlc.vscode-tailwindcss` | Autocomplete for Tailwind classes |
 | **GraphQL: Language Feature Support** | `GraphQL.vscode-graphql` | GraphQL schema awareness |
 | **Relay** | `meta.relay` | Relay fragment support and autocomplete |
@@ -26,7 +26,7 @@ Install these extensions for the best development experience:
 Install all at once via the terminal:
 
 ```bash
-code --install-extension biomejs.biome
+code --install-extension esbenp.prettier-vscode
 code --install-extension bradlc.vscode-tailwindcss
 code --install-extension GraphQL.vscode-graphql
 code --install-extension meta.relay
@@ -38,16 +38,20 @@ code --install-extension dbaeumer.vscode-eslint
 
 ## VS Code Settings
 
-Add these settings to your workspace (`.vscode/settings.json`) or user settings for the best experience:
+The workspace already ships `.vscode/settings.json` and `.vscode/extensions.json`, so opening the
+repo is enough. What they set, and what you'd want in user settings for other Flamingo repos:
 
 ```json
 {
-  "editor.defaultFormatter": "biomejs.biome",
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
+  // Import order is an ESLint rule here (perfectionist/sort-imports), so
+  // source.fixAll.eslint sorts them. Do NOT add source.organizeImports —
+  // it uses the TS server's ordering and the two fight on every save.
   "editor.codeActionsOnSave": {
-    "source.organizeImports": "explicit",
-    "quickfix.biome": "explicit"
+    "source.fixAll.eslint": "explicit"
   },
+  "eslint.useFlatConfig": true,
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
   "tailwindCSS.experimental.classRegex": [
@@ -68,12 +72,12 @@ WebStorm provides excellent TypeScript and Next.js support out of the box.
 
 1. Open the project root directory
 2. Enable the **GraphQL** plugin from Settings → Plugins
-3. Install the **Biome** plugin for formatting
+3. Install the **Prettier** plugin for formatting and enable ESLint
 4. Set TypeScript version to the project's `node_modules/typescript` version
 
 ### Neovim / Vim
 
-Use `nvim-lspconfig` with the TypeScript LSP (`tsserver` or `typescript-language-server`) and install the Biome LSP for formatting.
+Use `nvim-lspconfig` with the TypeScript LSP (`tsserver` or `typescript-language-server`), plus `eslint` and `prettier` (via `none-ls`/`conform.nvim`) for linting and formatting.
 
 ---
 
@@ -148,20 +152,28 @@ The pre-commit hook typically runs linting and type checking to prevent bad code
 
 ---
 
-## Biome Configuration
+## Lint and format configuration
 
-The project uses [Biome](https://biomejs.dev/) (`@biomejs/biome: 2.4.4`) for both formatting and linting. Biome replaces Prettier for formatting tasks.
+ESLint owns the rules, Prettier owns the formatting. Neither rule set lives in this repo: both come
+from the shared config shipped inside `@flamingo-stack/openframe-frontend-core` (`eslint-config/`),
+so every Flamingo frontend lints the same way. `eslint.config.mjs` and `prettier.config.mjs` here
+just compose the layers.
 
 ```bash
-# Check formatting and linting
-npm run lint:biome
+# Lint (fast pass — what the editor loads)
+npm run lint
 
 # Auto-fix all fixable issues
-npm run lint:biome:fix
+npm run lint:fix
 
 # Format only (no lint checks)
 npm run format:fix
+
+# Type-aware pass — slow, needs an 8 GB heap; run it before pushing
+npm run lint:types
 ```
+
+`// eslint-disable` comments are inert (`noInlineConfig`) and are themselves reported as errors.
 
 ---
 
@@ -187,5 +199,5 @@ npm run relay
 - [ ] Node.js 20 LTS installed (via `nvm` or `fnm`)
 - [ ] `.env.local` configured
 - [ ] `npm install` completed (including Husky hooks)
-- [ ] Biome extension active with format-on-save enabled
+- [ ] Prettier and ESLint extensions active with format-on-save enabled
 - [ ] Relay extension installed for GraphQL fragment support

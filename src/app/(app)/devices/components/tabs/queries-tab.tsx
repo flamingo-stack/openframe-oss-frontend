@@ -58,6 +58,18 @@ export function QueriesTab({ device }: QueriesTabProps) {
     );
   }
 
+  // No queries assigned to this host at all → the centered design empty state
+  // matching the other tabs; the in-table empty stays for searches.
+  if (!reportsLoading && !queriesLoading && hostReports.length === 0) {
+    return (
+      <TabEmptyState
+        icon={<BracketCurlyEllipsisVrIcon />}
+        title="No queries yet"
+        description="Real-time questions you ask across your fleet (which devices have Chrome installed, who is on an outdated OS, which machines are low on disk) will be displayed here."
+      />
+    );
+  }
+
   // Hide the search on a truly empty table (no rows, no active search, not loading) so the
   // tab shows only the centered empty state — matching the table's hidden header.
   const showSearch = reportsLoading || queriesLoading || rows.length > 0 || search.trim().length > 0;
@@ -67,14 +79,14 @@ export function QueriesTab({ device }: QueriesTabProps) {
       {showSearch && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <Input
             placeholder="Search for Query"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full"
-            startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
           />
         </div>
       )}

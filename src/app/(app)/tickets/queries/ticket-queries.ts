@@ -254,6 +254,8 @@ export const GET_TICKETS_QUERY = `
             key
             color
           }
+          # Unflagged, so it must not outrun the backend — see boardCardTicketFragment.
+          unreadNotificationCount
           createdAt
           updatedAt
           resolvedAt
@@ -280,6 +282,19 @@ export const GET_TICKETS_QUERY = `
  * first GraphQL error — every board column would come back empty rather than
  * merely missing a badge. `resolvedBy` rides the `ai-resolution` flag for the
  * same reason.
+ *
+ * `unreadNotificationCount` is selected UNCONDITIONALLY and carries that same
+ * failure mode, because `ticket.graphqls` declares it with no feature flag —
+ * there is no flag to ride, and borrowing an unrelated one (`notifications`
+ * gates the notifications UI, not the ai-agent schema) would only move the
+ * breakage. It is therefore a deploy-ordering requirement: the saas-ai-agent
+ * carrying the field must ship BEFORE this frontend, or the board columns, the
+ * tickets table and the ticket picker (`use-ticket-options.ts`, same document)
+ * all come back empty. Same constraint at the `GET_TICKETS_QUERY` selection.
+ *
+ * `lastActivityAt` / `activityState` (board activity indicators) are in the
+ * same unconditional, no-flag position: the saas-ai-agent build exposing them
+ * (openframe-saas-tenant#2938) must be deployed before this frontend.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
@@ -337,6 +352,9 @@ const boardCardTicketFragment = () => `
       key
       color
     }
+    unreadNotificationCount
+    lastActivityAt
+    activityState
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
     ${featureFlags.aiResolution.enabled() ? 'resolvedBy' : ''}
     pendingApproval {
@@ -364,9 +382,9 @@ const boardCardTicketFragment = () => `
 `;
 
 export const getBoardColumnTicketsQuery = () => `
-  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!]) {
+  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!], $hasUnreadNotifications: Boolean, $activity: [TicketActivityFilter!]) {
     tickets(
-      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds }
+      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds, hasUnreadNotifications: $hasUnreadNotifications, activity: $activity }
       pagination: { limit: $limit, cursor: $cursor }
       search: $search
       sort: { field: "order", direction: ASC }
@@ -556,42 +574,6 @@ export const UPDATE_TICKET_MUTATION = `
   }
 `;
 
-export const PUT_TICKET_ON_HOLD_MUTATION = `
-  mutation PutTicketOnHold($input: TicketIdInput!) {
-    putTicketOnHold(input: $input) {
-      ticket { id status }
-      userErrors { field message }
-    }
-  }
-`;
-
-export const RESOLVE_TICKET_MUTATION = `
-  mutation ResolveTicket($input: TicketIdInput!) {
-    resolveTicket(input: $input) {
-      ticket { id status resolvedAt }
-      userErrors { field message }
-    }
-  }
-`;
-
-export const ARCHIVE_TICKET_MUTATION = `
-  mutation ArchiveTicket($input: TicketIdInput!) {
-    archiveTicket(input: $input) {
-      ticket { id status }
-      userErrors { field message }
-    }
-  }
-`;
-
-export const REOPEN_TICKET_MUTATION = `
-  mutation ReopenTicket($input: TicketIdInput!) {
-    reopenTicket(input: $input) {
-      ticket { id status }
-      userErrors { field message }
-    }
-  }
-`;
-
 /**
  * The reopen verb (ClickUp 86ajnyctz): flips a Resolved/Archived ticket back
  * open, records the optional reason (backend trims, <=1000 chars), and fires
@@ -669,15 +651,6 @@ export const UNLINK_ORGANIZATION_FROM_TICKET_MUTATION = `
     unlinkOrganizationFromTicket(input: $input) {
       ticket { id organizationId organizationName }
       userErrors { field message }
-    }
-  }
-`;
-
-export const GET_TICKET_STATUS_TRANSITIONS_QUERY = `
-  query TicketStatusTransitions {
-    ticketStatusTransitions {
-      from
-      to
     }
   }
 `;

@@ -891,9 +891,6 @@ interface ReducerMetadataEffectArgs {
  */
 export function natsMirrorOptions<K extends string>(
   handlersFor: (key: K) => NatsMirrorHandlers | undefined,
-  // Thunk, not a value: reducer options are read lazily at reducer-creation
-  // time, so the flag must be sampled then rather than frozen at wiring time.
-  batchApprovalsEnabled: () => boolean,
   // Thunk, and PASSED THROUGH as one (see the `selfUserId` note in the
   // returned options) — the signed-in user is not known at module load.
   selfUserId: () => string | undefined = () => undefined,
@@ -901,7 +898,6 @@ export function natsMirrorOptions<K extends string>(
   return key => ({
     transport: 'nats',
     displayApprovalTypes: ['CLIENT', 'ADMIN'],
-    batchApprovalsEnabled: batchApprovalsEnabled(),
     // This app's operator IS the admin: every optimistic send here is
     // admin-authored, so its MESSAGE_REQUEST echo comes back with
     // ownerType 'ADMIN'. Without this the reducer skips echo consumption

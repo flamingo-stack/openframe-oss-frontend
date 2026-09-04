@@ -91,11 +91,11 @@ export function OnboardingContent() {
   // LATER visit (deep link, back button, reload, menu) with the tour already complete is
   // redirected away. Writing the ref during the first loaded render is a deliberate
   // one-shot capture that only gates this component.
-  const completedOnArrivalRef = useRef<boolean | null>(null);
-  if (isLoaded && completedOnArrivalRef.current === null) {
-    completedOnArrivalRef.current = user?.completed ?? false;
+  const [completedOnArrival, setCompletedOnArrival] = useState<boolean | null>(null);
+  if (isLoaded && completedOnArrival === null) {
+    setCompletedOnArrival(user?.completed ?? false);
   }
-  const lockedOut = completedOnArrivalRef.current === true;
+  const lockedOut = completedOnArrival === true;
 
   // The personal Get Started tour is only reachable after the tenant Initial Setup is
   // complete and before the user has finished it. If the user lands here otherwise (deep
@@ -164,7 +164,7 @@ function LoadedOnboardingContent() {
     } else {
       const oldUrl = window.location.href;
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      // biome-ignore lint/style/useNamingConvention: oldURL/newURL are the DOM HashChangeEventInit field names
+      // oldURL/newURL are the DOM HashChangeEventInit field names
       window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: oldUrl, newURL: window.location.href }));
     }
   }, []);

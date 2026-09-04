@@ -10,7 +10,7 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import type { ScheduleDevicesSettingsData } from '../types/schedule-detail.types';
 import { toEnvVarInputs } from '../utils/schedule-script-params';
-import { isEventTrigger } from '../utils/schedule-timing';
+import { isEventTrigger, resolveOfflineBehavior, resolveTimeReference } from '../utils/schedule-timing';
 
 interface SaveSpecificModeCallbacks {
   onSaved?: () => void;
@@ -43,10 +43,11 @@ interface SaveSpecificModeCallbacks {
  * That update is a **PUT**: every writable field on the input overwrites the
  * stored value, and an omitted one clears it. So this sends the schedule back
  * unchanged around the single field it means to change — name, description,
- * platforms, the script list in run order, the per-script overrides, the trigger
- * and the timing. Dropping any of them here would empty it. That is why the page
- * this hook serves reads them (see `script-schedule-devices-settings-relay.ts`)
- * even though it renders none of them.
+ * platforms, the script list in run order, the per-script overrides, the trigger,
+ * the timing, and the offline behavior with its reconnect window. Dropping any of
+ * them here would empty it. That is why the page this hook serves reads them (see
+ * `script-schedule-devices-settings-relay.ts`) even though it renders none of
+ * them.
  *
  * The rule itself is deliberately NOT cleared. Per the schema, flipping modes
  * "leaves the join rows/rule untouched" — so a schedule switched back to
@@ -89,7 +90,19 @@ export function useScheduleSelectionMode(schedule: ScheduleDevicesSettingsData |
               ? ScriptScheduleTrigger.DEVICE_ONLINE
               : ScriptScheduleTrigger.DATE_TIME,
             selectionMode: ScheduleDeviceSelectionMode.SPECIFIC,
+            // Same round trip as the platforms above, and the one field where
+            // dropping it would not just blank a value: the input reads null as
+            // SKIP, so omitting it would quietly turn a schedule that queues
+            // runs for offline devices into one that skips them.
+            offlineBehavior: resolveOfflineBehavior(schedule.offlineBehavior),
+            reconnectWindowSeconds: schedule.reconnectWindowSeconds,
             startAt: schedule.startAt,
+            // The other field whose omission would not merely blank a value:
+            // the input reads null as SERVER, so dropping it would re-read a
+            // device-local schedule's wall clock as an absolute instant and
+            // move every run by the viewer's offset — from a page about device
+            // targeting that never mentions time at all.
+            timeReference: resolveTimeReference(schedule.timeReference),
             repeat: schedule.repeat,
           },
         },

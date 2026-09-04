@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import type { LogEntry } from '../../logs-page/types/log.types';
 
 interface DetailsSectionProps {
@@ -43,15 +42,15 @@ export function DetailsSection({ logDetails }: DetailsSectionProps) {
   const formattedJson = JSON.stringify(detailsData, null, 2);
 
   return (
-    <div className="flex flex-col gap-3 w-full">
+    <div className="flex w-full flex-col gap-3">
       {/* Section Title */}
-      <div className="text-h5 text-ods-text-secondary w-full">Details</div>
+      <div className="w-full text-ods-text-secondary text-h5">Details</div>
 
       {/* Details Card */}
-      <div className="bg-ods-card border border-ods-border rounded-[6px] w-full">
+      <div className="w-full rounded-[6px] border border-ods-border bg-ods-card">
         <div className="p-4 md:p-6">
           <div className="w-full overflow-x-auto">
-            <pre className="text-code text-ods-text-primary whitespace-pre-wrap break-words min-w-0">
+            <pre className="min-w-0 whitespace-pre-wrap break-words text-ods-text-primary text-code">
               {formattedJson}
             </pre>
           </div>

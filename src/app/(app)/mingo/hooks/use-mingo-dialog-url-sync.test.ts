@@ -11,10 +11,10 @@ const base: MingoUrlSyncInput = {
   navigated: false,
   urlDialogId: null,
   mirroredDialogId: null,
-  mingoGate: 'on',
   canOpenDrawer: true,
   drawerOpen: false,
   activeDialogId: null,
+  closedForNavigation: false,
 };
 
 describe('resolveMingoUrlSync', () => {
@@ -36,24 +36,10 @@ describe('resolveMingoUrlSync', () => {
     ).toEqual({ type: 'none' });
   });
 
-  it('holds an instruction until the flag answers, and adopts once it does', () => {
-    const loading = { ...base, urlDialogId: 'd-1', mingoGate: 'loading' as const };
-    expect(resolveMingoUrlSync(loading)).toEqual({ type: 'none' });
-    expect(resolveMingoUrlSync({ ...loading, mingoGate: 'on' })).toEqual({ type: 'adopt', dialogId: 'd-1' });
-  });
-
   it('holds an instruction while no drawer is mounted', () => {
     // Subscription lock, mid-boot chrome — the drawer comes back, so the link
     // must not be spent on a shell that cannot show it.
     expect(resolveMingoUrlSync({ ...base, urlDialogId: 'd-1', canOpenDrawer: false })).toEqual({ type: 'none' });
-  });
-
-  it('strips a param the tenant can never honour', () => {
-    // Flag definitively off: no drawer will ever exist here.
-    expect(resolveMingoUrlSync({ ...base, urlDialogId: 'd-1', mingoGate: 'off' })).toEqual({
-      type: 'write',
-      dialogId: null,
-    });
   });
 
   it('writes the open conversation into the URL', () => {
@@ -73,6 +59,30 @@ describe('resolveMingoUrlSync', () => {
     ).toEqual({ type: 'write', dialogId: null });
   });
 
+  it('leaves the URL alone when the close came FROM a navigation still in flight', () => {
+    // The in-chat card click: `router.push` is a pending transition, so this pass
+    // still reads the PRE-navigation location. Stripping here writes the old URL
+    // over the push and the click does nothing. The destination is param-free
+    // anyway; step 1 clears the mirror once it lands.
+    expect(
+      resolveMingoUrlSync({
+        ...base,
+        urlDialogId: 'd-1',
+        mirroredDialogId: 'd-1',
+        activeDialogId: 'd-1',
+        closedForNavigation: true,
+      }),
+    ).toEqual({ type: 'none' });
+  });
+
+  it('still writes a reopened conversation while the navigation flag is set', () => {
+    // Only the STRIP waits. A reopen names a real conversation and must reach the
+    // URL, or a share/reload loses it.
+    expect(
+      resolveMingoUrlSync({ ...base, drawerOpen: true, activeDialogId: 'd-2', closedForNavigation: true }),
+    ).toEqual({ type: 'write', dialogId: 'd-2' });
+  });
+
   it('closes on navigation instead of stamping the dialog onto the new route', () => {
     // The regression this replaces: the projection ran first and wrote
     // `/devices?mingoDialog=d-1` before close-on-navigate could fire.
@@ -88,9 +98,9 @@ describe('resolveMingoUrlSync', () => {
   });
 
   it('adopts across a navigation that carries an instruction', () => {
-    // The `/mingo?dialogId=` -> `/dashboard?mingoDialog=` hop. A close living in
-    // its own effect would fire on this same commit and shut the drawer that this
-    // pass is opening.
+    // A deep link landing on `?mingoDialog=` on a route the user was not on. A close
+    // living in its own effect would fire on this same commit and shut the drawer
+    // that this pass is opening.
     expect(resolveMingoUrlSync({ ...base, navigated: true, urlDialogId: 'd-1' })).toEqual({
       type: 'adopt',
       dialogId: 'd-1',

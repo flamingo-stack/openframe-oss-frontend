@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MINGO_CANONICAL_DIALOG_PARAM, MINGO_DIALOG_PARAM, mingoDialogLink, routes, withMingoDialog } from './routes';
+import { MINGO_DIALOG_PARAM, mingoDialogLink, withMingoDialog } from './routes';
 
 /**
  * `withMingoDialog` writes the URL that `history.replaceState` puts in the address
@@ -42,21 +42,13 @@ describe('withMingoDialog', () => {
   });
 });
 
-describe('the canonical /mingo deep link', () => {
-  it('shares the destination, not the redirect', () => {
-    // The whole point of `mingoDialogLink`: a pasted link must adopt on arrival
-    // rather than render `/mingo` and bounce, which costs a paint of the legacy page.
+describe('the canonical Mingo dialog deep link', () => {
+  it('shares the drawer resting URL', () => {
+    // The chat has no route of its own, so the shareable shape is the drawer's own
+    // param on a fixed landing page — a pasted link adopts on arrival with nothing
+    // rendered in between.
     expect(mingoDialogLink('d-1')).toBe('/dashboard?mingoDialog=d-1');
     expect(mingoDialogLink('a b&c=1')).toBe('/dashboard?mingoDialog=a+b%26c%3D1');
-  });
-
-  it('still resolves links already pasted elsewhere', () => {
-    // Nothing produces this shape any more, but copies of it exist in Slack threads
-    // and tickets, so `MingoPage` keeps redirecting it. Asserted as a literal because
-    // that is what those old copies actually contain.
-    expect(routes.mingo({ dialogId: 'd-1' })).toBe('/mingo?dialogId=d-1');
-    expect(routes.mingo()).toBe('/mingo');
-    expect(MINGO_CANONICAL_DIALOG_PARAM).toBe('dialogId');
     expect(MINGO_DIALOG_PARAM).toBe('mingoDialog');
   });
 });

@@ -77,7 +77,7 @@ export function buildNotificationColumns({
             <div className="hidden min-w-0 flex-col gap-[var(--spacing-system-xxs)] md:flex">
               {/* Real content leads; the context-derived kind label moved to the details column. */}
               <TruncateText className={titleColor}>{row.original.title}</TruncateText>
-              <span className="truncate text-h6 text-ods-text-secondary">{relativeTime}</span>
+              <span className="truncate text-ods-text-secondary text-h6">{relativeTime}</span>
             </div>
             {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
             <div className="flex min-w-0 flex-col md:hidden">

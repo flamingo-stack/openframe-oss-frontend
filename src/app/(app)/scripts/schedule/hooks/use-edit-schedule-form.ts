@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,6 +10,7 @@ import { useMutation } from 'react-relay';
 import type { createScriptScheduleMutation as CreateScheduleMutationType } from '@/__generated__/createScriptScheduleMutation.graphql';
 import type { updateScriptScheduleMutation as UpdateScheduleMutationType } from '@/__generated__/updateScriptScheduleMutation.graphql';
 import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
+import { ScheduleOfflineBehavior } from '@/generated/schema-enums';
 import { createScriptScheduleMutation } from '@/graphql/scripts/create-script-schedule-mutation';
 import { updateScriptScheduleMutation } from '@/graphql/scripts/update-script-schedule-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
@@ -21,7 +23,14 @@ import {
   editScheduleFormSchema,
 } from '../types/edit-schedule.types';
 import { collectScriptCustomParams } from '../utils/schedule-script-params';
-import { applyTimeSlot, isEventTrigger, resolveRepeatSeconds, toScheduleInstant } from '../utils/schedule-timing';
+import {
+  applyTimeSlot,
+  isDeviceLocalTime,
+  isEventTrigger,
+  isRetryOnReconnect,
+  resolveDurationSeconds,
+  toScheduleInstant,
+} from '../utils/schedule-timing';
 
 interface UseEditScheduleFormOptions {
   /** `null` on the create page — which is also what picks create over update. */
@@ -47,6 +56,14 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
   const methods = useForm<EditScheduleFormData>({
     resolver: zodResolver(editScheduleFormSchema),
     defaultValues: DEFAULT_SCHEDULE_VALUES,
+    // Nothing is judged mid-word. The default pair is `onSubmit` + re-validate
+    // `onChange`, which means that after ONE failed Save every later keystroke
+    // is graded — the half-typed "3" of "30" reads as below the minimum, and the
+    // number fields flash a complaint about a value still being written. Blur is
+    // when a value is finished, and it is also when the cross-field rule (window
+    // shorter than cadence) can weigh two settled numbers rather than one
+    // settled and one in progress.
+    reValidateMode: 'onBlur',
   });
 
   // Errors stay hidden on a pristine form and appear only once the user attempts
@@ -63,10 +80,21 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
       // Day + time of day become one instant here. Both are guaranteed present
       // for a DATE_TIME schedule (schema `superRefine`), so a null start can only
       // mean "event-driven".
+      // Written under the reading the form holds: SERVER converts the local pair
+      // to the instant it names, DEVICE_LOCAL stores the wall clock itself for
+      // the runner to re-base per device (see `toScheduleInstant`).
       const startAt =
         !isEventDriven && data.scheduledDate && data.scheduledTime
-          ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime))
+          ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime), data.timeReference)
           : null;
+      // A device-local start is one-shot by contract — the schema does not take
+      // `repeat` for it. The Repeat controls are cleared and locked when it is
+      // picked, so this only backs that up; what it does guarantee is that a
+      // cadence can never ride along with a reading that cannot carry one.
+      const deviceLocal = isDeviceLocalTime(data.timeReference);
+      // The window is written only when the behavior that uses it is in force,
+      // and an event-driven schedule has neither.
+      const retriesOnReconnect = !isEventDriven && isRetryOnReconnect(data.offlineBehavior);
       const input = {
         name: data.name,
         // PUT semantics on update: null clears the stored description.
@@ -75,7 +103,7 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // Order is the payload: the card order (drag & drop) IS the run order.
         // TODO(backend): per-script TIMEOUT is still edited in the cards and
         // dropped here — `ScheduledScriptCustomParamsInput` carries args and env
-        // vars only (docs/script-schedules-graphql-gaps.md §3).
+        // vars only.
         scriptIds: data.scripts.map(s => s.scriptId),
         // Sparse by construction: a script whose args and env vars still equal
         // its own defaults contributes no entry, so the schedule keeps
@@ -87,13 +115,39 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // PUT semantics: null clears the timing / recurrence. `repeat` needs a
         // start to anchor it, which a DATE_TIME schedule always has by now.
         startAt,
-        // `resolveRepeatSeconds`, not the raw parts: a stored cadence the unit
+        // Which clock `startAt` is in. Sent explicitly rather than left to the
+        // input's null-means-SERVER default: this is a PUT, and the form holds
+        // the schedule's own reading even where the picker is hidden by its
+        // flag — omitting it would re-time a device-local schedule on any edit.
+        timeReference: data.timeReference,
+        // `resolveDurationSeconds`, not the raw parts: a stored cadence the unit
         // dropdown can't express is displayed rounded, and writing that display
         // back would change how often the schedule runs on an edit that never
         // touched recurrence.
+        // `data.repeatInterval` is nullable so the box can be emptied while
+        // typing; validation has already refused a null one by the time a
+        // repeating schedule reaches here, so the guard is only for the type.
         repeat:
-          startAt && data.repeatEnabled
-            ? resolveRepeatSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
+          startAt && !deviceLocal && data.repeatEnabled && data.repeatInterval !== null
+            ? resolveDurationSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
+            : null,
+        // "If device is offline at scheduled time" — meaningless without one, so
+        // an event-driven schedule is written back as the SKIP default rather
+        // than carrying whatever the collapsed block still holds. It fires ON
+        // the reconnect already; there is no offline moment to decide about.
+        offlineBehavior: isEventDriven ? ScheduleOfflineBehavior.SKIP : data.offlineBehavior,
+        // Only ever set alongside RETRY_ON_RECONNECT — the schema says the field
+        // is "set only when offlineBehavior is RETRY_ON_RECONNECT; null/ignored
+        // for SKIP", and PUT semantics make sending a stale window on a schedule
+        // switched back to SKIP a stored value nothing displays.
+        //
+        // `resolveDurationSeconds` for the same reason `repeat` uses it, and
+        // more sharply: this field sits on no grid, so a window the unit
+        // dropdown genuinely cannot express is reachable, and writing the
+        // rounded display back would shorten it on an unrelated edit.
+        reconnectWindowSeconds:
+          retriesOnReconnect && data.reconnectInterval !== null
+            ? resolveDurationSeconds(data.reconnectInterval, data.reconnectUnit, data.reconnectWindowSecondsStored)
             : null,
       };
 

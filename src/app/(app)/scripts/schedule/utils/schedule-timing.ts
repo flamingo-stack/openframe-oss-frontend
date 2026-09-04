@@ -1,4 +1,4 @@
-import { ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { ScheduleOfflineBehavior, ScheduleTimeReference, ScriptScheduleTrigger } from '@/generated/schema-enums';
 import { formatDate, formatTime } from '@/lib/format-date';
 
 /**
@@ -15,6 +15,13 @@ import { formatDate, formatTime } from '@/lib/format-date';
  * week, month=30d), so anything produced here is always a valid interval on the
  * backend's 30-minute grid. (The backend also accepts a bare 30-minute repeat;
  * the UI simply doesn't surface a sub-hour unit.)
+ *
+ * Two more fields say what happens when the instant arrives and the device is
+ * NOT there — `offlineBehavior` (`SKIP` | `RETRY_ON_RECONNECT`) and, for the
+ * latter, `reconnectWindowSeconds`, the deadline past which a queued run is
+ * abandoned. They live here because they only mean anything against a scheduled
+ * time: a `DEVICE_ONLINE` schedule already fires on reconnect, so it has no
+ * offline case to decide and is stored as `SKIP`.
  *
  * **Everything the user sees or picks is their LOCAL wall clock**; UTC exists
  * only on the wire. See {@link toScheduleInstant}.
@@ -35,16 +42,64 @@ export function isEventTrigger(trigger: ScriptScheduleTrigger | string | null | 
 }
 
 /**
- * The repeat units, finest first — one list, so the dropdown, the form schema
- * and the seconds table cannot drift apart.
+ * Which clock the picked date + time mean — `timeReference`, the second half of
+ * what `startAt` says.
+ *
+ * - `SERVER` (the default, and what every schedule authored before the field
+ *   existed carries): `startAt` is an absolute instant. One moment, worldwide.
+ * - `DEVICE_LOCAL`: `startAt` carries the picked WALL CLOCK with no zone applied
+ *   — local 09:00 is stored as `…T09:00:00Z` — and the runner re-bases it into
+ *   each device's own timezone. One reading, many moments; a fleet across three
+ *   zones runs at 9 AM three times.
+ *
+ * The distinction reaches almost every function below, because it decides
+ * whether a stored instant is converted through the viewer's offset or read
+ * digit for digit: {@link toScheduleInstant}, {@link fromScheduleInstant},
+ * {@link getTimeSlotOptions} (the 30-minute grid is UTC's, and only the SERVER
+ * reading has to be shifted onto it) and {@link formatScheduleStartAt}.
+ *
+ * A predicate rather than `=== ENUM.X` at the call sites, for the same reason
+ * {@link isEventTrigger} is one: Relay types every schema enum with a
+ * `%future added value` member, so asking "is it the non-default arm" is what
+ * lets an unknown value fall back to SERVER — which is what the write side
+ * documents null as meaning.
  */
-export const REPEAT_UNIT_VALUES = ['minute', 'hour', 'day', 'week', 'month'] as const;
+export function isDeviceLocalTime(timeReference: ScheduleTimeReference | string | null | undefined): boolean {
+  return timeReference === ScheduleTimeReference.DEVICE_LOCAL;
+}
 
-export type RepeatUnit = (typeof REPEAT_UNIT_VALUES)[number];
+/**
+ * A stored `timeReference` narrowed to the two arms this client knows, anything
+ * else — including null — settling on SERVER. The counterpart of
+ * {@link resolveOfflineBehavior}, and needed for the same two reasons: the write
+ * side declares the field nullable with a documented default, and Relay's enum
+ * types carry a member the input cannot accept.
+ */
+export function resolveTimeReference(
+  timeReference: ScheduleTimeReference | string | null | undefined,
+): ScheduleTimeReference {
+  return isDeviceLocalTime(timeReference) ? ScheduleTimeReference.DEVICE_LOCAL : ScheduleTimeReference.SERVER;
+}
 
-// `Record<RepeatUnit, …>` on both maps: adding a unit above is then a compile
+/**
+ * The units an `[interval] [unit]` pair is built from, finest first — one list,
+ * so the dropdowns, the form schema and the seconds table cannot drift apart.
+ *
+ * Two different settings are spelled in this vocabulary, and they are NOT the
+ * same quantity: the repeat cadence (`repeat`, how often the schedule fires) and
+ * the reconnect window (`reconnectWindowSeconds`, how long an offline device's
+ * queued run is still worth running). They share the units and the seconds
+ * table; nothing else. In particular {@link MIN_REPEAT_MINUTES} is a property of
+ * the RUNNER'S grid and constrains the cadence only — a reconnect window is a
+ * plain deadline and may sit anywhere.
+ */
+export const DURATION_UNIT_VALUES = ['minute', 'hour', 'day', 'week', 'month'] as const;
+
+export type DurationUnit = (typeof DURATION_UNIT_VALUES)[number];
+
+// `Record<DurationUnit, …>` on both maps: adding a unit above is then a compile
 // error until its seconds and its label exist.
-const UNIT_SECONDS: Record<RepeatUnit, number> = {
+const UNIT_SECONDS: Record<DurationUnit, number> = {
   minute: 60,
   hour: 3600,
   day: 86400,
@@ -52,7 +107,7 @@ const UNIT_SECONDS: Record<RepeatUnit, number> = {
   month: 2592000, // 30 days — the only "calendar" unit the seconds model can approximate
 };
 
-const UNIT_LABEL: Record<RepeatUnit, string> = {
+const UNIT_LABEL: Record<DurationUnit, string> = {
   minute: 'Minute',
   hour: 'Hour',
   day: 'Day',
@@ -68,10 +123,10 @@ const UNIT_LABEL: Record<RepeatUnit, string> = {
  */
 export const MIN_REPEAT_MINUTES = 30;
 
-/** Largest-first, so `secondsToRepeatParts` picks the coarsest exact unit. */
-const UNITS_DESC: RepeatUnit[] = [...REPEAT_UNIT_VALUES].sort((a, b) => UNIT_SECONDS[b] - UNIT_SECONDS[a]);
+/** Largest-first, so `secondsToDuration` picks the coarsest exact unit. */
+const UNITS_DESC: DurationUnit[] = [...DURATION_UNIT_VALUES].sort((a, b) => UNIT_SECONDS[b] - UNIT_SECONDS[a]);
 
-export const REPEAT_UNIT_OPTIONS: { label: string; value: RepeatUnit }[] = REPEAT_UNIT_VALUES.map(value => ({
+export const DURATION_UNIT_OPTIONS: { label: string; value: DurationUnit }[] = DURATION_UNIT_VALUES.map(value => ({
   value,
   label: UNIT_LABEL[value],
 }));
@@ -84,43 +139,45 @@ export const REPEAT_UNIT_OPTIONS: { label: string; value: RepeatUnit }[] = REPEA
  * Used when the unit CHANGES: switching "1 Day" to minutes would otherwise leave
  * "1 Minute" sitting in the form, a value the user never typed and cannot save.
  */
-export function snapRepeatInterval(interval: number, unit: RepeatUnit): number {
-  if (unit !== 'minute') return interval;
+export function snapRepeatInterval(interval: number | null, unit: DurationUnit): number | null {
+  if (unit !== 'minute' || interval === null) return interval;
   if (!Number.isFinite(interval) || interval < MIN_REPEAT_MINUTES) return MIN_REPEAT_MINUTES;
   return Math.ceil(interval / MIN_REPEAT_MINUTES) * MIN_REPEAT_MINUTES;
 }
 
-/** Repeat form parts → the `repeat` seconds the backend stores. */
-export function repeatPartsToSeconds(interval: number, unit: RepeatUnit): number {
+/** An `[interval] [unit]` pair → the seconds the backend stores. */
+export function durationToSeconds(interval: number, unit: DurationUnit): number {
   return interval * UNIT_SECONDS[unit];
 }
 
-/** `repeat` seconds → the coarsest exact `{ interval, unit }` for the form. */
-export function secondsToRepeatParts(seconds: number): { interval: number; unit: RepeatUnit } {
+/** Stored seconds → the coarsest exact `{ interval, unit }` for the form. */
+export function secondsToDuration(seconds: number): { interval: number; unit: DurationUnit } {
   for (const unit of UNITS_DESC) {
     const size = UNIT_SECONDS[unit];
     if (seconds % size === 0) return { interval: seconds / size, unit };
   }
-  // Every legal cadence is exact above: the backend's grid is 30 minutes and the
-  // dropdown now goes down to minutes. Only a value off the minute grid entirely
-  // lands here, which takes data authored around this UI and the backend both —
-  // shown as the floor because that is at least a value the form can save.
-  // Keeping the stored one untouched is `resolveRepeatSeconds`'s job.
+  // Only a value off the MINUTE grid entirely lands here — 90 seconds, say.
+  // `repeat` cannot be one (the runner's grid is 30 minutes, and the dropdown
+  // goes down to it), but `reconnectWindowSeconds` is a plain deadline the
+  // backend puts no grid on, so a window authored outside this UI can be. Shown
+  // as the floor because that is at least a value the form can save; keeping the
+  // stored one untouched is `resolveDurationSeconds`'s job.
   return { interval: MIN_REPEAT_MINUTES, unit: 'minute' };
 }
 
 /**
- * The `repeat` seconds to persist for a form currently showing `{ interval, unit }`.
+ * The seconds to persist for a form currently showing `{ interval, unit }`.
  *
  * Round-tripping through the form is lossy for any stored value the unit
- * dropdown cannot express — now only a cadence off the minute grid, which the
- * backend's own 30-minute grid already rules out. Writing the rounded display
- * back would change how often a schedule runs on an edit that never touched
- * recurrence: a rename would silently re-time the thing.
+ * dropdown cannot express (see {@link secondsToDuration}). Writing the rounded
+ * display back would change a setting on an edit that never touched it: a rename
+ * would silently re-time how often a schedule runs, or shorten how long its
+ * queued runs stay alive.
  *
- * Kept rather than deleted along with the sub-hour gap it was written for: the
- * guarantee is about what the FORM can express, and the form is a lossy view of
- * a seconds field by nature.
+ * Kept rather than deleted along with the sub-hour repeat gap it was written
+ * for: the guarantee is about what the FORM can express, and the form is a lossy
+ * view of a seconds field by nature — which the reconnect window, on no grid at
+ * all, makes reachable again.
  *
  * So the stored value wins for as long as the form still shows exactly what it
  * rounds to. The moment the user moves the interval or the unit off that
@@ -128,31 +185,137 @@ export function secondsToRepeatParts(seconds: number): { interval: number; unit:
  * reading deliberately, which is indistinguishable from never having touched it
  * and is treated as "leave it alone".
  */
-export function resolveRepeatSeconds(
+export function resolveDurationSeconds(
   interval: number,
-  unit: RepeatUnit,
+  unit: DurationUnit,
   storedSeconds: number | null | undefined,
 ): number {
-  const fromForm = repeatPartsToSeconds(interval, unit);
+  const fromForm = durationToSeconds(interval, unit);
   if (!storedSeconds || storedSeconds <= 0) return fromForm;
-  const shown = secondsToRepeatParts(storedSeconds);
+  const shown = secondsToDuration(storedSeconds);
   return shown.interval === interval && shown.unit === unit ? storedSeconds : fromForm;
+}
+
+/**
+ * True when a schedule QUEUES a run for a device that was offline at its
+ * scheduled time, instead of logging the miss and moving on.
+ *
+ * The counterpart of {@link isEventTrigger}, and the reason both are predicates
+ * rather than `=== ENUM.X` at the call sites: Relay types every schema enum with
+ * a `%future added value` member, so a stored value this client doesn't know
+ * reads as neither arm. Asking "is it the non-default one" answers that safely —
+ * an unknown behavior falls back to SKIP, which is also what the backend
+ * documents as the default.
+ */
+export function isRetryOnReconnect(behavior: ScheduleOfflineBehavior | string | null | undefined): boolean {
+  return behavior === ScheduleOfflineBehavior.RETRY_ON_RECONNECT;
+}
+
+/**
+ * What a schedule does with a device that is offline when it fires, for the
+ * read-only info bar: "Retry for 1 Week", or "Skip this Run".
+ *
+ * A queueing schedule with no window reads as plain "Retry" rather than
+ * inventing a deadline — the schema calls the window optional, and only the
+ * backend knows what it means to leave it unset.
+ */
+export function offlineBehaviorToLabel(
+  behavior: ScheduleOfflineBehavior | string | null | undefined,
+  reconnectWindowSeconds: number | null | undefined,
+): string {
+  if (!isRetryOnReconnect(behavior)) return 'Skip this Run';
+  if (!reconnectWindowSeconds || reconnectWindowSeconds <= 0) return 'Retry';
+  return `Retry for ${secondsToLabel(reconnectWindowSeconds)}`;
+}
+
+/**
+ * A stored `offlineBehavior` narrowed to the two arms this client knows, with
+ * anything else — including null — settling on SKIP.
+ *
+ * The read side of the schema declares the field non-null, so TypeScript says
+ * this cannot happen; the WRITE side declares it nullable and documents null as
+ * meaning SKIP, which is the same rule from the other direction. Normalising
+ * here keeps the two consistent without trusting either declaration: Relay also
+ * types every schema enum with a `%future added value` member, so a value added
+ * server-side would otherwise flow into a union that cannot hold it.
+ *
+ * SKIP is the safe arm to land on — it is what every schedule authored before
+ * the field existed already does.
+ */
+export function resolveOfflineBehavior(
+  behavior: ScheduleOfflineBehavior | string | null | undefined,
+): ScheduleOfflineBehavior {
+  return isRetryOnReconnect(behavior) ? ScheduleOfflineBehavior.RETRY_ON_RECONNECT : ScheduleOfflineBehavior.SKIP;
+}
+
+/**
+ * The floor on the reconnect window, in minutes.
+ *
+ * NOT the runner's grid — this field sits on none, the backend accepts any
+ * number of seconds. It is the same 30 as {@link MIN_REPEAT_MINUTES} and a
+ * separate constant on purpose: that one follows the runner, this one follows
+ * the shortest cadence a schedule can have, and there is no reason the two must
+ * move together.
+ *
+ * Unlike the repeat floor it is a MINIMUM only — no multiple-of-30 rule, because
+ * there is no grid for a value to land on. A 45-minute window is legal.
+ */
+export const MIN_RECONNECT_MINUTES = 30;
+
+/**
+ * Raises a reconnect interval to its floor when the unit switches to minutes —
+ * the counterpart of {@link snapRepeatInterval}, minus the multiple half.
+ *
+ * `null` (the field cleared while typing) passes through untouched: snapping it
+ * to a number would refill a box the user is in the middle of emptying, which is
+ * the behaviour this whole pair of fields was reported for.
+ */
+export function snapReconnectInterval(interval: number | null, unit: DurationUnit): number | null {
+  if (unit !== 'minute' || interval === null) return interval;
+  return Math.max(interval, MIN_RECONNECT_MINUTES);
+}
+
+/**
+ * What the "Stop Retry after" pair starts at.
+ *
+ * The design shows 1 Week (node 460:63425); the product rule is the floor —
+ * minutes, at the minimum — so a new schedule starts at the smallest legal
+ * window and the user raises it, rather than starting at a week they may not
+ * want. It is only ever a SEED: the field is required whenever
+ * RETRY_ON_RECONNECT is picked, so every saved schedule carries a window the
+ * user could see, and `reconnectWindowSeconds` is never written blind.
+ */
+export const DEFAULT_RECONNECT_WINDOW: { interval: number; unit: DurationUnit } = {
+  interval: MIN_RECONNECT_MINUTES,
+  unit: 'minute',
+};
+
+/**
+ * A span of seconds as "1 Week" / "3 Days" — the coarsest unit that divides it
+ * exactly, matching what the form's own interval + unit pair would have shown.
+ *
+ * Shared by the two read-only spans a schedule carries (its repeat cadence and
+ * its reconnect window) so they cannot drift apart in wording.
+ */
+function secondsToLabel(seconds: number): string {
+  for (const unit of UNITS_DESC) {
+    const size = UNIT_SECONDS[unit];
+    if (seconds % size === 0) {
+      const n = seconds / size;
+      return n === 1 ? `1 ${UNIT_LABEL[unit]}` : `${n} ${UNIT_LABEL[unit]}s`;
+    }
+  }
+  // Off the minute grid entirely — rounded up so a stray value reads as a
+  // duration rather than as "0 Minutes". Reachable for a reconnect window, which
+  // the backend puts on no grid at all.
+  const mins = Math.max(1, Math.ceil(seconds / 60));
+  return mins === 1 ? '1 Minute' : `${mins} Minutes`;
 }
 
 /** Human label for the REPEAT column / info bar ("Once", "1 Week", "3 Days"). */
 export function repeatToLabel(repeat: number | null | undefined): string {
   if (!repeat || repeat <= 0) return 'Once';
-  for (const unit of UNITS_DESC) {
-    const size = UNIT_SECONDS[unit];
-    if (repeat % size === 0) {
-      const n = repeat / size;
-      return n === 1 ? `1 ${UNIT_LABEL[unit]}` : `${n} ${UNIT_LABEL[unit]}s`;
-    }
-  }
-  // Off the minute grid entirely — rounded up so a stray value reads as a
-  // cadence rather than as "0 Minutes".
-  const mins = Math.max(1, Math.ceil(repeat / 60));
-  return mins === 1 ? '1 Minute' : `${mins} Minutes`;
+  return secondsToLabel(repeat);
 }
 
 const SLOTS_PER_DAY = 48;
@@ -174,12 +337,34 @@ const SLOT_MINUTES = 30;
  * The picked date doesn't enter into it. Every DST transition moves the offset
  * by a whole hour (Lord Howe's 30 minutes is the outlier), so the remainder
  * mod 30 holds all year and the grid never has to be rebuilt per date.
+ *
+ * All of which is the SERVER reading's problem alone. A DEVICE_LOCAL start is
+ * stored as its wall clock verbatim (see {@link toScheduleInstant}), so the
+ * boundary applies to the picked digits themselves and the grid is the plain
+ * `xx:00` / `xx:30` — in Kathmandu too, where the two grids genuinely differ.
  */
-function slotBaseMinutes(): number {
+function slotBaseMinutes(timeReference: ScheduleTimeReference | string | null | undefined): number {
+  if (isDeviceLocalTime(timeReference)) return 0;
   // getTimezoneOffset() is (UTC − local) in minutes, so UTC lands on a boundary
   // exactly when (localMinutesOfDay + offset) % 30 === 0.
   const offset = new Date().getTimezoneOffset();
   return ((-offset % SLOT_MINUTES) + SLOT_MINUTES) % SLOT_MINUTES;
+}
+
+/**
+ * Whether an `HH:mm` the form already holds is a slot the given reading offers.
+ *
+ * Only ever false where the two grids differ — the 45-minute zones — which is
+ * exactly where switching the Timezone control leaves a picked time the new
+ * dropdown cannot show. Asked about the GRID and not about the option list, so
+ * a stored start that has simply gone by (which the list withholds, and which
+ * the form is allowed to keep) is not mistaken for one the grid rejects.
+ */
+export function isSlotOnGrid(slot: string, timeReference: ScheduleTimeReference | string | null | undefined): boolean {
+  if (!slot) return true;
+  const [hours, minutes] = slot.split(':').map(Number);
+  const offGrid = (hours * 60 + minutes - slotBaseMinutes(timeReference)) % SLOT_MINUTES;
+  return ((offGrid % SLOT_MINUTES) + SLOT_MINUTES) % SLOT_MINUTES === 0;
 }
 
 /** Minutes since local midnight → the `HH:mm` the form stores. */
@@ -217,8 +402,11 @@ function slotLabel(minutesOfDay: number): string {
  * A PAST day keeps them too: it can only be a stored start, and the value that
  * schedule already holds has to stay readable.
  */
-export function getTimeSlotOptions(forDate?: Date | null): { value: string; label: string }[] {
-  const base = slotBaseMinutes();
+export function getTimeSlotOptions(
+  forDate?: Date | null,
+  timeReference?: ScheduleTimeReference | string | null,
+): { value: string; label: string }[] {
+  const base = slotBaseMinutes(timeReference);
   const cutoff = forDate && isToday(forDate) ? nowMinutesOfDay() : -1;
   return Array.from({ length: SLOTS_PER_DAY }, (_, slot) => {
     const minutesOfDay = base + slot * SLOT_MINUTES;
@@ -282,6 +470,20 @@ export function isScheduleStartInPast(date: Date | null | undefined, slot: strin
 export const PAST_START_MESSAGE = 'Start time must be in the future';
 
 /**
+ * What a picked TODAY says once its last 30-minute slot has gone by.
+ *
+ * The dead end this names: `getTimeSlotOptions` correctly withholds every slot,
+ * so the Time dropdown has nothing to offer — and an empty popup states no
+ * reason and offers no way on. It is the DATE that has to change, which is why
+ * the message says so and why the field showing it is the date's.
+ *
+ * Not a schema rule: a schedule with no time already fails the save on
+ * `scheduledTime` being required. This is the earlier, more useful half of the
+ * same fact, said while the user can still act on it.
+ */
+export const NO_SLOTS_TODAY_MESSAGE = 'No start times left today — pick another day';
+
+/**
  * The "no start in the past" rule as the FORM applies it — stated once, and read
  * by both the fields (which show it the moment it happens) and the schema (which
  * refuses the save).
@@ -296,9 +498,14 @@ export function isStartInPastAndChanged(
   date: Date | null | undefined,
   slot: string,
   storedIso: string | null | undefined,
+  timeReference?: ScheduleTimeReference | string | null,
 ): boolean {
   if (!isScheduleStartInPast(date, slot) || !date) return false;
-  const stored = storedIso ? fromScheduleInstant(storedIso).getTime() : null;
+  // Read under the schedule's own reading, or the stored start of a DEVICE_LOCAL
+  // schedule would come back shifted by the viewer's offset and never match the
+  // pair on screen — the exemption would lapse and an untouched schedule would
+  // become unsaveable.
+  const stored = storedIso ? fromScheduleInstant(storedIso, timeReference).getTime() : null;
   return applyTimeSlot(date, slot).getTime() !== stored;
 }
 
@@ -309,9 +516,12 @@ export function isStartInPastAndChanged(
  * the same grid this builds from; the flooring is for values authored outside
  * this UI, and it keeps them on a slot the dropdown can actually show.
  */
-export function dateToTimeSlot(date: Date | null | undefined): string {
+export function dateToTimeSlot(
+  date: Date | null | undefined,
+  timeReference?: ScheduleTimeReference | string | null,
+): string {
   if (!date) return '';
-  const base = slotBaseMinutes();
+  const base = slotBaseMinutes(timeReference);
   const minutesOfDay = date.getHours() * 60 + date.getMinutes();
   const slot = Math.min(SLOTS_PER_DAY - 1, Math.max(0, Math.floor((minutesOfDay - base) / SLOT_MINUTES)));
   return slotValue(base + slot * SLOT_MINUTES);
@@ -344,9 +554,20 @@ export function applyTimeSlot(date: Date | null | undefined, slot: string): Date
  * slots are generated from that grid backwards through the local offset (see
  * {@link getTimeSlotOptions}), so a picked slot is on the boundary by
  * construction, in UTC, in any timezone.
+ *
+ * DEVICE_LOCAL asks for the opposite, and asks for it deliberately: there the
+ * user is not picking a moment at all, they are picking a reading of a clock
+ * each device owns, so the wall-clock digits ARE the payload and the `Z` is
+ * carrier, not meaning. The bug this looks like — stamping local digits as UTC —
+ * is what the field was added to express. Built from the local components rather
+ * than by shifting the instant, so a DST boundary between now and the picked day
+ * cannot move a digit.
  */
-export function toScheduleInstant(date: Date): string {
-  return date.toISOString().replace(/\.\d+Z$/, 'Z');
+export function toScheduleInstant(date: Date, timeReference?: ScheduleTimeReference | string | null): string {
+  if (!isDeviceLocalTime(timeReference)) return date.toISOString().replace(/\.\d+Z$/, 'Z');
+  const pad = (value: number, length = 2) => String(value).padStart(length, '0');
+  const wallClock = `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${wallClock}T${pad(date.getHours())}:${pad(date.getMinutes())}:00Z`;
 }
 
 /**
@@ -354,11 +575,23 @@ export function toScheduleInstant(date: Date): string {
  * that moment, which the picker and every formatter below then read through the
  * viewer's own clock.
  *
- * Trivial by design — it stays a named seam so the two directions of the
- * conversion remain findable together.
+ * A DEVICE_LOCAL start carries no moment to convert — its digits are a wall
+ * clock — so they are lifted back out of UTC and rebuilt as LOCAL components.
+ * The `Date` that comes back is therefore not the instant the string names; it
+ * is the reading, in the only form the pickers and formatters here can hold one.
+ * Passing the reference through is what keeps "9 AM on every device" from
+ * displaying as noon to the viewer who typed it.
  */
-export function fromScheduleInstant(iso: string): Date {
-  return new Date(iso);
+export function fromScheduleInstant(iso: string, timeReference?: ScheduleTimeReference | string | null): Date {
+  const instant = new Date(iso);
+  if (!isDeviceLocalTime(timeReference)) return instant;
+  return new Date(
+    instant.getUTCFullYear(),
+    instant.getUTCMonth(),
+    instant.getUTCDate(),
+    instant.getUTCHours(),
+    instant.getUTCMinutes(),
+  );
 }
 
 /**
@@ -372,9 +605,17 @@ export function fromScheduleInstant(iso: string): Date {
  * inline `toLocale*` options inherited from the pre-migration app, which is how
  * one column ended up spelling the same instant differently from the execution
  * row under it.
+ *
+ * A DEVICE_LOCAL start is the exception, and the one span here that is NOT the
+ * viewer's clock: it stores a wall clock, so it is shown as that reading, the
+ * same on every screen. Nothing in the row says so — the schedule's own form
+ * names the reading, and the columns beside it have no room to.
  */
-export function formatScheduleStartAt(iso: string | null | undefined): { date: string; time: string } {
+export function formatScheduleStartAt(
+  iso: string | null | undefined,
+  timeReference?: ScheduleTimeReference | string | null,
+): { date: string; time: string } {
   if (!iso) return { date: '—', time: '—' };
-  const d = new Date(iso);
+  const d = fromScheduleInstant(iso, timeReference);
   return { date: formatDate(d), time: formatTime(d) };
 }

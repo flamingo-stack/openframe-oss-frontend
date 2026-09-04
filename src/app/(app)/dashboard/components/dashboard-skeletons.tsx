@@ -65,14 +65,14 @@ function InfoCardSkeleton({
     <div className={INFO_CARD_CLASS}>
       <div className="flex flex-1 flex-col">
         {/* Title — real static text (text-h5 uppercases it) or a real status tag. */}
-        {titleSlot ?? <p className="text-h5 text-ods-text-secondary">{title}</p>}
+        {titleSlot ?? <p className="text-ods-text-secondary text-h5">{title}</p>}
         {/* Value (+ optional percentage) — the query-dependent part. */}
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
-          <p className="text-h2 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h2">
             <InlineSkeleton className="h-4 w-8 md:h-6" />
           </p>
           {showPercentage && (
-            <p className="text-h4 text-ods-text-secondary">
+            <p className="text-ods-text-secondary text-h4">
               <InlineSkeleton className="h-3 w-14" />
             </p>
           )}
@@ -95,10 +95,10 @@ function CustomerInfoCardSkeleton() {
       {/* logo tile — mirrors the DashboardInfoCard icon slot */}
       <Skeleton className="size-8 shrink-0 rounded-sm md:size-14" />
       <div className="flex min-w-0 flex-1 flex-col">
-        <p className="text-h3 text-ods-text-primary">
+        <p className="text-ods-text-primary text-h3">
           <InlineSkeleton className="h-4 w-40" />
         </p>
-        <p className="text-h6 text-ods-text-secondary">
+        <p className="text-ods-text-secondary text-h6">
           <InlineSkeleton className="h-3 w-24" />
         </p>
       </div>
@@ -121,14 +121,14 @@ function OverviewHeaderSkeleton({ title, className }: { title: string; className
       className={cn(
         'flex items-end justify-between gap-[var(--spacing-system-m)]',
         'md:flex-col md:items-start md:justify-start lg:flex-row lg:items-end lg:justify-between',
-        'pt-[var(--spacing-system-l)] mb-[var(--spacing-system-l)]',
+        'mb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]',
         className,
       )}
     >
       <div className="flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xs)] md:min-h-12">
         <div className="flex w-full min-w-0 items-center gap-[var(--spacing-system-m)]">
           <div className="flex min-w-0 flex-1 flex-col justify-center">
-            <h1 className="truncate text-h2 text-ods-text-primary">{title}</h1>
+            <h1 className="truncate text-ods-text-primary text-h2">{title}</h1>
           </div>
         </div>
       </div>
@@ -168,7 +168,7 @@ export function TicketsOverviewSkeleton() {
         <InfoCardSkeleton titleSlot={<TicketStatusTag status="RESOLVED" />} />
         <InfoCardSkeleton
           titleSlot={
-            <span className="flex h-8 items-center text-h5 uppercase text-ods-text-secondary">Other Statuses</span>
+            <span className="flex h-8 items-center uppercase text-ods-text-secondary text-h5">Other Statuses</span>
           }
         />
       </div>

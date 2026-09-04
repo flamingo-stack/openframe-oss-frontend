@@ -6,6 +6,7 @@ import { initNativePush } from '@/lib/native-push';
 import { isMobileShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { resolvePushNotificationRoute } from './notifications/notification-navigation';
+import { useSubscriptionOpen } from './subscription-lock/subscription-guard';
 
 /**
  * Mounted once the user is authenticated (app-layout): asks for notification
@@ -21,9 +22,15 @@ import { resolvePushNotificationRoute } from './notifications/notification-navig
  */
 export function NativePushInitializer() {
   const router = useRouter();
+  // `registerPushDevice` is a mutation, so it bypasses the subscription gate —
+  // see `useSubscriptionOpen`. A locked workspace registers nothing: the
+  // registration would fail, and there is no notification to deliver behind a
+  // lock screen anyway. `initNativePush` latches, so waiting for the answer
+  // costs nothing but the round-trip.
+  const subscriptionOpen = useSubscriptionOpen();
 
   useEffect(() => {
-    if (!isMobileShell()) return;
+    if (!isMobileShell() || !subscriptionOpen) return;
     initNativePush(data => {
       router.push(resolvePushNotificationRoute(data) ?? routes.notifications());
     }).catch(error => {
@@ -32,7 +39,7 @@ export function NativePushInitializer() {
       // than leaving an unhandled rejection as the only trace.
       console.error('[Native Push] initialisation failed:', error);
     });
-  }, [router]);
+  }, [router, subscriptionOpen]);
 
   return null;
 }

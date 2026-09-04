@@ -214,12 +214,15 @@ async function attemptRefresh(): Promise<RefreshOutcome | 'retriable'> {
     return 'transient';
   }
 
-  let data: any;
+  // Whichever casing the auth service used for this deployment.
+  let data: { access_token?: string; accessToken?: string; refresh_token?: string; refreshToken?: string } | undefined;
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
     try {
       data = await res.json();
-    } catch {}
+    } catch {
+      // A response that claims JSON but does not parse leaves `data` undefined, which the caller below already treats as "no body".
+    }
   }
 
   if (bearerMode) {

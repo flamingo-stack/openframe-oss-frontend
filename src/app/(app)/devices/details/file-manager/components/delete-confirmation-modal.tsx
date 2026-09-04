@@ -25,7 +25,7 @@ export function DeleteConfirmationModal({
       : `Are you sure you want to delete ${itemCount} items? This action cannot be undone.`;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Enter' && !submitting) {
         event.preventDefault();

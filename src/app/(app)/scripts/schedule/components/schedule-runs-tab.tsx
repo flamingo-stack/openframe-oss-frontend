@@ -279,7 +279,7 @@ function ScheduleRunsContent({
  *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
-export const ScheduleRunsTab = memo(function ScheduleRunsTab({ scheduleId }: { scheduleId: string }) {
+export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }: { scheduleId: string }) {
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
   // Deliberately NOT `search` / `status`: those belong to the Execution History
   // tab on this same page (and its `search` is what a Runs row drills into), so
@@ -380,14 +380,14 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTab({ scheduleId }: { s
       {!isEmpty && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 flex items-center gap-[var(--spacing-system-m)] bg-ods-bg pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 flex items-center gap-[var(--spacing-system-m)] bg-ods-bg pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
         >
           <div className="flex-1">
             <Input
               placeholder="Search for Runs"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+              startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
             />
           </div>
           <Button
@@ -419,3 +419,4 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTab({ scheduleId }: { s
     </div>
   );
 });
+ScheduleRunsTab.displayName = 'ScheduleRunsTab';

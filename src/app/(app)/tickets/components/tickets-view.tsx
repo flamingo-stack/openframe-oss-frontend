@@ -4,12 +4,25 @@ import { TableCellIcon, TableColIcon } from '@flamingo-stack/openframe-frontend-
 import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
-import { useIsMobileViewport } from '@/app/hooks/use-is-mobile-viewport';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import type { TicketActivityFilter } from '../types/dialog.types';
 import { resolveTicketsViewMode, type TicketsViewMode } from '../utils/resolve-view-mode';
 import { TicketsBoard } from './tickets-board';
-import { TicketsPageSkeleton } from './tickets-page-skeleton';
 import { CurrentTickets } from './tickets-table';
+
+const ACTIVITY_FILTER_VALUES: readonly TicketActivityFilter[] = ['ACTIVE', 'STALE', 'AWAITING_EXTERNAL'];
+
+/**
+ * The only URL param that lands in a GraphQL enum position: a hand-edited
+ * `?activity=FOO` (or a duplicated value overflowing the server's max-3
+ * validation) would fail enum coercion for EVERY lane query and error the
+ * whole board. Intersecting with the canonical value list both whitelists
+ * and dedupes; unknown entries are silently dropped, like an unknown
+ * `viewMode` falls back to the board.
+ */
+function sanitizeActivityParam(raw: readonly string[]): TicketActivityFilter[] {
+  return ACTIVITY_FILTER_VALUES.filter(value => raw.includes(value));
+}
 
 export function TicketsView() {
   const { params, setParam, setParams } = useApiParams({
@@ -17,52 +30,78 @@ export function TicketsView() {
     organizationIds: { type: 'array', default: [] },
     assigneeIds: { type: 'array', default: [] },
     tagIds: { type: 'array', default: [] },
+    // Written as `unread=true` or dropped: a boolean param serializes `false`
+    // literally, and the URL should carry the filter only while it is on.
+    unread: { type: 'boolean', default: false },
+    // Board activity filter; values mirror the server's TicketActivityFilter
+    // enum (ACTIVE / STALE / AWAITING_EXTERNAL), OR-ed together.
+    activity: { type: 'array', default: [] },
     search: { type: 'string', default: '' },
-    // No default: an absent param has to stay distinguishable from an explicit
-    // `viewMode=board` for `resolveTicketsViewMode` to know when it may pick.
+    // No default: an absent param stays distinguishable from an explicit
+    // `viewMode=table`, so clearing the param returns to the board default.
     viewMode: { type: 'string', default: '' },
   });
 
-  const isMobileViewport = useIsMobileViewport();
-  const viewMode = resolveTicketsViewMode(params.viewMode, isMobileViewport);
+  const viewMode = resolveTicketsViewMode(params.viewMode);
+  const activity = useMemo(() => sanitizeActivityParam(params.activity), [params.activity]);
 
   // Local search keeps typing responsive; the shared hook debounces the write to
   // the URL param so we don't navigate the router (and re-render the board) on
   // every keystroke.
   const { search, setSearch } = useSearchParam(params.search, value => setParam('search', value), 300);
 
-  const handleStatusFilterChange = useCallback((status: string[]) => setParam('status', status), [setParam]);
   const handleOrganizationIdsChange = useCallback((ids: string[]) => setParam('organizationIds', ids), [setParam]);
   const handleAssigneeIdsChange = useCallback((ids: string[]) => setParam('assigneeIds', ids), [setParam]);
   const handleTagIdsChange = useCallback((ids: string[]) => setParam('tagIds', ids), [setParam]);
+  const handleUnreadOnlyChange = useCallback((value: boolean) => setParam('unread', value || null), [setParam]);
+  const handleActivityChange = useCallback(
+    (values: TicketActivityFilter[]) => setParam('activity', values),
+    [setParam],
+  );
   // Single URL write: two sequential setParam calls read the same snapshot and clobber each other.
   const handleFiltersChange = useCallback(
-    (filters: { organizationIds: string[]; assigneeIds: string[] }) => setParams(filters),
+    ({
+      unreadOnly,
+      activity: nextActivity,
+      ...filters
+    }: {
+      organizationIds: string[];
+      assigneeIds: string[];
+      unreadOnly: boolean;
+      activity: TicketActivityFilter[];
+    }) => setParams({ ...filters, unread: unreadOnly || null, activity: nextActivity }),
+    [setParams],
+  );
+  // The table's variant also carries the status filter (its mobile modal and
+  // the column-header filters both go through this one atomic write).
+  const handleTableFiltersChange = useCallback(
+    ({
+      unreadOnly,
+      ...filters
+    }: {
+      status: string[];
+      assigneeIds: string[];
+      organizationIds: string[];
+      unreadOnly: boolean;
+    }) => setParams({ ...filters, unread: unreadOnly || null }),
     [setParams],
   );
 
+  // Rendered in the header on md+ and as the first row of the "…" menu on
+  // mobile (the `menu-primary` PageActions surfaces the selector there).
   const tabs = useMemo(
     () => (
       <TabSelector
-        // Never rendered before `viewMode` resolves — the guard below returns
-        // the skeleton first — so the fallback here is only to satisfy the type.
-        value={viewMode ?? 'board'}
+        value={viewMode}
         onValueChange={v => setParam('viewMode', v as TicketsViewMode)}
         items={[
-          { id: 'table', icon: <TableCellIcon className="w-6 h-6" /> },
-          { id: 'board', icon: <TableColIcon className="w-6 h-6" /> },
+          { id: 'table', icon: <TableCellIcon className="h-6 w-6" />, ariaLabel: 'Table view' },
+          { id: 'board', icon: <TableColIcon className="h-6 w-6" />, ariaLabel: 'Board view' },
         ]}
       />
     ),
     [viewMode, setParam],
   );
-
-  // The viewport is unknown for the first renders after hydration. Guessing a
-  // mode would mount the wrong subtree and run its fetches before swapping it
-  // out — the exact cost this split exists to avoid.
-  if (!viewMode) {
-    return <TicketsPageSkeleton viewMode={params.viewMode} />;
-  }
 
   if (viewMode === 'board') {
     return (
@@ -74,6 +113,10 @@ export function TicketsView() {
         onAssigneeIdsChange={handleAssigneeIdsChange}
         tagIds={params.tagIds}
         onTagIdsChange={handleTagIdsChange}
+        unreadOnly={params.unread}
+        onUnreadOnlyChange={handleUnreadOnlyChange}
+        activity={activity}
+        onActivityChange={handleActivityChange}
         onFiltersChange={handleFiltersChange}
         search={search}
         onSearchChange={setSearch}
@@ -84,7 +127,10 @@ export function TicketsView() {
   return (
     <CurrentTickets
       statusFilters={params.status}
-      onStatusFilterChange={handleStatusFilterChange}
+      organizationIds={params.organizationIds}
+      assigneeIds={params.assigneeIds}
+      unreadOnly={params.unread}
+      onFiltersChange={handleTableFiltersChange}
       selector={tabs}
       tagIds={params.tagIds}
       onTagIdsChange={handleTagIdsChange}

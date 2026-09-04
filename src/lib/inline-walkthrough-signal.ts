@@ -36,7 +36,7 @@ const useInlineWalkthroughSignal = create<InlineWalkthroughSignalState>(set => (
  */
 export function useInlineWalkthroughClaim(active: boolean): void {
   useEffect(() => {
-    if (!active) return;
+    if (!active) return undefined;
     const { claim, release } = useInlineWalkthroughSignal.getState();
     claim();
     return release;

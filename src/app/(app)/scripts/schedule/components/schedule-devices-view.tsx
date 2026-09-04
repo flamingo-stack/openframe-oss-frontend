@@ -250,7 +250,7 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
     return <NotFoundError message="Schedule not found" />;
   }
 
-  const { date, time } = formatScheduleStartAt(schedule.startAt);
+  const { date, time } = formatScheduleStartAt(schedule.startAt, schedule.timeReference);
 
   return (
     <PageLayout

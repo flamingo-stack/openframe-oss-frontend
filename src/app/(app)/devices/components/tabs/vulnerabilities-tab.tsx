@@ -16,14 +16,17 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useQueryClient } from '@tanstack/react-query';
 import { differenceInCalendarDays } from 'date-fns';
 import { useCallback, useMemo, useState } from 'react';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { formatDate } from '@/lib/format-date';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
+import { deviceQueryKeys } from '../../utils/query-keys';
+import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty-state';
 import { VULNERABILITY_COLUMNS } from './device-tab-columns';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface VulnerabilitiesTabProps {
   device: Device | null;
@@ -74,6 +77,7 @@ function getSeverity(vuln: { cve: string; cvss_score?: number | null }): Severit
 }
 
 export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -113,7 +117,7 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         accessorKey: 'cve',
         header: VULNERABILITY_COLUMNS.cve.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
-          <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <TruncateText>{row.original.cve}</TruncateText>
             {/* SOFTWARE has a column of its own from `md` up; below that it is folded
                 in here, so a mobile row still says which package the CVE is in. */}
@@ -134,9 +138,9 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
           const severity = getSeverity(row.original);
           const score = row.original.cvss_score;
           return (
-            <div className="flex flex-col gap-1 items-start min-w-0">
+            <div className="flex min-w-0 flex-col items-start gap-1">
               <Tag label={severity.toUpperCase()} variant={SEVERITY_VARIANT[severity]} />
-              {typeof score === 'number' && <span className="text-h6 text-ods-text-secondary">CVSS {score}</span>}
+              {typeof score === 'number' && <span className="text-ods-text-secondary text-h6">CVSS {score}</span>}
             </div>
           );
         },
@@ -149,7 +153,7 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         accessorKey: 'software_name',
         header: VULNERABILITY_COLUMNS.software.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
-          <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <TruncateText>{row.original.software_name}</TruncateText>
             {row.original.software_version && (
               <TruncateText variant="h6" tone="secondary">
@@ -166,13 +170,13 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => {
           const discovered = new Date(row.original.created_at);
           if (Number.isNaN(discovered.getTime())) {
-            return <span className="text-h4 text-ods-text-secondary">—</span>;
+            return <span className="text-ods-text-secondary text-h4">—</span>;
           }
           const days = differenceInCalendarDays(new Date(), discovered);
           return (
-            <div className="flex flex-col justify-center min-w-0">
-              <span className="text-h4 truncate">{formatDate(row.original.created_at)}</span>
-              <span className="text-h6 text-ods-text-secondary truncate">
+            <div className="flex min-w-0 flex-col justify-center">
+              <span className="truncate text-h4">{formatDate(row.original.created_at)}</span>
+              <span className="truncate text-ods-text-secondary text-h6">
                 {days} {days === 1 ? 'day' : 'days'}
               </span>
             </div>
@@ -188,12 +192,12 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         header: '',
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) =>
           row.original.details_link ? (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={() => window.open(row.original.details_link, '_blank', 'noopener,noreferrer')}
                 variant="outline"
                 size="icon"
-                leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
                 aria-label={`Open ${row.original.cve} details`}
                 className="bg-ods-card"
               />
@@ -235,6 +239,68 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
     );
   }
 
+  // An empty list is only "no vulnerabilities" once the pipeline actually ran —
+  // otherwise say which stage it is at. A non-empty list renders as usual (a
+  // stale scan alongside existing results is intentionally not flagged).
+  if (vulnerabilities.length === 0) {
+    const reason = getVulnerabilitiesEmptyReason(device);
+
+    if (reason === 'error') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Couldn't load vulnerability data"
+          description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
+          buttonLabel="Retry"
+          onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
+        />
+      );
+    }
+
+    if (reason === 'disconnected') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Fleet is not connected"
+          description="The Fleet agent for this device is disconnected, so vulnerability data is unavailable."
+        />
+      );
+    }
+
+    if (reason === 'collecting') {
+      // Agent still deploying → the design's connecting-state copy;
+      // agent live but the first inventory scan hasn't finished → collecting copy.
+      if (device.sources?.fleet === 'skipped-pending') {
+        return <TabDeployingEmptyState icon={<BracketSquareCheckIcon />} section="Vulnerabilities" />;
+      }
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Collecting software inventory"
+          description="This device hasn't reported its installed software yet. Vulnerabilities will appear once the inventory arrives."
+        />
+      );
+    }
+
+    if (reason === 'scan-pending') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Vulnerability scan pending"
+          description="The latest software inventory hasn't been checked for vulnerabilities yet. Check back shortly."
+        />
+      );
+    }
+
+    return (
+      <TabEmptyState
+        icon={<BracketSquareCheckIcon />}
+        title="No vulnerabilities found"
+        description="Detected vulnerabilities for this device will appear here."
+      />
+    );
+  }
+
   // Empty table → show only the centered empty state: hide the column header always, and
   // hide the search too (unless a search is active, so the user can still clear it).
   const hasSearch = search.trim().length > 0;
@@ -245,14 +311,14 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <Input
             placeholder="Search for Vulnerability"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full"
-            startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
           />
         </div>
       )}

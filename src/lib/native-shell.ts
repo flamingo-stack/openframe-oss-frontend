@@ -66,10 +66,18 @@ export interface NativeAuthPlugin {
    * from the Access-Token / Refresh-Token response headers. Paired with
    * `signInWithApple`; same availability caveat.
    */
-  exchangeApple?(options: {
-    url: string;
-    body: Record<string, string>;
-  }): Promise<{ accessToken?: string; refreshToken?: string }>;
+  exchangeApple?(options: { url: string; body: Record<string, string> }): Promise<{
+    /**
+     * Present on shells that resolve every HTTP status instead of rejecting non-2xx. Absent on
+     * older binaries, where a 4xx arrives as a rejection — callers must treat `undefined` as
+     * "this shell cannot report status" and fall back rather than assume success.
+     */
+    status?: number;
+    /** Raw response body, when the server sent one. JSON for the `{"error": …}` cases. */
+    body?: string;
+    accessToken?: string;
+    refreshToken?: string;
+  }>;
   /**
    * Reads the stored tokens. When biometric login is enabled the shell gates
    * this behind a biometric prompt, so it may reject with `BIOMETRIC_CANCELED`
@@ -262,13 +270,48 @@ export interface NetworkPlugin {
   ): Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
 }
 
-function capacitorPlugins(): any {
-  return typeof window !== 'undefined' ? (window as any).Capacitor?.Plugins : undefined;
+/**
+ * What the two shells inject onto `window`. Nothing here is guaranteed to exist:
+ * the web bundle has none of it, and a shell binary that predates a plugin has
+ * only some. Each accessor below narrows its own entry to the interface it
+ * declares — this module is the one place where a bridge value is asserted, and
+ * that is what makes every consumer of it typed.
+ */
+interface TauriEventApi {
+  listen(event: string, handler: (event: { payload?: unknown }) => void): Promise<unknown>;
+}
+
+interface TauriCoreApi {
+  invoke(command: string, args?: Record<string, unknown>): Promise<unknown>;
+}
+
+interface ShellWindow {
+  Capacitor?: { Plugins?: Record<string, unknown> };
+  __OPENFRAME_SHELL__?: { nativeAuth?: unknown };
+  __TAURI__?: { event?: TauriEventApi; core?: TauriCoreApi };
+}
+
+function shellWindow(): ShellWindow | undefined {
+  return typeof window === 'undefined' ? undefined : (window as unknown as ShellWindow);
+}
+
+function capacitorPlugins(): Record<string, unknown> | undefined {
+  return shellWindow()?.Capacitor?.Plugins;
 }
 
 /** The desktop shell's own namespace — Tauri commands, no Capacitor involved. */
-function desktopShellBridge(): any {
-  return typeof window !== 'undefined' ? (window as any).__OPENFRAME_SHELL__ : undefined;
+function desktopShellBridge(): ShellWindow['__OPENFRAME_SHELL__'] {
+  return shellWindow()?.__OPENFRAME_SHELL__;
+}
+
+function tauriEventApi(): TauriEventApi | undefined {
+  const api = shellWindow()?.__TAURI__?.event;
+  return typeof api?.listen === 'function' ? api : undefined;
+}
+
+function tauriInvoke(): TauriCoreApi['invoke'] | undefined {
+  const invoke = shellWindow()?.__TAURI__?.core?.invoke;
+  return typeof invoke === 'function' ? invoke : undefined;
 }
 
 /**
@@ -280,44 +323,46 @@ function desktopShellBridge(): any {
  * split removed.
  */
 export function nativeAuthPlugin(): NativeAuthPlugin | null {
-  if (isDesktopShell()) return desktopShellBridge()?.nativeAuth ?? null;
-  if (isMobileShell()) return capacitorPlugins()?.NativeAuth ?? null;
+  if (isDesktopShell()) return (desktopShellBridge()?.nativeAuth as NativeAuthPlugin | undefined) ?? null;
+  if (isMobileShell()) return (capacitorPlugins()?.NativeAuth as NativeAuthPlugin | undefined) ?? null;
   return null;
 }
 
 /** Mobile-only. Also null until @capacitor-firebase/messaging is present in the shell — callers no-op. */
 export function firebaseMessagingPlugin(): FirebaseMessagingPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.FirebaseMessaging ?? null) : null;
+  return isMobileShell()
+    ? ((capacitorPlugins()?.FirebaseMessaging as FirebaseMessagingPlugin | undefined) ?? null)
+    : null;
 }
 
 /** Mobile-only. Also null on shell binaries that predate the NativeFiles plugin — callers fall back to the web path. */
 export function nativeFilesPlugin(): NativeFilesPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.NativeFiles ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.NativeFiles as NativeFilesPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null until @capacitor/splash-screen is present in the shell — callers no-op. */
 export function splashScreenPlugin(): SplashScreenPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.SplashScreen ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.SplashScreen as SplashScreenPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null until @capacitor/status-bar is present in the shell — callers no-op. */
 export function statusBarPlugin(): StatusBarPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.StatusBar ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.StatusBar as StatusBarPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null until @capacitor/app is present in the shell — callers no-op. */
 export function appPlugin(): AppPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.App ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.App as AppPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null until @capacitor/keyboard is present in the shell — callers fall back to visualViewport. */
 export function keyboardPlugin(): KeyboardPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.Keyboard ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.Keyboard as KeyboardPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null on shell binaries that predate the plugin — callers fall back to `navigator.onLine`. */
 export function networkPlugin(): NetworkPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.Network ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.Network as NetworkPlugin | undefined) ?? null) : null;
 }
 
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';
@@ -355,9 +400,11 @@ export function storeTenantHost(origin: string): void {
  */
 export function onNativeTokenUpdate(callback: (tokens: { accessToken?: string; refreshToken?: string }) => void): void {
   if (!isDesktopShell()) return;
-  const tauriEvent = (window as any).__TAURI__?.event;
-  if (typeof tauriEvent?.listen !== 'function') return;
-  void tauriEvent.listen('native-auth:token-update', (event: any) => callback(event?.payload ?? {}));
+  const tauriEvent = tauriEventApi();
+  if (!tauriEvent) return;
+  void tauriEvent.listen('native-auth:token-update', event =>
+    callback((event?.payload as { accessToken?: string; refreshToken?: string } | undefined) ?? {}),
+  );
 }
 
 /**
@@ -375,9 +422,9 @@ export function onNativeTokenUpdate(callback: (tokens: { accessToken?: string; r
  */
 export async function onNativeNotificationClick(callback: (payload: unknown) => void): Promise<boolean> {
   if (!isDesktopShell()) return false;
-  const tauriEvent = (window as any).__TAURI__?.event;
-  if (typeof tauriEvent?.listen !== 'function') return false;
-  await tauriEvent.listen('notification:click', (event: any) => callback(event?.payload));
+  const tauriEvent = tauriEventApi();
+  if (!tauriEvent) return false;
+  await tauriEvent.listen('notification:click', event => callback(event?.payload));
   return true;
 }
 
@@ -391,8 +438,8 @@ export async function onNativeNotificationClick(callback: (payload: unknown) => 
  */
 export async function takeNativeStartupNotificationClick(): Promise<unknown> {
   if (!isDesktopShell()) return null;
-  const invoke = (window as any).__TAURI__?.core?.invoke;
-  if (typeof invoke !== 'function') return null;
+  const invoke = tauriInvoke();
+  if (!invoke) return null;
   try {
     return await invoke('take_pending_notification_click');
   } catch (error) {
@@ -474,10 +521,10 @@ function asDesktopUpdateError(error: unknown): DesktopUpdateError {
  */
 export async function checkDesktopUpdate(): Promise<DesktopUpdateAvailability | null> {
   if (!isDesktopShell()) return null;
-  const invoke = (window as any).__TAURI__?.core?.invoke;
-  if (typeof invoke !== 'function') return null;
+  const invoke = tauriInvoke();
+  if (!invoke) return null;
   try {
-    return await invoke('update_check');
+    return (await invoke('update_check')) as DesktopUpdateAvailability | null;
   } catch (error) {
     throw asDesktopUpdateError(error);
   }
@@ -491,8 +538,8 @@ export async function checkDesktopUpdate(): Promise<DesktopUpdateAvailability | 
  */
 export async function applyDesktopUpdate(): Promise<void> {
   if (!isDesktopShell()) return;
-  const invoke = (window as any).__TAURI__?.core?.invoke;
-  if (typeof invoke !== 'function') return;
+  const invoke = tauriInvoke();
+  if (!invoke) return;
   try {
     await invoke('update_apply_now');
   } catch (error) {
@@ -505,11 +552,13 @@ export async function applyDesktopUpdate(): Promise<void> {
  * no transport — not a shell, or `withGlobalTauri` off — so callers can tell
  * "nothing will ever arrive" from "nothing has arrived yet".
  */
-async function listenDesktop(event: string, callback: (payload: any) => void): Promise<boolean> {
+async function listenDesktop<TPayload>(event: string, callback: (payload: TPayload) => void): Promise<boolean> {
   if (!isDesktopShell()) return false;
-  const tauriEvent = (window as any).__TAURI__?.event;
-  if (typeof tauriEvent?.listen !== 'function') return false;
-  await tauriEvent.listen(event, (e: any) => callback(e?.payload));
+  const tauriEvent = tauriEventApi();
+  if (!tauriEvent) return false;
+  // The one assertion for this transport: the shell's event payloads are JSON the
+  // bridge cannot describe, so each caller declares the shape it subscribed for.
+  await tauriEvent.listen(event, e => callback(e?.payload as TPayload));
   return true;
 }
 
