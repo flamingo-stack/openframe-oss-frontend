@@ -1,6 +1,6 @@
 import { OS_PLATFORMS } from '@flamingo-stack/openframe-frontend-core/utils';
 import { z } from 'zod';
-import { ScheduleOfflineBehavior, ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { ScheduleOfflineBehavior, ScheduleTimeReference, ScriptScheduleTrigger } from '@/generated/schema-enums';
 import { parseKeyValues, serializeKeyValues } from '../../shared/utils/script-key-values';
 import { envVarsToInput, envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
 import { customParamsByScriptId, effectiveScriptParams, toEnvVarInputs } from '../utils/schedule-script-params';
@@ -17,6 +17,7 @@ import {
   MIN_REPEAT_MINUTES,
   PAST_START_MESSAGE,
   resolveOfflineBehavior,
+  resolveTimeReference,
   secondsToDuration,
   startOfToday,
 } from '../utils/schedule-timing';
@@ -72,6 +73,22 @@ export const editScheduleFormSchema = z
     scheduledDate: z.date().nullable(),
     /** `HH:mm` on the 30-minute grid; `''` = the user hasn't picked a time yet. */
     scheduledTime: z.string(),
+    /**
+     * Which clock the pair above means — the "Timezone" control.
+     *
+     * SERVER is one instant worldwide; DEVICE_LOCAL is one READING, re-based
+     * into each device's own timezone, so a fleet across three zones runs three
+     * times. It changes how `startAt` is written and read (see
+     * {@link toScheduleInstant}) and it rules out recurrence entirely — the
+     * schema documents `repeat` as unsupported for DEVICE_LOCAL — which is why
+     * the Repeat controls lock when it is picked.
+     *
+     * Held by the form even when the control is not rendered (the picker is
+     * behind the `script-schedule-device-online` flag): a schedule that already
+     * carries DEVICE_LOCAL is then displayed and saved as one, rather than
+     * silently re-timed by an edit made with the flag off.
+     */
+    timeReference: z.enum([ScheduleTimeReference.SERVER, ScheduleTimeReference.DEVICE_LOCAL]),
     repeatEnabled: z.boolean(),
     /**
      * `null` while the box is EMPTY — the user is mid-edit, not proposing zero.
@@ -229,7 +246,7 @@ export const editScheduleFormSchema = z
     // actually refuses the save, and it also catches what no control can: a form
     // left open long enough for its own slot to go by. Exempt while the pair
     // still reads exactly the stored `startAt` — see `isStartInPastAndChanged`.
-    if (isStartInPastAndChanged(data.scheduledDate, data.scheduledTime, data.startAtStored)) {
+    if (isStartInPastAndChanged(data.scheduledDate, data.scheduledTime, data.startAtStored, data.timeReference)) {
       ctx.addIssue({
         code: 'custom',
         message: PAST_START_MESSAGE,
@@ -340,6 +357,19 @@ export const TRIGGER_OPTIONS = [
 ];
 
 /**
+ * The "Timezone" dropdown (design node 793:61340), in the designer's own
+ * wording: the account's clock, or each device's.
+ *
+ * SERVER first — it is the backend's documented default for a null
+ * `timeReference`, and it is what every schedule authored before the field
+ * existed already means.
+ */
+export const TIME_REFERENCE_OPTIONS = [
+  { value: ScheduleTimeReference.SERVER, label: 'Your account timezone' },
+  { value: ScheduleTimeReference.DEVICE_LOCAL, label: 'Device local timezone' },
+];
+
+/**
  * The two answers to "if device is offline at scheduled time" (design node
  * 460:63425). SKIP first, because it is both the design's default and the
  * behavior every schedule authored before this field existed already has — the
@@ -364,6 +394,7 @@ export const DEFAULT_SCHEDULE_VALUES: EditScheduleFormData = {
   trigger: ScriptScheduleTrigger.DATE_TIME,
   scheduledDate: null,
   scheduledTime: '',
+  timeReference: ScheduleTimeReference.SERVER,
   repeatEnabled: false,
   repeatInterval: 1,
   repeatUnit: 'day',
@@ -380,8 +411,12 @@ export const DEFAULT_SCHEDULE_VALUES: EditScheduleFormData = {
 /** The stored schedule, in the shape the edit form holds it. */
 export function scheduleToFormValues(schedule: ScheduleDetailData): EditScheduleFormData {
   const repeatParts = schedule.repeat ? secondsToDuration(schedule.repeat) : null;
+  // Read FIRST: it decides how the stored start is read at all — as an instant
+  // to convert through the viewer's offset, or as the wall clock it stores.
+  // Normalised, not cast, for the same reason `offlineBehavior` is below.
+  const timeReference = resolveTimeReference(schedule.timeReference);
   // The stored instant carries both halves; the form keeps them apart.
-  const startAt = schedule.startAt ? fromScheduleInstant(schedule.startAt) : null;
+  const startAt = schedule.startAt ? fromScheduleInstant(schedule.startAt, timeReference) : null;
   // A SKIP schedule has no window on file, so the pair falls back to the design
   // default — which is what the user will see the moment they pick RETRY, and
   // what they would have got creating the schedule from scratch.
@@ -396,7 +431,8 @@ export function scheduleToFormValues(schedule: ScheduleDetailData): EditSchedule
     description: schedule.description ?? '',
     trigger: isEventTrigger(schedule.trigger) ? ScriptScheduleTrigger.DEVICE_ONLINE : ScriptScheduleTrigger.DATE_TIME,
     scheduledDate: startAt,
-    scheduledTime: startAt ? dateToTimeSlot(startAt) : '',
+    scheduledTime: startAt ? dateToTimeSlot(startAt, timeReference) : '',
+    timeReference,
     repeatEnabled: Boolean(schedule.repeat),
     repeatInterval: repeatParts?.interval ?? 1,
     repeatUnit: repeatParts?.unit ?? 'day',
