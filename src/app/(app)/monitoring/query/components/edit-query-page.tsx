@@ -148,7 +148,13 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
   // Seeded when the fetched query arrives (or is replaced), during render rather
   // than in an effect: an effect renders the empty form once after the data has
   // landed, which is a visible flash of blank fields on every load.
-  const [seededFrom, setSeededFrom] = useState(queryDetails);
+  //
+  // `undefined` is a sentinel, NOT the initial value: `queryDetails` is
+  // `Query | null` and never `undefined`, so the block below also runs on the
+  // FIRST render. Seeding the tracker with the current value instead would skip
+  // it entirely whenever react-query already holds the record — the standard
+  // Query details -> Edit journey — and the form would open blank.
+  const [seededFrom, setSeededFrom] = useState<typeof queryDetails | undefined>(undefined);
   if (queryDetails !== seededFrom) {
     setSeededFrom(queryDetails);
     if (queryDetails && isExistingQuery) {

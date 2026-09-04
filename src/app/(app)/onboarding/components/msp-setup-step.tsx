@@ -45,7 +45,14 @@ export function MspSetupStep({
   // Seeded when the tenant record arrives (or is replaced), during render rather
   // than in an effect: an effect renders the empty fields once after the data has
   // landed.
-  const [seededFrom, setSeededFrom] = useState(tenantInfo);
+  //
+  // The tracker starts at `undefined` as a sentinel rather than at the current
+  // value: react-query answers from cache on a remount (collapse and re-expand
+  // this step, or a return to the dashboard), so the record is routinely already
+  // there on the FIRST render, and a tracker seeded with it never fires — the
+  // fields would stay blank. Seeding from an `undefined` `tenantInfo` is a no-op
+  // either way, since the body below acts only on a loaded record.
+  const [seededFrom, setSeededFrom] = useState<typeof tenantInfo>(undefined);
   if (tenantInfo !== seededFrom) {
     setSeededFrom(tenantInfo);
     if (tenantInfo) {
