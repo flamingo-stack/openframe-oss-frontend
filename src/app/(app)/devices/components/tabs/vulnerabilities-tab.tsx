@@ -268,11 +268,18 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
     }
 
     if (reason === 'collecting') {
+      // Agent still deploying → the design's connecting-state copy (447-29965);
+      // agent live but the first inventory scan hasn't finished → collecting copy.
+      const isDeploying = device.sources?.fleet === 'skipped-pending';
       return (
         <TabEmptyState
           icon={<BracketSquareCheckIcon />}
-          title="Collecting software inventory"
-          description="This device hasn't reported its installed software yet. Vulnerabilities will appear once the inventory arrives."
+          title={isDeploying ? 'Vulnerabilities data unavailable' : 'Collecting software inventory'}
+          description={
+            isDeploying
+              ? 'This information will appear once the agent finishes deploying.'
+              : "This device hasn't reported its installed software yet. Vulnerabilities will appear once the inventory arrives."
+          }
         />
       );
     }
