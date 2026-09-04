@@ -1,13 +1,13 @@
-import { NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
+import { EmptyState } from '@/app/components/shared/empty-state';
 
 /**
- * Unified empty screen for device detail tabs — the same wrapper + `NoData`
- * padding that `DataTable.Body` renders for empty tables, so content tabs
- * (hardware, network, OS, …) are pixel-identical to the table tabs.
- * Pass the tab's own icon from `device-tabs.tsx` so the empty state matches
- * the tab bar. `buttonLabel`/`onButtonClick` forward to `NoData`'s action
- * button (e.g. a Retry for the fleet-error state).
+ * Unified empty screen for device detail tabs — the app-wide `EmptyState`
+ * wrapper, so the message is vertically centered in the remaining viewport
+ * exactly like the list pages (devices, customers, …). Pass the tab's own icon
+ * from `device-tabs.tsx` so the empty state matches the tab bar.
+ * `buttonLabel`/`onButtonClick` forward to `NoData`'s action button (e.g. a
+ * Retry for the fleet-error state).
  */
 export function TabEmptyState({
   icon,
@@ -23,15 +23,12 @@ export function TabEmptyState({
   onButtonClick?: () => void;
 }) {
   return (
-    <div className="flex w-full flex-col gap-[var(--spacing-system-xsf)]">
-      <NoData
-        icon={icon}
-        title={title}
-        description={description}
-        buttonLabel={buttonLabel}
-        onButtonClick={onButtonClick}
-        className="py-[var(--spacing-system-xxl)]"
-      />
-    </div>
+    <EmptyState
+      icon={icon}
+      title={title}
+      description={description}
+      buttonLabel={buttonLabel}
+      onButtonClick={onButtonClick}
+    />
   );
 }
