@@ -17,6 +17,7 @@
 
 import { type BoardColumnDef, columnFromTicketStatus } from '@flamingo-stack/openframe-frontend-core';
 import { useEffect, useState } from 'react';
+import { SYSTEM_KIND_META } from '../statuses/types/ticket-statuses.types';
 
 export interface CachedBoardColumn {
   id: string;
@@ -25,6 +26,8 @@ export interface CachedBoardColumn {
   label: string;
   color: string;
   system: boolean;
+  /** Header info-icon hint (system statuses only); absent for custom statuses. */
+  tooltip?: string;
 }
 
 const STORAGE_KEY = 'openframe:tickets-board-columns-v1';
@@ -47,7 +50,8 @@ export function readCachedBoardColumns(): CachedBoardColumn[] | null {
         typeof c.id === 'string' &&
         typeof c.label === 'string' &&
         typeof c.color === 'string' &&
-        (c.statusKey === undefined || typeof c.statusKey === 'string'),
+        (c.statusKey === undefined || typeof c.statusKey === 'string') &&
+        (c.tooltip === undefined || typeof c.tooltip === 'string'),
     );
     // Picked field by field, not spread: a stale blob's extra keys would ride
     // `...c` straight into `BoardColumnDef` (`total`, `hasMore`, `archivable`,
@@ -60,6 +64,7 @@ export function readCachedBoardColumns(): CachedBoardColumn[] | null {
           label: c.label,
           color: c.color,
           system: !!c.system,
+          tooltip: c.tooltip,
         }))
       : null;
   } catch {
@@ -74,20 +79,29 @@ const NO_TICKETS: never[] = [];
  * is filtered off the board). Custom statuses sit between them, so this is only
  * the shape until the cache has seen a real board once.
  */
+function systemFallbackColumn(kind: 'AI_ASSISTANCE' | 'TECH_REQUIRED' | 'RESOLVED') {
+  // Spread rather than an override: the header's info-icon `tooltip` lands in
+  // `BoardColumnDef` with the core-lib release that renders it, and the spread
+  // stays type-safe on either side of that bump.
+  return {
+    ...columnFromTicketStatus(kind, NO_TICKETS, { isLoading: true, system: true }),
+    tooltip: SYSTEM_KIND_META[kind].tooltip,
+  };
+}
+
 const SYSTEM_FALLBACK_COLUMNS: BoardColumnDef[] = [
-  columnFromTicketStatus('AI_ASSISTANCE', NO_TICKETS, { isLoading: true, system: true }),
-  columnFromTicketStatus('TECH_REQUIRED', NO_TICKETS, { isLoading: true, system: true }),
-  columnFromTicketStatus('RESOLVED', NO_TICKETS, { isLoading: true, system: true }),
+  systemFallbackColumn('AI_ASSISTANCE'),
+  systemFallbackColumn('TECH_REQUIRED'),
+  systemFallbackColumn('RESOLVED'),
 ];
 
 /**
- * The lanes to render while the real ones are unknown — used by BOTH the route
- * skeleton and `TicketsBoard` itself while its statuses query is in flight.
+ * The lanes to render while the real ones are unknown — used by `TicketsBoard`
+ * while its statuses query is in flight.
  *
- * Sharing one builder is the point: the board used to map an empty status list
- * to zero columns, so the loaded page opened on a blank strip before the lanes
- * appeared. Standing in with the same placeholders on both sides makes the
- * skeleton → page handoff a no-op.
+ * The board used to map an empty status list to zero columns, so the page
+ * opened on a blank strip before the lanes appeared; standing in with the
+ * last-seen lane set makes the loading → loaded handoff a no-op.
  */
 export function buildPlaceholderBoardColumns(): BoardColumnDef[] {
   const cached = readCachedBoardColumns();
@@ -106,9 +120,9 @@ let hasHydrated = false;
  * Hydration-safe `buildPlaceholderBoardColumns` — use this from a render, never
  * the builder directly.
  *
- * Both consumers (the route skeleton and `TicketsBoard`) render on the server,
- * where `localStorage` does not exist: the builder returns the three system
- * statuses there and the tenant's real cached lanes in the browser. Reading it in
+ * `TicketsBoard` renders on the server, where `localStorage` does not exist:
+ * the builder returns the three system statuses there and the tenant's real
+ * cached lanes in the browser. Reading it in
  * a `useState` initializer therefore made the server and the first client render
  * disagree on the lane SET — different column count, different colors, different
  * counts — which is a hydration mismatch, and not a cosmetic one: React discards

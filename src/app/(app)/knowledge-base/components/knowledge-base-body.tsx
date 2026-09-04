@@ -118,11 +118,11 @@ const knowledgeBaseBodyFoldersRelayQuery = graphql`
 
 const knowledgeBaseBodyFoldersRelayFragment = graphql`
   fragment knowledgeBaseBodyFoldersRelay_query on Query
-    @argumentDefinitions(
-      filter: { type: "KnowledgeBaseFilterInput" }
-      search: { type: "String" }
-      first: { type: "Int", defaultValue: 100 }
-    ) {
+  @argumentDefinitions(
+    filter: { type: "KnowledgeBaseFilterInput" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 100 }
+  ) {
     knowledgeBaseItems(filter: $filter, search: $search, first: $first)
       @connection(key: "knowledgeBaseBodyFolders__knowledgeBaseItems", filters: ["filter", "search"]) {
       __id
@@ -142,20 +142,19 @@ const knowledgeBaseBodyArticlesRelayQuery = graphql`
     $first: Int!
     $after: String
   ) {
-    ...knowledgeBaseBodyArticlesRelay_query
-      @arguments(filter: $filter, search: $search, first: $first, after: $after)
+    ...knowledgeBaseBodyArticlesRelay_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
   }
 `;
 
 const knowledgeBaseBodyArticlesRelayFragment = graphql`
   fragment knowledgeBaseBodyArticlesRelay_query on Query
-    @refetchable(queryName: "knowledgeBaseBodyArticlesRelayPaginationQuery")
-    @argumentDefinitions(
-      filter: { type: "KnowledgeBaseFilterInput" }
-      search: { type: "String" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "knowledgeBaseBodyArticlesRelayPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "KnowledgeBaseFilterInput" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     knowledgeBaseItems(filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "knowledgeBaseBodyArticles__knowledgeBaseItems", filters: ["filter", "search"]) {
       __id
@@ -183,20 +182,19 @@ const knowledgeBaseBodySubtreeRelayQuery = graphql`
     $first: Int!
     $after: String
   ) {
-    ...knowledgeBaseBodySubtreeRelay_query
-      @arguments(filter: $filter, search: $search, first: $first, after: $after)
+    ...knowledgeBaseBodySubtreeRelay_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
   }
 `;
 
 const knowledgeBaseBodySubtreeRelayFragment = graphql`
   fragment knowledgeBaseBodySubtreeRelay_query on Query
-    @refetchable(queryName: "knowledgeBaseBodySubtreeRelayPaginationQuery")
-    @argumentDefinitions(
-      filter: { type: "KnowledgeBaseFilterInput" }
-      search: { type: "String" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "knowledgeBaseBodySubtreeRelayPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "KnowledgeBaseFilterInput" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     knowledgeBaseItems(filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "knowledgeBaseBodyArticlesSubtree__knowledgeBaseItems", filters: ["filter", "search"]) {
       __id
@@ -451,7 +449,7 @@ function KnowledgeBaseBodyShell({
         {!(!isSubtreeMode && isContentEmpty) && (
           <div
             ref={toolbarRef}
-            className="sticky top-0 z-20 flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg -mx-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]"
+            className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
           >
             <div className="flex items-center gap-[var(--spacing-system-m)]">
               <div className="min-w-0 flex-1">
@@ -567,7 +565,7 @@ function KnowledgeBaseBodyFallback({ parentId }: KnowledgeBaseBodyProps) {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       actions={buildActions(parentId, () => {})}
     >
-      <div className="sticky top-0 z-20 flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg -mx-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]">
+      <div className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
         <TagSearchInput<string>
           tags={[]}
           searchValue=""

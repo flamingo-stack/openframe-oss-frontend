@@ -56,6 +56,9 @@ export function AuthSignupSection({
   const getSubtitle = () => 'Start your journey with OpenFrame';
   const getButtonText = () => (isSaasShared ? 'Start Free Trial' : 'Create Organization');
 
+  const isFormValid =
+    firstName.trim() && lastName.trim() && isEmailValid && password && confirmPassword && password === confirmPassword;
+
   const handleSubmit = () => {
     if (!firstName.trim() || !lastName.trim() || !isEmailValid || !password || password !== confirmPassword) {
       return;
@@ -86,17 +89,14 @@ export function AuthSignupSection({
     }
   };
 
-  const isFormValid =
-    firstName.trim() && lastName.trim() && isEmailValid && password && confirmPassword && password === confirmPassword;
-
   return (
     <div className="w-full">
       <div className="w-full space-y-6 lg:space-y-10">
         {/* Complete Your Registration Section */}
-        <div className="bg-ods-card border border-ods-border rounded-sm p-10">
+        <div className="rounded-sm border border-ods-border bg-ods-card p-10">
           <div className="mb-6">
-            <h1 className="text-h2 text-ods-text-primary mb-2">{getTitle()}</h1>
-            <p className="text-h4 text-ods-text-secondary">{getSubtitle()}</p>
+            <h1 className="mb-2 text-ods-text-primary text-h2">{getTitle()}</h1>
+            <p className="text-ods-text-secondary text-h4">{getSubtitle()}</p>
           </div>
 
           {/* SSO Options for SaaS Shared Mode */}
@@ -113,7 +113,7 @@ export function AuthSignupSection({
                   <div className="w-full border-t border-ods-border" />
                 </div>
                 <div className="relative flex justify-center">
-                  <span className="text-h6 bg-ods-card px-2 text-ods-text-secondary">Or continue with email</span>
+                  <span className="bg-ods-card px-2 text-ods-text-secondary text-h6">Or continue with email</span>
                 </div>
               </div>
             </div>
@@ -121,30 +121,30 @@ export function AuthSignupSection({
 
           <div className="space-y-6" onClick={() => setSignupMethod('form')}>
             {/* Organization details (disabled) */}
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="flex-1 flex flex-col gap-1">
+            <div className="flex flex-col gap-6 md:flex-row">
+              <div className="flex flex-1 flex-col gap-1">
                 <Label>Organization Name</Label>
                 <Input
                   value={orgName}
                   disabled
                   onKeyDown={handleKeyDown}
-                  className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 p-3"
+                  className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4"
                 />
               </div>
-              <div className="flex-1 flex flex-col gap-1">
+              <div className="flex flex-1 flex-col gap-1">
                 <Label>Domain</Label>
                 <Input
                   value={displayDomain}
                   disabled
                   onKeyDown={handleKeyDown}
-                  className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 p-3"
+                  className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4"
                 />
               </div>
             </div>
 
             {/* Personal details */}
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="flex-1 flex flex-col gap-1">
+            <div className="flex flex-col gap-6 md:flex-row">
+              <div className="flex flex-1 flex-col gap-1">
                 <Label>First Name</Label>
                 <Input
                   value={firstName}
@@ -152,10 +152,10 @@ export function AuthSignupSection({
                   onKeyDown={handleKeyDown}
                   placeholder="Your First Name"
                   disabled={isLoading}
-                  className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3"
+                  className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
                 />
               </div>
-              <div className="flex-1 flex flex-col gap-1">
+              <div className="flex flex-1 flex-col gap-1">
                 <Label>Last Name</Label>
                 <Input
                   value={lastName}
@@ -163,7 +163,7 @@ export function AuthSignupSection({
                   onKeyDown={handleKeyDown}
                   placeholder="Your Last Name"
                   disabled={isLoading}
-                  className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3"
+                  className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
                 />
               </div>
             </div>
@@ -177,15 +177,15 @@ export function AuthSignupSection({
                 onKeyDown={handleKeyDown}
                 placeholder="username@mail.com"
                 disabled={isLoading || !!prefillEmail}
-                className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3"
+                className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
               />
               {email.trim() && !isEmailValid && (
-                <p className="text-h6 text-ods-error mt-1">Enter a valid email address</p>
+                <p className="mt-1 text-ods-error text-h6">Enter a valid email address</p>
               )}
             </div>
 
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="flex-1 flex flex-col gap-1">
+            <div className="flex flex-col gap-6 md:flex-row">
+              <div className="flex flex-1 flex-col gap-1">
                 <Label>Password</Label>
                 <Input
                   type="password"
@@ -194,13 +194,13 @@ export function AuthSignupSection({
                   onKeyDown={handleKeyDown}
                   placeholder={'Choose a Strong Password'}
                   disabled={isLoading}
-                  className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3"
+                  className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
                 />
                 {isSaasShared && password && password.length < 8 && (
-                  <p className="text-h6 text-ods-error mt-1">Password must be at least 8 characters</p>
+                  <p className="mt-1 text-ods-error text-h6">Password must be at least 8 characters</p>
                 )}
               </div>
-              <div className="flex-1 flex flex-col gap-1">
+              <div className="flex flex-1 flex-col gap-1">
                 <Label>Confirm Password</Label>
                 <Input
                   type="password"
@@ -209,15 +209,15 @@ export function AuthSignupSection({
                   onKeyDown={handleKeyDown}
                   placeholder="Confirm your Password"
                   disabled={isLoading}
-                  className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3"
+                  className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
                 />
                 {confirmPassword && password !== confirmPassword && (
-                  <p className="text-h6 text-ods-error mt-1">Passwords do not match</p>
+                  <p className="mt-1 text-ods-error text-h6">Passwords do not match</p>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-stretch md:items-center">
+            <div className="flex flex-col items-stretch gap-4 md:flex-row md:items-center md:gap-6">
               <Button onClick={onBack} disabled={isLoading} variant="outline" className="w-full md:flex-1">
                 Back
               </Button>

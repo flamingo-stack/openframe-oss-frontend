@@ -11,7 +11,7 @@ export function NewDeviceSkeleton() {
           <Skeleton className="h-9 w-32" />
         </div>
         {/* Organization + Platform */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Skeleton className="h-12 w-full rounded-[6px]" />
           <Skeleton className="h-12 w-full rounded-[6px]" />
         </div>
@@ -23,7 +23,7 @@ export function NewDeviceSkeleton() {
         </div>
 
         {/* Command box */}
-        <div className="bg-ods-card border border-ods-border rounded-[6px] p-6 flex flex-col gap-4">
+        <div className="flex flex-col gap-4 rounded-[6px] border border-ods-border bg-ods-card p-6">
           <Skeleton className="h-6 w-44" />
           <Skeleton className="h-20 w-full rounded-[6px]" />
           <div className="flex justify-end gap-3">
@@ -33,7 +33,7 @@ export function NewDeviceSkeleton() {
         </div>
 
         {/* Antivirus warning */}
-        <div className="bg-ods-card border border-ods-border rounded-[6px] p-6 flex flex-col gap-4">
+        <div className="flex flex-col gap-4 rounded-[6px] border border-ods-border bg-ods-card p-6">
           <Skeleton className="h-14 w-full rounded-[6px]" />
           <Skeleton className="h-5 w-80" />
           <div className="flex flex-col gap-2">

@@ -1,10 +1,20 @@
 'use client';
+'use no memo';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { CommandBox } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { CheckIcon, Copy02Icon, PlayIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Autocomplete, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Autocomplete,
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { DEFAULT_OS_PLATFORM, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +26,6 @@ import { OrgAvatar } from '@/app/components/shared';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { isValidTag, type TagEntryWithId, TagsEditor } from '@/app/components/shared/tags';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
-import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 import { routes } from '@/lib/routes';
@@ -25,10 +34,17 @@ import { AntivirusWarning } from '../components/antivirus-warning';
 import { DoctorModeWarning } from '../components/doctor-mode-warning';
 import { useDeviceOrganizations } from '../hooks/use-device-organizations';
 import { useInstallCommand } from '../hooks/use-install-command';
+import {
+  type InstallMethod,
+  installMethodLabel,
+  installMethodsForPlatform,
+  PACKAGE_MANAGER_METHODS,
+} from '../utils/device-command-utils';
 
 const newDeviceSchema = z.object({
   organizationId: z.string().min(1, 'Customer is required'),
   platform: z.custom<OSPlatformId>(),
+  installMethod: z.custom<InstallMethod>(),
 });
 
 type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
@@ -36,7 +52,6 @@ type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
 export function NewDeviceContent() {
   const handleBack = useSafeBack(routes.devices.list);
   const { toast } = useToast();
-  const isMobile = useIsMobileShell();
 
   // Customer context passed by "Add Device" launched from a customer's section
   // (e.g. `/devices/new?organizationId=<id>`), used to pre-select the dropdown.
@@ -49,11 +64,12 @@ export function NewDeviceContent() {
 
   const form = useForm<NewDeviceFormValues>({
     resolver: zodResolver(newDeviceSchema),
-    defaultValues: { organizationId: '', platform: DEFAULT_OS_PLATFORM },
+    defaultValues: { organizationId: '', platform: DEFAULT_OS_PLATFORM, installMethod: 'script' },
   });
 
   const organizationId = useWatch({ control: form.control, name: 'organizationId' });
   const platform = useWatch({ control: form.control, name: 'platform' });
+  const installMethod = useWatch({ control: form.control, name: 'installMethod' });
 
   const validTags = useMemo(() => {
     const seen = new Set<string>();
@@ -67,7 +83,7 @@ export function NewDeviceContent() {
     });
   }, [tags]);
 
-  const { command, initialKey } = useInstallCommand({ organizationId, platform, tags: validTags });
+  const { command, registerCommand, initialKey } = useInstallCommand({ organizationId, platform, tags: validTags });
 
   const orgOptions: AutocompleteOption[] = useMemo(
     () => orgs.map(o => ({ label: o.name, value: o.organizationId })),
@@ -120,89 +136,40 @@ export function NewDeviceContent() {
   }, [form, initialKey, tags, toast]);
 
   const { copy: doCopy, copied: commandCopied } = useCopyToClipboard({
-    successDescription: 'Installer command copied to clipboard',
+    successDescription: 'Command copied to clipboard',
     errorDescription: 'Could not copy command',
   });
 
   const copyCommand = useCallback(async () => {
     if (!(await validateBeforeAction())) return;
-    doCopy(command);
-  }, [command, doCopy, validateBeforeAction]);
+    if (installMethod === 'script') {
+      doCopy(command);
+      return;
+    }
+    // Both steps in one paste: install through the package manager, then
+    // enroll. Windows chains with ';' — the stock Windows PowerShell 5.1 the
+    // admin warning points users at has no '&&'. macOS keeps '&&' so
+    // registration only runs after a successful install.
+    const separator = platform === 'windows' ? '; ' : ' && ';
+    doCopy(`${PACKAGE_MANAGER_METHODS[installMethod].installCommand}${separator}${registerCommand}`);
+  }, [command, registerCommand, installMethod, platform, doCopy, validateBeforeAction]);
 
-  const runOnCurrentMachine = useCallback(async () => {
+  // Corner copy buttons take their own clipboard hook so the main button's
+  // "copied" checkmark doesn't light up for a box-level copy.
+  const { copy: copyBoxCommand } = useCopyToClipboard({
+    successDescription: 'Command copied to clipboard',
+    errorDescription: 'Could not copy command',
+  });
+
+  const copyInstallScript = useCallback(async () => {
     if (!(await validateBeforeAction())) return;
+    copyBoxCommand(command);
+  }, [command, copyBoxCommand, validateBeforeAction]);
 
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isMac = userAgent.includes('mac');
-    const isWindows = userAgent.includes('win');
-    const isLinux = userAgent.includes('linux');
-
-    if (isMac && platform !== 'darwin') {
-      toast({
-        title: 'Platform Mismatch',
-        description: 'Please select macOS platform for your current machine',
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (isWindows && platform !== 'windows') {
-      toast({
-        title: 'Platform Mismatch',
-        description: 'Please select Windows platform for your current machine',
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (isLinux && platform !== 'darwin') {
-      toast({
-        title: 'Platform Mismatch',
-        description: 'Please select macOS/Linux platform for your current machine',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      let scriptContent: string;
-      let fileName: string;
-      let mimeType: string;
-
-      if (platform === 'windows') {
-        scriptContent = `# OpenFrame Client Installation Script\n# Run this script as Administrator\n\n${command}\n\nWrite-Host "OpenFrame client installation complete!" -ForegroundColor Green\nWrite-Host "Press any key to exit..."\n$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")\n`;
-        fileName = 'install-openframe.ps1';
-        mimeType = 'application/x-powershell';
-      } else {
-        scriptContent = `#!/bin/bash\n# OpenFrame Client Installation Script\n# This script requires sudo privileges\n\n${command}\n\necho ""\necho "OpenFrame client installation complete!"\n`;
-        fileName = 'install-openframe.sh';
-        mimeType = 'application/x-sh';
-      }
-
-      const blob = new Blob([scriptContent], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      toast({
-        title: 'Script Downloaded',
-        description: isWindows
-          ? 'Right-click the file and select "Run with PowerShell" as Administrator'
-          : 'Open Terminal, navigate to Downloads, run: chmod +x install-openframe.sh && ./install-openframe.sh',
-        variant: 'default',
-        duration: 8000,
-      });
-    } catch {
-      toast({
-        title: 'Download failed',
-        description: 'Could not generate installation script',
-        variant: 'destructive',
-      });
-    }
-  }, [command, platform, toast, validateBeforeAction]);
+  const copyRegisterCommand = useCallback(async () => {
+    if (!(await validateBeforeAction())) return;
+    copyBoxCommand(registerCommand);
+  }, [registerCommand, copyBoxCommand, validateBeforeAction]);
 
   return (
     <PageLayout
@@ -211,7 +178,7 @@ export function NewDeviceContent() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col gap-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <Controller
             name="organizationId"
             control={form.control}
@@ -221,6 +188,7 @@ export function NewDeviceContent() {
                 value={field.value || null}
                 onChange={val => field.onChange(val ?? '')}
                 label="Select Customer"
+                labelVariant="large"
                 placeholder="Choose customer"
                 loading={false}
                 error={fieldState.error?.message}
@@ -234,7 +202,7 @@ export function NewDeviceContent() {
                 renderOption={option => {
                   const org = orgs.find(o => o.organizationId === option.value);
                   return (
-                    <div className="flex items-center gap-2 w-full min-w-0">
+                    <div className="flex w-full min-w-0 items-center gap-2">
                       <OrgAvatar imageUrl={org?.imageUrl} hash={org?.imageHash} name={org?.name ?? option.label} />
                       <div className="min-w-0 flex-1">
                         <TruncateText className="text-current">{option.label}</TruncateText>
@@ -251,46 +219,78 @@ export function NewDeviceContent() {
             render={({ field }) => (
               <OsPlatformSelector
                 value={field.value}
-                onValueChange={field.onChange}
+                onValueChange={platformId => {
+                  field.onChange(platformId);
+                  // Winget/Chocolatey exist only on Windows, Brew only on macOS.
+                  if (!installMethodsForPlatform(platformId).includes(form.getValues('installMethod'))) {
+                    form.setValue('installMethod', 'script');
+                  }
+                }}
                 label="Select Platform"
-                className="md:col-span-2"
                 disabledPlatforms={DISABLED_PLATFORMS}
                 options={AVAILABLE_PLATFORMS.map(p => ({ platformId: p.id }))}
               />
+            )}
+          />
+          <Controller
+            name="installMethod"
+            control={form.control}
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger label="Install Method" labelVariant="large">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {installMethodsForPlatform(platform).map(method => (
+                    <SelectItem key={method} value={method}>
+                      {installMethodLabel(method)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           />
         </div>
 
         <TagsEditor tags={tags} onTagsChange={setTags} addLabel="Add Device Tag" />
 
-        <CommandBox
-          title="Device Add Command"
-          command={command}
-          primaryAction={{
-            label: 'Copy Command',
-            onClick: copyCommand,
-            icon: commandCopied ? (
-              <CheckIcon className="w-5 h-5 text-ods-success" />
-            ) : (
-              <Copy02Icon className="w-5 h-5" />
-            ),
-            variant: 'accent',
-          }}
-          // "Run on Current Machine" writes the install script to a Blob and
-          // clicks an `<a download>`. There is no download manager behind the
-          // WebView on a phone, so the click is a no-op — and the phone is not
-          // a machine anyone enrolls anyway. Offer it only where it works.
-          secondaryAction={
-            isMobile
-              ? undefined
-              : {
-                  label: 'Run on Current Machine',
-                  onClick: runOnCurrentMachine,
-                  icon: <PlayIcon className="w-5 h-5" />,
-                  variant: 'outline',
-                }
-          }
-        />
+        <div className="flex flex-col gap-[var(--spacing-system-m)]">
+          {installMethod === 'script' ? (
+            <CommandBox
+              title="OpenFrame Installation Script"
+              command={command}
+              onCopy={copyInstallScript}
+              copyAriaLabel="Copy installation script"
+            />
+          ) : (
+            <>
+              <CommandBox
+                title={PACKAGE_MANAGER_METHODS[installMethod].commandTitle}
+                command={PACKAGE_MANAGER_METHODS[installMethod].installCommand}
+                onCopy={() => copyBoxCommand(PACKAGE_MANAGER_METHODS[installMethod].installCommand)}
+                copyAriaLabel="Copy install command"
+              />
+              <CommandBox
+                title="OpenFrame Register Command"
+                command={registerCommand}
+                onCopy={copyRegisterCommand}
+                copyAriaLabel="Copy register command"
+              />
+            </>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="small"
+            className="self-end"
+            onClick={copyCommand}
+            leftIcon={
+              commandCopied ? <CheckIcon className="h-5 w-5 text-ods-success" /> : <Copy02Icon className="h-5 w-5" />
+            }
+          >
+            {installMethod === 'script' ? 'Copy Install Command' : 'Copy Install & Register Command'}
+          </Button>
+        </div>
 
         <AdminPrivilegesWarning platform={platform} />
         <AntivirusWarning platform={platform} />

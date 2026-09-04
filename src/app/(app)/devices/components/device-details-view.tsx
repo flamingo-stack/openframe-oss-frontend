@@ -77,19 +77,24 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle action params from URL (e.g., from table dropdown navigation)
-  useEffect(() => {
-    const action = searchParams.get('action');
-    if (!action || isLoading) return;
+  // Handle action params from URL (e.g., from table dropdown navigation). Opening
+  // the modal is derived state and happens during render — an effect draws the
+  // page once without it, so arriving from the table shows a flash of the plain
+  // detail view. Clearing the param stays in the effect: it is a navigation.
+  const runScriptRequested = searchParams.get('action') === 'runScript' && !isLoading;
+  const [handledRunScript, setHandledRunScript] = useState(false);
+  if (runScriptRequested && !handledRunScript) {
+    setHandledRunScript(true);
+    setIsScriptsModalOpen(true);
+  }
 
-    if (action === 'runScript') {
-      setIsScriptsModalOpen(true);
-      // Clear the action param to avoid re-triggering
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.delete('action');
-      router.replace(`/devices/details${newParams.toString() ? `?${newParams.toString()}` : ''}`);
-    }
-  }, [searchParams, isLoading, router]);
+  useEffect(() => {
+    if (!runScriptRequested) return;
+    // Clear the action param to avoid re-triggering
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.delete('action');
+    router.replace(`/devices/details${newParams.toString() ? `?${newParams.toString()}` : ''}`);
+  }, [runScriptRequested, searchParams, router]);
 
   const normalizedDevice = deviceDetails;
 
@@ -124,11 +129,9 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     const destructiveItems: ActionsMenuItem[] = [];
 
     if (actionAvailability?.runScriptEnabled) primaryItems.push(deviceMenuItems.runScript);
-    primaryItems.push(deviceMenuItems.editDisplayName);
+    if (deviceMenuItems.editDisplayName) primaryItems.push(deviceMenuItems.editDisplayName);
     if (actionAvailability?.manageFilesEnabled) primaryItems.push(deviceMenuItems.manageFiles);
     if (deviceMenuItems.reboot) primaryItems.push(deviceMenuItems.reboot);
-    if (deviceMenuItems.archive) destructiveItems.push(deviceMenuItems.archive);
-    if (deviceMenuItems.unarchive) destructiveItems.push(deviceMenuItems.unarchive);
     if (deviceMenuItems.delete) destructiveItems.push(deviceMenuItems.delete);
 
     if (primaryItems.length > 0) {
@@ -164,7 +167,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   // Top-level header buttons reuse the shared menu items registry — only the
   // `variant` field is appended to turn them into `PageActionButton`s.
   const actions: PageActionButton[] = [
-    { ...deviceMenuItems.remoteControl, variant: 'outline' },
+    ...(deviceMenuItems.remoteControl ? [{ ...deviceMenuItems.remoteControl, variant: 'outline' as const }] : []),
     { ...deviceMenuItems.remoteShell, variant: 'outline' },
   ];
 
@@ -191,13 +194,13 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         {tabId => (
           <TabContent
             activeTab={tabId}
-            TabComponent={getTabComponent(DEVICE_TABS, tabId)}
+            TabComponent={getTabComponent(DEVICE_TABS, tabId) ?? null}
             componentProps={{ device: normalizedDevice }}
           />
         )}
       </TabNavigation>
 
-      {/* Run Script — native scripts-v2 modal (GraphQL run API). The legacy Tactical
+      {/* Run Script — native Scripts modal (GraphQL run API). The legacy Tactical
           ScriptsModal was removed together with the Tactical RMM integration. */}
       <RunScriptModal
         isOpen={isScriptsModalOpen}

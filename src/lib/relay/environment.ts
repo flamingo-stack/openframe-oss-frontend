@@ -1,6 +1,6 @@
 'use client';
 
-import type { FetchFunction, IEnvironment } from 'relay-runtime';
+import type { CacheConfig, FetchFunction, IEnvironment, RequestParameters } from 'relay-runtime';
 import { Environment, Network, RecordSource, Store } from 'relay-runtime';
 import { REQUEST_TIMEOUT_MS } from '../api-client';
 import { isOnline, subscribeConnectivity } from '../connectivity';
@@ -8,8 +8,9 @@ import { forceLogout } from '../force-logout';
 import { OfflineError } from '../query-state';
 import { runtimeEnv } from '../runtime-config';
 import { waitForSessionReady } from '../session-ready';
-import { detectTrialExpiredFromGraphqlErrors } from '../subscription-lock-signal';
-import { refreshAccessToken } from '../token-refresh-manager';
+import { markSubscriptionLocked, waitForSubscriptionGate } from '../subscription-gate';
+import { detectTrialExpiredFromGraphqlErrors, hasTrialExpiredClassification } from '../subscription-lock-signal';
+import { refreshTokens } from '../token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '../token-store';
 
 function getAuthHeaders(): Record<string, string> {
@@ -275,10 +276,19 @@ class BailoutToClientRenderError extends Error {
 }
 
 /**
+ * Whether this request skips the subscription gate — see `subscription-gate.ts`
+ * for what qualifies and why.
+ */
+function bypassesSubscriptionGate(request: RequestParameters, cacheConfig: CacheConfig | null | undefined): boolean {
+  if (request.operationKind === 'mutation') return true;
+  return cacheConfig?.metadata?.skipSubscriptionGate === true;
+}
+
+/**
  * Relay network fetch function.
  * Mirrors apiClient auth logic: cookie-based auth + 401 token refresh + force logout.
  */
-const fetchRelay: FetchFunction = async (request, variables) => {
+const fetchRelay: FetchFunction = async (request, variables, cacheConfig, uploadables) => {
   // No GraphQL during a server render. There is no user cookie in the Node
   // process, so the request would 401 — and the 401 path below calls
   // `refreshAccessToken`/`forceLogout`, which touch `window` and localStorage.
@@ -323,6 +333,20 @@ const fetchRelay: FetchFunction = async (request, variables) => {
   // its own `<Suspense>` fallback instead of a central route skeleton.
   await waitForSessionReady();
 
+  // Then the subscription gate: nothing but the subscription query (and what the
+  // lock screen needs) leaves until that query has answered, and nothing at all
+  // leaves while the answer locks the workspace. See `subscription-gate.ts` —
+  // without this the chrome's queries raced the subscription query, came back
+  // empty with `SUBSCRIPTION_TRIAL_EXPIRED`, and threw into error boundaries a
+  // beat before the lock screen could replace them.
+  //
+  // After the session latch, because the gate is opened by a query that itself
+  // has to get out, and that query waits on the session.
+  const subjectToSubscriptionGate = !bypassesSubscriptionGate(request, cacheConfig);
+  if (subjectToSubscriptionGate) {
+    await waitForSubscriptionGate();
+  }
+
   // QUERIES retry; MUTATIONS get exactly one attempt.
   //
   // A retry is only safe when the operation is idempotent, and these are not:
@@ -352,20 +376,18 @@ const fetchRelay: FetchFunction = async (request, variables) => {
       throw new Error('Unauthorized');
     }
 
-    // `refreshAccessToken` both deduplicates against an in-flight refresh and
+    // `refreshTokens` both deduplicates against an in-flight refresh and
     // short-circuits when `sentAtEpoch` is already stale, so the two arms of
     // the old `isTokenRefreshing()` branch collapse into one call.
-    const refreshed = await refreshAccessToken(sentAtEpoch);
-    if (!refreshed) {
-      // A link that dropped between the 401 and the refresh POST is NOT a
-      // rejected credential: `executeRefresh` catches the transport error and
-      // returns false the same way it does for a 401 from the refresh endpoint
-      // (`token-refresh-manager.ts`). Logging out on that destroys a valid
-      // session over a transient outage — the one failure this whole change
-      // treats as recoverable everywhere else. The tokens are still good; the
-      // boundary shows the offline copy and re-issues when the link returns.
-      if (!isOnline()) {
-        throw new OfflineError(request.name);
+    const outcome = await refreshTokens(sentAtEpoch);
+    if (outcome !== 'refreshed') {
+      // Only a 401 from the refresh endpoint is a rejected credential; a
+      // dropped link, a timeout or an auth-server 5xx is `transient`
+      // (`token-refresh-manager.ts`). The tokens are still good — the boundary
+      // shows the offline copy and re-issues when the link returns.
+      if (outcome === 'transient') {
+        if (!isOnline()) throw new OfflineError(request.name);
+        throw new Error(`Relay fetch failed: authentication temporarily unavailable (${request.name})`);
       }
       await forceLogout({ reason: 'Relay - token refresh failed' });
       throw new Error('Authentication failed');
@@ -382,6 +404,26 @@ const fetchRelay: FetchFunction = async (request, variables) => {
   if (json.errors) {
     console.error('[Relay] GraphQL errors:', json.errors);
     detectTrialExpiredFromGraphqlErrors(json.errors);
+
+    // The gate can only be shut by an answer, and this response IS one — from a
+    // request that was already in flight when the trial lapsed, or one that
+    // bypasses the gate. Shut it so nothing else follows this one out.
+    if (hasTrialExpiredClassification(json.errors)) {
+      markSubscriptionLocked();
+
+      // Nothing usable came back, and no payload can be synthesised for a
+      // non-null field, so returning this guarantees a thrown error in a tree
+      // the lock screen is about to replace. Park on the gate and retry when the
+      // workspace is paid for — the same contract every other request goes
+      // through, rather than a special "swallow the error" path.
+      //
+      // Only for gated requests: parking a bypassing one would strand the very
+      // query that opens the gate, or the paywall the user needs to pay from.
+      if (json.data == null && subjectToSubscriptionGate) {
+        await waitForSubscriptionGate();
+        return fetchRelay(request, variables, cacheConfig, uploadables);
+      }
+    }
   }
 
   return json;
@@ -432,7 +474,7 @@ export function getRelayEnvironment(): IEnvironment {
       network: Network.create(fetchRelay),
       store: new Store(new RecordSource()),
       isServer: true,
-      // biome-ignore lint/style/useNamingConvention: Relay's Environment option key is fixed.
+      // Relay's Environment option key is fixed.
       getDataID: resolveDataId,
     });
   }
@@ -445,7 +487,7 @@ export function getRelayEnvironment(): IEnvironment {
     relayEnvironment = new Environment({
       network: Network.create(fetchRelay),
       store,
-      // biome-ignore lint/style/useNamingConvention: Relay's Environment option key is fixed.
+      // Relay's Environment option key is fixed.
       getDataID: resolveDataId,
     });
   }

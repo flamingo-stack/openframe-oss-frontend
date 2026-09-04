@@ -37,6 +37,7 @@ export interface InstallCommandOptions {
   initialKey: string;
   orgId: string;
   downloadBaseUrl: string;
+  userId?: string;
   additionalArgs?: string[];
 }
 
@@ -44,9 +45,10 @@ export interface InstallCommandOptions {
  * Build the device installation command
  */
 export function buildInstallCommand(options: InstallCommandOptions): string {
-  const { platform, serverUrl, initialKey, orgId, downloadBaseUrl, additionalArgs = [] } = options;
+  const { platform, serverUrl, initialKey, orgId, downloadBaseUrl, userId, additionalArgs = [] } = options;
 
-  const baseArgs = `install --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}`;
+  const userArg = userId ? ` --userId ${userId}` : '';
+  const baseArgs = `install --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}${userArg}`;
   const extras = additionalArgs.length ? ' ' + additionalArgs.join(' ') : '';
 
   if (platform === 'windows') {
@@ -58,6 +60,65 @@ export function buildInstallCommand(options: InstallCommandOptions): string {
   // macOS / darwin
   const macBinaryUrl = buildAssetsDownloadUrl(downloadBaseUrl, platform);
   return `cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -fL -o openframe-client_macos.tar.gz '${macBinaryUrl}' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client ${baseArgs}${extras}`;
+}
+
+export type InstallMethod = 'script' | 'winget' | 'chocolatey' | 'brew';
+
+interface PackageManagerMethod {
+  /** Option label in the Install Method dropdown */
+  label: string;
+  /** Title above the step-1 command block */
+  commandTitle: string;
+  /** Step 1: install the agent through the package manager */
+  installCommand: string;
+}
+
+/** Package names/commands come from DevOps packaging and may change before release. */
+export const PACKAGE_MANAGER_METHODS: Record<Exclude<InstallMethod, 'script'>, PackageManagerMethod> = {
+  winget: {
+    label: 'Winget',
+    commandTitle: 'Winget Install Command',
+    installCommand: 'winget install openframe',
+  },
+  chocolatey: {
+    label: 'Chocolatey',
+    commandTitle: 'Chocolatey Install Command',
+    installCommand: 'choco install openframe -y',
+  },
+  brew: {
+    label: 'Brew',
+    commandTitle: 'Brew Install Command',
+    installCommand: 'brew install --cask openframe',
+  },
+};
+
+export function installMethodLabel(method: InstallMethod): string {
+  return method === 'script' ? 'Script' : PACKAGE_MANAGER_METHODS[method].label;
+}
+
+export function installMethodsForPlatform(platform: OSPlatformId): InstallMethod[] {
+  if (platform === 'windows') return ['script', 'winget', 'chocolatey'];
+  if (platform === 'darwin') return ['script', 'brew'];
+  return ['script'];
+}
+
+export interface RegisterCommandOptions {
+  platform: OSPlatformId;
+  serverUrl: string;
+  initialKey: string;
+  orgId: string;
+  userId?: string;
+  additionalArgs?: string[];
+}
+
+/** Step 2 after a package-manager install: enroll the already-installed agent. */
+export function buildRegisterCommand(options: RegisterCommandOptions): string {
+  const { platform, serverUrl, initialKey, orgId, userId, additionalArgs = [] } = options;
+
+  const userArg = userId ? ` --userId ${userId}` : '';
+  const extras = additionalArgs.length ? ' ' + additionalArgs.join(' ') : '';
+  const command = `openframe auth --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}${userArg}${extras}`;
+  return platform === 'windows' ? command : `sudo ${command}`;
 }
 
 export interface UninstallCommandOptions {

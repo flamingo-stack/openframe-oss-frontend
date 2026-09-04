@@ -13,11 +13,15 @@
 import { isAppShell, isDesktopShell, isMobileShell } from './platform';
 
 /**
- * Custom URL scheme the mobile app registers (CFBundleURLTypes). The login
- * ASWebAuthenticationSession completes when navigation hits it; the gateway
- * 302s the devTicket straight to it for authMobile=true logins.
+ * Custom URL scheme both native shells complete their login on: the gateway
+ * 302s the devTicket straight to it for authMobile=true logins, and it is the
+ * one redirect target the gateway honours verbatim in every environment
+ * (`openframe.gateway.redirect.allowed-uris`). Mobile registers it with the OS
+ * (CFBundleURLTypes / intent-filter) because its ASWebAuthenticationSession
+ * matches on it; the desktop shell never hands it to the OS — it cancels the
+ * navigation inside its own login window — so it registers nothing.
  */
-export const MOBILE_APP_SCHEME = 'com.openframe.app';
+export const APP_SCHEME = 'com.openframe.app';
 
 /** Biometry the device supports; `'none'` when biometric auth is unavailable. */
 export type BiometryType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'none';
@@ -33,17 +37,13 @@ export type BiometryType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'none
 export interface NativeAuthPlugin {
   /**
    * Runs the OAuth login in a shell-owned browser context and resolves with
-   * the final callback URL. Mobile shells run a system browser
-   * (ASWebAuthenticationSession) that completes on `callbackScheme`; the
-   * desktop shell runs a dedicated window that intercepts the https
-   * callbackHost/callbackPath landing and ignores `callbackScheme`.
+   * the final callback URL. Both shells end the flow on `callbackScheme`:
+   * mobile runs a system browser (ASWebAuthenticationSession) that matches on
+   * it, desktop runs a dedicated window that cancels the navigation to it.
+   * Desktop additionally resolves on ANY callback carrying a `devTicket`, which
+   * is what an environment that drops the requested redirect still produces.
    */
-  start(options: {
-    url: string;
-    callbackHost: string;
-    callbackPath: string;
-    callbackScheme?: string;
-  }): Promise<{ callbackUrl: string }>;
+  start(options: { url: string; callbackScheme: string }): Promise<{ callbackUrl: string }>;
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
   exchangeTicket(options: { url: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
   /**
@@ -66,10 +66,18 @@ export interface NativeAuthPlugin {
    * from the Access-Token / Refresh-Token response headers. Paired with
    * `signInWithApple`; same availability caveat.
    */
-  exchangeApple?(options: {
-    url: string;
-    body: Record<string, string>;
-  }): Promise<{ accessToken?: string; refreshToken?: string }>;
+  exchangeApple?(options: { url: string; body: Record<string, string> }): Promise<{
+    /**
+     * Present on shells that resolve every HTTP status instead of rejecting non-2xx. Absent on
+     * older binaries, where a 4xx arrives as a rejection — callers must treat `undefined` as
+     * "this shell cannot report status" and fall back rather than assume success.
+     */
+    status?: number;
+    /** Raw response body, when the server sent one. JSON for the `{"error": …}` cases. */
+    body?: string;
+    accessToken?: string;
+    refreshToken?: string;
+  }>;
   /**
    * Reads the stored tokens. When biometric login is enabled the shell gates
    * this behind a biometric prompt, so it may reject with `BIOMETRIC_CANCELED`
@@ -116,6 +124,12 @@ export interface NativeAuthPlugin {
 
 export type PushPermissionState = 'prompt' | 'prompt-with-rationale' | 'granted' | 'denied';
 
+/** A notification sitting in the OS tray, as the plugin reports it. */
+export interface DeliveredNotification {
+  id?: string;
+  data?: Record<string, unknown>;
+}
+
 /** Subset of @capacitor-firebase/messaging used by this app (plugin ships with the shell, not npm). */
 export interface FirebaseMessagingPlugin {
   checkPermissions(): Promise<{ receive: PushPermissionState }>;
@@ -125,10 +139,21 @@ export interface FirebaseMessagingPlugin {
   deleteToken(): Promise<void>;
   /** Fires when FCM first issues or later rotates the registration token. */
   addListener(eventName: 'tokenReceived', listenerFunc: (event: { token: string }) => void): Promise<unknown>;
+  /**
+   * `notificationActionPerformed` fires on a tap; `notificationReceived` fires for a
+   * push that arrives while the app is alive, including the data-only retraction push,
+   * which carries no notification block and so renders nothing — it exists purely to
+   * tell the client to clear a banner. One signature because this subset models only
+   * `notification.data`, which both carry identically; split them if the tap event's
+   * `actionId`/`inputValue` are ever needed.
+   */
   addListener(
-    eventName: 'notificationActionPerformed',
+    eventName: 'notificationActionPerformed' | 'notificationReceived',
     listenerFunc: (event: { notification: { data?: Record<string, unknown> } }) => void,
   ): Promise<unknown>;
+  getDeliveredNotifications(): Promise<{ notifications: DeliveredNotification[] }>;
+  /** Takes the objects `getDeliveredNotifications` returned, not ids. */
+  removeDeliveredNotifications(options: { notifications: DeliveredNotification[] }): Promise<void>;
 }
 
 /** A picked file as the NativeFiles plugin returns it, before `mimeType` is normalized to `type`. */
@@ -188,6 +213,16 @@ export interface AppPlugin {
     eventName: 'backButton',
     listenerFunc: (event: { canGoBack?: boolean }) => void,
   ): Promise<{ remove: () => void }> | { remove: () => void };
+  /**
+   * Foreground/background transitions. The WebView's own `visibilitychange` is
+   * unreliable for this on iOS — WKWebView does not consistently flip
+   * `visibilityState` when the app is backgrounded — so anything that must run
+   * on resume listens here instead.
+   */
+  addListener(
+    eventName: 'appStateChange',
+    listenerFunc: (state: { isActive: boolean }) => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
   exitApp(): Promise<void>;
 }
 
@@ -196,8 +231,10 @@ export interface AppPlugin {
  * iOS reports the keyboard frame in points, and the Android plugin divides the
  * `WindowInsets.Type.ime()` inset by display density before emitting.
  *
- * The shell configures `resize: 'none'`, so these events are the only notice
- * the web layer gets that a keyboard exists — see keyboard-inset.ts. Same
+ * Consumed on iOS ONLY: the shell configures `resize: 'none'` (an iOS-only
+ * knob), so there these events are the only notice the web layer gets that a
+ * keyboard exists, while on Android Capacitor's own SystemBars plugin resizes
+ * the WebView and the layout viewport reports it — see keyboard-inset.ts. Same
  * sync-or-Promise addListener return as AppPlugin.
  */
 export interface KeyboardPlugin {
@@ -233,13 +270,48 @@ export interface NetworkPlugin {
   ): Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
 }
 
-function capacitorPlugins(): any {
-  return typeof window !== 'undefined' ? (window as any).Capacitor?.Plugins : undefined;
+/**
+ * What the two shells inject onto `window`. Nothing here is guaranteed to exist:
+ * the web bundle has none of it, and a shell binary that predates a plugin has
+ * only some. Each accessor below narrows its own entry to the interface it
+ * declares — this module is the one place where a bridge value is asserted, and
+ * that is what makes every consumer of it typed.
+ */
+interface TauriEventApi {
+  listen(event: string, handler: (event: { payload?: unknown }) => void): Promise<unknown>;
+}
+
+interface TauriCoreApi {
+  invoke(command: string, args?: Record<string, unknown>): Promise<unknown>;
+}
+
+interface ShellWindow {
+  Capacitor?: { Plugins?: Record<string, unknown> };
+  __OPENFRAME_SHELL__?: { nativeAuth?: unknown };
+  __TAURI__?: { event?: TauriEventApi; core?: TauriCoreApi };
+}
+
+function shellWindow(): ShellWindow | undefined {
+  return typeof window === 'undefined' ? undefined : (window as unknown as ShellWindow);
+}
+
+function capacitorPlugins(): Record<string, unknown> | undefined {
+  return shellWindow()?.Capacitor?.Plugins;
 }
 
 /** The desktop shell's own namespace — Tauri commands, no Capacitor involved. */
-function desktopShellBridge(): any {
-  return typeof window !== 'undefined' ? (window as any).__OPENFRAME_SHELL__ : undefined;
+function desktopShellBridge(): ShellWindow['__OPENFRAME_SHELL__'] {
+  return shellWindow()?.__OPENFRAME_SHELL__;
+}
+
+function tauriEventApi(): TauriEventApi | undefined {
+  const api = shellWindow()?.__TAURI__?.event;
+  return typeof api?.listen === 'function' ? api : undefined;
+}
+
+function tauriInvoke(): TauriCoreApi['invoke'] | undefined {
+  const invoke = shellWindow()?.__TAURI__?.core?.invoke;
+  return typeof invoke === 'function' ? invoke : undefined;
 }
 
 /**
@@ -251,44 +323,46 @@ function desktopShellBridge(): any {
  * split removed.
  */
 export function nativeAuthPlugin(): NativeAuthPlugin | null {
-  if (isDesktopShell()) return desktopShellBridge()?.nativeAuth ?? null;
-  if (isMobileShell()) return capacitorPlugins()?.NativeAuth ?? null;
+  if (isDesktopShell()) return (desktopShellBridge()?.nativeAuth as NativeAuthPlugin | undefined) ?? null;
+  if (isMobileShell()) return (capacitorPlugins()?.NativeAuth as NativeAuthPlugin | undefined) ?? null;
   return null;
 }
 
 /** Mobile-only. Also null until @capacitor-firebase/messaging is present in the shell — callers no-op. */
 export function firebaseMessagingPlugin(): FirebaseMessagingPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.FirebaseMessaging ?? null) : null;
+  return isMobileShell()
+    ? ((capacitorPlugins()?.FirebaseMessaging as FirebaseMessagingPlugin | undefined) ?? null)
+    : null;
 }
 
 /** Mobile-only. Also null on shell binaries that predate the NativeFiles plugin — callers fall back to the web path. */
 export function nativeFilesPlugin(): NativeFilesPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.NativeFiles ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.NativeFiles as NativeFilesPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null until @capacitor/splash-screen is present in the shell — callers no-op. */
 export function splashScreenPlugin(): SplashScreenPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.SplashScreen ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.SplashScreen as SplashScreenPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null until @capacitor/status-bar is present in the shell — callers no-op. */
 export function statusBarPlugin(): StatusBarPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.StatusBar ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.StatusBar as StatusBarPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null until @capacitor/app is present in the shell — callers no-op. */
 export function appPlugin(): AppPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.App ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.App as AppPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null until @capacitor/keyboard is present in the shell — callers fall back to visualViewport. */
 export function keyboardPlugin(): KeyboardPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.Keyboard ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.Keyboard as KeyboardPlugin | undefined) ?? null) : null;
 }
 
 /** Mobile-only. Also null on shell binaries that predate the plugin — callers fall back to `navigator.onLine`. */
 export function networkPlugin(): NetworkPlugin | null {
-  return isMobileShell() ? (capacitorPlugins()?.Network ?? null) : null;
+  return isMobileShell() ? ((capacitorPlugins()?.Network as NetworkPlugin | undefined) ?? null) : null;
 }
 
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';
@@ -326,15 +400,18 @@ export function storeTenantHost(origin: string): void {
  */
 export function onNativeTokenUpdate(callback: (tokens: { accessToken?: string; refreshToken?: string }) => void): void {
   if (!isDesktopShell()) return;
-  const tauriEvent = (window as any).__TAURI__?.event;
-  if (typeof tauriEvent?.listen !== 'function') return;
-  void tauriEvent.listen('native-auth:token-update', (event: any) => callback(event?.payload ?? {}));
+  const tauriEvent = tauriEventApi();
+  if (!tauriEvent) return;
+  void tauriEvent.listen('native-auth:token-update', event =>
+    callback((event?.payload as { accessToken?: string; refreshToken?: string } | undefined) ?? {}),
+  );
 }
 
 /**
  * Subscribe to OS-notification clicks forwarded by the desktop shell's Rust
- * notification plane. The payload carries the notification envelope's
- * `context` — resolve a route with resolveNatsNotificationRoute. Desktop-only
+ * notification plane. Resolve a route from the payload with
+ * resolveNatsNotificationRoute, which reads the envelope's `type`/`attributes`
+ * when the shell forwards them and its legacy `context` otherwise. Desktop-only
  * transport; mobile deep-links notification taps through FCM instead
  * (native-push.ts).
  *
@@ -345,9 +422,9 @@ export function onNativeTokenUpdate(callback: (tokens: { accessToken?: string; r
  */
 export async function onNativeNotificationClick(callback: (payload: unknown) => void): Promise<boolean> {
   if (!isDesktopShell()) return false;
-  const tauriEvent = (window as any).__TAURI__?.event;
-  if (typeof tauriEvent?.listen !== 'function') return false;
-  await tauriEvent.listen('notification:click', (event: any) => callback(event?.payload));
+  const tauriEvent = tauriEventApi();
+  if (!tauriEvent) return false;
+  await tauriEvent.listen('notification:click', event => callback(event?.payload));
   return true;
 }
 
@@ -361,8 +438,8 @@ export async function onNativeNotificationClick(callback: (payload: unknown) => 
  */
 export async function takeNativeStartupNotificationClick(): Promise<unknown> {
   if (!isDesktopShell()) return null;
-  const invoke = (window as any).__TAURI__?.core?.invoke;
-  if (typeof invoke !== 'function') return null;
+  const invoke = tauriInvoke();
+  if (!invoke) return null;
   try {
     return await invoke('take_pending_notification_click');
   } catch (error) {
@@ -444,10 +521,10 @@ function asDesktopUpdateError(error: unknown): DesktopUpdateError {
  */
 export async function checkDesktopUpdate(): Promise<DesktopUpdateAvailability | null> {
   if (!isDesktopShell()) return null;
-  const invoke = (window as any).__TAURI__?.core?.invoke;
-  if (typeof invoke !== 'function') return null;
+  const invoke = tauriInvoke();
+  if (!invoke) return null;
   try {
-    return await invoke('update_check');
+    return (await invoke('update_check')) as DesktopUpdateAvailability | null;
   } catch (error) {
     throw asDesktopUpdateError(error);
   }
@@ -461,8 +538,8 @@ export async function checkDesktopUpdate(): Promise<DesktopUpdateAvailability | 
  */
 export async function applyDesktopUpdate(): Promise<void> {
   if (!isDesktopShell()) return;
-  const invoke = (window as any).__TAURI__?.core?.invoke;
-  if (typeof invoke !== 'function') return;
+  const invoke = tauriInvoke();
+  if (!invoke) return;
   try {
     await invoke('update_apply_now');
   } catch (error) {
@@ -475,11 +552,13 @@ export async function applyDesktopUpdate(): Promise<void> {
  * no transport — not a shell, or `withGlobalTauri` off — so callers can tell
  * "nothing will ever arrive" from "nothing has arrived yet".
  */
-async function listenDesktop(event: string, callback: (payload: any) => void): Promise<boolean> {
+async function listenDesktop<TPayload>(event: string, callback: (payload: TPayload) => void): Promise<boolean> {
   if (!isDesktopShell()) return false;
-  const tauriEvent = (window as any).__TAURI__?.event;
-  if (typeof tauriEvent?.listen !== 'function') return false;
-  await tauriEvent.listen(event, (e: any) => callback(e?.payload));
+  const tauriEvent = tauriEventApi();
+  if (!tauriEvent) return false;
+  // The one assertion for this transport: the shell's event payloads are JSON the
+  // bridge cannot describe, so each caller declares the shape it subscribed for.
+  await tauriEvent.listen(event, e => callback(e?.payload as TPayload));
   return true;
 }
 
@@ -526,6 +605,38 @@ function fullscreenElement(): Element | null {
 }
 
 /**
+ * Android only: the software keyboard is up and has taken the navigation-bar
+ * band out of the WebView. Capacitor's Android core pads the WebView's parent
+ * by the `ime()` inset for as long as the keyboard shows (see
+ * keyboard-inset.ts), and that inset spans the navigation bar — the IME window
+ * is drawn behind it — so the resized WebView ends ABOVE the navigation band
+ * and no longer contains it. Publishing the band anyway reserves space the page
+ * cannot reach: the core `MobileBottomActions` bar (`.fixed.bottom-0` in
+ * globals.css) sat on top of the keyboard with a nav-bar-sized strip of dead
+ * space under its buttons.
+ *
+ * iOS is deliberately untouched. WKWebView keeps its frame there, so the
+ * home-indicator band is still inside the viewport — merely covered — and a
+ * `fixed` bottom bar is behind the keyboard entirely, where its padding is
+ * moot.
+ */
+let keyboardCoversBottomInset = false;
+
+/**
+ * Set by the keyboard listener in keyboard-inset.ts. It routes through this
+ * module rather than writing `--native-safe-bottom` itself because
+ * `initNativeChrome` republishes all four insets on every `resize` — and on
+ * Android the keyboard IS a resize, so an outside write would be clobbered by
+ * that handler's trailing read 350ms later. The read stays authoritative; this
+ * only decides what it publishes for the bottom edge.
+ */
+export function setKeyboardCoversBottomInset(covered: boolean): void {
+  if (covered === keyboardCoversBottomInset) return;
+  keyboardCoversBottomInset = covered;
+  void applyNativeSafeAreas();
+}
+
+/**
  * Publish the native safe-area insets as CSS variables consumed by the
  * mobile-scoped rules in globals.css
  * (`--native-safe-top/-bottom/-left/-right`). All four are set so landscape and
@@ -559,7 +670,8 @@ export async function applyNativeSafeAreas(): Promise<void> {
     if (!insets) return;
     const rootStyle = document.documentElement.style;
     rootStyle.setProperty('--native-safe-top', `${insets.top}px`);
-    rootStyle.setProperty('--native-safe-bottom', `${insets.bottom}px`);
+    // Suppressed while the keyboard holds the bottom band — see above.
+    rootStyle.setProperty('--native-safe-bottom', `${keyboardCoversBottomInset ? 0 : insets.bottom}px`);
     rootStyle.setProperty('--native-safe-left', `${insets.left}px`);
     rootStyle.setProperty('--native-safe-right', `${insets.right}px`);
   } catch (error) {

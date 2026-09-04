@@ -113,7 +113,7 @@ export function useCustomers(search = '', status?: string, dateQuery?: Customers
       const response = await apiClient.post<
         GraphQlResponse<{
           organizations: {
-            edges: Array<{ node: any; cursor: string }>;
+            edges: Array<{ node: OrganizationNode; cursor: string }>;
             pageInfo: {
               hasNextPage: boolean;
               hasPreviousPage: boolean;

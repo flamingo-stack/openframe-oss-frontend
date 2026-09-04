@@ -3,7 +3,8 @@ import { useMemo, useSyncExternalStore } from 'react';
 import type { TagEntry } from '@/app/components/shared/tags';
 import { isAppShell } from '@/lib/platform';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { assetsDownloadBase, buildInstallCommand } from '../utils/device-command-utils';
+import { selectUser, useAuthStore } from '@/stores';
+import { assetsDownloadBase, buildInstallCommand, buildRegisterCommand } from '../utils/device-command-utils';
 import { useRegistrationSecret } from './use-registration-secret';
 
 interface UseInstallCommandOptions {
@@ -81,6 +82,10 @@ function getServerDownloadBaseSnapshot(): string {
 
 export function useInstallCommand({ organizationId, platform, tags = [] }: UseInstallCommandOptions) {
   const { initialKey } = useRegistrationSecret();
+  // Installing user, so registration can associate the device with whoever ran
+  // the command. Populated from /api/me by useAuthSession; optional in the
+  // command because the store hydrates a beat after mount.
+  const userId = useAuthStore(selectUser)?.id;
 
   // Read through the store rather than a `useMemo`: the prerender has no
   // `window` and answers 'localhost', so computing this during the first client
@@ -98,10 +103,26 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
         initialKey,
         orgId: organizationId,
         downloadBaseUrl,
+        userId,
         additionalArgs: buildTagArgs(tags, platform),
       }),
-    [initialKey, tags, platform, organizationId, serverUrl, downloadBaseUrl],
+    [initialKey, tags, platform, organizationId, serverUrl, downloadBaseUrl, userId],
   );
 
-  return { command, initialKey };
+  // Step 2 of the package-manager install flow (step 1 installs the binary, so
+  // no download URL here — the agent is already on the machine).
+  const registerCommand = useMemo(
+    () =>
+      buildRegisterCommand({
+        platform,
+        serverUrl,
+        initialKey,
+        orgId: organizationId,
+        userId,
+        additionalArgs: buildTagArgs(tags, platform),
+      }),
+    [initialKey, tags, platform, organizationId, serverUrl, userId],
+  );
+
+  return { command, registerCommand, initialKey };
 }

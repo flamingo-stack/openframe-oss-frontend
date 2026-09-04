@@ -3,7 +3,7 @@
 import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core';
 import { ImageUploader } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { User } from '@/app/(auth)/auth/stores';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
@@ -27,14 +27,20 @@ export function EditProfileModal({ isOpen, onClose, user, onSave, isSaving }: Ed
   const [imageHash, setImageHash] = useState<string | undefined>();
   const [isImageBusy, setIsImageBusy] = useState(false);
 
-  useEffect(() => {
+  // Seeded on the open transition, during render rather than in an effect: an
+  // effect paints the previous values once before correcting them, and keying off
+  // the transition alone means a background refresh of the source can no longer
+  // overwrite what the user has typed while the modal is up.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen && user) {
       setFirstName(user.firstName || '');
       setLastName(user.lastName || '');
       setImageUrl(user.image?.imageUrl);
       setImageHash(user.image?.hash);
     }
-  }, [isOpen, user]);
+  }
 
   const handleImageChange = useCallback(
     async (file: File) => {
@@ -106,7 +112,7 @@ export function EditProfileModal({ isOpen, onClose, user, onSave, isSaving }: Ed
             variant="outline"
             onClick={onClose}
             disabled={isSaving}
-            className="flex-1 h-12 bg-ods-card border-ods-border text-ods-text-primary text-h3 hover:bg-ods-bg"
+            className="h-12 flex-1 border-ods-border bg-ods-card text-ods-text-primary text-h3 hover:bg-ods-bg"
           >
             Cancel
           </Button>
@@ -114,7 +120,7 @@ export function EditProfileModal({ isOpen, onClose, user, onSave, isSaving }: Ed
             variant="accent"
             onClick={handleSave}
             disabled={isSaving}
-            className="flex-1 h-12 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90"
+            className="h-12 flex-1 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90"
           >
             {isSaving ? 'Saving...' : 'Update Profile'}
           </Button>
@@ -135,7 +141,7 @@ export function EditProfileModal({ isOpen, onClose, user, onSave, isSaving }: Ed
 
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-1">
-          <Label htmlFor="edit-firstName" className="text-h4 text-ods-text-primary">
+          <Label htmlFor="edit-firstName" className="text-ods-text-primary text-h4">
             First Name
           </Label>
           <Input
@@ -147,7 +153,7 @@ export function EditProfileModal({ isOpen, onClose, user, onSave, isSaving }: Ed
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="edit-lastName" className="text-h4 text-ods-text-primary">
+          <Label htmlFor="edit-lastName" className="text-ods-text-primary text-h4">
             Last Name
           </Label>
           <Input
@@ -162,11 +168,11 @@ export function EditProfileModal({ isOpen, onClose, user, onSave, isSaving }: Ed
 
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-1">
-          <Label className="text-h4 text-ods-text-primary">Email</Label>
+          <Label className="text-ods-text-primary text-h4">Email</Label>
           <Input id="edit-email" value={user?.email || ''} disabled placeholder="Email" />
         </div>
         <div className="space-y-1">
-          <Label className="text-h4 text-ods-text-primary">Role</Label>
+          <Label className="text-ods-text-primary text-h4">Role</Label>
           <Input id="edit-roles" value={primaryRole} disabled placeholder="Role" />
         </div>
       </div>

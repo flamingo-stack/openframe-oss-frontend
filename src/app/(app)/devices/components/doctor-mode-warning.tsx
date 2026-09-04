@@ -25,7 +25,7 @@ export function DoctorModeWarning({ platform }: DoctorModeWarningProps) {
 
   return (
     <WarningBlock title="Device not appearing or stuck pending?">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Run the doctor command to diagnose installation issues and repair the agent. It works even if the agent
         didn&apos;t install correctly.
       </p>

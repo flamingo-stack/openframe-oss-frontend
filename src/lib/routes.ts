@@ -49,10 +49,8 @@ export const TAB_IDS = {
     'users',
     'software',
   ],
-  scripts: ['list', 'schedules'],
-  scheduleDetails: ['schedule-scripts', 'schedule-devices', 'schedule-history'],
-  scriptsV2Details: ['details', 'executions'],
-  scriptsV2ScheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
+  scriptDetails: ['details', 'executions'],
+  scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
   monitoring: ['policies', 'queries'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
   aiSettings: ['mingo', 'customer', 'guardrails'],
@@ -63,10 +61,8 @@ export type CustomerListTab = (typeof TAB_IDS.customersList)[number];
 export type CustomerDetailTab = (typeof TAB_IDS.customerDetails)[number];
 export type CustomerEditTab = (typeof TAB_IDS.customerEdit)[number];
 export type DeviceDetailTab = (typeof TAB_IDS.deviceDetails)[number];
-export type ScriptsTab = (typeof TAB_IDS.scripts)[number];
+export type ScriptDetailTab = (typeof TAB_IDS.scriptDetails)[number];
 export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
-export type ScriptsV2DetailTab = (typeof TAB_IDS.scriptsV2Details)[number];
-export type ScriptsV2ScheduleDetailTab = (typeof TAB_IDS.scriptsV2ScheduleDetails)[number];
 export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
 export type SettingsTab = (typeof TAB_IDS.settings)[number];
 export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
@@ -94,6 +90,49 @@ function withQuery(base: string, query?: Record<string, QueryValue>): string {
   }
   const serialized = qs.toString();
   return serialized ? `${base}?${serialized}` : base;
+}
+
+// --------------------------------------------------------------------------
+// Mingo dialog params
+// --------------------------------------------------------------------------
+
+/**
+ * Query param naming the dialog open in the Mingo chat drawer.
+ *
+ * Not an entry in {@link routes} because it belongs to no single route: the drawer
+ * floats over whatever page is showing, so this rides the CURRENT URL rather than
+ * producing one. See ROUTES.md § *Cross-cutting overlay params* for the policy.
+ */
+export const MINGO_DIALOG_PARAM = 'mingoDialog';
+
+/**
+ * Add (or, with `null`, remove) {@link MINGO_DIALOG_PARAM} on an app-relative URL,
+ * preserving the path, the fragment, and the values of other params (which are
+ * re-serialized through `URLSearchParams`, so their encoding may be normalized).
+ *
+ * A caller writing the result straight through `history.replaceState` must feed it
+ * the LIVE location (`pathname + search + hash`), never a `routes.*` constant:
+ * nothing normalizes it afterwards, and `trailingSlash: true` means a slash-less path
+ * is one the static export's file host cannot resolve on reload. Passing a `routes.*`
+ * value is fine when the result goes through `router.replace`, which does normalize.
+ */
+export function withMingoDialog(url: string, dialogId: string | null): string {
+  const hashAt = url.indexOf('#');
+  const hash = hashAt === -1 ? '' : url.slice(hashAt);
+  const withoutHash = hashAt === -1 ? url : url.slice(0, hashAt);
+
+  const queryAt = withoutHash.indexOf('?');
+  const path = queryAt === -1 ? withoutHash : withoutHash.slice(0, queryAt);
+  const params = new URLSearchParams(queryAt === -1 ? '' : withoutHash.slice(queryAt + 1));
+
+  if (dialogId === null) {
+    params.delete(MINGO_DIALOG_PARAM);
+  } else {
+    params.set(MINGO_DIALOG_PARAM, dialogId);
+  }
+
+  const serialized = params.toString();
+  return `${path}${serialized ? `?${serialized}` : ''}${hash}`;
 }
 
 // --------------------------------------------------------------------------
@@ -134,15 +173,32 @@ export const routes = {
    */
   accountDeleted: '/account-deleted',
 
+  /**
+   * Public account-deletion instructions. Google Play requires a deletion
+   * request URL reachable from a browser WITHOUT installing the app, and it
+   * has to resolve for a visitor who cannot sign in (left the MSP, disabled by
+   * an admin, lost the password) — so this sits outside `(app)` and `(auth)`
+   * and assumes no session. The canonical URL is on the SHARED host
+   * (`NEXT_PUBLIC_SHARED_HOST_URL`), the only host identical for every tenant:
+   * per-tenant gateway hosts are learned at login and can't go in a store
+   * listing.
+   */
+  accountDeletion: '/account-deletion',
+
   auth: {
     root: '/auth',
     login: '/auth/login',
-    signup: '/auth/signup',
     checkEmail: '/auth/check-email',
     verify: '/auth/verify',
     invite: '/auth/invite',
     passwordReset: '/auth/password-reset',
     error: '/auth/error',
+    /**
+     * Where the auth server sends an SSO login whose identity has no account yet
+     * (`openframe.sso.login.signup-continue-url`). The page reads the asserted identity from the
+     * SAS session and collects only what SSO cannot supply: organization name and domain.
+     */
+    ssoContinue: '/auth/sso-continue',
   },
 
   customers: {
@@ -165,42 +221,26 @@ export const routes = {
   },
 
   scripts: {
-    list: (o?: { tab?: ScriptsTab }) => withQuery('/scripts', { tab: o?.tab }),
+    list: '/scripts',
     new: '/scripts/new',
-    details: (id: string | number) => withQuery('/scripts/details', { id }),
-    run: (id: string | number) => withQuery('/scripts/details/run', { id }),
-    edit: (id: string | number) => withQuery('/scripts/edit', { id }),
+    archived: '/scripts/archived',
     schedules: {
+      list: '/scripts/schedules',
+      archived: '/scripts/schedules/archived',
       new: '/scripts/schedules/new',
-      details: (id: string | number, o?: { tab?: ScheduleDetailTab }) =>
-        withQuery('/scripts/schedules', { id, tab: o?.tab }),
+      // `search` seeds the target tab's search box — used by the Runs table to
+      // drill into the Execution History tab narrowed to one run's executionId.
+      details: (id: string | number, o?: { tab?: ScheduleDetailTab; search?: string }) =>
+        withQuery('/scripts/schedules/details', { id, tab: o?.tab, search: o?.search }),
+      /** One fire of a schedule. `id` is the `ScheduleRun` global id, not the schedule's. */
+      run: (id: string | number) => withQuery('/scripts/schedules/run', { id }),
       edit: (id: string | number) => withQuery('/scripts/schedules/edit', { id }),
       devices: (id: string | number) => withQuery('/scripts/schedules/devices', { id }),
     },
-  },
-
-  scriptsV2: {
-    list: '/scripts-v2',
-    new: '/scripts-v2/new',
-    archived: '/scripts-v2/archived',
-    schedules: {
-      list: '/scripts-v2/schedules',
-      archived: '/scripts-v2/schedules/archived',
-      new: '/scripts-v2/schedules/new',
-      // `search` seeds the target tab's search box — used by the Runs table to
-      // drill into the Execution History tab narrowed to one run's executionId.
-      details: (id: string | number, o?: { tab?: ScriptsV2ScheduleDetailTab; search?: string }) =>
-        withQuery('/scripts-v2/schedules/details', { id, tab: o?.tab, search: o?.search }),
-      /** One fire of a schedule. `id` is the `ScheduleRun` global id, not the schedule's. */
-      run: (id: string | number) => withQuery('/scripts-v2/schedules/run', { id }),
-      edit: (id: string | number) => withQuery('/scripts-v2/schedules/edit', { id }),
-      devices: (id: string | number) => withQuery('/scripts-v2/schedules/devices', { id }),
-    },
-    details: (id: string | number, o?: { tab?: ScriptsV2DetailTab }) =>
-      withQuery('/scripts-v2/details', { id, tab: o?.tab }),
-    run: (id: string | number) => withQuery('/scripts-v2/details/run', { id }),
-    edit: (id: string | number) => withQuery('/scripts-v2/edit', { id }),
-    execution: (id: string | number) => withQuery('/scripts-v2/executions', { id }),
+    details: (id: string | number, o?: { tab?: ScriptDetailTab }) => withQuery('/scripts/details', { id, tab: o?.tab }),
+    run: (id: string | number) => withQuery('/scripts/details/run', { id }),
+    edit: (id: string | number) => withQuery('/scripts/edit', { id }),
+    execution: (id: string | number) => withQuery('/scripts/executions', { id }),
   },
 
   monitoring: {
@@ -244,11 +284,9 @@ export const routes = {
     apiKeys: '/settings/api-keys',
     sso: '/settings/sso',
     architecture: '/settings/architecture',
+    downloadApps: '/settings/download-apps',
     billingUsage: '/settings/billing-usage',
-    billingSubscription: '/settings/billing-usage/subscription',
   },
-
-  mingo: (o?: { dialogId?: string }) => withQuery('/mingo', { dialogId: o?.dialogId }),
 
   notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),
 
@@ -257,3 +295,17 @@ export const routes = {
     cancel: '/checkout/cancel',
   },
 } as const;
+
+/**
+ * Canonical, page-independent URL for SHARING or deep-linking a Mingo dialog —
+ * what "Copy chat link" writes and what a notification tap navigates to.
+ *
+ * The chat has no route of its own: it is a drawer floating over whatever page is
+ * showing, so the shareable shape is the drawer's resting state on a fixed landing
+ * page. A sender — a push payload, an OS toast, a copied link — cannot know which
+ * route the recipient is on, so this is the only shape it can produce, and a pasted
+ * link adopts on first commit with nothing rendered in between.
+ */
+export function mingoDialogLink(dialogId: string): string {
+  return withMingoDialog(routes.dashboard, dialogId);
+}

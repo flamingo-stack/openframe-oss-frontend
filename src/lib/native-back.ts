@@ -78,7 +78,7 @@ export function initNativeBack(): void {
  */
 export function useNativeBackDismissible(isOpen: boolean, onClose: Dismissible): void {
   useEffect(() => {
-    if (!isOpen || !isMobileShell()) return;
+    if (!isOpen || !isMobileShell()) return undefined;
     return pushBackDismissible(onClose);
   }, [isOpen, onClose]);
 }

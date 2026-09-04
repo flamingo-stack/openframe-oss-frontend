@@ -34,6 +34,13 @@ const newRow = (): InviteRow => ({ email: '', role: 'ADMIN' });
  * blocks from settings ({@link ../../settings/components/add-users-modal}) — the same
  * row model and the `useInvitations().inviteUsers` mutation.
  */
+/**
+ * NOTE: currently UNREFERENCED. The design replaced "Company & Team" with "Meet
+ * Mingo" as the fourth Initial Setup step (see `onboarding-steps`), and the
+ * backend enum has dropped the value — so this body is kept intact rather than
+ * deleted, ready to be wired back if the step returns. Inviting teammates is
+ * otherwise reachable from Settings → Company & Users.
+ */
 export function CompanyTeamStep({
   onComplete,
   completed,
@@ -82,7 +89,7 @@ export function CompanyTeamStep({
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Invite your technicians to OpenFrame. They&apos;ll receive an email with a link to set up their account.
       </p>
 
@@ -144,7 +151,7 @@ export function CompanyTeamStep({
           className="flex flex-1 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary transition-colors hover:text-ods-text-primary"
         >
           <ExternalLinkIcon size={24} className="shrink-0" />
-          <span className="text-h4 underline">Manage Roles</span>
+          <span className="underline text-h4">Manage Roles</span>
         </Link>
         <div className="hidden flex-1 md:block" />
         {!completed ? (

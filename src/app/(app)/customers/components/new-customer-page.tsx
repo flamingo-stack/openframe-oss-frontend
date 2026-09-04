@@ -17,7 +17,7 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -195,9 +195,10 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
     [],
   );
 
-  useEffect(() => {
-    if (!organizationId || !organization || didPrefill) return;
-
+  // Prefill once, from the fetched organization, during render rather than in an
+  // effect: an effect renders the blank form one more time after the data has
+  // landed, which shows as a flash of empty fields on the edit route.
+  if (organizationId && organization && !didPrefill) {
     const physical = organization.physicalAddress || '';
     const mailing = organization.mailingAddress || '';
     const sameAsPhysical = !mailing || mailing === physical;
@@ -231,14 +232,14 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
     });
 
     setDidPrefill(true);
-  }, [organizationId, organization, didPrefill]);
+  }
 
-  // Mirror physical → mailing when checkbox is on
-  useEffect(() => {
-    if (form.mailingSameAsPhysical && form.mailingAddress !== form.physicalAddress) {
-      setForm(prev => ({ ...prev, mailingAddress: prev.physicalAddress }));
-    }
-  }, [form.mailingSameAsPhysical, form.physicalAddress, form.mailingAddress]);
+  // Mirror physical → mailing while the checkbox is on. Done during render: an
+  // effect renders the stale mailing line once per keystroke in the physical
+  // field, which is visible as the two boxes lagging one character apart.
+  if (form.mailingSameAsPhysical && form.mailingAddress !== form.physicalAddress) {
+    setForm(prev => ({ ...prev, mailingAddress: prev.physicalAddress }));
+  }
 
   const replacePendingPreview = (file: File | null) => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -425,11 +426,11 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const saveDisabled = !form.name.trim() || isSubmitting || (!!organizationId && !customerLoaded);
 
   const detailsForm = (
-    <div className="flex flex-col gap-6 w-full">
+    <div className="flex w-full flex-col gap-6">
       {/* Row 1: name + website (left) | image (right on lg, below on md/sm) */}
-      <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-        <div className="flex-1 min-w-0 flex flex-col gap-6 md:flex-row md:gap-6 lg:flex-col">
-          <div className="flex-1 min-w-0">
+      <div className="flex flex-col items-stretch gap-6 lg:flex-row">
+        <div className="flex min-w-0 flex-1 flex-col gap-6 md:flex-row md:gap-6 lg:flex-col">
+          <div className="min-w-0 flex-1">
             <Input
               label="Customer Name"
               placeholder="Customer Name"
@@ -437,7 +438,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
               onChange={e => set({ name: e.target.value })}
             />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <Input
               label="Website URL"
               placeholder="https://www.website.com"
@@ -448,7 +449,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
         </div>
 
         {showImageUploader && (
-          <div className="w-full lg:w-[316px] shrink-0">
+          <div className="w-full shrink-0 lg:w-[316px]">
             <ImageUploader
               value={displayedImage}
               onChange={handleImageChange}
@@ -472,8 +473,8 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
       />
 
       {/* Row 3: physical address + same-as-physical checkbox */}
-      <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-end">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:gap-6">
+        <div className="min-w-0 flex-1">
           <Input
             label="Physical Address"
             placeholder="123 Main St, City, State, ZIP"
@@ -483,7 +484,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
         </div>
         <CheckboxBlock
           id="mailing-same"
-          className="flex-1 min-w-0 md:max-w-[50%]"
+          className="min-w-0 flex-1 md:max-w-[50%]"
           label="Mailing Address Same as Physical"
           checked={form.mailingSameAsPhysical}
           onCheckedChange={c => set({ mailingSameAsPhysical: Boolean(c) })}

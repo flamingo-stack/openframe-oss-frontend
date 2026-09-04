@@ -39,15 +39,17 @@ Access: http://localhost:3000
 | `npm run relay:watch` | Relay compiler in watch mode |
 | `npm run fetch-schema` | Pull `schema.graphql` from a backend via introspection (`-- --endpoint <url> --token <JWT>`) |
 | `npm run generate-enums` | Regenerate `src/generated/schema-enums.ts` (enum const+type) from `schema.graphql` |
-| `npm run lint` | Next.js ESLint check |
-| `npm run lint:biome` | Biome check (linting + formatting) |
-| `npm run lint:biome:fix` | Biome auto-fix |
-| `npm run format` | Biome format check |
-| `npm run format:fix` | Biome auto-format |
+| `npm run lint` | ESLint — the fast pass (`eslint.config.mjs`), cached |
+| `npm run lint:ci` | What CI blocks on: the fast pass minus the `relay/unused-fields` backlog (`eslint.ci.mjs`) |
+| `npm run lint:fix` | ESLint autofix (import order, unused imports, type imports) |
+| `npm run lint:types` | ESLint type-aware pass (`eslint.types.mjs`; slow, needs an 8 GB heap) |
+| `npm run lint:cycles` | ESLint `import/no-cycle` pass (`eslint.cycles.mjs`; walks the whole import graph) |
+| `npm run format` | Prettier check |
+| `npm run format:fix` | Prettier write |
 | `npm run core:link` / `core:unlink` | yalc-link/unlink the core library for local lib development |
 
 ### Pre-commit Hooks
-Husky (`.husky/pre-commit`) is **staged-file-scoped**: it runs Biome check on the staged frontend files and `tsc --noEmit` with errors filtered to staged files only. A clean commit does not require the whole repo to pass — but don't rely on that; keep `npm run lint:biome` and `npm run type-check` green.
+Husky (`.husky/pre-commit`) is **staged-file-scoped**: it runs ESLint (via `eslint.ci.mjs`, the same set CI blocks on) and `prettier --check` on the staged frontend files, plus `tsc --noEmit` with errors filtered to staged files only. A clean commit does not require the whole repo to pass, but today it very nearly does: `npm run lint:ci` — the fast pass minus the `relay/unused-fields` backlog — is green, and CI blocks on it. Keep `npm run type-check` and `npm run format` green too.
 
 ### Environment Variables
 
@@ -87,9 +89,10 @@ billing.
 The same export runs in three places, so ask the axis that owns the feature — never "is this native?":
 
 - `isAppShell()` — either shell. Shell-custodied tokens, no Next server behind the origin (so
-  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above.
+  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above, and
+  the `authMobile=true` login completing on the custom scheme (`APP_SCHEME`).
 - `isMobileShell()` — the phone. FCM push, biometrics, status bar/splash/safe-area insets, Android
-  back, custom-scheme OAuth callback.
+  back.
 - `isDesktopShell()` — Tauri. Shell-side token rotation + OS-notification click event transports.
 
 `platform.ts` is the only module that reads the injected globals, and it probes **Tauri first**: the
@@ -101,10 +104,16 @@ CSS scopes on `html[data-shell="mobile"|"desktop"]`.
 - `isPaymentUiEnabled()` — `billings` server flag **and** payments allowed on this build
 
 When hidden: Settings shows a **Usage** card (`billing-usage/components/usage-view.tsx` — device/AI
-counters and workspace limits over its own price-free query),
-`/settings/billing-usage/subscription` and `/checkout/*` 404 and are blocked in
-`isRouteAllowedInCurrentMode()`, and the subscription lock screen renders `WorkspaceInactiveScreen`
-instead of the plan picker.
+counters and workspace limits over its own price-free query), `/checkout/*` 404s on its own
+`isPaymentUiEnabled()` check, and the subscription lock screen renders `WorkspaceInactiveScreen`
+instead of the plan picker. `isRouteAllowedInCurrentMode()` deliberately does NOT gate these: it
+answers from app mode alone, and consulting a server-loaded flag there once threw "Access restricted"
+over billing routes for as long as the flags query was in flight.
+
+There is no `/settings/billing-usage/subscription` route. The plan is changed in the **Upgrade Plan
+modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`), and the same picker
+(`subscription/components/device-plan-picker.tsx`) is what the subscription lock screen shows. The
+`subscription/` folder under `billing-usage/` holds those components/hooks and has no page of its own.
 
 **Any new payment-adjacent UI (price, plan, invoice, upgrade/pay CTA) must be gated on
 `isPaymentUiEnabled()` / `isBillingHidden()`.**
@@ -116,6 +125,7 @@ instead of the plan picker.
 |----------|-----------|---------|
 | Framework | Next.js | 16 (^16.2.4) |
 | UI Library | React | 19 (^19.2.0) |
+| Auto-memoization | React Compiler (`reactCompiler: true` + babel-plugin-react-compiler) | 1.0 |
 | Type System | TypeScript | 5.8 (^5.8.3) |
 | Component Library | @flamingo-stack/openframe-frontend-core | ^0.0.360 (npm registry) |
 | GraphQL Data Fetching | react-relay + relay-runtime + relay-compiler | 20.1 |
@@ -130,7 +140,8 @@ instead of the plan picker.
 | Date Utils | date-fns | 4.1 |
 | Icons | lucide-react | 0.454 |
 | Runtime Env | next-runtime-env | 3.2 |
-| Code Quality | Biome (primary) + ESLint (Next.js) | 2.4.4 + 9.27 |
+| Linting | ESLint + `@flamingo-stack/openframe-frontend-core/eslint-config` | 9.39 |
+| Formatting | Prettier + the shared preset (Tailwind class sorting) | 3.9 |
 | Git Hooks | Husky | 9.1 |
 
 ### Core Library is External
@@ -174,7 +185,7 @@ Helper functions: `isOssTenantMode()`, `isSaasTenantMode()`, `isSaasSharedMode()
 
 ### Feature Flags
 
-Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `help-center`, `notifications`, `time-tracker`, `scripts-v2`, `mingo-sidebar`, `cancel-subscription`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-loader.tsx` runs that query but does NOT gate render: read a flag through `useFeatureFlagGate` (tri-state `loading | on | off`) wherever a wrong value would be visible or would redirect, and render the loading branch — see `src/app/hooks/use-feature-flag.ts`.
+Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `help-center`, `notifications`, `time-tracker`, `script-schedules`, `mingo-sidebar`, `cancel-subscription`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-loader.tsx` runs that query but does NOT gate render: read a flag through `useFeatureFlagGate` (tri-state `loading | on | off`) wherever a wrong value would be visible or would redirect, and render the loading branch — see `src/app/hooks/use-feature-flag.ts`.
 
 ### Route Registry (MANDATORY)
 
@@ -212,7 +223,7 @@ Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query 
 - **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour)
 - **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
-- **Scripts** (`/scripts` legacy, Tactical backend removed — hooks are `TODO(openframe-rmm)` stubs; `/scripts-v2` Relay, behind flag `scripts-v2` — implementation lives in `src/app/(app)/scripts/v2/{script,schedule,shared}/`)
+- **Scripts** (`/scripts`) — fully Relay; thin route wrappers over the implementation in `src/app/(app)/scripts/{script,schedule,shared}/`. Schedules (`/scripts/schedules/*`) are gated by flag `script-schedules`
 - **Customers** (`/customers`) — Customer/organization CRM (route renamed from `/organizations`; sidebar item id is still `organizations`)
 - **Monitoring** (`/monitoring`) — Fleet osquery queries + policies (not feature-flagged)
 - **Tickets** (`/tickets`) — Ticket board + AI chat dialogs (saas-tenant only; talks to `/chat/graphql`)
@@ -232,8 +243,7 @@ src/
 │   ├── (auth)/auth/       # Authentication (login, signup, invite, password-reset, stores/auth-store.ts)
 │   ├── (app)/             # All app pages, wrapped by AppLayout in (app)/layout.tsx
 │   │   ├── dashboard/  onboarding/  devices/  logs-page/  log-details/
-│   │   ├── scripts/       # legacy + v2 in scripts/v2/{script,schedule,shared}/{components,hooks,utils}
-│   │   ├── scripts-v2/    # thin route wrappers over scripts/v2 (flag-gated layout)
+│   │   ├── scripts/       # route wrappers + {script,schedule,shared}/{components,hooks,types,utils}
 │   │   ├── customers/  monitoring/  tickets/  mingo/  knowledge-base/
 │   │   ├── help-center/  worktime/  notifications/  settings/  checkout/
 │   ├── hooks/             # Shared hooks (use-feature-flags-query, use-required-id-param, …)
@@ -397,6 +407,65 @@ export function MyComponent() {
 2. Use conditional logic INSIDE hooks (useEffect, useMemo), not around them
 3. Never wrap hooks in try-catch — handle errors inside the hook instead
 
+### React Compiler (on)
+
+`reactCompiler: true` in `next.config.mjs` — the compiler memoizes components and hooks
+automatically, client bundles only (Next passes `isServer` and skips the server compile). It runs
+in `dev` as well as in both production targets (`build`, `build:export`).
+
+What it changes about how you write code here:
+
+- **Stop adding `useMemo`/`useCallback`/`React.memo` for render performance.** The compiler
+  produces the same memoization from the plain code, and it does it per-value instead of
+  per-hook. Keep a manual memo only when it is *semantically* required — a value used as a
+  `useEffect` dependency that must stay referentially stable, an object handed to a third-party
+  library that compares by identity. The existing manual memos stay: `preserve-manual-memoization`
+  (already at `error`) makes the compiler honour them rather than fight them.
+- **The lint rules ARE the compiler's diagnostics.** The shared config runs react-hooks v7
+  (`set-state-in-effect`, `purity`, `refs`, `immutability`, `preserve-manual-memoization`,
+  `static-components`) at `error`, and they were cleared to zero before this was switched on. A
+  new violation is not a style nit: it is the compiler telling you it will bail out of that
+  component, so the file silently loses the optimization.
+  The one exception is `react-hooks/incompatible-library`, which the shared config turns off — it
+  reports a *missed* optimization (a third-party hook like `useReactTable` returning functions
+  the compiler cannot prove stable), not a bug.
+- **`panicThreshold` is the default `'none'`**: a function the compiler cannot compile is skipped,
+  never a build error. So enabling this cannot break the build — but it also means a bail-out is
+  invisible unless the lint rules catch it.
+- **Escape hatch:** the `'use no memo'` directive opts a function — or, at the top of a file,
+  the whole module (`hasModuleScopeOptOut`) — out of compilation. Adding one needs a stated
+  reason, because it is a silent, permanent de-optimization otherwise. The only ones in `src/`
+  today are the react-hook-form opt-outs below.
+
+**react-hook-form files are opted out, and `openframe/react-hook-form-needs-no-memo`
+(`eslint-rules/`, at `error`, autofixable) enforces it.** The library mutates `control` and proxies
+`formState`, so memoization on top of it does not re-read what it cannot see change — stale
+`watch()`, dead `reset()`
+([discussion](https://github.com/orgs/react-hook-form/discussions/12524)) — and the compiler's own
+diagnostics cannot see it. The rule requires a module-level `'use no memo'` in any file importing
+react-hook-form at runtime, or importing one of its live-form handle types (`UseFormReturn`,
+`Control`, …). 34 files, 41 functions' worth of memoization. The compiler knows only about
+`useForm().watch` itself, plus `@tanstack/react-table`, which only the core lib calls (its
+`react-virtual` entry matches nothing — neither repo depends on it). Delete the rule and its
+directives on react-hook-form 7.75 + React 19.2.5.
+
+**The core library IS compiled.** Next skips node_modules for the compiler loader, but
+`transpilePackages` packages are exempted from that skip (`exclude()` in
+`next/dist/build/webpack-config.js`), so every `@flamingo-stack/openframe-frontend-core` `dist`
+file goes through it. A `'use no memo'` there is load-bearing in this app, not decoration.
+
+**A hook that WRAPS an incompatible library hides it from the compiler.** Calling
+`useReactTable` directly makes the compiler skip that component (`IncompatibleLibrary`); calling
+it through a wrapper like the core lib's `useDataTable` does not — the caller compiles, and
+whatever the wrapper returns is cached on its identity. TanStack's table instance is one mutated
+object whose identity never changes, so every `DataTable` froze on its first page and the
+infinite-scroll footer re-requested forever. Fixed in `useDataTable` (it publishes a fresh handle
+per render); the same shape of bug is waiting in any other wrapper over a mutated instance.
+
+Cost measured on this repo when it was turned on: `next build` 18.0s → 20.6s, client chunks
+17.8 MB → 18.4 MB raw (+3.3%) — the compiler emits memo-cache bookkeeping into every component it
+touches.
+
 ### Data Fetching Strategy
 
 The app is **gradually migrating GraphQL data fetching to react-relay**. The rules:
@@ -406,6 +475,13 @@ The app is **gradually migrating GraphQL data fetching to react-relay**. The rul
 3. **Legacy GraphQL** (raw POST through `apiClient` or react-query wrappers) still exists — leave it working, but migrate it to Relay when touching it substantially. Do not add new code in that style.
 4. **Exception — the `/chat/graphql` domain (tickets, mingo, AI settings)**: it talks to the saas-ai-agent service whose schema is NOT in `schema.graphql`, so it stays on raw-POST permanently. Extending raw-POST there is correct, not a violation.
 5. No Apollo Client anywhere.
+
+**Every request goes out BELOW `SubscriptionGuard`.** The guard (`src/app/components/subscription-lock/subscription-guard.tsx`) wraps the whole app tree in `app-layout.tsx`, and the network gate it feeds (`src/lib/subscription-gate.ts`) holds app *queries* until the subscription answers and while it locks. **Mutations bypass that gate by design** — they are user actions, and the paywall's own are what a locked workspace needs (`useMutation` takes no `cacheConfig`, so there is no per-call opt-out either). So a mutation fired by a timer/effect rather than by a click goes straight out on a locked workspace and fails on every interval — which `recordPresence` did, once every ten seconds behind the lock screen.
+
+Rules for anything automatic (heartbeats, registrations, telemetry, hydrators):
+- Mount it **under** `SubscriptionGuard` — do not add siblings beside it in `AppLayoutInner`.
+- Gate it on `useSubscriptionOpen()` (from `subscription-guard.tsx`): `false` until the answer lands, `false` while locked. It fails closed and `console.error`s in dev when there is no guard above it, so a component mounted in the wrong place says so instead of silently spamming the API.
+- `useSubscriptionLock()` is the *other* hook — `{ status, isLocked, isResolved }` for UI that renders differently when locked. It falls back to unlocked with no guard above; do not use it to decide whether to send traffic.
 
 ### GraphQL with react-relay (preferred)
 
@@ -675,26 +751,65 @@ export const useMyStore = create<MyState>()(
 - `useDevicesStore` — `src/stores/devices-store.ts` (persist key `devices-store`; mostly unused — devices flow through react-query)
 - Domain stores live in their modules (tickets, mingo, scripts); central re-exports from `src/stores/index.ts`
 
-### Code Quality with Biome
+### Code Quality: ESLint + Prettier
 
-**Biome 2.4.4** is the primary linter and formatter (configured in `biome.jsonc`).
+Biome was removed on 2026-09-01. **ESLint owns the rules, Prettier owns the formatting**, and
+neither rule set lives in this repo: both come from the shared config shipped inside the core
+library, the same one the library and every other Flamingo frontend loads.
 
-**Key rules:**
-- `useConst` — always use `const` when possible
-- `noUnusedVariables` — error
-- `useHookAtTopLevel` — error (enforces React hooks rules)
-- `useExhaustiveDependencies` — warn
-- `useNamingConvention` — enforced (camelCase for variables, PascalCase for types/classes)
-- `noUndeclaredDependencies` — error (off in test files)
+```
+eslint.config.mjs   next + relay + tests + prettier-compat  ← the fast pass, what the editor loads
+eslint-rules/       repo-local rules, registered under the `openframe/` prefix
+eslint.ci.mjs       − relay/unused-fields                   ← npm run lint:ci, the PR gate
+eslint.types.mjs    + type-checked                          ← npm run lint:types
+eslint.cycles.mjs   + cycles (import/no-cycle)              ← npm run lint:cycles
+prettier.config.mjs the shared preset, re-exported unchanged
+```
 
-**Formatter settings:**
-- 2-space indent, 120 char line width, single quotes, trailing commas, semicolons always
+Rules are documented in `node_modules/@flamingo-stack/openframe-frontend-core/eslint-config/README.md`.
+The parts that change how you write code here:
+
+- **No inline suppressions.** `noInlineConfig` is on: an `// eslint-disable-next-line` comment does
+  nothing and is itself reported as an error. A finding is fixed, or it is carried by a **named,
+  `files:`-scoped block in `eslint.config.mjs` that states its reason** — reviewable, unlike a
+  comment buried in a diff.
+- **Severity means autofixable.** `error` is what `eslint --fix` and the editor's
+  `source.fixAll.eslint` clear. `warn` is what a human has to decide, so `npm run lint` runs with
+  `--max-warnings 0`.
+- **Import order is an ESLint rule** (`perfectionist/sort-imports`), not a formatter concern — one
+  save-time actor, no fight with Prettier. Do not add VS Code's `source.organizeImports`.
+- **Prettier settings reproduce the old Biome formatter** (2-space, 120 cols, single quotes,
+  trailing commas, semicolons, avoided arrow parens) and add Tailwind class sorting on top.
+- **Type-aware rules are a separate pass.** `npm run lint:types` (floating promises, the unsafe-`any`
+  family, misused await) needs a TypeScript program and an 8 GB heap, so the editor does not run it.
+
+Two rules the shared config deliberately omits, and this repo does not add back: `no-console` (the
+frontends use it as a logging channel) and `@typescript-eslint/naming-convention` (Biome's
+`useNamingConvention` equivalent, never actually enforced).
+
+**The one remaining backlog: `relay/unused-fields` (543).** Everything else is at zero.
+
+The migration surfaced ~1 130 errors, because the old `eslint.config.mjs` declared no `files:`
+patterns, matched no `.ts`/`.tsx` file at all, and `npm run lint` therefore linted **nothing**. All
+of them are now fixed except this rule, which cannot be cleared mechanically — each finding is a
+decision about whether a query should stop selecting a field or a consumer should start reading it
+through a fragment.
+
+**CI and the pre-commit hook both run `eslint.ci.mjs`** (`npm run lint:ci`;
+`.github/workflows/test.yml`, job `Lint`) — the fast pass with `relay/unused-fields` turned off, so
+neither gate refuses a change over a field somebody else over-fetched. The rule stays ON in
+`eslint.config.mjs`, which is what the editor loads, so you still see it in the file you are in.
+Delete `eslint.ci.mjs` and point both at `npm run lint` once the count reaches zero.
+
+There is no suppressions file anywhere, so no count can drift back up: what is not fixed is carried
+by a named `files:`-scoped block that states its reason.
 
 **Run manually:**
 ```bash
-npm run lint:biome       # Check
-npm run lint:biome:fix   # Auto-fix
-npm run format:fix       # Auto-format
+npm run lint         # fast pass — everything, including the backlog rule
+npm run lint:ci      # what CI blocks on
+npm run lint:fix     # autofix
+npm run format:fix   # Prettier
 ```
 
 ## URL State Management (useApiParams)
@@ -768,7 +883,7 @@ OpenFrame integrates device monitoring data from multiple sources with normaliza
 > no Tactical types, and no Tactical fields in the device merge. Remaining references are
 > legacy `/scripts` stubs (see `src/app/(app)/scripts/lib/scripts-migration.ts`, all marked
 > `TODO(openframe-rmm)`) that return empty / throw a "migration pending" error, plus mention-chip
-> id-shape handling in Mingo. `runScript` now means a GraphQL mutation via scripts-v2
+> id-shape handling in Mingo. `runScript` now means a GraphQL mutation via the Scripts module
 > (`src/graphql/scripts/run-script-mutation.ts`), not Tactical REST.
 
 **Merge logic locations** (there is no `normalize-device.ts`):
@@ -777,7 +892,7 @@ OpenFrame integrates device monitoring data from multiple sources with normaliza
 
 **Priority rules** (in `createDevice()`):
 ```
-Hardware (CPU/RAM/storage/battery/software/users/mdm):  Fleet only
+Hardware (CPU/RAM/storage/battery/software/users):  Fleet only
 Serial/manufacturer/model/OS:  Fleet -> GraphQL node
 Status:                        GraphQL node -> Fleet
 Last seen:                     Fleet -> GraphQL node
@@ -853,7 +968,8 @@ from the installed package. Edit the rules in the core lib, not here:
 | Command | Purpose |
 |---------|---------|
 | `npm run type-check` | TypeScript validation |
-| `npm run lint:biome` | Biome linting + formatting |
+| `npm run lint` | ESLint (fast pass) |
+| `npm run format` | Prettier formatting check |
 | `npm run build` | Production build verification |
 
 ### Build & Deployment
@@ -888,11 +1004,13 @@ npm run core:link && npm install
 npm run core:unlink   # back to the registry version
 ```
 
-**Biome Errors:**
+**Lint / format errors:**
 ```bash
-npm run lint:biome:fix    # Auto-fix most issues
+npm run lint:fix          # Auto-fix most issues
 npm run format:fix        # Fix formatting
 ```
+An `// eslint-disable` comment will not silence anything — `noInlineConfig` is on. See
+Code Quality above for what to do instead.
 
 **API Connection:**
 - Verify `NEXT_PUBLIC_TENANT_HOST_URL` matches backend
@@ -950,6 +1068,7 @@ if (response.ok) {
 4. **Use ODS design tokens** — never hardcode colors or styles
 5. **Use react-relay for GraphQL** (gradual migration — prefer it wherever possible); **TanStack React Query for REST** — no Apollo Client, no new raw-POST GraphQL
 6. **Use react-hook-form + zod** for forms
-7. **Biome is the primary linter** — must pass before commits
+7. **ESLint + Prettier, rules from the core library's shared config** — no inline
+   `eslint-disable`; keep the files you touch clean
 8. **Normalize multi-source device data** — Fleet-first priority; merge logic in `use-device-details.ts` `createDevice()`
 9. **Build internal URLs via `routes.*` from `src/lib/routes.ts`** — no raw path strings; new pages/tabs must be added to the registry (see `src/lib/ROUTES.md`)

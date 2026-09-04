@@ -5,24 +5,17 @@ import {
   type Message as ChatMessage,
   ChatMessageList,
   LoadError,
-  MessageCircleIcon,
   ModelDisplay,
   maxPersistedStreamSeq,
   NotFoundError,
-  Tabs,
-  TabsList,
-  TabsTrigger,
 } from '@flamingo-stack/openframe-frontend-core';
 import { useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
   ChatsIcon,
-  CheckCircleIcon,
   ClipboardListIcon,
   ClockHistoryIcon,
-  HourglassClockIcon,
   Menu02Icon,
-  MonitorIcon,
   PenEditIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -38,20 +31,18 @@ import {
   SimpleMarkdownRenderer,
   type TabItem,
   TabNavigation,
-  TicketInfoSection,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { useLgUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation } from 'react-relay';
 import type { startTimerMutation as StartTimerMutationType } from '@/__generated__/startTimerMutation.graphql';
 import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { type AiModel, useAiModel } from '@/app/hooks/use-ai-model';
-import { useFeatureFlag, useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import type { AiModel } from '@/app/hooks/use-ai-model';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
@@ -67,43 +58,34 @@ import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
-import { formatFileSize } from '../../devices/utils/file-manager-utils';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
-import {
-  APPROVAL_STATUS,
-  ASSISTANT_CONFIG,
-  CHAT_TYPE,
-  CREATION_SOURCE,
-  DIALOG_STATUS,
-  type NatsMessageType,
-} from '../constants';
+import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE, DIALOG_STATUS } from '../constants';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
 import { useDirectChat } from '../hooks/use-direct-chat';
 import { useHistoricalMessages } from '../hooks/use-historical-messages';
-import { useSendAdminMessage } from '../hooks/use-send-admin-message';
 import { useSideChunkProcessor } from '../hooks/use-side-chunk-processor';
-import { useStopGeneration } from '../hooks/use-stop-generation';
-import { useDownloadTicketAttachment } from '../hooks/use-ticket-attachments';
 import { useTicketDetail } from '../hooks/use-ticket-detail';
 import { useTicketMessages } from '../hooks/use-ticket-messages';
 import { useAddTicketNote, useDeleteTicketNote, useUpdateTicketNote } from '../hooks/use-ticket-notes';
 import { useAssigneeOptions } from '../hooks/use-ticket-options';
-import { useTicketStatus } from '../hooks/use-ticket-status';
 import { useTransitionTicket } from '../hooks/use-transition-ticket';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import { useTicketDetailsStore } from '../stores/ticket-details-store';
-import type { ClientDialogOwner, Dialog, DialogOwner } from '../types/dialog.types';
+import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
+import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
+import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
 import { TicketAttachmentsSection } from './ticket-attachments-section';
 import { TicketDetailsSkeleton } from './ticket-details-skeleton';
 import { TicketDialogSubscription } from './ticket-dialog-subscription';
 import { TicketNotesSection } from './ticket-notes-section';
+import { TicketNotificationsAutoReader } from './ticket-notifications-auto-reader';
 import { TicketTagsSection } from './ticket-tags-section';
 
 interface TicketDetailsViewProps {
@@ -143,56 +125,24 @@ function withActivityTracking(
 }
 
 /**
- * Route-level gate for the flag that picks the LAYOUT, held here so the body
- * below never renders on a guess.
- *
- * `mingo-sidebar-context` decides which of two layouts a ticket opens in — and
- * with it whether the embedded technician chat exists at all. Read as a plain
- * boolean it reported "off" for the length of the flags round-trip, so a tenant
- * with the flag ON mounted the classic two-chat layout, its NATS subscription and
- * its history fetch, then threw all three away. `TicketDetailsSkeleton` already
- * refuses to guess the layout while the gate is loading; this is what makes the
- * loaded view agree with it.
- *
- * It also settles the other flags read further down: by the time the body mounts,
- * the flags have answered, so `useFeatureFlag('time-tracker')` there can no longer
- * report a stale default.
+ * The ticket page: the client chat beside a Ticket Details / Attachments / Tags
+ * column. The technician's own conversation lives in the global Mingo drawer,
+ * which carries the open ticket as context — see `useTrackOpenView` below — so
+ * this view neither renders nor subscribes to the ticket's ADMIN chat side.
  */
 export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
-  const handleBackToTickets = useSafeBack(routes.tickets.list);
-  const sidebarContextGate = useFeatureFlagGate('mingo-sidebar-context');
-
-  if (sidebarContextGate === 'loading') {
-    return <TicketDetailsSkeleton onBack={handleBackToTickets} />;
-  }
-
-  return <TicketDetailsContent ticketId={ticketId} technicianChatEnabled={sidebarContextGate === 'off'} />;
-}
-
-interface TicketDetailsContentProps extends TicketDetailsViewProps {
-  /**
-   * The resolved `mingo-sidebar-context` answer, inverted: when the Mingo sidebar
-   * carries per-ticket context, the embedded technician (Mingo) chat is redundant
-   * and its panel, NATS subscription, history fetch and chunk processing are all
-   * dropped in favor of the global sidebar chat.
-   */
-  technicianChatEnabled: boolean;
-}
-
-function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianChatEnabled }: TicketDetailsContentProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const handleBackToTickets = useSafeBack(routes.tickets.list);
   const { toast } = useToast();
   const timeTrackerEnabled = useFeatureFlag('time-tracker');
-  const isSidebarLayout = !isTechnicianChatEnabled;
-  const assignedItems = useAssignedItems({ itemId: ticketId, itemType: 'TICKET', enabled: isSidebarLayout });
-  // Tenant-wide ADMIN (Mingo) model — the admin agent has no per-org override.
-  const initialAdminModel = useAiModel();
+  // Which of the two always-mounted layout columns is showing. Same 1280px the core preset
+  // gives the `lg:` classes below; `undefined` until the client viewport is known.
+  const isLgUp = useLgUp();
+  const assignedItems = useAssignedItems({ itemId: ticketId, itemType: 'TICKET' });
   const { modelsByProvider } = useSupportedModels();
   const [currentClientModel, setCurrentClientModel] = useState<AiModel | null>(null);
-  const [currentAdminModel, setCurrentAdminModel] = useState<AiModel | null>(null);
   const isClientOwner = useCallback((owner: ClientDialogOwner | DialogOwner): owner is ClientDialogOwner => {
     return owner != null && typeof owner === 'object' && 'machineId' in owner;
   }, []);
@@ -225,12 +175,11 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   const { deviceDetails, isLoading: isDeviceLoading } = useDeviceDetails(machineId);
   const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
 
-  const { client, admin, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
+  const { client, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
     useTicketDetailsStore();
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
 
   const { messages: clientMessages, isTyping: isClientChatTyping } = client;
-  const { messages: adminMessages, isTyping: isAdminChatTyping } = admin;
 
   const isClientCompacting = useMemo(() => {
     const lastMsg = clientMessages.at(-1);
@@ -238,15 +187,6 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     const tail = lastMsg.content.at(-1);
     return tail?.type === 'context_compaction' && tail.status === 'started';
   }, [clientMessages]);
-
-  const isAdminCompacting = useMemo(() => {
-    const lastMsg = adminMessages.at(-1);
-    if (lastMsg?.role !== 'assistant' || !Array.isArray(lastMsg.content)) return false;
-    const tail = lastMsg.content.at(-1);
-    return tail?.type === 'context_compaction' && tail.status === 'started';
-  }, [adminMessages]);
-
-  const isCompacting = isClientCompacting || isAdminCompacting;
 
   const currentUser = useAuthStore(state => state.user);
 
@@ -265,7 +205,6 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     });
   }, [deleteNoteMutation, noteToDelete]);
 
-  const { download: downloadAttachment } = useDownloadTicketAttachment();
   const assignTicketMutation = useAssignTicket();
   const assigneeOptions = useAssigneeOptions();
   const { isUserDeleted } = useUserStatusMap();
@@ -278,6 +217,31 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       onDialogCreated: refetchDialog,
     });
 
+  // Take Over flow: leaving the AI-assisted state (status change, assignment,
+  // starting a direct chat) requires explicit confirmation via this modal.
+  const [takeOverTarget, setTakeOverTarget] = useState<TakeOverTicketTarget | null>(null);
+  const openTakeOver = useCallback(
+    (prefill?: Omit<TakeOverTicketTarget, 'ticket'>) => {
+      if (!dialog) return;
+      setTakeOverTarget({ ticket: dialog, ...prefill });
+    },
+    [dialog],
+  );
+
+  const handleAssign = useCallback(
+    (userId: string | null) => {
+      if (!dialog) return;
+      // Assigning a technician to an AI-worked ticket is a take-over; plain
+      // unassign (and any change once the AI is stopped) stays one click.
+      if (userId && hasActiveAiDialog(dialog)) {
+        openTakeOver({ initialAssigneeId: userId });
+        return;
+      }
+      assignTicketMutation.mutate({ ticketId: dialog.id, assigneeId: userId });
+    },
+    [dialog, assignTicketMutation, openTakeOver],
+  );
+
   // Transform backend notes to core UI TicketNote format
   const uiNotes = useMemo(() => {
     if (!dialog?.notes) return [];
@@ -289,26 +253,13 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       createdAt: note.createdAt,
       isOwn: currentUser?.id === note.authorId,
     }));
-  }, [dialog?.notes, currentUser?.id]);
-
-  // Transform backend attachments to core UI TicketAttachment format
-  const uiAttachments = useMemo(() => {
-    if (!dialog?.attachments) return [];
-    return dialog.attachments.map(att => ({
-      id: att.id,
-      fileName: att.fileName,
-      fileSize: att.fileSize ? formatFileSize(att.fileSize) : '',
-      onDownload: () => downloadAttachment(att.id, att.fileName),
-    }));
-  }, [dialog?.attachments, downloadAttachment]);
+  }, [dialog, currentUser]);
 
   // The URL param is the ticket ID; messages belong to the linked dialog
   const messageDialogId = dialog?.dialogId ?? null;
 
   const clientChat = useTicketMessages(messageDialogId, CHAT_TYPE.CLIENT);
-  const adminChat = useTicketMessages(isTechnicianChatEnabled ? messageDialogId : null, CHAT_TYPE.ADMIN);
 
-  const { activate, archive, isUpdating } = useTicketStatus();
   const transitionTicket = useTransitionTicket();
   // Target-status kinds, to recognize a resolve at click time (availableTransitions
   // carries no `kind`). Cached/shared with the board & table, so no extra fetch.
@@ -337,11 +288,6 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       },
     });
   }, [dialog, startTimer, toast]);
-  const [isTicketInfoExpanded, setIsTicketInfoExpanded] = useState<boolean | null>(null);
-  const defaultTicketInfoExpanded =
-    dialog?.creationSource === CREATION_SOURCE.FAE_FORM || dialog?.creationSource === CREATION_SOURCE.ADMIN_DASHBOARD;
-  const ticketInfoExpanded = isTicketInfoExpanded ?? defaultTicketInfoExpanded;
-  const [activeChatTab, setActiveChatTab] = useState('client');
   const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
   const mainTab = searchParams.get('tab') === 'chat' ? 'chat' : 'details';
   const handleMainTabChange = useCallback(
@@ -367,30 +313,14 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     }, []),
   });
 
-  const processAdminChunk = useSideChunkProcessor('admin', {
-    ticketId,
-    onMetadata: useCallback((metadata: { modelDisplayName: string; providerName: string }) => {
-      setCurrentAdminModel({ provider: metadata.providerName, displayName: metadata.modelDisplayName });
-    }, []),
-  });
-
   const dispatchChunk = useCallback(
-    (chunk: unknown, messageType: NatsMessageType) => {
-      const isAdmin = messageType === 'admin-message';
+    (chunk: unknown) => {
       const seq = (chunk as { streamSeq?: number }).streamSeq;
-      if (typeof seq === 'number') recordHighestStreamSeq(isAdmin ? 'admin' : 'client', seq);
-      if (isAdmin) processAdminChunk(chunk);
-      else processClientChunk(chunk);
+      if (typeof seq === 'number') recordHighestStreamSeq('client', seq);
+      processClientChunk(chunk);
     },
-    [processClientChunk, processAdminChunk, recordHighestStreamSeq],
+    [processClientChunk, recordHighestStreamSeq],
   );
-
-  const { stopGeneration: handleStopGeneration } = useStopGeneration(messageDialogId);
-
-  const { sendAdminMessage: rawSendAdminMessage, isSendingAdminMessage } = useSendAdminMessage({
-    ticketId,
-    messageDialogId,
-  });
 
   // Sending while an approval is pending is an interrupt — backend cancels
   // it and emits APPROVAL_RESULT (rejected) shortly. Flipping the latest
@@ -406,17 +336,8 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     [sendClientMessage, clientMessages, updateApprovalStatusInMessages],
   );
 
-  const handleSendAdminMessage = useCallback(
-    (text: string) => {
-      const pendingId = findLatestPendingApprovalId(adminMessages);
-      if (pendingId) updateApprovalStatusInMessages('admin', pendingId, 'rejected');
-      return rawSendAdminMessage(text);
-    },
-    [rawSendAdminMessage, adminMessages, updateApprovalStatusInMessages],
-  );
-
   useEffect(() => {
-    if (!ticketId) return;
+    if (!ticketId) return undefined;
 
     return () => {
       clearChatState();
@@ -424,16 +345,12 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   }, [ticketId, clearChatState]);
 
   // Model badge sources, in order of truth: live stream metadata (state set by
-  // the chunk processors) → the newest assistant message's provenance from
-  // history → what the NEXT reply would use. For the client side that is the
-  // customer's effective org config; the admin side is tenant-wide by design.
+  // the chunk processor) → the newest assistant message's provenance from
+  // history → what the NEXT reply would use, i.e. the customer's effective org
+  // config.
   const historyClientModel = useMemo(
     () => latestAssistantModel(clientChat.rawPages, modelsByProvider),
     [clientChat.rawPages, modelsByProvider],
-  );
-  const historyAdminModel = useMemo(
-    () => latestAssistantModel(adminChat.rawPages, modelsByProvider),
-    [adminChat.rawPages, modelsByProvider],
   );
   const { config: orgAiConfig } = useOrganizationClientAiConfig(dialog?.organizationId ?? '', {
     enabled: !!dialog?.organizationId,
@@ -449,65 +366,70 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     [orgAiConfig, modelsByProvider],
   );
   const displayClientModel = currentClientModel ?? historyClientModel ?? orgClientModel;
-  const displayAdminModel = currentAdminModel ?? historyAdminModel ?? initialAdminModel;
-
-  // Admin-owned tickets have no client chat, so the default 'client' tab is
-  // empty. Redirect to the technician chat when it's available, otherwise to
-  // ticket details (the only remaining tab).
-  useEffect(() => {
-    if (dialog?.owner?.type !== 'ADMIN' || activeChatTab !== 'client') return;
-    setActiveChatTab(isTechnicianChatEnabled ? 'technician' : 'info');
-  }, [dialog?.owner?.type, activeChatTab, isTechnicianChatEnabled]);
 
   const clientInitialOptStartSeq = useMemo(() => maxPersistedStreamSeq(clientChat.rawPages), [clientChat.rawPages]);
-  const adminInitialOptStartSeq = useMemo(() => maxPersistedStreamSeq(adminChat.rawPages), [adminChat.rawPages]);
-  const isInitialOptStartSeqReady = clientChat.isFetched && (!isTechnicianChatEnabled || adminChat.isFetched);
+  const isInitialOptStartSeqReady = clientChat.isFetched;
 
   // NATS reconnect: JetStream replays only ~10 minutes of CHAT_CHUNKS, so an
   // outage longer than that leaves a gap the resume-by-seq cannot fill.
   // Refetch persisted history — the merge layer dedupes what replay covers.
   const refetchClientChat = clientChat.refetch;
-  const refetchAdminChat = adminChat.refetch;
   const handleNatsReconnected = useCallback(() => {
     void refetchClientChat();
-    if (isTechnicianChatEnabled) void refetchAdminChat();
-  }, [refetchClientChat, refetchAdminChat, isTechnicianChatEnabled]);
+  }, [refetchClientChat]);
 
-  const applyStatus = useCallback(
-    (nextStatus: Dialog['status']) => {
-      queryClient.setQueryData<Dialog | null>(ticketsQueryKeys.detail(ticketId), prev =>
-        prev ? { ...prev, status: nextStatus } : prev,
-      );
-    },
-    [queryClient, ticketId],
-  );
+  // Archive / Unarchive are plain lifecycle transitions (the per-status legacy
+  // mutations are rejected by the backend): Archive targets the ARCHIVED-kind
+  // status, Unarchive the first non-archived status from the snapshot
+  // (position order).
+  const handleArchive = useCallback(() => {
+    if (!dialog || transitionTicket.isPending) return;
+    const toStatusId = statusesData?.snapshot.find(s => s.kind === TICKET_STATUS_KIND.ARCHIVED)?.id;
+    if (!toStatusId) return;
+    transitionTicket.mutate({ ticketId, toStatusId });
+  }, [dialog, transitionTicket, statusesData, ticketId]);
 
-  const handleArchive = useCallback(async () => {
-    if (!dialog || isUpdating) return;
+  const handleUnarchive = useCallback(() => {
+    if (!dialog || transitionTicket.isPending) return;
+    const toStatusId = statusesData?.snapshot.find(s => s.kind !== TICKET_STATUS_KIND.ARCHIVED)?.id;
+    if (!toStatusId) return;
+    transitionTicket.mutate({ ticketId, toStatusId });
+  }, [dialog, transitionTicket, statusesData, ticketId]);
 
-    const nextStatus = await archive(ticketId);
-    if (nextStatus) applyStatus(nextStatus);
-  }, [dialog, isUpdating, archive, ticketId, applyStatus]);
-
-  const handleUnarchive = useCallback(async () => {
-    if (!dialog || isUpdating) return;
-
-    const nextStatus = await activate(ticketId);
-    if (nextStatus) applyStatus(nextStatus);
-  }, [dialog, isUpdating, activate, ticketId, applyStatus]);
+  // Starting a direct chat on an AI-worked ticket is a take-over (confirm
+  // status + assignee first); without an active AI dialog it starts directly.
+  const handleStartDirectChat = useCallback(() => {
+    if (hasActiveAiDialog(dialog)) {
+      openTakeOver();
+      return;
+    }
+    startDirectChat();
+  }, [dialog, openTakeOver, startDirectChat]);
 
   const handleTransition = useCallback(
     (toStatusId: string) => {
       if (!dialog || transitionTicket.isPending) return;
-      // Leaving a terminal status is a REOPEN, not a plain move: it goes
-      // through the confirmation modal (target status + assignee + reason)
-      // instead of firing the transition directly. Gated on `ai-resolution` —
-      // with the flag off the legacy direct transition below still applies.
+      // Leaving a terminal status for a WORKING one is a REOPEN, not a plain
+      // move: it goes through the confirmation modal (target status + assignee
+      // + reason) instead of firing the transition directly. Gated on
+      // `ai-resolution` - with the flag off the legacy direct transition below
+      // still applies. A terminal-to-terminal pick (e.g. Archived → Resolved)
+      // stays a plain move: the modal filters closed kinds out of its options,
+      // so routing it there could only render the target as a raw status id.
       if (
         featureFlags.aiResolution.enabled() &&
         (dialog.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED)
       ) {
-        setReopenTarget({ ticketId, initialStatusId: toStatusId });
+        const targetKind = statusesData?.snapshot?.find(s => s.id === toStatusId)?.kind;
+        if (targetKind !== TICKET_STATUS_KIND.RESOLVED && targetKind !== TICKET_STATUS_KIND.ARCHIVED) {
+          setReopenTarget({ ticketId, initialStatusId: toStatusId });
+          return;
+        }
+      }
+      // Leaving the AI-assisted state is a TAKE OVER: confirm status +
+      // technician + stopping the AI instead of firing the transition.
+      if (hasActiveAiDialog(dialog)) {
+        openTakeOver({ initialStatusId: toStatusId });
         return;
       }
       // Resolve is the inline status changer moving the ticket into a
@@ -520,7 +442,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       }
       transitionTicket.mutate({ ticketId, toStatusId });
     },
-    [dialog, ticketId, transitionTicket, statusesData],
+    [dialog, ticketId, transitionTicket, statusesData, openTakeOver],
   );
 
   const handleApprovalAction = useCallback(
@@ -533,7 +455,6 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       // for the mutation, the incoming MESSAGE_START adopts the still-
       // pending bubble and text chunks overwrite the approval card.
       updateApprovalStatusInMessages('client', requestId, status);
-      updateApprovalStatusInMessages('admin', requestId, status);
       try {
         await mutate(requestId);
       } catch (error) {
@@ -564,7 +485,6 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
 
   useEffect(() => {
     setChatHandlers('client', { onApprove: handleApprove, onReject: handleReject });
-    setChatHandlers('admin', { onApprove: handleApprove, onReject: handleReject });
   }, [handleApprove, handleReject, setChatHandlers]);
 
   useHistoricalMessages({
@@ -578,25 +498,10 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     onApprove: handleApprove,
     onReject: handleReject,
   });
-  useHistoricalMessages({
-    side: 'admin',
-    messageDialogId,
-    chatType: CHAT_TYPE.ADMIN,
-    assistantConfig: ASSISTANT_CONFIG.MINGO,
-    pages: adminChat.rawPages,
-    dataUpdatedAt: adminChat.dataUpdatedAt,
-    isFetched: adminChat.isFetched,
-    onApprove: handleApprove,
-    onReject: handleReject,
-  });
 
   const clientPendingApprovals = useMemo(
     () => extractPendingApprovals(clientMessages, approvalStatuses),
     [clientMessages, approvalStatuses],
-  );
-  const adminPendingApprovals = useMemo(
-    () => extractPendingApprovals(adminMessages, approvalStatuses),
-    [adminMessages, approvalStatuses],
   );
 
   const remapClientUserName = useCallback(
@@ -630,8 +535,6 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     return [faeMessage, ...visible];
   }, [clientMessages, remapClientUserName, dialog, clientChat.hasNextPage]);
 
-  const adminChatDisplayMessages = useMemo(() => stripPendingApprovals(adminMessages), [adminMessages]);
-
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {
     if (!dialog) return [];
 
@@ -654,12 +557,15 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       infoItems.push(deviceMenuItems.deviceDetails, deviceMenuItems.deviceLogs);
       remoteItems.push(
         withActivityTracking(deviceMenuItems.remoteShell, EVENT_SUBTYPE.OPEN_REMOTE_SHELL, href => router.push(href)),
-        withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
-          router.push(href),
-        ),
-        deviceMenuItems.manageFiles,
-        deviceMenuItems.runScript,
       );
+      if (deviceMenuItems.remoteControl) {
+        remoteItems.push(
+          withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
+            router.push(href),
+          ),
+        );
+      }
+      remoteItems.push(deviceMenuItems.manageFiles, deviceMenuItems.runScript);
     }
 
     const groups: ActionsMenuGroup[] = [];
@@ -672,38 +578,8 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     return groups;
   }, [dialog, deviceDetails, isDeviceLoading, deviceMenuItems, router]);
 
-  const pageActions = useMemo<PageActionButton[]>(() => {
-    if (!dialog) return [];
-
-    const isResolved = dialog.status === DIALOG_STATUS.RESOLVED;
-    const isArchived = dialog.status === DIALOG_STATUS.ARCHIVED;
-    const actions: PageActionButton[] = [];
-
-    if (isResolved) {
-      actions.push({
-        label: isUpdating ? 'Updating...' : 'Archive Ticket',
-        variant: 'outline',
-        icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
-        onClick: handleArchive,
-        disabled: isUpdating,
-      });
-    }
-
-    if (isArchived) {
-      actions.push({
-        label: isUpdating ? 'Updating...' : 'Unarchive Ticket',
-        variant: 'outline',
-        icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
-        onClick: handleUnarchive,
-        disabled: isUpdating,
-      });
-    }
-
-    return actions;
-  }, [dialog, isUpdating, handleArchive, handleUnarchive]);
-
   if (isLoading) {
-    return <TicketDetailsSkeleton onBack={handleBackToTickets} showTechnicianChat={isTechnicianChatEnabled} />;
+    return <TicketDetailsSkeleton onBack={handleBackToTickets} />;
   }
 
   // Before the not-found below, and not showing `dialogError` raw: offline the
@@ -722,7 +598,6 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   const isArchived = dialog.status === DIALOG_STATUS.ARCHIVED;
   const isClosed = isResolved || isArchived;
   const clientTokenUsage = dialog.tokenUsage?.find(t => t.chatType === CHAT_TYPE.CLIENT);
-  const adminTokenUsage = dialog.tokenUsage?.find(t => t.chatType === CHAT_TYPE.ADMIN);
   const showTokenMemory = !isClosed;
 
   // The status tag is an inline changer driven by the ticket's available
@@ -735,15 +610,6 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     statusName: dialog.statusName,
     statusColor: dialog.statusColor,
   });
-  const statusInfoProps = {
-    status: statusTag.status,
-    statusLabel: statusTag.label,
-    statusColor: statusTag.color,
-    statusOptions: dialog.availableTransitions,
-    onStatusSelect: handleTransition,
-    isStatusPending: transitionTicket.isPending,
-  };
-
   const hasClientChat = !isAdminOwner;
   const hasDescription = !!dialog.description?.trim();
   const hasAssignedItems = !!(
@@ -754,6 +620,13 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   );
   const hasTicketDetails = hasDescription || hasAssignedItems;
   const showDetailsTabs = hasClientChat && hasTicketDetails;
+
+  // Is the client chat the pane on screen? Usually `?tab=chat`, the param notification routes
+  // point at. But with nothing to put in a Details tab — every AI-dialog ticket — the desktop
+  // column renders the chat bare while `mainTab` still reads 'details', and the mobile column
+  // keeps its tabs, so only the breakpoint separates the two.
+  const clientChatOnScreen = hasClientChat && (mainTab === 'chat' || (isLgUp === true && !showDetailsTabs));
+
   const customerName =
     dialog.organizationName ||
     (isClientOwner(dialog.owner) ? dialog.owner.machine?.organizationId : undefined) ||
@@ -789,18 +662,19 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       label: 'Assigned',
       value: {
         type: 'assignee',
-        currentAssignee: dialog.assignedName
-          ? {
-              id: dialog.assignedTo!,
-              name: dialog.assignedName,
-              avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
-              deleted: isUserDeleted(dialog.assignedTo),
-            }
-          : undefined,
+        currentAssignee:
+          dialog.assignedName && dialog.assignedTo
+            ? {
+                id: dialog.assignedTo,
+                name: dialog.assignedName,
+                avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+                deleted: isUserDeleted(dialog.assignedTo),
+              }
+            : undefined,
         options: assigneeOptions.options.map(o => ({ ...o, imageUrl: getFullImageUrl(o.imageUrl) })),
         isLoading: assigneeOptions.isLoading,
         isPending: assignTicketMutation.isPending,
-        onAssign: userId => assignTicketMutation.mutate({ ticketId: dialog.id, assigneeId: userId }),
+        onAssign: handleAssign,
       },
     },
     {
@@ -861,19 +735,19 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
   if (isResolved) {
     sidebarMenuItems.push({
       id: 'archive',
-      label: isUpdating ? 'Updating...' : 'Archive Ticket',
+      label: transitionTicket.isPending ? 'Updating...' : 'Archive Ticket',
       icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
       onClick: handleArchive,
-      disabled: isUpdating,
+      disabled: transitionTicket.isPending,
     });
   }
   if (isArchived) {
     sidebarMenuItems.push({
       id: 'unarchive',
-      label: isUpdating ? 'Updating...' : 'Unarchive Ticket',
+      label: transitionTicket.isPending ? 'Updating...' : 'Unarchive Ticket',
       icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
       onClick: handleUnarchive,
-      disabled: isUpdating,
+      disabled: transitionTicket.isPending,
     });
   }
   if (sidebarMenuItems.length > 0) {
@@ -882,7 +756,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
 
   const clientChatBody = (
     <>
-      <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
+      <div className="relative flex min-h-0 flex-1 flex-col rounded-md border border-ods-border bg-ods-bg">
         <ChatMessageList
           // The bordered card IS the visual frame here, so a native scrollbar
           // sits inside its rounded edge and reads as chrome bolted onto the
@@ -901,18 +775,18 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
           hasNextPage={clientChat.hasNextPage}
           isFetchingNextPage={clientChat.isFetchingNextPage}
           onLoadMore={clientChat.fetchNextPage}
-          contentClassName="px-[var(--spacing-system-mf)] !max-w-full"
+          contentClassName="!max-w-full px-[var(--spacing-system-mf)]"
         />
       </div>
 
       {!isClosed && !isDirectMode && (
         <div className="mt-[var(--spacing-system-xsf)] flex items-start gap-[var(--spacing-system-m)]">
-          <p className="flex-1 min-w-0 text-h6 text-ods-text-secondary">
+          <p className="min-w-0 flex-1 text-ods-text-secondary text-h6">
             The AI assistant will be stopped and you will be able to communicate with the user directly.
           </p>
           <Button
             variant="outline"
-            onClick={startDirectChat}
+            onClick={handleStartDirectChat}
             disabled={isStartingDirectChat}
             leftIcon={<ChatsIcon size={24} className="text-ods-text-secondary" />}
             className="shrink-0"
@@ -927,7 +801,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
           onSend={sendClientMessageWithReject}
           sending={isSendingClientMessage || isClientChatTyping || isClientCompacting}
           autoFocus={false}
-          className="mt-[var(--spacing-system-xsf)] bg-ods-card rounded-lg !max-w-full"
+          className="mt-[var(--spacing-system-xsf)] !max-w-full rounded-lg bg-ods-card"
         />
       )}
       {showTokenMemory && (displayClientModel || clientTokenUsage) && (
@@ -954,8 +828,8 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
     <>
       {hasDescription ? (
         <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <p className="text-h5 text-ods-text-secondary">Ticket Description</p>
-          <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-mf)]">
+          <p className="text-ods-text-secondary text-h5">Ticket Description</p>
+          <div className="rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
             <SimpleMarkdownRenderer content={dialog.description ?? ''} />
           </div>
         </section>
@@ -968,7 +842,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
       )}
       {hasAssignedItems && (
         <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <p className="text-h5 text-ods-text-secondary">Assigned Items</p>
+          <p className="text-ods-text-secondary text-h5">Assigned Items</p>
           <AssignedItemsView showTitle={false} itemId={dialog.id} itemType="TICKET" />
         </section>
       )}
@@ -998,376 +872,75 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
         dialogId={messageDialogId}
         dispatchChunk={dispatchChunk}
         clientInitialOptStartSeq={clientInitialOptStartSeq}
-        adminInitialOptStartSeq={adminInitialOptStartSeq}
         isInitialOptStartSeqReady={isInitialOptStartSeqReady}
-        subscribeAdmin={isTechnicianChatEnabled}
         onReconnected={handleNatsReconnected}
       />
-      {isSidebarLayout ? (
-        <PageLayout
-          title={dialog.title || 'Untitled Dialog'}
-          backButton={{ label: 'Back', onClick: handleBackToTickets }}
-          className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] h-[calc(100%)]"
-          actions={sidebarActions}
-          actionsVariant="icon-buttons"
-          contentClassName="flex flex-col min-h-0"
-        >
-          <div className="flex-1 flex flex-col lg:flex-row gap-[var(--spacing-system-l)] min-h-0">
-            {/* Desktop (lg+): main pane (tabs / chat / details) beside a persistent details sidebar */}
-            <div className="hidden lg:flex flex-1 min-w-0 flex-col gap-[var(--spacing-system-xxs)] min-h-0">
-              {showDetailsTabs ? (
-                <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
-                  {active =>
-                    active === 'chat' ? (
-                      <div className="flex-1 min-h-0 flex flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
-                    ) : (
-                      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-mf)]">
-                        {ticketDetailsBody}
-                      </div>
-                    )
-                  }
-                </TabNavigation>
-              ) : hasClientChat ? (
-                <>
-                  <h2 className="text-h5 text-ods-text-secondary">Client Chat</h2>
-                  {clientChatBody}
-                </>
-              ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[var(--spacing-system-l)]">
-                  {ticketDetailsBody}
-                </div>
-              )}
-            </div>
-
-            {/* Tablet/mobile (<lg): single column — ticket info/attachments/tags fold into the
-                Ticket Details tab; the client chat (when present) gets its own tab without them. */}
-            <div className="flex lg:hidden flex-1 min-w-0 flex-col gap-[var(--spacing-system-xxs)] min-h-0">
-              {hasClientChat ? (
-                <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
-                  {active =>
-                    active === 'chat' ? (
-                      <div className="flex-1 min-h-0 flex flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
-                    ) : (
-                      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-mf)]">
-                        {ticketDetailsBody}
-                        {sidebarContent}
-                      </div>
-                    )
-                  }
-                </TabNavigation>
-              ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[var(--spacing-system-l)]">
-                  {ticketDetailsBody}
-                  {sidebarContent}
-                </div>
-              )}
-            </div>
-
-            {/* Right sidebar — desktop only */}
-            <aside className="hidden lg:flex shrink-0 lg:w-80 flex-col gap-[var(--spacing-system-l)] min-h-0 lg:overflow-auto">
-              {sidebarContent}
-            </aside>
-          </div>
-        </PageLayout>
-      ) : (
-        <PageLayout
-          title={dialog.title || 'Untitled Dialog'}
-          backButton={{
-            label: 'Back',
-            onClick: handleBackToTickets,
-          }}
-          className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] h-[calc(100%)]"
-          actions={pageActions}
-          actionsVariant="menu-primary"
-          menuActions={menuActions}
-          contentClassName="flex flex-col min-h-0"
-        >
-          <TicketInfoSection
-            className="hidden lg:block shrink-0"
-            organization={{
-              name:
-                dialog.organizationName ||
-                (isClientOwner(dialog.owner) ? dialog.owner.machine?.organizationId : undefined) ||
-                'Unassigned',
-              imageSrc: getFullImageUrl(dialog.organizationImageUrl, dialog.organizationImageHash),
-            }}
-            user="Unassigned"
-            device={{
-              name:
-                dialog.deviceHostname ||
-                (isClientOwner(dialog.owner)
-                  ? dialog.owner.machine?.hostname || dialog.owner.machine?.displayName
-                  : undefined) ||
-                'Unassigned',
-              icon: <MonitorIcon className="size-4" />,
-              onClick: machineId ? () => router.push(routes.devices.details(machineId)) : undefined,
-            }}
-            {...statusInfoProps}
-            onExpand={() => setIsTicketInfoExpanded(!ticketInfoExpanded)}
-            expanded={ticketInfoExpanded}
-            assigned={{
-              currentAssignee: dialog.assignedName
-                ? {
-                    id: dialog.assignedTo!,
-                    name: dialog.assignedName,
-                    avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
-                    deleted: isUserDeleted(dialog.assignedTo),
-                  }
-                : undefined,
-              options: assigneeOptions.options.map(o => ({
-                ...o,
-                imageUrl: getFullImageUrl(o.imageUrl),
-              })),
-              isLoading: assigneeOptions.isLoading,
-              isPending: assignTicketMutation.isPending,
-              onAssign: userId => assignTicketMutation.mutate({ ticketId: dialog.id, assigneeId: userId }),
-            }}
-            createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
-            description={dialog.description || dialog.title || ''}
-            attachments={uiAttachments}
-            tags={(dialog.tags || []).map(t => t.key)}
-            notes={uiNotes}
-            isAddingNote={addNoteMutation.isPending}
-            onAddNote={text => {
-              if (dialog?.id) addNoteMutation.mutate({ content: text });
-            }}
-            onEditNote={(id, text) => {
-              updateNoteMutation.mutate({ id, content: text });
-            }}
-            onDeleteNote={setNoteToDelete}
-          />
-          {ticketInfoExpanded && (
-            <AssignedItemsView
-              itemId={dialog.id}
-              itemType="TICKET"
-              className="hidden lg:block shrink-0 mt-[var(--spacing-system-mf)]"
-            />
-          )}
-
-          {/* Chat Section */}
-          {/* The 500px floor is a desktop rule: below `lg` this section IS the
-              page (the info blocks above it are `hidden lg:block`), so `flex-1`
-              already fills the pane — while on a phone with the keyboard up the
-              floor exceeds what's left and pushes the composer past the bottom
-              of a pane that only the browser's scroll-on-focus can recover. */}
-          <div className="flex-1 flex flex-col min-h-0 lg:min-h-[500px]">
-            {/* Tab bar — visible only on mobile/tablet */}
-            <Tabs value={activeChatTab} onValueChange={setActiveChatTab} className="lg:hidden mb-2">
-              <TabsList className="w-full">
-                {!isAdminOwner && (
-                  <TabsTrigger value="client" className="flex-1">
-                    Client Chat
-                  </TabsTrigger>
-                )}
-                {isTechnicianChatEnabled && (
-                  <TabsTrigger value="technician" className="flex-1">
-                    Technician Chat
-                  </TabsTrigger>
-                )}
-                <TabsTrigger value="info" className="flex-1">
-                  Ticket Details
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {/* Ticket Details panel — visible only on mobile when info tab active */}
-            {activeChatTab === 'info' && (
-              <div className="lg:hidden flex-1 min-h-0 overflow-auto">
-                <TicketInfoSection
-                  organization={{
-                    name:
-                      dialog.organizationName ||
-                      (isClientOwner(dialog.owner) ? dialog.owner.machine?.organizationId : undefined) ||
-                      'Unassigned',
-                    imageSrc: getFullImageUrl(dialog.organizationImageUrl, dialog.organizationImageHash),
-                  }}
-                  user="Unassigned"
-                  device={{
-                    name:
-                      dialog.deviceHostname ||
-                      (isClientOwner(dialog.owner)
-                        ? dialog.owner.machine?.hostname || dialog.owner.machine?.displayName
-                        : undefined) ||
-                      'Unassigned',
-                    icon: <MonitorIcon className="size-4" />,
-                    onClick: machineId ? () => router.push(routes.devices.details(machineId)) : undefined,
-                  }}
-                  {...statusInfoProps}
-                  expanded={true}
-                  assigned={{
-                    currentAssignee: dialog.assignedName
-                      ? {
-                          id: dialog.assignedTo!,
-                          name: dialog.assignedName,
-                          avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
-                          deleted: isUserDeleted(dialog.assignedTo),
-                        }
-                      : undefined,
-                    options: assigneeOptions.options.map(o => ({
-                      ...o,
-                      imageUrl: getFullImageUrl(o.imageUrl),
-                    })),
-                    isLoading: assigneeOptions.isLoading,
-                    isPending: assignTicketMutation.isPending,
-                    onAssign: userId => assignTicketMutation.mutate({ ticketId: dialog.id, assigneeId: userId }),
-                  }}
-                  createdAt={dialog.createdAt ? formatDateTime(dialog.createdAt) : undefined}
-                  description={dialog.description || dialog.title || ''}
-                  attachments={uiAttachments}
-                  tags={(dialog.tags || []).map(t => t.key)}
-                  notes={uiNotes}
-                  onAddNote={text => {
-                    if (dialog?.id) addNoteMutation.mutate({ content: text });
-                  }}
-                  onEditNote={(id, text) => {
-                    updateNoteMutation.mutate({ id, content: text });
-                  }}
-                  onDeleteNote={setNoteToDelete}
-                />
-                <AssignedItemsView itemId={dialog.id} itemType="TICKET" className="mt-[var(--spacing-system-mf)]" />
+      <TicketNotificationsAutoReader ticketId={ticketId} clientChatOnScreen={clientChatOnScreen} />
+      <PageLayout
+        title={dialog.title || 'Untitled Dialog'}
+        backButton={{ label: 'Back', onClick: handleBackToTickets }}
+        className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        actions={sidebarActions}
+        actionsVariant="icon-buttons"
+        contentClassName="flex min-h-0 flex-col"
+      >
+        <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] lg:flex-row">
+          {/* Desktop (lg+): main pane (tabs / chat / details) beside a persistent details sidebar */}
+          <div className="hidden min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] lg:flex">
+            {showDetailsTabs ? (
+              <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
+                {active =>
+                  active === 'chat' ? (
+                    <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
+                  ) : (
+                    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
+                      {ticketDetailsBody}
+                    </div>
+                  )
+                }
+              </TabNavigation>
+            ) : hasClientChat ? (
+              <>
+                <h2 className="text-ods-text-secondary text-h5">Client Chat</h2>
+                {clientChatBody}
+              </>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
+                {ticketDetailsBody}
               </div>
             )}
-
-            {/* Chat panels — tabs on mobile, side-by-side on desktop */}
-            <div
-              className={cn(
-                'flex-1 flex flex-col lg:flex-row gap-6 min-h-0',
-                activeChatTab === 'info' && 'hidden lg:flex',
-              )}
-            >
-              {/* Client Chat — hidden for admin-owned tickets */}
-              {!isAdminOwner && (
-                <div
-                  className={cn(
-                    'flex-1 lg:basis-1/2 min-w-0 flex flex-col gap-1 min-h-0',
-                    activeChatTab !== 'client' ? 'hidden lg:flex' : 'flex',
-                  )}
-                >
-                  <h2 className="hidden lg:block text-h5 text-ods-text-secondary">Client Chat</h2>
-                  {/* Messages card */}
-                  <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
-                    <ChatMessageList
-                      // See the note on the other client-chat list above.
-                      className="scrollbar-hide"
-                      messages={clientChatMessages}
-                      dialogId={ticketId}
-                      autoScroll={true}
-                      showAvatars={false}
-                      isLoading={clientChat.isLoading}
-                      isTyping={isClientChatTyping}
-                      pendingApprovals={clientPendingApprovals}
-                      assistantType={ASSISTANT_CONFIG.FAE.type}
-                      hasNextPage={clientChat.hasNextPage}
-                      isFetchingNextPage={clientChat.isFetchingNextPage}
-                      onLoadMore={clientChat.fetchNextPage}
-                      contentClassName="px-[var(--spacing-system-mf)] !max-w-full"
-                    />
-                  </div>
-
-                  {/* Direct Chat: Start button or ChatInput */}
-                  {!isClosed && !isDirectMode && (
-                    <button
-                      type="button"
-                      onClick={startDirectChat}
-                      disabled={isStartingDirectChat}
-                      className="w-full flex items-center justify-center gap-[var(--spacing-system-xsf)] rounded-lg bg-ods-card border border-ods-border px-[var(--spacing-system-sf)] py-[var(--spacing-system-sf)] transition-colors hover:bg-ods-bg-hover disabled:opacity-50 disabled:cursor-not-allowed mt-[var(--spacing-system-xsf)] text-ods-text-primary"
-                    >
-                      <ChatsIcon size={24} className="shrink-0 text-ods-text-secondary" />
-                      <span className="text-h4">{isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}</span>
-                    </button>
-                  )}
-                  {!isClosed && isDirectMode && (
-                    <ChatInput
-                      placeholder="Enter your Message..."
-                      onSend={sendClientMessageWithReject}
-                      sending={isSendingClientMessage || isClientChatTyping || isClientCompacting}
-                      autoFocus={false}
-                      className="mt-[var(--spacing-system-xsf)] bg-ods-card rounded-lg !max-w-full"
-                    />
-                  )}
-                  {showTokenMemory && (displayClientModel || clientTokenUsage) && (
-                    <div className="mt-[var(--spacing-system-xsf)]">
-                      <ModelDisplay
-                        provider={displayClientModel?.provider}
-                        modelName={displayClientModel?.displayName}
-                        usedTokens={clientTokenUsage?.totalTokensSize ?? undefined}
-                        contextWindow={clientTokenUsage?.contextSize ?? undefined}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Technician Chat */}
-              {isTechnicianChatEnabled && (
-                <div
-                  className={cn(
-                    'flex-1 lg:basis-1/2 min-w-0 flex flex-col gap-1 min-h-0',
-                    activeChatTab !== 'technician' ? 'hidden lg:flex' : 'flex',
-                  )}
-                >
-                  <h2 className="hidden lg:block text-h5 text-ods-text-secondary">Technician Chat</h2>
-                  <div className="flex-1 flex flex-col relative min-h-0">
-                    {adminMessages.length === 0 ? (
-                      /* Empty State */
-                      <div className="bg-ods-card border border-ods-border rounded-lg flex-1 flex flex-col items-center justify-center p-8">
-                        <div className="flex flex-col items-center gap-4 text-center">
-                          <div className="relative w-12 h-12">
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <MessageCircleIcon className="h-8 w-8 text-ods-text-secondary" />
-                            </div>
-                          </div>
-                          <p className="text-h6 text-ods-text-secondary max-w-xs">Start a technician conversation</p>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Messages */
-                      <ChatMessageList
-                        // `className` lands on the SCROLLER, so the card frame and
-                        // the scrollbar suppression are the same target here.
-                        className="flex-1 bg-ods-card border border-ods-border rounded-lg scrollbar-hide"
-                        messages={adminChatDisplayMessages}
-                        dialogId={ticketId}
-                        autoScroll={true}
-                        showAvatars={false}
-                        isLoading={adminChat.isLoading}
-                        isTyping={isAdminChatTyping}
-                        pendingApprovals={adminPendingApprovals}
-                        assistantType={ASSISTANT_CONFIG.MINGO.type}
-                        hasNextPage={adminChat.hasNextPage}
-                        isFetchingNextPage={adminChat.isFetchingNextPage}
-                        onLoadMore={adminChat.fetchNextPage}
-                        contentClassName="px-[var(--spacing-system-mf)] !max-w-full"
-                      />
-                    )}
-                  </div>
-
-                  {!isClosed && (
-                    <ChatInput
-                      placeholder="Enter your Request..."
-                      onSend={handleSendAdminMessage}
-                      onStop={isAdminChatTyping ? handleStopGeneration : undefined}
-                      sending={isSendingAdminMessage || isAdminChatTyping || isCompacting || isClientChatTyping}
-                      autoFocus={false}
-                      className="mt-[var(--spacing-system-xsf)] bg-ods-card rounded-lg !max-w-full"
-                    />
-                  )}
-                  {showTokenMemory && (displayAdminModel || adminTokenUsage) && (
-                    <div className="mt-[var(--spacing-system-xsf)]">
-                      <ModelDisplay
-                        provider={displayAdminModel?.provider}
-                        modelName={displayAdminModel?.displayName}
-                        usedTokens={adminTokenUsage?.totalTokensSize ?? undefined}
-                        contextWindow={adminTokenUsage?.contextSize ?? undefined}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
-        </PageLayout>
-      )}
+
+          {/* Tablet/mobile (<lg): single column — ticket info/attachments/tags fold into the
+              Ticket Details tab; the client chat (when present) gets its own tab without them. */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] lg:hidden">
+            {hasClientChat ? (
+              <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
+                {active =>
+                  active === 'chat' ? (
+                    <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
+                  ) : (
+                    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
+                      {ticketDetailsBody}
+                      {sidebarContent}
+                    </div>
+                  )
+                }
+              </TabNavigation>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
+                {ticketDetailsBody}
+                {sidebarContent}
+              </div>
+            )}
+          </div>
+
+          {/* Right sidebar — desktop only */}
+          <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] lg:flex lg:w-80 lg:overflow-auto">
+            {sidebarContent}
+          </aside>
+        </div>
+      </PageLayout>
 
       <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
 
@@ -1384,6 +957,7 @@ function TicketDetailsContent({ ticketId, technicianChatEnabled: isTechnicianCha
         isPending={deleteNoteMutation.isPending}
         onConfirm={handleConfirmDeleteNote}
       />
+      <TakeOverTicketModal target={takeOverTarget} onClose={() => setTakeOverTarget(null)} />
     </>
   );
 }

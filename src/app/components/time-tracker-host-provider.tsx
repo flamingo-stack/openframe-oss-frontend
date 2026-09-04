@@ -7,7 +7,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { cancelTimerMutation as CancelTimerMutationType } from '@/__generated__/cancelTimerMutation.graphql';
 import type { currentTimerRelayQuery as CurrentTimerRelayQueryType } from '@/__generated__/currentTimerRelayQuery.graphql';
@@ -86,9 +86,11 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
 
   const clock = useMemo(() => mapTimerToTrackerState(timerNode), [timerNode]);
 
-  const seededRef = useRef(false);
-  useEffect(() => {
-    if (seededRef.current || !timerNode) return;
+  // Seeded once from a timer that was already running when this mounted. Done
+  // during render, and latched in state rather than a ref, so the composer never
+  // draws one frame with an empty ticket/customer pair before adopting it.
+  const [seeded, setSeeded] = useState(false);
+  if (!seeded && timerNode) {
     if (timerNode.state === TimerState.RUNNING || timerNode.state === TimerState.PAUSED) {
       resetTicketCustomer({
         ticketId: timerNode.ticketId ?? null,
@@ -99,9 +101,9 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
         lockCustomer: !!(timerNode.ticketId && timerNode.organizationId),
       });
       if (timerNode.notes) setNotes(timerNode.notes);
-      seededRef.current = true;
+      setSeeded(true);
     }
-  }, [timerNode, resetTicketCustomer]);
+  }
 
   const ticketOptions = useMemo(
     () => ticketOptionsList.map(option => ({ id: option.value, label: option.label })),
@@ -118,7 +120,9 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
   const resetDraft = useCallback(() => {
     resetTicketCustomer();
     setNotes('');
-    seededRef.current = false;
+    // Re-arm the seed: a new timer started after this reset adopts its own
+    // ticket/customer pair.
+    setSeeded(false);
   }, [resetTicketCustomer]);
 
   const onError = useCallback(
@@ -331,7 +335,7 @@ function CancelEntryDescription({
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (runningSince == null) return;
+    if (runningSince == null) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [runningSince]);

@@ -84,7 +84,7 @@ export function FaeChatPreview({
         )}
       >
         <ChatTypingIndicator size="sm" dotClassName="bg-ods-text-secondary" />
-        <span className="text-h6 text-ods-text-secondary">Waiting for Technician Response</span>
+        <span className="text-ods-text-secondary text-h6">Waiting for Technician Response</span>
       </div>
 
       <ChatFooter fullWidth={isThumbnail}>
@@ -98,7 +98,7 @@ export function FaeChatPreview({
   if (!isThumbnail) return body;
 
   return (
-    <div className="grid h-[250px] w-full place-items-center overflow-hidden rounded-md border border-ods-border bg-ods-bg md:h-[296px] lg:h-[380px] [--preview-scale:0.225] md:[--preview-scale:0.266] lg:[--preview-scale:0.342]">
+    <div className="grid h-[250px] w-full place-items-center overflow-hidden rounded-md border border-ods-border bg-ods-bg [--preview-scale:0.225] md:h-[296px] md:[--preview-scale:0.266] lg:h-[380px] lg:[--preview-scale:0.342]">
       {/* 1:1 content in a 1112px slot, transform-scaled (not zoom) to the per-breakpoint card
           height. zoom mis-renders text in Safari, so we scale via transform instead; the
           wrapper reserves the post-scale footprint so the card still centers the content. */}

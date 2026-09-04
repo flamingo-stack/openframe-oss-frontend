@@ -10,7 +10,7 @@ import {
 import type { RoadmapItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { EntityVideoSection } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { embedAuthedFetch } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
 
 /**
@@ -27,12 +27,13 @@ import { EP, HELP_CENTER_BASE } from '../../endpoints';
 function useRelease(slug: string | undefined) {
   const query = useQuery({
     queryKey: ['help-center', 'product-release', slug],
-    queryFn: async () => {
-      const res = await embedAuthedFetch(EP.productReleaseBySlug(slug!));
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      return res.json();
-    },
-    enabled: !!slug,
+    queryFn: slug
+      ? async () => {
+          const res = await embedAuthedFetch(EP.productReleaseBySlug(slug));
+          if (!res.ok) throw new Error(`Request failed (${res.status})`);
+          return res.json();
+        }
+      : skipToken,
   });
   return { data: query.data, error: (query.error as Error) ?? null, isLoading: query.isLoading };
 }
@@ -82,6 +83,9 @@ function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; i
   );
 }
 
+// The React Compiler skips this one: `ReleaseDetailPage` takes its data hook as a prop,
+// which is "passing a hook around as a value". The contract is the core library's. Costs
+// nothing — this is a prop-forwarding wrapper with nothing to memoize.
 export function ReleaseDetailClient({ slug }: { slug: string }) {
   return (
     <ReleaseDetailPage

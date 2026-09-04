@@ -2,6 +2,17 @@ import type { BoardTicketPendingApproval } from '@flamingo-stack/openframe-front
 
 export type DialogStatus = 'ACTIVE' | 'TECH_REQUIRED' | 'ON_HOLD' | 'RESOLVED' | 'ARCHIVED';
 
+// Live activity of a ticket (`Ticket.activityState`): AI_WORKING while the
+// dialog holds the AI processing lock, AWAITING_EXTERNAL after our side
+// messaged the client and until the client replies, IDLE otherwise.
+// Staleness is deliberately NOT part of this enum — the FE derives it from
+// `lastActivityAt` against the status's `staleAfterMinutes`.
+export type TicketActivityState = 'AI_WORKING' | 'AWAITING_EXTERNAL' | 'IDLE';
+
+// Server-side board filter values (`TicketFilterInput.activity`); OR within
+// the list, AND against the other filter params.
+export type TicketActivityFilter = 'ACTIVE' | 'STALE' | 'AWAITING_EXTERNAL';
+
 export type DialogOwnerEnum = 'CLIENT' | 'ADMIN';
 
 export interface DialogOwner {
@@ -43,6 +54,9 @@ export interface Dialog {
   createdAt: string;
   statusUpdatedAt?: string | null;
   resolvedAt?: string | null;
+  // Who closed the ticket: 'AI_AGENT' | 'TECHNICIAN' | 'END_USER' (open string on the BE).
+  // Null while open; selected only when the ai-resolution flag is on.
+  resolvedBy?: string | null;
   aiResolutionSuggestedAt?: string | null;
   rating?: DialogRating | null;
 
@@ -64,6 +78,16 @@ export interface Dialog {
   assigneeImageUrl?: string;
   assigneeImageHash?: string;
   tags?: Array<{ id: string; key: string; color?: string }>;
+  // How many notifications about this ticket the caller has not read
+  // (`Ticket.unreadNotificationCount`). Drives the per-row count in the table
+  // and the "New Message" highlight on the board card.
+  unreadNotificationCount?: number;
+  // Canonical "last conversation activity" stamp (`Ticket.lastActivityAt`,
+  // served with a createdAt fallback so it is never null on the BE). Moves on
+  // any chat message, AI action, or lifecycle transition — unlike
+  // `statusUpdatedAt`, which only tracks status/board moves.
+  lastActivityAt?: string | null;
+  activityState?: TicketActivityState;
   escalatedByUser?: boolean | null;
   // Latest pending tool-approval request for this ticket's dialog (from Ticket.pendingApproval).
   pendingApproval?: BoardTicketPendingApproval;
@@ -174,7 +198,7 @@ export interface ExecutingToolData extends MessageData {
   toolFunction: string;
   title?: string;
   toolExplanation?: string;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   requiresApproval?: boolean;
   approvalStatus?: string;
 }
@@ -205,7 +229,7 @@ export interface ApprovalResultData extends MessageData {
   command?: string;
   description?: string;
   risk?: string;
-  details?: any;
+  details?: unknown;
 }
 
 export interface SystemData extends MessageData {

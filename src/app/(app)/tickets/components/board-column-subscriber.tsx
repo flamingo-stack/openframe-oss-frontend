@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { BOARD_PAGE_SIZE, type BoardColumnState } from '../hooks/use-tickets-board-query';
 import { ticketService } from '../services';
 import type { TicketsPage } from '../services/ticket-service.types';
+import type { TicketActivityFilter } from '../types/dialog.types';
 import { dialogsQueryKeys } from '../utils/query-keys';
 
 export interface BoardColumnUpdate {
@@ -15,9 +16,37 @@ export interface BoardColumnUpdate {
 
 interface BoardColumnSubscriberProps {
   statusId: string;
-  params: { search?: string; organizationIds?: string[]; assigneeIds?: string[]; tagIds?: string[] };
+  params: {
+    search?: string;
+    organizationIds?: string[];
+    assigneeIds?: string[];
+    tagIds?: string[];
+    unreadOnly?: boolean;
+    activity?: TicketActivityFilter[];
+  };
   onUpdate: (statusId: string, update: BoardColumnUpdate) => void;
   registerLoadMore: (statusId: string, loadMore: () => void) => void;
+}
+
+/**
+ * Pages are fetched by cursor, and the order they are cut from moves under us —
+ * a ticket reordered or transitioned between two `fetchNextPage` calls, or
+ * arriving on a live update, can come back on a page that already carried it.
+ * One ticket appearing twice in a lane then hands React two children with the
+ * same key, which it explicitly treats as unsupported: it may drop or duplicate
+ * the DOM, and a duplicated card is also a second drag source for one ticket.
+ *
+ * First occurrence wins, so the earliest page keeps the position it had.
+ */
+function dedupeById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+  }
+  return unique;
 }
 
 /**
@@ -27,7 +56,7 @@ interface BoardColumnSubscriberProps {
  * which is exactly what applyOptimisticMove mutates. Renders nothing.
  */
 export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoadMore }: BoardColumnSubscriberProps) {
-  const { search, organizationIds, assigneeIds, tagIds } = params;
+  const { search, organizationIds, assigneeIds, tagIds, unreadOnly, activity } = params;
 
   const query = useInfiniteQuery<
     TicketsPage,
@@ -36,7 +65,14 @@ export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoad
     ReturnType<typeof dialogsQueryKeys.boardColumn>,
     string | undefined
   >({
-    queryKey: dialogsQueryKeys.boardColumn(statusId, { search, organizationIds, assigneeIds, tagIds }),
+    queryKey: dialogsQueryKeys.boardColumn(statusId, {
+      search,
+      organizationIds,
+      assigneeIds,
+      tagIds,
+      unreadOnly,
+      activity,
+    }),
     queryFn: ({ pageParam }) =>
       ticketService.fetchBoardColumnByStatusId({
         statusId,
@@ -44,6 +80,8 @@ export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoad
         organizationIds: organizationIds?.length ? organizationIds : undefined,
         assigneeIds: assigneeIds?.length ? assigneeIds : undefined,
         tagIds: tagIds?.length ? tagIds : undefined,
+        unreadOnly: unreadOnly || undefined,
+        activity: activity?.length ? activity : undefined,
         cursor: pageParam,
         limit: BOARD_PAGE_SIZE,
       }),
@@ -64,7 +102,7 @@ export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoad
     const lastPage = pages[pages.length - 1];
     onUpdate(statusId, {
       state: {
-        tickets: pages.flatMap(p => p.dialogs),
+        tickets: dedupeById(pages.flatMap(p => p.dialogs)),
         total: lastPage?.filteredCount ?? 0,
         endCursor: lastPage?.pageInfo.endCursor ?? null,
         hasMore: !!lastPage?.pageInfo.hasNextPage,

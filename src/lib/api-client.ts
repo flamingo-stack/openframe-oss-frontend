@@ -7,10 +7,14 @@ interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;
   skipAuth?: boolean;
   /**
-   * Issue the request without waiting for the session latch (see
-   * `session-ready.ts`). ONLY for the two calls that establish the session —
+   * Issue the request without waiting for either bootstrap latch — the session
+   * one (`session-ready.ts`) or the subscription one (`subscription-gate.ts`).
+   *
+   * ONLY for the two calls that establish those answers in the first place:
    * `/me` and the feature-flags query. Anything else would fetch before `/me`
-   * has answered, or during server rendering where there is no user at all.
+   * has answered, or during server rendering where there is no user at all —
+   * and the feature-flags query is what tells the subscription guard whether to
+   * ask at all, so gating it on the guard's answer would deadlock both.
    */
   skipSessionGate?: boolean;
   /**
@@ -45,7 +49,7 @@ interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
  */
 export const REQUEST_TIMEOUT_MS = 30_000;
 
-interface ApiResponse<T = any> {
+interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   status: number;
@@ -56,7 +60,8 @@ import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
 import { waitForSessionReady } from './session-ready';
-import { refreshAccessToken } from './token-refresh-manager';
+import { waitForSubscriptionGate } from './subscription-gate';
+import { refreshTokens } from './token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from './token-store';
 
 class ApiClient {
@@ -105,7 +110,7 @@ class ApiClient {
   /**
    * Make an authenticated API request
    */
-  async request<T = any>(
+  async request<T = unknown>(
     path: string,
     options: ApiRequestOptions = {},
     isRetry: boolean = false,
@@ -122,6 +127,12 @@ class ApiClient {
     // whatever the first attempt decided (the latch is already open by then).
     if (!skipSessionGate && !isRetry) {
       await waitForSessionReady();
+      // ...and then for the subscription answer. Most of the app's GraphQL
+      // traffic still goes out through here rather than through Relay (customers,
+      // devices, logs, tickets, monitoring, dashboard), so gating only the Relay
+      // network layer left the larger half of the requests firing into a locked
+      // workspace. See `subscription-gate.ts`.
+      await waitForSubscriptionGate();
     }
 
     // Build headers
@@ -188,7 +199,7 @@ class ApiClient {
           };
         }
 
-        // No local queue: `refreshAccessToken` is already single-flight, so a
+        // No local queue: `refreshTokens` is already single-flight, so a
         // concurrent 401 joins the in-flight rotation instead of starting one,
         // and a 401 that lands after it finished short-circuits on `sentAtEpoch`
         // to a plain retry. Parking these in an ApiClient-owned queue meant only
@@ -196,21 +207,18 @@ class ApiClient {
         // started by Relay, the chat adapter, auth-api-client or the MeshCentral
         // socket (all sharing this same flag), nothing drained the queue and the
         // caller's promise never settled, hanging its react-query `queryFn`.
-        const refreshSuccess = await refreshAccessToken(sentAtEpoch);
+        const outcome = await refreshTokens(sentAtEpoch);
 
-        if (refreshSuccess) {
+        if (outcome === 'refreshed') {
           return this.request<T>(path, options, true);
         }
 
-        // A link that dropped between the 401 and the refresh POST is NOT a
-        // rejected credential: `refreshAccessToken` catches the transport error
-        // and returns false the same way it does for a refused refresh, so
-        // logging out here destroys a valid session over a transient outage.
-        // The mirror of the guard in `relay/environment.ts` — both halves of the
-        // data layer have to agree, or one of them logs the user out while the
-        // other is quietly waiting for the link.
-        if (!isOnline()) {
-          return { error: 'Offline', status: 0, ok: false };
+        // A refresh that failed for a reason unrelated to the credential (5xx,
+        // WAF 403, dropped link, timeout) is not a rejected session: fail THIS
+        // request and leave the session alone. Mirrors `relay/environment.ts` —
+        // both halves of the data layer have to agree.
+        if (outcome === 'transient') {
+          return { error: isOnline() ? 'Authentication temporarily unavailable' : 'Offline', status: 0, ok: false };
         }
 
         await this.forceLogout();
@@ -237,7 +245,7 @@ class ApiClient {
       // Extract error message from response body if available
       let errorMessage: string | undefined;
       if (!response.ok) {
-        const errorData = data as any;
+        const errorData = data as { message?: string; error?: string } | undefined;
         errorMessage = errorData?.message || errorData?.error || `Request failed with status ${response.status}`;
       }
 
@@ -273,11 +281,11 @@ class ApiClient {
   /**
    * Convenience methods for common HTTP methods
    */
-  async get<T = any>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async get<T = unknown>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, { ...options, method: 'GET' });
   }
 
-  async post<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async post<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'POST',
@@ -285,7 +293,7 @@ class ApiClient {
     });
   }
 
-  async put<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async put<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'PUT',
@@ -293,7 +301,7 @@ class ApiClient {
     });
   }
 
-  async patch<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async patch<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'PATCH',
@@ -301,18 +309,18 @@ class ApiClient {
     });
   }
 
-  async delete<T = any>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async delete<T = unknown>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
   /**
    * Special method for requests to external APIs (non-base URL)
    */
-  async external<T = any>(url: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
+  async external<T = unknown>(url: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
     return this.request<T>(url, options);
   }
 
-  me<T = any>() {
+  me<T = unknown>() {
     // Bootstrap call: this is what opens the session latch.
     return this.request<T>('/api/me', { skipSessionGate: true });
   }

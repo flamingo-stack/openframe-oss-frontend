@@ -2,6 +2,7 @@
 
 import type { BoardTicket } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { AssigneeDropdown } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { memo } from 'react';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
@@ -9,9 +10,15 @@ import { useAssigneeOptions } from '../hooks/use-ticket-options';
 
 interface BoardAssigneePickerProps {
   ticket: BoardTicket;
+  /** When set, the ticket is still AI-worked: clicking opens the Take Over modal instead of the assignee dropdown. */
+  onTakeOver?: () => void;
 }
 
-export function BoardAssigneePicker({ ticket }: BoardAssigneePickerProps) {
+/** Memoized: this sits in every card, and a board update re-renders the lanes. */
+export const BoardAssigneePicker = memo(function BoardAssigneePickerImpl({
+  ticket,
+  onTakeOver,
+}: BoardAssigneePickerProps) {
   const { options, isLoading } = useAssigneeOptions();
   const assign = useAssignTicket();
   const { isUserDeleted } = useUserStatusMap();
@@ -34,6 +41,10 @@ export function BoardAssigneePicker({ ticket }: BoardAssigneePickerProps) {
       isLoading={isLoading}
       isPending={assign.isPending}
       onAssign={userId => assign.mutate({ ticketId: ticket.id, assigneeId: userId })}
+      // AI-worked ticket: the trigger click starts the Take Over flow instead
+      // of opening the dropdown (core renders the plain trigger button).
+      onTriggerClick={onTakeOver}
     />
   );
-}
+});
+BoardAssigneePicker.displayName = 'BoardAssigneePicker';

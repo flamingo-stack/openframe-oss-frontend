@@ -8,6 +8,7 @@
 
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
+import './test-module-resolve.mjs';
 
 let store = {};
 let cookies = [];
@@ -16,7 +17,9 @@ function resetBrowser() {
   store = {};
   cookies = [];
   globalThis.window = {
-    location: { search: '' },
+    // `hostname`/`protocol` matter only to the referral cookie writer; the cookie-scope rules
+    // themselves are covered in referral-cookie.test.mjs, so this mock keeps `name=value` only.
+    location: { search: '', hostname: 'auth.openframe.ai', protocol: 'https:' },
     sessionStorage: {
       getItem: k => (k in store ? store[k] : null),
       setItem: (k, v) => {
@@ -31,6 +34,11 @@ function resetBrowser() {
   globalThis.document = {
     get cookie() {
       return cookies.join('; ');
+    },
+    set cookie(raw) {
+      const [name, value] = raw.split('; ')[0].split('=');
+      cookies = cookies.filter(c => !c.startsWith(`${name}=`));
+      cookies.push(`${name}=${value}`);
     },
   };
   if (!globalThis.crypto) globalThis.crypto = {};
@@ -88,13 +96,36 @@ test('a direct landing on the signup page still captures its params', () => {
   assert.equal(A.collectRegistrationAttribution().utmSource, 'direct');
 });
 
+// The partner referral is the one signal that can predate this visit entirely — it rides a
+// cookie set on another subdomain, possibly weeks earlier (see referral-cookie.ts).
+test('the stored referral cookie rides the registration payload as `ref`', () => {
+  cookies.push('of_ref=partner-123');
+  assert.equal(A.collectRegistrationAttribution().ref, 'partner-123');
+});
+
+test('a partner link straight to the signup page captures and sends its referral', () => {
+  window.location.search = '?ref=partner-456';
+  A.captureAttributionFromUrl();
+
+  assert.ok(cookies.includes('of_ref=partner-456'), 'the capture pass writes the cookie');
+  assert.equal(A.collectRegistrationAttribution().ref, 'partner-456');
+});
+
+test('the referral also rides the SSO continue URL', () => {
+  cookies.push('of_ref=partner-123');
+  const params = new URLSearchParams();
+  A.appendAttributionQueryParams(params, A.collectRegistrationAttribution());
+
+  assert.equal(params.get('ref'), 'partner-123');
+});
+
 test('no signals present yields only the always-minted event id', () => {
   const got = A.collectRegistrationAttribution();
   assert.equal(got.fbc, undefined);
   assert.equal(typeof got.eventId, 'string');
 });
 
-// The SSO start URL must carry the same attribution set as the password-flow body — a field
+// The SSO continue URL must carry the same attribution set as the password-flow body — a field
 // collected but silently dropped from the query string is exactly the kind of gap behind the
 // low fbp coverage on one flow (see Meta CAPI follow-up task 86ajt9vye, F1/F2).
 test('SSO query params carry every collected field, matching the password body', () => {
@@ -104,21 +135,21 @@ test('SSO query params carry every collected field, matching the password body',
   A.captureAttributionFromUrl();
 
   const collected = A.collectRegistrationAttribution();
-  const params = new URLSearchParams({ tenantName: 'org', provider: 'google' });
+  const params = new URLSearchParams({ tenantName: 'org', tenantDomain: 'org.openframe.example' });
   A.appendAttributionQueryParams(params, collected);
 
-  // 3 cookies + 9 URL params + eventId = 13 fields, every one present as attribution.<field>.
-  const attributionKeys = [...params.keys()].filter(k => k.startsWith('attribution.'));
-  assert.equal(attributionKeys.length, 13);
+  // 3 cookies + 9 URL params + eventId = 13 fields, every one present as a bare key alongside the
+  // two tenant params the endpoint takes as @RequestParam.
+  assert.equal([...params.keys()].length, 13 + 2);
   for (const [field, value] of Object.entries(collected)) {
-    assert.equal(params.get(`attribution.${field}`), value, `attribution.${field} must ride the SSO start URL`);
+    assert.equal(params.get(field), value, `${field} must ride the SSO continue URL`);
   }
 });
 
 test('SSO query serialization skips blank values instead of sending empty strings', () => {
   const params = new URLSearchParams();
   A.appendAttributionQueryParams(params, { fbp: 'fb.1.170.999', fbc: '', utmSource: '   ' });
-  assert.deepEqual([...params.keys()], ['attribution.fbp']);
+  assert.deepEqual([...params.keys()], ['fbp']);
 });
 
 // The password-flow body runs explicit attribution through the same normalization, so a

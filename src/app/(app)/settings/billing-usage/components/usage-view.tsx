@@ -42,16 +42,6 @@ const usageViewQuery = graphql`
   }
 `;
 
-const WARNING_THRESHOLD = 90;
-
-type UsageState = 'success' | 'warning' | 'over';
-
-function usageState(pct: number, isOver: boolean): UsageState {
-  if (isOver) return 'over';
-  if (pct >= WARNING_THRESHOLD) return 'warning';
-  return 'success';
-}
-
 /**
  * Payment-free variant of the Billing & Usage page, rendered when the payment UI
  * is hidden for this build.
@@ -76,43 +66,31 @@ export function UsageView() {
   const deviceProduct = products.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;
   const aiProduct = products.find(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? null;
   const deviceActive = deviceProduct?.packageOptions.find(o => o.status === SubscriptionProductStatus.ACTIVE) ?? null;
-  const aiActive = aiProduct?.packageOptions.find(o => o.status === SubscriptionProductStatus.ACTIVE) ?? null;
 
   const devicesUsed = subscription?.usage?.devicesUsed ?? 0;
   const activeDevices = subscription?.usage?.activeDevices ?? 0;
   const inactiveDevices = subscription?.usage?.inactiveDevices ?? 0;
-  const aiTokensUsed = subscription?.usage?.aiTokensUsed ?? 0;
 
   // A product billed per use has no committed limit to compare against, so it
   // shows the bare count — and never a warning, since there is nothing to exceed.
   const devicePerUse = deviceProduct?.payAsYouGoOption != null && deviceActive == null;
-  const aiPerUse = aiProduct?.payAsYouGoOption != null && aiActive == null;
-  const hasAi = aiActive != null || aiPerUse;
+  const hasAi = aiProduct != null;
+
+  // AI is metered consumption — never a bought balance, and no locally-derived
+  // free allowance either (those figures are to come from the backend). With
+  // nothing to measure against, the card shows the bare count and no ring.
+  const aiTokensUsed = Number(subscription?.usage?.aiTokensUsed ?? 0);
 
   const deviceLimit = deviceActive?.quantity ?? 0;
-  const aiLimit = aiActive?.quantity ?? 0;
   const devicePct = deviceLimit > 0 ? Math.round((devicesUsed / deviceLimit) * 100) : 0;
-  const aiPct = aiLimit > 0 ? Math.round((aiTokensUsed / aiLimit) * 100) : 0;
-  const deviceState = devicePerUse ? 'success' : usageState(devicePct, deviceLimit > 0 && devicesUsed > deviceLimit);
-  const aiState = aiPerUse || !hasAi ? 'success' : usageState(aiPct, aiLimit > 0 && aiTokensUsed > aiLimit);
+  // Only the state that has actually happened. The 90%-of-limit "approaching"
+  // tier is gone here for the same reason as on the billing page: being near a
+  // limit costs nothing, and a banner that fires before anything changed is one
+  // users learn to scroll past.
+  const deviceOverLimit = !devicePerUse && deviceLimit > 0 && devicesUsed > deviceLimit;
 
   const showDeviceLimit = !devicePerUse && deviceLimit > 0;
-  const showAiLimit = hasAi && !aiPerUse && aiLimit > 0;
-  const showLimits = showDeviceLimit || showAiLimit;
-
-  const warnings: Array<{ title: string; description: string }> = [];
-  if (deviceState === 'warning' || deviceState === 'over') {
-    warnings.push({
-      title: deviceState === 'over' ? "You're over your device limit" : "You're approaching your device limit",
-      description: 'Your workspace administrator can raise the limit for your team.',
-    });
-  }
-  if (hasAi && (aiState === 'warning' || aiState === 'over')) {
-    warnings.push({
-      title: aiState === 'over' ? "You're over your AI token limit" : "You're approaching your AI token limit",
-      description: 'Your workspace administrator can raise the limit for your team.',
-    });
-  }
+  const showLimits = showDeviceLimit;
 
   return (
     <PageLayout
@@ -125,44 +103,27 @@ export function UsageView() {
           title="Device Usage"
           value={devicesUsed}
           percentage={devicePerUse ? undefined : devicePct}
-          progressVariant={deviceState === 'success' ? 'success' : 'warning'}
+          progressVariant={deviceOverLimit ? 'warning' : 'success'}
           showProgress={showDeviceLimit}
           progressOverflow="wrap"
         />
-        {hasAi && (
-          <DashboardInfoCard
-            title="AI Usage"
-            value={aiTokensUsed}
-            percentage={aiPerUse ? undefined : aiPct}
-            progressVariant={aiState === 'success' ? 'success' : 'warning'}
-            showProgress={showAiLimit}
-            progressOverflow="wrap"
-          />
-        )}
+        {hasAi && <DashboardInfoCard title="AI Usage" value={aiTokensUsed} />}
       </div>
 
-      {warnings.length > 0 && (
-        <div className="flex flex-col rounded-md border border-ods-warning overflow-hidden bg-ods-card">
-          {warnings.map((w, idx) => (
-            <div
-              key={w.title}
-              className={cn(
-                'flex gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)] items-start',
-                idx > 0 && 'border-t border-ods-warning',
-              )}
-            >
-              <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
-              <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-                <p className="text-h3 font-bold text-ods-warning">{w.title}</p>
-                <p className="text-h4 text-ods-warning">{w.description}</p>
-              </div>
-            </div>
-          ))}
+      {deviceOverLimit && (
+        <div className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]">
+          <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
+          <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+            <p className="font-bold text-ods-text-primary text-h3">You're over your device limit</p>
+            <p className="text-ods-text-secondary text-h4">
+              Your workspace administrator can raise the limit for your team.
+            </p>
+          </div>
         </div>
       )}
 
       <div
-        className={cn('grid grid-cols-1 gap-[var(--spacing-system-l)] items-stretch', showLimits && 'md:grid-cols-2')}
+        className={cn('grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)]', showLimits && 'md:grid-cols-2')}
       >
         <SectionBlock title="Usage Overview">
           <BillingRow label="Active devices" value={formatCount(activeDevices)} />
@@ -171,7 +132,6 @@ export function UsageView() {
         {showLimits && (
           <SectionBlock title="Workspace Limits">
             {showDeviceLimit && <BillingRow label="Devices included" value={formatCount(deviceLimit)} />}
-            {showAiLimit && <BillingRow label="AI tokens included" value={formatCount(aiLimit)} />}
           </SectionBlock>
         )}
       </div>

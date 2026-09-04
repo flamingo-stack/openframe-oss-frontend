@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import {
   CardLoader,
@@ -12,7 +13,7 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
@@ -20,7 +21,7 @@ import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import type { Device } from '../../../devices/types/device.types';
 import { getFleetHostId } from '../../../devices/utils/device-action-utils';
-import { ScriptEditor } from '../../../scripts/components/script/script-editor';
+import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
 import { usePolicyDetails } from '../hooks/use-policy-details';
@@ -110,7 +111,12 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
   const [hasQuery, setHasQuery] = useState(false);
   const [hasName, setHasName] = useState(false);
 
-  useEffect(() => {
+  // Seeded when the fetched policy arrives (or is replaced), during render rather
+  // than in an effect: an effect renders the empty form once after the data has
+  // landed, which is a visible flash of blank fields on every load.
+  const [seededFrom, setSeededFrom] = useState(policyDetails);
+  if (policyDetails !== seededFrom) {
+    setSeededFrom(policyDetails);
     if (policyDetails && isExistingPolicy) {
       reset({
         name: policyDetails.name,
@@ -120,7 +126,7 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
       setHasQuery(!!policyDetails.query?.trim());
       setHasName(!!policyDetails.name?.trim());
     }
-  }, [policyDetails, isExistingPolicy, reset]);
+  }
 
   const handleBack = useSafeBack(
     isExistingPolicy && numericId ? routes.monitoring.policy(numericId) : routes.monitoring.root({ tab: 'policies' }),
@@ -260,7 +266,7 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
 
         {/* Devices */}
         <div className="space-y-1">
-          <h2 className="text-h2 text-ods-text-primary">Devices</h2>
+          <h2 className="text-ods-text-primary text-h2">Devices</h2>
           <DeviceSelector
             devices={policyDevices}
             loading={isLoadingDevices}

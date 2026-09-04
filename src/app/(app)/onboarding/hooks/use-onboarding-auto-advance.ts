@@ -79,7 +79,10 @@ interface AutoAdvanceOptions<T extends string> {
  */
 export function useOnboardingAutoAdvance<T extends string>(
   steps: readonly T[],
-  completedSteps: readonly T[],
+  // Membership oracle, not a step list — deliberately NOT `readonly T[]`. A surface
+  // renders a subset of its enum, so this can name steps it never shows; `steps` alone
+  // defines the universe.
+  completedSteps: readonly string[],
   { scrollOnMount = false, urlStep = null, onOpenStepChange }: AutoAdvanceOptions<T> = {},
 ) {
   // The step the flow points the user at — first incomplete one in display order.
@@ -95,9 +98,19 @@ export function useOnboardingAutoAdvance<T extends string>(
   const prevNextStepRef = useRef(nextStep);
   const prevUrlStepRef = useRef(urlStep);
   const openStepRef = useRef(openStep);
-  openStepRef.current = openStep;
   const onOpenStepChangeRef = useRef(onOpenStepChange);
-  onOpenStepChangeRef.current = onOpenStepChange;
+  useEffect(() => {
+    openStepRef.current = openStep;
+    onOpenStepChangeRef.current = onOpenStepChange;
+  });
+
+  /**
+   * What the mount effect below needs, captured so it can stay mount-only. Read
+   * from a ref rather than listed as dependencies: re-running it on a later URL
+   * change would re-scroll the page out from under the user, which is what the
+   * adopt-external-changes effect further down is for.
+   */
+  const mountArgsRef = useRef({ urlStep, scrollOnMount });
 
   // Every internal transition goes through here so the URL param stays a
   // faithful mirror of the open block.
@@ -144,12 +157,18 @@ export function useOnboardingAutoAdvance<T extends string>(
 
   // Mount: report the initially open step so the URL reflects it from the
   // start, and (on deep-linkable surfaces) land the user on it.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only by design
+  // mount-only by design
+  const scrollToStepRef = useRef(scrollToStep);
+  useEffect(() => {
+    scrollToStepRef.current = scrollToStep;
+  });
+
   useEffect(() => {
     const initial = openStepRef.current;
     if (!initial) return;
-    if (initial !== urlStep) onOpenStepChangeRef.current?.(initial);
-    if (scrollOnMount) scrollToStep(initial);
+    const { urlStep: mountUrlStep, scrollOnMount: shouldScroll } = mountArgsRef.current;
+    if (initial !== mountUrlStep) onOpenStepChangeRef.current?.(initial);
+    if (shouldScroll) scrollToStepRef.current(initial);
   }, []);
 
   // Adopt external URL changes (back/forward, hand-edited param): the URL owns
@@ -168,7 +187,7 @@ export function useOnboardingAutoAdvance<T extends string>(
   // open the new one, and (after the accordion animation) anchor to it.
   useEffect(() => {
     const prev = prevNextStepRef.current;
-    if (nextStep === prev) return;
+    if (nextStep === prev) return undefined;
     prevNextStepRef.current = nextStep;
     setOpenStep(nextStep);
     const firstStep = steps[0];

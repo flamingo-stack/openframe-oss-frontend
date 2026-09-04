@@ -18,10 +18,10 @@ import {
   onboardingStepAnchorId,
   onboardingStepFromAnchorId,
   USER_ONBOARDING_STEPS,
+  type UserOnboardingStepId,
 } from '../onboarding-steps';
 import { USER_ONBOARDING_GROUPS } from '../user-onboarding-groups';
-import { CustomerSetupStep } from './customer-setup-step';
-import { DeviceSetupStep } from './device-setup-step';
+import { BookCallSection } from './book-call/book-call-section';
 import { KnowledgeBaseStep } from './knowledge-base-step';
 import { LoggingStep } from './logging-step';
 import { MingoStep } from './mingo-step';
@@ -49,10 +49,12 @@ type StepBodyProps = {
  * Step → body component. The static presentation (group, icon, title, description)
  * lives in {@link ../user-onboarding-groups}; this maps each step to the interactive
  * form rendered when its row is expanded.
+ *
+ * Keyed by `UserOnboardingStepId`, not the whole backend enum — the tour renders a
+ * subset (see {@link ../onboarding-steps}), and this way adding a step to that array
+ * without a body here is a compile error rather than a blank expanded row.
  */
-const STEP_BODY: Record<UserOnboardingStep, ComponentType<StepBodyProps>> = {
-  [UserOnboardingStep.CUSTOMERS_SETUP]: CustomerSetupStep,
-  [UserOnboardingStep.DEVICE_MANAGEMENT]: DeviceSetupStep,
+const STEP_BODY: Record<UserOnboardingStepId, ComponentType<StepBodyProps>> = {
   [UserOnboardingStep.TICKETS]: TicketsStep,
   [UserOnboardingStep.SCRIPTING]: ScriptingStep,
   [UserOnboardingStep.MONITORING]: MonitoringStep,
@@ -89,11 +91,11 @@ export function OnboardingContent() {
   // LATER visit (deep link, back button, reload, menu) with the tour already complete is
   // redirected away. Writing the ref during the first loaded render is a deliberate
   // one-shot capture that only gates this component.
-  const completedOnArrivalRef = useRef<boolean | null>(null);
-  if (isLoaded && completedOnArrivalRef.current === null) {
-    completedOnArrivalRef.current = user?.completed ?? false;
+  const [completedOnArrival, setCompletedOnArrival] = useState<boolean | null>(null);
+  if (isLoaded && completedOnArrival === null) {
+    setCompletedOnArrival(user?.completed ?? false);
   }
-  const lockedOut = completedOnArrivalRef.current === true;
+  const lockedOut = completedOnArrival === true;
 
   // The personal Get Started tour is only reachable after the tenant Initial Setup is
   // complete and before the user has finished it. If the user lands here otherwise (deep
@@ -117,7 +119,7 @@ function LoadedOnboardingContent() {
   const router = useRouter();
   const [skipConfirmOpen, setSkipConfirmOpen] = useState(false);
   // Which step's "Mark as Complete" is committing — drives that button's spinner.
-  const [completingStep, setCompletingStep] = useState<UserOnboardingStep | null>(null);
+  const [completingStep, setCompletingStep] = useState<UserOnboardingStepId | null>(null);
 
   const user = useOnboardingStore(state => state.user);
   const { completeUserStep, completeUserStepInBackground, completeUserInBackground, skipUser, isMutating } =
@@ -134,7 +136,7 @@ function LoadedOnboardingContent() {
   // (behind the `isLoaded` gate), so reading `location.hash` during the first
   // render is safe and gives the deep-linked step to the auto-advance hook from
   // the start — an effect would run after the hook's mount anchor.
-  const [hashStep, setHashStep] = useState<UserOnboardingStep | null>(() =>
+  const [hashStep, setHashStep] = useState<UserOnboardingStepId | null>(() =>
     typeof window === 'undefined'
       ? null
       : onboardingStepFromAnchorId(USER_ONBOARDING_STEPS, window.location.hash.slice(1)),
@@ -153,7 +155,7 @@ function LoadedOnboardingContent() {
   // hook scrolls to). Closing clears the fragment; the helper deliberately
   // refuses hash-less targets, so replicate its replaceState + synthetic-event
   // pair (`replaceState` fires no native `hashchange` per the HTML spec).
-  const syncHashToStep = useCallback((step: UserOnboardingStep | null) => {
+  const syncHashToStep = useCallback((step: UserOnboardingStepId | null) => {
     if (step) {
       navigateSamePageHash(`#${onboardingStepAnchorId(step)}`, {
         headerOffset: ANCHOR_TOP_OFFSET_PX,
@@ -162,7 +164,7 @@ function LoadedOnboardingContent() {
     } else {
       const oldUrl = window.location.href;
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      // biome-ignore lint/style/useNamingConvention: oldURL/newURL are the DOM HashChangeEventInit field names
+      // oldURL/newURL are the DOM HashChangeEventInit field names
       window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: oldUrl, newURL: window.location.href }));
     }
   }, []);
@@ -192,16 +194,16 @@ function LoadedOnboardingContent() {
     }
   }, [allDone, completeUserInBackground]);
 
-  const statusOf = (step: UserOnboardingStep): OnboardingStepStatus =>
+  const statusOf = (step: UserOnboardingStepId): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
-  const doneOf = (step: UserOnboardingStep) => isStepDone(step, completedSteps);
-  const completeOf = (step: UserOnboardingStep) => () => {
+  const doneOf = (step: UserOnboardingStepId) => isStepDone(step, completedSteps);
+  const completeOf = (step: UserOnboardingStepId) => () => {
     setCompletingStep(step);
     completeUserStep(step, () => setCompletingStep(null));
   };
-  const completingOf = (step: UserOnboardingStep) => completingStep === step;
+  const completingOf = (step: UserOnboardingStepId) => completingStep === step;
   // Fire-and-forget completion for "open"/navigate primary actions — no loading anywhere.
-  const completeBackgroundOf = (step: UserOnboardingStep) => () => completeUserStepInBackground(step);
+  const completeBackgroundOf = (step: UserOnboardingStepId) => () => completeUserStepInBackground(step);
 
   // Header action: "Skip Onboarding", available until every step is done. Once all steps
   // complete there is no header action — the "All Steps Done!" banner (rendered as the
@@ -238,6 +240,9 @@ function LoadedOnboardingContent() {
           onAction={leaveOnboarding}
         />
       )}
+
+      {/* The "walk me through it instead" offer, above the steps it replaces. */}
+      <BookCallSection />
 
       {USER_ONBOARDING_GROUPS.map(group => (
         <OnboardingAccordionGroup key={group.label} label={group.label}>

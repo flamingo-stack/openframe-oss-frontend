@@ -11,8 +11,8 @@
  *     `/content` rewrite, in-app auth pages, no external navigation, and the
  *     App Store / Play billing ban.
  *   - `isMobileShell()` — the phone. FCM push, biometric login, status bar /
- *     splash / safe-area insets, Android hardware back, and the custom-scheme
- *     OAuth callback (desktop lands on https instead).
+ *     splash / safe-area insets, and Android hardware back. NOT the
+ *     custom-scheme OAuth callback: both shells complete login on it.
  *   - `isDesktopShell()` — Tauri. Shell-side token rotation and OS-notification
  *     click transports, both delivered as Tauri events.
  *
@@ -22,10 +22,28 @@
 
 export type ShellKind = 'web' | 'mobile' | 'desktop';
 
+/**
+ * The globals each shell injects before any page script runs. Only the members
+ * this module probes are declared — `native-shell.ts` owns the typed access to
+ * everything hanging off them.
+ */
+interface ShellGlobals {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI__?: unknown;
+  Capacitor?: {
+    isNativePlatform?: () => boolean;
+    getPlatform?: () => string;
+  };
+}
+
+function shellGlobals(): ShellGlobals {
+  return window as unknown as ShellGlobals;
+}
+
 let cachedShellKind: ShellKind | null = null;
 
 function detectShellKind(): ShellKind {
-  const globals = window as any;
+  const globals = shellGlobals();
   // Each shell is identified by a global only it has: Tauri's IPC object on
   // desktop, Capacitor's native bridge on mobile. Disjoint, so the order below
   // isn't load-bearing — but Tauri stays first deliberately. The desktop shell
@@ -76,7 +94,7 @@ export function isDesktopShell(): boolean {
 /** The phone OS; null everywhere else — on the web AND on desktop. */
 export function mobilePlatform(): 'ios' | 'android' | null {
   if (!isMobileShell()) return null;
-  const platform = (window as any).Capacitor?.getPlatform?.();
+  const platform = shellGlobals().Capacitor?.getPlatform?.();
   return platform === 'ios' || platform === 'android' ? platform : null;
 }
 

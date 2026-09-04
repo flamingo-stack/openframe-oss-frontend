@@ -1,122 +1,150 @@
 'use client';
 
-import { Button, Skeleton, Switch } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button } from '@flamingo-stack/openframe-frontend-core';
+import { CheckboxBlock, Switch } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useEffect, useId, useState } from 'react';
-import { fetchQuery, useMutation, useRelayEnvironment } from 'react-relay';
-import type { notificationSettingsRelayQuery as NotificationSettingsRelayQueryType } from '@/__generated__/notificationSettingsRelayQuery.graphql';
-import type { updateNotificationSettingsMutation as UpdateNotificationSettingsMutationType } from '@/__generated__/updateNotificationSettingsMutation.graphql';
+import { useId, useState } from 'react';
+import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
+import type { notificationSettingsModalMutation as SettingsMutation } from '@/__generated__/notificationSettingsModalMutation.graphql';
+import type { notificationSettingsModalQuery as SettingsQuery } from '@/__generated__/notificationSettingsModalQuery.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
-import { notificationSettingsRelayQuery } from '@/graphql/notifications/notification-settings-relay';
-import { updateNotificationSettingsMutation } from '@/graphql/notifications/update-notification-settings-mutation';
-import { getErrorMessage } from '@/lib/handle-api-error';
+import { NotificationSettingGroup } from '@/generated/schema-enums';
+
+const settingsQuery = graphql`
+  query notificationSettingsModalQuery {
+    notificationSettings {
+      enabled
+      typeSettings {
+        group
+        enabled
+      }
+    }
+  }
+`;
+
+const updateSettingsMutation = graphql`
+  mutation notificationSettingsModalMutation($enabled: Boolean!, $typeSettings: [NotificationTypeSettingInput!]) {
+    updateNotificationSettings(enabled: $enabled, typeSettings: $typeSettings) {
+      enabled
+      typeSettings {
+        group
+        enabled
+      }
+    }
+  }
+`;
+
+/** Schema order — the design lists the groups in exactly this sequence. */
+const GROUPS = Object.values(NotificationSettingGroup);
+
+const GROUP_LABELS: Record<NotificationSettingGroup, string> = {
+  TICKET_ASSIGNED: 'Ticket assigned',
+  TICKET_CREATED: 'Ticket created by client',
+  TICKET_STATUS_CHANGED: 'Ticket status changed',
+  CUSTOMER_REPLIED: 'Customer replied',
+  ADMIN_REPLIED: 'Admin replied',
+  MINGO_MESSAGES: 'New messages from mingo',
+  APPROVAL_TICKET: 'Approval required ticket',
+  APPROVAL_MINGO: 'Approval required mingo',
+};
 
 interface NotificationSettingsModalProps {
-  isOpen: boolean;
   onClose: () => void;
 }
 
-export function NotificationSettingsModal({ isOpen, onClose }: NotificationSettingsModalProps) {
+/**
+ * Per-user notification preferences: the master switch plus one checkbox per
+ * `NotificationSettingGroup`.
+ *
+ * These are not cosmetic — the backend filters the audience by them BEFORE anything
+ * is persisted or published (`NotificationBroadcaster.withoutOptedOut`), so an
+ * opted-out group produces no in-app card, no NATS publish and no push, and nothing
+ * arrives retroactively when it is switched back on.
+ *
+ * Mounted only while open (see the call site) because `useLazyLoadQuery` suspends:
+ * the component renders once the settings are in hand, which is also why the form
+ * state can be seeded straight from `data` with no effect.
+ *
+ * `network-only` on purpose. `NotificationSettings` carries no `id`, so Relay cannot
+ * normalise the mutation's payload back onto the record this query read — reopening
+ * on a cached store would show pre-save values. The payload is a handful of booleans,
+ * so refetching per open is cheaper than a store updater.
+ */
+export function NotificationSettingsModal({ onClose }: NotificationSettingsModalProps) {
+  const masterSwitchId = useId();
   const { toast } = useToast();
-  const switchId = useId();
-  const environment = useRelayEnvironment();
+  const data = useLazyLoadQuery<SettingsQuery>(settingsQuery, {}, { fetchPolicy: 'network-only' });
+  const [commit, isSaving] = useMutation<SettingsMutation>(updateSettingsMutation);
 
-  const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
-  const [commitUpdate, isSaving] = useMutation<UpdateNotificationSettingsMutationType>(
-    updateNotificationSettingsMutation,
+  const [enabled, setEnabled] = useState(data.notificationSettings.enabled);
+  const [groups, setGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(data.notificationSettings.typeSettings.map(setting => [setting.group, setting.enabled])),
   );
 
-  useEffect(() => {
-    if (!isOpen) {
-      setPushEnabled(null);
-      return;
-    }
-
-    const subscription = fetchQuery<NotificationSettingsRelayQueryType>(
-      environment,
-      notificationSettingsRelayQuery,
-      {},
-      { fetchPolicy: 'store-or-network' },
-    ).subscribe({
-      next: data => setPushEnabled(data.notificationSettings.pushEnabled),
-      error: (error: unknown) => {
-        toast({
-          title: 'Error',
-          description: getErrorMessage(error) || 'Failed to load notification settings',
-          variant: 'destructive',
-        });
-      },
-    });
-    return () => subscription.unsubscribe();
-  }, [isOpen, environment, toast]);
-
-  const isLoading = pushEnabled === null;
-
   const handleSave = () => {
-    if (pushEnabled === null) return;
-    commitUpdate({
-      variables: { pushEnabled },
-      // NotificationSettings has no id, so the payload doesn't auto-merge into the
-      // query root — relink it manually to keep `notificationSettings` fresh.
-      updater: store => {
-        const payload = store.getRootField('updateNotificationSettings');
-        if (payload) store.getRoot().setLinkedRecord(payload, 'notificationSettings');
-      },
+    commit({
+      variables: { enabled, typeSettings: GROUPS.map(group => ({ group, enabled: Boolean(groups[group]) })) },
       onCompleted: () => {
-        toast({
-          title: 'Notifications Updated',
-          description: 'Your notification settings have been saved.',
-          variant: 'success',
-        });
+        toast({ title: 'Saved', description: 'Notification settings updated.', variant: 'success' });
         onClose();
       },
       onError: error => {
-        toast({
-          title: 'Error',
-          description: getErrorMessage(error) || 'Failed to update notification settings',
-          variant: 'destructive',
-        });
+        // Keep the modal open so the edit is not lost.
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
       },
     });
   };
 
   return (
     <SimpleModal
-      isOpen={isOpen}
+      isOpen
       onClose={onClose}
+      className="max-w-[520px]"
       title="Notifications"
-      className="max-w-[600px]"
+      contentClassName="flex flex-col gap-[var(--spacing-system-m)]"
       footer={
         <>
           <Button
             variant="outline"
             onClick={onClose}
             disabled={isSaving}
-            className="flex-1 h-12 bg-ods-card border-ods-border text-ods-text-primary text-h3 hover:bg-ods-bg"
+            className="h-12 flex-1 border-ods-border bg-ods-card text-ods-text-primary text-h3 hover:bg-ods-bg"
           >
             Cancel
           </Button>
           <Button
             variant="accent"
             onClick={handleSave}
-            disabled={isLoading || isSaving}
-            className="flex-1 h-12 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90"
+            disabled={isSaving}
+            className="h-12 flex-1 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90"
           >
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </>
       }
     >
-      {isLoading ? (
-        <Skeleton className="h-12 w-full rounded-md" />
-      ) : (
-        <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-sf)] flex items-center gap-[var(--spacing-system-s)]">
-          <Switch id={switchId} checked={pushEnabled} onCheckedChange={setPushEnabled} disabled={isSaving} />
-          <label htmlFor={switchId} className="flex-1 min-w-0 truncate text-h4 text-ods-text-primary">
-            Enable Notifications
-          </label>
-        </div>
-      )}
+      <div className="flex min-h-[44px] items-center gap-[var(--spacing-system-s)] rounded-md bg-ods-card p-[var(--spacing-system-sf)] ring-1 ring-inset ring-ods-border md:min-h-[48px]">
+        <Switch id={masterSwitchId} checked={enabled} onCheckedChange={setEnabled} disabled={isSaving} />
+        <label htmlFor={masterSwitchId} className="cursor-pointer text-ods-text-primary text-h4">
+          Enable Notifications
+        </label>
+      </div>
+
+      <div className="flex flex-col gap-[var(--spacing-system-xs)]">
+        <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
+        {GROUPS.map(group => (
+          <CheckboxBlock
+            key={group}
+            id={`notification-group-${group}`}
+            label={GROUP_LABELS[group]}
+            checked={Boolean(groups[group])}
+            // The master switch owns everything below it, so the per-group rows go
+            // inert while it is off rather than implying they still have an effect.
+            disabled={isSaving || !enabled}
+            onCheckedChange={checked => setGroups(prev => ({ ...prev, [group]: Boolean(checked) }))}
+          />
+        ))}
+      </div>
     </SimpleModal>
   );
 }

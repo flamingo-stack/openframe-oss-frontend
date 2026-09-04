@@ -209,8 +209,8 @@ Run the linter and type checker — both catch common security antipatterns:
 
 ```bash
 npm run type-check   # Catches unsafe type assertions
-npm run lint         # ESLint security rules
-npm run lint:biome   # Biome security checks
+npm run lint         # ESLint (no-eval, no-new-func, no-script-url, the unsafe-any family)
+npm run lint:types   # ESLint type-aware pass (floating promises, misused await)
 ```
 
 ### Manual Security Review Checklist

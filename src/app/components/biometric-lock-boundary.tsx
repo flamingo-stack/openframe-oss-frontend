@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { invalidateAuthSession, signOutToLogin } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { routes } from '@/lib/routes';
 import {
@@ -27,13 +27,17 @@ export function BiometricLockBoundary({ children }: { children: React.ReactNode 
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
-  const [lock, setLock] = useState<BiometricLockState>(() => getBiometricLockState());
+  // `useSyncExternalStore` rather than state seeded from an effect: the lock lives
+  // in the token store, and this is exactly the subscribe/read-snapshot pair it
+  // wants. It also removes the extra render the effect version cost on every
+  // mount, and states the server snapshot explicitly.
+  const lock = useSyncExternalStore<BiometricLockState>(
+    subscribeToBiometricLock,
+    getBiometricLockState,
+    // A prerender has no shell, so it is never locked.
+    () => null,
+  );
   const [leavingToLogin, setLeavingToLogin] = useState(false);
-
-  useEffect(() => {
-    setLock(getBiometricLockState());
-    return subscribeToBiometricLock(setLock);
-  }, []);
 
   // Biometric enrollment changed → the Keychain key is gone, tokens are
   // unrecoverable. Same hard sign-out as the card's INVALIDATED path — lands
@@ -47,11 +51,12 @@ export function BiometricLockBoundary({ children }: { children: React.ReactNode 
   // "Log in another way" hand-off: keep rendering the gate until the sign-in
   // route is actually current — releasing on dismiss alone would flash the
   // stale cold-start route (e.g. `/` redirecting by persisted auth state).
-  useEffect(() => {
-    if (leavingToLogin && pathname?.startsWith(routes.auth.root)) {
-      setLeavingToLogin(false);
-    }
-  }, [leavingToLogin, pathname]);
+  // Released during render: the gate is rendered from this flag, so an effect
+  // would keep the overlay up for one more frame after the login route is
+  // already current — the flash this hand-off exists to avoid.
+  if (leavingToLogin && pathname?.startsWith(routes.auth.root)) {
+    setLeavingToLogin(false);
+  }
 
   const handleUseAnotherLogin = useCallback(async () => {
     setLeavingToLogin(true);

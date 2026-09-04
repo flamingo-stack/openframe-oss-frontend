@@ -173,7 +173,9 @@ export async function fetchAllDevices({
 
 /** Status breakdown + total — the dashboard stat cards. One backend facet query each. */
 export async function fetchDeviceStatusCounts(filter: DeviceFilterInput = {}): Promise<DeviceStatusCounts> {
-  const data = await postDeviceQuery<DeviceStatusCountsResponse>(GET_DEVICE_STATUS_COUNTS_QUERY, { filter });
+  const data = await postDeviceQuery<DeviceStatusCountsResponse>(GET_DEVICE_STATUS_COUNTS_QUERY, {
+    filter: toRelayDeviceFilter(filter),
+  });
 
   return {
     filteredCount: data.deviceFilters.filteredCount ?? 0,
@@ -191,7 +193,7 @@ export async function fetchDeviceStatusCounts(filter: DeviceFilterInput = {}): P
  */
 export async function fetchDeviceOrganizationCounts(filter: DeviceFilterInput = {}): Promise<DeviceOrganizationCounts> {
   const data = await postDeviceQuery<DeviceOrganizationCountsResponse>(GET_DEVICE_ORGANIZATION_COUNTS_QUERY, {
-    filter,
+    filter: toRelayDeviceFilter(filter),
   });
 
   return new Map((data.deviceFilters.organizationIds ?? []).map(entry => [entry.value, entry.count]));

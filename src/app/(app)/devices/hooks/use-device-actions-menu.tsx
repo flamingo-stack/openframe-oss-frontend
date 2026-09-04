@@ -3,22 +3,19 @@
 import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core';
 import { normalizeOSType } from '@flamingo-stack/openframe-frontend-core';
 import {
-  BoxArchiveIcon,
   BracketCurlyIcon,
-  InboxArrowUpIcon,
   PenEditIcon,
   Refresh01LeftIcon,
   TrashIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import { type ReactNode, useState } from 'react';
+import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { routes } from '@/lib/routes';
 import { EditDisplayNameModal } from '../components/edit-display-name-modal';
 import type { Device } from '../types/device.types';
 import { type DeviceActionAvailability, getDeviceActionAvailability } from '../utils/device-action-utils';
 import { buildDeviceMenuItems } from '../utils/device-menu-items';
-import { getDeviceName } from '../utils/device-name';
-import { useDeviceActions } from './use-device-actions';
 import { useDeviceConfirmationDialogs } from './use-device-confirmation-dialogs';
 
 const DEFAULT_ICON_SIZE = 'w-6 h-6';
@@ -30,21 +27,21 @@ interface UseDeviceActionsMenuOptions {
   deviceId?: string;
   /** Tailwind classes for primary menu icons. Defaults to 'w-6 h-6'. */
   iconSize?: string;
-  /** When true, after archive/delete success also navigate to `/devices`. Composes with onActionComplete. */
+  /** When true, after delete success also navigate to `/devices`. Composes with onActionComplete. */
   navigateOnDestructive?: boolean;
 }
 
 export interface DeviceActionsMenuItems {
   deviceDetails: ActionsMenuItem;
   remoteShell: ActionsMenuItem;
-  remoteControl: ActionsMenuItem;
+  /** Null in the mobile shell — see the `isMobileShell` note below. */
+  remoteControl: ActionsMenuItem | null;
   manageFiles: ActionsMenuItem;
   runScript: ActionsMenuItem;
-  editDisplayName: ActionsMenuItem;
+  /** Null on read-only archive records (DELETED / legacy ARCHIVED). */
+  editDisplayName: ActionsMenuItem | null;
   reboot: ActionsMenuItem | null;
   deviceLogs: ActionsMenuItem;
-  archive: ActionsMenuItem | null;
-  unarchive: ActionsMenuItem | null;
   delete: ActionsMenuItem | null;
 }
 
@@ -65,138 +62,101 @@ export function useDeviceActionsMenu(
   }: UseDeviceActionsMenuOptions = {},
 ): UseDeviceActionsMenuResult {
   const router = useRouter();
+  const isMobileShell = useIsMobileShell();
   const [showEditDisplayName, setShowEditDisplayName] = useState(false);
 
   const deviceId = deviceIdOverride || device?.machineId || device?.id || '';
 
-  const handleDestructiveSuccess = useCallback(() => {
+  const handleDestructiveSuccess = () => {
     onActionComplete?.();
     if (navigateOnDestructive) router.push(routes.devices.list);
-  }, [onActionComplete, navigateOnDestructive, router]);
+  };
 
-  const { openArchive, openDelete, openReboot, dialogs, unarchiveDevice, isUnarchiving, isRebooting } =
-    useDeviceConfirmationDialogs(device, {
-      onArchived: handleDestructiveSuccess,
-      onDeleted: handleDestructiveSuccess,
-      onRebooted: onActionComplete,
-    });
+  const { openDelete, openReboot, dialogs, isRebooting } = useDeviceConfirmationDialogs(device, {
+    onDeleted: handleDestructiveSuccess,
+    onRebooted: onActionComplete,
+  });
 
-  // Unarchive is non-destructive and instantly reversible — no confirm dialog,
-  // just the action + toast. The device stays valid, so no navigation either.
-  const handleUnarchive = useCallback(async () => {
-    if (!device) return;
-    const success = await unarchiveDevice(deviceId, getDeviceName(device));
-    if (success) onActionComplete?.();
-  }, [device, deviceId, unarchiveDevice, onActionComplete]);
+  const actionAvailability = device ? getDeviceActionAvailability(device) : null;
 
-  const actionAvailability = useMemo(() => (device ? getDeviceActionAvailability(device) : null), [device]);
-
-  const isWindows = useMemo(() => {
-    if (!device) return undefined;
-    const osType = device.platform || device.osType || device.operating_system;
-    return normalizeOSType(osType) === 'WINDOWS';
-  }, [device]);
+  const isWindows = device
+    ? normalizeOSType(device.platform || device.osType || device.operating_system) === 'WINDOWS'
+    : undefined;
 
   const runScriptHref = routes.devices.details(deviceId, { action: 'runScript' });
 
-  const handleRunScript = useCallback(() => {
+  const handleRunScript = () => {
     if (onRunScript) {
       onRunScript();
     } else {
       router.push(runScriptHref);
     }
-  }, [runScriptHref, onRunScript, router]);
+  };
 
-  const items = useMemo<DeviceActionsMenuItems>(() => {
-    const base = buildDeviceMenuItems({
-      deviceId,
-      availability: actionAvailability,
-      iconSize: iconSize,
-      isWindows,
-      withNewTabAction: true,
-    });
-
-    const runScriptDisabled = !actionAvailability?.runScriptEnabled;
-    // Run Script opens the run modal in place — no new-tab `iconAction` arrow.
-    const runScript: ActionsMenuItem = {
-      id: 'run-script',
-      label: 'Run Script',
-      icon: <BracketCurlyIcon className={`${iconSize} text-ods-text-secondary`} />,
-      disabled: runScriptDisabled,
-      onClick: handleRunScript,
-    };
-
-    const editDisplayName: ActionsMenuItem = {
-      id: 'edit-display-name',
-      label: 'Edit Display Name',
-      icon: <PenEditIcon className={`${iconSize} text-ods-text-secondary`} />,
-      onClick: () => setShowEditDisplayName(true),
-    };
-
-    const reboot: ActionsMenuItem | null = actionAvailability?.rebootEnabled
-      ? {
-          id: 'reboot',
-          label: 'Reboot Device',
-          icon: <Refresh01LeftIcon className={`${iconSize} text-ods-text-secondary`} />,
-          disabled: isRebooting,
-          onClick: openReboot,
-        }
-      : null;
-
-    const archive: ActionsMenuItem | null = actionAvailability?.archiveEnabled
-      ? {
-          id: 'archive',
-          label: 'Archive Device',
-          icon: <BoxArchiveIcon className={`${iconSize} text-ods-text-secondary`} />,
-          onClick: openArchive,
-        }
-      : null;
-
-    const unarchive: ActionsMenuItem | null = actionAvailability?.unarchiveEnabled
-      ? {
-          id: 'unarchive',
-          label: 'Unarchive Device',
-          icon: <InboxArrowUpIcon className={`${iconSize} text-ods-text-secondary`} />,
-          disabled: isUnarchiving,
-          onClick: handleUnarchive,
-        }
-      : null;
-
-    const deleteItem: ActionsMenuItem | null = actionAvailability?.deleteEnabled
-      ? {
-          id: 'delete',
-          label: 'Delete Device',
-          icon: <TrashIcon className={`${iconSize} text-ods-error`} />,
-          onClick: openDelete,
-        }
-      : null;
-
-    return {
-      deviceDetails: base.deviceDetails,
-      remoteShell: base.remoteShell,
-      remoteControl: base.remoteControl,
-      manageFiles: base.manageFiles,
-      runScript,
-      editDisplayName,
-      reboot,
-      deviceLogs: base.deviceLogs,
-      archive,
-      unarchive,
-      delete: deleteItem,
-    };
-  }, [
+  const base = buildDeviceMenuItems({
     deviceId,
-    actionAvailability,
+    availability: actionAvailability,
+    iconSize: iconSize,
     isWindows,
-    iconSize,
-    handleRunScript,
-    openArchive,
-    openDelete,
-    openReboot,
-    isRebooting,
-    handleUnarchive,
-    isUnarchiving,
-  ]);
+    withNewTabAction: true,
+  });
+
+  const runScriptDisabled = !actionAvailability?.runScriptEnabled;
+  // Run Script opens the run modal in place — no new-tab `iconAction` arrow.
+  const runScript: ActionsMenuItem = {
+    id: 'run-script',
+    label: 'Run Script',
+    icon: <BracketCurlyIcon className={`${iconSize} text-ods-text-secondary`} />,
+    disabled: runScriptDisabled,
+    onClick: handleRunScript,
+  };
+
+  const editDisplayName: ActionsMenuItem | null = actionAvailability?.editDisplayNameEnabled
+    ? {
+        id: 'edit-display-name',
+        label: 'Edit Display Name',
+        icon: <PenEditIcon className={`${iconSize} text-ods-text-secondary`} />,
+        onClick: () => setShowEditDisplayName(true),
+      }
+    : null;
+
+  const reboot: ActionsMenuItem | null = actionAvailability?.rebootEnabled
+    ? {
+        id: 'reboot',
+        label: 'Reboot Device',
+        icon: <Refresh01LeftIcon className={`${iconSize} text-ods-text-secondary`} />,
+        disabled: isRebooting,
+        onClick: openReboot,
+      }
+    : null;
+
+  const deleteItem: ActionsMenuItem | null = actionAvailability?.deleteEnabled
+    ? {
+        id: 'delete',
+        label: 'Delete Device',
+        icon: <TrashIcon className={`${iconSize} text-ods-error`} />,
+        onClick: openDelete,
+      }
+    : null;
+
+  const items: DeviceActionsMenuItems = {
+    deviceDetails: base.deviceDetails,
+    remoteShell: base.remoteShell,
+    // The MeshCentral canvas is pointer-and-keyboard software — a remote desktop
+    // scaled into a phone viewport, with no mouse, no modifier keys and no
+    // Ctrl+Alt+Del. Dropping the item here (rather than disabling it) is what
+    // removes every entry point at once: this hook feeds the devices table
+    // dropdown, the device-details header buttons and the ticket-details menu.
+    // The route itself redirects, for a restored URL that never passed through
+    // a menu.
+    remoteControl: isMobileShell ? null : base.remoteControl,
+    manageFiles: base.manageFiles,
+    runScript,
+    editDisplayName,
+    reboot,
+    deviceLogs: base.deviceLogs,
+    delete: deleteItem,
+  };
 
   const allDialogs = (
     <>

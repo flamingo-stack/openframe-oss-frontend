@@ -1,8 +1,9 @@
 'use client';
+'use no memo';
 
 import {
-  TicketStatusConfigList as SortableList,
   type SortableRowRenderArgs,
+  TicketStatusConfigList,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DraggerIcon, PlusCircleIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -105,7 +106,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
 
   return (
     <div className={cn('flex flex-col gap-[var(--spacing-system-l)]', className)}>
-      <span className="text-h2 text-ods-text-primary">{title}</span>
+      <span className="text-ods-text-primary text-h2">{title}</span>
 
       <Controller
         name="quickActionsIsDefault"
@@ -122,10 +123,10 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
               // uses the same type ramp as the view banner: 18/24 title, 14/20
               // caption, 12px padding, centered 24px checkbox.
               className={cn(
-                'items-center rounded-md p-[var(--spacing-system-sf)] gap-[var(--spacing-system-s)]',
-                '[&_button]:size-6 [&_button]:mt-0',
-                '[&>div>label]:text-h4 [&>div>label]:leading-6 [&>div>label]:mb-0',
-                '[&>div>span]:text-h6 [&>div>span]:leading-5',
+                'items-center gap-[var(--spacing-system-s)] rounded-md p-[var(--spacing-system-sf)]',
+                '[&_button]:mt-0 [&_button]:size-6',
+                '[&>div>label]:mb-0 [&>div>label]:leading-6 [&>div>label]:text-h4',
+                '[&>div>span]:leading-5 [&>div>span]:text-h6',
               )}
             />
             <ConfirmDialog
@@ -153,7 +154,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
             actions={defaultActions}
             isDefault={copy.previewIsOpenFrame}
             agentConfig={agentConfig}
-            className="opacity-50 pointer-events-none"
+            className="pointer-events-none opacity-50"
           />
         )
       ) : (
@@ -163,20 +164,21 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
               type="button"
               variant="transparent"
               onClick={() => replace([])}
-              className="self-end !p-0 !h-auto text-h6 text-ods-error underline hover:text-ods-error"
+              className="!h-auto self-end !p-0 text-ods-error underline text-h6 hover:text-ods-error"
             >
               Delete All
             </Button>
           )}
 
-          {/* Sortable list (drag-to-reorder). The reordered form-array order is
-              exactly what the existing save mutation submits, so persisting the
-              order needs no extra wiring. `field.id` is RHF's stable per-row key,
-              so it doubles as the sortable id; the index is resolved by id because
-              `renderRow` receives only the item. */}
-          <SortableList
+          {/* Sortable list — drag on desktop, up/down buttons on touch. The
+              reordered form-array order is exactly what the existing save
+              mutation submits, so persisting the order needs no extra wiring.
+              `field.id` is RHF's stable per-row key; the index is resolved by id
+              because `renderRow` receives only the item. */}
+          <TicketStatusConfigList
             items={fields}
             onReorder={move}
+            getItemLabel={index => fields[index]?.name || undefined}
             className="gap-[var(--spacing-system-xs)]"
             renderRow={(field, dragArgs) => {
               const index = fields.findIndex(f => f.id === field.id);
@@ -195,7 +197,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
             type="button"
             variant="transparent"
             onClick={() => append({ name: '', instructions: '' })}
-            leftIcon={<PlusCircleIcon className="w-5 h-5 text-ods-text-secondary" />}
+            leftIcon={<PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />}
             className="self-start"
           >
             Add Quick Action
@@ -222,50 +224,79 @@ const LABEL_OFFSET_CLASS = 'pt-[calc(var(--font-line-space-h4-body)+0.25rem)]';
  * - desktop (lg+):     [handle] [Action Name] [Action Instructions] [delete] in one row
  * - mobile/tablet:     [handle] [Action Name] [delete], Instructions on the next
  *                      row indented to the Name column
+ * On touch/narrow viewports (`drag.moveButtons` set) the drag rail disappears
+ * and the up/down pair renders beside the delete button instead.
  * Transparent background — only the border outlines the card.
  */
 function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProps) {
+  // Touch mode: no drag rail column, reorder buttons live beside delete.
+  const touchReorder = drag.moveButtons != null;
   return (
     <div
       className={cn(
-        'grid grid-cols-[auto_minmax(0,1fr)_auto] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto]',
-        'gap-x-[var(--spacing-system-xs)] gap-y-[var(--spacing-system-m)] items-start',
-        'border border-ods-border rounded-md p-[var(--spacing-system-m)]',
-        drag.isDragging && 'opacity-70 shadow-lg bg-ods-bg',
+        touchReorder
+          ? // Touch: the mock spaces name / move buttons / delete by the same
+            // fixed 8px, so the grid gap matches the controls-cluster gap.
+            'grid grid-cols-[minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xsf)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
+          : 'grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xs)] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto]',
+        'items-start gap-y-[var(--spacing-system-m)]',
+        'rounded-md border border-ods-border p-[var(--spacing-system-m)]',
+        drag.isDragging && 'bg-ods-bg opacity-70 shadow-lg',
       )}
     >
       {/* Drag rail: a 44/48px hit box matching the input height, icon 16/24. */}
-      <div className={cn('col-start-1 row-start-1', LABEL_OFFSET_CLASS)}>
-        <button
-          type="button"
-          aria-label="Drag to reorder"
-          className="flex size-11 cursor-grab touch-none items-center justify-center rounded-sm text-ods-text-secondary outline-none hover:text-ods-text-primary focus-visible:ring-2 focus-visible:ring-ods-focus active:cursor-grabbing md:size-12"
-          {...drag.dragHandleAttributes}
-          {...drag.dragHandleProps}
-        >
-          <DraggerIcon className="size-4 md:size-6" />
-        </button>
-      </div>
+      {!touchReorder && (
+        <div className={cn('col-start-1 row-start-1', LABEL_OFFSET_CLASS)}>
+          <button
+            type="button"
+            aria-label="Drag to reorder"
+            className="flex size-11 cursor-grab items-center justify-center rounded-sm text-ods-text-secondary outline-none hover:text-ods-text-primary focus-visible:ring-2 focus-visible:ring-ods-focus active:cursor-grabbing md:size-12"
+            {...drag.dragHandleProps}
+          >
+            <DraggerIcon className="size-4 md:size-6" />
+          </button>
+        </div>
+      )}
 
-      <div className="col-start-2 row-start-1 min-w-0">
+      <div className={cn('row-start-1 min-w-0', touchReorder ? 'col-start-1' : 'col-start-2')}>
         <Controller
           name={`quickActions.${index}.name`}
           control={control}
-          render={({ field, fieldState }) => <Input {...field} label="Action Name" error={fieldState.error?.message} />}
-        />
-      </div>
-
-      <div className="col-span-2 col-start-2 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1">
-        <Controller
-          name={`quickActions.${index}.instructions`}
-          control={control}
           render={({ field, fieldState }) => (
-            <Textarea {...field} label="Action Instructions" error={fieldState.error?.message} rows={4} />
+            <Input {...field} label="Action Name" labelVariant="large" error={fieldState.error?.message} />
           )}
         />
       </div>
 
-      <div className={cn('col-start-3 row-start-1 lg:col-start-4', LABEL_OFFSET_CLASS)}>
+      <div
+        className={cn(
+          'col-span-2 row-start-2 min-w-0 lg:col-span-1 lg:row-start-1',
+          touchReorder ? 'col-start-1 lg:col-start-2' : 'col-start-2 lg:col-start-3',
+        )}
+      >
+        <Controller
+          name={`quickActions.${index}.instructions`}
+          control={control}
+          render={({ field, fieldState }) => (
+            <Textarea
+              {...field}
+              label="Action Instructions"
+              labelVariant="large"
+              error={fieldState.error?.message}
+              rows={4}
+            />
+          )}
+        />
+      </div>
+
+      <div
+        className={cn(
+          'row-start-1 flex items-center gap-[var(--spacing-system-xsf)]',
+          touchReorder ? 'col-start-2 lg:col-start-3' : 'col-start-3 lg:col-start-4',
+          LABEL_OFFSET_CLASS,
+        )}
+      >
+        {drag.moveButtons}
         <Button
           type="button"
           variant="outline"

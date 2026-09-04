@@ -1,6 +1,5 @@
 'use client';
-import { routes } from '@/lib/routes';
-
+import { type ReactNode, Suspense } from 'react';
 /**
  * Self-fetching mention chips for the GraphQL-resolvable entity types (device,
  * organization, kb article) — the `@marker:id` analogue of `[card://]` entity
@@ -24,14 +23,12 @@ import { routes } from '@/lib/routes';
  *     GLOBAL id (server decodes it), and the KB detail route ALSO keys on the
  *     global id — so both the fetch AND the href use `globalId`, not the raw id.
  *   - script                → `script(id:)` (dedicated query, takes a GLOBAL id;
- *     the v2 `/scripts-v2/details/<globalId>` route ALSO keys on the global id) —
+ *     the `/scripts/details/<globalId>` route ALSO keys on the global id) —
  *     so, like kb, both the fetch AND the href use `globalId`.
  *   - script schedule       → `scriptSchedule(id:)` (same deal as script: a
- *     dedicated query on a GLOBAL id, and the `/scripts-v2/schedules/details`
+ *     dedicated query on a GLOBAL id, and the `/scripts/schedules/details`
  *     route keys on the global id too).
  */
-
-import { type ReactNode, Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { relayMentionChipsKbQuery } from '@/__generated__/relayMentionChipsKbQuery.graphql';
 import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChipsNodeQuery.graphql';
@@ -39,6 +36,7 @@ import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentio
 import type { relayMentionChipsScriptQuery } from '@/__generated__/relayMentionChipsScriptQuery.graphql';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
+import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
 import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
 
@@ -114,9 +112,9 @@ function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): stri
     case CONTEXT_ENTITY_KIND.KB_ARTICLE:
       return routes.knowledgeBase.details(globalId);
     case CONTEXT_ENTITY_KIND.SCRIPT:
-      return routes.scriptsV2.details(globalId);
+      return routes.scripts.details(globalId);
     case CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT:
-      return routes.scriptsV2.schedules.details(globalId);
+      return routes.scripts.schedules.details(globalId);
     default:
       return undefined;
   }
@@ -209,7 +207,7 @@ export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMen
   // `@kb:<globalId>` mention, since KB's idHint == the node id). `ensure…`
   // encodes the former and passes the latter through unchanged — no double-encode.
   // `toGlobalId` emits the backend's unpadded form, so this global id is URL-safe
-  // for the kb/script detail hrefs (`/scripts-v2/details/<globalId>`).
+  // for the kb/script detail hrefs (`/scripts/details/<globalId>`).
   const globalId = ensureGlobalIdForType(typename, id);
   const Inner = innerFor(kind);
   return (

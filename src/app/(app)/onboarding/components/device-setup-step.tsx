@@ -10,7 +10,7 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { DEFAULT_OS_PLATFORM, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useDevicesOverview } from '@/app/(app)/dashboard/hooks/use-dashboard-stats';
 import { OrgAvatar } from '@/app/components/shared';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
@@ -54,13 +54,17 @@ export function DeviceSetupStep({
   const [organizationId, setOrganizationId] = useState('');
   const [platform, setPlatform] = useState<OSPlatformId>(DEFAULT_OS_PLATFORM);
 
-  // Default the customer to the tenant's default org (then the first one) once loaded.
-  useEffect(() => {
+  // Default the customer to the tenant's default org (then the first one) once
+  // loaded — during render rather than in an effect, so the install command below
+  // is never built for one frame with no organization at all.
+  const [seededFrom, setSeededFrom] = useState(orgs);
+  if (orgs !== seededFrom) {
+    setSeededFrom(orgs);
     if (orgs.length > 0 && !organizationId) {
       const defaultOrg = orgs.find(o => o.isDefault) ?? orgs[0];
       if (defaultOrg) setOrganizationId(defaultOrg.organizationId);
     }
-  }, [orgs, organizationId]);
+  }
 
   const { command, initialKey } = useInstallCommand({ organizationId, platform });
 
@@ -90,7 +94,7 @@ export function DeviceSetupStep({
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Setup and run command on a client machine to install the OpenFrame agent. Once installed, users will get an
         in-app AI assistant that helps them troubleshoot and resolve issues. The step completes automatically once the
         device comes online.
@@ -134,14 +138,14 @@ export function DeviceSetupStep({
 
       {/* OpenFrame Installation Script — click the box to copy */}
       <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-        <p className="text-h4 text-ods-text-primary">OpenFrame Installation Script</p>
+        <p className="text-ods-text-primary text-h4">OpenFrame Installation Script</p>
         <button
           type="button"
           onClick={handleCopyCommand}
           className="flex w-full flex-col items-start gap-[var(--spacing-system-s)] overflow-hidden rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] text-left transition-colors hover:bg-ods-bg-hover"
         >
-          <p className="w-full break-all text-h4 text-ods-text-primary">{command}</p>
-          <p className="text-h4 text-ods-text-secondary">
+          <p className="w-full break-all text-ods-text-primary text-h4">{command}</p>
+          <p className="text-ods-text-secondary text-h4">
             {copied ? 'Copied to clipboard' : 'Click on the command to copy'}
           </p>
         </button>
@@ -151,7 +155,7 @@ export function DeviceSetupStep({
           waiting status. Completion is explicit (persisted to the backend). */}
       {hasDevice ? (
         <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
-          <p className="text-h6 text-ods-text-secondary md:flex-1">
+          <p className="text-ods-text-secondary text-h6 md:flex-1">
             Device connected. <span className="md:block">Manage it from the Devices page.</span>
           </p>
           <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:w-auto md:flex-row md:items-center">
@@ -184,7 +188,7 @@ export function DeviceSetupStep({
       ) : (
         <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
           {/* One line on mobile, broken into two lines from md up. */}
-          <p className="text-h6 text-ods-text-secondary md:flex-1">
+          <p className="text-ods-text-secondary text-h6 md:flex-1">
             Run the command on a client machine <span className="md:block">to connect your first device</span>
           </p>
           <div className="flex items-center justify-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-secondary md:justify-end">

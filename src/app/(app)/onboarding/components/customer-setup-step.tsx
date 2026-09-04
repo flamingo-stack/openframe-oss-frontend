@@ -139,7 +139,7 @@ export function CustomerSetupStep({
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Add your first client profile. Every device must belong to a Customer, so you&apos;ll need at least one to
         continue.
       </p>

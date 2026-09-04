@@ -68,12 +68,12 @@ export function CustomerGuardrailsTab({ organizationId }: CustomerGuardrailsTabP
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       {inheritsDefault && (
-        <div className="bg-ods-card border border-ods-border rounded-md flex flex-col md:flex-row md:items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-s)]">
-          <div className="flex items-center gap-[var(--spacing-system-s)] flex-1 min-w-0">
-            <InfoCircleIcon className="size-6 text-ods-text-secondary shrink-0" />
-            <div className="flex flex-col min-w-0">
-              <p className="text-h4 text-ods-text-primary">Using Default Settings</p>
-              <p className="text-h6 text-ods-text-secondary">This customer follows guardrails defaults.</p>
+        <div className="flex flex-col gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)] md:flex-row md:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-s)]">
+            <InfoCircleIcon className="size-6 shrink-0 text-ods-text-secondary" />
+            <div className="flex min-w-0 flex-col">
+              <p className="text-ods-text-primary text-h4">Using Default Settings</p>
+              <p className="text-ods-text-secondary text-h6">This customer follows guardrails defaults.</p>
             </div>
           </div>
           <Button

@@ -1,40 +1,45 @@
 import type { BoardTicketActivity } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { TicketStatusKind } from '../statuses/types/ticket-statuses.types';
+import type { TicketStatusDefinition, TicketStatusKind } from '../statuses/types/ticket-statuses.types';
 import type { Dialog } from '../types/dialog.types';
 
 /**
- * Staleness threshold until the backend exposes per-status configuration
- * (see the BE spec "ticket activity fields" — `staleAfterMinutes` on the
- * status definition). Per-kind overrides slot into the map below.
+ * Client-side mirror of the backend's staleness default
+ * (`openframe.tickets.staleness.default-minutes`). Only a safety net: the
+ * effective threshold arrives resolved on `TicketStatusDefinition.staleAfterMinutes`.
  */
-export const DEFAULT_STALE_AFTER_MS = 2 * 60 * 60 * 1000;
-const STALE_AFTER_MS_BY_KIND: Partial<Record<TicketStatusKind, number>> = {};
+export const DEFAULT_STALE_AFTER_MINUTES = 120;
 
 /** Staleness is meaningless once a ticket is closed out. */
 const STALE_EXEMPT_KINDS: ReadonlySet<TicketStatusKind> = new Set(['RESOLVED', 'ARCHIVED']);
 
 /**
- * Lowest-priority indicator: a card is marked stale only when nothing else
- * (approval, escalation, unread) claims its footer, per the agreed display
- * priority. `statusUpdatedAt` (the chat `Ticket.updatedAt`) is the best
- * activity signal available today — it moves on status changes only, so a
- * ticket with a busy chat but an unchanged status can read staler than it is.
- * The BE `lastActivityAt` field replaces it here once shipped.
+ * Picks the single live-activity indicator a board card shows, per the agreed
+ * display rules: the backend's `activityState` (AI working / awaiting client)
+ * when it is not IDLE, else staleness — the lowest-priority signal, shown only
+ * when nothing else (approval, escalation, unread) claims the card.
+ *
+ * Staleness compares the backend's canonical `lastActivityAt` (any chat action
+ * by any actor; falls back to `createdAt` server-side) against the column's
+ * server-resolved `staleAfterMinutes`, matching the `STALE` server filter, so
+ * the indicator and the activity filter can never disagree about a card.
  */
-export function resolveStaleActivity(
+export function resolveBoardActivity(
   dialog: Dialog,
-  statusKind: TicketStatusKind,
-  hasNewMessage: boolean,
+  status: TicketStatusDefinition,
   now: number,
 ): BoardTicketActivity | undefined {
-  if (STALE_EXEMPT_KINDS.has(statusKind)) return undefined;
+  if (dialog.activityState === 'AI_WORKING') return { kind: 'ai-working' };
+  if (dialog.activityState === 'AWAITING_EXTERNAL') return { kind: 'waiting-external' };
+
+  if (STALE_EXEMPT_KINDS.has(status.kind)) return undefined;
+  const hasNewMessage = (dialog.unreadNotificationCount ?? 0) > 0;
   if (dialog.pendingApproval || dialog.escalatedByUser || hasNewMessage) return undefined;
 
-  const lastActivityAt = dialog.statusUpdatedAt ?? dialog.createdAt;
+  const lastActivityAt = dialog.lastActivityAt ?? dialog.createdAt;
   if (!lastActivityAt) return undefined;
 
   const idleMs = now - new Date(lastActivityAt).getTime();
-  const threshold = STALE_AFTER_MS_BY_KIND[statusKind] ?? DEFAULT_STALE_AFTER_MS;
+  const threshold = (status.staleAfterMinutes || DEFAULT_STALE_AFTER_MINUTES) * 60 * 1000;
   if (!Number.isFinite(idleMs) || idleMs < threshold) return undefined;
 
   return { kind: 'stale', label: `No activity for ${formatIdleDuration(idleMs)}` };
@@ -42,6 +47,7 @@ export function resolveStaleActivity(
 
 function formatIdleDuration(idleMs: number): string {
   const hours = Math.floor(idleMs / (60 * 60 * 1000));
+  if (hours < 1) return `${Math.max(1, Math.floor(idleMs / (60 * 1000)))} min`;
   if (hours < 24) return hours === 1 ? '1 hour' : `${hours} hours`;
   const days = Math.floor(hours / 24);
   return days === 1 ? '1 day' : `${days} days`;

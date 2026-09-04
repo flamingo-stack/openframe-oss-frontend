@@ -11,7 +11,7 @@ function useResolvedTheme(theme: ApplicationTheme): ResolvedTheme {
   const [systemTheme, setSystemTheme] = useState<ResolvedTheme>('dark');
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
 
     const media = window.matchMedia('(prefers-color-scheme: light)');
     const sync = () => setSystemTheme(media.matches ? 'light' : 'dark');

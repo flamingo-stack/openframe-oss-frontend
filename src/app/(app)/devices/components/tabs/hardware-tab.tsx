@@ -2,7 +2,7 @@
 
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { HardDrivesIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
@@ -34,7 +34,7 @@ function formatUptime(seconds?: number): string | undefined {
 
 /** A row of hardware blocks — a 3-column grid where every block stretches to an equal width. */
 function Row({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--spacing-system-l)]">{children}</div>;
+  return <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] lg:grid-cols-3">{children}</div>;
 }
 
 /**
@@ -47,11 +47,11 @@ function Block({ heading, children }: { heading?: string; children: ReactNode })
   return (
     // `h-full` + `[&>*:last-child]:flex-1` make the card fill the grid cell (which stretches to
     // the tallest block in the row), so all cards in a row share one height.
-    <div className="flex flex-col gap-[var(--spacing-system-xxs)] h-full [&>*:last-child]:flex-1">
+    <div className="flex h-full flex-col gap-[var(--spacing-system-xxs)] [&>*:last-child]:flex-1">
       {heading ? (
-        <h3 className="text-h5 text-ods-text-secondary uppercase">{heading}</h3>
+        <h3 className="uppercase text-ods-text-secondary text-h5">{heading}</h3>
       ) : (
-        <h3 className="text-h5 invisible" aria-hidden>
+        <h3 className="invisible text-h5" aria-hidden>
           &nbsp;
         </h3>
       )}
@@ -71,6 +71,13 @@ function HardwareEmptyState() {
 }
 
 export function HardwareTab({ device }: HardwareTabProps) {
+  // `Date.now()` in render makes the component impure: two renders of the same
+  // device disagree, and the compiler cannot memoize around it. Sampled once on
+  // mount instead — the figure is a coarse "3 days", and it already only moved
+  // when something else happened to re-render this tab. Declared before the
+  // early return below, because hooks may not be called conditionally.
+  const [nowSeconds] = useState(() => Math.floor(Date.now() / 1000));
+
   if (!device) {
     return <HardwareEmptyState />;
   }
@@ -87,7 +94,7 @@ export function HardwareTab({ device }: HardwareTabProps) {
   const hasSystem = Boolean(systemTitle || systemSubtitle || systemItems.length > 0);
 
   // BOOT — last restart / boot time / derived uptime.
-  const uptimeSeconds = device.boot_time ? Math.max(0, Math.floor(Date.now() / 1000 - device.boot_time)) : undefined;
+  const uptimeSeconds = device.boot_time ? Math.max(0, nowSeconds - device.boot_time) : undefined;
   const bootItems = toItems([
     { label: 'Uptime', value: formatUptime(uptimeSeconds) },
     { label: 'Last Restarted', value: device.last_restarted_at ? formatDateTime(device.last_restarted_at) : undefined },
