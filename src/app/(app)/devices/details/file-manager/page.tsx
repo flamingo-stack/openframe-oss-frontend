@@ -45,10 +45,10 @@ export default function FileManagerPage() {
       <PageLayout
         title="File Manager"
         className={`${PAGE_PADDING} h-full`}
-        contentClassName="flex flex-col min-h-0 overflow-hidden"
+        contentClassName="flex min-h-0 flex-col overflow-hidden"
         backButton={{ label: 'Back', onClick: handleBack }}
       >
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4">
           <div className="text-ods-error text-h4">Error: {error}</div>
           <Button variant="outline" onClick={handleBack}>
             Return to Device Details
@@ -63,10 +63,10 @@ export default function FileManagerPage() {
       <PageLayout
         title="File Manager"
         className={`${PAGE_PADDING} h-full`}
-        contentClassName="flex flex-col min-h-0 overflow-hidden"
+        contentClassName="flex min-h-0 flex-col overflow-hidden"
         backButton={{ label: 'Back', onClick: handleBack }}
       >
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4">
           <div className="text-ods-error text-h4">MeshCentral Agent ID is required for file manager functionality</div>
           <p className="text-ods-text-secondary">File manager requires MeshCentral agent to be connected.</p>
           <Button variant="outline" onClick={handleBack}>
@@ -98,13 +98,13 @@ function FileManagerPageSkeleton({ onBack }: FileManagerPageSkeletonProps) {
     <PageLayout
       title="File Manager"
       className={`${PAGE_PADDING} h-full`}
-      contentClassName="flex flex-col min-h-0 overflow-hidden"
+      contentClassName="flex min-h-0 flex-col overflow-hidden"
       backButton={{
         label: 'Back',
         onClick: onBack,
       }}
     >
-      <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col">
         <FileManagerSkeleton />
       </div>
     </PageLayout>

@@ -16,7 +16,7 @@ export function EmptyState(props: EmptyStateProps) {
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el) return undefined;
 
     // Nearest scroll container; falls back to the viewport outside the app shell.
     const scroller = el.closest('main');

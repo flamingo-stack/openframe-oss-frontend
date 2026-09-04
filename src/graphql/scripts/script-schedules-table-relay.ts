@@ -36,14 +36,14 @@ export const scriptSchedulesTableRelayQuery = graphql`
 
 export const scriptSchedulesTableRelayFragment = graphql`
   fragment scriptSchedulesTableRelay_query on Query
-    @refetchable(queryName: "scriptSchedulesTableRelayPaginationQuery")
-    @argumentDefinitions(
-      filter: { type: "ScriptScheduleFilterInput" }
-      search: { type: "String" }
-      sort: { type: "SortInput" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "scriptSchedulesTableRelayPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "ScriptScheduleFilterInput" }
+    search: { type: "String" }
+    sort: { type: "SortInput" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     scriptSchedules(filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
       @connection(key: "scriptSchedulesTableRelay_scriptSchedules") {
       __id

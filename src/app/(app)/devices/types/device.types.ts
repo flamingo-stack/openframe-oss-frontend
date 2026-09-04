@@ -72,23 +72,6 @@ export interface User {
   isLoggedIn?: boolean;
 }
 
-/**
- * Unified MDM Info type
- */
-export interface MdmInfo {
-  enrollment_status: string;
-  server_url: string;
-  name: string;
-  encryption_key_available: boolean;
-  device_status: string;
-  pending_action: string;
-  connected_to_fleet: boolean;
-  /** Fleet `mdm.dep_profile_error` — DEP enrollment profile assignment failed. */
-  dep_profile_error?: boolean;
-  /** Count of configuration profiles from Fleet `mdm.profiles`. */
-  profiles_count?: number;
-}
-
 /** Host geolocation derived from Fleet's built-in GeoIP (`geolocation`). */
 export interface DeviceGeolocation {
   city?: string;
@@ -125,7 +108,8 @@ export interface ToolConnection {
   lastSeen?: string;
   /** Fleet detail_updated_at — when host details were last fetched */
   lastFetched?: string;
-  metadata?: any;
+  /** Raw JSON string from the tool connection record — parsed by whoever needs it. */
+  metadata?: string | null;
   connectedAt?: string;
   lastSyncAt?: string;
   disconnectedAt?: string;
@@ -223,9 +207,6 @@ export interface Device {
   users?: User[];
   policies?: DevicePolicy[];
 
-  // MDM Info
-  mdm?: MdmInfo;
-
   // Organization
   organizationId?: string;
   organization?: string;
@@ -315,7 +296,7 @@ export interface GraphQlResponse<T> {
   data?: T;
   errors?: Array<{
     message: string;
-    extensions?: any;
+    extensions?: unknown;
   }>;
 }
 

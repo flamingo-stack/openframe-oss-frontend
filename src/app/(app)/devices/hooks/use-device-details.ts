@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import {
@@ -10,7 +10,7 @@ import {
   parseMeshCentralLastSeen,
 } from '@/lib/meshcentral/meshcentral-api';
 import { fetchDeviceNode } from '../queries/devices-api';
-import type { Battery, Device, DeviceGraphQlNode, DevicePolicy, MdmInfo, Software, User } from '../types/device.types';
+import type { Battery, Device, DeviceGraphQlNode, DevicePolicy, Software, User } from '../types/device.types';
 import type { FleetHost } from '../types/fleet.types';
 import { toDeviceTags } from '../utils/device-transform';
 import { deviceQueryKeys } from '../utils/query-keys';
@@ -98,21 +98,6 @@ function createDevice(
       shell: fu.shell,
       isLoggedIn: fu.type === 'person',
     })) || [];
-
-  // Transform Fleet MDM to unified MDMInfo type
-  const mdm: MdmInfo | undefined = fleetData?.mdm
-    ? {
-        enrollment_status: fleetData.mdm.enrollment_status,
-        server_url: fleetData.mdm.server_url,
-        name: fleetData.mdm.name,
-        encryption_key_available: fleetData.mdm.encryption_key_available,
-        device_status: fleetData.mdm.device_status,
-        pending_action: fleetData.mdm.pending_action,
-        connected_to_fleet: fleetData.mdm.connected_to_fleet,
-        dep_profile_error: fleetData.mdm.dep_profile_error,
-        profiles_count: Array.isArray(fleetData.mdm.profiles) ? fleetData.mdm.profiles.length : undefined,
-      }
-    : undefined;
 
   // Helper to check if IP is private
   const isPrivateIp = (ip: string): boolean => {
@@ -239,9 +224,6 @@ function createDevice(
     users,
     policies,
 
-    // MDM Info
-    mdm,
-
     // Organization
     organizationId: node.organization?.organizationId,
     organization: node.organization?.name,
@@ -315,7 +297,7 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
 
   // 2.5) Fetch Fleet MDM details if present
   const fleet = node.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');
-  let fleetData: any | null = null;
+  let fleetData: FleetHost | null = null;
   if (fleet?.agentToolId) {
     // Validate that agentToolId is a valid numeric string before calling Fleet API
     const fleetHostId = Number(fleet.agentToolId);
@@ -359,14 +341,13 @@ export function useDeviceDetails(machineId: string | null | undefined, options?:
 
   const query = useQuery({
     queryKey: deviceQueryKeys.detail(machineId ?? ''),
-    queryFn: () => fetchDeviceDetails(machineId!),
-    enabled: !!machineId,
+    queryFn: machineId ? () => fetchDeviceDetails(machineId) : skipToken,
     staleTime: 3_000,
     retry: 1,
     retryDelay: 1_000,
     refetchInterval: polling
-      ? query => {
-          const data = query.state.data as Device | undefined;
+      ? liveQuery => {
+          const data = liveQuery.state.data as Device | undefined;
           if (!data) return false;
           const meshcentralAgentId = data.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL')?.agentToolId;
           return meshcentralAgentId ? 10_000 : 5_000;

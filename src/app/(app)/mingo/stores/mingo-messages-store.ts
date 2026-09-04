@@ -14,7 +14,6 @@ import {
   natsMirrorOptions,
   toUnifiedMessage,
 } from '@/lib/chat-stream-thread';
-import { featureFlags } from '@/lib/feature-flags';
 import { useAuthStore } from '@/stores';
 import type { DialogNode, Message } from '../types';
 
@@ -39,7 +38,6 @@ const handlersByDialog = new Map<string, NatsMirrorHandlers>();
  *  pre-creates with them) and the STORE-level default below. */
 const mingoReducerOptions = natsMirrorOptions<string>(
   dialogId => handlersByDialog.get(dialogId),
-  () => featureFlags.batchApproval.enabled(),
   () => useAuthStore.getState().user?.id,
 );
 

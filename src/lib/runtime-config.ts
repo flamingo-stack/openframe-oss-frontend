@@ -1,6 +1,11 @@
 import { env } from 'next-runtime-env';
 import { APP_SCHEME, getStoredTenantHost } from './native-shell';
 
+/** The `process.env` shim `next-runtime-env` injects into the browser. */
+interface WindowWithProcessEnv {
+  process?: { env?: Record<string, string | undefined> };
+}
+
 function getEnvVar(key: string): string | undefined {
   try {
     const value = env(key);
@@ -9,8 +14,10 @@ function getEnvVar(key: string): string | undefined {
     }
     return value;
   } catch {
-    if (typeof window !== 'undefined' && (window as any).process?.env) {
-      return (window as any).process.env[key];
+    // next-runtime-env's injected shim, when the module-level accessor above threw.
+    const injected = typeof window === 'undefined' ? undefined : (window as unknown as WindowWithProcessEnv).process;
+    if (injected?.env) {
+      return injected.env[key];
     }
     if (typeof process !== 'undefined' && process.env) {
       return process.env[key];
@@ -25,6 +32,16 @@ export const runtimeEnv = {
     // from the tenant registry) backs up the build-time value so one binary
     // can serve any tenant.
     return getEnvVar('NEXT_PUBLIC_TENANT_HOST_URL') || getStoredTenantHost() || '';
+  },
+  /**
+   * The build-time tenant pin ONLY — never the host learned at a previous login.
+   *
+   * Callers deciding which gateway a NEW sign-in belongs to must use this: the stored host is a
+   * previous tenant's and is never cleared (not even on logout), so {@link tenantHostUrl} would
+   * confidently hand back the wrong origin for a different organization's identity.
+   */
+  pinnedTenantHostUrl(): string {
+    return getEnvVar('NEXT_PUBLIC_TENANT_HOST_URL') || '';
   },
   sharedHostUrl(): string {
     return getEnvVar('NEXT_PUBLIC_SHARED_HOST_URL') || '';

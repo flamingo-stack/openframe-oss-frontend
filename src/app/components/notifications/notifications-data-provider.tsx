@@ -55,11 +55,15 @@ import {
 } from '@/graphql/notifications/notifications-drawer-relay';
 import {
   adjustUnreadCount,
+  isApprovalResolved,
   makeMarkReadUpdater,
   mapNotificationNode,
+  NOTIFICATION_ATTR,
   NOTIFICATIONS_CONNECTION_KEY,
+  normalizeToolCalls,
   parseCreatedAt,
   parseSeverity,
+  readNotificationAttributes,
   readNotificationNode,
   stripNotificationMarkup,
   UNFILTERED_NOTIFICATION_PAIR,
@@ -101,12 +105,11 @@ const DRAWER_FILTER_PAIRS = [UNFILTERED_NOTIFICATION_PAIR];
 const NATS_CONTEXT_TYPENAME = 'GenericContext';
 const APPROVAL_CONTEXT_TYPENAME = 'AdminApprovalRequestContext';
 
-/** Extract the approval payload from a raw NATS notification context, or null if it isn't one. */
+/** Extract the approval payload from a LEGACY NATS notification context, or null if it isn't one. */
 function parseApprovalContext(context: NatsNotificationPayload['context']): ApprovalNotificationMeta | null {
   if (!context || context.type !== ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE) return null;
   const approvalRequestId = context.approvalRequestId;
   if (typeof approvalRequestId !== 'string') return null;
-  const rawToolCalls = Array.isArray(context.toolCalls) ? context.toolCalls : [];
   return {
     approvalRequestId,
     dialogId: typeof context.dialogId === 'string' ? context.dialogId : null,
@@ -114,22 +117,7 @@ function parseApprovalContext(context: NatsNotificationPayload['context']): Appr
     approvalType: typeof context.approvalType === 'string' ? context.approvalType : null,
     resolution: typeof context.resolution === 'string' ? context.resolution : null,
     resolvedByName: typeof context.resolvedByName === 'string' ? context.resolvedByName : null,
-    toolCalls: rawToolCalls.map(raw => {
-      const call = (raw ?? {}) as Record<string, unknown>;
-      return {
-        toolExecutionRequestId: typeof call.toolExecutionRequestId === 'string' ? call.toolExecutionRequestId : null,
-        toolName: typeof call.toolName === 'string' ? call.toolName : '',
-        toolTitle: typeof call.toolTitle === 'string' ? call.toolTitle : null,
-        toolExplanation: typeof call.toolExplanation === 'string' ? call.toolExplanation : null,
-        toolType: typeof call.toolType === 'string' ? call.toolType : null,
-        requiresApproval: Boolean(call.requiresApproval),
-        approvalType: typeof call.approvalType === 'string' ? call.approvalType : null,
-        toolCallArguments:
-          call.toolCallArguments && typeof call.toolCallArguments === 'object'
-            ? (call.toolCallArguments as Record<string, unknown>)
-            : null,
-      };
-    }),
+    toolCalls: normalizeToolCalls(context.toolCalls),
   };
 }
 
@@ -204,6 +192,65 @@ function writeNotificationContext(
   return record;
 }
 
+/** The payload's flat attribute map, or an empty one for a legacy push that carries none. */
+function payloadAttributes(payload: NatsNotificationPayload): Record<string, string> {
+  return readNotificationAttributes(payload.attributes);
+}
+
+/** Entity id off either shape — spec attributes first, legacy context second. */
+function payloadDialogId(payload: NatsNotificationPayload): string | null {
+  const fromAttributes = payloadAttributes(payload)[NOTIFICATION_ATTR.dialogId];
+  if (fromAttributes) return fromAttributes;
+  return typeof payload.context?.dialogId === 'string' ? payload.context.dialogId : null;
+}
+
+function payloadTicketId(payload: NatsNotificationPayload): string | null {
+  const fromAttributes = payloadAttributes(payload)[NOTIFICATION_ATTR.ticketId];
+  if (fromAttributes) return fromAttributes;
+  return typeof payload.context?.ticketId === 'string' ? payload.context.ticketId : null;
+}
+
+/**
+ * Write both shapes of the notification's facts onto the store record.
+ *
+ * Every field the row fragment selects has to end up present, even as null — a field left
+ * unwritten reads back as missing data, which makes Relay refetch the row (or blank it),
+ * and a live push must not depend on the network to render. So each of the three is either
+ * written from the push, kept from what the record already had, or explicitly nulled.
+ *
+ * Attributes MERGE rather than replace: an UPDATED push is expected to carry the full map,
+ * but a partial one (say a resolve sending only the resolution keys) should top the record
+ * up instead of blanking the ids the tile navigates by.
+ *
+ * The legacy context is rebuilt only when the push actually carries one — deriving it from
+ * a spec-shaped push would overwrite a real context with an UNKNOWN placeholder.
+ */
+function writeNotificationShapes(
+  store: RecordSourceSelectorProxy,
+  node: RecordProxy,
+  relayId: string,
+  payload: NatsNotificationPayload,
+): void {
+  if (payload.type) node.setValue(payload.type, 'type');
+  else if (node.getValue('type') === undefined) node.setValue(null, 'type');
+
+  if (payload.attributes) {
+    const merged = {
+      ...readNotificationAttributes(node.getValue('attributes')),
+      ...readNotificationAttributes(payload.attributes),
+    };
+    setJsonScalar(node, 'attributes', merged);
+  } else if (node.getValue('attributes') === undefined) {
+    setJsonScalar(node, 'attributes', null);
+  }
+
+  if (payload.context) {
+    node.setLinkedRecord(writeNotificationContext(store, `${relayId}:context`, payload), 'context');
+  } else if (node.getLinkedRecord('context') === undefined) {
+    node.setLinkedRecord(null, 'context');
+  }
+}
+
 /** Prepend a notification node to the unread connection, skipping if it's already present. */
 function prependNotificationEdge(
   store: RecordSourceSelectorProxy,
@@ -229,6 +276,11 @@ interface NatsNotificationPayload {
   // CREATED is the initial push; UPDATED supersedes an earlier push with the same id
   // (e.g. an approval request whose status changed). Absent → treat as CREATED.
   eventType?: 'CREATED' | 'UPDATED';
+  // Spec-catalog contract. Present once the backend emits on the spec path; absent on
+  // legacy pushes and if the `notifications.legacy-path` kill-switch is flipped back on.
+  type?: string;
+  attributes?: Record<string, unknown>;
+  // Legacy typed context. Deprecated, still the only shape some pushes carry.
   context?: { type?: string; resolution?: string; [k: string]: unknown };
 }
 
@@ -486,7 +538,7 @@ function EntityViewAutoReader() {
   const [activityEdge, setActivityEdge] = useState(0);
   useEffect(() => subscribeSessionActivity(() => setActivityEdge(edge => edge + 1)), []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: activityEdge is the re-run trigger, not read in the body.
+  // activityEdge is the re-run trigger, not read in the body.
   useEffect(() => {
     // Called live rather than snapshotted into state: the idle timer lapsing fires no
     // event, so a captured boolean would go stale and re-open the very hole this closes.
@@ -566,8 +618,8 @@ interface NotificationsLiveBridgeProps {
  * auto-marked read. Requires an actively-attended session, not merely a visible tab.
  */
 function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean {
-  const dialogId = payload.context?.dialogId;
-  if (typeof dialogId !== 'string' || !isDialogViewActive(dialogId)) return false;
+  const dialogId = payloadDialogId(payload);
+  if (!dialogId || !isDialogViewActive(dialogId)) return false;
   // Activity, not `visibilityState`. This branch marks the notification read, and
   // read state is CROSS-DEVICE — it drives PushRetractionListener, which pulls the
   // banner off the user's phone. A visible tab on an unattended desk satisfied the
@@ -608,10 +660,11 @@ function maybeShowDesktopNotification(
     id: relayId,
     title,
     createdAt: Date.now(),
+    category: payload.category,
     meta: {
-      contextType: payload.context?.type,
-      dialogId: payload.context?.dialogId,
-      ticketId: payload.context?.ticketId,
+      notificationType: payload.type ?? payload.context?.type,
+      dialogId: payloadDialogId(payload) ?? undefined,
+      ticketId: payloadTicketId(payload) ?? undefined,
     },
   });
 
@@ -637,14 +690,24 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
   const { showDesktopPopups, markRead } = useNotifications();
   const subject = `${NOTIFICATION_SUBJECT_PREFIX}.${userId}.${NOTIFICATION_SUBJECT_SUFFIX}`;
   const environmentRef = useRef(environment);
-  environmentRef.current = environment;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    environmentRef.current = environment;
+  });
   // Refs keep the NATS subscription callback dependency-free (no resubscribe on toggle/navigation).
   const showDesktopPopupsRef = useRef(showDesktopPopups);
-  showDesktopPopupsRef.current = showDesktopPopups;
   const markReadRef = useRef(markRead);
-  markReadRef.current = markRead;
   const routerRef = useRef(router);
-  routerRef.current = router;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    showDesktopPopupsRef.current = showDesktopPopups;
+    markReadRef.current = markRead;
+    routerRef.current = router;
+  });
 
   useNatsJsonSubscription<NatsNotificationPayload>(
     subject,
@@ -661,7 +724,8 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       const category = payload.category ?? null;
       const isUpdate = payload.eventType === 'UPDATED';
       const suppress = isWatchingNotificationDialog(payload);
-      const resolution = payload.context?.resolution ?? null;
+      const resolution =
+        payloadAttributes(payload)[NOTIFICATION_ATTR.resolution] ?? payload.context?.resolution ?? null;
 
       let resolutionAutoRead = false;
       commitLocalUpdate(environmentRef.current, store => {
@@ -676,14 +740,15 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
         node.setValue(title, 'title');
         node.setValue(description, 'description');
         node.setValue(category, 'category');
-        node.setLinkedRecord(writeNotificationContext(store, `${relayId}:context`, payload), 'context');
+        writeNotificationShapes(store, node, relayId, payload);
 
         if (isUpdate) {
-          // A resolution means the approval was handled (this tab's chat card, another tab,
-          // or another admin) — it needs no further attention, so retire it to the read
-          // connection. Other in-place updates leave createdAt, read state and connection
-          // membership untouched; the reactive tile reads the refreshed fields.
-          if (resolution && node.getValue('read') === false) {
+          // A TERMINAL resolution means the approval was handled (this tab's chat card, another
+          // tab, or another admin) — it needs no further attention, so retire it to the read
+          // connection. A still-PENDING resolution is not that. Other in-place updates leave
+          // createdAt, read state and connection membership untouched; the reactive tile reads
+          // the refreshed fields.
+          if (isApprovalResolved(resolution) && node.getValue('read') === false) {
             makeMarkReadUpdater(relayId, [UNFILTERED_NOTIFICATION_PAIR])(store);
             resolutionAutoRead = true;
           }

@@ -18,7 +18,7 @@ import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
-import { ScriptEditor } from '../../../scripts/components/script/script-editor';
+import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
 import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
@@ -158,7 +158,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
       {/* Query + inline test block */}
       {policyDetails.query && (
         <div className="mt-[var(--spacing-system-l)] space-y-[var(--spacing-system-xxs)]">
-          <h3 className="text-h5 text-ods-text-secondary">QUERY</h3>
+          <h3 className="text-ods-text-secondary text-h5">QUERY</h3>
           <ScriptEditor value={policyDetails.query} shell="sql" readOnly height="300px" />
           {/* 8px gap under the editor, matching the section's internal gap
               (the parent's space-y-1 would give 4px). */}
@@ -174,7 +174,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
 
       {/* Policy Devices */}
       <div className="mt-6">
-        <h1 className="text-h2 text-ods-text-primary pt-6">Devices</h1>
+        <h1 className="pt-6 text-ods-text-primary text-h2">Devices</h1>
         <div className="pt-4">
           <PolicyDevicesTable
             policyId={numericId}

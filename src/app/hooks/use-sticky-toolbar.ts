@@ -30,11 +30,17 @@ export function useStickyToolbar(): StickyToolbar {
 
   const toolbarRef = useCallback((el: HTMLDivElement | null) => setNode(el), []);
 
+  // No toolbar mounted → no offset. Derived during render rather than in the
+  // effect: the effect's job is the ResizeObserver, and zeroing here means the
+  // header never pins below a strip that has already gone.
+  const [lastNode, setLastNode] = useState(node);
+  if (node !== lastNode) {
+    setLastNode(node);
+    if (!node) setHeight(0);
+  }
+
   useEffect(() => {
-    if (!node) {
-      setHeight(0);
-      return;
-    }
+    if (!node) return undefined;
     const update = () => setHeight(node.offsetHeight);
     update();
     const observer = new ResizeObserver(update);

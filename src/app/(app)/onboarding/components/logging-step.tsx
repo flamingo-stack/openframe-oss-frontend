@@ -121,7 +121,7 @@ export function LoggingStep({
         enableSorting: false,
         meta: { width: 'w-[160px]', hideAt: 'md' },
         cell: ({ row }: { row: Row<LogRow> }) => (
-          <ToolBadge toolType={row.original.toolType} iconClassName="w-4 h-4 md:w-6 md:h-6" />
+          <ToolBadge toolType={row.original.toolType} iconClassName="h-4 w-4 md:h-6 md:w-6" />
         ),
       },
       {
@@ -149,7 +149,7 @@ export function LoggingStep({
         enableSorting: false,
         meta: { width: 'flex-1', hideAt: 'lg' },
         cell: ({ row }: { row: Row<LogRow> }) => (
-          <TruncateText lines={2} className="text-h6 text-ods-text-secondary">
+          <TruncateText lines={2} className="text-ods-text-secondary text-h6">
             {row.original.summary}
           </TruncateText>
         ),
@@ -184,11 +184,11 @@ export function LoggingStep({
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Logs give you a full activity trail across your workspace. See what happened, when, and who did it: device
         actions, script runs, ticket changes, and team activity. Nothing goes off the record.
       </p>
-      <p className="text-h4 text-ods-text-primary">Here's what activity looks like once things start happening:</p>
+      <p className="text-ods-text-primary text-h4">Here's what activity looks like once things start happening:</p>
 
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount />} />

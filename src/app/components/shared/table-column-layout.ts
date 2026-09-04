@@ -54,7 +54,26 @@ export interface TableSkeletonColumn {
   dateFilterable?: boolean;
 }
 
-/** The `meta` fields a live column and its skeleton must agree on. */
+/**
+ * There is deliberately NO way here to keep a column's header at full width
+ * below `lg`.
+ *
+ * The core drops every header cell there except the ones a user can act on, and
+ * packs the survivors left beside their controls — its tablet header is a filter
+ * toolbar, not a row of labels. One table (Invoices History) used to opt out of
+ * that with a `tabletHeaderWidth` string of literal `max-lg:[&&&]:…` classes,
+ * outranking the core's own `[&&]` rule on specificity. It was the only use in
+ * the app, and it bought a tablet where five columns still fought over ~760px.
+ *
+ * The way to be narrow is `hideAt`, which every other table already uses: shed
+ * columns on the way down and let the header become the toolbar. If a column
+ * genuinely needs a header class, pass it through `liveColumnMeta`'s `extra` as
+ * `headerClassName` — a one-column concern does not belong in the layout shared
+ * with the skeleton.
+ *
+ * The `meta` fields below are the ones a live column and its skeleton must agree
+ * on — nothing more.
+ */
 interface SharedColumnMeta {
   width: string;
   hideAt?: TableBreakpoint;
@@ -71,7 +90,9 @@ function sharedMeta(column: TableSkeletonColumn): SharedColumnMeta {
     sortable: column.sortable,
     // A date-filtered header is a control the user can act on, so it earns its
     // space below `lg` the same way the funnels do — the table keeps those on
-    // its own, but knows nothing about the calendar.
+    // its own, but knows nothing about the calendar. Nothing else opts in: see
+    // the note above `SharedColumnMeta` for why wanting LABELS there is not a
+    // reason.
     alwaysShowHeader: column.dateFilterable,
   };
 }

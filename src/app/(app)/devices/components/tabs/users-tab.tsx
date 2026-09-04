@@ -75,7 +75,7 @@ export function UsersTab({ device }: UsersTabProps) {
         accessorKey: 'username',
         header: USER_COLUMNS.username.header,
         cell: ({ row }: { row: Row<UserRow> }) => (
-          <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <TruncateText>{row.original.username}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {roleLabel(row.original)}
@@ -89,7 +89,7 @@ export function UsersTab({ device }: UsersTabProps) {
         accessorKey: 'uid',
         header: USER_COLUMNS.uid.header,
         cell: ({ row }: { row: Row<UserRow> }) => (
-          <span className="text-h4 text-ods-text-primary">
+          <span className="text-ods-text-primary text-h4">
             {row.original.uid !== undefined ? row.original.uid : '—'}
           </span>
         ),
@@ -100,7 +100,7 @@ export function UsersTab({ device }: UsersTabProps) {
         accessorKey: 'type',
         header: USER_COLUMNS.type.header,
         cell: ({ row }: { row: Row<UserRow> }) => (
-          <span className="text-h4 text-ods-text-primary capitalize">{row.original.type || '—'}</span>
+          <span className="capitalize text-ods-text-primary text-h4">{row.original.type || '—'}</span>
         ),
         enableSorting: false,
         meta: liveColumnMeta(USER_COLUMNS.type),
@@ -132,7 +132,7 @@ export function UsersTab({ device }: UsersTabProps) {
           row.original.isLoggedIn ? (
             <Tag label="ACTIVE" variant="success" className="w-fit" />
           ) : (
-            <span className="text-h4 text-ods-text-secondary">—</span>
+            <span className="text-ods-text-secondary text-h4">—</span>
           ),
         enableSorting: false,
         meta: liveColumnMeta(USER_COLUMNS.status),
@@ -177,7 +177,7 @@ export function UsersTab({ device }: UsersTabProps) {
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
       {device.endUserEmails && device.endUserEmails.length > 0 && (
         <div className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
-          <span className="text-h6 text-ods-text-secondary uppercase">End-user emails</span>
+          <span className="uppercase text-ods-text-secondary text-h6">End-user emails</span>
           {device.endUserEmails.map(email => (
             <Tag key={email} label={email} variant="grey" className="w-fit" />
           ))}
@@ -187,7 +187,7 @@ export function UsersTab({ device }: UsersTabProps) {
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <SearchInput value={search} onChange={setSearch} placeholder="Search for User" />
         </div>

@@ -49,10 +49,8 @@ export const TAB_IDS = {
     'users',
     'software',
   ],
-  scripts: ['list', 'schedules'],
-  scheduleDetails: ['schedule-scripts', 'schedule-devices', 'schedule-history'],
-  scriptsV2Details: ['details', 'executions'],
-  scriptsV2ScheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
+  scriptDetails: ['details', 'executions'],
+  scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
   monitoring: ['policies', 'queries'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
   aiSettings: ['mingo', 'customer', 'guardrails'],
@@ -63,10 +61,8 @@ export type CustomerListTab = (typeof TAB_IDS.customersList)[number];
 export type CustomerDetailTab = (typeof TAB_IDS.customerDetails)[number];
 export type CustomerEditTab = (typeof TAB_IDS.customerEdit)[number];
 export type DeviceDetailTab = (typeof TAB_IDS.deviceDetails)[number];
-export type ScriptsTab = (typeof TAB_IDS.scripts)[number];
+export type ScriptDetailTab = (typeof TAB_IDS.scriptDetails)[number];
 export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
-export type ScriptsV2DetailTab = (typeof TAB_IDS.scriptsV2Details)[number];
-export type ScriptsV2ScheduleDetailTab = (typeof TAB_IDS.scriptsV2ScheduleDetails)[number];
 export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
 export type SettingsTab = (typeof TAB_IDS.settings)[number];
 export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
@@ -99,20 +95,6 @@ function withQuery(base: string, query?: Record<string, QueryValue>): string {
 // --------------------------------------------------------------------------
 // Mingo dialog params
 // --------------------------------------------------------------------------
-
-/**
- * Query param carrying the dialog id on the canonical `/mingo` route.
- *
- * Shared with `MingoPage`, which reads it back, because the two halves are one wire
- * contract: rename it on the producing side alone and every push and OS-toast deep
- * link silently redirects to a bare dashboard with the id dropped — no compile
- * error, and the notification tests only pin the half that builds the URL.
- *
- * Distinct from {@link MINGO_DIALOG_PARAM} on purpose: this one names the SHARE URL's
- * id, that one the live drawer state. `/mingo` reads this and writes that, and one
- * shared name would make the handoff indistinguishable from a loop.
- */
-export const MINGO_CANONICAL_DIALOG_PARAM = 'dialogId';
 
 /**
  * Query param naming the dialog open in the Mingo chat drawer.
@@ -206,12 +188,17 @@ export const routes = {
   auth: {
     root: '/auth',
     login: '/auth/login',
-    signup: '/auth/signup',
     checkEmail: '/auth/check-email',
     verify: '/auth/verify',
     invite: '/auth/invite',
     passwordReset: '/auth/password-reset',
     error: '/auth/error',
+    /**
+     * Where the auth server sends an SSO login whose identity has no account yet
+     * (`openframe.sso.login.signup-continue-url`). The page reads the asserted identity from the
+     * SAS session and collects only what SSO cannot supply: organization name and domain.
+     */
+    ssoContinue: '/auth/sso-continue',
   },
 
   customers: {
@@ -234,42 +221,26 @@ export const routes = {
   },
 
   scripts: {
-    list: (o?: { tab?: ScriptsTab }) => withQuery('/scripts', { tab: o?.tab }),
+    list: '/scripts',
     new: '/scripts/new',
-    details: (id: string | number) => withQuery('/scripts/details', { id }),
-    run: (id: string | number) => withQuery('/scripts/details/run', { id }),
-    edit: (id: string | number) => withQuery('/scripts/edit', { id }),
+    archived: '/scripts/archived',
     schedules: {
+      list: '/scripts/schedules',
+      archived: '/scripts/schedules/archived',
       new: '/scripts/schedules/new',
-      details: (id: string | number, o?: { tab?: ScheduleDetailTab }) =>
-        withQuery('/scripts/schedules', { id, tab: o?.tab }),
+      // `search` seeds the target tab's search box — used by the Runs table to
+      // drill into the Execution History tab narrowed to one run's executionId.
+      details: (id: string | number, o?: { tab?: ScheduleDetailTab; search?: string }) =>
+        withQuery('/scripts/schedules/details', { id, tab: o?.tab, search: o?.search }),
+      /** One fire of a schedule. `id` is the `ScheduleRun` global id, not the schedule's. */
+      run: (id: string | number) => withQuery('/scripts/schedules/run', { id }),
       edit: (id: string | number) => withQuery('/scripts/schedules/edit', { id }),
       devices: (id: string | number) => withQuery('/scripts/schedules/devices', { id }),
     },
-  },
-
-  scriptsV2: {
-    list: '/scripts-v2',
-    new: '/scripts-v2/new',
-    archived: '/scripts-v2/archived',
-    schedules: {
-      list: '/scripts-v2/schedules',
-      archived: '/scripts-v2/schedules/archived',
-      new: '/scripts-v2/schedules/new',
-      // `search` seeds the target tab's search box — used by the Runs table to
-      // drill into the Execution History tab narrowed to one run's executionId.
-      details: (id: string | number, o?: { tab?: ScriptsV2ScheduleDetailTab; search?: string }) =>
-        withQuery('/scripts-v2/schedules/details', { id, tab: o?.tab, search: o?.search }),
-      /** One fire of a schedule. `id` is the `ScheduleRun` global id, not the schedule's. */
-      run: (id: string | number) => withQuery('/scripts-v2/schedules/run', { id }),
-      edit: (id: string | number) => withQuery('/scripts-v2/schedules/edit', { id }),
-      devices: (id: string | number) => withQuery('/scripts-v2/schedules/devices', { id }),
-    },
-    details: (id: string | number, o?: { tab?: ScriptsV2DetailTab }) =>
-      withQuery('/scripts-v2/details', { id, tab: o?.tab }),
-    run: (id: string | number) => withQuery('/scripts-v2/details/run', { id }),
-    edit: (id: string | number) => withQuery('/scripts-v2/edit', { id }),
-    execution: (id: string | number) => withQuery('/scripts-v2/executions', { id }),
+    details: (id: string | number, o?: { tab?: ScriptDetailTab }) => withQuery('/scripts/details', { id, tab: o?.tab }),
+    run: (id: string | number) => withQuery('/scripts/details/run', { id }),
+    edit: (id: string | number) => withQuery('/scripts/edit', { id }),
+    execution: (id: string | number) => withQuery('/scripts/executions', { id }),
   },
 
   monitoring: {
@@ -313,19 +284,9 @@ export const routes = {
     apiKeys: '/settings/api-keys',
     sso: '/settings/sso',
     architecture: '/settings/architecture',
+    downloadApps: '/settings/download-apps',
     billingUsage: '/settings/billing-usage',
-    billingSubscription: '/settings/billing-usage/subscription',
   },
-
-  /**
-   * Canonical, page-independent URL for a Mingo dialog — the SHARE and DEEP-LINK
-   * form. With `mingo-sidebar` on it resolves into the in-layout drawer (the page
-   * redirects, carrying the id over as {@link MINGO_DIALOG_PARAM}); with the flag
-   * off it is the legacy chat page. A sender — a push payload, an OS toast, a
-   * copied link — cannot know which route the recipient is on, so this is the only
-   * shape it can produce.
-   */
-  mingo: (o?: { dialogId?: string }) => withQuery('/mingo', { [MINGO_CANONICAL_DIALOG_PARAM]: o?.dialogId }),
 
   notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),
 
@@ -339,13 +300,11 @@ export const routes = {
  * Canonical, page-independent URL for SHARING or deep-linking a Mingo dialog —
  * what "Copy chat link" writes and what a notification tap navigates to.
  *
- * It is the drawer's own resting shape on a fixed landing page, NOT the `/mingo`
- * route: `/mingo` can only redirect here from the client, which costs a render and
- * a paint before the drawer appears. Emitting the destination directly means a
- * pasted link adopts on first commit with nothing rendered in between.
- *
- * `/mingo?dialogId=` stays supported for links already pasted elsewhere — see
- * `MingoPage` — but nothing produces it any more.
+ * The chat has no route of its own: it is a drawer floating over whatever page is
+ * showing, so the shareable shape is the drawer's resting state on a fixed landing
+ * page. A sender — a push payload, an OS toast, a copied link — cannot know which
+ * route the recipient is on, so this is the only shape it can produce, and a pasted
+ * link adopts on first commit with nothing rendered in between.
  */
 export function mingoDialogLink(dialogId: string): string {
   return withMingoDialog(routes.dashboard, dialogId);

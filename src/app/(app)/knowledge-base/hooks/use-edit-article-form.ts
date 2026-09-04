@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -64,7 +65,7 @@ export function useEditArticleForm({ articleId, initialFolderId, initialArticle 
   const initialTagRefs = useMemo<ArticleTagRef[]>(() => {
     if (!initialArticle?.tags) return [];
     return initialArticle.tags.filter(Boolean).map(t => ({ id: t.id, key: t.key }));
-  }, [initialArticle?.tags]);
+  }, [initialArticle]);
 
   const assignedItems = useAssignedItems({
     itemId: articleId,
@@ -98,7 +99,7 @@ export function useEditArticleForm({ articleId, initialFolderId, initialArticle 
     form,
     assignedItems.isReady,
     assignedItems.value,
-    tempAttachments.initializeExisting,
+    tempAttachments,
   ]);
 
   const handleSave = useCallback(
@@ -222,6 +223,9 @@ export function useEditArticleForm({ articleId, initialFolderId, initialArticle 
               router.replace(routes.knowledgeBase.details(result.id));
             }
           } catch {
+            // Every mutation this block awaits toasts and rejects on its own; catching
+            // here keeps the rejection from going unhandled so `finally` can clear the
+            // submitting flag and leave the user on the form with their input intact.
           } finally {
             setIsSubmitting(false);
           }

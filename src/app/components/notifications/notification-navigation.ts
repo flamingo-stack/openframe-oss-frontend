@@ -1,5 +1,10 @@
 import { ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE, type Notification } from '@flamingo-stack/openframe-frontend-core';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import {
+  isApprovalNotificationType,
+  NOTIFICATION_ATTR,
+  readNotificationAttributes,
+} from '@/graphql/notifications/notification-attributes';
 import { mingoDialogLink, routes } from '@/lib/routes';
 
 // Backend `NotificationContext.type` discriminators (the string `type` field; the same set the
@@ -17,7 +22,10 @@ export const TICKET_ESCALATED_BY_USER_CONTEXT_TYPE = 'TICKET_ESCALATED_BY_USER';
 export const CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
 export const ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
 
-/** Context `type` → GraphQL `__typename`, so the NATS live path can rebuild typed context records. */
+/**
+ * Context `type` → GraphQL `__typename`, so the NATS live path can rebuild typed context records.
+ * LEGACY ONLY: a spec-shaped push carries `attributes` and needs no typed context record.
+ */
 export const CONTEXT_TYPENAME_BY_TYPE: Record<string, string> = {
   [ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE]: 'AdminApprovalRequestContext',
   [ADMIN_AI_MESSAGE_CONTEXT_TYPE]: 'AdminAiMessageContext',
@@ -51,8 +59,8 @@ const TICKET_CONTEXT_TYPES = new Set<string>([
 /**
  * Ticket contexts announcing a new message in the ticket's client chat; they land on the
  * Chat tab instead of Details. Mingo ticket messages (`ADMIN_AI_TICKET_MESSAGE`) are
- * excluded — with `mingo-sidebar-context` on, that conversation lives in the sidebar
- * drawer, not the page's Client Chat tab.
+ * excluded — that conversation lives in the sidebar drawer, not the page's Client Chat
+ * tab.
  */
 const TICKET_CHAT_CONTEXT_TYPES = new Set<string>([
   CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE,
@@ -79,11 +87,9 @@ const ticketRoute = (ticketId: string, tab?: 'chat') => routes.tickets.dialog(ti
 /**
  * Action for a Mingo dialog: the canonical route ALWAYS, plus the drawer id.
  *
- * Deliberately reads no feature flag. This mapping is called from transports that
- * run before the flags query has answered — a cold-start push tap beats it every
- * time — and `featureFlags.*.enabled()` reports the env default in that window, so
- * a flag read here decides the destination by coin-flip. `/mingo` resolves it
- * instead, and that page already waits on a tri-state gate.
+ * The route is the fallback for when there is no drawer to open into (subscription
+ * lock, shell unmounted); `mingoDrawerDialogId` below decides between the two when
+ * the user actually acts, rather than here, where nothing can answer yet.
  */
 const mingoDialogAction = (dialogId: string): NotificationAction => ({
   label: 'Open Chat',
@@ -109,26 +115,41 @@ export function mingoDrawerDialogId(action: NotificationAction): string | null {
 
 const nonEmptyString = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
+/** Backend `NotificationCategory` for Mingo — the signal that an unknown type's dialog is an admin one. */
+const MINGO_CATEGORY = 'MINGO';
+
 function resolveAction(
-  contextType: string | null,
+  type: string | null,
   ticketId: string | null,
   dialogId: string | null,
+  category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
-  if (contextType === ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE) {
+  // Covers the legacy discriminator and both spec types the catalog split it into.
+  if (isApprovalNotificationType(type)) {
     if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
     if (dialogId) return mingoDialogAction(dialogId);
     return null;
   }
 
-  if (contextType && TICKET_CONTEXT_TYPES.has(contextType) && ticketId) {
-    const tab = TICKET_CHAT_CONTEXT_TYPES.has(contextType) ? 'chat' : undefined;
+  if (type && TICKET_CONTEXT_TYPES.has(type) && ticketId) {
+    const tab = TICKET_CHAT_CONTEXT_TYPES.has(type) ? 'chat' : undefined;
     return { label: 'Ticket Details', route: ticketRoute(ticketId, tab) };
   }
 
-  if (contextType === ADMIN_AI_MESSAGE_CONTEXT_TYPE && dialogId) {
+  if (type === ADMIN_AI_MESSAGE_CONTEXT_TYPE && dialogId) {
     return mingoDialogAction(dialogId);
   }
+
+  // Unknown type. The contract requires new types to reach users without a client release —
+  // "an unfamiliar string still routes by ids, never drops the message silently" — so route
+  // by the entity ids rather than giving up.
+  //
+  // A ticket id is unambiguous. A bare dialog id is NOT: CLIENT_AI_MESSAGE carries a CLIENT
+  // chat's dialogId, and the Mingo drawer resolves admin dialogs only, so following one
+  // blindly would land on an empty chat. The category is what tells the two apart.
+  if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
+  if (dialogId && category === MINGO_CATEGORY) return mingoDialogAction(dialogId);
 
   return null;
 }
@@ -139,7 +160,14 @@ function resolveAction(
  */
 export function resolveNotificationAction(notification: Notification): NotificationAction | null {
   const meta = notification.meta ?? {};
-  return resolveAction(nonEmptyString(meta.contextType), nonEmptyString(meta.ticketId), nonEmptyString(meta.dialogId));
+  // `notificationType` is the precise spec type; `contextType` is the legacy discriminator
+  // (and the approval split folded onto it). Either identifies a route the same way.
+  return resolveAction(
+    nonEmptyString(meta.notificationType) ?? nonEmptyString(meta.contextType),
+    nonEmptyString(meta.ticketId),
+    nonEmptyString(meta.dialogId),
+    nonEmptyString(notification.category),
+  );
 }
 
 function actionRoute(action: NotificationAction | null): string | null {
@@ -154,8 +182,23 @@ function actionRoute(action: NotificationAction | null): string | null {
  * replaced the old `startsWith('/')` check on a server-supplied route string.
  */
 function routeFromWireFields(fields: Record<string, unknown>): string | null {
+  // `attributes` is the spec contract's home for the ids; the flat keys are where the legacy
+  // shape puts them. Both transports may carry either, so read the spec one first and fall back.
+  //
+  // NOT the row mapper's rule: `mapNotificationNode` reads ONE shape, chosen by the
+  // `notifications-legacy-path` flag, and never falls back. This path deliberately keeps the
+  // fallback — it runs on cold-start taps (a desktop OS-toast click, an FCM tap) where no
+  // flags are loaded yet, so keying on one would silently drop the route of every push
+  // carrying the other. A push carries one shape anyway; the backend's own kill-switch
+  // decides which, and routing on whichever arrived costs nothing here.
+  const attributes = readNotificationAttributes(fields.attributes);
   return actionRoute(
-    resolveAction(nonEmptyString(fields.type), nonEmptyString(fields.ticketId), nonEmptyString(fields.dialogId)),
+    resolveAction(
+      nonEmptyString(fields.type),
+      attributes[NOTIFICATION_ATTR.ticketId] ?? nonEmptyString(fields.ticketId),
+      attributes[NOTIFICATION_ATTR.dialogId] ?? nonEmptyString(fields.dialogId),
+      nonEmptyString(fields.category),
+    ),
   );
 }
 
@@ -165,7 +208,22 @@ function routeFromWireFields(fields: Record<string, unknown>): string | null {
  * (`notification:click` from the Rust notification plane) hands the wire payload over as-is.
  */
 export function resolveNatsNotificationRoute(payload: unknown): string | null {
-  return routeFromWireFields((payload as { context?: Record<string, unknown> } | null | undefined)?.context ?? {});
+  const envelope = (payload ?? {}) as {
+    type?: unknown;
+    attributes?: unknown;
+    category?: unknown;
+    context?: Record<string, unknown>;
+  };
+  const context = envelope.context ?? {};
+  // `type`/`attributes`/`category` sit at the TOP of the spec envelope, while the legacy ids
+  // live inside `context` — flatten both into one bag for the shared resolver.
+  return routeFromWireFields({
+    type: envelope.type ?? context.type,
+    attributes: envelope.attributes,
+    ticketId: context.ticketId,
+    dialogId: context.dialogId,
+    category: envelope.category ?? context.category,
+  });
 }
 
 /**
@@ -206,10 +264,10 @@ export function notificationTargetsDialog(notification: Notification, activeDial
  * auto-marking a notification read once the user opens its entity, uniformly for every entity
  * type the route mapping covers (mingo dialog, ticket, …).
  *
- * A Mingo dialog matches here only with `mingo-sidebar` OFF, where `/mingo?dialogId=` is the
- * legacy page's resting URL. With the flag on that route only ever redirects, and the drawer's
- * resting URL is `?mingoDialog=` on some other path — so the drawer's auto-read runs through
- * `notificationTargetsDialog` instead, off the set of dialogs actually on screen.
+ * A Mingo dialog never matches here: the drawer floats over whatever route is showing, so its
+ * resting URL is `?mingoDialog=` on an arbitrary path rather than a route this can compare
+ * against. The drawer's auto-read runs through `notificationTargetsDialog` instead, off the set
+ * of dialogs actually on screen.
  */
 export function notificationTargetsLocation(
   notification: Notification,

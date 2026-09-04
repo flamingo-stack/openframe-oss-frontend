@@ -25,7 +25,7 @@ export function KnowledgeBaseStep({
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Build your own library of docs: setup guides, common fixes, policies, and FAQs. Organize articles into folders,
         save drafts before publishing, and keep everything structured so your team always finds the right answer fast.
       </p>

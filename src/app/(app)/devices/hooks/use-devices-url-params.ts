@@ -11,8 +11,8 @@ interface UseDevicesUrlParamsOptions {
   /**
    * Default statuses applied when the user hasn't picked any.
    * - omitted → `DEFAULT_DEVICES_LIST_STATUSES` (ONLINE / OFFLINE; PENDING is
-   *   opt-in via the filter, ARCHIVED lives on /devices/archive, DELETED
-   *   hidden). Used on the main Devices page and the Customer devices tab.
+   *   opt-in via the filter, DELETED and legacy ARCHIVED live on
+   *   /devices/archive). Used on the main Devices page and the Customer devices tab.
    * - `[]` → no default, every status (including ARCHIVED / DELETED) returned;
    *   pair with `lockedFilters` to scope the query (e.g. the archive page).
    */
@@ -64,7 +64,7 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   const normalizedParams = useMemo(() => ({ ...params, statuses: selectedStatuses }), [params, selectedStatuses]);
 
   const setParamsNormalized = useCallback(
-    (next: Record<string, any>) =>
+    (next: Record<string, string[]>) =>
       setParams('statuses' in next ? { ...next, statuses: normalizeStatuses(next.statuses || []) } : next),
     [setParams, normalizeStatuses],
   );
@@ -103,7 +103,7 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   );
 
   const handleFilterChange = useCallback(
-    (columnFilters: Record<string, any[]>) => {
+    (columnFilters: Record<string, string[]>) => {
       setParamsNormalized({
         statuses: columnFilters.status || [],
         osTypes: columnFilters.os || [],

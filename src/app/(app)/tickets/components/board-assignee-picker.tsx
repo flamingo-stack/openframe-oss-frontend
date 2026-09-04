@@ -15,7 +15,10 @@ interface BoardAssigneePickerProps {
 }
 
 /** Memoized: this sits in every card, and a board update re-renders the lanes. */
-export const BoardAssigneePicker = memo(function BoardAssigneePicker({ ticket, onTakeOver }: BoardAssigneePickerProps) {
+export const BoardAssigneePicker = memo(function BoardAssigneePickerImpl({
+  ticket,
+  onTakeOver,
+}: BoardAssigneePickerProps) {
   const { options, isLoading } = useAssigneeOptions();
   const assign = useAssignTicket();
   const { isUserDeleted } = useUserStatusMap();
@@ -44,3 +47,4 @@ export const BoardAssigneePicker = memo(function BoardAssigneePicker({ ticket, o
     />
   );
 });
+BoardAssigneePicker.displayName = 'BoardAssigneePicker';

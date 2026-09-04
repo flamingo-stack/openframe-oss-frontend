@@ -67,14 +67,14 @@ export function QueriesTab({ device }: QueriesTabProps) {
       {showSearch && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <Input
             placeholder="Search for Query"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full"
-            startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
           />
         </div>
       )}

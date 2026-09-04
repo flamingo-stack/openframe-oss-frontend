@@ -106,7 +106,7 @@ export function TagFilterBarSkeleton({ search, onSearchChange, placeholder, filt
             placeholder={placeholder}
             value={search}
             onChange={e => onSearchChange(e.target.value)}
-            startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
           />
         </div>
         {filterButton}

@@ -38,7 +38,7 @@ export function MonitoringPageSkeleton({ tab }: { tab?: string }) {
   const isQueries = tab === 'queries';
 
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex w-full flex-col">
       <div className="px-[var(--spacing-system-l)]">
         <TabBarSkeleton widths={TAB_WIDTHS} />
       </div>
@@ -48,7 +48,7 @@ export function MonitoringPageSkeleton({ tab }: { tab?: string }) {
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
         {!isQueries && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {/* `DashboardInfoCard`'s own height — see the matching note in `policies.tsx`. */}
             {SUMMARY_CARD_KEYS.map(key => (
               <Skeleton key={key} className="h-16 w-full md:h-[104px]" />

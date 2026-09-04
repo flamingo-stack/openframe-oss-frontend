@@ -96,13 +96,12 @@ const SYSTEM_FALLBACK_COLUMNS: BoardColumnDef[] = [
 ];
 
 /**
- * The lanes to render while the real ones are unknown — used by BOTH the route
- * skeleton and `TicketsBoard` itself while its statuses query is in flight.
+ * The lanes to render while the real ones are unknown — used by `TicketsBoard`
+ * while its statuses query is in flight.
  *
- * Sharing one builder is the point: the board used to map an empty status list
- * to zero columns, so the loaded page opened on a blank strip before the lanes
- * appeared. Standing in with the same placeholders on both sides makes the
- * skeleton → page handoff a no-op.
+ * The board used to map an empty status list to zero columns, so the page
+ * opened on a blank strip before the lanes appeared; standing in with the
+ * last-seen lane set makes the loading → loaded handoff a no-op.
  */
 export function buildPlaceholderBoardColumns(): BoardColumnDef[] {
   const cached = readCachedBoardColumns();
@@ -121,9 +120,9 @@ let hasHydrated = false;
  * Hydration-safe `buildPlaceholderBoardColumns` — use this from a render, never
  * the builder directly.
  *
- * Both consumers (the route skeleton and `TicketsBoard`) render on the server,
- * where `localStorage` does not exist: the builder returns the three system
- * statuses there and the tenant's real cached lanes in the browser. Reading it in
+ * `TicketsBoard` renders on the server, where `localStorage` does not exist:
+ * the builder returns the three system statuses there and the tenant's real
+ * cached lanes in the browser. Reading it in
  * a `useState` initializer therefore made the server and the first client render
  * disagree on the lane SET — different column count, different colors, different
  * counts — which is a hydration mismatch, and not a cosmetic one: React discards

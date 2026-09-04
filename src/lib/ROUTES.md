@@ -81,9 +81,9 @@ Rules for one:
   feature that reads it. Either home is fine — two homes for one param is not.
 - **Exactly one owner of the live value.** For `mingoDialog` that is
   `useMingoDialogUrlSync`, which mirrors drawer state into the URL and adopts it
-  back. A canonical resolver may hand the param in once as a redirect target
-  (`/mingo` does) and must then leave it alone; that is a handoff, not a second
-  owner. Two owners turn a shared param into a race with no arbiter.
+  back. A resolver may hand the param in once as a redirect target and must then
+  leave it alone; that is a handoff, not a second owner. Two owners turn a shared
+  param into a race with no arbiter.
 - **Other query writers must re-base on the live search string.** An overlay param is
   only as durable as the code that writes *around* it, and dropping it is not a
   cosmetic loss: the owner sees a param it was mirroring vanish and treats that as
@@ -106,7 +106,8 @@ Rules for one:
   `history.replaceState` — see the `withMingoDialog` JSDoc for why.
 - **Give it a canonical counterpart.** An overlay param rides the sharer's page,
   which is not what a notification or a copied link should carry — those need a
-  page-independent URL that *resolves into* the overlay (`routes.mingo`).
+  page-independent URL that *resolves into* the overlay. For `mingoDialog` that is
+  `mingoDialogLink()`: the same param on a fixed landing page.
 
 ## Tab ids (`TAB_IDS`)
 
@@ -141,7 +142,7 @@ These mirror the app-router constraints (static-export build):
   `/help-center/releases/detail?slug=…` use `slug`, not `id`, because the content
   endpoints resolve by slug only and 404 on an id.
 - **Create pages are dedicated `/new` segments** (`/customers/new`,
-  `/monitoring/policy/new`, `/scripts-v2/new`), not an `?id=new` sentinel.
+  `/monitoring/policy/new`, `/scripts/new`), not an `?id=new` sentinel.
 - **Multi-param routes** compose through the options object:
   `/devices/details?id=…&tab=overview&action=runScript`.
 

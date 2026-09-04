@@ -15,7 +15,7 @@ interface RenameItemModalProps {
 
 export function RenameItemModal({ isOpen, value, submitting, onChange, onSubmit, onClose }: RenameItemModalProps) {
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Enter' && !submitting && value.trim()) {
         event.preventDefault();
@@ -44,7 +44,7 @@ export function RenameItemModal({ isOpen, value, submitting, onChange, onSubmit,
         </>
       }
     >
-      <p className="text-h6 text-ods-text-secondary">Update the name for the selected item.</p>
+      <p className="text-ods-text-secondary text-h6">Update the name for the selected item.</p>
       <Input
         value={value}
         onChange={event => onChange(event.target.value)}

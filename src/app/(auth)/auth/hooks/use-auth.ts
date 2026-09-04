@@ -3,9 +3,9 @@
 import { useLocalStorage, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { authApiClient } from '@/lib/auth-api-client';
-import { nativeLogin, nativeSsoRegister } from '@/lib/native-login';
+import { AppleRegistrationRequiredError, nativeLogin, SsoRegistrationRequiredError } from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
 import { isAppShell, isMobileShell } from '@/lib/platform';
 import { appendPosthogHandoff, markPendingSignup } from '@/lib/posthog/posthog-events';
@@ -43,14 +43,6 @@ interface RegisterRequest {
   prNumber?: number;
 }
 
-interface SsoRegisterRequest {
-  tenantName: string;
-  tenantDomain: string;
-  email: string;
-  provider: 'google' | 'microsoft' | 'apple';
-  redirectTo?: string;
-}
-
 /**
  * Dismissing a native sign-in surface (the Apple sheet, or the shell-owned
  * browser session) is a deliberate user action, not a failure — the shell
@@ -60,23 +52,6 @@ function isUserCanceled(error: unknown): boolean {
   return (
     (error as { code?: string } | null)?.code === 'USER_CANCELED' ||
     (error instanceof Error && error.message === 'USER_CANCELED')
-  );
-}
-
-/**
- * Sign in with Apple authenticates whichever Apple ID is signed into the device
- * — it has no credential entry — so the identity is frequently NOT the account
- * the email field just resolved. The gateway then validates the credential fine
- * and 401s for want of a linked account, which the shell rejects with this code.
- * An ordinary outcome deserving actionable copy, not a raw HTTP status: App
- * Review cited "Apple exchange failed with status 401" as a bug (2.1).
- * Recovery is the account's own email, or Sign Up to create an organization
- * against this Apple ID.
- */
-function isAppleAccountNotLinked(error: unknown): boolean {
-  return (
-    (error as { code?: string } | null)?.code === 'APPLE_ACCOUNT_NOT_LINKED' ||
-    (error instanceof Error && error.message === 'APPLE_ACCOUNT_NOT_LINKED')
   );
 }
 
@@ -100,6 +75,8 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [discoveryAttempted, setDiscoveryAttempted] = useState(false);
+  /** The address of the most recent discovery request, so a stale response cannot overwrite it. */
+  const latestDiscovery = useRef<string | null>(null);
 
   // Track when localStorage hooks are initialized
   useEffect(() => {
@@ -108,6 +85,11 @@ export function useAuth() {
 
   const discoverTenants = async (userEmail: string): Promise<TenantDiscoveryResponse | null> => {
     setIsLoading(true);
+    // Two lookups can be in flight while the user keeps typing, and they can resolve out of order.
+    // The caller's own cancelled-flag protects only its display; this shared state is what
+    // `loginWithSso` reads to decide between the per-tenant and identity-first paths, so a late
+    // answer for an abandoned address must not be the one that lands.
+    latestDiscovery.current = userEmail;
 
     if (userEmail !== email) {
       setDiscoveryAttempted(false);
@@ -126,21 +108,28 @@ export function useAuth() {
       }
 
       const data = response.data as TenantDiscoveryResponse;
+      if (latestDiscovery.current !== userEmail) {
+        return data;
+      }
 
       if (data.has_existing_accounts && data.tenant_id) {
-        const tenantInfo = {
+        const discovered = {
           tenantId: data.tenant_id,
           tenantName: '',
           tenantDomain: data.domain || 'localhost',
         };
-        const providers = data.auth_providers || ['openframe-sso'];
+        const providers = data.auth_providers || ['openframe'];
 
-        setTenantInfo(tenantInfo);
+        setTenantInfo(discovered);
         setAvailableProviders(providers);
         setHasDiscoveredTenants(true);
         setTenantId(data.tenant_id);
       } else {
+        // No account for this address — drop any tenant a previous lookup left behind, so an
+        // ungated provider click cannot take the per-tenant path with a stale one.
         setHasDiscoveredTenants(false);
+        setTenantInfo(null);
+        setAvailableProviders([]);
       }
 
       setDiscoveryAttempted(true);
@@ -177,11 +166,14 @@ export function useAuth() {
       });
 
       if (!response.ok) {
-        const code = (response.data as any)?.code;
-        const message = (response.data as any)?.message || response.error || 'Registration failed';
+        // The auth service answers a rejected registration with a code + message
+        // body; both are optional because a transport failure carries neither.
+        const body = response.data as { code?: string; message?: string } | undefined;
+        const code = body?.code;
+        const message = body?.message || response.error || 'Registration failed';
         let userMessage = 'Registration failed';
         let title = 'Registration Failed';
-        const variant: any = 'destructive';
+        const variant = 'destructive' as const;
 
         switch (code) {
           case AUTH_ERROR_CODE.TENANT_REGISTRATION_BLOCKED:
@@ -208,10 +200,21 @@ export function useAuth() {
       // goes to the email-verify step next). Mark the pending signup so it fires.
       markPendingSignup();
 
+      // The verify screen shows the address the link went to, and reads it from here. It used to
+      // be written by the two-step signup's first screen; that handoff went away when the steps
+      // merged, and without this the screen finds nothing and bounces straight back to /auth.
+      // sessionStorage, not the URL: the address is not something to put in a shareable link.
+      try {
+        sessionStorage.setItem('auth:email', data.email);
+      } catch {
+        // Best-effort. Losing it costs the address on the verify screen, which bounces to /auth —
+        // it must not surface as "Registration Failed" for an account the server already created.
+      }
+
       // Client-side replace (not window.location.href) so the success toast
       // survives the transition; replace keeps signup out of the back stack.
       router.replace(routes.auth.checkEmail);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Registration Failed',
         description: error instanceof Error ? error.message : 'Unable to create organization',
@@ -222,119 +225,86 @@ export function useAuth() {
     }
   };
 
-  const registerOrganizationSso = async (data: SsoRegisterRequest) => {
-    setIsLoading(true);
-
-    try {
-      if (isAppShell()) {
-        // The shell must not navigate to the registration URL: Capacitor hands a
-        // top-level https nav to the system browser, which creates the tenant in
-        // Safari and leaves the app signed out. Run it in the shell's own browser
-        // session instead, the same way login does.
-        const { tenantHostChanged } = await nativeSsoRegister({
-          tenantName: data.tenantName,
-          tenantDomain: data.tenantDomain,
-          email: data.email,
-          provider: data.provider,
-        });
-        // Registration has a synchronous success point, unlike the browser path
-        // below — mark the signup only once the tokens are actually stored, so a
-        // dismissed sheet leaves no marker behind.
-        markPendingSignup();
-
-        if (tenantHostChanged) {
-          // The tenant host was just learned, so module-level clients still hold
-          // the boot value — full navigation, not an SPA route. replace, not
-          // assign: keep /auth out of the history stack.
-          window.location.replace(routes.dashboard);
-          return true;
-        }
-        // Refetch /me BEFORE leaving the auth screen — same reason as loginWithSso.
-        await queryClient.refetchQueries({ queryKey: authSessionQueryKey });
-        router.replace(routes.dashboard);
-        setIsLoading(false);
-        return true;
-      }
-
-      // Funnel: Google/Microsoft SSO signup. There is no synchronous success
-      // point (the browser leaves for OAuth), so mark the pending signup now —
-      // `signup_completed` fires when the session resolves after the callback.
-      markPendingSignup();
-      await authApiClient.registerOrganizationSso(data);
-      return true;
-    } catch (error: any) {
-      if (!isUserCanceled(error)) {
-        toast({
-          title: 'SSO Registration Failed',
-          description: error instanceof Error ? error.message : 'Unable to register organization with SSO',
-          variant: 'destructive',
-        });
-      }
-      setIsLoading(false);
-      return false;
-    }
-  };
-
   const loginWithSso = async (provider: string) => {
     setIsLoading(true);
 
     try {
-      if (tenantInfo?.tenantId) {
-        setTenantId(tenantInfo.tenantId);
+      // Only trust a discovered tenant when discovery actually ran on this screen. `tenantInfo` is
+      // persisted in localStorage, so without this a provider click on a freshly-opened screen —
+      // they are no longer gated behind a filled-in email — would route down the per-tenant path
+      // with a previous session's tenant, which the identity being asserted may have nothing to do
+      // with. `discoveryAttempted` is session state, so it is false exactly when that is the case.
+      const discovered = discoveryAttempted ? tenantInfo : null;
+      if (discovered?.tenantId) {
+        setTenantId(discovered.tenantId);
+      }
 
-        if (isAppShell()) {
-          const { tenantHostChanged } = await nativeLogin({
-            tenantId: tenantInfo.tenantId,
-            provider,
-            tenantDomain: tenantInfo.tenantDomain !== 'localhost' ? tenantInfo.tenantDomain : undefined,
-          });
-          if (tenantHostChanged) {
-            // replace, not assign: keep /auth out of the history stack so
-            // native/browser back can't return to the login screen post-login.
-            // Small delay so a just-fired signup_completed (dataLayer/PostHog)
-            // flushes before this hard navigation tears down the page context.
-            setTimeout(() => window.location.replace(routes.dashboard), 100);
-            return;
-          }
-          // Refetch /me BEFORE leaving the auth screen (its spinner covers the
-          // round trip). A fire-and-forget invalidation left the stale
-          // signed-out session in cache, so the dashboard mounted into a brief
-          // "Sign in required" overlay until the refetch resolved.
-          await queryClient.refetchQueries({ queryKey: authSessionQueryKey });
-          router.replace(routes.dashboard);
-          setIsLoading(false);
+      if (isAppShell()) {
+        const { tenantHostChanged } = await nativeLogin(
+          discovered?.tenantId
+            ? {
+                tenantId: discovered.tenantId,
+                provider,
+                tenantDomain: discovered.tenantDomain !== 'localhost' ? discovered.tenantDomain : undefined,
+              }
+            : // No tenant: the authorization server runs the flow against its onboarding
+              // pseudo-tenant and resolves the real one from the identity the provider asserts.
+              // This deliberately does NOT honour a tenant's own SSO credentials — those cannot be
+              // looked up before the tenant is known.
+              { provider },
+        );
+        if (tenantHostChanged) {
+          // replace, not assign: keep /auth out of the history stack so
+          // native/browser back can't return to the login screen post-login.
+          // Small delay so a just-fired signup_completed (dataLayer/PostHog)
+          // flushes before this hard navigation tears down the page context.
+          setTimeout(() => window.location.replace(routes.dashboard), 100);
           return;
         }
-
-        const getReturnUrl = () => {
-          const hostname = window.location.hostname;
-          const protocol = window.location.protocol;
-          const port = window.location.port ? `:${window.location.port}` : '';
-          if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            return `${protocol}//${hostname}${port}/dashboard`;
-          }
-          return `${window.location.origin}/dashboard`;
-        };
-
-        // Carry the PostHog distinct_id + session_id across the (SaaS) auth-host
-        // → tenant-dashboard-host hop so the session recording stays continuous.
-        // Encoded here, so the `#…` handoff rides through the OAuth roundtrip and
-        // becomes a live fragment only when the gateway redirects to the dashboard.
-        const returnUrl = encodeURIComponent(appendPosthogHandoff(getReturnUrl()));
-        const loginUrl = authApiClient.loginUrl(tenantInfo.tenantId, returnUrl, provider);
-        window.location.href = loginUrl;
-      } else {
-        throw new Error('No tenant information available for SSO login');
+        // Refetch /me BEFORE leaving the auth screen (its spinner covers the
+        // round trip). A fire-and-forget invalidation left the stale
+        // signed-out session in cache, so the dashboard mounted into a brief
+        // "Sign in required" overlay until the refetch resolved.
+        await queryClient.refetchQueries({ queryKey: authSessionQueryKey });
+        router.replace(routes.dashboard);
+        setIsLoading(false);
+        return;
       }
+
+      if (!discovered?.tenantId) {
+        // A relative `/sas/...` here is not a misconfiguration: an unset shared host is the
+        // same-origin deployment shape, and every other `/sas` call — discovery, email
+        // availability, the pending-identity read — already resolves that way through
+        // `buildAuthUrl`. Gating this one on a configured host would block sign-in that works.
+        window.location.href = authApiClient.ssoLoginUrl(provider);
+        return;
+      }
+
+      const getReturnUrl = () => {
+        const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
+        const port = window.location.port ? `:${window.location.port}` : '';
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return `${protocol}//${hostname}${port}/dashboard`;
+        }
+        return `${window.location.origin}/dashboard`;
+      };
+
+      // Carry the PostHog distinct_id + session_id across the (SaaS) auth-host
+      // → tenant-dashboard-host hop so the session recording stays continuous.
+      // Encoded here, so the `#…` handoff rides through the OAuth roundtrip and
+      // becomes a live fragment only when the gateway redirects to the dashboard.
+      const returnUrl = encodeURIComponent(appendPosthogHandoff(getReturnUrl()));
+      window.location.href = authApiClient.loginUrl(discovered.tenantId, returnUrl, provider);
     } catch (error) {
-      if (isAppleAccountNotLinked(error)) {
-        toast({
-          title: 'No OpenFrame account for this Apple ID',
-          description:
-            'Sign in with the email address on your account instead, or use Sign Up to create a new organization with this Apple ID.',
-          variant: 'destructive',
-        });
-      } else if (!isUserCanceled(error)) {
+      // A verified Apple identity with no account is not a failure — the caller renders the
+      // organization form and finishes with the credential this carries. Rethrow so the screen
+      // can hold it in memory; it must never be toasted or serialised into a URL.
+      if (error instanceof AppleRegistrationRequiredError || error instanceof SsoRegistrationRequiredError) {
+        setIsLoading(false);
+        throw error;
+      }
+      if (!isUserCanceled(error)) {
         toast({
           title: 'Login Failed',
           description: error instanceof Error ? error.message : 'Unable to sign in with SSO',
@@ -419,7 +389,6 @@ export function useAuth() {
     isInitialized,
     discoverTenants,
     registerOrganization,
-    registerOrganizationSso,
     loginWithSso,
     logout,
     reset,

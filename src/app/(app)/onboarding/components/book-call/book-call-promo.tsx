@@ -51,9 +51,9 @@ export function BookCallPromo({ onBookCall, disabled, className }: BookCallPromo
             mock, 24px/8px on the tablet one. */}
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
           <CalendarBookmarkIcon className="size-4 shrink-0 text-ods-open-yellow md:size-6" />
-          <h3 className="text-h3 text-ods-text-primary">Book an onboarding call</h3>
+          <h3 className="text-ods-text-primary text-h3">Book an onboarding call</h3>
         </div>
-        <p className="mt-[var(--spacing-system-xs)] text-h6 text-ods-text-secondary">
+        <p className="mt-[var(--spacing-system-xs)] text-ods-text-secondary text-h6">
           Rather be walked through it? Grab a time and a specialist will set up your first customer and deploy an agent
           with you.
         </p>
@@ -74,7 +74,7 @@ export function BookCallPromo({ onBookCall, disabled, className }: BookCallPromo
           stretching it — a stretched item's width would win and fight the
           ratio; `max-w-full` guards the narrow card where width binds instead.
           Renders nothing when the platform has no video. */}
-      <BookCallWalkthroughVideo className="w-full md:w-auto md:max-w-full md:min-h-0 md:flex-1 md:self-start lg:w-[460px] lg:flex-none lg:self-auto" />
+      <BookCallWalkthroughVideo className="w-full md:min-h-0 md:w-auto md:max-w-full md:flex-1 md:self-start lg:w-[460px] lg:flex-none lg:self-auto" />
     </section>
   );
 }
