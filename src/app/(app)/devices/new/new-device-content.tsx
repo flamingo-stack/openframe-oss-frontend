@@ -38,6 +38,7 @@ import {
   type InstallMethod,
   installMethodLabel,
   installMethodsForPlatform,
+  isInstallMethodEnabled,
   PACKAGE_MANAGER_METHODS,
 } from '../utils/device-command-utils';
 
@@ -242,7 +243,7 @@ export function NewDeviceContent() {
                 </SelectTrigger>
                 <SelectContent>
                   {installMethodsForPlatform(platform).map(method => (
-                    <SelectItem key={method} value={method}>
+                    <SelectItem key={method} value={method} disabled={!isInstallMethodEnabled(method)}>
                       {installMethodLabel(method)}
                     </SelectItem>
                   ))}
