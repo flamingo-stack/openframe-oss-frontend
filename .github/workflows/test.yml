@@ -23,6 +23,25 @@ env:
 # =============================================================================
 
 jobs:
+  scan:
+    name: "Scan Code"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Scan code
+        uses: ./.github/steps/trivy
+        with:
+          scan: code
+
   lint:
     name: 'Lint'
     runs-on: ubuntu-latest
@@ -59,6 +78,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      statuses: write
 
     steps:
       - name: Checkout
@@ -90,7 +110,7 @@ jobs:
             type=raw,value=pr-${{ github.event.pull_request.number }}
             type=raw,value=pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
 
-      - name: Build and Push pr-${{ github.event.pull_request.number }}
+      - name: Build image
         id: docker_build
         uses: nick-fields/retry@v4
         env:
@@ -101,11 +121,36 @@ jobs:
           timeout_minutes: 12
           shell: bash
           command: |
-            args=(--platform linux/amd64,linux/arm64 --push --provenance=false
+            args=(--platform linux/amd64,linux/arm64
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
-                  -f ./Dockerfile)
+                  -f "./Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
-            docker buildx build "${args[@]}" .
+            docker buildx build "${args[@]}" "."
+
+      - name: Push image
+        id: docker_push
+        uses: nick-fields/retry@v4
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 5
+          timeout_minutes: 12
+          shell: bash
+          command: |
+            args=(--platform linux/amd64,linux/arm64
+                  --build-arg GITHUB_ACTOR=${{ github.actor }}
+                  -f "./Dockerfile")
+            while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
+            docker buildx build "${args[@]}" --push --provenance=false --sbom=true "."
+
+      - name: Scan image
+        uses: ./.github/steps/trivy
+        with:
+          scan: image
+          image-name: ${{ env.REPOSITORY }}
+          dockerfile: ./Dockerfile
+          context: .
 
   cleanup:
     name: Cleanup
