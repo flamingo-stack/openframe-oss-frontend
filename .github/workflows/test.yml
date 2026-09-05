@@ -125,18 +125,24 @@ jobs:
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
                   -f "./Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
-            echo "BUILD_ARGS=${args[*]}" >> "$GITHUB_ENV"
             docker buildx build "${args[@]}" "."
 
       - name: Push image
         id: docker_push
         uses: nick-fields/retry@v4
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
         with:
           max_attempts: 3
           retry_wait_seconds: 5
           timeout_minutes: 12
           shell: bash
-          command: docker buildx build $BUILD_ARGS --push --provenance=false --sbom=true "."
+          command: |
+            args=(--platform linux/amd64,linux/arm64
+                  --build-arg GITHUB_ACTOR=${{ github.actor }}
+                  -f "./Dockerfile")
+            while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
+            docker buildx build "${args[@]}" --push --provenance=false --sbom=true "."
 
       - name: Scan image
         uses: ./.github/steps/trivy
