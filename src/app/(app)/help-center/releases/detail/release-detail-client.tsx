@@ -14,8 +14,10 @@ import { skipToken, useQuery } from '@tanstack/react-query';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
 
 /**
- * Host-supplied data hook — `ReleaseDetailPage` REQUIRES this so it fetches
- * through the app's QueryClient. Points at the single-release route
+ * Host-side data hook — called at the top level of `ReleaseDetailClient` below,
+ * so it runs against the app's QueryClient. `ReleaseDetailPage` takes the
+ * RESOLVED release, never a hook, so nothing crosses the prop boundary that
+ * React cannot see. Points at the single-release route
  * (`EP.productReleaseBySlug`); a miss surfaces the lib's error state (no crash).
  *
  * Fetches via `embedAuthedFetch` — the SAME authed proxy fetch every other
@@ -83,15 +85,14 @@ function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; i
   );
 }
 
-// The React Compiler skips this one: `ReleaseDetailPage` takes its data hook as a prop,
-// which is "passing a hook around as a value". The contract is the core library's. Costs
-// nothing — this is a prop-forwarding wrapper with nothing to memoize.
 export function ReleaseDetailClient({ slug }: { slug: string }) {
+  const { data: release, error, isLoading } = useRelease(slug);
   return (
     <ReleaseDetailPage
       shell={false}
-      slug={slug}
-      useRelease={useRelease}
+      release={release}
+      isLoading={isLoading}
+      error={error}
       RoadmapSection={RoadmapSection}
       DeliverySection={DeliverySection}
       VideoDisplaySection={VideoDisplaySection}
