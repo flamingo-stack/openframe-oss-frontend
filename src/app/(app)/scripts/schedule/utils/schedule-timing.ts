@@ -401,13 +401,22 @@ function slotLabel(minutesOfDay: number): string {
  * tomorrow; picking today afterwards is what clears a time that has gone by).
  * A PAST day keeps them too: it can only be a stored start, and the value that
  * schedule already holds has to stay readable.
+ *
+ * **None of that narrowing applies to DEVICE_LOCAL**, which keeps all 48 slots
+ * always. The reading is not the viewer's clock, so "already gone by" is not the
+ * viewer's to judge: the fleet's own clocks span 26 hours (UTC−12 … UTC+14), so
+ * 8:00 AM at the author's noon is still hours ahead for every device west of
+ * them. Withholding it would hide a perfectly good schedule behind the accident
+ * of where the admin sits. See {@link earliestDeviceLocalDay} for the one bound
+ * that IS meaningful, and note the backend agrees — it validates no start
+ * against the past, for either reading.
  */
 export function getTimeSlotOptions(
   forDate?: Date | null,
   timeReference?: ScheduleTimeReference | string | null,
 ): { value: string; label: string }[] {
   const base = slotBaseMinutes(timeReference);
-  const cutoff = forDate && isToday(forDate) ? nowMinutesOfDay() : -1;
+  const cutoff = !isDeviceLocalTime(timeReference) && forDate && isToday(forDate) ? nowMinutesOfDay() : -1;
   return Array.from({ length: SLOTS_PER_DAY }, (_, slot) => {
     const minutesOfDay = base + slot * SLOT_MINUTES;
     return { value: slotValue(minutesOfDay), label: slotLabel(minutesOfDay), minutesOfDay };
@@ -458,16 +467,64 @@ export function startOfToday(): Date {
 }
 
 /**
+ * The earliest day a DEVICE_LOCAL schedule may start: today **as read on the
+ * westernmost clock on Earth** (UTC−12), returned as a local `Date` the calendar
+ * can take as its `fromDate`.
+ *
+ * The viewer's own midnight is the wrong bound here. A wall clock is not an
+ * instant, so a day is "gone" only once it has gone everywhere — and the fleet's
+ * clocks span 26 hours, so for a viewer in Kyiv or Auckland the calendar day
+ * that already ended for THEM is still running for a device in Baker Island.
+ * Bounding by the viewer would refuse a date that is genuinely in the future for
+ * part of the fleet; bounding by UTC−12 refuses only what no device anywhere can
+ * still reach.
+ *
+ * In practice this is today, or yesterday for viewers far enough east — which is
+ * the whole of the correction, and it is deliberately the only one: within a day
+ * that is still live somewhere, WHICH devices are still ahead of the picked time
+ * is the runner's business (it fires each device at its own local reading and
+ * marks the ones that have gone past their catch-up window MISSED), not a rule
+ * the form can usefully pre-empt.
+ */
+export function earliestDeviceLocalDay(): Date {
+  const westernmostNow = new Date(Date.now() - 12 * 60 * 60 * 1000);
+  return new Date(westernmostNow.getUTCFullYear(), westernmostNow.getUTCMonth(), westernmostNow.getUTCDate());
+}
+
+/**
+ * The earliest day the picker may offer, for either reading — the calendar's
+ * `fromDate`, and the day the "start in the past" rules measure against.
+ */
+export function earliestScheduleDay(timeReference?: ScheduleTimeReference | string | null): Date {
+  return isDeviceLocalTime(timeReference) ? earliestDeviceLocalDay() : startOfToday();
+}
+
+/**
  * Whether a picked day + slot has already gone by. Compared as instants, so a
  * slot that is still minutes away passes.
+ *
+ * Always false for DEVICE_LOCAL: the pair is a wall clock every device reads on
+ * its own timezone, so there is no single instant to have gone by — see
+ * {@link getTimeSlotOptions}.
  */
-export function isScheduleStartInPast(date: Date | null | undefined, slot: string): boolean {
-  if (!date || !slot) return false;
+export function isScheduleStartInPast(
+  date: Date | null | undefined,
+  slot: string,
+  timeReference?: ScheduleTimeReference | string | null,
+): boolean {
+  if (!date || !slot || isDeviceLocalTime(timeReference)) return false;
   return applyTimeSlot(date, slot).getTime() < Date.now();
 }
 
 /** What both the field and the schema say about a start that has gone by. */
 export const PAST_START_MESSAGE = 'Start time must be in the future';
+
+/**
+ * How a DEVICE_LOCAL time is named wherever it is shown OUTSIDE the form, which
+ * is the only place its reading is otherwise invisible: the digits are each
+ * device's own wall clock, and a bare "6:00 PM" in a table reads as the viewer's.
+ */
+export const DEVICE_LOCAL_TIME_NOTE = 'Device local';
 
 /**
  * What a picked TODAY says once its last 30-minute slot has gone by.
@@ -493,6 +550,11 @@ export const NO_SLOTS_TODAY_MESSAGE = 'No start times left today — pick anothe
  * and without this, renaming one would demand re-picking its date. So the stored
  * instant stays legal for exactly as long as the form still shows it; moving
  * either half makes the choice a new one, held to the same rule as any other.
+ *
+ * The rule does not exist at all for DEVICE_LOCAL — `isScheduleStartInPast`
+ * answers false there — which is why the day bound
+ * ({@link earliestDeviceLocalDay}) is the only thing left holding that reading
+ * to a future the fleet can still reach.
  */
 export function isStartInPastAndChanged(
   date: Date | null | undefined,
@@ -500,7 +562,7 @@ export function isStartInPastAndChanged(
   storedIso: string | null | undefined,
   timeReference?: ScheduleTimeReference | string | null,
 ): boolean {
-  if (!isScheduleStartInPast(date, slot) || !date) return false;
+  if (!isScheduleStartInPast(date, slot, timeReference) || !date) return false;
   // Read under the schedule's own reading, or the stored start of a DEVICE_LOCAL
   // schedule would come back shifted by the viewer's offset and never match the
   // pair on screen — the exemption would lapse and an untouched schedule would

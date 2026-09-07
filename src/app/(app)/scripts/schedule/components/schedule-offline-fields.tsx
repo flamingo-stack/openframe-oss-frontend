@@ -17,6 +17,7 @@ import { type EditScheduleFormData, OFFLINE_BEHAVIOR_OPTIONS } from '../types/ed
 import {
   DURATION_UNIT_OPTIONS,
   type DurationUnit,
+  isDeviceLocalTime,
   isEventTrigger,
   isRetryOnReconnect,
   MIN_RECONNECT_MINUTES,
@@ -111,8 +112,19 @@ function ReconnectWindowFields({
  * optional-meaning-forever: nothing in the contract says a null window queues a
  * run indefinitely, so the form never offers a reading it cannot back up.
  *
- * The whole block presupposes a scheduled time, so it collapses for the
- * DEVICE_ONLINE trigger exactly as the timing row above it does — same
+ * The whole block presupposes a scheduled time the device can be absent FOR, so
+ * it collapses for the two readings that have no such moment to decide about:
+ *
+ * - **DEVICE_ONLINE** fires on the reconnect already.
+ * - **DEVICE_LOCAL** is refused the setting by the API outright
+ *   ("RETRY_ON_RECONNECT is not supported for a DEVICE_LOCAL schedule",
+ *   `ScheduleScriptService.validateOfflineBehavior`) — and it needs none: that
+ *   runner only dispatches to a device it finds ONLINE, so a device absent at
+ *   its local hour is picked up by a later sweep and only written off once its
+ *   catch-up window has passed. Retrying on reconnect is what it already does.
+ *
+ * Both submit the SKIP default rather than whatever the collapsed block holds,
+ * exactly as the timing fields submit null. It collapses with the same
  * `0fr → 1fr` grid-rows technique, same stays-MOUNTED contract (toggling the
  * trigger back restores what was picked), same `inert` to drop the collapsed
  * controls out of the tab order, and the same padding/negative-margin pair: the
@@ -122,7 +134,10 @@ function ReconnectWindowFields({
 export function ScheduleOfflineFields({ showErrors, disabled = false }: { showErrors: boolean; disabled?: boolean }) {
   const { control } = useFormContext<EditScheduleFormData>();
   const trigger = useWatch({ control, name: 'trigger' });
-  const eventDriven = isEventTrigger(trigger);
+  const timeReference = useWatch({ control, name: 'timeReference' });
+  // The two readings with no offline moment to decide about — see the docstring.
+  // One predicate for the collapse, so the block cannot be half-hidden.
+  const collapsed = isEventTrigger(trigger) || isDeviceLocalTime(timeReference);
 
   const { field: behaviorField } = useController({ control, name: 'offlineBehavior' });
   const { field: intervalField, fieldState: intervalState } = useController({ control, name: 'reconnectInterval' });
@@ -170,10 +185,10 @@ export function ScheduleOfflineFields({ showErrors, disabled = false }: { showEr
 
   return (
     <div
-      inert={eventDriven}
+      inert={collapsed}
       style={{
-        gridTemplateRows: eventDriven ? '0fr' : '1fr',
-        opacity: eventDriven ? 0 : 1,
+        gridTemplateRows: collapsed ? '0fr' : '1fr',
+        opacity: collapsed ? 0 : 1,
       }}
       className="mb-[calc(-1*var(--spacing-system-lf))] grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
     >

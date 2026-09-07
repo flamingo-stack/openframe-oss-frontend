@@ -85,12 +85,6 @@ const WALKTHROUGH_OVERLAP_Z = {
   overlay: '!z-[9985]',
 } as const;
 
-/** Conditional `TicketLiveProvider` mount — a flag-off tenant gets a
- *  passthrough (no stream, no summary fetch, no context). */
-function TicketLiveWhenEnabled({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
-  return enabled ? <TicketLiveProvider>{children}</TicketLiveProvider> : <>{children}</>;
-}
-
 /**
  * How long the chrome may wait for the answers it renders from before giving up
  * and drawing itself anyway. Sized like the session latch's own fail-open in
@@ -699,19 +693,31 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           </Suspense>
         </ErrorBoundary>
       )}
-      {/* Same reason as the onboarding hydrator: a locked workspace can't track
-          time, and its query would be held rather than answered. */}
+      {/* BOTH providers below are mounted UNCONDITIONALLY and told what to do
+          through `enabled`. That is a rule, not a style: their answers
+          (`sessionReady`, a feature flag) arrive mid-boot, and a wrapper that
+          swaps between `<Provider>{children}</Provider>` and `<>{children}</>`
+          changes the element TYPE at this position when they land — React then
+          tears down and remounts EVERYTHING below, which here is the whole
+          `CoreAppLayout` plus the page in it. It shipped that way: every cold
+          load remounted the shell twice (queries refired, page state lost), and
+          the visible tell was a chat drawer opened by a `?mingoDialog=` deep
+          link replaying its open animation, because the drawer opens before the
+          flags answer. Anything else that has to wrap this layout gets an
+          `enabled` prop too — never a conditional mount.
+
+          `enabled` itself: the feature's flag, plus `sessionReady` (no request
+          before `/me` answers), plus `!isLocked` — a locked workspace has its
+          app data refused, so these requests would be parked by the
+          subscription gate rather than answered (same reason as the onboarding
+          hydrator below). With `enabled={false}` each provides NO context, so
+          every surface reading it hides itself exactly as it did when the
+          provider was absent. */}
       <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady && !isLocked}>
-        {/* Ticket live stream + unread indication (Help Center). Gated on the
-            same feature flag as the surface it serves; wraps CoreAppLayout so
-            BOTH the header's TicketAlertsButton and the /help-center/tickets
-            page (children) read one provider. Without it every ticket-live
-            surface renders nothing and no stream/summary request fires.
-            `!isLocked` for the same reason as the provider above: a locked
-            workspace has its app data refused, so the stream and summary
-            requests would be parked by the subscription gate rather than
-            answered. */}
-        <TicketLiveWhenEnabled enabled={helpCenterEnabled && sessionReady && !isLocked}>
+        {/* Ticket live stream + unread indication (Help Center). Wraps
+            CoreAppLayout so BOTH the header's TicketAlertsButton and the
+            /help-center/tickets page (children) read one provider. */}
+        <TicketLiveProvider enabled={helpCenterEnabled && sessionReady && !isLocked}>
           <CoreAppLayout
             // Hook for the native-shell safe-area CSS in globals.css: the layout
             // root owns the top inset (see `.app-shell-root`). Inert on the web.
@@ -748,7 +754,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               arriving late costs a content swap, not a second chrome mount. */}
             <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
           </CoreAppLayout>
-        </TicketLiveWhenEnabled>
+        </TicketLiveProvider>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
           + coach-mark (shows only when a page was reached from an onboarding step
