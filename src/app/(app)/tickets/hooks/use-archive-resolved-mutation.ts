@@ -6,7 +6,7 @@ import { apiClient } from '@/lib/api-client';
 import { API_ENDPOINTS } from '../constants';
 import { ARCHIVE_RESOLVED_TICKETS_MUTATION } from '../queries/ticket-queries';
 import type { TicketsPage } from '../services/ticket-service.types';
-import type { Dialog } from '../types/dialog.types';
+import type { Dialog, TicketActivityFilter } from '../types/dialog.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import { dialogsQueryKeys, invalidateAllDialogs, ticketsQueryKeys } from '../utils/query-keys';
@@ -23,6 +23,10 @@ export interface ArchiveResolvedFilter {
   assigneeIds?: string[];
   tagIds?: string[];
   unreadOnly?: boolean;
+  // Must mirror every filter the Resolved lane is fetched under — the confirm
+  // dialog's count is the filtered lane total, so a filter dropped here would
+  // archive more than the dialog stated.
+  activity?: TicketActivityFilter[];
 }
 
 export function useArchiveResolvedMutation() {
@@ -39,6 +43,7 @@ export function useArchiveResolvedMutation() {
             assigneeIds: filter.assigneeIds?.length ? filter.assigneeIds : undefined,
             tagIds: filter.tagIds?.length ? filter.tagIds : undefined,
             hasUnreadNotifications: filter.unreadOnly || undefined,
+            activity: filter.activity?.length ? filter.activity : undefined,
           },
         },
       });

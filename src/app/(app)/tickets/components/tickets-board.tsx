@@ -5,6 +5,7 @@ import {
   type BoardChange,
   type BoardColumnDef,
   type BoardTicket,
+  type BoardTicketActivity,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -17,6 +18,7 @@ import {
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNow } from '@/app/hooks/use-now';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
@@ -33,9 +35,11 @@ import {
   type TicketStatusDefinition,
   usesCanonicalStatusStyle,
 } from '../statuses/types/ticket-statuses.types';
-import type { Dialog } from '../types/dialog.types';
+import type { Dialog, TicketActivityFilter } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
+import { resolveBoardActivity } from '../utils/board-activity';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
+import { ActivityFilter } from './activity-filter';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
@@ -52,6 +56,12 @@ import { TicketsFilterModal } from './tickets-filter-modal';
  *  (active filters, a server-side re-route) can't stay painted forever — the
  *  hold has no time limit while the modal is still open. */
 const HELD_MOVE_SETTLE_TIMEOUT_MS = 5000;
+
+/** Stable identity for lanes no transition rule targets: the boardColumns memo
+ *  now also rebuilds on the staleness minute tick, and a fresh `[]` per rebuild
+ *  would fail the cards' shallow compare and re-register the lane's drop target
+ *  every minute for nothing. */
+const NO_ALLOWED_FROM_COLUMNS: string[] = [];
 
 /**
  * Re-seats a dropped ticket at its drop position on top of the raw columns.
@@ -128,8 +138,16 @@ interface TicketsBoardProps {
   /** Only tickets the caller has unread notifications about. */
   unreadOnly?: boolean;
   onUnreadOnlyChange?: (value: boolean) => void;
-  /** Applies organization+assignee+new-messages filters atomically (mobile filter modal). */
-  onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[]; unreadOnly: boolean }) => void;
+  /** Server-side activity filter (active / stale / awaiting client); OR within the list. */
+  activity?: TicketActivityFilter[];
+  onActivityChange?: (values: TicketActivityFilter[]) => void;
+  /** Applies organization+assignee+new-messages+activity filters atomically (mobile filter modal). */
+  onFiltersChange?: (filters: {
+    organizationIds: string[];
+    assigneeIds: string[];
+    unreadOnly: boolean;
+    activity: TicketActivityFilter[];
+  }) => void;
   search: string;
   onSearchChange: (value: string) => void;
 }
@@ -147,19 +165,29 @@ type IsUserDeleted = (id?: string | null) => boolean;
  * the 15s refetch, each optimistic move. Handing the memoized cards a fresh
  * object each time would re-render the whole board (and every assignee picker
  * in it), so cache per dialog: react-query's structural sharing keeps unchanged
- * dialogs identical, and the one derived input is part of the cache key.
+ * dialogs identical, and the derived inputs are part of the cache key. The
+ * activity indicator is keyed by value (kind + label): it shifts without the
+ * dialog changing — staleness crosses its threshold on the minute tick.
  */
-const boardTicketCache = new WeakMap<Dialog, { isUserDeleted?: IsUserDeleted; ticket: BoardTicket }>();
+const boardTicketCache = new WeakMap<
+  Dialog,
+  { isUserDeleted?: IsUserDeleted; activityKey: string; ticket: BoardTicket }
+>();
 
-function toBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTicket {
+function toBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted, activity?: BoardTicketActivity): BoardTicket {
+  const activityKey = activity ? `${activity.kind}|${activity.label ?? ''}` : '';
   const cached = boardTicketCache.get(dialog);
-  if (cached && cached.isUserDeleted === isUserDeleted) return cached.ticket;
-  const ticket = dialogToBoardTicket(dialog, isUserDeleted);
-  boardTicketCache.set(dialog, { isUserDeleted, ticket });
+  if (cached && cached.isUserDeleted === isUserDeleted && cached.activityKey === activityKey) return cached.ticket;
+  const ticket = dialogToBoardTicket(dialog, isUserDeleted, activity);
+  boardTicketCache.set(dialog, { isUserDeleted, activityKey, ticket });
   return ticket;
 }
 
-function dialogToBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTicket {
+function dialogToBoardTicket(
+  dialog: Dialog,
+  isUserDeleted?: IsUserDeleted,
+  activity?: BoardTicketActivity,
+): BoardTicket {
   return {
     id: dialog.id,
     title: dialog.title,
@@ -189,6 +217,7 @@ function dialogToBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): Boa
     hasNewMessage: (dialog.unreadNotificationCount ?? 0) > 0,
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
+    activity,
   };
 }
 
@@ -202,12 +231,16 @@ export function TicketsBoard({
   onTagIdsChange,
   unreadOnly,
   onUnreadOnlyChange,
+  activity,
+  onActivityChange,
   onFiltersChange,
   search,
   onSearchChange,
 }: TicketsBoardProps) {
   const debouncedSearch = useDebounce(search, 300);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  // Keeps staleness labels ticking between the 15s column polls.
+  const now = useNow(60_000);
 
   const { data: statusesData, isLoading: statusesLoading, error: statusesError } = useTicketStatusesQuery();
   const { data: transitionRules } = useTicketStatusTransitionRules();
@@ -277,8 +310,8 @@ export function TicketsBoard({
   // Every filter the lanes are fetched under, so "Archive Resolved" archives
   // exactly the tickets the Resolved lane shows (its count is the lane total).
   const archiveFilter = useMemo(
-    () => ({ organizationIds, assigneeIds, tagIds, unreadOnly }),
-    [organizationIds, assigneeIds, tagIds, unreadOnly],
+    () => ({ organizationIds, assigneeIds, tagIds, unreadOnly, activity }),
+    [organizationIds, assigneeIds, tagIds, unreadOnly, activity],
   );
   const filteredResolvedTotal = useMemo(() => {
     const resolvedId = statuses.find(s => s.kind === 'RESOLVED')?.id;
@@ -307,8 +340,8 @@ export function TicketsBoard({
   }, []);
 
   const params = useMemo(
-    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly }),
-    [debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly],
+    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly, activity }),
+    [debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly, activity],
   );
 
   const allowedFromByStatusId = useMemo<Record<string, string[]>>(() => {
@@ -345,12 +378,14 @@ export function TicketsBoard({
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
-        tickets: (state?.tickets ?? []).map(ticket => toBoardTicket(ticket, isUserDeleted)),
+        tickets: (state?.tickets ?? []).map(ticket =>
+          toBoardTicket(ticket, isUserDeleted, resolveBoardActivity(ticket, status, now)),
+        ),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
         isLoadingMore: state?.isLoadingMore,
-        allowedFromColumns: transitionRules ? (allowedFromByStatusId[status.id] ?? []) : undefined,
+        allowedFromColumns: transitionRules ? (allowedFromByStatusId[status.id] ?? NO_ALLOWED_FROM_COLUMNS) : undefined,
         archivable: status.kind === 'RESOLVED' && canArchiveResolved,
       };
     });
@@ -364,6 +399,7 @@ export function TicketsBoard({
     isLoading,
     canArchiveResolved,
     isUserDeleted,
+    now,
     boardResetNonce,
   ]);
 
@@ -600,6 +636,7 @@ export function TicketsBoard({
     (assigneeIds?.length ?? 0) === 0 &&
     (tagIds?.length ?? 0) === 0 &&
     !unreadOnly &&
+    (activity?.length ?? 0) === 0 &&
     boardColumns.length > 0 &&
     boardColumns.every(column => column.tickets.length === 0);
 
@@ -668,6 +705,11 @@ export function TicketsBoard({
                 onChange={ids => onAssigneeIdsChange?.(ids)}
                 className="col-span-1"
               />
+              <ActivityFilter
+                value={activity ?? []}
+                onChange={values => onActivityChange?.(values)}
+                className="col-span-1"
+              />
               <CheckboxBlock
                 checked={unreadOnly ?? false}
                 onCheckedChange={checked => onUnreadOnlyChange?.(checked)}
@@ -684,7 +726,8 @@ export function TicketsBoard({
           organizationIds={organizationIds ?? []}
           assigneeIds={assigneeIds ?? []}
           unreadOnly={unreadOnly ?? false}
-          onApply={filters => onFiltersChange?.(filters)}
+          activity={activity ?? []}
+          onApply={filters => onFiltersChange?.({ ...filters, activity: filters.activity ?? [] })}
         />
 
         {showEmptyState ? (
