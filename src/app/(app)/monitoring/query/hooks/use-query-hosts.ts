@@ -5,17 +5,13 @@ import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/reac
 import { fleetApiClient, type PolicyHost } from '@/lib/fleet-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
 import { queriesQueryKeys } from '../../hooks/use-queries';
+import { queryHostsQueryKeys } from '@/lib/query-keys/admin-query-keys';
 
 const EMPTY_QUERY_HOSTS: PolicyHost[] = [];
 
-// ============ Query Keys ============
-
-export const queryHostsQueryKeys = {
-  all: ['query-hosts'] as const,
-  list: (queryId: number | null) => [...queryHostsQueryKeys.all, 'list', queryId] as const,
-};
-
 // ============ API Functions ============
+
+const MAX_QUERY_HOSTS_PAGES = 1000;
 
 async function fetchAllQueryHosts(queryId: number): Promise<PolicyHost[]> {
   const allHosts: PolicyHost[] = [];
@@ -23,6 +19,9 @@ async function fetchAllQueryHosts(queryId: number): Promise<PolicyHost[]> {
   let hasMore = true;
 
   while (hasMore) {
+    if (page >= MAX_QUERY_HOSTS_PAGES) {
+      throw new Error('Failed to load query hosts: exceeded maximum pagination limit');
+    }
     const res = await fleetApiClient.getQueryHosts(queryId, { page, per_page: 100 });
     if (!res.ok) {
       throw new Error(res.error || `Failed to load query hosts (${res.status})`);
