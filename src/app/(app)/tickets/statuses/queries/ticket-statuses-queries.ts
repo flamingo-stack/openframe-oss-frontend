@@ -8,6 +8,7 @@ const STATUS_DEFINITION_FIELDS = `
   kind
   isSystem
   systemKey
+  staleAfterMinutes
 `;
 
 export const GET_TICKET_STATUSES_QUERY = `
