@@ -5,6 +5,7 @@ import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-stat
 import { useAllDevices } from '../../../devices/hooks/use-all-devices';
 import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
 import type { QueryDeviceRow } from '../types/query-device-row';
+import { queryAssignedHostsKey } from './admin-query-keys';
 
 const QUERY_HOSTS_PAGE_SIZE = 100;
 
@@ -35,7 +36,7 @@ async function fetchQueryHosts(queryId: number): Promise<Array<{ id: number; hos
 export function useQueryDevicesTable(queryId: number | null) {
   // The Fleet hosts assigned to this query (id + hostname only).
   const hostsQuery = useQuery({
-    queryKey: ['query-assigned-hosts', queryId],
+    queryKey: queryAssignedHostsKey(queryId),
     queryFn: queryId === null ? skipToken : () => fetchQueryHosts(queryId),
   });
 
