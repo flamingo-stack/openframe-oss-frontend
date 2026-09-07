@@ -21,7 +21,7 @@ import type {
 } from '../types/device.types';
 import type { FleetHost } from '../types/fleet.types';
 import { toDeviceTags } from '../utils/device-transform';
-import { deviceQueryKeys } from '../utils/query-keys';
+import { adminQueryKeys } from '../../hooks/admin-query-keys';
 import { getToolConnectionState, isDeviceStillConnecting } from '../utils/tool-connection-status';
 
 /** Collect unique end-user emails from Fleet `end_users` (primary email + other_emails). */
@@ -112,17 +112,29 @@ function createDevice(
   // Helper to check if IP is private
   const isPrivateIp = (ip: string): boolean => {
     if (!ip) return false;
-    if (ip.startsWith('10.')) return true;
-    if (ip.startsWith('172.')) {
-      const second = parseInt(ip.split('.')[1]);
-      if (second >= 16 && second <= 31) return true;
+    // IPv6 checks (case-insensitive; addresses may be normalized with mixed case)
+    const lower = ip.toLowerCase();
+    if (lower === '::1') return true;
+    if (lower.startsWith('fe80:')) return true;
+    if (lower.startsWith('fc00:') || lower.startsWith('fd00:')) return true;
+    if (lower.includes(':')) {
+      // Any other colon-containing value is IPv6 and not covered by the IPv4 checks below.
+      return false;
     }
-    if (ip.startsWith('192.168.')) return true;
-    if (ip.startsWith('127.')) return true;
-    if (ip.startsWith('169.254.')) return true;
-    if (ip.startsWith('fe80:')) return true;
-    if (ip.startsWith('fc00:') || ip.startsWith('fd00:')) return true;
-    if (ip === '::1') return true;
+
+    const parts = ip.split('.');
+    if (parts.length !== 4) return false;
+    const octets = parts.map(p => Number.parseInt(p, 10));
+    if (octets.some(n => Number.isNaN(n) || n < 0 || n > 255)) return false;
+    const [first, second] = octets;
+
+    if (first === 10) return true;
+    if (first === 172 && second >= 16 && second <= 31) return true;
+    if (first === 192 && second === 168) return true;
+    if (first === 127) return true;
+    if (first === 169 && second === 254) return true;
+    // CGNAT range 100.64.0.0/10 (100.64.0.0 - 100.127.255.255)
+    if (first === 100 && second >= 64 && second <= 127) return true;
     return false;
   };
 
@@ -330,7 +342,7 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
         fleetSource = 'error';
       }
     } else {
-      console.warn(`Invalid Fleet host ID format: "${fleet?.agentToolId}" - expected numeric ID`);
+      console.error(`Invalid Fleet host ID format: "${fleet?.agentToolId}" - expected numeric ID`);
       fleetSource = 'error';
     }
   }
@@ -365,7 +377,7 @@ export function useDeviceDetails(machineId: string | null | undefined, options?:
   const toastShownRef = useRef(false);
 
   const query = useQuery({
-    queryKey: deviceQueryKeys.detail(machineId ?? ''),
+    queryKey: adminQueryKeys.devices.detail(machineId ?? ''),
     queryFn: machineId ? () => fetchDeviceDetails(machineId) : skipToken,
     staleTime: 3_000,
     retry: 1,
