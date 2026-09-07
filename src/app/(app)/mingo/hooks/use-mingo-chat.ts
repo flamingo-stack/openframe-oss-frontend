@@ -5,9 +5,11 @@ import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/co
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
+import { adminQueryKeys } from '@/lib/admin-query-keys';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
 import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
+import { logger } from '@/lib/logger';
 import { selectUser, useAuthStore } from '@/stores';
 import {
   useCreateDialogMutation,
@@ -202,11 +204,11 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
       setCreatingDialog(true);
 
       const result = await createDialogMutation.mutateAsync();
-      queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.mingoDialogs() });
 
       return result.id;
     } catch (error) {
-      console.error('[MingoChat] Failed to create dialog:', error);
+      logger.error('[MingoChat] Failed to create dialog:', error);
       // Surface the failure: callers (quick actions, launcher, draft send) only
       // get a null id back and otherwise bail silently, so without this a dialog
       // that can't be created leaves the user with no feedback.
@@ -279,7 +281,7 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
 
         return true;
       } catch (error) {
-        console.error('[MingoChat] Failed to send message:', error);
+        logger.error('[MingoChat] Failed to send message:', error);
 
         setTyping(effectiveDialogId, false);
 
@@ -314,7 +316,7 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
       await stopGenerationMutation.mutateAsync(dialogId);
       setTyping(dialogId, false);
     } catch (error) {
-      console.error('[MingoChat] Failed to stop generation:', error);
+      logger.error('[MingoChat] Failed to stop generation:', error);
       toast({
         title: 'Stop Failed',
         description: error instanceof Error ? error.message : 'Failed to stop generation',
