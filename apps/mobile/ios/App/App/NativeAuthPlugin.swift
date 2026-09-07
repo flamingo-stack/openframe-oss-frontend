@@ -70,15 +70,75 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - Login
 
     private static let callbackScheme = "com.openframe.app"
+
+    /**
+     * Session for the token-exchange calls, carrying NO ambient credentials.
+     *
+     * `URLSession.shared` uses `HTTPCookieStorage.shared`, which the gateway populates with auth
+     * cookies on these very endpoints. Both methods take a URL from the web layer and hand the
+     * response back to it, so borrowing that cookie jar would turn them into a credentialed
+     * cross-origin request primitive for anything executing in the WebView — which renders remote
+     * Help Center and chat content. The app reads the tokens off the response HEADERS and never
+     * needs the cookies, so dropping them costs nothing.
+     */
+    private static let exchangeSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.urlCredentialStorage = nil
+        return URLSession(configuration: config)
+    }()
+
+    /**
+     * Destination guard for the JS-supplied URLs on `start`, `exchangeTicket`, `exchangeApple`.
+     *
+     * These take a URL from the web layer, which makes them an arbitrary-request primitive for
+     * anything executing in the WebView — and the WebView renders remote Help Center and chat
+     * content. This enforces https, which blocks a downgrade to http and every non-web scheme.
+     *
+     * It deliberately does NOT pin the host: the shell has no configured host to pin to (the
+     * shared host is baked into the web bundle, not Info.plist), and inventing one here would
+     * break tenant gateways and self-hosted deployments. Host pinning wants a build setting
+     * alongside OPENFRAME_URL_SCHEME and is tracked separately.
+     */
+    private static func isAllowedAuthEndpoint(_ url: URL) -> Bool {
+        return url.scheme?.lowercased() == "https" && (url.host?.isEmpty == false)
+    }
+
+    /**
+     * The `url` argument of a JS-facing method, parsed and vetted, or nil having already rejected
+     * the call. Every entry point that takes a URL from the web layer goes through here so the
+     * guard cannot be forgotten on the next one; `refusal` names what that method would have done
+     * with it.
+     */
+    private static func validatedAuthURL(from call: CAPPluginCall, refusal: String, allowedPaths: [String]? = nil) -> URL? {
+        guard let urlString = call.getString("url"), let url = URL(string: urlString) else {
+            call.reject("Missing or invalid 'url'")
+            return nil
+        }
+        guard isAllowedAuthEndpoint(url) else {
+            call.reject(refusal, "URL_NOT_ALLOWED")
+            return nil
+        }
+        // The host cannot be pinned (tenant gateways and self-hosted deployments vary), but the
+        // PATH can: these methods exist to call two known endpoints. Pinning it costs nothing and
+        // takes away the "fetch any https URL" shape the bridge would otherwise hand the WebView.
+        // Collapsed before comparing: a configured host carrying a trailing slash yields
+        // `//oauth/...`, which would otherwise fail the pin and take every token exchange with it.
+        let path = url.path.replacingOccurrences(of: "/+", with: "/", options: .regularExpression)
+        if let allowedPaths, !allowedPaths.contains(path) {
+            call.reject(refusal, "URL_NOT_ALLOWED")
+            return nil
+        }
+        return url
+    }
+
     private var authSession: ASWebAuthenticationSession?
     private var appleCall: CAPPluginCall?
     private var appleController: ASAuthorizationController?
 
     @objc func start(_ call: CAPPluginCall) {
-        guard let urlString = call.getString("url"), let url = URL(string: urlString) else {
-            call.reject("Missing or invalid 'url'")
-            return
-        }
+        guard let url = Self.validatedAuthURL(from: call, refusal: "Refusing to open a non-https sign-in URL") else { return }
         let scheme = call.getString("callbackScheme") ?? Self.callbackScheme
 
         DispatchQueue.main.async {
@@ -110,16 +170,17 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - Dev-ticket exchange
 
     @objc func exchangeTicket(_ call: CAPPluginCall) {
-        guard let urlString = call.getString("url"), let url = URL(string: urlString) else {
-            call.reject("Missing or invalid 'url'")
-            return
-        }
+        guard let url = Self.validatedAuthURL(
+            from: call,
+            refusal: "Refusing to send the ticket anywhere but the dev-exchange endpoint over https",
+            allowedPaths: ["/oauth/dev-exchange"]
+        ) else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        URLSession.shared.dataTask(with: request) { _, response, error in
+        Self.exchangeSession.dataTask(with: request) { _, response, error in
             if let error {
                 call.reject("Ticket exchange failed: \(error.localizedDescription)")
                 return
@@ -180,10 +241,11 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
      * fights CORS for the Access-Token/Refresh-Token response headers.
      */
     @objc func exchangeApple(_ call: CAPPluginCall) {
-        guard let urlString = call.getString("url"), let url = URL(string: urlString) else {
-            call.reject("Missing or invalid 'url'")
-            return
-        }
+        guard let url = Self.validatedAuthURL(
+            from: call,
+            refusal: "Refusing to POST anywhere but the Apple native-auth endpoints over https",
+            allowedPaths: ["/oauth/apple/native-exchange", "/oauth/apple/native-register"]
+        ) else { return }
         guard let body = call.getObject("body"),
               let payload = try? JSONSerialization.data(withJSONObject: body) else {
             call.reject("Missing or invalid 'body'")
@@ -196,7 +258,13 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = payload
 
-        URLSession.shared.dataTask(with: request) { _, response, error in
+        Self.exchangeSession.dataTask(with: request) { data, response, error in
+            // Only a TRANSPORT failure rejects. Every HTTP status resolves, carrying the code and
+            // the body, because the interesting outcomes here are not errors: the gateway answers
+            // 409 {"error":"registration_required"} for a verified Apple identity that simply has
+            // no account yet, and that is a branch into signup, not a failed sign-in. Collapsing
+            // non-2xx into a rejection is what made the app claim "no account for this Apple ID"
+            // for seven distinct backend failures.
             if let error {
                 call.reject("Apple exchange failed: \(error.localizedDescription)")
                 return
@@ -205,27 +273,32 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.reject("Apple exchange failed: no HTTP response")
                 return
             }
-            guard (200..<300).contains(http.statusCode) else {
-                // 401 is not a failure of the Apple credential — the gateway
-                // validated it and found no OpenFrame account linked to that
-                // Apple ID. Accounts are provisioned by an MSP administrator, so
-                // this is an ordinary outcome for anyone signing in with an Apple
-                // ID we've never seen. Coded (message == code, as USER_CANCELED
-                // does) so the web layer shows actionable copy; surfacing the raw
-                // status here is what App Review cited as a bug.
-                if http.statusCode == 401 {
-                    call.reject("APPLE_ACCOUNT_NOT_LINKED", "APPLE_ACCOUNT_NOT_LINKED")
-                    return
-                }
-                call.reject("Apple exchange failed with status \(http.statusCode)")
-                return
-            }
             var result = JSObject()
+            result["status"] = http.statusCode
             if let accessToken = http.value(forHTTPHeaderField: "Access-Token") {
                 result["accessToken"] = accessToken
             }
             if let refreshToken = http.value(forHTTPHeaderField: "Refresh-Token") {
                 result["refreshToken"] = refreshToken
+            }
+            // The body is relayed ONLY for a failure. The caller reads it for one
+            // thing — the machine code in {"error": "..."} that distinguishes `registration_required`
+            // from a real failure — and a success is a 204 whose tokens arrive in the headers above.
+            //
+            // Narrow because this is the one place the bridge hands a response body back to the web
+            // layer, and the destination guard only enforces https. Without the status limit the
+            // method reads as "fetch any https URL and give me the body", which is a capability the
+            // WebView should not have. Host pinning is the real fix and wants a build setting
+            // alongside OPENFRAME_URL_SCHEME; until then this keeps the surface to error payloads.
+            //
+            // Deliberately NOT also gated on a JSON Content-Type: the whole signup branch depends on
+            // reading the 409's `registration_required`, so a gateway that ever answers without that
+            // header would break the flow silently, and the header buys little on top of the status
+            // and size limits.
+            if !(200..<300).contains(http.statusCode),
+               let data, !data.isEmpty, data.count <= 8192,
+               let text = String(data: data, encoding: .utf8) {
+                result["body"] = text
             }
             call.resolve(result)
         }.resume()
