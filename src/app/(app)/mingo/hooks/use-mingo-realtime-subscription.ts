@@ -18,6 +18,16 @@ import type { DialogNode } from '../types/dialog.types';
 const MINGO_JETSTREAM_TOPIC: NatsMessageType = 'admin-message';
 const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
 
+// Shared query-key builders for mingo dialog cache entries. Every consumer
+// that reads or writes these cache entries (this hook's reconnect
+// invalidation, the stream-state sync write, the send-message success path,
+// a ticket-view sharing the same dialog data, etc.) must go through these
+// builders so the key shape can never silently drift between call sites.
+const mingoDialogKeys = {
+  dialog: (dialogId: string) => ['mingo-dialog', dialogId] as const,
+  dialogMessages: (dialogId: string) => ['mingo-dialog-messages', dialogId] as const,
+};
+
 interface UseMingoRealtimeSubscriptionOptions {
   onChunkReceived?: (dialogId: string, chunk: ChunkData, messageType: NatsMessageType) => void;
 }
@@ -230,6 +240,7 @@ export function DialogSubscription({
   const lastDispatchedStreamSeqRef = useRef<number>(-1);
   useEffect(() => {
     lastDispatchedStreamSeqRef.current = -1;
+    lastAppliedStreamSeqRef.current = -1;
   }, [dialogId]);
 
   const syncStreamStateFromChunk = useCallback(
@@ -243,7 +254,7 @@ export function DialogSubscription({
         if (chunk.streamSeq < lastAppliedStreamSeqRef.current) return;
         lastAppliedStreamSeqRef.current = chunk.streamSeq;
       }
-      queryClient.setQueryData<DialogNode | null | undefined>(['mingo-dialog', dialogId], prev =>
+      queryClient.setQueryData<DialogNode | null | undefined>(mingoDialogKeys.dialog(dialogId), prev =>
         prev ? { ...prev, streamState: next } : prev,
       );
     },
@@ -294,8 +305,9 @@ export function DialogSubscription({
   useEffect(() => {
     if (reconnectionCount <= lastHandledReconnectRef.current) return;
     lastHandledReconnectRef.current = reconnectionCount;
-    void queryClient.invalidateQueries({ queryKey: ['mingo-dialog-messages', dialogId] });
-    void queryClient.invalidateQueries({ queryKey: ['mingo-dialog', dialogId] });
+    const currentDialogId = dialogId;
+    void queryClient.invalidateQueries({ queryKey: mingoDialogKeys.dialogMessages(currentDialogId) });
+    void queryClient.invalidateQueries({ queryKey: mingoDialogKeys.dialog(currentDialogId) });
   }, [reconnectionCount, queryClient, dialogId]);
 
   return null;
