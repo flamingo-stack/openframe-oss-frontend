@@ -10,15 +10,10 @@ import { useAssigneeOptions } from '../hooks/use-ticket-options';
 
 interface BoardAssigneePickerProps {
   ticket: BoardTicket;
-  /** When set, the ticket is still AI-worked: clicking opens the Take Over modal instead of the assignee dropdown. */
-  onTakeOver?: () => void;
 }
 
 /** Memoized: this sits in every card, and a board update re-renders the lanes. */
-export const BoardAssigneePicker = memo(function BoardAssigneePickerImpl({
-  ticket,
-  onTakeOver,
-}: BoardAssigneePickerProps) {
+export const BoardAssigneePicker = memo(function BoardAssigneePickerImpl({ ticket }: BoardAssigneePickerProps) {
   const { options, isLoading } = useAssigneeOptions();
   const assign = useAssignTicket();
   const { isUserDeleted } = useUserStatusMap();
@@ -41,9 +36,6 @@ export const BoardAssigneePicker = memo(function BoardAssigneePickerImpl({
       isLoading={isLoading}
       isPending={assign.isPending}
       onAssign={userId => assign.mutate({ ticketId: ticket.id, assigneeId: userId })}
-      // AI-worked ticket: the trigger click starts the Take Over flow instead
-      // of opening the dropdown (core renders the plain trigger button).
-      onTriggerClick={onTakeOver}
     />
   );
 });

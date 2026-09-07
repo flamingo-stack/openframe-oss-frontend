@@ -306,6 +306,7 @@ const boardCardTicketFragment = () => `
       id
       name
       color
+      kind
     }
     availableTransitions {
       id
