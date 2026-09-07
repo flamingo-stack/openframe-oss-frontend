@@ -16,10 +16,11 @@ import {
   MIN_RECONNECT_MINUTES,
   MIN_REPEAT_MINUTES,
   PAST_START_MESSAGE,
+  earliestScheduleDay,
+  isDeviceLocalTime,
   resolveOfflineBehavior,
   resolveTimeReference,
   secondsToDuration,
-  startOfToday,
 } from '../utils/schedule-timing';
 import type { ScheduleDetailData } from './schedule-detail.types';
 
@@ -79,9 +80,9 @@ export const editScheduleFormSchema = z
      * SERVER is one instant worldwide; DEVICE_LOCAL is one READING, re-based
      * into each device's own timezone, so a fleet across three zones runs three
      * times. It changes how `startAt` is written and read (see
-     * {@link toScheduleInstant}) and it rules out recurrence entirely — the
-     * schema documents `repeat` as unsupported for DEVICE_LOCAL — which is why
-     * the Repeat controls lock when it is picked.
+     * {@link toScheduleInstant}). The API does not accept a `repeat` beside it
+     * yet, but the controls stay offered — see `ScheduleTimingFields` — so the
+     * recurrence rules below apply to both readings alike.
      *
      * Held by the form even when the control is not rendered (the picker is
      * behind the `script-schedule-device-time` flag): a schedule that already
@@ -233,6 +234,15 @@ export const editScheduleFormSchema = z
     // of one. Event-driven schedules carry no timing at all — their controls are
     // collapsed and both fields are submitted as null.
     if (isEventTrigger(data.trigger)) return;
+    // The device-local reading COLLAPSES the offline block (the API refuses
+    // RETRY_ON_RECONNECT beside it, and submit writes SKIP regardless), so its
+    // rules stop grading — a value left in a hidden control must not fail a save
+    // on a field nobody can see. Recurrence is the other way round: its controls
+    // stay offered for device-local, so its rules keep applying, and the cadence
+    // the form shows is the cadence that gets sent.
+    const deviceLocal = isDeviceLocalTime(data.timeReference);
+    const repeats = data.repeatEnabled;
+    const retries = isRetryOnReconnect(data.offlineBehavior) && !deviceLocal;
     if (data.scheduledDate == null) {
       ctx.addIssue({ code: 'custom', message: 'Please select a start date', path: ['scheduledDate'] });
     }
@@ -252,17 +262,21 @@ export const editScheduleFormSchema = z
         message: PAST_START_MESSAGE,
         // On the field the user can act on: a past DAY is the date's problem,
         // a past slot of today is the time's.
-        path: [data.scheduledDate && data.scheduledDate < startOfToday() ? 'scheduledDate' : 'scheduledTime'],
+        path: [
+          data.scheduledDate && data.scheduledDate < earliestScheduleDay(data.timeReference)
+            ? 'scheduledDate'
+            : 'scheduledTime',
+        ],
       });
     }
 
     // An empty box is only a problem for the setting that is switched ON. Each
     // interval is nullable so it can be cleared while typing (see the field
     // docs); this is where "cleared" stops being allowed.
-    if (data.repeatEnabled && data.repeatInterval === null) {
+    if (repeats && data.repeatInterval === null) {
       ctx.addIssue({ code: 'custom', message: 'Enter an interval', path: ['repeatInterval'] });
     }
-    if (isRetryOnReconnect(data.offlineBehavior) && data.reconnectInterval === null) {
+    if (retries && data.reconnectInterval === null) {
       ctx.addIssue({ code: 'custom', message: 'Enter an interval', path: ['reconnectInterval'] });
     }
 
@@ -271,7 +285,7 @@ export const editScheduleFormSchema = z
     // an hour is already two slots — and the `.min(1)` above rules out zero, so
     // "a multiple of 30" is the whole rule, floor included.
     if (
-      data.repeatEnabled &&
+      repeats &&
       data.repeatUnit === 'minute' &&
       data.repeatInterval !== null &&
       data.repeatInterval % MIN_REPEAT_MINUTES !== 0
@@ -293,7 +307,7 @@ export const editScheduleFormSchema = z
     // The reconnect window has a floor but no grid — the backend accepts any
     // number of seconds — so unlike the cadence above this is a minimum only.
     if (
-      isRetryOnReconnect(data.offlineBehavior) &&
+      retries &&
       data.reconnectUnit === 'minute' &&
       data.reconnectInterval !== null &&
       data.reconnectInterval < MIN_RECONNECT_MINUTES
@@ -310,7 +324,7 @@ export const editScheduleFormSchema = z
     // the next one is dispatched, so a device coming back late could take both.
     // Only meaningful when there IS a next occurrence — a one-shot schedule can
     // hold its queued run for as long as it likes.
-    if (data.repeatEnabled && isRetryOnReconnect(data.offlineBehavior)) {
+    if (repeats && retries) {
       const repeatSeconds =
         data.repeatInterval === null ? null : durationToSeconds(data.repeatInterval, data.repeatUnit);
       const windowSeconds =

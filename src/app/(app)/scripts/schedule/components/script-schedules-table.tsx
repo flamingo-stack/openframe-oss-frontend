@@ -76,7 +76,13 @@ import { multiSelectFilterFn } from '@/lib/table-filters';
 import { SCHEDULE_COLUMNS, SCHEDULES_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
 import { facetToMappedOptions } from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
-import { formatScheduleStartAt, isEventTrigger, repeatToLabel } from '../utils/schedule-timing';
+import {
+  DEVICE_LOCAL_TIME_NOTE,
+  formatScheduleStartAt,
+  isDeviceLocalTime,
+  isEventTrigger,
+  repeatToLabel,
+} from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { RestoreScheduleModal } from './restore-schedule-modal';
 
@@ -401,8 +407,14 @@ function SchedulesTableContent({
           return (
             <div className="flex min-w-0 flex-col justify-center gap-1">
               <TruncateText>{date}</TruncateText>
+              {/* The reading rides the time, not a column of its own: a
+                  device-local row shows the wall clock each device reads on its
+                  own timezone, and an unmarked "6:00 PM" here reads as the
+                  viewer's. */}
               <TruncateText variant="h6" tone="secondary">
-                {time}
+                {isDeviceLocalTime(row.original.timeReference)
+                  ? `${time} · ${DEVICE_LOCAL_TIME_NOTE.toLowerCase()}`
+                  : time}
               </TruncateText>
             </div>
           );

@@ -87,14 +87,21 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         !isEventDriven && data.scheduledDate && data.scheduledTime
           ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime), data.timeReference)
           : null;
-      // A device-local start is one-shot by contract — the schema does not take
-      // `repeat` for it. The Repeat controls are cleared and locked when it is
-      // picked, so this only backs that up; what it does guarantee is that a
-      // cadence can never ride along with a reading that cannot carry one.
+      // A device-local schedule cannot queue a run for an offline device — the
+      // API rejects RETRY_ON_RECONNECT beside it, and its runner retries within
+      // its own catch-up window anyway — so the collapsed offline block is
+      // written back as SKIP whatever it still holds.
+      //
+      // Its `repeat` is NOT forced here. The API refuses that one too today
+      // ("does not support repeat yet"), but the controls are offered, so what
+      // the user set is what gets sent: silently dropping a cadence the form
+      // shows would save a schedule that runs once and looks like it repeats.
+      // The refusal surfaces as the error toast, and this line needs no edit
+      // when the backend lifts it.
       const deviceLocal = isDeviceLocalTime(data.timeReference);
       // The window is written only when the behavior that uses it is in force,
-      // and an event-driven schedule has neither.
-      const retriesOnReconnect = !isEventDriven && isRetryOnReconnect(data.offlineBehavior);
+      // which neither an event-driven nor a device-local schedule has.
+      const retriesOnReconnect = !isEventDriven && !deviceLocal && isRetryOnReconnect(data.offlineBehavior);
       const input = {
         name: data.name,
         // PUT semantics on update: null clears the stored description.
@@ -128,14 +135,16 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // typing; validation has already refused a null one by the time a
         // repeating schedule reaches here, so the guard is only for the type.
         repeat:
-          startAt && !deviceLocal && data.repeatEnabled && data.repeatInterval !== null
+          startAt && data.repeatEnabled && data.repeatInterval !== null
             ? resolveDurationSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
             : null,
-        // "If device is offline at scheduled time" — meaningless without one, so
-        // an event-driven schedule is written back as the SKIP default rather
-        // than carrying whatever the collapsed block still holds. It fires ON
-        // the reconnect already; there is no offline moment to decide about.
-        offlineBehavior: isEventDriven ? ScheduleOfflineBehavior.SKIP : data.offlineBehavior,
+        // "If device is offline at scheduled time" — meaningless without such a
+        // moment, so the two readings that have none are written back as the
+        // SKIP default rather than carrying whatever the collapsed block holds.
+        // An event-driven schedule fires ON the reconnect; a device-local one is
+        // refused the setting by the API and retries within its catch-up window
+        // by itself.
+        offlineBehavior: isEventDriven || deviceLocal ? ScheduleOfflineBehavior.SKIP : data.offlineBehavior,
         // Only ever set alongside RETRY_ON_RECONNECT — the schema says the field
         // is "set only when offlineBehavior is RETRY_ON_RECONNECT; null/ignored
         // for SKIP", and PUT semantics make sending a stale window on a schedule

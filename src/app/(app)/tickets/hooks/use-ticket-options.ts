@@ -255,8 +255,8 @@ async function fetchTicketSearchOptions(
     });
 }
 
-export function useTicketSearchOptions(search = '', organizationId?: string) {
-  const statusesQuery = useTicketStatusesQuery({ enabled: true });
+export function useTicketSearchOptions(search = '', organizationId?: string, enabled = true) {
+  const statusesQuery = useTicketStatusesQuery({ enabled });
   const nonArchivedStatusIds = useMemo(
     () => statusesQuery.data?.snapshot.filter(status => status.kind !== 'ARCHIVED').map(status => status.id),
     [statusesQuery.data],
@@ -265,7 +265,7 @@ export function useTicketSearchOptions(search = '', organizationId?: string) {
   const query = useQuery({
     queryKey: ['ticket-options', 'tickets', search, organizationId ?? null, nonArchivedStatusIds ?? null],
     queryFn: () => fetchTicketSearchOptions(search, organizationId, nonArchivedStatusIds),
-    enabled: !statusesQuery.isLoading,
+    enabled: enabled && !statusesQuery.isLoading,
   });
 
   return {
