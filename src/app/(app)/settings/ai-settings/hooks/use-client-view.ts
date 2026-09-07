@@ -10,9 +10,10 @@ import {
 } from '../queries/ai-settings-queries';
 import type { ApplicationTheme, ClientView, ClientViewInput } from '../types/ai-settings';
 import type { GraphqlResponse } from './chat-graphql';
+import { adminQueryKeys } from './admin-query-keys';
 
 export const clientViewQueryKeys = {
-  all: ['client-view'] as const,
+  all: [...adminQueryKeys.clientView] as const,
   detail: (organizationId: string | null) => [...clientViewQueryKeys.all, { organizationId }] as const,
 };
 
