@@ -4,6 +4,7 @@ import { type AuthSsoProvider, LoginForm } from '@flamingo-stack/openframe-front
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useRef, useState } from 'react';
 import { EMAIL_REGEX, INVALID_EMAIL_ERROR } from '@/app/(auth)/auth/constants/registration-validation';
+import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 
 /** Result of a tenant discovery for one email, mapped to form provider ids. */
 export interface LoginDiscoveryResult {
@@ -133,6 +134,8 @@ export function LoginSection({ onDiscover, onSso, allProviders, isLoading }: Log
       errors={{
         email: email.trim() && !isEmailValid ? INVALID_EMAIL_ERROR : undefined,
       }}
+      termsUrl={TERMS_URL}
+      privacyPolicyUrl={PRIVACY_POLICY_URL}
     />
   );
 }
