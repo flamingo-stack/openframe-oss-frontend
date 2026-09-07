@@ -7,6 +7,9 @@ import { OrganizationSortField, SortDirection } from '@/generated/schema-enums';
 import { apiClient } from '@/lib/api-client';
 import { queryState } from '@/lib/query-state';
 import { GET_ORGANIZATIONS_QUERY } from '../queries/customers-queries';
+// TODO(MULTIPLA-002-2 / MULTIPLA-004): import the shared base key from
+// '../hooks/admin-query-keys' once its exports are confirmed, e.g.:
+// import { ORGANIZATIONS_QUERY_KEY } from '@/app/(app)/customers/hooks/admin-query-keys';
 
 const ORGANIZATIONS_PAGE_SIZE = 20;
 
@@ -90,11 +93,16 @@ export interface CustomersDateQuery {
   sortDirection: 'asc' | 'desc';
 }
 
+// Base key kept as a single source within this file to avoid duplicated
+// literal strings between `all` and `list`. Should be replaced with the
+// shared constant from admin-query-keys.ts (see TODO above) once available.
+const ORGANIZATIONS_BASE_QUERY_KEY = 'organizations' as const;
+
 export const customersQueryKeys = {
-  all: ['organizations'] as const,
+  all: [ORGANIZATIONS_BASE_QUERY_KEY] as const,
   list: (search: string, status?: string, dateQuery?: CustomersDateQuery) =>
     [
-      'organizations',
+      ORGANIZATIONS_BASE_QUERY_KEY,
       'list',
       search,
       status,
