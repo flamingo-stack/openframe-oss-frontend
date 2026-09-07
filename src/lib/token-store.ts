@@ -141,6 +141,29 @@ function emitTokenChange(): void {
   }
 }
 
+/**
+ * Mirror a pair the SHELL already holds into this module — a rotation it ran on
+ * its own (pushed through `onNativeTokenUpdate`) or one it ran on the webview's
+ * behalf (the `refreshTokens` delegation). Cache-only, deliberately: the shell
+ * is the store, and writing the pair back through `setTokens` would let a stale
+ * copy land on top of a rotation the shell completed in between — putting a
+ * spent refresh token back in the Keychain, which is the end of the session.
+ * The payload is the full stored set, so an empty one is the session ending
+ * (same reasoning as `clearTokens`).
+ */
+export function adoptNativeTokens(tokens: { accessToken?: string | null; refreshToken?: string | null }): void {
+  const nextAccess = tokens.accessToken || null;
+  // Compared BEFORE the overwrite, and only a genuinely different token counts:
+  // a shell that re-emits the SAME tokens on resume would otherwise advance the
+  // epoch with no new credential, making every in-flight 401 short-circuit to a
+  // retry with the dead token.
+  const rotated = !!nextAccess && nextAccess !== cachedAccessToken;
+  cachedAccessToken = nextAccess;
+  cachedRefreshToken = tokens.refreshToken || null;
+  if (rotated) markTokenRotation();
+  emitTokenChange();
+}
+
 /** Bearer-header auth is used instead of cookies: dev-ticket web mode, or always in the native shell. */
 export function isBearerAuthMode(): boolean {
   return isAppShell() || runtimeEnv.enableDevTicketObserver();
@@ -159,19 +182,7 @@ export function initTokenStore(): Promise<void> {
       // registration would stack another listener firing emitTokenChange.
       if (!tokenUpdateListenerRegistered) {
         tokenUpdateListenerRegistered = true;
-        onNativeTokenUpdate(tokens => {
-          const nextAccess = tokens.accessToken || null;
-          // Compared BEFORE the overwrite, and only a genuinely different token
-          // counts: an empty payload is the session ending (same reasoning as
-          // `clearTokens`), and a shell that re-emits the SAME tokens on resume
-          // would otherwise advance the epoch with no new credential, making
-          // every in-flight 401 short-circuit to a retry with the dead token.
-          const rotated = !!nextAccess && nextAccess !== cachedAccessToken;
-          cachedAccessToken = nextAccess;
-          cachedRefreshToken = tokens.refreshToken || null;
-          if (rotated) markTokenRotation();
-          emitTokenChange();
-        });
+        onNativeTokenUpdate(adoptNativeTokens);
       }
       try {
         const tokens = await nativeAuthPlugin()?.getTokens();

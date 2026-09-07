@@ -103,16 +103,33 @@ export interface NativeAuthPlugin {
    * implement it become the ONLY refresher: refresh tokens rotate, so the
    * webview must not race a shell-side refresher with its own /oauth/refresh.
    * Resolves with the stored tokens after the attempt (empty = session over);
-   * rejects on transient failure. Implemented by the desktop (Tauri) shell;
-   * the mobile Swift plugin not yet.
+   * rejects on transient failure. Implemented by the desktop (Tauri) shell and
+   * the iOS plugin (openframe-mobile `TokenLifecycle.swift`); the Android
+   * plugin does not yet, so the webview stays the refresher there.
+   *
+   * `rejectedAccessToken` is the bearer the gateway just refused. A shell that
+   * reads it skips the rotation when its stored token already differs — a
+   * rotation the shell ran on its own beat this call, and rotating again would
+   * only spend another refresh token. The desktop shell ignores it.
    */
-  refreshTokens?(): Promise<{ accessToken?: string; refreshToken?: string }>;
+  refreshTokens?(options?: { rejectedAccessToken?: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
   /**
    * Persist the login-learned tenant host in the shell, so shell-side
    * networking (token refresh, background NATS) has a gateway without
-   * depending on webview localStorage. Optional, desktop-only for now.
+   * depending on webview localStorage. Optional; desktop and iOS. Rejects a
+   * non-https origin.
    */
   setTenantHost?(options: { origin: string }): Promise<void>;
+  /**
+   * Shell-pushed token changes — the MOBILE transport (Capacitor's generated
+   * per-plugin `addListener`; desktop delivers the same payload as a Tauri
+   * event). Consumed through `onNativeTokenUpdate`, never directly. Same
+   * sync-or-Promise handle as the other Capacitor plugins (see AppPlugin).
+   */
+  addListener?(
+    eventName: 'tokenUpdate',
+    listenerFunc: (tokens: { accessToken?: string; refreshToken?: string }) => void,
+  ): Promise<{ remove: () => void }> | { remove: () => void };
   /**
    * Real safe-area insets from UIKit / WindowInsets — the WebView reports
    * env(safe-area-inset-*) as 0 in the shell. MOBILE-only: the desktop bridge
@@ -393,18 +410,31 @@ export function storeTenantHost(origin: string): void {
 }
 
 /**
- * Subscribe to shell-pushed token rotations. The desktop shell refreshes
+ * Subscribe to shell-pushed token changes. A shell that owns refresh rotates
  * tokens on its own schedule (the webview may be idle) and emits the full
  * token set after every change — including an empty set when the session is
- * over. Desktop-only transport; no-op on mobile and the web.
+ * over. Desktop delivers it as a Tauri event, iOS as a plugin event on the
+ * NativeAuth bridge; the Android plugin emits nothing yet, so the listener
+ * simply never fires there. No-op on the web.
  */
 export function onNativeTokenUpdate(callback: (tokens: { accessToken?: string; refreshToken?: string }) => void): void {
-  if (!isDesktopShell()) return;
-  const tauriEvent = tauriEventApi();
-  if (!tauriEvent) return;
-  void tauriEvent.listen('native-auth:token-update', event =>
-    callback((event?.payload as { accessToken?: string; refreshToken?: string } | undefined) ?? {}),
-  );
+  if (isDesktopShell()) {
+    const tauriEvent = tauriEventApi();
+    if (!tauriEvent) return;
+    void tauriEvent.listen('native-auth:token-update', event =>
+      callback((event?.payload as { accessToken?: string; refreshToken?: string } | undefined) ?? {}),
+    );
+    return;
+  }
+  if (!isMobileShell()) return;
+  try {
+    // Nothing needs the handle: the subscription lives as long as the document.
+    // Wrapped because the bridge proxy runs synchronously, and a throw here would
+    // take token hydration down with it.
+    nativeAuthPlugin()?.addListener?.('tokenUpdate', tokens => callback(tokens ?? {}));
+  } catch (error) {
+    console.error('[Native Shell] tokenUpdate listener registration failed:', error);
+  }
 }
 
 /**
