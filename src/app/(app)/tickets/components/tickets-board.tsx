@@ -565,30 +565,13 @@ export function TicketsBoard({
     return () => clearTimeout(timer);
   }, [heldMove, takeOverTarget, setHeldMove]);
 
-  // The dialog map is read through a ref like the AI-owned set above — its
-  // identity changes on every column tick, and this callback sits in every card.
-  const dialogByIdRef = useRef(dialogById);
-  // Latest-value refs, written after the commit rather than during render:
-  // a render-phase ref write is what `react-hooks/refs` forbids, and every
-  // reader below runs in an effect, a timer or an event handler.
-  useEffect(() => {
-    dialogByIdRef.current = dialogById;
-  });
-
   // AI-owned cards (AI Handling lane, AI/user-closed Resolved) render no
-  // assign control at all — assignment stays on the dialog page. The rest
-  // keep the picker; AI-worked tickets get the Take Over interception
-  // instead of the dropdown.
+  // assign control at all - assignment stays on the dialog page. Everything
+  // else gets the plain picker: outside AI Handling the AI is already stopped
+  // (`hasActiveAiDialog`), so assigning is a one-click change, not a take-over.
   const renderAssignSlot = useCallback((ticket: BoardTicket) => {
     if (aiOwnedTicketIdsRef.current.has(ticket.id)) return null;
-    const dialog = dialogByIdRef.current.get(ticket.id);
-    const aiActive = !!dialog && hasActiveAiDialog(dialog);
-    return (
-      <BoardAssigneePicker
-        ticket={ticket}
-        onTakeOver={aiActive ? () => setTakeOverTarget({ ticket: dialog }) : undefined}
-      />
-    );
+    return <BoardAssigneePicker ticket={ticket} />;
   }, []);
 
   const handleChange = useCallback(
