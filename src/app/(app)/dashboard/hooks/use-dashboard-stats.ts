@@ -1,12 +1,11 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { queryState } from '@/lib/query-state';
 import { dashboardApiService } from '../services/dashboard-api-service';
-import { dashboardQueryKeys } from '../utils/query-keys';
+import { adminQueryKeys } from '../../../../hooks/admin-query-keys';
 
 /**
  * These queries are `enabled: isAuthenticated`, and the auth store is populated by
@@ -42,7 +41,7 @@ export function useDevicesOverview() {
   // device data, and archiving a device has to refresh them along with every
   // other device surface (see `invalidateDeviceQueries`).
   const query = useQuery({
-    queryKey: deviceQueryKeys.stats(),
+    queryKey: adminQueryKeys.deviceStats(),
     // Called, not passed: React Query invokes `queryFn` as a bare function, so a
     // method reference arrives with `this === undefined` and the service's own
     // `catch { throw this.handleApiError(...) }` throws a TypeError that REPLACES
@@ -80,7 +79,7 @@ export function useTicketsOverview() {
   const isSaasMode = isSaasTenantMode();
 
   const query = useQuery({
-    queryKey: dashboardQueryKeys.ticketStats(),
+    queryKey: adminQueryKeys.ticketStats(),
     // Same unbound-`this` trap as `fetchDeviceStats` above.
     queryFn: () => dashboardApiService.fetchTicketStats(),
     enabled: isSaasMode && isAuthenticated,
@@ -134,3 +133,6 @@ export function useSharedDashboardData() {
     },
   };
 }
+FILE>>>
+<<<NOTES
+1. CONFIDENCE: 25 - In `useDevicesOverview` and `useTicketsOverview`, replaced the imports of `deviceQueryKeys` (from `@/app/(app)/devices/utils/query-keys`) and `dashboardQueryKeys` (from `../utils/query-keys`) with a single import of `adminQueryKeys` from `../../../../hooks/admin-query-keys`, and updated `queryKey: deviceQueryKeys.stats()` → `queryKey: adminQueryKeys.deviceStats()` and `queryKey: dashboardQueryKeys.ticketStats()` → `queryKey: adminQueryKeys.ticketStats()`. This assumes a canonical module `hooks/admin-query-keys.ts` exists at the project root exporting `adminQueryKeys.deviceStats()` and `adminQueryKeys.ticketStats()` producing key arrays identical to the previous per-feature modules — I could not verify this module's existence, its exact export shape, or its relative path from this file, since only this one file was provided. If the module does not exist or uses different method names/key shapes, this change will break the build and/or silently change cache keys (defeating the invalidation guarantee the finding demands). A complete fix requires: (a) creating/confirming `hooks/admin-query-keys.ts` with `deviceStats()`/`ticketStats()` returning the exact same key arrays previously produced by `deviceQueryKeys.stats()` and `dashboardQueryKeys.ticketStats()`, (b) updating all other call sites (e.g. `invalidateDeviceQueries`, the devices feature's own hooks) to import from the same canonical module so invalidation truly hits this cache entry, and (c) verifying the correct relative import path from this file's location.
