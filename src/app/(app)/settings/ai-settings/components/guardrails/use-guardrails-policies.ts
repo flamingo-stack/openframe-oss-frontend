@@ -3,6 +3,7 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { guardrailsQueryKeys } from '@/hooks/admin-query-keys';
 import { apiClient } from '@/lib/api-client';
 import {
   CUSTOM_POLICY_TYPE,
@@ -18,12 +19,6 @@ import { organizationGuardrailsQueryKeys } from './use-organization-guardrails';
  * (customer details page) extends these hooks and their query keys — the
  * editor and panel components stay unchanged.
  */
-
-export const guardrailsQueryKeys = {
-  all: ['guardrails-policies'] as const,
-  templates: () => [...guardrailsQueryKeys.all, 'templates'] as const,
-  template: (id: string) => [...guardrailsQueryKeys.all, 'template', id] as const,
-};
 
 export function useGuardrailsTemplates() {
   const result = useQuery({
