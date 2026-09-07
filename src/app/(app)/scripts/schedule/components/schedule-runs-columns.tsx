@@ -69,6 +69,8 @@ export interface RunStatusOption {
   id: string;
   label: string;
   value: string;
+  /** Optional: the enum fallback, used until the facet answers, has no count. */
+  count?: number;
 }
 
 /** One fire of a schedule, in the shape the table renders. */

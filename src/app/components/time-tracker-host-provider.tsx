@@ -46,12 +46,24 @@ import {
 } from '@/graphql/time-tracker/time-tracker-helpers';
 import { useAuthStore } from '@/stores';
 
+/**
+ * Host for the global time-tracker panel, mounted around the whole app shell.
+ *
+ * `enabled` (the feature flag + a resolved session + an unlocked workspace) is
+ * passed DOWN, never used to decide whether to mount: this used to return
+ * `<>{children}</>` when off, and the moment the flag answered mid-boot the
+ * element type at this position changed and React remounted the entire
+ * `CoreAppLayout` and the page inside it. See the comment at its call site in
+ * `app-layout.tsx`. Everything that costs anything — the two Relay hydrators,
+ * the modals, and the ticket/customer option queries — is gated on the flag
+ * instead, so a mounted-but-disabled host issues no requests, and the lib
+ * provider supplies NO context, exactly as when it was absent.
+ */
 export function TimeTrackerHostProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
-  if (!enabled) return <>{children}</>;
-  return <TimeTrackerHost>{children}</TimeTrackerHost>;
+  return <TimeTrackerHost enabled={enabled}>{children}</TimeTrackerHost>;
 }
 
-function TimeTrackerHost({ children }: { children: ReactNode }) {
+function TimeTrackerHost({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const { toast } = useToast();
   const router = useRouter();
   const currentUserId = useAuthStore(state => state.user?.id);
@@ -76,7 +88,7 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
     selectTicket,
     selectCustomer,
     reset: resetTicketCustomer,
-  } = useTicketCustomerSelection();
+  } = useTicketCustomerSelection({ enabled });
 
   const [startTimer, isStarting] = useMutation<StartTimerMutationType>(startTimerMutation);
   const [pauseTimer, isPausing] = useMutation<PauseTimerMutationType>(pauseTimerMutation);
@@ -289,35 +301,49 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
     ],
   );
 
+  // `children` keeps ONE position in this tree whatever `enabled` says; only the
+  // siblings around it come and go, and a sibling appearing costs the subtree
+  // nothing. The modals mount their own `useTicketCustomerSelection`, so they are
+  // part of "costs anything" and are gated too.
   return (
-    <TimeTrackerProvider {...trackerData}>
-      <Suspense fallback={null}>
-        <CurrentTimerHydrator onTimer={setTimerNode} />
-      </Suspense>
-      <Suspense fallback={null}>
-        <RecentEntriesHydrator onEntries={setRecentNodes} />
-      </Suspense>
+    <TimeTrackerProvider enabled={enabled} {...trackerData}>
+      {enabled && (
+        <>
+          <Suspense fallback={null}>
+            <CurrentTimerHydrator onTimer={setTimerNode} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <RecentEntriesHydrator onEntries={setRecentNodes} />
+          </Suspense>
+        </>
+      )}
       {children}
-      <ManualEntryModal
-        isOpen={manualEntryOpen}
-        onClose={() => setManualEntryOpen(false)}
-        onSuccess={onEntriesChanged}
-      />
-      <ManualEntryModal
-        isOpen={!!editTarget}
-        entry={editTarget}
-        onClose={() => setEditTarget(null)}
-        onSuccess={onEntriesChanged}
-      />
-      <ConfirmDialog
-        open={cancelConfirmOpen}
-        onOpenChange={setCancelConfirmOpen}
-        title="Cancel Entry"
-        description={<CancelEntryDescription runningSince={clock.runningSince} accumulatedMs={clock.accumulatedMs} />}
-        variant="destructive"
-        isPending={isCancelling}
-        onConfirm={confirmCancel}
-      />
+      {enabled && (
+        <>
+          <ManualEntryModal
+            isOpen={manualEntryOpen}
+            onClose={() => setManualEntryOpen(false)}
+            onSuccess={onEntriesChanged}
+          />
+          <ManualEntryModal
+            isOpen={!!editTarget}
+            entry={editTarget}
+            onClose={() => setEditTarget(null)}
+            onSuccess={onEntriesChanged}
+          />
+          <ConfirmDialog
+            open={cancelConfirmOpen}
+            onOpenChange={setCancelConfirmOpen}
+            title="Cancel Entry"
+            description={
+              <CancelEntryDescription runningSince={clock.runningSince} accumulatedMs={clock.accumulatedMs} />
+            }
+            variant="destructive"
+            isPending={isCancelling}
+            onConfirm={confirmCancel}
+          />
+        </>
+      )}
     </TimeTrackerProvider>
   );
 }
