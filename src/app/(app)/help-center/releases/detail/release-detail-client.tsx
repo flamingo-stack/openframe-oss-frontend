@@ -9,36 +9,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components';
 import type { RoadmapItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { EntityVideoSection } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { embedAuthedFetch } from '@flamingo-stack/openframe-frontend-core/utils';
-import { skipToken, useQuery } from '@tanstack/react-query';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
-
-/**
- * Host-side data hook — called at the top level of `ReleaseDetailClient` below,
- * so it runs against the app's QueryClient. `ReleaseDetailPage` takes the
- * RESOLVED release, never a hook, so nothing crosses the prop boundary that
- * React cannot see. Points at the single-release route
- * (`EP.productReleaseBySlug`); a miss surfaces the lib's error state (no crash).
- *
- * Fetches via `embedAuthedFetch` — the SAME authed proxy fetch every other
- * help-center surface uses (bearer in dev-ticket mode + `credentials: include`
- * + 401-refresh-retry). The lib's own surfaces reach it through the internal
- * `contentFetch`; this host-supplied hook calls it directly (the chat adapter
- * is always registered under `(app)`, so the auth + refresh behave identically).
- */
-function useRelease(slug: string | undefined) {
-  const query = useQuery({
-    queryKey: ['help-center', 'product-release', slug],
-    queryFn: slug
-      ? async () => {
-          const res = await embedAuthedFetch(EP.productReleaseBySlug(slug));
-          if (!res.ok) throw new Error(`Request failed (${res.status})`);
-          return res.json();
-        }
-      : skipToken,
-  });
-  return { data: query.data, error: (query.error as Error) ?? null, isLoading: query.isLoading };
-}
 
 // Injected roadmap section — wraps RoadmapGrid so linked roadmap items
 // vote/refresh via the same /content endpoints as the standalone page.
@@ -86,13 +57,11 @@ function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; i
 }
 
 export function ReleaseDetailClient({ slug }: { slug: string }) {
-  const { data: release, error, isLoading } = useRelease(slug);
   return (
     <ReleaseDetailPage
       shell={false}
-      release={release}
-      isLoading={isLoading}
-      error={error}
+      slug={slug}
+      endpoint={EP.productReleases}
       RoadmapSection={RoadmapSection}
       DeliverySection={DeliverySection}
       VideoDisplaySection={VideoDisplaySection}
