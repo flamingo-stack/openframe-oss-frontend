@@ -13,8 +13,14 @@ import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from './
  * ClientView with its own per-org override — see `use-client-view.ts`.
  */
 
+// TODO: centralize in a shared hooks/admin-query-keys.ts module so all
+// invalidateQueries callers are guaranteed to match this key (see code
+// review finding). Kept local for now to avoid introducing an unverified
+// cross-file dependency in this change.
+const ORGANIZATION_CLIENT_AI_CONFIG_QUERY_KEY_ROOT = 'organization-client-ai-config' as const;
+
 export const organizationAiConfigQueryKeys = {
-  all: ['organization-client-ai-config'] as const,
+  all: [ORGANIZATION_CLIENT_AI_CONFIG_QUERY_KEY_ROOT] as const,
   detail: (organizationId: string) => [...organizationAiConfigQueryKeys.all, { organizationId }] as const,
 };
 
