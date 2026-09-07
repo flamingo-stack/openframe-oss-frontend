@@ -11,6 +11,7 @@ import {
   RENAME_MINGO_DIALOG_MUTATION,
   UNARCHIVE_MINGO_DIALOG_MUTATION,
 } from '../queries/dialogs-queries';
+import { MINGO_ARCHIVED_DIALOGS_QUERY_KEY, MINGO_DIALOG_QUERY_KEY, MINGO_DIALOGS_QUERY_KEY } from '../query-keys';
 import type { DialogsResponse } from '../types';
 
 interface DialogMutationPayload {
@@ -57,8 +58,8 @@ export function useMingoDialogActions() {
     // Archive/unarchive move a dialog between the active and archived lists, so
     // refresh BOTH cached queries — otherwise the archived-list cache (below)
     // would go stale after archiving/unarchiving.
-    void queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
-    void queryClient.invalidateQueries({ queryKey: ['mingo-archived-dialogs'] });
+    void queryClient.invalidateQueries({ queryKey: MINGO_DIALOGS_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: MINGO_ARCHIVED_DIALOGS_QUERY_KEY });
   }, [queryClient]);
 
   const renameDialog = useCallback(
@@ -66,7 +67,7 @@ export function useMingoDialogActions() {
       try {
         await runDialogMutation(RENAME_MINGO_DIALOG_MUTATION, { input: { id, title } }, 'renameDialog');
         invalidateDialogs();
-        void queryClient.invalidateQueries({ queryKey: ['mingo-dialog', id] });
+        void queryClient.invalidateQueries({ queryKey: MINGO_DIALOG_QUERY_KEY(id) });
         toast({ title: 'Chat renamed', variant: 'success' });
       } catch (err) {
         toast({
@@ -146,7 +147,7 @@ export function useMingoDialogActions() {
       // set) stay transient. Invalidated on archive/unarchive above.
       if (!params.cursor) {
         return queryClient.fetchQuery({
-          queryKey: ['mingo-archived-dialogs', { search: params.search, limit: params.limit ?? 20 }],
+          queryKey: [...MINGO_ARCHIVED_DIALOGS_QUERY_KEY, { search: params.search, limit: params.limit ?? 20 }],
           queryFn: runFetch,
           staleTime: 5 * 60 * 1000,
           gcTime: 30 * 60 * 1000,
