@@ -2,7 +2,9 @@
 
 import { OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ScheduleTimeReference } from '@/generated/schema-enums';
 import { ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { DEVICE_LOCAL_TIME_NOTE, isDeviceLocalTime } from '../utils/schedule-timing';
 
 interface ScheduleInfoBarFromDataProps {
   /**
@@ -31,6 +33,13 @@ interface ScheduleInfoBarFromDataProps {
    * `DATE_TIME` (and when omitted) the date/time/repeat cells ARE the trigger.
    */
   trigger?: ScriptScheduleTrigger | string | null;
+  /**
+   * Which clock `time` is on. A DEVICE_LOCAL schedule stores a wall clock each
+   * device reads on its OWN timezone, so the value here is not the viewer's —
+   * and nothing about "6:00 PM" says so. The cell's label carries the reading;
+   * the value stays the digits that were picked, unconverted.
+   */
+  timeReference?: ScheduleTimeReference | string | null;
 }
 
 /** One value/label cell, 80px tall from `md` up — the row height the design fixes. */
@@ -47,8 +56,10 @@ export function ScheduleInfoBarFromData({
   repeat,
   platforms,
   trigger,
+  timeReference,
 }: ScheduleInfoBarFromDataProps) {
   const isEventDriven = trigger === ScriptScheduleTrigger.DEVICE_ONLINE;
+  const timeLabel = isDeviceLocalTime(timeReference) ? `Time (${DEVICE_LOCAL_TIME_NOTE})` : 'Time';
 
   return (
     <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
@@ -82,7 +93,7 @@ export function ScheduleInfoBarFromData({
             </div>
             <div className={`${CELL_CLASS} border-b border-ods-border md:border-b-0`}>
               <TruncateText>{time}</TruncateText>
-              <span className="text-ods-text-secondary text-h6">Time</span>
+              <span className="text-ods-text-secondary text-h6">{timeLabel}</span>
             </div>
             <div className={CELL_CLASS}>
               <TruncateText>{repeat}</TruncateText>
