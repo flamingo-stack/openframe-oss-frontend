@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AIProvider } from '@/generated/schema-enums';
 import { apiClient } from '@/lib/api-client';
 import { queryState } from '@/lib/query-state';
+import { agentAiConfigQueryKeys } from '../../hooks/admin-query-keys';
 import {
   GET_ADMIN_AI_CONFIG_QUERY,
   GET_CLIENT_AI_CONFIG_QUERY,
@@ -14,9 +15,7 @@ import type { AgentAiConfig, AgentAiConfigInput, AgentType, AnswerStyle } from '
 import type { GraphqlResponse } from './chat-graphql';
 import { organizationAiConfigQueryKeys } from './use-organization-ai-config';
 
-export const agentAiConfigQueryKeys = {
-  detail: (agentType: AgentType) => ['agent-ai-config', agentType] as const,
-};
+export { agentAiConfigQueryKeys };
 
 interface AgentAiConfigGql {
   id: string;
