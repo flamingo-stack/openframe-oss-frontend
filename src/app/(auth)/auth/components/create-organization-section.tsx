@@ -166,6 +166,8 @@ export function CreateOrganizationSection({
         // `error` passes so a failed check does not block signup; the server re-validates anyway.
         submitDisabled={!isEmailValid || emailStatus === 'idle' || emailStatus === 'checking' || isEmailBlocked}
         errors={{ email: email.trim() && !isEmailValid ? INVALID_EMAIL_ERROR : undefined }}
+        termsUrl={TERMS_URL}
+        privacyPolicyUrl={PRIVACY_POLICY_URL}
       />
     );
   }
