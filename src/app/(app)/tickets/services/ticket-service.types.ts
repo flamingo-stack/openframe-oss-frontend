@@ -1,6 +1,6 @@
 import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatType } from '../constants';
-import type { CursorPageInfo, Dialog, DialogStatus, Message } from '../types/dialog.types';
+import type { CursorPageInfo, Dialog, DialogStatus, Message, TicketActivityFilter } from '../types/dialog.types';
 
 export interface TicketsPage {
   dialogs: Dialog[];
@@ -35,6 +35,9 @@ export interface FetchBoardColumnByStatusIdParams {
   assigneeIds?: string[];
   tagIds?: string[];
   unreadOnly?: boolean;
+  // Sent as `TicketFilterInput.activity`; OR within the list, AND with the
+  // other params. Empty list sends no filter.
+  activity?: TicketActivityFilter[];
   cursor?: string;
   limit: number;
 }
