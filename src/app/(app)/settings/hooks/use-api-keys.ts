@@ -42,7 +42,7 @@ export function useApiKeys() {
   }, []);
 
   const createApiKey = useCallback(async (data: { name: string; description?: string; expiresAt?: string | null }) => {
-    const payload: any = {
+    const payload = {
       name: data.name,
       description: data.description || undefined,
       expiresAt: data.expiresAt ?? null,
@@ -56,7 +56,7 @@ export function useApiKeys() {
 
   const updateApiKey = useCallback(
     async (id: string, data: { name: string; description?: string; expiresAt?: string | null }) => {
-      const payload: any = {
+      const payload = {
         name: data.name,
         description: data.description || undefined,
         expiresAt: data.expiresAt ?? null,

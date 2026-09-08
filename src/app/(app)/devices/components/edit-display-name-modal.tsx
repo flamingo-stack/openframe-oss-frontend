@@ -2,7 +2,7 @@
 
 import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useDeviceActions } from '../hooks/use-device-actions';
 import type { Device } from '../types/device.types';
@@ -25,11 +25,15 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
 
   const currentName = device?.nickname ?? '';
 
-  useEffect(() => {
-    if (isOpen) {
-      setName(currentName);
-    }
-  }, [isOpen, currentName]);
+  // Seeded when the modal opens, during render rather than in an effect: an effect
+  // paints the field with the previous value once before correcting it. Keyed off
+  // the open transition alone, so a background refresh of the source value can no
+  // longer overwrite what the user has typed while the modal is up.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setName(currentName);
+  }
 
   const deviceId = device?.machineId || device?.id || '';
   const trimmed = name.trim();
@@ -72,7 +76,7 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
         </>
       }
     >
-      <Label htmlFor="device-display-name" className="text-h4 text-ods-text-primary">
+      <Label htmlFor="device-display-name" className="text-ods-text-primary text-h4">
         Display Name
       </Label>
       <Input

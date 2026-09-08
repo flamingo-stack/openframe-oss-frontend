@@ -57,9 +57,9 @@ export function useDevices(filters?: DeviceFilterInput, search = ''): UseDevices
   // device mutation. Refetching via `usePaginationFragment`'s `refetch` at the
   // loaded size was tried and dropped `filteredCount` (the row counter
   // disappeared), so it is not a straight swap. The correct fix is a
-  // `ConnectionHandler` updater applied from the mutation — but the archive /
-  // unarchive / delete calls are REST (`apiClient.patch`), not Relay mutations,
-  // so that needs the mutation moved to Relay first.
+  // `ConnectionHandler` updater applied from the mutation — but the delete call
+  // is REST (`apiClient.post`), not a Relay mutation, so that needs the
+  // mutation moved to Relay first.
   const fetchNextPage = useCallback(() => loadNext(DEVICES_PAGE_SIZE), [loadNext]);
 
   return {

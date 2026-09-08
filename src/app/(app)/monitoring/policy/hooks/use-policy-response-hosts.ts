@@ -1,13 +1,13 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { fleetApiClient, type Host } from '@/lib/fleet-api-client';
 
 const EMPTY_HOSTS: Host[] = [];
 
 export const policyResponseHostsQueryKeys = {
   all: ['policy-response-hosts'] as const,
-  list: (policyId: number, response: 'passing' | 'failing') =>
+  list: (policyId: number | null, response: 'passing' | 'failing') =>
     [...policyResponseHostsQueryKeys.all, policyId, response] as const,
 };
 
@@ -26,8 +26,8 @@ async function fetchPolicyResponseHosts(policyId: number, policyResponse: 'passi
 
 export function usePolicyResponseHosts(policyId: number | null, policyResponse: 'passing' | 'failing') {
   const query = useQuery({
-    queryKey: policyResponseHostsQueryKeys.list(policyId!, policyResponse),
-    queryFn: () => fetchPolicyResponseHosts(policyId!, policyResponse),
+    queryKey: policyResponseHostsQueryKeys.list(policyId, policyResponse),
+    queryFn: policyId === null ? skipToken : () => fetchPolicyResponseHosts(policyId, policyResponse),
     enabled: policyId !== null,
   });
 

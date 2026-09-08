@@ -15,7 +15,7 @@ interface NewFolderModalProps {
 
 export function NewFolderModal({ isOpen, folderName, submitting, onChange, onSubmit, onClose }: NewFolderModalProps) {
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Enter' && !submitting && folderName.trim()) {
         event.preventDefault();
@@ -44,7 +44,7 @@ export function NewFolderModal({ isOpen, folderName, submitting, onChange, onSub
         </>
       }
     >
-      <p className="text-h6 text-ods-text-secondary">Enter a name for the new folder.</p>
+      <p className="text-ods-text-secondary text-h6">Enter a name for the new folder.</p>
       <Input
         value={folderName}
         onChange={event => onChange(event.target.value)}

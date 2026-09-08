@@ -20,7 +20,7 @@ export function DisableApiKeyModal({ isOpen, onClose, apiKeyName, onConfirm }: D
       description={
         <>
           Are you sure you want to deactivate{' '}
-          <span className="text-ods-error font-semibold">{apiKeyName || 'this API Key'}</span>? This key will stop
+          <span className="font-semibold text-ods-error">{apiKeyName || 'this API Key'}</span>? This key will stop
           working until you reactivate it.
         </>
       }

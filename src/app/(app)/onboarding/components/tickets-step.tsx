@@ -16,7 +16,7 @@ const DEMO_VIDEO_ID = 'Ch984JTweV8';
 function LabeledBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)]">
-      <p className="text-h5 text-ods-text-secondary">{label}</p>
+      <p className="text-ods-text-secondary text-h5">{label}</p>
       {children}
     </div>
   );
@@ -61,11 +61,11 @@ export function TicketsStep({
       {/* Intro (left) / demo video (right) */}
       <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] md:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
-          <p className="text-h4 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h4">
             Every conversation AI Assistant handles is logged as a ticket. Your team can review what happened, add
             context, and step in whenever needed.
           </p>
-          <p className="text-h4 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h4">
             {
               'Deploy the agent on your own device, open Fae, and send a message like "Check for software updates." Then head to the Tickets section and watch your conversation show up as a fresh ticket, with the full chat history and every detail captured.'
             }
@@ -79,7 +79,7 @@ export function TicketsStep({
       {/* Inside a ticket */}
       <LabeledBlock label="Inside a ticket">
         <div className="flex w-full flex-col gap-[var(--spacing-system-xs)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
-          <p className="text-h4 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h4">
             Once a ticket is open, your team can add context and take action:
           </p>
           <ul className="flex w-full flex-col">
@@ -88,7 +88,7 @@ export function TicketsStep({
                 <span className="flex size-6 shrink-0 items-center justify-center">
                   <span className="size-1.5 rounded-full bg-ods-accent" />
                 </span>
-                <span className="flex-1 text-h4 text-ods-text-primary">{point}</span>
+                <span className="flex-1 text-ods-text-primary text-h4">{point}</span>
               </li>
             ))}
           </ul>

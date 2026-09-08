@@ -19,6 +19,7 @@ import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
+import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
 import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
@@ -90,12 +91,18 @@ function RemoteDesktopSession() {
     error: deviceError,
   } = useDeviceDetails(!legacyDeviceData ? deviceId : null, { polling: false });
 
-  // Extract device info from either legacy data or fetched data
+  // Extract device info from either legacy data or fetched data. The legacy
+  // snapshot carries a bare agent id (no connection row), so it can't be state-
+  // checked — treat it as live, exactly as before.
+  const meshcentralState = legacyDeviceData?.meshcentralAgentId
+    ? 'live'
+    : getToolConnectionState(deviceDetails?.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL'));
   const meshcentralAgentId = useMemo(() => {
     if (legacyDeviceData?.meshcentralAgentId) {
       return legacyDeviceData.meshcentralAgentId;
     }
-    return deviceDetails?.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL')?.agentToolId;
+    const connection = deviceDetails?.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL');
+    return getToolConnectionState(connection) === 'live' ? connection?.agentToolId : undefined;
   }, [legacyDeviceData, deviceDetails]);
 
   const hostname = useMemo(() => {
@@ -147,9 +154,14 @@ function RemoteDesktopSession() {
     remoteSettingsRef.current = remoteSettings;
   }, [remoteSettings]);
 
-  useEffect(() => {
-    if (meshcentralAgentId) setIsPageReady(true);
-  }, [meshcentralAgentId]);
+  // Derived from the id the render already has - an effect would hold the page
+  // in its not-ready state for one extra frame on every mount. Guarded on the
+  // current state, not on the id changing: the id is routinely already known on
+  // the FIRST render (react-query cache hit after the device details page, or
+  // the legacy deviceData param), and a change-detection guard seeded with that
+  // value never fires, leaving the page permanently not ready - no tunnel, no
+  // stream, black screen.
+  if (meshcentralAgentId && !isPageReady) setIsPageReady(true);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -165,7 +177,7 @@ function RemoteDesktopSession() {
   }, [isFullscreen]);
 
   useEffect(() => {
-    if (!isPageReady) return;
+    if (!isPageReady) return undefined;
 
     const desktop = new MeshDesktop();
     desktopRef.current = desktop;
@@ -199,7 +211,7 @@ function RemoteDesktopSession() {
   }, [isPageReady]);
 
   useEffect(() => {
-    if (!isPageReady || !meshcentralAgentId || initializingRef.current) return;
+    if (!isPageReady || !meshcentralAgentId || initializingRef.current) return undefined;
 
     initializingRef.current = true;
     setFirstFrameReceived(false);
@@ -224,7 +236,9 @@ function RemoteDesktopSession() {
               if (ctrl && !ctrl.isConnected()) {
                 await ctrl.openSession();
               }
-            } catch {}
+            } catch {
+              // Best-effort warm-up: re-opening the control session here only saves the reconnect a round trip. The tunnel reconnects either way and re-opens the session itself if this failed.
+            }
           },
           onData: () => {},
           onBinaryData: bytes => {
@@ -242,7 +256,9 @@ function RemoteDesktopSession() {
               const cookies = await ctrl.getAuthCookies();
               tunnelRef.current?.updateAuthCookie(cookies.authCookie);
               ctrl.sendDesktopTunnel(meshcentralAgentId, relayId);
-            } catch {}
+            } catch {
+              // The re-announce races the socket coming back. If it loses, the tunnel raises its own state change and the retry path above runs again — throwing out of a reconnect callback would strand the session instead.
+            }
           },
           onStateChange: s => {
             setState(s);
@@ -277,7 +293,9 @@ function RemoteDesktopSession() {
         });
         try {
           await control.openSession();
-        } catch {}
+        } catch {
+          // The session is opened again below with the cookies it needs; a failure here only means the first request pays for it.
+        }
         if (cancelled) return;
         tunnel.start();
       } catch (e) {
@@ -312,12 +330,12 @@ function RemoteDesktopSession() {
 
   // Clipboard interceptor
   useEffect(() => {
-    if (!isPageReady) return;
+    if (!isPageReady) return undefined;
     const desktop = desktopRef.current;
-    if (!desktop) return;
+    if (!desktop) return undefined;
     if (!clipboardEnabled) {
       desktop.setClipboardInterceptor?.(null);
-      return;
+      return undefined;
     }
 
     desktop.setClipboardInterceptor?.((type, sendKeys) => {
@@ -371,7 +389,9 @@ function RemoteDesktopSession() {
     if (!document.fullscreenElement) return;
     try {
       await document.exitFullscreen();
-    } catch {}
+    } catch {
+      // Leaving fullscreen fails when the document already left it (Escape, a tab switch) — the state this is trying to reach is the state we are in.
+    }
   };
 
   const sendPower = async (action: 'wake' | 'sleep' | 'reset' | 'poweroff') => {
@@ -463,7 +483,7 @@ function RemoteDesktopSession() {
                     {
                       id: 'display-all',
                       label: 'All Displays',
-                      icon: <MonitorIcon className="w-4 h-4" />,
+                      icon: <MonitorIcon className="h-4 w-4" />,
                       type: 'checkbox' as const,
                       checked: currentDisplay === 0,
                       onClick: () => handleDisplayChange(0),
@@ -475,7 +495,7 @@ function RemoteDesktopSession() {
                 .map(display => ({
                   id: `display-${display.id}`,
                   label: `Display ${display.id}${display.primary ? ' (Primary)' : ''}`,
-                  icon: <MonitorIcon className="w-4 h-4" />,
+                  icon: <MonitorIcon className="h-4 w-4" />,
                   type: 'checkbox' as const,
                   checked: currentDisplay === display.id,
                   onClick: () => handleDisplayChange(display.id),
@@ -488,32 +508,32 @@ function RemoteDesktopSession() {
   if (!legacyDeviceData && isDeviceLoading) {
     return (
       <PageLayout
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] h-full overflow-hidden"
+        className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         backButton={{ label: 'Back', onClick: handleBack }}
       >
-        <div className="bg-ods-card border rounded-md border-ods-border flex items-center justify-between gap-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)] px-[var(--spacing-system-mf)] flex-shrink-0">
-          <div className="flex items-center gap-[var(--spacing-system-mf)] min-w-0">
-            <Skeleton className="h-9 w-9 rounded-md flex-shrink-0" />
-            <div className="flex flex-col gap-[var(--spacing-system-xxs)] min-w-0">
+        <div className="flex flex-shrink-0 items-center justify-between gap-[var(--spacing-system-mf)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)]">
+          <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
+            <Skeleton className="h-9 w-9 flex-shrink-0 rounded-md" />
+            <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
               <Skeleton className="h-5 w-48" />
               <Skeleton className="h-4 w-36" />
             </div>
           </div>
-          <div className="flex items-center gap-[var(--spacing-system-xs)] flex-shrink-0">
-            <Skeleton className="h-11 w-11 md:h-12 md:w-12 rounded-lg" />
-            <Skeleton className="h-11 w-11 md:h-12 md:w-12 rounded-lg" />
-            <Skeleton className="h-11 w-11 md:h-12 md:w-12 rounded-lg" />
+          <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
+            <Skeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
+            <Skeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
+            <Skeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 min-w-0 bg-black rounded-lg" />
+        <div className="min-h-0 min-w-0 flex-1 rounded-lg bg-black" />
       </PageLayout>
     );
   }
 
   if (!legacyDeviceData && deviceError) {
     return (
-      <div className="p-[var(--spacing-system-l)] h-full flex flex-col items-center justify-center gap-[var(--spacing-system-mf)]">
+      <div className="flex h-full flex-col items-center justify-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-l)]">
         <div className="text-ods-error text-h4">Error: {deviceError}</div>
         <Button onClick={safeBackToDevices}>Back</Button>
       </div>
@@ -521,21 +541,22 @@ function RemoteDesktopSession() {
   }
 
   if (!meshcentralAgentId) {
+    const copy = getMeshCentralBlockedCopy(meshcentralState, 'Remote desktop');
     return (
-      <div className="p-[var(--spacing-system-l)] h-full flex flex-col items-center justify-center gap-[var(--spacing-system-mf)]">
-        <div className="text-ods-error text-h4">Error: MeshCentral Agent ID not available for this device</div>
-        <p className="text-ods-text-secondary">Remote desktop requires MeshCentral agent to be connected.</p>
+      <div className="flex h-full flex-col items-center justify-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-l)]">
+        <div className="text-ods-error text-h4">{copy.title}</div>
+        <p className="text-ods-text-secondary">{copy.description}</p>
         <Button onClick={safeBackToDevice}>Back</Button>
       </div>
     );
   }
 
   const deviceInfoBlock = (
-    <div className="flex items-center gap-[var(--spacing-system-mf)] min-w-0">
-      <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-xsf)] flex-shrink-0">
-        <MonitorIcon className="w-4 h-4 text-ods-text-primary" />
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
+      <div className="flex-shrink-0 rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xsf)]">
+        <MonitorIcon className="h-4 w-4 text-ods-text-primary" />
       </div>
-      <div className="flex flex-col min-w-0">
+      <div className="flex min-w-0 flex-col">
         <TruncateText>{hostname || `Device ${deviceId}`}</TruncateText>
         <TruncateText
           variant="h6"
@@ -547,17 +568,17 @@ function RemoteDesktopSession() {
 
   const controlsBar = (
     <div
-      className={`bg-ods-card border border-ods-border flex items-center justify-between gap-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)] px-[var(--spacing-system-mf)] flex-shrink-0 ${
+      className={`flex flex-shrink-0 items-center justify-between gap-[var(--spacing-system-mf)] border border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)] ${
         isFullscreen ? '' : 'rounded-md'
       }`}
     >
       {deviceInfoBlock}
-      <div className="flex items-center gap-[var(--spacing-system-xs)] flex-shrink-0">
+      <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
         {displays.length > 1 && (
           <ActionsMenuDropdown
             groups={displayMenuGroups}
             customTrigger={
-              <Button variant="outline" leftIcon={<MonitorIcon className="w-4 h-4 md:w-6 md:h-6" />}>
+              <Button variant="outline" leftIcon={<MonitorIcon className="h-4 w-4 md:h-6 md:w-6" />}>
                 Display {currentDisplay === 0 ? 'All' : currentDisplay}
               </Button>
             }
@@ -589,28 +610,28 @@ function RemoteDesktopSession() {
   const isGridActive = currentDisplay === 0 && gridDisplays.length > 1;
 
   const canvasContainer = (
-    <div className={`flex-1 min-h-0 min-w-0 relative bg-black overflow-hidden ${isFullscreen ? '' : 'rounded-lg'}`}>
+    <div className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-black ${isFullscreen ? '' : 'rounded-lg'}`}>
       <canvas
         ref={canvasRef}
         tabIndex={0}
-        className="absolute inset-0 w-full h-full object-contain outline-none"
+        className="absolute inset-0 h-full w-full object-contain outline-none"
         style={{ visibility: firstFrameReceived && !isGridActive ? 'visible' : 'hidden' }}
         onContextMenu={e => e.preventDefault()}
       />
       {isGridActive && firstFrameReceived && (
         <div className="absolute inset-0 grid grid-cols-2 content-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-mf)]">
           {gridDisplays.map(display => (
-            <div key={display.id} className="relative flex items-center justify-center min-h-0 min-w-0">
+            <div key={display.id} className="relative flex min-h-0 min-w-0 items-center justify-center">
               <canvas
                 ref={el => {
                   const desktop = desktopRef.current;
-                  if (!desktop || !el) return;
+                  if (!desktop || !el) return undefined;
                   desktop.attachDisplayView?.(display.id, el);
                   return () => desktop.detachDisplayView?.(display.id);
                 }}
                 tabIndex={0}
                 aria-label={`Display ${display.id}${display.primary ? ' (Primary)' : ''}`}
-                className="max-w-full max-h-full object-contain outline-none"
+                className="max-h-full max-w-full object-contain outline-none"
                 onContextMenu={e => e.preventDefault()}
               />
             </div>
@@ -619,7 +640,7 @@ function RemoteDesktopSession() {
       )}
       {!firstFrameReceived && state >= 1 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)]">
-          <Loader2 className="w-8 h-8 text-ods-text-secondary animate-spin" />
+          <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
           <span className="text-ods-text-secondary text-h6">
             {state === 3 ? 'Waiting for desktop stream...' : 'Connecting to desktop...'}
           </span>
@@ -630,11 +651,11 @@ function RemoteDesktopSession() {
 
   return (
     <PageLayout
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] h-full overflow-hidden"
+      className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: handleBack }}
       showHeader={!isFullscreen}
     >
-      <div className={isFullscreen ? 'fixed inset-0 z-50 bg-black flex flex-col' : 'contents'}>
+      <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}>
         {controlsBar}
         {canvasContainer}
       </div>

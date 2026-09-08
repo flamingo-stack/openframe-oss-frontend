@@ -1,4 +1,6 @@
+import type { Metadata } from 'next';
 import type { CSSProperties, ReactNode } from 'react';
+import { routeTitle } from '@/lib/route-title';
 import { HelpCenterRuntimeProvider } from './help-center-runtime-provider';
 
 /**
@@ -18,6 +20,9 @@ const PAGE_SHELL_OVERRIDE: CSSProperties = {
   '--page-shell-pb': 'var(--spacing-system-l)',
   '--page-shell-pb-md': 'var(--spacing-system-l)',
 } as CSSProperties;
+
+/** Section title for `/help-center/*` — see `../route-title-layout.tsx`. */
+export const metadata: Metadata = { title: routeTitle('Help Center') };
 
 /**
  * Wraps every `/help-center/*` route in the section's nested ChatRuntime

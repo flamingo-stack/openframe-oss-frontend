@@ -15,8 +15,8 @@ export default function Monitoring() {
   const TabComponent = getTabComponent(MONITORING_TABS, params.tab);
 
   return (
-    <div className="flex flex-col w-full">
-      <div className="flex flex-col w-full">
+    <div className="flex w-full flex-col">
+      <div className="flex w-full flex-col">
         <MonitoringTabNavigation activeTab={params.tab} onTabChange={tab => setParams({ tab, search: '' })} />
         {TabComponent ? <TabComponent /> : null}
       </div>

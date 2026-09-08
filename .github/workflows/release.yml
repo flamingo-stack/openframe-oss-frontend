@@ -14,13 +14,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to Release to Stage (x.y.z). Leave empty for auto patch bump."
+        description: 'Version to Release to Stage (x.y.z). Leave empty for auto patch bump.'
         required: false
         type: string
         default: ''
 
 env:
-  REGISTRY: "ghcr.io"
+  REGISTRY: 'ghcr.io'
   ORGANISATION: ${{ github.repository_owner }}
   REPOSITORY: ${{ github.event.repository.name }}
 
@@ -30,7 +30,7 @@ env:
 
 jobs:
   build_image:
-    name: "Build Frontend"
+    name: 'Build Frontend'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -133,7 +133,7 @@ export function useMingoDialogActions() {
         return {
           dialogs: edges.map(edge => ({
             id: edge.node.id,
-            title: edge.node.title || 'Untitled Dialog',
+            title: edge.node.title || 'New Chat',
             timestamp: new Date(edge.node.createdAt),
           })),
           nextCursor: pageInfo.hasNextPage ? (pageInfo.endCursor ?? null) : null,

@@ -16,14 +16,8 @@ import { graphql } from 'react-relay';
  * the `ScriptFilterInput` fields (shells/platforms = enum, authors = user id).
  */
 export const scriptsTableRelayQuery = graphql`
-  query scriptsTableRelayQuery(
-    $filter: ScriptFilterInput
-    $search: String
-    $first: Int!
-    $after: String
-  ) {
-    ...scriptsTableRelay_query
-      @arguments(filter: $filter, search: $search, first: $first, after: $after)
+  query scriptsTableRelayQuery($filter: ScriptFilterInput, $search: String, $first: Int!, $after: String) {
+    ...scriptsTableRelay_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
     scriptFilters(filter: $filter) {
       shells {
         value
@@ -46,13 +40,13 @@ export const scriptsTableRelayQuery = graphql`
 
 export const scriptsTableRelayFragment = graphql`
   fragment scriptsTableRelay_query on Query
-    @refetchable(queryName: "scriptsTableRelayPaginationQuery")
-    @argumentDefinitions(
-      filter: { type: "ScriptFilterInput" }
-      search: { type: "String" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "scriptsTableRelayPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "ScriptFilterInput" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     scripts(filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "scriptsTableRelay_scripts") {
       __id

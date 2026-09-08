@@ -82,7 +82,7 @@ export function useIntegratedTools() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchIntegratedTools = useCallback(
-    async (filter: Record<string, any> = { enabled: true, category: null }, search: string = '') => {
+    async (filter: Record<string, unknown> = { enabled: true, category: null }, search: string = '') => {
       setIsLoading(true);
       setError(null);
       try {

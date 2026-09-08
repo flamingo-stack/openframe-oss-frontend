@@ -36,14 +36,14 @@ export const scriptSchedulesTableRelayQuery = graphql`
 
 export const scriptSchedulesTableRelayFragment = graphql`
   fragment scriptSchedulesTableRelay_query on Query
-    @refetchable(queryName: "scriptSchedulesTableRelayPaginationQuery")
-    @argumentDefinitions(
-      filter: { type: "ScriptScheduleFilterInput" }
-      search: { type: "String" }
-      sort: { type: "SortInput" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "scriptSchedulesTableRelayPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "ScriptScheduleFilterInput" }
+    search: { type: "String" }
+    sort: { type: "SortInput" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     scriptSchedules(filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
       @connection(key: "scriptSchedulesTableRelay_scriptSchedules") {
       __id
@@ -56,6 +56,11 @@ export const scriptSchedulesTableRelayFragment = graphql`
           supportedPlatforms
           deviceCount
           trigger
+          # Which clock startAt is in — SERVER (an absolute instant) or
+          # DEVICE_LOCAL (a wall clock re-based per device). The Date & Time
+          # column reads it to decide whether to convert through the viewer's
+          # offset.
+          timeReference
           startAt
           repeat
         }

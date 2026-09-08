@@ -32,7 +32,7 @@ export function DevicesAssignedTable({ devices, isLoading }: DevicesAssignedTabl
         placeholder="Search for Device"
         value={search}
         onChange={e => setSearch(e.target.value)}
-        startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+        startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
       />
       <DevicesTableBody devices={filtered} isLoading={isLoading} emptyMessage="No devices assigned." skeletonRows={3} />
     </div>

@@ -85,7 +85,7 @@ export function PoliciesTable({
         accessorKey: 'name',
         header: 'Name',
         cell: ({ row }: { row: Row<PolicyTableRow> }) => (
-          <div className="flex flex-col justify-center gap-1 py-2 min-h-[60px] min-w-0">
+          <div className="flex min-h-[60px] min-w-0 flex-col justify-center gap-1 py-2">
             <TruncateText>{row.original.name}</TruncateText>
             {row.original.description && (
               <TruncateText variant="h6" tone="secondary">
@@ -101,7 +101,7 @@ export function PoliciesTable({
         accessorFn: (row: PolicyTableRow) => (row.critical ? 1 : 0),
         header: 'SEVERITY',
         cell: ({ row }: { row: Row<PolicyTableRow> }) => (
-          <span className="text-h6 text-ods-text-primary">{row.original.severityLabel}</span>
+          <span className="text-ods-text-primary text-h6">{row.original.severityLabel}</span>
         ),
         enableSorting: sortable,
         meta: { width: 'w-[100px]', sortable, hideAt: 'md' },
@@ -144,7 +144,7 @@ export function PoliciesTable({
         header: '',
         cell: ({ row }: { row: Row<PolicyTableRow> }) =>
           row.original.actions && row.original.actions.length > 0 ? (
-            <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
               <MoreActionsMenu items={row.original.actions} />
             </div>
           ) : null,
@@ -158,12 +158,12 @@ export function PoliciesTable({
       header: '',
       cell: ({ row }: { row: Row<PolicyTableRow> }) =>
         row.original.href ? (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={openInNewTab(row.original.href)}
               variant="outline"
               size="icon"
-              leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
               aria-label={`Open ${row.original.name}`}
               className="bg-ods-card"
             />

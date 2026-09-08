@@ -66,7 +66,7 @@ export default function InvitePage() {
       });
 
       if (!response.ok) {
-        const errorData = response.data as any;
+        const errorData = response.data as { code?: string; message?: string } | undefined;
 
         // Already active elsewhere — confirm the tenant switch, then retry.
         if (errorData?.code === 'USER_IS_ACTIVE_IN_ANOTHER_TENANT') {

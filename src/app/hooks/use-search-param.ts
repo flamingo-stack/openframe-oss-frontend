@@ -41,7 +41,12 @@ export function useSearchParam(
   // `onDebouncedChange` is typically a fresh closure each render — read it from a
   // ref so the write-up effect keys on the debounced value only.
   const onChangeRef = useRef(onDebouncedChange);
-  onChangeRef.current = onDebouncedChange;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    onChangeRef.current = onDebouncedChange;
+  });
 
   // Last value we pushed up, so we can tell our own echo from an external change.
   const lastSyncedRef = useRef(paramValue);

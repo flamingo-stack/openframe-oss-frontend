@@ -68,12 +68,12 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
       {
         id: 'open',
         cell: ({ row }: { row: Row<Dialog> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={openInNewTab(routes.tickets.dialog(row.original.id))}
               variant="outline"
               size="icon"
-              leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
               aria-label="Open in new tab"
               className="bg-ods-card"
             />
@@ -107,7 +107,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
         rightActions={
           <ResponsiveActionButton
             label="New Ticket"
-            icon={<PlusCircleIcon className="w-5 h-5 text-ods-text-secondary" />}
+            icon={<PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />}
             onClick={() => router.push(routes.tickets.new())}
           />
         }
@@ -119,7 +119,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
           = 24 + 48 + 24) docks flush below. */}
       <div
         ref={toolbarRef}
-        className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+        className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
       >
         <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" />
       </div>

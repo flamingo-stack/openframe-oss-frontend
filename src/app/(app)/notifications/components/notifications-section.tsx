@@ -16,12 +16,14 @@ import { type PreloadedQuery, usePaginationFragment, usePreloadedQuery } from 'r
 import type { notificationsSectionRelay_query$key as NotificationsSectionFragmentKey } from '@/__generated__/notificationsSectionRelay_query.graphql';
 import type { notificationsSectionRelayPaginationQuery as NotificationsSectionPaginationQueryType } from '@/__generated__/notificationsSectionRelayPaginationQuery.graphql';
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { EmptyState } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import {
   mapNotificationNode,
   parseCreatedAt,
   readNotificationNode,
+  stripNotificationMarkup,
 } from '@/graphql/notifications/notifications-helpers';
 import {
   notificationsSectionRelayFragment,
@@ -71,7 +73,7 @@ export function NotificationsSection({
         {!(isEmpty && !searchValue.trim()) && (
           <div
             ref={toolbarRef}
-            className="sticky top-0 z-20 flex items-center bg-ods-bg -mx-[var(--spacing-system-l)] p-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]"
+            className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex items-center bg-ods-bg p-[var(--spacing-system-l)]"
           >
             <Input
               placeholder="Search for Notification"
@@ -132,13 +134,13 @@ function SectionTable({
   const rows = useMemo<NotificationRow[]>(
     () =>
       data.notifications.edges.map(edge => {
-        // Read once: the table's own columns take the raw fields, the sub-row
-        // and actions take the mapped notification.
+        // Read once: the table's own columns take the raw fields (markup-stripped,
+        // same as the drawer tiles), the sub-row and actions take the mapped notification.
         const node = readNotificationNode(edge.node);
         return {
           id: node.id,
-          title: node.title,
-          description: node.description ?? null,
+          title: stripNotificationMarkup(node.title),
+          description: node.description == null ? null : stripNotificationMarkup(node.description),
           createdAt: parseCreatedAt(node.createdAt),
           read: node.read,
           notification: mapNotificationNode(node),
@@ -147,9 +149,14 @@ function SectionTable({
     [data.notifications.edges],
   );
 
+  // Subscribed, not read imperatively: the action cell decides `href` vs `onClick` at
+  // RENDER time, so a snapshot would freeze whatever the shell had published when the
+  // first row rendered and never pick up the flags landing.
+  const canOpenMingoDrawer = useMingoLauncherStore(state => state.canOpen);
+
   const columns = useMemo(
-    () => buildNotificationColumns({ rowVariant, onMarkRead, onDelete }),
-    [rowVariant, onMarkRead, onDelete],
+    () => buildNotificationColumns({ rowVariant, canOpenMingoDrawer, onMarkRead, onDelete }),
+    [rowVariant, canOpenMingoDrawer, onMarkRead, onDelete],
   );
 
   const renderSubRow = useCallback(
@@ -221,7 +228,7 @@ function SectionTable({
         />
       </DataTable>
       {rowVariant === 'read' && (
-        <p className="mt-[var(--spacing-system-l)] text-center text-h6 text-ods-text-secondary">
+        <p className="mt-[var(--spacing-system-l)] text-center text-ods-text-secondary text-h6">
           {HISTORY_RETENTION_NOTE}
         </p>
       )}

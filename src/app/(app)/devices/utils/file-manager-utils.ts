@@ -12,7 +12,7 @@ export function convertFileEntryToItem(entry: FileEntry, currentPath: string): F
   const normalizedCurrentPath = currentPath.replace(/\\/g, '/');
 
   if (entry.path) {
-    const cleanedPath = entry.path.replace(/^[\\\/]+/, '').replace(/\\/g, '/');
+    const cleanedPath = entry.path.replace(/^[\\/]+/, '').replace(/\\/g, '/');
 
     if (normalizedCurrentPath === '' || normalizedCurrentPath === '/') {
       itemPath = '/' + cleanedPath;
@@ -98,9 +98,10 @@ export function sanitizePath(path: string): string {
     return '';
   }
 
-  const hasDrive = /^[A-Za-z]:?$/.test(parts[0]);
+  const drive = parts[0];
+  const hasDrive = /^[A-Za-z]:?$/.test(drive);
   if (hasDrive) {
-    const drive = parts.shift()!;
+    parts.shift();
     const driveNormalized = drive.endsWith(':') ? drive : drive + ':';
     const remainder = parts.length ? parts.join('\\') : '';
     return remainder ? `${driveNormalized}\\${remainder}` : `${driveNormalized}\\`;

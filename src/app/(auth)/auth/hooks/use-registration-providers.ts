@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { authApiClient } from '@/lib/auth-api-client';
 
 export interface SsoProvider {
@@ -12,44 +12,39 @@ interface RegistrationProvidersResponse {
   providers: string[];
 }
 
+export const registrationProvidersQueryKey = ['auth', 'registration-providers'] as const;
+
+/**
+ * Which SSO providers the backend offers for registration.
+ *
+ * Cached rather than refetched per mount: the answer is fixed for the life of the page, and the
+ * Sign Up tab unmounts whenever the user looks at Login. Without a cache, coming back re-ran the
+ * request and the provider buttons popped in late every time — the visible half of a tab switch
+ * feeling slow. React Query also dedups concurrent mounts, so this needs no in-flight bookkeeping
+ * of its own.
+ */
 export function useRegistrationProviders() {
-  const [providers, setProviders] = useState<SsoProvider[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchProviders = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await authApiClient.getRegistrationProviders<RegistrationProvidersResponse>();
-
-        if (response.ok && response.data?.providers) {
-          const formattedProviders = response.data.providers.map(provider => ({
-            provider,
-            enabled: true,
-          }));
-          setProviders(formattedProviders);
-        } else {
-          setProviders([]);
-          setError(response.error || 'Failed to fetch providers');
-        }
-      } catch (err) {
-        console.error('Failed to fetch SSO providers:', err);
-        setProviders([]);
-        setError(err instanceof Error ? err.message : 'Failed to fetch providers');
-      } finally {
-        setLoading(false);
+  const query = useQuery<SsoProvider[]>({
+    queryKey: registrationProvidersQueryKey,
+    queryFn: async () => {
+      const response = await authApiClient.getRegistrationProviders<RegistrationProvidersResponse>();
+      if (!response.ok || !response.data?.providers) {
+        throw new Error(response.error || 'Failed to fetch providers');
       }
-    };
-
-    fetchProviders();
-  }, []);
+      return response.data.providers.map(provider => ({ provider, enabled: true }));
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+    // No retry, matching what this replaced: the screen degrades to "no provider buttons", which
+    // is a state the form handles, so a retry storm behind a rendered page buys nothing.
+    retry: false,
+  });
 
   return {
-    providers,
-    loading,
-    error,
+    providers: query.data ?? [],
+    // `isPending`, not `isLoading` — the latter is `isPending && isFetching`, so it reads false
+    // for a query that has not started. Same distinction `use-auth-session` documents.
+    loading: query.isPending,
+    error: query.error?.message ?? null,
   };
 }

@@ -16,7 +16,7 @@ type TunnelCallbacks = {
   onConsoleMessage?: (msg: string) => void;
   onStateChange?: (state: TunnelState) => void;
   onBinaryData?: (data: Uint8Array) => void;
-  onCtrlMessage?: (msg: any) => void;
+  onCtrlMessage?: (msg: Record<string, unknown>) => void;
   onRequestPairing?: (relayId: string) => void;
   getAuthCookie?: () => string | null;
   onBeforeReconnect?: () => Promise<void>;
@@ -26,7 +26,7 @@ export class MeshTunnel {
   private wsManager?: WebSocketManager;
   private state: TunnelState = 0;
   private id: string;
-  private latencyTimer: any;
+  private latencyTimer: ReturnType<typeof setInterval> | null = null;
   private isHandshakeComplete = false;
 
   constructor(
@@ -78,7 +78,9 @@ export class MeshTunnel {
       onBeforeReconnect: async () => {
         try {
           await this.params.onBeforeReconnect?.();
-        } catch {}
+        } catch {
+          // The pre-reconnect hook is an opportunity (refresh a cookie, re-open the control session), not a precondition: the reconnect must happen either way, or the tunnel never comes back.
+        }
       },
 
       onStateChange: wsState => {
@@ -212,7 +214,7 @@ export class MeshTunnel {
     this.sendRaw(text);
   }
 
-  sendCtrl(obj: any) {
+  sendCtrl(obj: unknown) {
     try {
       const data = JSON.stringify(obj);
       this.wsManager?.send(data);

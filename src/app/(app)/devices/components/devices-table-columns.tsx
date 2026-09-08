@@ -52,7 +52,7 @@ export function getDeviceActionsColumn(renderRowActions?: (device: Device) => Re
     id: 'actions',
     cell: renderRowActions
       ? ({ row }: { row: Row<Device> }) => (
-          <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
             {renderRowActions(row.original)}
           </div>
         )
@@ -65,12 +65,12 @@ export function getDeviceActionsColumn(renderRowActions?: (device: Device) => Re
 export const DEVICE_OPEN_COLUMN: ColumnDef<Device> = {
   id: 'open',
   cell: ({ row }: { row: Row<Device> }) => (
-    <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
       <Button
         onClick={openInNewTab(deviceRowHref(row.original))}
         variant="outline"
         size="icon"
-        leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
         aria-label="Open in new tab"
         className="bg-ods-card"
       />
@@ -183,8 +183,8 @@ function OrganizationCell({ device }: { device: Device }) {
   return (
     <div className="flex items-center gap-3">
       <EntityImage src={fullImageUrl} alt={device.organization || 'Customer'} className="size-12 md:size-12" />
-      <div className="flex flex-col justify-center flex-1 min-w-0">
-        <span className="text-h4 text-ods-text-primary break-words">{device.organization || ''}</span>
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <span className="break-words text-ods-text-primary text-h4">{device.organization || ''}</span>
       </div>
     </div>
   );
@@ -194,57 +194,55 @@ export interface DeviceFilterColumn {
   key: string;
   label: string;
   filterable?: boolean;
-  filterOptions?: Array<{ id: string; label: string; value: string }>;
+  filterOptions?: DeviceFilterOption[];
+}
+
+/** A device filter dropdown entry: `meta.filter.options` plus the facet count. */
+export interface DeviceFilterOption {
+  id: string;
+  label: string;
+  value: string;
+  count?: number;
+}
+
+/** Status / OS / customer options, shared by the table headers and the grid row. */
+function buildDeviceFilterOptions(deviceFilters?: DeviceFilters | null): {
+  status: DeviceFilterOption[];
+  os: DeviceFilterOption[];
+  organization: DeviceFilterOption[];
+} {
+  // Show only DEFAULT_VISIBLE_STATUSES (DELETED and legacy ARCHIVED live on /devices/archive)
+  const status = (deviceFilters?.statuses ?? [])
+    .filter(s => (DEFAULT_VISIBLE_STATUSES as readonly string[]).includes(s.value))
+    .map(s => ({ id: s.value, label: getDeviceStatusConfig(s.value).label, value: s.value, count: s.count }));
+
+  const os = (deviceFilters?.osTypes ?? []).map(o => ({ id: o.value, label: o.value, value: o.value, count: o.count }));
+
+  const organization = deduplicateFilterOptions(
+    (deviceFilters?.organizationIds ?? []).map(org => ({
+      id: org.value,
+      label: org.label,
+      value: org.value,
+      count: org.count,
+    })),
+  );
+
+  return { status, os, organization };
 }
 
 // Filter column metadata used by the external filter modal (useTagFilterModal).
 // Kept separate from the table ColumnDef because DataTable doesn't carry the
 // filter metadata that the external mobile filter modal needs.
 export function getDeviceFilterColumns(deviceFilters?: DeviceFilters | null): DeviceFilterColumn[] {
+  const options = buildDeviceFilterOptions(deviceFilters);
   return [
     {
       key: 'device',
       label: 'DEVICE',
     },
-    {
-      key: 'status',
-      label: 'STATUS',
-      filterable: true,
-      filterOptions: (() => {
-        const statuses = deviceFilters?.statuses || [];
-        // Show only DEFAULT_VISIBLE_STATUSES (ARCHIVED lives on /devices/archive, DELETED hidden)
-        return statuses
-          .filter(s => (DEFAULT_VISIBLE_STATUSES as readonly string[]).includes(s.value))
-          .map(status => ({
-            id: status.value,
-            label: getDeviceStatusConfig(status.value).label,
-            value: status.value,
-          }));
-      })(),
-    },
-    {
-      key: 'os',
-      label: 'OS',
-      filterable: true,
-      filterOptions:
-        deviceFilters?.osTypes?.map(os => ({
-          id: os.value,
-          label: os.value,
-          value: os.value,
-        })) || [],
-    },
-    {
-      key: 'organization',
-      label: 'CUSTOMER',
-      filterable: true,
-      filterOptions: deduplicateFilterOptions(
-        deviceFilters?.organizationIds?.map(org => ({
-          id: org.value,
-          label: org.label,
-          value: org.value,
-        })) || [],
-      ),
-    },
+    { key: 'status', label: 'STATUS', filterable: true, filterOptions: options.status },
+    { key: 'os', label: 'OS', filterable: true, filterOptions: options.os },
+    { key: 'organization', label: 'CUSTOMER', filterable: true, filterOptions: options.organization },
   ];
 }
 
@@ -258,18 +256,11 @@ export function getDeviceTableColumns(
   deviceFilters?: DeviceFilters | null,
   filtersPending?: boolean,
 ): ColumnDef<Device>[] {
-  const statusFilterOptions = (() => {
-    const statuses = deviceFilters?.statuses || [];
-    return statuses
-      .filter(s => (DEFAULT_VISIBLE_STATUSES as readonly string[]).includes(s.value))
-      .map(s => ({ id: s.value, label: getDeviceStatusConfig(s.value).label, value: s.value }));
-  })();
-
-  const osFilterOptions = deviceFilters?.osTypes?.map(os => ({ id: os.value, label: os.value, value: os.value })) ?? [];
-
-  const orgFilterOptions = deduplicateFilterOptions(
-    deviceFilters?.organizationIds?.map(org => ({ id: org.value, label: org.label, value: org.value })) ?? [],
-  );
+  const {
+    status: statusFilterOptions,
+    os: osFilterOptions,
+    organization: orgFilterOptions,
+  } = buildDeviceFilterOptions(deviceFilters);
 
   return [
     {
@@ -279,14 +270,14 @@ export function getDeviceTableColumns(
       cell: ({ row }: { row: Row<Device> }) => {
         const device = row.original;
         return (
-          <div className="box-border content-stretch flex gap-4 h-20 items-center justify-start py-0 relative shrink-0 w-full">
-            <div className="flex h-8 w-8 items-center justify-center relative rounded-[6px] shrink-0 border border-ods-border">
+          <div className="relative box-border flex h-20 w-full shrink-0 content-stretch items-center justify-start gap-4 py-0">
+            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border">
               {device.type &&
                 getDeviceTypeIcon(device.type.toLowerCase() as DeviceType, {
                   className: 'w-5 h-5 text-ods-text-secondary',
                 })}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <TruncateText>{getDeviceName(device)}</TruncateText>
             </div>
           </div>
@@ -302,11 +293,11 @@ export function getDeviceTableColumns(
         const device = row.original;
         const statusConfig = getDeviceStatusConfig(device.status);
         return (
-          <div className="flex flex-col items-start gap-1 shrink-0">
+          <div className="flex shrink-0 flex-col items-start gap-1">
             <div className="inline-flex">
               <Tag label={statusConfig.label} variant={statusConfig.variant} />
             </div>
-            <span className="text-h6 text-ods-text-secondary hidden md:flex">
+            <span className="hidden text-ods-text-secondary text-h6 md:flex">
               {device.last_seen ? formatDateTime(device.last_seen) : 'Never'}
             </span>
           </div>

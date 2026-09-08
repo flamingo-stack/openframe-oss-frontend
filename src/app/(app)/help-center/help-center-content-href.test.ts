@@ -35,8 +35,28 @@ describe('composeOpenframeInAppContentUrl', () => {
 
   it('leaves the in-app overrides untouched — they already target prerendered routes', () => {
     expect(href({ type: 'roadmap_item', identifier: '86ad3qvv5' })).toBe('/help-center/roadmap?search=86ad3qvv5');
-    expect(href({ type: 'hubspot_ticket', identifier: 'T-1' })).toBe('/help-center/tickets?ticket=T-1');
     expect(href({ type: 'faq', identifier: 'q1' })).toContain('/help-center/faqs#');
+  });
+
+  it('builds ticket deep links through the lib SSOT, on OUR tickets surface', () => {
+    // `&search=` is what makes a ticket outside the first page of the list open
+    // at all; `/help-center/tickets` is ours, `/tickets` is the ticket board.
+    for (const type of ['hubspot_ticket', 'hubspot_ticket_anon', 'hubspot_ticket_self']) {
+      expect(href({ type, identifier: 'T-1' })).toBe('/help-center/tickets?ticket=T-1&search=T-1#ticket-T-1');
+    }
+  });
+
+  it('marks the overrides as an explicit host decision, through the in-app wrapper', () => {
+    // A fetch-mode chat card ranks `hostOverride` above the url the content host
+    // minted for its own surface. Rebuilding the result object anywhere in this
+    // module drops the flag and the override goes dead without a type error.
+    expect(composeOpenframeInAppContentUrl({ type: 'hubspot_ticket_self', identifier: 'T-1' }).hostOverride).toBe(true);
+    expect(composeOpenframeInAppContentUrl({ type: 'faq', identifier: 'q1' }).hostOverride).toBe(true);
+    // Non-override branches must stay unflagged, both in-app and hub-bound.
+    expect(
+      composeOpenframeInAppContentUrl({ type: 'onboarding_guide', identifier: 'guide-7' }).hostOverride,
+    ).toBeUndefined();
+    expect(composeOpenframeInAppContentUrl({ type: 'blog_post', identifier: 'my-post' }).hostOverride).toBeUndefined();
   });
 
   it('keeps hub-only types on the absolute content-hub origin', () => {

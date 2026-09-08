@@ -1,6 +1,5 @@
 'use client';
 
-import { ContentPageContainer } from '@flamingo-stack/openframe-frontend-core';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { isSaasTenantMode } from '@/lib/app-mode';

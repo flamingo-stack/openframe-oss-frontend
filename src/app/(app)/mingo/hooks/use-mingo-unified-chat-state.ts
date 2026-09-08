@@ -36,10 +36,10 @@ import type {
   UnifiedSendMessageOptions,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { buildDiscussPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
-import { featureFlags } from '@/lib/feature-flags';
 import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
@@ -102,6 +102,29 @@ export interface MingoUnifiedChat {
   }>;
   /** Restore an archived dialog back to the active list. */
   unarchiveDialog: (id: string) => Promise<void>;
+  /**
+   * Why the SELECTED dialog could not be fetched, or null. `UnifiedChatState` has no
+   * field for it (`dialogsError` is about the LIST), and without it a dialog id that
+   * no longer resolves — a deleted conversation, someone else's, a mistyped link —
+   * renders as an ordinary empty thread and says nothing.
+   */
+  dialogError: string | null;
+}
+
+/**
+ * Whether the rail must move to "All Chats" to be capable of listing this dialog.
+ *
+ * "My Chats" is a server-side filter for dialogs THIS user owns, so a conversation
+ * opened without going through the list — a shared link, a notification tap — can
+ * land on a tab that structurally cannot contain it.
+ *
+ * Both `undefined` cases are deliberate no-ops rather than defensive noise:
+ * a client (machine-owned) dialog has no `ownerUserId` and belongs to neither admin
+ * scope, and an unresolved viewer would make every dialog look like someone else's.
+ */
+export function needsAllChatsScope(ownerUserId: string | undefined, currentUserId: string | undefined): boolean {
+  if (!ownerUserId || !currentUserId) return false;
+  return ownerUserId !== currentUserId;
 }
 
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
@@ -150,6 +173,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     fetchNextPage: fetchNextMessagePage,
     initialOptStartSeq,
     isMessagesFetched,
+    dialogError,
   } = useMingoDialogSelection();
 
   const {
@@ -165,12 +189,42 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const { subscribeToDialog, subscribedDialogs, onConnectionChange, connectionState } =
     useMingoRealtimeSubscription(activeDialogId);
 
+  // Reconcile the rail's scope with whoever owns the OPEN conversation.
+  //
+  // The scope is a filter over the LIST, but a dialog can arrive without going
+  // through the list at all — a shared link, a notification tap — and "My Chats"
+  // only contains dialogs this user owns. So opening someone else's conversation
+  // leaves the rail on a tab that cannot contain it: the chat is right there, and
+  // the list beside it says it doesn't exist. Both cases QA hit are this one
+  // (a link copied from All Chats, and user A's link opened by user B).
+  //
+  // Once per dialog, never back to 'my': the switch answers "this tab can't show
+  // what you're looking at", which is only ever true in one direction, and
+  // re-deciding on every render would fight a user who then picks a tab themselves.
+  const currentUserId = useAuthStore(state => state.user?.id);
+  // Reconciled during render, and latched in state rather than a ref: the scope
+  // decides which list is on screen, so an effect would show the wrong tab —
+  // the one that cannot list this dialog — for a frame after opening the link.
+  const [scopeReconciledFor, setScopeReconciledFor] = useState<string | null>(null);
+  if (activeDialogId && dialogData && scopeReconciledFor !== activeDialogId) {
+    setScopeReconciledFor(activeDialogId);
+    // Absent on a client (machine-owned) dialog, which neither admin scope lists —
+    // nothing to reconcile there.
+    const ownerId = dialogData.owner?.userId;
+    if (needsAllChatsScope(ownerId, currentUserId)) setDialogScope('all');
+  }
+
   // ─── Live model metadata (refined per-turn by `metadata` frames) ──────────
   const [liveModel, setLiveModel] = useState<{ displayName: string; provider: string } | null>(null);
   const onMetadata = useCallback((meta: MetadataFrame) => {
     setLiveModel({ displayName: meta.modelDisplayName, provider: meta.providerName });
   }, []);
-  const model = liveModel ?? (aiModel ? { displayName: aiModel.displayName, provider: aiModel.provider } : null);
+  // Memoized: the object literal in the fallback is new on every render, and the
+  // chat-state memo below takes `model` as a dependency.
+  const model = useMemo(
+    () => liveModel ?? (aiModel ? { displayName: aiModel.displayName, provider: aiModel.provider } : null),
+    [liveModel, aiModel],
+  );
 
   // ─── Token usage: store (kept live by realtime) first, dialog query fallback ─
   const tokenUsage = useMemo<DialogTokenUsage | null>(() => {
@@ -210,9 +264,11 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // source object yields a stable UnifiedChatMessage too — the lib's reference-
   // equality memo then re-renders only the streaming bubble, not the whole list
   // (which would otherwise collapse open menus/cards on every chunk).
-  const unifiedCacheRef = useRef(new WeakMap<object, UnifiedChatMessage>());
+  // `useState`, not `useRef`: the map is read while rendering, and a ref read during
+  // render is what the compiler bails out over. Same create-once identity.
+  const [unifiedCache] = useState(() => new WeakMap<object, UnifiedChatMessage>());
   const messages = useMemo<UnifiedChatMessage[]>(() => {
-    const cache = unifiedCacheRef.current;
+    const cache = unifiedCache;
     return processedMessages.map(m => {
       const cached = cache.get(m);
       if (cached) return cached;
@@ -258,7 +314,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       cache.set(m, unified);
       return unified;
     });
-  }, [processedMessages]);
+  }, [processedMessages, unifiedCache]);
 
   // ─── Streaming phase: idle → thinking → streaming ─────────────────────────
   // The lib reducer's phase machine is the source of truth (mirrored per
@@ -325,13 +381,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // imperatively (`getState`) so `sendMessage` doesn't re-create on every
   // navigation — it only needs the value at send time.
   const buildSendContext = useCallback((options?: UnifiedSendMessageOptions): MingoSendContext => {
-    // The entire entity-context feature is gated behind `mingo-sidebar-context`.
-    // When off, send NO context at all — not the picker selection, and not the
-    // background navigation context (`openView` / `recentViews`). The store keeps
-    // tracking views (harmless); it just never rides out on the message.
-    if (!featureFlags.mingoSidebarContext.enabled()) {
-      return { contextItems: undefined, openView: undefined, recentViews: [] };
-    }
     const { openView, recentViews } = useMingoContextStore.getState();
     return {
       // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a
@@ -432,9 +481,12 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     },
     [sendMessage],
   );
-  // Display dispatches a `/<cmd> display "<x>"` slash command, which only the
-  // hub's SSE transport has a registry for — still inert here.
-  const displayRef = useCallback(() => {}, []);
+  // Display dumps a row's raw body via a `/<cmd> display "<x>"` slash command, which
+  // only the hub's SSE transport has a registry for — the agent has no verbatim-dump
+  // path. Left UNDEFINED rather than stubbed: the lib gates the affordance on this
+  // callback, so a stub renders a dead "Display" row where "Ask Mingo" (which works)
+  // belongs. The lib's type makes it optional for exactly this case.
+  const displayRef: UnifiedChatState['displayRef'] = undefined;
 
   const state = useMemo<UnifiedChatState>(
     () => ({
@@ -558,5 +610,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     setSearchQuery,
     fetchArchivedDialogs,
     unarchiveDialog,
+    dialogError,
   };
 }
