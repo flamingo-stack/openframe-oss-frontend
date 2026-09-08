@@ -1,15 +1,14 @@
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
   BookBookmarkIcon,
   BracketCurlyIcon,
   ClipboardListIcon,
-  IdCardIcon,
-  MonitorIcon,
   RadarIcon,
   TagIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
 import { UserOnboardingStep } from '@/generated/schema-enums';
+import { MEET_MINGO_META } from './meet-mingo-meta';
+import type { UserOnboardingStepId } from './onboarding-steps';
 
 /**
  * Static presentation metadata for the user "Get Started" onboarding steps —
@@ -22,7 +21,9 @@ import { UserOnboardingStep } from '@/generated/schema-enums';
  * the two never drift and the skeleton can show every static label.
  */
 export interface UserStepMeta {
-  step: UserOnboardingStep;
+  /** Narrowed to the tour's own steps, so a group can't list one the canonical
+   *  order array in {@link ./onboarding-steps} doesn't render. */
+  step: UserOnboardingStepId;
   icon: ReactNode;
   title: string;
   description: string;
@@ -35,25 +36,13 @@ export interface UserGroupMeta {
 
 export const USER_ONBOARDING_GROUPS: UserGroupMeta[] = [
   {
-    label: 'Get set up',
+    label: 'Work smarter with AI',
     items: [
       {
-        step: UserOnboardingStep.CUSTOMERS_SETUP,
-        icon: <IdCardIcon size={24} />,
-        title: 'Customers Setup',
-        description: 'Add your first client - Customer name, service tier, and SLA. Devices need an org to belong to.',
+        step: UserOnboardingStep.MEET_MINGO,
+        // Shared with the tenant Initial Setup card — same step, same row.
+        ...MEET_MINGO_META,
       },
-      {
-        step: UserOnboardingStep.DEVICE_MANAGEMENT,
-        icon: <MonitorIcon size={24} />,
-        title: 'Device Management',
-        description: 'Deploy one command to connect a machine, then monitor and control it from OpenFrame.',
-      },
-    ],
-  },
-  {
-    label: 'Run your operations',
-    items: [
       {
         step: UserOnboardingStep.TICKETS,
         icon: <TagIcon size={24} />,
@@ -61,6 +50,11 @@ export const USER_ONBOARDING_GROUPS: UserGroupMeta[] = [
         description:
           'Every client chat is a ticket. AI Assistant resolves them automatically - or your team steps in when needed.',
       },
+    ],
+  },
+  {
+    label: 'Run your operations',
+    items: [
       {
         step: UserOnboardingStep.SCRIPTING,
         icon: <BracketCurlyIcon size={24} />,
@@ -79,29 +73,11 @@ export const USER_ONBOARDING_GROUPS: UserGroupMeta[] = [
         title: 'Logging',
         description: 'See a full activity trail of what happened, when, and who did it.',
       },
-    ],
-  },
-  {
-    label: 'Work smarter with AI',
-    items: [
       {
         step: UserOnboardingStep.KNOWLEDGE_MANAGEMENT,
         icon: <BookBookmarkIcon size={24} />,
         title: 'Knowledge Management',
         description: 'Build a knowledge base your AI agents use to answer clients and resolve tickets.',
-      },
-      {
-        step: UserOnboardingStep.MEET_MINGO,
-        icon: (
-          <MingoIcon
-            className="size-6"
-            color="var(--color-text-secondary)"
-            eyesColor="var(--ods-flamingo-cyan-base)"
-            cornerColor="var(--ods-flamingo-cyan-base)"
-          />
-        ),
-        title: 'Meet Mingo',
-        description: 'Your AI co-pilot for the OpenFrame workspace. Ask questions, get summaries, or delegate tasks.',
       },
     ],
   },

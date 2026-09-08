@@ -2,10 +2,10 @@
 
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { TerminalMonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface OsTabProps {
   device: Device | null;
@@ -35,7 +35,7 @@ function formatUptime(seconds?: number): string | undefined {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <h3 className="text-h5 text-ods-text-secondary uppercase">{title}</h3>
+      <h3 className="uppercase text-ods-text-secondary text-h5">{title}</h3>
       {children}
     </section>
   );
@@ -52,6 +52,13 @@ function OsEmptyState() {
 }
 
 export function OsTab({ device }: OsTabProps) {
+  // `Date.now()` in render makes the component impure: two renders of the same
+  // device disagree, and the compiler cannot memoize around it. Sampled once on
+  // mount instead — the figure is a coarse "3 days", and it already only moved
+  // when something else happened to re-render this tab. Declared before the
+  // early return below, because hooks may not be called conditionally.
+  const [nowSeconds] = useState(() => Math.floor(Date.now() / 1000));
+
   if (!device) {
     return <OsEmptyState />;
   }
@@ -69,7 +76,7 @@ export function OsTab({ device }: OsTabProps) {
   const hasOs = Boolean(osTitle || osSubtitle || osItems.length > 0);
 
   // BOOT & TIME — boot/uptime + locale + current session.
-  const uptimeSeconds = device.boot_time ? Math.max(0, Math.floor(Date.now() / 1000 - device.boot_time)) : undefined;
+  const uptimeSeconds = device.boot_time ? Math.max(0, nowSeconds - device.boot_time) : undefined;
   const lastBoot = device.last_restarted_at
     ? formatDateTime(device.last_restarted_at)
     : device.boot_time
@@ -90,12 +97,15 @@ export function OsTab({ device }: OsTabProps) {
   ]);
 
   if (!hasOs && bootItems.length === 0 && managementItems.length === 0) {
+    if (device.sources?.fleet === 'skipped-pending') {
+      return <TabDeployingEmptyState icon={<TerminalMonitorIcon />} section="OS" />;
+    }
     return <OsEmptyState />;
   }
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--spacing-system-l)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] lg:grid-cols-3">
         {hasOs && (
           <Section title="Operating System">
             <InfoCard
@@ -113,7 +123,7 @@ export function OsTab({ device }: OsTabProps) {
       </div>
 
       {managementItems.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--spacing-system-l)]">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] lg:grid-cols-3">
           <Section title="Management">
             <InfoCard data={{ title: 'Fleet', items: managementItems }} />
           </Section>

@@ -3,7 +3,7 @@
  * Provides consistent status mapping across the application
  */
 
-import { getOSPlatformId, normalizeOSType, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core';
+import { getOSPlatformId, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core';
 
 export type DeviceStatusVariant = 'success' | 'error' | 'warning' | 'grey' | 'critical';
 export type DeviceCardStatus = 'active' | 'inactive' | 'offline' | 'warning' | 'error';

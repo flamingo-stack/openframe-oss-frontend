@@ -37,26 +37,26 @@ export function AiSettingsLayout({ children, actions, selector, mobileBottomActi
   return (
     <div
       className={cn(
-        'flex flex-col w-full px-[var(--spacing-system-l)]',
+        'flex w-full flex-col px-[var(--spacing-system-l)]',
         useMobileBottomBar ? 'pb-24 md:pb-[var(--spacing-system-l)]' : 'pb-[var(--spacing-system-l)]',
       )}
     >
-      <header className="flex items-end justify-between gap-[var(--spacing-system-m)] pt-[var(--spacing-system-l)] mb-[var(--spacing-system-l)]">
-        <div className="flex flex-col gap-[var(--spacing-system-xs)] flex-1 min-w-0">
+      <header className="mb-[var(--spacing-system-l)] flex items-end justify-between gap-[var(--spacing-system-m)] pt-[var(--spacing-system-l)]">
+        <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xs)]">
           <button
             type="button"
             onClick={handleBack}
-            className="hidden md:inline-flex group items-center justify-center self-start rounded-md gap-[var(--spacing-system-xsf)] py-[var(--spacing-system-sf)] text-ods-text-secondary hover:text-ods-text-primary transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus"
+            className="group hidden items-center justify-center gap-[var(--spacing-system-xsf)] self-start rounded-md py-[var(--spacing-system-sf)] text-ods-text-secondary transition-colors duration-200 hover:text-ods-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-focus md:inline-flex"
           >
             <Chevron02LeftIcon className="size-6 shrink-0" />
             <span className="text-h4">Back</span>
           </button>
-          <h1 className="text-h2 text-ods-text-primary truncate">
+          <h1 className="truncate text-ods-text-primary text-h2">
             AI Settings<span className="hidden md:inline"> &amp; Guardrails</span>
           </h1>
         </div>
         {(hasActions || selector) && (
-          <div className="flex gap-[var(--spacing-system-xs)] items-center shrink-0">
+          <div className="flex shrink-0 items-center gap-[var(--spacing-system-xs)]">
             {selector}
             {actions?.map((action, idx) => (
               <ResponsiveAction
@@ -72,7 +72,7 @@ export function AiSettingsLayout({ children, actions, selector, mobileBottomActi
       {children}
 
       {useMobileBottomBar && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-ods-card border-t border-ods-border flex items-start gap-4 p-4">
+        <div className="fixed bottom-0 left-0 right-0 z-50 flex items-start gap-4 border-t border-ods-border bg-ods-card p-4 md:hidden">
           {bottomBarActions.map((action, idx) => (
             <Button
               key={`mobile-${action.label ?? action.ariaLabel ?? 'action'}-${idx}`}

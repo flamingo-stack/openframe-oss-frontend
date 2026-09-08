@@ -59,9 +59,11 @@ npm run start            # Start production server
 
 # Code Quality
 npm run type-check       # TypeScript type check
-npm run lint             # ESLint
-npm run lint:biome       # Biome linter
-npm run format:fix       # Auto-fix formatting
+npm run lint             # ESLint (fast pass)
+npm run lint:ci          # What CI blocks on (fast pass minus the relay/unused-fields backlog)
+npm run lint:fix         # ESLint autofix
+npm run lint:types       # ESLint type-aware pass (slow)
+npm run format:fix       # Auto-fix formatting with Prettier
 
 # GraphQL
 npm run relay            # Compile Relay fragments
@@ -91,7 +93,8 @@ src/
 | TanStack Query 5 | REST + server state | Caching, pagination, optimistic updates |
 | Zustand 5 | Client UI state | Lightweight, typesafe global state |
 | Tailwind CSS 3 | Styling | Utility-first, consistent design tokens |
-| Biome 2 | Linting + formatting | Fast, opinionated, replaces ESLint+Prettier for formatting |
+| ESLint 9 | Linting | Rules come from the core library's shared config, one set for every Flamingo frontend |
+| Prettier 3 | Formatting | Shared preset; sorts Tailwind classes |
 | Zod 4 | Schema validation | Runtime-safe parsing and validation |
 
 ---

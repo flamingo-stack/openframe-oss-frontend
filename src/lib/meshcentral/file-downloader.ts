@@ -4,6 +4,20 @@
 
 import type { DownloadRequest, FileTransferProgress } from './file-manager-types';
 
+/**
+ * A message on the download control channel. MeshCentral sends the same envelope
+ * for every `sub`, with only the fields that step needs, so all of them are
+ * optional here and each branch checks what it reads.
+ */
+export interface DownloadControlMessage {
+  id?: string;
+  sub?: string;
+  name?: string;
+  size?: number;
+  reason?: string;
+  error?: string;
+}
+
 export interface DownloadTask {
   id: string;
   remotePath: string;
@@ -47,6 +61,11 @@ export class FileDownloader {
 
   hasActiveDownload(): boolean {
     return this.activeDownloadId !== null;
+  }
+
+  /** The download currently receiving chunks, if any. */
+  getActiveDownloadId(): string | null {
+    return this.activeDownloadId;
   }
 
   private generateRequestId(): string {
@@ -110,7 +129,7 @@ export class FileDownloader {
     return downloadId;
   }
 
-  handleControlMessage(message: any): void {
+  handleControlMessage(message: DownloadControlMessage): void {
     const downloadId = message.id;
     if (!downloadId) return;
 
@@ -129,7 +148,7 @@ export class FileDownloader {
     }
   }
 
-  private handleServerStart(downloadId: string, payload: any): void {
+  private handleServerStart(downloadId: string, payload: DownloadControlMessage): void {
     const task = this.downloads.get(downloadId);
     if (!task) return;
 
@@ -152,7 +171,10 @@ export class FileDownloader {
     }
   }
 
-  handleBinaryChunk(data: Uint8Array, isFinal: boolean): void {
+  // `_isFinal` is part of the caller's signature but unread: the final-chunk
+  // flag is bit 0 of the frame's own 4-byte header, which this method parses
+  // below, so the argument would be a second source of truth for the same bit.
+  handleBinaryChunk(data: Uint8Array, _isFinal: boolean): void {
     if (!this.activeDownloadId) return;
 
     const task = this.downloads.get(this.activeDownloadId);
@@ -223,7 +245,7 @@ export class FileDownloader {
     if (task.chunks.length === 0) return null;
 
     try {
-      const blob = new Blob(task.chunks as any[]);
+      const blob = new Blob(task.chunks as BlobPart[]);
 
       const reader = new FileReader();
       reader.readAsArrayBuffer(blob.slice(0, 10));

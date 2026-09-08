@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { ticketService } from '../services';
 import {
   applyOptimisticMove,
+  invalidateBoardColumns,
   type OptimisticMoveInput,
   type OptimisticMoveSnapshot,
   rollbackOptimisticMove,
@@ -22,6 +23,11 @@ export interface MoveTicketParams {
 
 const MOVE_TICKET_MUTATION_KEY = ['tickets-board', 'move'] as const;
 
+/**
+ * Sends ONE anchor, never both: given two, the backend ranks strictly between their
+ * two ranks, which throws when the neighbours share a rank. Given one, it resolves
+ * the opposite neighbour itself by a strict comparison that steps over ties.
+ */
 async function moveTicketRequest(params: MoveTicketParams): Promise<void> {
   const isCrossColumn = params.sourceStatusId !== params.targetStatusId;
   const hasAnchor = params.afterTicketId !== null || params.beforeTicketId !== null;
@@ -34,8 +40,12 @@ async function moveTicketRequest(params: MoveTicketParams): Promise<void> {
   await ticketService.reorderTicket({
     id: params.ticketId,
     afterTicketId: params.afterTicketId,
-    beforeTicketId: params.beforeTicketId,
-    statusId: isCrossColumn ? params.targetStatusId : undefined,
+    beforeTicketId: params.afterTicketId !== null ? null : params.beforeTicketId,
+    // Always sent, same-column reorder included: its presence is what selects the
+    // lifecycle ranking. Without it the backend ranks against the legacy `status`
+    // enum, which is unset on migrated tickets — every lane collapses into one
+    // pseudo-column there and the rank it writes means nothing for the real one.
+    statusId: params.targetStatusId,
   });
 }
 
@@ -59,6 +69,8 @@ export function useMoveTicket() {
       return applyOptimisticMove(queryClient, input);
     },
     onError: (err, _params, snapshot) => {
+      // Reverts immediately so the card cannot hang at the drop position; onSettled
+      // then re-reads the truth, because this rollback is only a guess (see below).
       if (snapshot) rollbackOptimisticMove(queryClient, snapshot);
       toast({
         title: 'Error',
@@ -67,7 +79,13 @@ export function useMoveTicket() {
         duration: 5000,
       });
     },
+    // Re-reads both lanes however the move ended: the optimistic state is a guess
+    // either way. A failed `reorderTicket` is not all-or-nothing — it commits the
+    // status transition before ranking, so an error can leave the ticket already
+    // moved — and a successful one can be overwritten mid-flight by another
+    // invalidation (the take-over flow refetches every lane, then reorders).
     onSettled: (_data, _err, params) => {
+      invalidateBoardColumns(queryClient, [params.sourceStatusId, params.targetStatusId]);
       queryClient.invalidateQueries({ queryKey: ticketsQueryKeys.detail(params.ticketId) });
       if (params.sourceStatusId !== params.targetStatusId) {
         queryClient.invalidateQueries({ queryKey: ticketsQueryKeys.statistics() });

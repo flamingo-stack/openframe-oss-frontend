@@ -30,6 +30,15 @@ export interface NotificationRow {
 
 interface BuildColumnsArgs {
   rowVariant: 'unread' | 'read';
+  /**
+   * `MingoLauncherStore.canOpen`, SUBSCRIBED by the caller.
+   *
+   * This cell has to decide `href` vs `onClick` during render, so unlike the other
+   * `mingoDrawerDialogId` callers it cannot ask at click time — and a bare `getState()`
+   * read here would freeze whatever the flags happened to say when the row first
+   * rendered.
+   */
+  canOpenMingoDrawer?: boolean;
   onMarkRead?: (id: string) => void;
   onDelete?: (id: string) => void;
 }
@@ -43,6 +52,7 @@ const titleColorBySeverity: Partial<Record<NotificationSeverity, string>> = {
 
 export function buildNotificationColumns({
   rowVariant,
+  canOpenMingoDrawer = false,
   onMarkRead,
   onDelete,
 }: BuildColumnsArgs): ColumnDef<NotificationRow>[] {
@@ -54,7 +64,7 @@ export function buildNotificationColumns({
       enableSorting: false,
       meta: { width: 'flex-[2] min-w-0' },
       cell: ({ row }: { row: Row<NotificationRow> }) => {
-        const { category, type, severity, variant = 'default' } = row.original.notification;
+        const { category, severity, variant = 'default' } = row.original.notification;
         const titleColor = (severity && titleColorBySeverity[severity]) ?? 'text-ods-text-primary';
         const relativeTime = formatTicketRelativeTime(new Date(row.original.createdAt).toISOString());
         return (
@@ -65,9 +75,9 @@ export function buildNotificationColumns({
               )}
             </div>
             <div className="hidden min-w-0 flex-col gap-[var(--spacing-system-xxs)] md:flex">
-              {/* Context-derived kind label; title stands in when the context is generic. */}
-              <TruncateText className={titleColor}>{type ?? row.original.title}</TruncateText>
-              <span className="truncate text-h6 text-ods-text-secondary">{relativeTime}</span>
+              {/* Real content leads; the context-derived kind label moved to the details column. */}
+              <TruncateText className={titleColor}>{row.original.title}</TruncateText>
+              <span className="truncate text-ods-text-secondary text-h6">{relativeTime}</span>
             </div>
             {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
             <div className="flex min-w-0 flex-col md:hidden">
@@ -87,12 +97,12 @@ export function buildNotificationColumns({
       enableSorting: false,
       meta: { width: 'flex-[3] min-w-0', hideAt: 'md' },
       cell: ({ row }: { row: Row<NotificationRow> }) => {
-        // The title moves here only when the kind label owns the first column;
-        // otherwise it's already shown there and only the description remains.
-        const showTitle = !!row.original.notification.type;
+        // The title owns the first column; this one carries the kind label (when the
+        // context isn't generic) and the description.
+        const kindLabel = row.original.notification.type;
         return (
           <div className="flex min-w-0 flex-col">
-            {showTitle ? <TruncateText>{row.original.title}</TruncateText> : null}
+            {kindLabel ? <TruncateText>{kindLabel}</TruncateText> : null}
             {row.original.description ? (
               <TruncateText lines={3} variant="h6" tone="secondary" className="break-words">
                 {row.original.description}
@@ -110,33 +120,36 @@ export function buildNotificationColumns({
       cell: ({ row }: { row: Row<NotificationRow> }) => {
         const action = resolveNotificationAction(row.original.notification);
         if (!action) return null;
-        // A Mingo dialog has no URL (it lives in the in-layout drawer once the
-        // `/mingo` page is retired), so it opens via click instead of an href +
-        // new tab. Route actions keep the open-in-new-tab anchor behavior.
-        const isRoute = 'route' in action;
-        // Opening clears unread (the drawer has no URL, so the location-based
-        // auto-reader can't). `onMarkRead` is only wired for the unread
-        // variant; it's a no-op for already-read rows.
-        const openDrawer = isRoute
-          ? undefined
-          : () => {
-              openMingoDialogInDrawer(action.mingoDialogId);
+        // A Mingo dialog opens the in-layout drawer instead of navigating — but only
+        // where that drawer exists. Every action carries a route, so anything else
+        // (and a shell with no drawer) keeps the open-in-new-tab anchor. Bound to a
+        // const so it narrows inside the closure.
+        const drawerDialogId = canOpenMingoDrawer ? (action.mingoDialogId ?? null) : null;
+        const navigates = !drawerDialogId;
+        // Opening clears unread: the drawer changes no URL of its own here (the sync
+        // hook stamps one a commit later), so the location-based auto-reader can't.
+        // `onMarkRead` is only wired for the unread variant; it's a no-op for
+        // already-read rows.
+        const openDrawer = drawerDialogId
+          ? () => {
+              openMingoDialogInDrawer(drawerDialogId);
               onMarkRead?.(row.original.id);
-            };
+            }
+          : undefined;
         return (
           <div data-no-row-click className="flex w-full justify-end">
             <SplitButton
               className="hidden md:inline-flex"
               variant="outline"
-              href={isRoute ? action.route : undefined}
+              href={navigates ? action.route : undefined}
               onClick={openDrawer}
               groupAriaLabel={action.label}
               iconAction={{
                 icon: <ArrowRightUpIcon className="text-ods-text-secondary" />,
-                'aria-label': isRoute ? `Open ${action.label} in new tab` : `Open ${action.label}`,
-                href: isRoute ? action.route : undefined,
+                'aria-label': navigates ? `Open ${action.label} in new tab` : `Open ${action.label}`,
+                href: navigates ? action.route : undefined,
                 onClick: openDrawer,
-                openInNewTab: isRoute,
+                openInNewTab: navigates,
               }}
             >
               {action.label}
@@ -146,7 +159,7 @@ export function buildNotificationColumns({
               className="md:hidden"
               variant="outline"
               size="icon"
-              href={isRoute ? action.route : undefined}
+              href={navigates ? action.route : undefined}
               onClick={openDrawer}
               aria-label={action.label}
               leftIcon={<ArrowRightUpIcon />}

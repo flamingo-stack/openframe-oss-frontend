@@ -5,11 +5,7 @@
 import type { MeshControlClient } from './meshcentral-control';
 
 export type FileConnectionState =
-  | 'disconnected'
-  | 'connecting'
-  | 'connected_to_server'
-  | 'connected_end_to_end'
-  | 'failed';
+  'disconnected' | 'connecting' | 'connected_to_server' | 'connected_end_to_end' | 'failed';
 
 export interface FileEntry {
   n: string; // Name
@@ -33,7 +29,12 @@ export interface FileOperationRequest {
   action: string;
   reqid: string;
   path?: string;
-  [key: string]: any;
+  /**
+   * MeshCentral's file protocol carries per-action fields this client does not
+   * enumerate (and the server does not version). `unknown` rather than `any` so a
+   * handler reading one has to say what it expects it to be.
+   */
+  [key: string]: unknown;
 }
 
 export interface FileOperationResponse {
@@ -41,7 +42,8 @@ export interface FileOperationResponse {
   reqid?: string;
   result?: string;
   error?: string;
-  [key: string]: any;
+  /** Per-action fields, as above. */
+  [key: string]: unknown;
 }
 
 export interface UploadRequest {
@@ -110,3 +112,15 @@ export const MeshRights = {
 export const SiteRights = {
   FILEACCESS: 0x00000008, // 8 - Site-level file access
 } as const;
+
+/**
+ * A message on the MeshCentral relay's control channel (ctrlChannel 102938):
+ * keep-alives, close notices and console lines from the relay itself, not from
+ * the agent's file protocol.
+ */
+export interface RelayControlMessage {
+  type?: string;
+  reason?: string;
+  msg?: string;
+  [key: string]: unknown;
+}

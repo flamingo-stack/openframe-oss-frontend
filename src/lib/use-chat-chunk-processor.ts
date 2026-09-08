@@ -68,9 +68,14 @@ export function useChatChunkProcessor({
   // the new value; these are write-only mirrors of props, never read during
   // render, so they cannot desync the rendered output.
   const boundMirrorRef = useRef(boundMirror);
-  boundMirrorRef.current = boundMirror;
   const interceptEventRef = useRef(interceptEvent);
-  interceptEventRef.current = interceptEvent;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    boundMirrorRef.current = boundMirror;
+    interceptEventRef.current = interceptEvent;
+  });
 
   // EVICTION EPOCH. Both effects below write state into a specific reducer
   // INSTANCE, and LRU eviction silently replaces that instance behind an
@@ -85,7 +90,7 @@ export function useChatChunkProcessor({
   // `boundMirror` comes from `ReducerMirror.bind(key)`, which memoizes per key —
   // so this effect re-runs on a real key change (or an eviction), not on every
   // host render.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: evictionEpoch is the re-arm trigger, not used in the body — the replacement reducer needs this merge replayed.
+  // evictionEpoch is the re-arm trigger, not used in the body — the replacement reducer needs this merge replayed.
   useEffect(() => {
     if (approvalStatuses && Object.keys(approvalStatuses).length > 0) {
       boundMirror.mergeApprovalStatuses(approvalStatuses);
@@ -141,8 +146,8 @@ export function useChatChunkProcessor({
     // dropped by the history merge — look identical from outside.
     if (event.type === 'approval-request' && featureFlags.debugNatsChunks.enabled()) {
       boundMirrorRef.current.mutate(reducer => {
-        const messages = reducer.state.messages as Array<{ segments?: Array<{ type: string }> }>;
-        const last = messages[messages.length - 1];
+        const reducerMessages = reducer.state.messages as Array<{ segments?: Array<{ type: string }> }>;
+        const last = reducerMessages[reducerMessages.length - 1];
         console.log(`[chat-chunk] after apply → segments: ${JSON.stringify((last?.segments ?? []).map(s => s.type))}`);
       });
     }

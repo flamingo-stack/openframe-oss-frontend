@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import type { HostQueryReport } from '@/app/(app)/monitoring/types/queries.types';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 
@@ -28,8 +28,7 @@ async function fetchHostQueries(hostId: number): Promise<HostQueryReport[]> {
 export function useHostQueries(hostId: number | undefined) {
   const query = useQuery({
     queryKey: hostQueriesKeys.detail(hostId ?? 0),
-    queryFn: () => fetchHostQueries(hostId!),
-    enabled: !!hostId,
+    queryFn: hostId ? () => fetchHostQueries(hostId) : skipToken,
   });
 
   // Return a referentially stable `data` while loading/disabled. An inline `?? []` at the

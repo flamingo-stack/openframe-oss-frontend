@@ -14,10 +14,10 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   EmptyState,
   formatQueryInterval,
+  onboardingGuideButton,
   QueriesTable,
   type QueryTableRow,
   SectionLoadError,
-  useOnboardingGuideButton,
 } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -130,7 +130,7 @@ export function Queries() {
     [handleAddQuery, showEmptyState],
   );
 
-  const guideButton = useOnboardingGuideButton('queries');
+  const guideButton = onboardingGuideButton('queries');
 
   return (
     <PageLayout title="Queries" actions={actions} className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
@@ -151,7 +151,7 @@ export function Queries() {
         <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
           <div
             ref={toolbarRef}
-            className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+            className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
           >
             <Input
               placeholder="Search for Queries"

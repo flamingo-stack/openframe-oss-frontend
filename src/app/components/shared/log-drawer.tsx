@@ -106,7 +106,7 @@ export function LogDrawer({
           <AppLayoutDrawerTitle>Log Details</AppLayoutDrawerTitle>
 
           {description && (
-            <AppLayoutDrawerDescription className="text-h4 leading-6 text-ods-text-primary">
+            <AppLayoutDrawerDescription className="leading-6 text-ods-text-primary text-h4">
               {description}
             </AppLayoutDrawerDescription>
           )}
@@ -114,25 +114,25 @@ export function LogDrawer({
           {(statusTag || timestamp) && (
             <div className="flex items-center gap-2">
               {statusTag && <Tag label={statusTag.label} variant={statusTag.variant} />}
-              {timestamp && <span className="text-h6 text-ods-text-secondary">{timestamp}</span>}
+              {timestamp && <span className="text-ods-text-secondary text-h6">{timestamp}</span>}
             </div>
           )}
         </AppLayoutDrawerHeader>
 
         {/* Body */}
         <AppLayoutDrawerBody>
-          <div className="flex-1 space-y-4 overflow-y-auto min-h-0">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
             {/* Info Card — vertical fields: Value on top, Label below */}
             {infoFields && infoFields.length > 0 && (
-              <div className="p-4 bg-ods-card border border-ods-border rounded-[6px] flex flex-col gap-3">
+              <div className="flex flex-col gap-3 rounded-[6px] border border-ods-border bg-ods-card p-4">
                 {infoFields.map(field => (
                   <div key={typeof field.label === 'string' ? field.label : ''} className="flex flex-col gap-0.5">
                     {typeof field.value === 'string' ? (
                       <TruncateText>{field.value || '—'}</TruncateText>
                     ) : (
-                      <span className="text-h4 text-ods-text-primary truncate">{field.value || '—'}</span>
+                      <span className="truncate text-ods-text-primary text-h4">{field.value || '—'}</span>
                     )}
-                    <span className="text-h6 text-ods-text-secondary truncate">{field.label}</span>
+                    <span className="truncate text-ods-text-secondary text-h6">{field.label}</span>
                   </div>
                 ))}
               </div>

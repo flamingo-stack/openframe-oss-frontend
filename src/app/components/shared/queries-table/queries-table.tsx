@@ -72,7 +72,7 @@ export function QueriesTable({
         accessorKey: 'name',
         header: 'Name',
         cell: ({ row }: { row: Row<QueryTableRow> }) => (
-          <div className="flex flex-col justify-center gap-1 py-2 min-h-[60px] min-w-0">
+          <div className="flex min-h-[60px] min-w-0 flex-col justify-center gap-1 py-2">
             <TruncateText>{row.original.name}</TruncateText>
             {row.original.description && (
               <TruncateText variant="h6" tone="secondary">
@@ -99,7 +99,7 @@ export function QueriesTable({
         header: '',
         cell: ({ row }: { row: Row<QueryTableRow> }) =>
           row.original.actions && row.original.actions.length > 0 ? (
-            <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
               <MoreActionsMenu items={row.original.actions} />
             </div>
           ) : null,
@@ -113,12 +113,12 @@ export function QueriesTable({
       header: '',
       cell: ({ row }: { row: Row<QueryTableRow> }) =>
         row.original.href ? (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={openInNewTab(row.original.href)}
               variant="outline"
               size="icon"
-              leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
               aria-label={`Open ${row.original.name}`}
               className="bg-ods-card"
             />

@@ -4,7 +4,7 @@ import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core';
 import { ImageUploader } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { getFullImageUrl } from '@/lib/image-url';
 import { deleteWithAuth, uploadWithAuth } from '@/lib/upload-with-auth';
@@ -28,14 +28,20 @@ export function EditOrganizationModal({ isOpen, onClose, organization, onSave, i
   const [imageHash, setImageHash] = useState<string | undefined>();
   const [isImageBusy, setIsImageBusy] = useState(false);
 
-  useEffect(() => {
+  // Seeded on the open transition, during render rather than in an effect: an
+  // effect paints the previous values once before correcting them, and keying off
+  // the transition alone means a background refresh of the source can no longer
+  // overwrite what the user has typed while the modal is up.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setName(organization.name);
       setWebsite(organization.website);
       setImageUrl(organization.image?.imageUrl ?? undefined);
       setImageHash(organization.image?.hash ?? undefined);
     }
-  }, [isOpen, organization]);
+  }
 
   const handleImageChange = useCallback(
     async (file: File) => {
@@ -109,7 +115,7 @@ export function EditOrganizationModal({ isOpen, onClose, organization, onSave, i
             variant="outline"
             onClick={onClose}
             disabled={isSaving}
-            className="flex-1 h-12 bg-ods-card border-ods-border text-ods-text-primary text-h3 hover:bg-ods-bg"
+            className="h-12 flex-1 border-ods-border bg-ods-card text-ods-text-primary text-h3 hover:bg-ods-bg"
           >
             Cancel
           </Button>
@@ -117,7 +123,7 @@ export function EditOrganizationModal({ isOpen, onClose, organization, onSave, i
             variant="accent"
             onClick={handleSave}
             disabled={isSaving}
-            className="flex-1 h-12 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90"
+            className="h-12 flex-1 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90"
           >
             {isSaving ? 'Saving...' : 'Update Organization'}
           </Button>
@@ -137,7 +143,7 @@ export function EditOrganizationModal({ isOpen, onClose, organization, onSave, i
       />
 
       <div className="space-y-1">
-        <Label htmlFor="edit-org-name" className="text-h4 text-ods-text-primary">
+        <Label htmlFor="edit-org-name" className="text-ods-text-primary text-h4">
           Company Name
         </Label>
         <Input
@@ -150,7 +156,7 @@ export function EditOrganizationModal({ isOpen, onClose, organization, onSave, i
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="edit-org-website" className="text-h4 text-ods-text-primary">
+        <Label htmlFor="edit-org-website" className="text-ods-text-primary text-h4">
           Company Website
         </Label>
         <Input

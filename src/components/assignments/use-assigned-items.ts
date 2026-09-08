@@ -90,7 +90,7 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
 const PAGE_SIZE = 100;
 
 interface AssignedTargetNode {
-  // biome-ignore lint/style/useNamingConvention: __typename is a GraphQL protocol field name
+  // __typename is a GraphQL protocol field name
   __typename: 'Organization' | 'Machine' | 'Ticket' | 'KnowledgeBaseItem';
   id: string;
 }
@@ -210,6 +210,13 @@ async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetTy
       return { refs, articles };
     case 'TICKET':
       return { refs, tickets };
+    default: {
+      // `targetType` is `never` here because the cases above cover
+      // AssignmentTargetType. A new member of that union fails to compile rather
+      // than resolving the query with `undefined`.
+      const unreachable: never = targetType;
+      return unreachable;
+    }
   }
 }
 

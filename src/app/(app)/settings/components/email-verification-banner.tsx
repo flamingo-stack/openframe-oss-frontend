@@ -14,11 +14,11 @@ export function EmailVerificationBanner({ onResend }: EmailVerificationBannerPro
         <AlertTriangleIcon size={24} />
       </span>
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-s)] sm:flex-row sm:items-center sm:gap-[var(--spacing-system-m)]">
-        <p className="flex-1 text-h4 font-bold">Verify your email to keep access to system.</p>
+        <p className="flex-1 font-bold text-h4">Verify your email to keep access to system.</p>
         <button
           type="button"
           onClick={onResend}
-          className="shrink-0 self-start whitespace-nowrap text-h4 font-medium underline transition-opacity hover:opacity-80 sm:self-auto"
+          className="shrink-0 self-start whitespace-nowrap font-medium underline transition-opacity text-h4 hover:opacity-80 sm:self-auto"
         >
           Resend Verification Mail
         </button>

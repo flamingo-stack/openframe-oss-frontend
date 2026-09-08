@@ -1,7 +1,7 @@
 'use client';
 
 import type { QueryResultRow } from '@flamingo-stack/openframe-frontend-core';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { formatDateTime } from '@/lib/format-date';
@@ -26,12 +26,11 @@ function flattenResults(results: QueryReportResponse['results']): QueryResultRow
 
 export function useQueryReport(queryId: number | null) {
   const query = useQuery({
-    queryKey: [...queriesQueryKeys.detail(queryId!), 'report'],
-    queryFn: () => fetchQueryReport(queryId!),
-    enabled: queryId !== null,
+    queryKey: [...queriesQueryKeys.detail(queryId), 'report'],
+    queryFn: queryId === null ? skipToken : () => fetchQueryReport(queryId),
   });
 
-  const rows = useMemo(() => (query.data?.results ? flattenResults(query.data.results) : []), [query.data?.results]);
+  const rows = useMemo(() => (query.data?.results ? flattenResults(query.data.results) : []), [query.data]);
 
   return {
     rows,

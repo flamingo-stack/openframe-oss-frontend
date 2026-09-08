@@ -22,18 +22,18 @@ export interface InfoCellProps {
 
 export function InfoCell({ value, label, icon, href, className }: InfoCellProps) {
   const content = (
-    <div className={`flex flex-col justify-center min-w-0 flex-1 ${className ?? ''}`}>
-      <div className="flex items-center gap-[var(--spacing-system-xxs)] min-w-0">
+    <div className={`flex min-w-0 flex-1 flex-col justify-center ${className ?? ''}`}>
+      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
         {icon && <span className="shrink-0">{icon}</span>}
         {typeof value === 'string' ? (
           <div className="min-w-0 flex-1">
             <TruncateText>{value}</TruncateText>
           </div>
         ) : (
-          <div className="text-ods-text-primary text-h4 truncate">{value}</div>
+          <div className="truncate text-ods-text-primary text-h4">{value}</div>
         )}
       </div>
-      <p className="text-ods-text-secondary text-h6 truncate">{label}</p>
+      <p className="truncate text-ods-text-secondary text-h6">{label}</p>
     </div>
   );
 
@@ -43,7 +43,7 @@ export function InfoCell({ value, label, icon, href, className }: InfoCellProps)
         href={href}
         target="_blank"
         rel="noreferrer"
-        className="flex items-center min-w-0 flex-1 hover:opacity-80 transition-opacity"
+        className="flex min-w-0 flex-1 items-center transition-opacity hover:opacity-80"
       >
         {content}
       </a>

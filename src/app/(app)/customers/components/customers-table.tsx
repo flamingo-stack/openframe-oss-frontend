@@ -20,7 +20,7 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EmptyState, SectionLoadError, useOnboardingGuideButton } from '@/app/components/shared';
+import { EmptyState, onboardingGuideButton, SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -139,7 +139,7 @@ export function CustomersTable({ status }: CustomersTableProps) {
     [handleAddCustomer, showEmptyState],
   );
 
-  const guideButton = useOnboardingGuideButton('customers');
+  const guideButton = onboardingGuideButton('customers');
 
   return (
     <PageLayout
@@ -167,11 +167,11 @@ export function CustomersTable({ status }: CustomersTableProps) {
           <div
             ref={toolbarRef}
             className={cn(
-              'sticky top-0 z-20 flex gap-[var(--spacing-system-m)] items-center',
-              'bg-ods-bg -mx-[var(--spacing-system-l)] p-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]',
+              'sticky top-0 z-20 flex items-center gap-[var(--spacing-system-m)]',
+              '-mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] bg-ods-bg p-[var(--spacing-system-l)]',
             )}
           >
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <CustomersSearchInput value={localSearch} onChange={setLocalSearch} />
             </div>
             <Button

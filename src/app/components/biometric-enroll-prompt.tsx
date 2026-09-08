@@ -35,7 +35,7 @@ export function BiometricEnrollPrompt() {
   const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
-    if (!isMobileShell() || getBiometricLoginChoice() === 'declined') return;
+    if (!isMobileShell() || getBiometricLoginChoice() === 'declined') return undefined;
     let active = true;
     void (async () => {
       const [{ available, biometryType }, enabled] = await Promise.all([

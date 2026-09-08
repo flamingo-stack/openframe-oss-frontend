@@ -13,11 +13,12 @@ interface LockedScreenProps {
 }
 
 /**
- * The centered card the app uses in place of page content when a surface is closed
- * to this viewer — an inactive workspace, or a section only another role can open.
+ * The centered card the app uses in place of page content when a surface cannot be
+ * shown — an inactive workspace, a section only another role can open, or a segment
+ * that failed to render (`app/error.tsx`).
  *
  * Presentation only: no status, no role, no copy of its own. It exists because the
- * two callers differ solely in their wording and buttons, and a second hand-rolled
+ * callers differ solely in their icon, wording and buttons, and a second hand-rolled
  * copy of this markup would drift from the first the next time either is touched.
  *
  * Keep it free of anything payment-shaped. One of its callers renders in the native
@@ -34,8 +35,8 @@ export function LockedScreen({ icon, title, description, actions }: LockedScreen
         </div>
 
         <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-          <h1 className="text-h2 text-ods-text-primary">{title}</h1>
-          <p className="text-h4 text-ods-text-secondary">{description}</p>
+          <h1 className="text-ods-text-primary text-h2">{title}</h1>
+          <p className="text-ods-text-secondary text-h4">{description}</p>
         </div>
 
         {actions && (

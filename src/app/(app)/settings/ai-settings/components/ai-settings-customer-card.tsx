@@ -38,26 +38,35 @@ export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: A
         alt={view.assistantName}
         // EntityImage defaults to size-[52px] md:size-[60px]; override both
         // breakpoints so the avatar stays 40×40 (the md: default would otherwise win).
-        className="size-10 md:size-10 rounded-full"
+        className="size-10 rounded-full md:size-10"
       />
-      <div className="flex flex-col justify-center min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
         <TruncateText>{view.assistantName}</TruncateText>
-        <p className="text-ods-text-secondary text-h6 truncate">Assistant Name</p>
+        <p className="truncate text-ods-text-secondary text-h6">Assistant Name</p>
       </div>
     </>,
     <InfoCell
+      key="llm-provider"
       value={LLM_PROVIDER_LABEL[aiConfig.llmProvider]}
       label="LLM Provider"
-      icon={<ProviderIcon className="w-6 h-6 text-ods-text-secondary" />}
+      icon={<ProviderIcon className="h-6 w-6 text-ods-text-secondary" />}
     />,
-    <InfoCell value={providerModelLabel || aiConfig.providerModel || '—'} label="Provider Model" />,
-    <InfoCell value={answerStyleLabel} label="Answer Style" />,
-    <InfoCell value={APPLICATION_THEME_LABEL[view.applicationTheme]} label="Application Theme" />,
-    <InfoCell value={view.accentColor?.toUpperCase()} label="Accent Color" />,
+    <InfoCell
+      key="provider-model"
+      value={providerModelLabel || aiConfig.providerModel || '—'}
+      label="Provider Model"
+    />,
+    <InfoCell key="answer-style" value={answerStyleLabel} label="Answer Style" />,
+    <InfoCell
+      key="application-theme"
+      value={APPLICATION_THEME_LABEL[view.applicationTheme]}
+      label="Application Theme"
+    />,
+    <InfoCell key="accent-color" value={view.accentColor?.toUpperCase()} label="Accent Color" />,
   ];
 
   return (
-    <div className="bg-ods-card border border-ods-border rounded-md grid grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 rounded-md border border-ods-border bg-ods-card lg:grid-cols-4">
       {cells.map((cell, idx) => (
         <div key={idx} className={cn(CELL, idx < cells.length - 2 && 'border-b border-ods-border')}>
           {cell}

@@ -91,8 +91,7 @@ export function consumePendingSignup(): boolean {
 export function appendPosthogHandoff(url: string): string {
   try {
     const ph = (typeof window !== 'undefined' ? (window as unknown as Record<string, unknown>).posthog : undefined) as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const getDistinctId = ph?.get_distinct_id;
     const getSessionId = ph?.get_session_id;
     const distinctId = typeof getDistinctId === 'function' ? (getDistinctId as () => string)() : undefined;

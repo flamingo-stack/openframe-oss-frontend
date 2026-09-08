@@ -4,7 +4,7 @@ import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { Hierarchy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
 import type { Device } from '../../types/device.types';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface NetworkTabProps {
   device: Device | null;
@@ -33,7 +33,7 @@ function sortIpv4(addresses: string[]): string[] {
 function Labeled({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <h3 className="text-h5 text-ods-text-secondary uppercase">{title}</h3>
+      <h3 className="uppercase text-ods-text-secondary text-h5">{title}</h3>
       {children}
     </div>
   );
@@ -83,6 +83,9 @@ export function NetworkTab({ device }: NetworkTabProps) {
   const hasIpv6 = sortedIpv6.length > 0;
 
   if (interfaceItems.length === 0 && locationItems.length === 0 && !hasIpv4 && !hasIpv6) {
+    if (device.sources?.fleet === 'skipped-pending') {
+      return <TabDeployingEmptyState icon={<Hierarchy02Icon />} section="Network" />;
+    }
     return (
       <TabEmptyState
         icon={<Hierarchy02Icon />}
@@ -107,7 +110,7 @@ export function NetworkTab({ device }: NetworkTabProps) {
       )}
 
       {(hasIpv4 || hasIpv6) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-l)]">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] lg:grid-cols-2">
           {hasIpv4 && (
             <Labeled title="IPv4 Addresses">
               <InfoCard data={{ items: [{ value: sortedIpv4, copyable: true }] }} />

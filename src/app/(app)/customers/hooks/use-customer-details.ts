@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { queryState } from '@/lib/query-state';
 import { GET_ORGANIZATION_BY_ORGANIZATION_ID_QUERY } from '../queries/customers-queries';
@@ -28,17 +28,64 @@ export interface CustomerDetails {
   status: string;
 }
 
-function formatAddress(addr?: any): string {
+/**
+ * The organization node as the legacy `/api/graphql` route returns it. Declared
+ * here rather than generated because this query is one of the raw-POST holdouts
+ * (see CLAUDE.md on the Relay migration) — every field the mapper below reads,
+ * and nothing else.
+ */
+interface OrganizationAddressNode {
+  street1?: string | null;
+  street2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+}
+
+interface OrganizationContactNode {
+  contactName?: string | null;
+  title?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}
+
+interface OrganizationNode {
+  id: string;
+  organizationId: string;
+  name?: string | null;
+  category?: string | null;
+  websiteUrl?: string | null;
+  numberOfEmployees?: number | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+  monthlyRevenue?: number | null;
+  contractStartDate?: string | null;
+  contractEndDate?: string | null;
+  notes?: string | null;
+  isDefault?: boolean | null;
+  status?: string | null;
+  image?: { imageUrl?: string | null; hash?: string | null } | null;
+  contactInformation?: {
+    physicalAddress?: OrganizationAddressNode | null;
+    mailingAddress?: OrganizationAddressNode | null;
+    contacts?: OrganizationContactNode[] | null;
+  } | null;
+}
+
+function formatAddress(addr?: OrganizationAddressNode | null): string {
   if (!addr) return '';
   const parts = [addr.street1, addr.street2, addr.city, addr.state, addr.postalCode, addr.country];
   return parts.filter(Boolean).join(', ');
 }
 
-function mapOrganization(org: any): CustomerDetails {
-  const contacts = Array.isArray(org.contactInformation?.contacts) ? org.contactInformation.contacts : [];
-  const primary = contacts[0] || {};
-  const billing = contacts[1] || {};
-  const technical = contacts[2] || {};
+function mapOrganization(org: OrganizationNode): CustomerDetails {
+  const contacts: OrganizationContactNode[] = Array.isArray(org.contactInformation?.contacts)
+    ? org.contactInformation.contacts
+    : [];
+  const primary: OrganizationContactNode = contacts[0] || {};
+  const billing: OrganizationContactNode = contacts[1] || {};
+  const technical: OrganizationContactNode = contacts[2] || {};
 
   return {
     id: org.id,
@@ -85,16 +132,19 @@ export const customerDetailsQueryKeys = {
 };
 
 async function fetchCustomer(id: string): Promise<CustomerDetails> {
-  const response = await apiClient.post<any>('/api/graphql', {
-    query: GET_ORGANIZATION_BY_ORGANIZATION_ID_QUERY,
-    variables: { organizationId: id },
-  });
+  const response = await apiClient.post<{ data?: { organizationByOrganizationId?: OrganizationNode | null } }>(
+    '/api/graphql',
+    {
+      query: GET_ORGANIZATION_BY_ORGANIZATION_ID_QUERY,
+      variables: { organizationId: id },
+    },
+  );
 
   if (!response.ok) {
     throw new Error(response.error || `Request failed with status ${response.status}`);
   }
 
-  const org = (response.data as any)?.data?.organizationByOrganizationId;
+  const org = response.data?.data?.organizationByOrganizationId;
   if (!org) {
     throw new Error('Customer not found');
   }
@@ -105,8 +155,7 @@ async function fetchCustomer(id: string): Promise<CustomerDetails> {
 export function useCustomerDetails(id?: string | null) {
   const query = useQuery({
     queryKey: customerDetailsQueryKeys.detail(id || ''),
-    queryFn: () => fetchCustomer(id!),
-    enabled: !!id,
+    queryFn: id ? () => fetchCustomer(id) : skipToken,
   });
 
   return {

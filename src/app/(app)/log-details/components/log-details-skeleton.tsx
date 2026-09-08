@@ -9,19 +9,19 @@ interface LogDetailsSkeletonProps {
 
 function StatusTimestampSkeleton() {
   return (
-    <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-start md:items-center">
+    <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:gap-4">
       <Skeleton className="h-6 w-14 rounded-[4px]" />
-      <Skeleton className="h-5 md:h-6 w-40" />
+      <Skeleton className="h-5 w-40 md:h-6" />
     </div>
   );
 }
 
 function LogSummaryCardSkeleton() {
   return (
-    <div className="bg-ods-card border border-ods-border rounded-[8px] w-full">
-      <div className="flex flex-col gap-4 items-start p-4 md:p-6">
-        <div className="flex flex-col gap-2 w-full">
-          <Skeleton className="h-5 md:h-6 w-2/3 max-w-[480px]" />
+    <div className="w-full rounded-[8px] border border-ods-border bg-ods-card">
+      <div className="flex flex-col items-start gap-4 p-4 md:p-6">
+        <div className="flex w-full flex-col gap-2">
+          <Skeleton className="h-5 w-2/3 max-w-[480px] md:h-6" />
           <div className="flex items-center gap-2">
             <Skeleton className="h-5 w-16 rounded-[4px]" />
             <Skeleton className="h-1 w-1 rounded-full" />
@@ -35,8 +35,8 @@ function LogSummaryCardSkeleton() {
 
 function DeviceInfoSkeleton() {
   return (
-    <div className="flex flex-col gap-1 w-full">
-      <div className="text-h5 text-ods-text-secondary w-full">Device Info</div>
+    <div className="flex w-full flex-col gap-1">
+      <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
       <DeviceInfoSectionSkeleton />
     </div>
   );
@@ -54,15 +54,15 @@ const FULL_INFO_ROWS: Array<{ labelWidth: string; valueWidth: string }> = [
 
 function FullInformationSkeleton() {
   return (
-    <div className="flex flex-col gap-3 w-full">
+    <div className="flex w-full flex-col gap-3">
       <Skeleton className="h-5 w-32" />
-      <div className="bg-ods-card border border-ods-border rounded-[6px] w-full">
+      <div className="w-full rounded-[6px] border border-ods-border bg-ods-card">
         <div className="flex flex-col divide-y divide-ods-border">
           {FULL_INFO_ROWS.map(({ labelWidth, valueWidth }, i) => (
             <div key={i} className="p-4 md:p-6">
-              <div className="flex gap-2 items-center w-full">
+              <div className="flex w-full items-center gap-2">
                 <Skeleton className={`h-5 ${labelWidth} shrink-0`} />
-                <div className="flex-1 h-px bg-ods-border min-h-px min-w-px" />
+                <div className="h-px min-h-px min-w-px flex-1 bg-ods-border" />
                 <Skeleton className={`h-5 ${valueWidth} max-w-[60%] shrink-0`} />
               </div>
             </div>
@@ -95,9 +95,9 @@ const DETAILS_LINE_WIDTHS = [
 
 function DetailsSkeleton() {
   return (
-    <div className="flex flex-col gap-3 w-full">
+    <div className="flex w-full flex-col gap-3">
       <Skeleton className="h-5 w-20" />
-      <div className="bg-ods-card border border-ods-border rounded-[6px] w-full">
+      <div className="w-full rounded-[6px] border border-ods-border bg-ods-card">
         <div className="p-4 md:p-6">
           <div className="flex flex-col gap-2">
             {DETAILS_LINE_WIDTHS.map((width, i) => (
@@ -122,7 +122,7 @@ export function LogDetailsSkeleton({ onBack }: LogDetailsSkeletonProps) {
       selector={<Skeleton className="h-12 w-[180px] rounded-[6px]" />}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <div className="flex flex-col gap-6 w-full">
+      <div className="flex w-full flex-col gap-6">
         <StatusTimestampSkeleton />
         <LogSummaryCardSkeleton />
         <DeviceInfoSkeleton />

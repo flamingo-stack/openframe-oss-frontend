@@ -13,7 +13,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core';
 import { useEffect, useRef } from 'react';
 import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
-import { featureFlags } from '@/lib/feature-flags';
 import type { ChatType } from '../constants';
 import type { MessagePage } from '../services/ticket-service.types';
 import { type ChatSide, useTicketDetailsStore } from '../stores/ticket-details-store';
@@ -59,12 +58,22 @@ export function useHistoricalMessages({
   const getHighestStreamSeq = useTicketDetailsStore(s => s.getHighestStreamSeq);
 
   const approvalStatusesRef = useRef(approvalStatuses);
-  approvalStatusesRef.current = approvalStatuses;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    approvalStatusesRef.current = approvalStatuses;
+  });
 
   const onApproveRef = useRef(onApprove);
   const onRejectRef = useRef(onReject);
-  onApproveRef.current = onApprove;
-  onRejectRef.current = onReject;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    onApproveRef.current = onApprove;
+    onRejectRef.current = onReject;
+  });
 
   const processedPageCountRef = useRef(0);
   const prevDialogIdRef = useRef<string | null>(null);
@@ -113,7 +122,6 @@ export function useHistoricalMessages({
       onApprove: onApproveRef.current,
       onReject: onRejectRef.current,
       approvalStatuses: { ...approvalStatusesRef.current, ...historicalResolutions },
-      batchApprovalsEnabled: featureFlags.batchApproval.enabled(),
       // Must match the realtime processor (use-side-chunk-processor): an
       // omitted option is not guaranteed to include ADMIN, and a history
       // reprocess (reopen, reconnect refetch, pagination) would silently

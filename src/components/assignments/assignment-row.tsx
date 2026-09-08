@@ -47,14 +47,14 @@ export function AssignmentRow({ targetType, value, onChange, onRemoveRow, disabl
   return (
     <FieldWrapper label={meta.rowLabel}>
       <div className="flex items-stretch gap-[var(--spacing-system-xsf)]">
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <Autocomplete
             multiple
             options={mergedOptions}
             value={selectedIds}
             onChange={handleChange}
-            onInputChange={(value, reason) => {
-              if (reason === 'input' || reason === 'clear') setSearchInput(value);
+            onInputChange={(inputValue, reason) => {
+              if (reason === 'input' || reason === 'clear') setSearchInput(inputValue);
             }}
             placeholder="Add More..."
             loading={isLoading}

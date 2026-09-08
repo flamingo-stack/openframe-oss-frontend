@@ -4,6 +4,7 @@
  */
 
 import type { Device, ToolConnection } from '../types/device.types';
+import { getToolConnectionState } from './tool-connection-status';
 
 /**
  * Check if a device is online (case-insensitive)
@@ -13,26 +14,23 @@ export function isDeviceOnline(status: string | undefined): boolean {
 }
 
 /**
- * Check if a device can be archived
- */
-export function canArchiveDevice(status: string | undefined): boolean {
-  const upperStatus = status?.toUpperCase();
-  return upperStatus !== 'ARCHIVED' && upperStatus !== 'DELETED' && upperStatus !== 'PENDING_DELETION';
-}
-
-/**
- * Check if a device can be unarchived (restored from the archive)
- */
-export function canUnarchiveDevice(status: string | undefined): boolean {
-  return status?.toUpperCase() === 'ARCHIVED';
-}
-
-/**
- * Check if a device can be deleted
+ * Check if a device can be deleted. Deletion is final: a DELETED device is a
+ * read-only archive record, and PENDING_DELETION already has an uninstall
+ * scheduled.
  */
 export function canDeleteDevice(status: string | undefined): boolean {
   const upperStatus = status?.toUpperCase();
   return upperStatus !== 'DELETED' && upperStatus !== 'PENDING_DELETION';
+}
+
+/**
+ * Check if a device's display name can be edited. DELETED devices (and legacy
+ * ARCHIVED ones) are read-only archive records - no edits of any kind - and a
+ * PENDING_DELETION device is already on its way there (per design).
+ */
+export function canEditDisplayName(status: string | undefined): boolean {
+  const upperStatus = status?.toUpperCase();
+  return upperStatus !== 'DELETED' && upperStatus !== 'ARCHIVED' && upperStatus !== 'PENDING_DELETION';
 }
 
 /**
@@ -53,12 +51,16 @@ export function getMeshCentralAgentId(device: Device): string | undefined {
 }
 
 /**
- * Get Fleet MDM host ID (numeric) from device tool connections
+ * Get Fleet MDM host ID (numeric) from device tool connections.
+ *
+ * Only a live connection yields an id: a DISCONNECTED row may carry a stale
+ * Fleet host id, and treating it as targetable would surface torn-down devices
+ * in the monitoring/onboarding pickers and live-query campaigns.
  */
 export function getFleetHostId(device: Device): number | undefined {
   const connection = getToolConnection(device.toolConnections, 'FLEET_MDM');
-  if (!connection?.agentToolId) return undefined;
-  const id = Number(connection.agentToolId);
+  if (getToolConnectionState(connection) !== 'live') return undefined;
+  const id = Number(connection?.agentToolId);
   return isNaN(id) ? undefined : id;
 }
 
@@ -100,8 +102,7 @@ export interface DeviceActionAvailability {
   manageFilesEnabled: boolean;
   runScriptEnabled: boolean;
   rebootEnabled: boolean;
-  archiveEnabled: boolean;
-  unarchiveEnabled: boolean;
+  editDisplayNameEnabled: boolean;
   deleteEnabled: boolean;
 
   // Tool IDs (for handlers)
@@ -121,7 +122,9 @@ export function getDeviceActionAvailability(device: Device): DeviceActionAvailab
   const meshcentralOffline = meshcentralConnection?.status?.toLowerCase() === 'offline';
   const isOnline = isDeviceOnline(device.status);
 
-  const meshcentralReady = Boolean(meshcentralAgentId) && isOnline && !meshcentralOffline;
+  // 'live' covers the id-presence check and additionally blocks DISCONNECTED/ERROR
+  // rows, whose stale agentToolId must not open tunnels.
+  const meshcentralReady = getToolConnectionState(meshcentralConnection) === 'live' && isOnline && !meshcentralOffline;
 
   return {
     remoteShellEnabled: meshcentralReady,
@@ -132,15 +135,12 @@ export function getDeviceActionAvailability(device: Device): DeviceActionAvailab
     // so it has the same requirements as the other remote actions.
     rebootEnabled: meshcentralReady,
 
-    // Run Script (native scripts-v2 flow): only requires the device to be online.
+    // Run Script (native Scripts flow): only requires the device to be online.
     // TODO(openframe-rmm): gate on an OpenFrame RMM agent once run-script is wired.
     runScriptEnabled: isOnline,
 
-    // Archive: device must not be already archived or deleted
-    archiveEnabled: canArchiveDevice(device.status),
-
-    // Unarchive: only archived devices can be restored
-    unarchiveEnabled: canUnarchiveDevice(device.status),
+    // Edit Display Name: blocked on read-only archive records
+    editDisplayNameEnabled: canEditDisplayName(device.status),
 
     // Delete: device must not be already deleted
     deleteEnabled: canDeleteDevice(device.status),

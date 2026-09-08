@@ -64,8 +64,8 @@ type CancellationImpact {
 ## 3. Reactivate / Renew flow — needs documented contract
 
 UI shows "Renew Subscription" / "Reactivate Subscription" CTAs for `CANCELED`
-and `PENDING_CANCELLATION` states. Today both route to
-`/settings/billing-usage/subscription`, which then issues `updateSubscription`.
+and `PENDING_CANCELLATION` states. Today both open the Upgrade Plan modal on the
+billing page, which then issues `updateSubscription`.
 It is unclear whether `updateSubscription` reactivates a `CANCELED`
 subscription, or whether a dedicated mutation is needed.
 

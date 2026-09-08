@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fleetApiClient, type PolicyHost } from '@/lib/fleet-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
 import { policiesQueryKeys } from '../../hooks/use-policies';
@@ -13,7 +13,7 @@ const EMPTY_POLICY_HOSTS: PolicyHost[] = [];
 
 export const policyHostsQueryKeys = {
   all: ['policy-hosts'] as const,
-  list: (policyId: number) => [...policyHostsQueryKeys.all, 'list', policyId] as const,
+  list: (policyId: number | null) => [...policyHostsQueryKeys.all, 'list', policyId] as const,
 };
 
 // ============ API Functions ============
@@ -48,9 +48,8 @@ async function replacePolicyHostsApi(params: { policyId: number; hostIds: number
 
 export function usePolicyHosts(policyId: number | null) {
   const query = useQuery({
-    queryKey: policyHostsQueryKeys.list(policyId!),
-    queryFn: () => fetchAllPolicyHosts(policyId!),
-    enabled: policyId !== null,
+    queryKey: policyHostsQueryKeys.list(policyId),
+    queryFn: policyId === null ? skipToken : () => fetchAllPolicyHosts(policyId),
   });
 
   return {

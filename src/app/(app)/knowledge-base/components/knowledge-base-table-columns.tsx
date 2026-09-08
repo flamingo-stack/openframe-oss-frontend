@@ -47,12 +47,12 @@ export const knowledgeBaseRowHref = (item: KnowledgeBaseRow): string =>
 export const KNOWLEDGE_BASE_OPEN_COLUMN: ColumnDef<KnowledgeBaseRow> = {
   id: 'open',
   cell: ({ row }: { row: Row<KnowledgeBaseRow> }) => (
-    <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
       <Button
         onClick={openInNewTab(knowledgeBaseRowHref(row.original))}
         variant="outline"
         size="icon"
-        leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
         aria-label="Open in new tab"
         className="bg-ods-card"
       />
@@ -73,12 +73,12 @@ export function getKnowledgeBaseColumns(mode: KnowledgeBaseTableMode): ColumnDef
         const status = item.status as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | null | undefined;
         const tagStatus = status === 'DRAFT' || status === 'ARCHIVED' ? status : null;
         return (
-          <div className="box-border content-stretch flex gap-[var(--spacing-system-m)] h-20 items-center justify-start py-0 relative shrink-0 w-full">
-            <div className="flex h-8 w-8 items-center justify-center relative rounded-[6px] shrink-0 border border-ods-border">
-              <Icon size={16} className="text-ods-text-secondary shrink-0" />
+          <div className="relative box-border flex h-20 w-full shrink-0 content-stretch items-center justify-start gap-[var(--spacing-system-m)] py-0">
+            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border">
+              <Icon size={16} className="shrink-0 text-ods-text-secondary" />
             </div>
-            <div className="flex flex-col min-w-0 flex-1">
-              <div className="flex items-center gap-[var(--spacing-system-xsf)] min-w-0">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
                 {/* min-w-0 wrapper so the FloatingTooltip trigger div can shrink and the name ellipsizes. */}
                 <div className="min-w-0">
                   <TruncateText>{item.name}</TruncateText>
@@ -106,7 +106,7 @@ export function getKnowledgeBaseColumns(mode: KnowledgeBaseTableMode): ColumnDef
         if (!ts) return null;
         return (
           <div className="flex flex-col whitespace-nowrap">
-            <span className="text-h4 text-ods-text-primary">{formatDate(ts)}</span>
+            <span className="text-ods-text-primary text-h4">{formatDate(ts)}</span>
             <span className="text-heading-5 text-ods-text-secondary">{formatTime(ts)}</span>
           </div>
         );

@@ -9,7 +9,6 @@ import {
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core';
 import {
-  ArrowRightUpIcon,
   BoxArchiveIcon,
   Loading01Icon,
   PenEditIcon,
@@ -169,7 +168,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
       ? {
           label: 'Restore Customer',
           variant: 'outline',
-          icon: <Refresh01RightIcon className="w-5 h-5 text-ods-text-secondary" />,
+          icon: <Refresh01RightIcon className="h-5 w-5 text-ods-text-secondary" />,
           onClick: () => setRestoreModalOpen(true),
           disabled: organization.isDefault,
         }
@@ -177,9 +176,9 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
           label: 'Archive Customer',
           variant: 'outline',
           icon: isChecking ? (
-            <Loading01Icon className="w-5 h-5 animate-spin" />
+            <Loading01Icon className="h-5 w-5 animate-spin" />
           ) : (
-            <BoxArchiveIcon className="w-5 h-5 text-ods-text-secondary" />
+            <BoxArchiveIcon className="h-5 w-5 text-ods-text-secondary" />
           ),
           onClick: handleArchiveClick,
           disabled: organization.isDefault || isChecking,
@@ -192,7 +191,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
     const editAction: PageActionButton = {
       label: 'Edit Customer',
       variant: 'outline',
-      icon: <PenEditIcon className="w-5 h-5 text-ods-text-secondary" />,
+      icon: <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />,
       href: editHref,
     };
 
@@ -232,12 +231,8 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
         headerVariant="card"
       >
         <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange}>
-          {activeTab => (
-            <TabContent
-              activeTab={activeTab}
-              TabComponent={getCustomerTabComponent(activeTab)}
-              componentProps={{ organization }}
-            />
+          {tab => (
+            <TabContent activeTab={tab} TabComponent={getCustomerTabComponent(tab)} componentProps={{ organization }} />
           )}
         </TabNavigation>
       </PageLayout>

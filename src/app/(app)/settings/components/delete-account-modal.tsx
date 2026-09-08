@@ -139,10 +139,10 @@ export function DeleteAccountModal({ open, onOpenChange }: DeleteAccountModalPro
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)] text-left">
         <div className="flex flex-col gap-[var(--spacing-system-m)]">
-          <p className="text-h4 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h4">
             This will permanently delete your OpenFrame account and remove your access to {organizationName}.
           </p>
-          <p className="text-h4 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h4">
             Your personal information will be removed. Activity records stay in audit logs without your name.
           </p>
         </div>
@@ -150,8 +150,8 @@ export function DeleteAccountModal({ open, onOpenChange }: DeleteAccountModalPro
         {isOwner && (
           <>
             <div className="flex items-start gap-[var(--spacing-system-s)] rounded-md border border-ods-error p-[var(--spacing-system-m)]">
-              <AlertTriangleIcon className="w-5 h-5 shrink-0 text-ods-error" />
-              <p className="text-h5 text-ods-error">
+              <AlertTriangleIcon className="h-5 w-5 shrink-0 text-ods-error" />
+              <p className="text-ods-error text-h5">
                 You&apos;re the owner of organization. Choose who takes over ownership before your account is deleted.
               </p>
             </div>

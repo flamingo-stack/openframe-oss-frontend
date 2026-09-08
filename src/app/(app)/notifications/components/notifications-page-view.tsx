@@ -7,7 +7,7 @@ import {
   ClockHistoryIcon,
   TrashIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useQueryLoader } from 'react-relay';
