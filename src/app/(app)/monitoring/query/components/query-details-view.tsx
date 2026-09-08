@@ -2,7 +2,6 @@
 
 import {
   type ActionsMenuGroup,
-  CardLoader,
   LoadError,
   NotFoundError,
   type PageActionButton,
@@ -25,6 +24,7 @@ import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
+import { MonitoringDetailSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
 import { useQueries } from '../../hooks/use-queries';
 import { usePolicyDevices } from '../../policy/hooks/use-policy-devices';
@@ -98,7 +98,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
   };
 
   if (isLoading) {
-    return <CardLoader items={4} />;
+    return <MonitoringDetailSkeleton kind="query" onBack={handleBack} />;
   }
 
   if (error) {
@@ -127,6 +127,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
           icon: <TrashIcon />,
           onClick: () => setIsDeleteModalOpen(true),
           disabled: isDeleting,
+          danger: true,
         },
       ],
     },
