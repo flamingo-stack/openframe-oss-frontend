@@ -304,7 +304,7 @@ export function getDeviceTableColumns(
         );
       },
       meta: {
-        width: 'w-[80px] md:w-1/5',
+        width: 'w-auto shrink-0 md:w-1/5',
         // Declared unconditionally, empty options and all. `meta.filter` is what
         // keeps a header cell visible below `lg`, so dropping it until the
         // options query resolves made every header on a tablet disappear on
