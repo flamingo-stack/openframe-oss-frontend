@@ -8,8 +8,8 @@ name: Cleanup
 
 on:
   schedule:
-    - cron: '17 * * * *'   # hourly -> stale-pr
-    - cron: '41 4 * * *'   # daily  -> stale-branches
+    - cron: '17 * * * *' # hourly -> stale-pr
+    - cron: '41 4 * * *' # daily  -> stale-branches
   workflow_dispatch:
 
 permissions:
@@ -31,7 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          MAX_AGE_DAYS: "60"
+          MAX_AGE_DAYS: '60'
         run: |
           set -o pipefail
           CUTOFF=$(date -u -d "$MAX_AGE_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)

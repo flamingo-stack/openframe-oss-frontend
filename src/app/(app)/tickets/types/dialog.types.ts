@@ -43,6 +43,9 @@ export interface Dialog {
   createdAt: string;
   statusUpdatedAt?: string | null;
   resolvedAt?: string | null;
+  // Who closed the ticket: 'AI_AGENT' | 'TECHNICIAN' | 'END_USER' (open string on the BE).
+  // Null while open; selected only when the ai-resolution flag is on.
+  resolvedBy?: string | null;
   aiResolutionSuggestedAt?: string | null;
   rating?: DialogRating | null;
 
@@ -64,6 +67,10 @@ export interface Dialog {
   assigneeImageUrl?: string;
   assigneeImageHash?: string;
   tags?: Array<{ id: string; key: string; color?: string }>;
+  // How many notifications about this ticket the caller has not read
+  // (`Ticket.unreadNotificationCount`). Drives the per-row count in the table
+  // and the "New Message" highlight on the board card.
+  unreadNotificationCount?: number;
   escalatedByUser?: boolean | null;
   // Latest pending tool-approval request for this ticket's dialog (from Ticket.pendingApproval).
   pendingApproval?: BoardTicketPendingApproval;
@@ -174,7 +181,7 @@ export interface ExecutingToolData extends MessageData {
   toolFunction: string;
   title?: string;
   toolExplanation?: string;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   requiresApproval?: boolean;
   approvalStatus?: string;
 }
@@ -205,7 +212,7 @@ export interface ApprovalResultData extends MessageData {
   command?: string;
   description?: string;
   risk?: string;
-  details?: any;
+  details?: unknown;
 }
 
 export interface SystemData extends MessageData {

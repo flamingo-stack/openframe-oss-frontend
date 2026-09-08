@@ -55,20 +55,19 @@ export const KNOWLEDGE_BASE_PAGE_SIZE = 20;
 
 const archivedArticlesTableRelayQuery = graphql`
   query knowledgeBaseTableArchivedRelayQuery($search: String, $tagIds: [ID], $first: Int!, $after: String) {
-    ...knowledgeBaseTableArchivedRelay_query
-      @arguments(search: $search, tagIds: $tagIds, first: $first, after: $after)
+    ...knowledgeBaseTableArchivedRelay_query @arguments(search: $search, tagIds: $tagIds, first: $first, after: $after)
   }
 `;
 
 const archivedArticlesTableRelayFragment = graphql`
   fragment knowledgeBaseTableArchivedRelay_query on Query
-    @refetchable(queryName: "knowledgeBaseTableArchivedRelayPaginationQuery")
-    @argumentDefinitions(
-      search: { type: "String" }
-      tagIds: { type: "[ID]" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "knowledgeBaseTableArchivedRelayPaginationQuery")
+  @argumentDefinitions(
+    search: { type: "String" }
+    tagIds: { type: "[ID]" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     archivedArticles(search: $search, tagIds: $tagIds, first: $first, after: $after)
       @connection(key: "knowledgeBaseTable_archivedArticles", filters: ["search", "tagIds"]) {
       __id
@@ -171,14 +170,14 @@ export function KnowledgeBaseItemsListView(props: ListViewProps) {
 
       return <ActionsMenuDropdown groups={groups} />;
     },
-    [mode, folderActions.buildMenuGroups],
+    [mode, folderActions],
   );
 
   const actionsColumn = useMemo<ColumnDef<KnowledgeBaseRow>>(
     () => ({
       id: 'actions',
       cell: ({ row }: { row: Row<KnowledgeBaseRow> }) => (
-        <div data-no-row-click className="flex justify-end pointer-events-auto">
+        <div data-no-row-click className="pointer-events-auto flex justify-end">
           {renderRowActions(row.original as ItemNode)}
         </div>
       ),
@@ -244,7 +243,7 @@ export function KnowledgeBaseTableSkeleton() {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
       {Array.from({ length: 5 }).map((_, idx) => (
-        <div key={idx} className="h-20 w-full rounded-[6px] bg-ods-card animate-pulse" />
+        <div key={idx} className="h-20 w-full animate-pulse rounded-[6px] bg-ods-card" />
       ))}
     </div>
   );

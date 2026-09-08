@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useMutation, useRelayEnvironment } from 'react-relay';
 import type { deleteAllReadNotificationsMutation as DeleteAllReadNotificationsMutationType } from '@/__generated__/deleteAllReadNotificationsMutation.graphql';
 import type { deleteNotificationMutation as DeleteNotificationMutationType } from '@/__generated__/deleteNotificationMutation.graphql';
@@ -45,7 +45,12 @@ export function useNotificationMutations({
   );
 
   const filterPairsRef = useRef(filterPairs);
-  filterPairsRef.current = filterPairs;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    filterPairsRef.current = filterPairs;
+  });
 
   const markRead = useCallback(
     (id: string) => {

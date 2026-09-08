@@ -31,7 +31,21 @@ export interface CampaignTotals {
 
 interface CampaignMessage {
   type: 'totals' | 'result' | 'status' | 'error';
-  data: any;
+  /**
+   * Fleet's live-query envelope. One field set per `type` — totals counters, a
+   * host result, or an error — so every branch below reads what its own case
+   * carries and nothing is guaranteed across them.
+   */
+  data: {
+    count?: number;
+    online?: number;
+    offline?: number;
+    missing_in_action?: number;
+    error?: string | null;
+    host?: { id?: number; display_name?: string; osquery_version?: string };
+    rows?: Record<string, unknown>[];
+    status?: 'pending' | 'finished';
+  };
 }
 
 type SockJsConnectionState = 'disconnected' | 'connecting' | 'connected';
@@ -239,10 +253,10 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
       switch (msg.type) {
         case 'totals': {
           setTotals({
-            count: msg.data.count,
-            online: msg.data.online,
-            offline: msg.data.offline,
-            missing_in_action: msg.data.missing_in_action,
+            count: msg.data.count ?? 0,
+            online: msg.data.online ?? 0,
+            offline: msg.data.offline ?? 0,
+            missing_in_action: msg.data.missing_in_action ?? 0,
           });
           break;
         }
@@ -263,7 +277,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
           const hasError = msg.data.error != null;
           if (hasError) {
             const err: CampaignError = {
-              host_id: msg.data.host?.id,
+              host_id: msg.data.host?.id ?? 0,
               host_display_name: msg.data.host?.display_name || 'Unknown',
               osquery_version: msg.data.host?.osquery_version || '',
               error: msg.data.error || 'Error details require osquery 4.4.0+',
@@ -280,7 +294,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
               setEmptyResults(prev => [
                 ...prev,
                 {
-                  host_id: msg.data.host?.id,
+                  host_id: msg.data.host?.id ?? 0,
                   host_display_name: msg.data.host?.display_name || 'Unknown',
                 },
               ]);
@@ -293,7 +307,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         }
 
         case 'status': {
-          setCampaignStatus(msg.data.status);
+          setCampaignStatus(msg.data.status ?? '');
           if (msg.data.status === 'finished') {
             stopCampaign();
           }
@@ -408,7 +422,9 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
               break;
             }
             case 'data':
-              frame.messages?.forEach(msg => handleCampaignMessage(msg));
+              frame.messages?.forEach(msg => {
+                handleCampaignMessage(msg);
+              });
               break;
             case 'heartbeat':
               break;

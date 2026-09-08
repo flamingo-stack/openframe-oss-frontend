@@ -39,14 +39,14 @@ export function FullscreenToolbar({
       <OpenFrameLogo className="absolute left-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)] z-10 h-6 w-6 opacity-50" />
       <div
         className={
-          'absolute top-0 left-1/2 z-10 -translate-x-1/2 w-[calc(100%-7rem)] ' +
+          'absolute left-1/2 top-0 z-10 w-[calc(100%-7rem)] -translate-x-1/2 ' +
           'flex items-center gap-[var(--spacing-system-xs)] ' +
           'rounded-b-[6px] border-x border-b border-ods-border bg-ods-overlay ' +
           'py-[var(--spacing-system-xsf)] pl-[var(--spacing-system-mf)] pr-[var(--spacing-system-xsf)]'
         }
       >
-        <div className="flex flex-1 min-w-0 items-center gap-[var(--spacing-system-xsf)]">
-          <span className="truncate text-h6 text-ods-text-primary">{deviceName}</span>
+        <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
+          <span className="truncate text-ods-text-primary text-h6">{deviceName}</span>
           {displayMenuGroups.length > 0 && (
             <ActionsMenuDropdown
               groups={displayMenuGroups}
@@ -61,7 +61,7 @@ export function FullscreenToolbar({
                   }
                 >
                   <MonitorIcon className="h-4 w-4" />
-                  <span className="text-h5 whitespace-nowrap">{currentDisplayLabel}</span>
+                  <span className="whitespace-nowrap text-h5">{currentDisplayLabel}</span>
                   <Chevron02DownIcon className="h-4 w-4" />
                 </button>
               }

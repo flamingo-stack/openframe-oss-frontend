@@ -4,9 +4,6 @@
  * Batch context items — fetched as ONE full batch (cached via TanStack suspense),
  * then SEARCHED and PAGED entirely on the client. These sources have no usable
  * server-side search for this picker.
- *   • LegacyScriptItems — Tactical scripts. The `scripts-v2` flag-OFF dropdown
- *     source; the flag-ON source is the Relay `ScriptItems` in `relay-items.tsx`.
- *     (Dispatched by `renderMingoContextItems`.)
  *   • UserItems — core users.
  */
 
@@ -17,39 +14,6 @@ import { useMemo } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, matches, useClientPaging } from './items-shared';
-
-// ──────────────────────── Script (legacy / Tactical) ─────────────────────────
-
-// TODO(openframe-rmm): Tactical RMM removed — the legacy script context source has no
-// backend. Returns an empty list (flag-ON scripts still resolve via the Relay `ScriptItems`
-// in relay-items.tsx). Delete this source once the flag-OFF `/scripts` path is retired.
-async function fetchAllScripts(): Promise<ChatContextItem[]> {
-  return [];
-}
-
-export function LegacyScriptItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
-  const { data } = useSuspenseQuery({
-    queryKey: ['mingo-context', 'scripts-all'],
-    queryFn: fetchAllScripts,
-    staleTime: 5 * 60 * 1000,
-  });
-  const filtered = useMemo(
-    () => data.filter(s => matches(s.label, query) || matches(s.description, query)),
-    [data, query],
-  );
-  const { items, hasMore, loadMore } = useClientPaging(filtered);
-  return (
-    <ContextItemsList
-      items={items}
-      selectedKeys={selectedKeys}
-      onToggle={onToggle}
-      atLimit={atLimit}
-      hasMore={hasMore}
-      onLoadMore={loadMore}
-      emptyLabel="No scripts"
-    />
-  );
-}
 
 // ───────────────────────────── User ─────────────────────────────────────────
 

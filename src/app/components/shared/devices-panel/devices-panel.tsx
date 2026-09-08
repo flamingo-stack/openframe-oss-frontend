@@ -97,6 +97,11 @@ export interface DevicesPanelProps {
    * it doesn't flash before the answer is known.
    */
   isCheckingOrganizations?: boolean;
+  /**
+   * Drops the per-row actions dropdown, leaving only the open-in-new-tab arrow.
+   * Used by the archive page: DELETED devices are read-only records.
+   */
+  readOnlyRows?: boolean;
 }
 
 function DevicesPanelContent({
@@ -115,6 +120,7 @@ function DevicesPanelContent({
   emptyState,
   noOrganizations = false,
   isCheckingOrganizations = false,
+  readOnlyRows = false,
 }: DevicesPanelProps) {
   const router = useRouter();
 
@@ -192,7 +198,12 @@ function DevicesPanelContent({
     [columnFilters, handleFilterChange],
   );
 
-  const actionsColumn = useMemo<ColumnDef<Device>>(() => getDeviceActionsColumn(renderRowActions), [renderRowActions]);
+  // Read-only lists keep the column (width parity with the skeleton) but render
+  // nothing in it — rows offer only the open-in-new-tab arrow.
+  const actionsColumn = useMemo<ColumnDef<Device>>(
+    () => getDeviceActionsColumn(readOnlyRows ? undefined : renderRowActions),
+    [readOnlyRows, renderRowActions],
+  );
 
   const {
     isOpen: filterModalOpen,
@@ -268,9 +279,9 @@ function DevicesPanelContent({
         {noOrganizations && (
           // Core Alert restyled to the ODS warning tokens. The icon is wrapped in a
           // span so Alert's `[&>svg]` absolute-positioning rules don't apply.
-          <Alert className="flex items-start gap-[var(--spacing-system-m)] mb-[var(--spacing-system-l)] rounded-[6px] border-0 bg-ods-warning-secondary text-ods-warning">
+          <Alert className="mb-[var(--spacing-system-l)] flex items-start gap-[var(--spacing-system-m)] rounded-[6px] border-0 bg-ods-warning-secondary text-ods-warning">
             <span className="shrink-0">
-              <AlertTriangle className="w-6 h-6" />
+              <AlertTriangle className="h-6 w-6" />
             </span>
             <p className="text-h3">Add a customer to connect a new device</p>
           </Alert>

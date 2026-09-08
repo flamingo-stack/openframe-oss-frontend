@@ -5,8 +5,8 @@ import {
   UserIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import React from 'react';
-import { AppConfig } from '../app-config';
+import type React from 'react';
+import type { AppConfig } from '../app-config';
 import { getBaseUrl } from '../utils';
 
 export const openframeConfig: AppConfig = {
@@ -56,7 +56,7 @@ export const openframeConfig: AppConfig = {
       getElement: () => (
         <span className="flex items-center gap-3">
           <OpenFrameLogo className="h-8 w-8" />
-          <span className="text-code font-semibold text-ods-text-primary">OpenFrame</span>
+          <span className="font-semibold text-ods-text-primary text-code">OpenFrame</span>
         </span>
       ),
     },
@@ -72,7 +72,7 @@ export const openframeConfig: AppConfig = {
     showSearchBar: true,
     headerStyle: 'default',
     headerAutoHide: true,
-    getHeaderActions: ({ user, router, pathname, onSignUp }) => {
+    getHeaderActions: ({ user, router, onSignUp }) => {
       const left: React.ReactElement[] = [];
       const right: React.ReactElement[] = [];
 
@@ -84,7 +84,7 @@ export const openframeConfig: AppConfig = {
             variant="transparent"
             size="small-legacy"
             onClick={() => router.push('/profile')}
-            leftIcon={<UserIcon className="w-5 h-5" />}
+            leftIcon={<UserIcon className="h-5 w-5" />}
           >
             Profile
           </Button>,
@@ -112,17 +112,17 @@ export const openframeConfig: AppConfig = {
       return { left, right };
     },
     mobileNav: {
-      menuIcon: <HamburgerIcon className="w-6 h-6 text-ods-text-primary" />,
-      closeIcon: <IconsXIcon className="w-4 h-4 text-ods-text-primary" />,
+      menuIcon: <HamburgerIcon className="h-6 w-6 text-ods-text-primary" />,
+      closeIcon: <IconsXIcon className="h-4 w-4 text-ods-text-primary" />,
     },
   },
   footer: {
     showWaitlist: false,
     logo: {
-      getElement: () => <OpenFrameLogo width={32} height={32} className="flex-shrink-0 w-8 h-8" />,
+      getElement: () => <OpenFrameLogo width={32} height={32} className="h-8 w-8 flex-shrink-0" />,
     },
     name: {
-      getElement: () => <span className="text-code font-semibold text-ods-text-primary">OpenFrame</span>,
+      getElement: () => <span className="font-semibold text-ods-text-primary text-code">OpenFrame</span>,
     },
     sections: [
       {

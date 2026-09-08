@@ -34,7 +34,7 @@ const CARD_ROW =
 
 function ProfileFieldSkeleton({ valueClassName }: { valueClassName: string }) {
   return (
-    <div className="flex flex-1 flex-col justify-center gap-[var(--spacing-system-xxs)] min-w-0">
+    <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xxs)]">
       <Skeleton className={valueClassName} />
       <Skeleton className="h-4 w-16" />
     </div>
@@ -45,9 +45,9 @@ function EmployeeSummarySkeleton() {
   return (
     <div className={CARD_CONTAINER}>
       <div className={CARD_ROW}>
-        <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
+        <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
           {/* Mirrors the loaded avatar: 36px on mobile, 48px on md+. */}
-          <Skeleton className="size-9 md:size-12 shrink-0 rounded-full" />
+          <Skeleton className="size-9 shrink-0 rounded-full md:size-12" />
           <ProfileFieldSkeleton valueClassName="h-6 w-32" />
         </div>
         <ProfileFieldSkeleton valueClassName="h-6 w-40" />
@@ -94,8 +94,10 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
     return <NotFoundError message="Employee not found" />;
   }
 
-  // ` ` reserves the title's h1 height while loading (PageLayout's title is
-  // string-only, so the bar can't be a Skeleton) — keeps the card from jumping.
+  // The non-breaking space below reserves the title's h1 height while loading
+  // (PageLayout's title is string-only, so the bar can't be a Skeleton) — it
+  // keeps the card from jumping. Spelled as a literal NBSP, not &nbsp;, because
+  // the value is handed straight to a string-typed prop.
   const displayName = user
     ? user.firstName || user.lastName
       ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
@@ -139,7 +141,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
                         {
                           id: 'edit',
                           label: 'Edit Profile',
-                          icon: <PenEditIcon className="w-5 h-5 text-ods-text-secondary" />,
+                          icon: <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />,
                           onClick: () => setIsEditOpen(true),
                         },
                       ],
@@ -153,7 +155,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
                     ? {
                         id: 'delete-account',
                         label: 'Delete Account',
-                        icon: <TrashIcon className="w-5 h-5 text-ods-error" />,
+                        icon: <TrashIcon className="h-5 w-5 text-ods-error" />,
                         danger: true,
                         disabled: disableDelete,
                         onClick: () => setIsDeleteAccountOpen(true),
@@ -161,7 +163,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
                     : {
                         id: 'delete',
                         label: 'Delete',
-                        icon: <TrashIcon className="w-5 h-5 text-ods-error" />,
+                        icon: <TrashIcon className="h-5 w-5 text-ods-error" />,
                         danger: true,
                         disabled: disableDelete,
                         onClick: () => setIsDeleteOpen(true),
@@ -182,7 +184,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
         // synthetic email is hidden entirely.
         <div className={CARD_CONTAINER}>
           <div className={CARD_ROW}>
-            <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
+            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
               {/* Design sizes the placeholder responsively: 36px with a 16px icon on
                   mobile, 48px with a 24px icon on md+ (1095-50238 vs 1095-46586).
                   `DeletedUserAvatar` has fixed buckets only, so the container and its
@@ -203,7 +205,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
       ) : (
         <div className={CARD_CONTAINER}>
           <div className={CARD_ROW}>
-            <div className="flex flex-1 items-center gap-[var(--spacing-system-m)] min-w-0">
+            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
               {/* Same responsive sizing as the deleted variant: 36px on mobile,
                   48px on md+ — SquareAvatar's buckets are fixed, and its cn is
                   tailwind-merge, so the className override wins. */}

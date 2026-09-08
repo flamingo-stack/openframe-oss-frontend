@@ -50,6 +50,8 @@ export function useAiConfiguration() {
         setConfiguration(response.data);
         return response.data;
       }
+      // 2xx with no body: nothing to store, and nothing for the caller to read.
+      return undefined;
     } catch (error) {
       toast({
         title: 'Failed to Load Configuration',
@@ -75,6 +77,8 @@ export function useAiConfiguration() {
         setSupportedModels(response.data);
         return response.data;
       }
+      // 2xx with no body: nothing to store, and nothing for the caller to read.
+      return undefined;
     } catch (error) {
       toast({
         title: 'Failed to Load Models',
@@ -91,7 +95,9 @@ export function useAiConfiguration() {
       setIsSaving(true);
 
       try {
-        const body: any = {
+        // `apiKey` is omitted rather than sent empty: the backend treats an absent
+        // key as "keep the stored one" and an empty string as "clear it".
+        const body: { provider: string; modelName: string; apiKey?: string } = {
           provider: params.provider,
           modelName: params.modelName,
         };

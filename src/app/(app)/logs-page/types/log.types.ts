@@ -12,7 +12,7 @@ export interface LogEntry {
   message?: string;
   timestamp: string;
   details?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   // Device-related fields from backend
   hostname?: string;

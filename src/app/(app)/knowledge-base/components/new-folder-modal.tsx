@@ -3,7 +3,7 @@
 import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useCreateFolder } from '../hooks/use-create-folder';
 
@@ -26,11 +26,13 @@ export function NewFolderModal({
   const { createFolder, isPending } = useCreateFolder();
   const [name, setName] = useState('');
 
-  useEffect(() => {
-    if (!isOpen) {
-      setName('');
-    }
-  }, [isOpen]);
+  // Cleared on the close transition, during render rather than in an effect: an
+  // effect leaves the old value on screen for a frame of the closing animation.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (!isOpen) setName('');
+  }
 
   const trimmed = name.trim();
   const canSubmit = trimmed.length > 0 && !isPending;
@@ -46,7 +48,9 @@ export function NewFolderModal({
       toast({ title: 'Folder created', description: trimmed, variant: 'success' });
       onCreated?.(result.id);
       onClose();
-    } catch {}
+    } catch {
+      // The mutation hook already toasts and rejects on failure (see use-archive-article.ts and its siblings). Catching here keeps the rejection from going unhandled and leaves the modal open on the data the user still has, instead of closing it as if the action had succeeded.
+    }
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -74,7 +78,7 @@ export function NewFolderModal({
         </>
       }
     >
-      <Label htmlFor="new-folder-name" className="text-h4 text-ods-text-primary">
+      <Label htmlFor="new-folder-name" className="text-ods-text-primary text-h4">
         Folder Name
       </Label>
       <Input

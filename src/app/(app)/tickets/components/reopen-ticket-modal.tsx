@@ -2,6 +2,7 @@
 
 import {
   ReopenTicketModal as ReopenTicketModalView,
+  type ReopenTicketSelection,
   type TakeOverStatusOption,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo } from 'react';
@@ -17,6 +18,8 @@ import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
  * detail cache — the board's card model doesn't carry `availableTransitions`,
  * and the details page has the same query warm already.
  */
+export type { ReopenTicketSelection };
+
 export interface ReopenTicketTarget {
   ticketId: string;
   /** Pre-selected status (e.g. the transition the user just picked or the lane
@@ -29,7 +32,13 @@ interface ReopenTicketModalProps {
   /** Non-null opens the modal. */
   target: ReopenTicketTarget | null;
   onClose: () => void;
-  onSuccess?: () => void;
+  /**
+   * Fires with the confirmed selection BEFORE `onClose`, so a host that held
+   * UI state for the pending reopen (the board's held drop) can convert it
+   * instead of discarding it when the close handler runs — same contract as
+   * `TakeOverTicketModal`.
+   */
+  onSuccess?: (selection: ReopenTicketSelection) => void;
 }
 
 /**
@@ -66,8 +75,13 @@ export function ReopenTicketModal({ target, onClose, onSuccess }: ReopenTicketMo
   }, [ticket?.availableTransitions, kindById]);
 
   // Design default: Tech Required, unless the trigger already picked a status.
+  // The prefill is honored only when it is actually offerable: a drag/pick can
+  // name a status outside the ticket's `availableTransitions` (the board gates
+  // drops per-status, not per-ticket), and an unknown value would render in
+  // the select as the raw status id.
   const initialStatusId = useMemo(() => {
-    if (target?.initialStatusId) return target.initialStatusId;
+    const prefill = target?.initialStatusId;
+    if (prefill && statusOptions.some(o => o.value === prefill)) return prefill;
     return statusOptions.find(o => kindById.get(o.value) === TICKET_STATUS_KIND.TECH_REQUIRED)?.value ?? null;
   }, [target?.initialStatusId, statusOptions, kindById]);
 
@@ -99,8 +113,8 @@ export function ReopenTicketModal({ target, onClose, onSuccess }: ReopenTicketMo
           },
           {
             onSuccess: () => {
+              onSuccess?.(selection);
               onClose();
-              onSuccess?.();
             },
           },
         );

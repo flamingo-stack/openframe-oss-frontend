@@ -1,9 +1,14 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { ScriptDetailsView } from '../components/script/script-details-view';
+import { ContentErrorBoundary } from '@/app/components/shared';
+import { ScriptDetailsView } from '../script/components/script-details-view';
 
 export default function ScriptDetailsPage() {
   const id = useSearchParams().get('id') ?? '';
-  return <ScriptDetailsView scriptId={id} />;
+  return (
+    <ContentErrorBoundary title="Script" message="Couldn't load this script.">
+      <ScriptDetailsView scriptId={id} />
+    </ContentErrorBoundary>
+  );
 }

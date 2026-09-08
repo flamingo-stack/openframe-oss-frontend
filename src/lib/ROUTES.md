@@ -55,6 +55,60 @@ const handleBack = useSafeBack(routes.customers.list({ tab: 'archived' }));
 <Button href={routes.devices.details(deviceId)} />
 ```
 
+### Cross-cutting overlay params
+
+A third form, for a panel that floats over *any* route rather than belonging to
+one — currently only the Mingo chat drawer:
+
+```ts
+withMingoDialog('/devices/details?id=m-1', 'd-1')  // …&mingoDialog=d-1
+withMingoDialog(currentUrl, null)                  // strips it
+```
+
+A `<NAME>_PARAM` constant plus a transformer that edits an existing URL, not an entry
+in `routes` — these don't produce a URL, they amend the one already showing. Reuse or
+generalize an existing transformer where you can; `withMingoDialog` is set/delete and
+preserves the fragment and trailing slash, while the older `onboardingHintUrl` appends
+blindly, so they are not yet interchangeable. This is **not** an exception to the
+registry (the list at the bottom is about raw path *strings*): the transformer is still
+a single owner encoding through `URLSearchParams`, exactly as `withQuery` does.
+
+Rules for one:
+
+- **Spelled exactly once, in one module.** `mingoDialog` lives in `routes.ts`
+  (rationale on `MINGO_DIALOG_PARAM`); the pre-existing `SETUP_HINT_PARAM` /
+  `onboardingHintUrl` pair lives in `onboarding-coach-marks.ts` beside the only
+  feature that reads it. Either home is fine — two homes for one param is not.
+- **Exactly one owner of the live value.** For `mingoDialog` that is
+  `useMingoDialogUrlSync`, which mirrors drawer state into the URL and adopts it
+  back. A resolver may hand the param in once as a redirect target and must then
+  leave it alone; that is a handoff, not a second owner. Two owners turn a shared
+  param into a race with no arbiter.
+- **Other query writers must re-base on the live search string.** An overlay param is
+  only as durable as the code that writes *around* it, and dropping it is not a
+  cosmetic loss: the owner sees a param it was mirroring vanish and treats that as
+  authoritative, so the drawer closes mid-conversation.
+  `useApiParams.updateUrl` rebuilds from `useSearchParams()` and preserves it, as does
+  the lib's `TabNavigation` urlSync. **Known non-conformers**, all currently unreached
+  because every call site passes its own `onTabChange`: the `defaultHandleTabChange`
+  fallbacks in `customers-tabs.tsx`, `monitoring-tabs.tsx` and `scripts-tabs.tsx`,
+  which build `` `${pathname}?tab=${id}` `` from scratch. Wiring one up would drop the
+  param — rebase it first.
+  `useApiParams.resetParams` drops every param by design (`router.replace(pathname)`);
+  it has no call site in `src/` today, but it is not compatible with an overlay param.
+  There is also a narrow window in the other direction: writers that rebase on
+  `useSearchParams()` read a value that lags a raw `history.replaceState` by one
+  transition, so a write landing inside that window can drop the param anyway — and the
+  owner reads a param it was mirroring going missing as authoritative, so it closes
+  rather than re-stamping. Both directions land in the same place: don't write query
+  strings from scratch.
+- **Feed the transformer the live location** when the result goes through
+  `history.replaceState` — see the `withMingoDialog` JSDoc for why.
+- **Give it a canonical counterpart.** An overlay param rides the sharer's page,
+  which is not what a notification or a copied link should carry — those need a
+  page-independent URL that *resolves into* the overlay. For `mingoDialog` that is
+  `mingoDialogLink()`: the same param on a fixed landing page.
+
 ## Tab ids (`TAB_IDS`)
 
 Pages with a `?tab=` sub-view declare their allowed tab ids in `TAB_IDS`, and
@@ -88,7 +142,7 @@ These mirror the app-router constraints (static-export build):
   `/help-center/releases/detail?slug=…` use `slug`, not `id`, because the content
   endpoints resolve by slug only and 404 on an id.
 - **Create pages are dedicated `/new` segments** (`/customers/new`,
-  `/monitoring/policy/new`, `/scripts-v2/new`), not an `?id=new` sentinel.
+  `/monitoring/policy/new`, `/scripts/new`), not an `?id=new` sentinel.
 - **Multi-param routes** compose through the options object:
   `/devices/details?id=…&tab=overview&action=runScript`.
 
@@ -109,6 +163,10 @@ When you add or change a page, tab, or any component that links somewhere:
 5. **Nullable ids** — builders intentionally reject `null | undefined`.
    Guard at the call site (`id ? routes.x.details(id) : routes.x.list`)
    rather than widening the parameter type.
+6. **New overlay/panel that should be linkable** → a cross-cutting param, not a
+   route: `<NAME>_PARAM` + `with<Name>()` in `routes.ts`, one writer, and a
+   canonical `routes.*` entry that resolves into it. See *Cross-cutting overlay
+   params* above.
 
 **Known exceptions** (intentional raw strings — do not "fix"):
 - `src/app/not-found.tsx` — the legacy-path redirect table maps *old* URLs

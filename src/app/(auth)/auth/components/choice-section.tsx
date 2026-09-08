@@ -35,7 +35,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
   const [suggestedDomains, setSuggestedDomains] = useState<string[]>([]);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const orgNameRegex = /^[\p{L}\p{M}0-9&\.,'"()\- ]{2,100}$/u;
+  const orgNameRegex = /^[\p{L}\p{M}0-9&.,'"()\- ]{2,100}$/u;
   const isOrgNameValid = orgNameRegex.test(orgName.trim());
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -134,17 +134,17 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
   return (
     <>
       {/* Create Organization Section */}
-      <div className="bg-ods-card border border-ods-border rounded-sm p-10 relative">
+      <div className="relative rounded-sm border border-ods-border bg-ods-card p-10">
         <div className="flex flex-col gap-6">
           {/* Header */}
           <div className="flex flex-col gap-2">
-            <h1 className="text-h2 text-ods-text-primary">Create Organization</h1>
-            <p className="text-h4 text-ods-text-secondary">Start your journey with OpenFrame.</p>
+            <h1 className="text-ods-text-primary text-h2">Create Organization</h1>
+            <p className="text-ods-text-secondary text-h4">Start your journey with OpenFrame.</p>
           </div>
 
           {/* Email and Organization Name Fields - Side by Side */}
-          <div className="flex flex-col md:flex-row gap-6">
-            <div className="flex-1 flex flex-col gap-1">
+          <div className="flex flex-col gap-6 md:flex-row">
+            <div className="flex flex-1 flex-col gap-1">
               <Label>Email</Label>
               <Input
                 type="email"
@@ -152,7 +152,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                 onChange={e => setOrgEmail(e.target.value)}
                 placeholder="username@mail.com"
                 disabled={isLoading}
-                className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3"
+                className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !isLoading && isOrgEmailValid && isOrgNameValid) {
                     handleCreateOrganization();
@@ -160,29 +160,29 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                 }}
               />
               {orgEmail.trim() && !isOrgEmailValid && (
-                <p className="text-h6 text-ods-error mt-1">Enter a valid email address</p>
+                <p className="mt-1 text-ods-error text-h6">Enter a valid email address</p>
               )}
               {isOrgEmailValid && emailStatus === 'checking' && (
-                <p className="text-h6 text-ods-text-secondary mt-1">Checking availability…</p>
+                <p className="mt-1 text-ods-text-secondary text-h6">Checking availability…</p>
               )}
               {isOrgEmailValid && emailStatus === 'taken' && (
-                <p className="text-h6 text-ods-error mt-1">This email is already registered. Sign in instead.</p>
+                <p className="mt-1 text-ods-error text-h6">This email is already registered. Sign in instead.</p>
               )}
               {isOrgEmailValid && emailStatus === 'blocked' && (
-                <p className="text-h6 text-ods-error mt-1">{BLOCKED_EMAIL_DOMAIN_MESSAGE}</p>
+                <p className="mt-1 text-ods-error text-h6">{BLOCKED_EMAIL_DOMAIN_MESSAGE}</p>
               )}
               {isOrgEmailValid && emailStatus === 'available' && (
-                <p className="text-h6 text-ods-success mt-1">Email is available</p>
+                <p className="mt-1 text-ods-success text-h6">Email is available</p>
               )}
             </div>
-            <div className="flex-1 flex flex-col gap-1">
+            <div className="flex flex-1 flex-col gap-1">
               <Label>Organization Name</Label>
               <Input
                 value={orgName}
                 onChange={e => setOrgName(e.target.value)}
                 placeholder="Your Company Name"
                 disabled={isLoading}
-                className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3"
+                className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !isLoading && isOrgNameValid) {
                     handleCreateOrganization();
@@ -190,7 +190,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                 }}
               />
               {orgName.trim() && !isOrgNameValid && (
-                <p className="text-h6 text-ods-error mt-1">
+                <p className="mt-1 text-ods-error text-h6">
                   Organization Name must be 2-100 characters and may include letters, numbers, spaces, and
                   &.,&apos;&quot;()-
                 </p>
@@ -217,9 +217,9 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                   }}
                   placeholder="company-name"
                   disabled={isLoading}
-                  className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3"
+                  className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
                   endAdornment={
-                    <span className="text-h6 text-ods-text-secondary whitespace-nowrap select-none">
+                    <span className="select-none whitespace-nowrap text-ods-text-secondary text-h6">
                       .{SAAS_DOMAIN_SUFFIX}
                     </span>
                   }
@@ -238,20 +238,20 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                   }}
                   placeholder="company-name"
                   disabled={isLoading}
-                  className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3"
+                  className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
                 />
               )}
               {isSaasShared && domain.trim() && domainStatus === 'checking' && (
-                <p className="text-h6 text-ods-text-secondary">Checking availability…</p>
+                <p className="text-ods-text-secondary text-h6">Checking availability…</p>
               )}
               {isSaasShared && domain.trim() && domainStatus === 'taken' && (
-                <p className="text-h6 text-ods-error">This domain is already taken. Please try another one.</p>
+                <p className="text-ods-error text-h6">This domain is already taken. Please try another one.</p>
               )}
               {isSaasShared && domain.trim() && domainStatus === 'available' && (
-                <p className="text-h6 text-ods-success">Domain is available</p>
+                <p className="text-ods-success text-h6">Domain is available</p>
               )}
               {domainSuggestions.length > 0 && (
-                <div className="text-h6 text-ods-text-secondary">
+                <div className="text-ods-text-secondary text-h6">
                   <p className="mb-1">Available suggestions:</p>
                   <div className="flex flex-wrap gap-2">
                     {domainSuggestions.map((suggestion, index) => (
@@ -275,7 +275,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
           </div>
 
           {/* Button Row */}
-          <div className="flex gap-6 items-center">
+          <div className="flex items-center gap-6">
             <div className="flex-1"></div>
             <div className="flex-1">
               <Button
@@ -303,12 +303,12 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
       </div>
 
       {/* Already Have an Account Section */}
-      <div className="bg-ods-bg border border-ods-border rounded-sm p-10 relative">
+      <div className="relative rounded-sm border border-ods-border bg-ods-bg p-10">
         <div className="flex flex-col gap-6">
           {/* Header */}
           <div className="flex flex-col gap-2">
-            <h1 className="text-h2 text-ods-text-primary">Already Have an Account?</h1>
-            <p className="text-h4 text-ods-text-secondary">Enter you email to access your organization.</p>
+            <h1 className="text-ods-text-primary text-h2">Already Have an Account?</h1>
+            <p className="text-ods-text-secondary text-h4">Enter you email to access your organization.</p>
           </div>
 
           {/* Email Field */}
@@ -325,16 +325,16 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
               }}
               placeholder="username@mail.com"
               disabled={isLoading}
-              className="bg-ods-card border-ods-border text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary p-3 w-full"
+              className="w-full border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4 placeholder:text-ods-text-secondary"
             />
             {signInEmail.trim() && !isSignInEmailValid && (
-              <p className="text-h6 text-ods-error mt-1">Enter a valid email address</p>
+              <p className="mt-1 text-ods-error text-h6">Enter a valid email address</p>
             )}
           </div>
 
           {/* Button Row with Forgot Password */}
-          <div className="flex gap-6 items-center">
-            <div className="flex-1 flex items-center">
+          <div className="flex items-center gap-6">
+            <div className="flex flex-1 items-center">
               <Button onClick={() => setShowForgotPassword(true)} variant="transparent" className="!w-full md:!w-full">
                 Forgot password?
               </Button>

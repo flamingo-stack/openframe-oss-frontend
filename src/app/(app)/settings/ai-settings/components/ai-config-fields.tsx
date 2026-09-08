@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import {
   RadioGroupBlock,
@@ -50,7 +51,7 @@ export function AiProviderModelFields<T extends AiLogicFormValues & FieldValues>
 
   return (
     <div className="flex flex-row gap-[var(--spacing-system-l)]">
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <Controller
           name="llmProvider"
           control={aiControl}
@@ -71,7 +72,7 @@ export function AiProviderModelFields<T extends AiLogicFormValues & FieldValues>
                   return (
                     <SelectItem key={provider} value={provider}>
                       <span className="flex items-center gap-2">
-                        <Icon className="w-5 h-5" />
+                        <Icon className="h-5 w-5" />
                         {LLM_PROVIDER_LABEL[provider]}
                       </span>
                     </SelectItem>
@@ -83,7 +84,7 @@ export function AiProviderModelFields<T extends AiLogicFormValues & FieldValues>
         />
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <Controller
           name="providerModel"
           control={aiControl}
@@ -127,7 +128,7 @@ export function AiAnswerStyleFields<T extends AiLogicFormValues & FieldValues>({
         control={aiControl}
         render={({ field, fieldState }) => (
           <div className="flex flex-col gap-1">
-            <span className="text-h4 text-ods-text-primary">Answer Style</span>
+            <span className="text-ods-text-primary text-h4">Answer Style</span>
             <RadioGroupBlock
               variant="grouped"
               value={field.value}

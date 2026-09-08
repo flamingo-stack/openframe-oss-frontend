@@ -32,7 +32,9 @@ export function ArchiveArticleModal({ isOpen, onClose, article, sourceConnection
       });
       toast({ title: 'Article archived', description: article.name, variant: 'success' });
       onClose();
-    } catch {}
+    } catch {
+      // The mutation hook already toasts and rejects on failure (see use-archive-article.ts and its siblings). Catching here keeps the rejection from going unhandled and leaves the modal open on the data the user still has, instead of closing it as if the action had succeeded.
+    }
   };
 
   return (
