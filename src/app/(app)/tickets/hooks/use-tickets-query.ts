@@ -9,8 +9,6 @@ import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-qu
 import { type DialogsQueryParams, dialogsQueryKeys } from '../utils/query-keys';
 
 const TICKETS_PAGE_SIZE = 20;
-// Legacy non-archived status set — the default filter when no lifecycle statusIds are available.
-const NON_ARCHIVED_STATUSES = ['ACTIVE', 'TECH_REQUIRED', 'ON_HOLD', 'RESOLVED'];
 
 export function useTicketsQuery({
   archived,
@@ -19,6 +17,7 @@ export function useTicketsQuery({
   organizationIds,
   assigneeIds,
   tagIds,
+  unreadOnly,
   pageSize = TICKETS_PAGE_SIZE,
 }: DialogsQueryParams) {
   const { toast } = useToast();
@@ -37,7 +36,10 @@ export function useTicketsQuery({
     return snapshot?.filter(s => s.kind !== 'ARCHIVED').map(s => s.id);
   }, [archived, statusFilters, statusesQuery.data]);
 
-  const waitingForStatusIds = statusesQuery.isLoading;
+  // There is no enum fallback anymore: until the snapshot resolves ids the
+  // query stays disabled, so a missing snapshot can't send an empty filter
+  // that would leak archived tickets into the list.
+  const waitingForStatusIds = !statusIds?.length;
 
   const query = useInfiniteQuery<TicketsPage, Error>({
     queryKey: dialogsQueryKeys.list({
@@ -48,27 +50,18 @@ export function useTicketsQuery({
       organizationIds,
       assigneeIds,
       tagIds,
+      unreadOnly,
       pageSize,
     }),
     enabled: !waitingForStatusIds,
     queryFn: async ({ pageParam }) => {
-      // `statuses` is the enum fallback; fetchDialogs prefers `statusIds` whenever it's non-empty.
-      // It's only used when the snapshot can't resolve ids (e.g. its fetch errored),
-      // keeping the non-archived list scoped instead of sending an empty filter that leaks archived.
-      let statuses: string[] = [];
-      if (archived) {
-        statuses = ['ARCHIVED'];
-      } else if (!statusIds?.length) {
-        statuses = NON_ARCHIVED_STATUSES;
-      }
-
       return ticketService.fetchDialogs({
-        statuses,
-        statusIds,
+        statusIds: statusIds ?? [],
         search: search || undefined,
         organizationIds: organizationIds?.length ? organizationIds : undefined,
         assigneeIds: assigneeIds?.length ? assigneeIds : undefined,
         tagIds: tagIds?.length ? tagIds : undefined,
+        unreadOnly: unreadOnly || undefined,
         cursor: pageParam as string | undefined,
         limit: pageSize,
       });
@@ -81,15 +74,19 @@ export function useTicketsQuery({
     retryDelay: 1000,
   });
 
+  // A failed snapshot fetch keeps the tickets query disabled, so surface that
+  // error the same way — otherwise the list would just spin forever.
+  const error = query.error ?? statusesQuery.error;
+
   useEffect(() => {
-    if (query.error) {
+    if (error) {
       toast({
         title: 'Failed to Load Tickets',
-        description: query.error.message,
+        description: error.message,
         variant: 'destructive',
       });
     }
-  }, [query.error, toast]);
+  }, [error, toast]);
 
   const dialogs = useMemo(() => query.data?.pages.flatMap(page => page.dialogs) ?? [], [query.data?.pages]);
 
@@ -103,18 +100,30 @@ export function useTicketsQuery({
         organizationIds,
         assigneeIds,
         tagIds,
+        unreadOnly,
         pageSize,
       }),
     });
-  }, [queryClient, archived, search, statusFilters, statusIds, organizationIds, assigneeIds, tagIds, pageSize]);
+  }, [
+    queryClient,
+    archived,
+    search,
+    statusFilters,
+    statusIds,
+    organizationIds,
+    assigneeIds,
+    tagIds,
+    unreadOnly,
+    pageSize,
+  ]);
 
   return {
     dialogs,
-    isLoading: query.isLoading || waitingForStatusIds,
+    isLoading: query.isLoading || (waitingForStatusIds && !statusesQuery.isError),
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage ?? false,
     fetchNextPage: query.fetchNextPage,
-    error: query.error?.message ?? null,
+    error: error?.message ?? null,
     resetToFirstPage,
   };
 }

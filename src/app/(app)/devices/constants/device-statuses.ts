@@ -2,8 +2,9 @@ import type { DeviceFilterInput } from '../types/device.types';
 
 /**
  * Default visible device statuses (excludes ARCHIVED and DELETED).
- * Archived devices live on the dedicated /devices/archive page.
- * Use this constant for all device queries that should show "active" devices only.
+ * Deleted devices live on the dedicated /devices/archive page as read-only
+ * records. Use this constant for all device queries that should show "active"
+ * devices only.
  *
  * NOTE: If new statuses are added to the backend, they must be added here
  * to appear in default views.
@@ -22,6 +23,8 @@ export const DEVICE_STATUS = {
   // silently dropped from queries until the backend adds it to the schema and
   // `schema.graphql` / schema-enums are refreshed. Safe to ship ahead of BE.
   PENDING_DELETION: 'PENDING_DELETION',
+  // No archive action exists anymore — ARCHIVED survives only as a legacy
+  // status on devices archived before the delete/archive rework.
   ARCHIVED: 'ARCHIVED',
   DELETED: 'DELETED',
 } as const;
@@ -35,12 +38,15 @@ export const DEFAULT_VISIBLE_STATUSES = [
   DEVICE_STATUS.PENDING_DELETION,
 ] as const satisfies string[];
 
+// DELETED + legacy ARCHIVED both feed the dashboard's "Archived Devices" card,
+// mirroring what the /devices/archive page lists.
 export const DEFAULT_DASHBOARD_STATUSES = [
   DEVICE_STATUS.ONLINE,
   DEVICE_STATUS.OFFLINE,
   DEVICE_STATUS.PENDING,
   DEVICE_STATUS.PENDING_DELETION,
   DEVICE_STATUS.ARCHIVED,
+  DEVICE_STATUS.DELETED,
 ] as const satisfies string[];
 
 // PENDING is intentionally not part of the default list view — pending
@@ -56,12 +62,13 @@ export const DEFAULT_DEVICES_LIST_STATUSES = [
 
 // Statuses fetched when the device list is used as an enrichment registry
 // (e.g. monitoring query/policy tables mapping fleet hosts → device metadata).
-// Includes ARCHIVED so archived-but-monitored hosts keep their org/OS/image
-// instead of degrading to bare host rows.
+// Includes DELETED (and legacy ARCHIVED) so archived-but-monitored hosts keep
+// their org/OS/image instead of degrading to bare host rows.
 export const DEVICE_ENRICHMENT_STATUSES = [
   DEVICE_STATUS.ONLINE,
   DEVICE_STATUS.OFFLINE,
   DEVICE_STATUS.ARCHIVED,
+  DEVICE_STATUS.DELETED,
 ] as const satisfies string[];
 
 /**

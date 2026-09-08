@@ -11,6 +11,23 @@ import { graphql } from 'react-relay';
  * `mapNotificationNode` reads a generated type instead of a hand-written mirror
  * of what the two documents happened to select.
  *
+ * Two shapes of the same facts are selected side by side, and `mapNotificationNode`
+ * reads exactly one of them — whichever the `notifications-legacy-path` lever selects:
+ *
+ * 1. `type` + `attributes` — the spec-catalog contract (flat `string -> string` map),
+ *    read by default. Entity ids live under fixed keys regardless of the type, so a type
+ *    this release has never heard of still navigates and auto-reads.
+ * 2. `context` — the legacy typed union, read when the lever is on. Kept because it is
+ *    what the backend still writes until the spec path ships, and what it writes again if
+ *    the `notifications.legacy-path` kill-switch is flipped back on. Rows written before
+ *    the backfill migration carry only this.
+ *
+ * Both are selected here even though only one is read, because the lever is a runtime
+ * value and flipping it must not need a new query. Neither is guaranteed on the wire:
+ * `context` is nullable on the new path, `type`/`attributes` are null on legacy rows —
+ * and since the read is exclusive, a row carrying only the unselected shape maps without
+ * type or entity ids rather than falling back (see `mapNotificationNode`).
+ *
  * `context` is a union: Relay flattens the inline fragments into one object
  * keyed by `__typename`, which is exactly what the mapper switches on.
  *
@@ -26,6 +43,8 @@ export const notificationFieldsFragment = graphql`
     createdAt
     read
     category
+    type
+    attributes
     context {
       __typename
       type
@@ -36,6 +55,13 @@ export const notificationFieldsFragment = graphql`
         ticketId
         dialogId
       }
+      # ticketId is aliased: nullable ID on this context (a Fae chat can run without
+      # a ticket) cannot merge with the ID! selections above. The mapper folds it
+      # into meta.ticketId for ticket navigation.
+      ... on ClientAiMessageContext {
+        dialogId
+        clientTicketId: ticketId
+      }
       ... on TicketStatusChangedContext {
         ticketId
       }
@@ -44,6 +70,9 @@ export const notificationFieldsFragment = graphql`
       # different nullability cannot merge into one selection set. Navigation
       # needs only ticketId.
       ... on TicketReopenedContext {
+        ticketId
+      }
+      ... on TicketEscalatedByUserContext {
         ticketId
       }
       ... on TicketAssignedContext {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import {
@@ -10,10 +10,19 @@ import {
   parseMeshCentralLastSeen,
 } from '@/lib/meshcentral/meshcentral-api';
 import { fetchDeviceNode } from '../queries/devices-api';
-import type { Battery, Device, DeviceGraphQlNode, DevicePolicy, MdmInfo, Software, User } from '../types/device.types';
+import type {
+  Battery,
+  Device,
+  DeviceDataSources,
+  DeviceGraphQlNode,
+  DevicePolicy,
+  Software,
+  User,
+} from '../types/device.types';
 import type { FleetHost } from '../types/fleet.types';
 import { toDeviceTags } from '../utils/device-transform';
 import { deviceQueryKeys } from '../utils/query-keys';
+import { getToolConnectionState, isDeviceStillConnecting } from '../utils/tool-connection-status';
 
 /** Collect unique end-user emails from Fleet `end_users` (primary email + other_emails). */
 function collectEndUserEmails(fleetData: FleetHost | null): string[] | undefined {
@@ -37,6 +46,7 @@ function createDevice(
   fleetData: FleetHost | null,
   meshCentralStatus: 'online' | 'offline' | null,
   meshCentralLastSeen: string | null,
+  sources: DeviceDataSources,
 ): Device {
   // Transform Fleet software to unified Software type
   const software: Software[] =
@@ -98,21 +108,6 @@ function createDevice(
       shell: fu.shell,
       isLoggedIn: fu.type === 'person',
     })) || [];
-
-  // Transform Fleet MDM to unified MDMInfo type
-  const mdm: MdmInfo | undefined = fleetData?.mdm
-    ? {
-        enrollment_status: fleetData.mdm.enrollment_status,
-        server_url: fleetData.mdm.server_url,
-        name: fleetData.mdm.name,
-        encryption_key_available: fleetData.mdm.encryption_key_available,
-        device_status: fleetData.mdm.device_status,
-        pending_action: fleetData.mdm.pending_action,
-        connected_to_fleet: fleetData.mdm.connected_to_fleet,
-        dep_profile_error: fleetData.mdm.dep_profile_error,
-        profiles_count: Array.isArray(fleetData.mdm.profiles) ? fleetData.mdm.profiles.length : undefined,
-      }
-    : undefined;
 
   // Helper to check if IP is private
   const isPrivateIp = (ip: string): boolean => {
@@ -239,9 +234,6 @@ function createDevice(
     users,
     policies,
 
-    // MDM Info
-    mdm,
-
     // Organization
     organizationId: node.organization?.organizationId,
     organization: node.organization?.name,
@@ -282,6 +274,7 @@ function createDevice(
 
     // Fleet-derived metadata (already in the host payload)
     software_updated_at: fleetData?.software_updated_at,
+    sources,
     fleetTeamName: fleetData?.team_name || undefined,
     fleetTeamId: fleetData?.team_id,
     // Drop Fleet's builtin auto-labels ("All Hosts", "macOS", …) — keep meaningful (regular) ones.
@@ -313,30 +306,44 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
   // 1) Fetch primary device from the shared device query layer
   const node = await fetchDeviceNode(machineId);
 
-  // 2.5) Fetch Fleet MDM details if present
+  // 2.5) Fetch Fleet MDM details — only for a live connection: a pending row has no
+  // host to fetch yet, and a DISCONNECTED row may carry a stale host id.
   const fleet = node.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');
-  let fleetData: any | null = null;
-  if (fleet?.agentToolId) {
+  const fleetState = getToolConnectionState(fleet);
+  let fleetData: FleetHost | null = null;
+  let fleetSource: DeviceDataSources['fleet'];
+  if (fleetState === 'pending') {
+    fleetSource = 'skipped-pending';
+  } else if (fleetState === 'disconnected') {
+    fleetSource = 'skipped-disconnected';
+  } else {
     // Validate that agentToolId is a valid numeric string before calling Fleet API
-    const fleetHostId = Number(fleet.agentToolId);
+    const fleetHostId = Number(fleet?.agentToolId);
     if (Number.isInteger(fleetHostId) && fleetHostId > 0) {
       const fResponse = await fleetApiClient.getHost(fleetHostId);
       if (fResponse.ok && fResponse.data?.host) {
         fleetData = fResponse.data.host;
+        fleetSource = 'ok';
+      } else {
+        // ok-but-no-host (deleted from Fleet) and transport/HTTP failures alike:
+        // without this the tabs would read "no data" as "genuinely empty".
+        fleetSource = 'error';
       }
     } else {
-      console.warn(`Invalid Fleet host ID format: "${fleet.agentToolId}" - expected numeric ID`);
+      console.warn(`Invalid Fleet host ID format: "${fleet?.agentToolId}" - expected numeric ID`);
+      fleetSource = 'error';
     }
   }
 
-  // 2.6) Fetch MeshCentral deviceinfo (Agent status, Last agent connection)
-  // On error or parse failure: treat as offline, no lastSeen — don't fail whole device load
+  // 2.6) Fetch MeshCentral deviceinfo (Agent status, Last agent connection) — same
+  // live-only gate as Fleet. On error or parse failure: treat as offline, no
+  // lastSeen — don't fail whole device load.
   const mesh = node.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL');
   let meshCentralStatus: 'online' | 'offline' | null = null;
   let meshCentralLastSeen: string | null = null;
-  if (mesh?.agentToolId) {
+  if (getToolConnectionState(mesh) === 'live') {
     try {
-      const meshInfo = await getMeshCentralDeviceInfo(mesh.agentToolId);
+      const meshInfo = await getMeshCentralDeviceInfo(mesh?.agentToolId ?? '');
       meshCentralStatus = parseMeshCentralDeviceStatus(meshInfo);
       meshCentralLastSeen = parseMeshCentralLastSeen(meshInfo);
     } catch {
@@ -345,7 +352,7 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
   }
 
   // 3) Create Device object directly - no normalization
-  return createDevice(node, fleetData, meshCentralStatus, meshCentralLastSeen);
+  return createDevice(node, fleetData, meshCentralStatus, meshCentralLastSeen, { fleet: fleetSource });
 }
 
 interface UseDeviceDetailsOptions {
@@ -359,17 +366,17 @@ export function useDeviceDetails(machineId: string | null | undefined, options?:
 
   const query = useQuery({
     queryKey: deviceQueryKeys.detail(machineId ?? ''),
-    queryFn: () => fetchDeviceDetails(machineId!),
-    enabled: !!machineId,
+    queryFn: machineId ? () => fetchDeviceDetails(machineId) : skipToken,
     staleTime: 3_000,
     retry: 1,
     retryDelay: 1_000,
     refetchInterval: polling
-      ? query => {
-          const data = query.state.data as Device | undefined;
+      ? liveQuery => {
+          const data = liveQuery.state.data as Device | undefined;
           if (!data) return false;
-          const meshcentralAgentId = data.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL')?.agentToolId;
-          return meshcentralAgentId ? 10_000 : 5_000;
+          // Fast-poll while an agent registration is still pending so the pending →
+          // connected transition lands quickly; settle to 10s once everything is live.
+          return isDeviceStillConnecting(data) ? 5_000 : 10_000;
         }
       : false,
   });

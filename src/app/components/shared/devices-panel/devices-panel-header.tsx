@@ -21,8 +21,8 @@ import { routes } from '@/lib/routes';
 
 /** The table/grid switch. Fed by the `viewMode` URL param, so it needs no data. */
 export const DEVICE_VIEW_MODE_ITEMS = [
-  { id: 'table', icon: <TableCellIcon className="w-6 h-6" /> },
-  { id: 'grid', icon: <GridIcon className="w-6 h-6" /> },
+  { id: 'table', icon: <TableCellIcon className="h-6 w-6" /> },
+  { id: 'grid', icon: <GridIcon className="h-6 w-6" /> },
 ];
 
 export interface DevicePanelActionsOptions {
@@ -70,7 +70,7 @@ export function buildDevicePanelActions({
       // A disabled `href` still renders a live link, so the loading copy carries
       // no destination at all rather than a navigable one it cannot honour.
       ...(disabled ? { disabled: true } : { href: archiveHref }),
-      icon: <BoxArchiveIcon className="w-5 h-5 text-ods-text-secondary" />,
+      icon: <BoxArchiveIcon className="h-5 w-5 text-ods-text-secondary" />,
       variant: 'outline',
     });
   }
@@ -83,7 +83,7 @@ export function buildDevicePanelActions({
     result.push({
       label: 'Add Customer',
       ...(disabled ? { disabled: true } : { href: routes.customers.new }),
-      icon: <PlusCircleIcon className="w-5 h-5 text-ods-text-secondary" />,
+      icon: <PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />,
       variant: 'outline',
     });
   }
@@ -92,7 +92,7 @@ export function buildDevicePanelActions({
     label: 'Add Device',
     onClick: disabled ? undefined : onAddDevice,
     disabled: disabled || noOrganizations || isCheckingOrganizations,
-    icon: <PlusCircleIcon className={`w-5 h-5 ${accent ? 'text-ods-text-on-accent' : 'text-ods-text-secondary'}`} />,
+    icon: <PlusCircleIcon className={`h-5 w-5 ${accent ? 'text-ods-text-on-accent' : 'text-ods-text-secondary'}`} />,
     variant: accent ? 'accent' : 'outline',
   });
 

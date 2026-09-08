@@ -10,8 +10,7 @@ import type {
 
 const createArticleMutation = graphql`
   mutation useCreateArticleMutation($input: CreateArticleInput!, $connections: [ID!]!) {
-    createArticle(input: $input)
-      @appendNode(connections: $connections, edgeTypeName: "KnowledgeBaseItemEdge") {
+    createArticle(input: $input) @appendNode(connections: $connections, edgeTypeName: "KnowledgeBaseItemEdge") {
       id
       type
       name

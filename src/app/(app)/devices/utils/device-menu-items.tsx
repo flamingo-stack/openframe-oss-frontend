@@ -74,13 +74,13 @@ function iconClass(ctx: DeviceMenuItemContext): string {
 }
 
 const WINDOWS_SHELLS = [
-  { id: 'cmd', label: 'CMD', icon: <TerminalIcon className="w-6 h-6 text-ods-text-secondary" /> },
+  { id: 'cmd', label: 'CMD', icon: <TerminalIcon className="h-6 w-6 text-ods-text-secondary" /> },
   // The logo fills with `currentColor`, so with no text color it inherited the row's
   // primary and read as a solid white badge next to CMD's muted outline glyph.
   {
     id: 'powershell',
     label: 'PowerShell',
-    icon: <PowershellLogoGreyIcon className="w-6 h-6 text-ods-text-secondary" />,
+    icon: <PowershellLogoGreyIcon className="h-6 w-6 text-ods-text-secondary" />,
   },
 ] as const;
 

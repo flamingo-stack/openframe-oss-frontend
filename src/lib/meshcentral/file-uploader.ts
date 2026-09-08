@@ -233,8 +233,12 @@ export class FileUploader {
 
     const sent = this.sendMessage?.(payload);
     if (!sent) {
+      // Socket back-pressure: wait a beat and re-send the SAME chunk. `await`
+      // rather than `return` the recursion — the method resolves to nothing, and
+      // returning the inner promise made one exit look like it carried a value.
       await new Promise(resolve => setTimeout(resolve, 25));
-      return this.sendNextChunk(uploadId);
+      await this.sendNextChunk(uploadId);
+      return;
     }
 
     task.pendingBytes = end - start;

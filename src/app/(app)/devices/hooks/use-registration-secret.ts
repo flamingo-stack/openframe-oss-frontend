@@ -14,11 +14,11 @@ export function useRegistrationSecret() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get('/api/agent/registration-secret/active');
+      const response = await apiClient.get<{ key?: string }>('/api/agent/registration-secret/active');
       if (!response.ok) {
         throw new Error(response.error || `Request failed with status ${response.status}`);
       }
-      const { key } = response.data;
+      const key = response.data?.key;
       if (!key) {
         throw new Error('Active registration secret not found in response');
       }

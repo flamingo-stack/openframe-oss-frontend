@@ -1,29 +1,15 @@
 'use client';
 
 import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
-  type Modifier,
-  PointerSensor,
-  type ScreenReaderInstructions,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+  SortableList,
+  SortableMoveButtons,
+  useSortableItem,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DraggerIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Checkbox, Input, Label, ModalV2Title } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useEffect, useId, useState } from 'react';
+import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import {
   buildCombo,
@@ -34,14 +20,6 @@ import {
   type ShortcutModifier,
 } from './remote-shortcuts';
 
-const restrictToVerticalAxis: Modifier = ({ transform }) => ({ ...transform, x: 0 });
-
-const dragInstructions: ScreenReaderInstructions = {
-  draggable:
-    'To reorder this shortcut, press Space or Enter to pick it up, then Arrow Up / Arrow Down to move it. ' +
-    'Press Space or Enter again to drop it, or Escape to cancel.',
-};
-
 const MODIFIER_LABELS: Record<ShortcutModifier, string> = {
   shift: 'Shift',
   alt: 'Alt',
@@ -51,42 +29,44 @@ const MODIFIER_LABELS: Record<ShortcutModifier, string> = {
 
 interface ShortcutRowProps {
   shortcut: RemoteShortcut;
+  index: number;
+  count: number;
   onRemove: () => void;
 }
 
-function ShortcutRow({ shortcut, onRemove }: ShortcutRowProps) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: shortcut.id,
-  });
+function ShortcutRow({ shortcut, index, count, onRemove }: ShortcutRowProps) {
+  const { itemRef, dragHandleProps, isDragging, dragAndDropEnabled } = useSortableItem();
+  const label = comboLabel(shortcut.combo);
 
   return (
     <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      ref={itemRef}
       className={cn(
         'flex items-center gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-sf)]',
         'border-b border-ods-border bg-ods-bg last:border-b-0',
         isDragging && 'relative z-10 opacity-80',
       )}
     >
-      <button
-        type="button"
-        ref={setActivatorNodeRef}
-        {...attributes}
-        {...listeners}
-        aria-label={`Reorder ${comboLabel(shortcut.combo)}`}
-        className="cursor-grab text-ods-text-secondary hover:text-ods-text-primary active:cursor-grabbing"
-      >
-        <DraggerIcon className="w-6 h-6" />
-      </button>
-      <span className="flex-1 min-w-0 truncate text-h4 text-ods-text-primary">{comboLabel(shortcut.combo)}</span>
+      {dragAndDropEnabled ? (
+        <button
+          type="button"
+          {...dragHandleProps}
+          aria-label={`Reorder ${label}`}
+          className="cursor-grab text-ods-text-secondary hover:text-ods-text-primary active:cursor-grabbing"
+        >
+          <DraggerIcon className="h-6 w-6" />
+        </button>
+      ) : (
+        <SortableMoveButtons index={index} count={count} label={label} />
+      )}
+      <span className="min-w-0 flex-1 truncate text-ods-text-primary text-h4">{label}</span>
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`Delete ${comboLabel(shortcut.combo)}`}
+        aria-label={`Delete ${label}`}
         className="text-ods-error hover:opacity-80"
       >
-        <TrashIcon className="w-6 h-6" />
+        <TrashIcon className="h-6 w-6" />
       </button>
     </div>
   );
@@ -101,32 +81,19 @@ interface ShortcutsSettingsModalProps {
 
 export function ShortcutsSettingsModal({ open, onOpenChange, shortcuts, onSave }: ShortcutsSettingsModalProps) {
   const { toast } = useToast();
-  const dndId = useId();
 
+  // The caller mounts this component only while the modal is open, so the
+  // working copy seeds from props on mount and edits stay local until Save.
   const [draft, setDraft] = useState<RemoteShortcut[]>(shortcuts);
   const [modifiers, setModifiers] = useState<ShortcutModifier[]>([]);
   const [keyInput, setKeyInput] = useState('');
 
-  // Re-seed the working copy each time the modal opens; edits stay local until Save.
-  useEffect(() => {
-    if (open) {
-      setDraft(shortcuts);
-      setModifiers([]);
-      setKeyInput('');
-    }
-  }, [open, shortcuts]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return;
+  const handleReorder = (from: number, to: number) => {
     setDraft(current => {
-      const from = current.findIndex(s => s.id === active.id);
-      const to = current.findIndex(s => s.id === over.id);
-      return from === -1 || to === -1 ? current : arrayMove(current, from, to);
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
     });
   };
 
@@ -183,30 +150,25 @@ export function ShortcutsSettingsModal({ open, onOpenChange, shortcuts, onSave }
       }
     >
       {draft.length > 0 && (
-        <div className="rounded-[6px] border border-ods-border bg-ods-bg overflow-hidden">
-          <DndContext
-            id={dndId}
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            modifiers={[restrictToVerticalAxis]}
-            onDragEnd={handleDragEnd}
-            accessibility={{ screenReaderInstructions: dragInstructions }}
-          >
-            <SortableContext items={draft.map(s => s.id)} strategy={verticalListSortingStrategy}>
-              {draft.map(shortcut => (
-                <ShortcutRow
-                  key={shortcut.id}
-                  shortcut={shortcut}
-                  onRemove={() => setDraft(current => current.filter(s => s.id !== shortcut.id))}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        </div>
+        <SortableList
+          onReorder={handleReorder}
+          getItemLabel={index => (draft[index] ? comboLabel(draft[index].combo) : undefined)}
+          className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-bg"
+        >
+          {draft.map((shortcut, index) => (
+            <ShortcutRow
+              key={shortcut.id}
+              shortcut={shortcut}
+              index={index}
+              count={draft.length}
+              onRemove={() => setDraft(current => current.filter(s => s.id !== shortcut.id))}
+            />
+          ))}
+        </SortableList>
       )}
 
       <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-        <p className="text-h5 text-ods-text-secondary">Add New Shortcut</p>
+        <p className="text-ods-text-secondary text-h5">Add New Shortcut</p>
         <div className="flex flex-col gap-[var(--spacing-system-xs)] rounded-[6px] border border-ods-border bg-ods-bg p-[var(--spacing-system-m)]">
           <div className="flex overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
             {SHORTCUT_MODIFIERS.map((modifier, index) => (
@@ -214,7 +176,7 @@ export function ShortcutsSettingsModal({ open, onOpenChange, shortcuts, onSave }
                 key={modifier}
                 htmlFor={`shortcut-mod-${modifier}`}
                 className={cn(
-                  'flex flex-1 min-w-0 cursor-pointer items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-sf)]',
+                  'flex min-w-0 flex-1 cursor-pointer items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-sf)]',
                   index < SHORTCUT_MODIFIERS.length - 1 && 'border-r border-ods-border',
                 )}
               >
@@ -223,12 +185,12 @@ export function ShortcutsSettingsModal({ open, onOpenChange, shortcuts, onSave }
                   checked={modifiers.includes(modifier)}
                   onCheckedChange={checked => toggleModifier(modifier, !!checked)}
                 />
-                <span className="truncate text-h4 text-ods-text-primary">{MODIFIER_LABELS[modifier]}</span>
+                <span className="truncate text-ods-text-primary text-h4">{MODIFIER_LABELS[modifier]}</span>
               </label>
             ))}
           </div>
           <div className="flex items-end gap-[var(--spacing-system-xs)]">
-            <div className="flex flex-1 min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
+            <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
               <Label htmlFor="shortcut-key">Key</Label>
               <Input
                 id="shortcut-key"

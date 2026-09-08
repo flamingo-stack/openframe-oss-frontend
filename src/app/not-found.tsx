@@ -28,34 +28,67 @@ const LEGACY_ID_ROUTES = [
   '/scripts/details/{id}',
   '/scripts/details/{id}/run',
   '/scripts/edit/{id}',
+  '/scripts/executions/{id}',
   '/scripts/schedules/{id}',
   '/scripts/schedules/{id}/edit',
   '/scripts/schedules/{id}/devices',
-  '/scripts-v2/details/{id}',
-  '/scripts-v2/details/{id}/run',
-  '/scripts-v2/edit/{id}',
-  '/scripts-v2/executions/{id}',
   '/settings/employees/details/{id}',
 ];
 
 /**
- * Routes renamed by the create → `/new` alignment. The `/edit/new` entries
+ * Routes that moved or were removed outright. The `/edit/new` entries
  * catch pre-migration path-param create links directly — without them those
  * would match the `{id}` patterns below with id='new' and depend on the edit
  * pages' `?id=new` compat redirect, adding a hop and coupling this table to
  * that sentinel.
  */
 const LEGACY_RENAMED_ROUTES: Record<string, string> = {
+  // Second step of the old two-step signup. Signup is one screen now and the route is gone; a
+  // direct visit already bounced to /auth back when it existed, since it needed org details a
+  // previous screen had put in sessionStorage.
+  '/auth/signup': '/auth',
   '/scripts/create': '/scripts/new',
-  '/scripts-v2/create': '/scripts-v2/new',
   '/scripts/schedules/create': '/scripts/schedules/new',
   '/customers/edit/new': '/customers/new',
   '/monitoring/policy/edit/new': '/monitoring/policy/new',
   '/monitoring/query/edit/new': '/monitoring/query/new',
 };
 
+/**
+ * `/scripts-v2` is where the Scripts module sat while it was behind the
+ * `scripts-v2` feature flag. The flag is gone and the module IS `/scripts` now,
+ * so everything under the old prefix moves across unchanged.
+ */
+function dropV2Prefix(path: string): string {
+  return path === '/scripts-v2' || path.startsWith('/scripts-v2/') ? path.replace('/scripts-v2', '/scripts') : path;
+}
+
+/**
+ * Corrections for the two patterns the rename made ambiguous.
+ *
+ * `target` — `/scripts/schedules` used to BE the schedule detail page; it is the
+ * LIST now, so the derived target would drop the reader on a list instead of the
+ * record they linked to.
+ *
+ * `reserved` — a `{id}` pattern matches by SEGMENT COUNT, so once `dropV2Prefix`
+ * strips the prefix, `/scripts-v2/schedules/edit?id=abc` normalizes onto
+ * `/scripts/schedules/{id}` and reads "edit" as the id, losing the record. These
+ * segments are sub-routes, never ids.
+ */
+const LEGACY_ID_OVERRIDES: Record<string, { target?: string; reserved?: readonly string[] }> = {
+  '/scripts/details/{id}': { reserved: ['run'] },
+  '/scripts/schedules/{id}': {
+    target: '/scripts/schedules/details',
+    reserved: ['archived', 'details', 'devices', 'edit', 'new', 'run'],
+  },
+};
+
 function remapLegacyPath(pathname: string, search: string): string | null {
-  const normalizedPath = pathname.replace(/\/+$/, '');
+  const strippedPath = pathname.replace(/\/+$/, '');
+  // Before the tables, so a pre-rename path-param link (`/scripts-v2/details/abc`)
+  // reaches `/scripts/details/?id=abc` in ONE redirect instead of bouncing through
+  // an intermediate `/scripts-v2` -> `/scripts` hop.
+  const normalizedPath = dropV2Prefix(strippedPath);
 
   const renamed = LEGACY_RENAMED_ROUTES[normalizedPath];
   if (renamed) return `${renamed}/${search}`;
@@ -84,11 +117,15 @@ function remapLegacyPath(pathname: string, search: string): string | null {
       }
     }
     if (!matches || !id) continue;
+    const override = LEGACY_ID_OVERRIDES[pattern];
+    if (override?.reserved?.includes(id)) continue;
     const params = new URLSearchParams(search);
     params.set('id', id);
-    return `${targetSegments.join('/')}/?${params.toString()}`;
+    return `${override?.target ?? targetSegments.join('/')}/?${params.toString()}`;
   }
-  return null;
+
+  // No id pattern matched, but the path itself moved — send it to its new home.
+  return normalizedPath === strippedPath ? null : `${normalizedPath}/${search}`;
 }
 
 export default function NotFound() {

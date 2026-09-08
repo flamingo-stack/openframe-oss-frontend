@@ -74,7 +74,7 @@ export function useTicketsActions({
         label: 'New Ticket',
         onClick: handleNewTicket,
         variant: 'outline',
-        icon: <PlusCircleIcon className="w-5 h-5 text-ods-text-secondary" />,
+        icon: <PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />,
       },
     ];
   }, [enabled, handleNewTicket]);

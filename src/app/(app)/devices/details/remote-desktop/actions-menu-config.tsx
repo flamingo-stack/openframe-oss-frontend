@@ -1,4 +1,4 @@
-import { ActionsMenuGroup } from '@flamingo-stack/openframe-frontend-core';
+import type { ActionsMenuGroup } from '@flamingo-stack/openframe-frontend-core';
 import { Keyboard, Moon, Power, RotateCcw, Settings, Sunrise } from 'lucide-react';
 import { comboLabel, type RemoteShortcut } from './remote-shortcuts';
 
@@ -27,13 +27,13 @@ export const createActionsMenuGroups = (
       {
         id: 'apply-shortcut',
         label: 'Apply Shortcut',
-        icon: <Keyboard className="w-6 h-6" />,
+        icon: <Keyboard className="h-6 w-6" />,
         type: 'submenu',
         submenu: [
           {
             id: 'manage-shortcuts',
             label: 'Manage Shortcuts',
-            icon: <Settings className="w-6 h-6" />,
+            icon: <Settings className="h-6 w-6" />,
             onClick: () => {
               handlers.openShortcutsManager();
             },
@@ -55,7 +55,7 @@ export const createActionsMenuGroups = (
       {
         id: 'wake-up',
         label: 'Wake up',
-        icon: <Sunrise className="w-6 h-6" />,
+        icon: <Sunrise className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('wake');
         },
@@ -63,7 +63,7 @@ export const createActionsMenuGroups = (
       {
         id: 'sleep',
         label: 'Sleep',
-        icon: <Moon className="w-6 h-6" />,
+        icon: <Moon className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('sleep');
         },
@@ -71,7 +71,7 @@ export const createActionsMenuGroups = (
       {
         id: 'reboot',
         label: 'Reboot',
-        icon: <RotateCcw className="w-6 h-6" />,
+        icon: <RotateCcw className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('reset');
         },
@@ -79,7 +79,7 @@ export const createActionsMenuGroups = (
       {
         id: 'shut-down',
         label: 'Shut Down',
-        icon: <Power className="w-6 h-6" />,
+        icon: <Power className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('poweroff');
         },

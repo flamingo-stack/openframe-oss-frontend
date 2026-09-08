@@ -2,5 +2,51 @@
   "search.exclude": {
     "**/dist": true,
     "**/.next": true
-  }
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  // Format on save + ESLint autofix on save, as one action. Having only
+  // formatOnSave is what produced "I save, it reformats, but the warning stays"
+  // in the old Biome setup: a formatter never applies linter fixes.
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  // Object form, not the deprecated array form: VS Code has warned on the array
+  // shape since 1.85 and will drop it.
+  "editor.codeActionsOnSave": { "source.fixAll.eslint": "explicit" },
+
+  // Import order is an ESLint rule (perfectionist/sort-imports), not a
+  // formatter concern, so `source.fixAll.eslint` above already sorts imports on
+  // save. Do NOT add an organize-imports action here — VS Code's own
+  // `source.organizeImports` uses the TypeScript server's ordering, which
+  // disagrees with the rule and the two would fight on every save.
+
+  // The editor loads eslint.config.mjs — the fast pass. The type-aware rules
+  // live in eslint.types.mjs and are deliberately not run here: they need a
+  // TypeScript program and an 8 GB heap. Run `npm run lint:types` before pushing.
+  "eslint.useFlatConfig": true,
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+  "eslint.problems.shortenToSingleLine": true,
+
+  // Off, and load-bearing: with `eslint.format.enable` on (it is on in at least
+  // one machine's user settings here) the ESLint extension registers itself as a
+  // document formatter, and then "Format Document" runs `eslint --fix` instead of
+  // Prettier. In this repo that formats NOTHING — the shared config spreads
+  // eslint-config-prettier last, which turns every stylistic rule off by design.
+  // The result looks exactly like format-on-save being broken. Fixes still run,
+  // via `source.fixAll.eslint` above; only the formatter role is taken away.
+  "eslint.format.enable": false,
+
+  // Biome is gone (2026-09-01). Left explicitly off so a globally installed
+  // Biome extension does not keep formatting this workspace against a config
+  // file that no longer exists.
+  "biome.enabled": false,
+
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[javascript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[javascriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[jsonc]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[css]": { "editor.defaultFormatter": "esbenp.prettier-vscode" }
 }

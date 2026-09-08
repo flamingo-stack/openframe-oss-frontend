@@ -1,102 +1,33 @@
-import type { productSubscriptionCardProductFragment$data } from '@/__generated__/productSubscriptionCardProductFragment.graphql';
-import type { productSubscriptionCardSubscriptionFragment$data } from '@/__generated__/productSubscriptionCardSubscriptionFragment.graphql';
 import type { ProductCheckoutInput } from '../hooks/use-create-checkout-session';
 import type { PackageUpdateInput } from '../hooks/use-update-subscription';
-import type { BillingPeriod, PlanComparison, PlanLine, ProductSelectionState } from '../types/subscription.types';
+import type {
+  BillingPeriod,
+  CatalogProduct,
+  OpenframeProduct,
+  ProductSelectionState,
+  SubscriptionProductState,
+} from '../types/subscription.types';
 
 export const CUSTOM_OPTION_ID = '__custom__';
 export const PAYG_OPTION_ID = '__payg__';
 
-type ProductData = productSubscriptionCardProductFragment$data;
-type SubscriptionProductData = productSubscriptionCardSubscriptionFragment$data;
-
-export function formatMoney(value: number): string {
-  return value.toLocaleString('en-US', { maximumFractionDigits: 0 });
-}
-
-/** Compact count: 100000000 → "100M", 100000 → "100K", 100 → "100". */
-export function formatCompact(value: number): string {
-  return value.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 });
-}
+// Structural shapes (see subscription.types.ts): every helper here is fed by two
+// different Relay fragments, whose generated types are branded and therefore
+// mutually unassignable.
+type ProductData = CatalogProduct;
+type SubscriptionProductData = SubscriptionProductState;
 
 /**
- * Topmost selectable radio for a billing period: PAYG sits first when present
- * (any period); otherwise the first tier; otherwise Custom.
+ * The catalog's product name, as the mutation inputs take it.
+ *
+ * Read back out of Relay data it is widened with `"%future added value"` (see
+ * `FromRelay` in the types module), while the INPUT enums carry no such member —
+ * a server that adds a product cannot make an old client send one. Narrowed once
+ * here rather than at each call site: this name came from the very catalog the
+ * input is addressed to, so it is a member by construction.
  */
-export function topmostSelectionId(product: ProductData, period: BillingPeriod): string {
-  if (product.payAsYouGoOption) return PAYG_OPTION_ID;
-  const periodOption = product.packageOptions.find(o => o.billingPeriod === period) ?? product.packageOptions[0];
-  const tiers = periodOption?.priceTiers?.slice(1) ?? [];
-  return tiers.length > 0 ? String(tiers[0].from) : CUSTOM_OPTION_ID;
-}
-
-interface PriceTierInput {
-  readonly from: number;
-  readonly upTo?: number | null;
-  readonly unitPrice: number;
-}
-
-export function calculateCustomQuantityPrice(
-  quantity: number,
-  allTiers: readonly PriceTierInput[],
-  baselineUnitPrice: number | null,
-  months: number,
-): { total: number; discountPercent: number } | null {
-  if (!Number.isFinite(quantity) || quantity <= 0 || allTiers.length === 0) return null;
-  const applicable =
-    allTiers.find(t => quantity >= t.from && (t.upTo == null || quantity <= t.upTo)) ?? allTiers[allTiers.length - 1];
-  if (!applicable) return null;
-  const total = quantity * applicable.unitPrice * months;
-  const discountPercent = baselineUnitPrice ? Math.round((1 - applicable.unitPrice / baselineUnitPrice) * 100) : 0;
-  return { total, discountPercent };
-}
-
-export function formatPaygSubtitle(
-  option: { description?: string | null; name?: string | null } | null | undefined,
-): string {
-  if (!option) return '';
-  const { description, name } = option;
-  if (description && name) return `${description} (${name})`;
-  return description ?? name ?? '';
-}
-
-export function buildInitialSelection(
-  product: ProductData,
-  subscriptionProduct: SubscriptionProductData | null,
-): ProductSelectionState {
-  const activePackage = subscriptionProduct?.packageOptions.find(opt => opt.status === 'ACTIVE');
-  const availablePeriods = new Set(product.packageOptions.map(opt => opt.billingPeriod).filter(Boolean));
-  const fallbackPeriod = product.packageOptions[0]?.billingPeriod ?? 'YEARLY';
-  const desiredPeriod = activePackage?.billingPeriod ?? fallbackPeriod;
-  const billingPeriod = (availablePeriods.has(desiredPeriod) ? desiredPeriod : fallbackPeriod) as BillingPeriod;
-
-  const matchingProductOption =
-    product.packageOptions.find(opt => opt.billingPeriod === billingPeriod) ?? product.packageOptions[0];
-  const tiers = matchingProductOption?.priceTiers?.slice(1) ?? [];
-  const activeQuantity = activePackage?.quantity ?? null;
-  const matchedTier = activeQuantity != null ? tiers.find(t => t.from === activeQuantity) : null;
-
-  let selectedPackageId: string;
-  let customQuantity: number | null = null;
-  if (subscriptionProduct?.paygOnly) {
-    // Backend says this product only supports PAYG — no tier/custom choice.
-    selectedPackageId = PAYG_OPTION_ID;
-  } else if (matchedTier) {
-    selectedPackageId = String(matchedTier.from);
-  } else if (activeQuantity != null) {
-    selectedPackageId = CUSTOM_OPTION_ID;
-    customQuantity = activeQuantity;
-  } else {
-    // No active tier/custom package: default to PAYG (current PAYG state, or soft-default for trial/no-plan users).
-    selectedPackageId = PAYG_OPTION_ID;
-  }
-
-  return {
-    payAsYouGoEnabled: selectedPackageId === PAYG_OPTION_ID,
-    billingPeriod,
-    selectedPackageId,
-    customQuantity,
-  };
+function inputProductName(product: ProductData): OpenframeProduct {
+  return product.name as OpenframeProduct;
 }
 
 /**
@@ -173,7 +104,9 @@ export function diffPackageUpdates(
   const wantsPayg = currentSelection.selectedPackageId === PAYG_OPTION_ID;
 
   if (wantsPayg) {
-    return activeCancelId ? [{ productName: product.name, packageOptionId: activeCancelId, action: 'CANCEL' }] : [];
+    return activeCancelId
+      ? [{ productName: inputProductName(product), packageOptionId: activeCancelId, action: 'CANCEL' }]
+      : [];
   }
 
   const nextPackageId = committedOptionId(product, currentSelection.billingPeriod);
@@ -191,28 +124,12 @@ export function diffPackageUpdates(
   }
 
   if (nextPackageId && nextQuantity) {
-    return [{ productName: product.name, packageOptionId: nextPackageId, action: 'ADD', quantity: nextQuantity }];
+    return [
+      { productName: inputProductName(product), packageOptionId: nextPackageId, action: 'ADD', quantity: nextQuantity },
+    ];
   }
 
   return [];
-}
-
-/**
- * Whether a product's selection differs from its current commitment — drives the
- * visibility of the Current/New plan-change summary. Deliberately independent of
- * `diffPackageUpdates`: the summary is a visual preview, so any valid selection
- * that differs from today should show it, even in catalog edge-cases where the
- * change can't yet be expressed as a `PackageUpdateInput`. An invalid/empty
- * custom amount (`next.quantity == null`) is not a change.
- */
-export function isPlanChanged({ current, next }: PlanComparison): boolean {
-  const nextValid = next.payg || next.quantity != null;
-  if (!nextValid) return false;
-  if (!current) return !next.payg;
-  if (current.payg !== next.payg) return true;
-  if (next.payg) return false;
-  if (current.billingPeriod !== next.billingPeriod) return true;
-  return (current.quantity ?? null) !== (next.quantity ?? null);
 }
 
 /**
@@ -225,7 +142,7 @@ export function buildCheckoutProduct(
   currentSelection: ProductSelectionState,
 ): ProductCheckoutInput {
   if (currentSelection.selectedPackageId === PAYG_OPTION_ID) {
-    return { productName: product.name, payAsYouGoEnabled: true };
+    return { productName: inputProductName(product), payAsYouGoEnabled: true };
   }
 
   let quantity: number | null = null;
@@ -237,85 +154,9 @@ export function buildCheckoutProduct(
   }
 
   return {
-    productName: product.name,
+    productName: inputProductName(product),
     packageOptionId: committedOptionId(product, currentSelection.billingPeriod),
     quantity,
     payAsYouGoEnabled: true,
   };
-}
-
-/** Selected committed quantity in real product counts (null for PAYG / empty Custom). */
-function selectionQuantity(product: ProductData, selection: ProductSelectionState): number | null {
-  if (selection.selectedPackageId === PAYG_OPTION_ID) return null;
-  if (selection.selectedPackageId === CUSTOM_OPTION_ID) return validCustomQuantity(product, selection.customQuantity);
-  if (selection.selectedPackageId) {
-    const parsed = Number.parseInt(selection.selectedPackageId, 10);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-/**
- * Annualized committed cost for `quantity` real product counts against `tiers`.
- * `priceTier.unitPrice` is per product per month, so a year is always × 12 — the
- * yearly discount is already baked into the yearly period's tiers.
- */
-function annualizedPackagePrice(
-  quantity: number | null,
-  tiers: readonly PriceTierInput[] | null | undefined,
-): number | null {
-  if (quantity == null || quantity <= 0 || !tiers || tiers.length === 0) return null;
-  const applicable =
-    tiers.find(t => quantity >= t.from && (t.upTo == null || quantity <= t.upTo)) ?? tiers[tiers.length - 1];
-  if (!applicable) return null;
-  return quantity * applicable.unitPrice * 12;
-}
-
-function tiersForPeriod(product: ProductData, period: BillingPeriod | null): readonly PriceTierInput[] {
-  const option = product.packageOptions.find(opt => opt.billingPeriod === period) ?? product.packageOptions[0];
-  return option?.priceTiers ?? [];
-}
-
-/**
- * Current vs selected plan for the Current/New summary block. Prices are derived
- * from the catalog tiers (the subscription fragment has no price tiers), so a
- * current committed package is priced against the catalog option for its period.
- */
-export function buildPlanComparison(
-  product: ProductData,
-  selection: ProductSelectionState,
-  subscriptionProduct: SubscriptionProductData | null,
-): PlanComparison {
-  const activePackage = subscriptionProduct?.packageOptions.find(opt => opt.status === 'ACTIVE') ?? null;
-
-  let current: PlanLine | null = null;
-  if (subscriptionProduct) {
-    if (activePackage && activePackage.quantity != null) {
-      const period = (activePackage.billingPeriod ?? null) as BillingPeriod | null;
-      current = {
-        payg: false,
-        quantity: activePackage.quantity,
-        billingPeriod: period,
-        annualTotal: annualizedPackagePrice(activePackage.quantity, tiersForPeriod(product, period)),
-      };
-    } else {
-      // No committed package → product is on always-on PAYG.
-      current = { payg: true, quantity: null, billingPeriod: null, annualTotal: null };
-    }
-  }
-
-  let next: PlanLine;
-  if (selection.selectedPackageId === PAYG_OPTION_ID) {
-    next = { payg: true, quantity: null, billingPeriod: null, annualTotal: null };
-  } else {
-    const quantity = selectionQuantity(product, selection);
-    next = {
-      payg: false,
-      quantity,
-      billingPeriod: selection.billingPeriod,
-      annualTotal: annualizedPackagePrice(quantity, tiersForPeriod(product, selection.billingPeriod)),
-    };
-  }
-
-  return { current, next };
 }

@@ -47,13 +47,20 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
         return <KnowledgeBaseAssignedTable articles={articles ?? []} isLoading={isLoading} />;
       case 'TICKET':
         return <TicketsAssignedTable tickets={tickets ?? []} isLoading={isLoading} />;
+      default: {
+        // `type` is `never` here because the cases above cover AssignmentTargetType.
+        // Adding a member to that union makes this assignment fail to compile, which
+        // is the point — a silent `undefined` tab body would just render nothing.
+        const unreachable: never = type;
+        return unreachable;
+      }
     }
   };
 
   if (isLoading && activeTypes.length === 0) {
     return (
       <section className={className}>
-        {showTitle && <h3 className="text-h2 text-ods-text-primary mb-[var(--spacing-system-lf)]">Assigned Items</h3>}
+        {showTitle && <h3 className="mb-[var(--spacing-system-lf)] text-ods-text-primary text-h2">Assigned Items</h3>}
         <Skeleton className="h-12 w-full" />
       </section>
     );
@@ -63,9 +70,9 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
 
   return (
     <section className={className}>
-      {showTitle && <h3 className="text-h2 text-ods-text-primary mb-[var(--spacing-system-lf)]">Assigned Items</h3>}
+      {showTitle && <h3 className="mb-[var(--spacing-system-lf)] text-ods-text-primary text-h2">Assigned Items</h3>}
 
-      <div className="rounded-md border border-ods-border overflow-hidden">
+      <div className="overflow-hidden rounded-md border border-ods-border">
         {activeTypes.length === 1 ? (
           <div className="p-[var(--spacing-system-mf)]">{renderTabBody(activeTypes[0])}</div>
         ) : (

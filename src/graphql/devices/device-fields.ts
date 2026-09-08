@@ -43,7 +43,6 @@ export const deviceFieldsFragment = graphql`
       status
       metadata
       connectedAt
-      lastSyncAt
       disconnectedAt
     }
   }

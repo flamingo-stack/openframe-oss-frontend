@@ -1,13 +1,9 @@
 'use client';
 
-import {
-  type ColumnDef,
-  DataTable,
-  multiSelectFilterFn,
-  useDataTable,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type ColumnDef, DataTable, useDataTable } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo } from 'react';
 import { DateColumnHeader } from '@/app/components/shared/date-column-header';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 
 /**
  * Loading fallback for `LogsTable` — an empty `DataTable` carrying the real

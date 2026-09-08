@@ -6,17 +6,17 @@ import {
   TagIcon,
   UserPlusIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { EmptyState, useOnboardingGuideButton } from '@/app/components/shared';
+import { EmptyState, onboardingGuideButton } from '@/app/components/shared';
 
 /**
  * The tickets empty state (Figma `data-placeholder-onboarding`, nodes
  * 8387-21182 / 8001-75892 / 8001-75902): tag icon + message, three feature
- * tiles, and the onboarding-guide footer button (Ask Mingo or the Help Center
- * link, see `useOnboardingGuideButton`). Shared verbatim by the Tickets page
+ * tiles, and the onboarding-guide footer button (the Help Center link, see
+ * `onboardingGuideButton`). Shared verbatim by the Tickets page
  * and the device-details Tickets tab.
  */
 export function TicketsEmptyState() {
-  const guideButton = useOnboardingGuideButton('tickets');
+  const guideButton = onboardingGuideButton('tickets');
 
   return (
     <EmptyState

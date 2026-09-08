@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import {
   Label,
@@ -22,10 +23,10 @@ import { createScriptMutation } from '@/graphql/scripts/create-script-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 import { routes } from '@/lib/routes';
-import { ScriptEditor } from '../../scripts/components/script/script-editor';
-import { EDIT_SCRIPT_DEFAULT_VALUES } from '../../scripts/types/edit-script.types';
-import { formToWriteInput } from '../../scripts/v2/shared/utils/script-mappers';
-import { SCRIPT_V2_SHELL_TYPES } from '../../scripts/v2/shared/utils/shell-types';
+import { ScriptEditor } from '../../scripts/shared/components/script-editor';
+import { EDIT_SCRIPT_DEFAULT_VALUES } from '../../scripts/shared/types/edit-script.types';
+import { formToWriteInput } from '../../scripts/shared/utils/script-mappers';
+import { SCRIPT_SHELL_TYPES } from '../../scripts/shared/utils/shell-types';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 import { useStepActionState } from '../use-step-action-state';
 import { FullFormLink } from './full-form-link';
@@ -49,7 +50,7 @@ type OnboardingScriptForm = z.infer<typeof onboardingScriptSchema>;
 
 /**
  * Inner body of the "Scripting" onboarding step — a trimmed version of the full
- * add-script form ({@link ../../scripts/v2/script/components/edit-script-page}). It reuses
+ * add-script form ({@link ../../scripts/script/components/edit-script-page}). It reuses
  * the same primitives (platform `SelectButton`s, shell `Select`, `ScriptEditor`) and
  * the native `createScriptMutation` + `formToWriteInput` mapper. On "Add Script" it
  * creates the script and redirects to its details page with the coach-mark hint.
@@ -95,7 +96,9 @@ export function ScriptingStep({
           toast({ title: 'Success', description: 'Script created successfully', variant: 'success' });
           // A successful create completes the onboarding step (if not already done).
           if (!completed) onComplete?.();
-          router.push(newId ? onboardingHintUrl(routes.scriptsV2.details(newId), 'scripts', pathname) : '/scripts-v2');
+          router.push(
+            newId ? onboardingHintUrl(routes.scripts.details(newId), 'scripts', pathname) : routes.scripts.list,
+          );
         },
         onError: err => {
           toast({
@@ -120,18 +123,18 @@ export function ScriptingStep({
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Scripts automate routine work across your devices. Restart a service, clear a cache, check disk space. Every run
         is logged, so you always know what ran where.
       </p>
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Start with something simple. Give it a name and paste your commands. Once saved, you can run it on any connected
         device.
       </p>
 
       {/* Supported Platform + Run as User */}
       <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)]">
-        <Label className="text-h4 text-ods-text-primary">Supported Platform</Label>
+        <Label className="text-ods-text-primary text-h4">Supported Platform</Label>
         <div className="grid grid-cols-2 gap-[var(--spacing-system-m)] lg:grid-cols-4">
           {AVAILABLE_PLATFORMS.map(p => {
             const isDisabled = DISABLED_PLATFORMS.includes(p.id);
@@ -167,7 +170,7 @@ export function ScriptingStep({
                 onCheckedChange={checked => field.onChange(checked)}
                 label="Run as User"
                 // Match the SelectButton card height (h-11 md:h-16).
-                className="[&>label]:h-11 md:[&>label]:h-16 [&>label]:min-h-0"
+                className="[&>label]:h-11 [&>label]:min-h-0 md:[&>label]:h-16"
               />
             )}
           />
@@ -181,7 +184,7 @@ export function ScriptingStep({
           control={form.control}
           render={({ field, fieldState }) => (
             <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <Label className="text-h4 text-ods-text-primary">Name</Label>
+              <Label className="text-ods-text-primary text-h4">Name</Label>
               <Input
                 type="text"
                 value={field.value}
@@ -198,13 +201,13 @@ export function ScriptingStep({
           control={form.control}
           render={({ field, fieldState }) => (
             <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <Label className="text-h4 text-ods-text-primary">Shell Type</Label>
+              <Label className="text-ods-text-primary text-h4">Shell Type</Label>
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger error={fieldState.error?.message} invalid={!!fieldState.error}>
                   <SelectValue placeholder="Select Shell Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SCRIPT_V2_SHELL_TYPES.map(s => (
+                  {SCRIPT_SHELL_TYPES.map(s => (
                     <SelectItem key={s.value} value={s.value}>
                       <div className="flex items-center gap-[var(--spacing-system-xs)]">
                         <s.icon className="size-5" />
@@ -222,13 +225,13 @@ export function ScriptingStep({
           control={form.control}
           render={({ field, fieldState }) => (
             <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <Label className="text-h4 text-ods-text-primary">Timeout</Label>
+              <Label className="text-ods-text-primary text-h4">Timeout</Label>
               <Input
                 type="number"
                 value={field.value}
                 onChange={e => field.onChange(e.target.value ? Number(e.target.value) : '')}
                 placeholder="90"
-                endAdornment={<span className="text-h6 text-ods-text-secondary">Seconds</span>}
+                endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                 error={fieldState.error?.message}
                 invalid={!!fieldState.error}
               />
@@ -243,7 +246,7 @@ export function ScriptingStep({
         control={form.control}
         render={({ field, fieldState }) => (
           <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <Label className="text-h4 text-ods-text-primary">Syntax</Label>
+            <Label className="text-ods-text-primary text-h4">Syntax</Label>
             <ScriptEditor
               value={field.value}
               onChange={field.onChange}
@@ -257,7 +260,7 @@ export function ScriptingStep({
 
       {/* Footer: full-form link (left) + Mark as Complete + Add Script (right) */}
       <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
-        <FullFormLink href={routes.scriptsV2.new} label="Full Script Form" />
+        <FullFormLink href={routes.scripts.new} label="Full Script Form" />
         <div className="flex flex-1 flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
           {!completed ? (
             <Button

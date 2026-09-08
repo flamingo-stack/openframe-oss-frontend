@@ -153,7 +153,7 @@ function ThumbnailTrigger({ themeClass, label, onOpen, children }: ThumbnailTrig
         className="group absolute inset-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
       >
         {/* Hardcoded black/white so the chip reads against either previewed theme. */}
-        <span className="absolute right-[var(--spacing-system-s)] top-[var(--spacing-system-s)] flex items-center gap-[var(--spacing-system-xs)] rounded-md bg-black/60 px-[var(--spacing-system-s)] py-[var(--spacing-system-xs)] text-h6 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        <span className="absolute right-[var(--spacing-system-s)] top-[var(--spacing-system-s)] flex items-center gap-[var(--spacing-system-xs)] rounded-md bg-black/60 px-[var(--spacing-system-s)] py-[var(--spacing-system-xs)] text-white opacity-0 transition-opacity text-h6 group-hover:opacity-100 group-focus-visible:opacity-100">
           <ExpandSquareIcon className="size-4" />
           Expand
         </span>

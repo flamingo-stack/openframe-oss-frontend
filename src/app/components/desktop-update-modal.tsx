@@ -125,7 +125,7 @@ export function DesktopUpdateModal() {
       footer={
         isApplying ? (
           <div className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
-            <div className="flex items-center justify-between text-h6 text-ods-text-secondary">
+            <div className="flex items-center justify-between text-ods-text-secondary text-h6">
               <span>{phase === 'installing' ? 'Installing…' : 'Downloading…'}</span>
               {phase === 'downloading' && (
                 <span>
@@ -147,11 +147,11 @@ export function DesktopUpdateModal() {
           </div>
         ) : (
           <>
-            <Button variant="outline" onClick={dismiss}>
+            <Button variant="outline" className="flex-1" onClick={dismiss}>
               {errorCopy ? 'Later' : 'Update on Next Launch'}
             </Button>
             {(!errorCopy || errorCopy.retryable) && (
-              <Button variant="accent" onClick={handleApply}>
+              <Button variant="accent" className="flex-1" onClick={handleApply}>
                 {errorCopy ? 'Try Again' : 'Update & Restart'}
               </Button>
             )}
@@ -159,7 +159,7 @@ export function DesktopUpdateModal() {
         )
       }
     >
-      <p className="text-h4 text-ods-text-secondary">
+      <p className="text-ods-text-secondary text-h4">
         OpenFrame v{version} is ready to install. This version includes performance improvements and bug fixes.
       </p>
 
@@ -168,7 +168,7 @@ export function DesktopUpdateModal() {
           role="alert"
           // NOT text-h5 — that ramp step is `text-transform: uppercase`, which is
           // a label style. This is a sentence.
-          className="rounded-md border border-ods-error bg-ods-error/10 p-[var(--spacing-system-sf)] text-h4 text-ods-text-primary"
+          className="rounded-md border border-ods-error bg-ods-error/10 p-[var(--spacing-system-sf)] text-ods-text-primary text-h4"
         >
           {errorCopy.message}
         </div>
@@ -190,8 +190,8 @@ export function DesktopUpdateModal() {
           <span className="flex min-w-0 flex-1 flex-col">
             {/* text-h3 is the ODS "bold body" ramp — the same `h3 - bold body`
                 token the design uses here. text-h5 would uppercase it. */}
-            <span className="text-h3 text-ods-text-primary">Release Notes</span>
-            <span className="text-h6 text-ods-text-secondary">See everything that changed in this version</span>
+            <span className="text-ods-text-primary text-h3">Release Notes</span>
+            <span className="text-ods-text-secondary text-h6">See everything that changed in this version</span>
           </span>
           <Chevron01RightIcon className="size-5 shrink-0 text-ods-text-secondary" />
         </a>

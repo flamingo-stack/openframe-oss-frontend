@@ -18,12 +18,8 @@ const valueSuggestionsRootQuery = graphql`
 
 const valueSuggestionsFragment = graphql`
   fragment useTagValueSuggestions_valueSuggestions on Query
-    @refetchable(queryName: "useTagValueSuggestions_valueSuggestionsRefetchQuery")
-    @argumentDefinitions(
-      tagKey: { type: "String!" }
-      search: { type: "String" }
-      limit: { type: "Int" }
-    ) {
+  @refetchable(queryName: "useTagValueSuggestions_valueSuggestionsRefetchQuery")
+  @argumentDefinitions(tagKey: { type: "String!" }, search: { type: "String" }, limit: { type: "Int" }) {
     tagValueSuggestions(tagKey: $tagKey, search: $search, limit: $limit)
   }
 `;

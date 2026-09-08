@@ -15,8 +15,8 @@ export interface StatusOption extends AutocompleteOption {
 export function renderStatusOption(option: AutocompleteOption, isSelected: boolean): ReactNode {
   const { label, color } = option as StatusOption;
   return (
-    <div className="flex items-center justify-between w-full min-w-0 gap-[var(--spacing-system-xs)]">
-      <div className="flex items-center gap-[var(--spacing-system-xs)] min-w-0">
+    <div className="flex w-full min-w-0 items-center justify-between gap-[var(--spacing-system-xs)]">
+      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
         <ColorSwatch color={color} />
         <div className="min-w-0">
           <TruncateText className="text-inherit">{label}</TruncateText>

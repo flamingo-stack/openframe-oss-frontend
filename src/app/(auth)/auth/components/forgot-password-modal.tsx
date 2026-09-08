@@ -75,10 +75,10 @@ export function ForgotPasswordModal({ open, onOpenChange, defaultEmail = '' }: F
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent className="bg-ods-card border border-ods-border p-8 max-w-md">
+      <AlertDialogContent className="max-w-md border border-ods-border bg-ods-card p-8">
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-h2 text-ods-text-primary">Reset Your Password</AlertDialogTitle>
-          <AlertDialogDescription className="text-h6 text-ods-text-secondary mt-2">
+          <AlertDialogTitle className="text-ods-text-primary text-h2">Reset Your Password</AlertDialogTitle>
+          <AlertDialogDescription className="mt-2 text-ods-text-secondary text-h6">
             Enter your email address and we&apos;ll send you a link to reset your password.
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -94,7 +94,7 @@ export function ForgotPasswordModal({ open, onOpenChange, defaultEmail = '' }: F
             onChange={e => setEmail(e.target.value)}
             placeholder="username@mail.com"
             disabled={isSubmitting}
-            className="mt-2 bg-ods-card border-ods-border text-ods-text-primary text-h6 placeholder:text-ods-text-secondary p-3"
+            className="mt-2 border-ods-border bg-ods-card p-3 text-ods-text-primary text-h6 placeholder:text-ods-text-secondary"
             onKeyDown={e => {
               if (e.key === 'Enter' && !isSubmitting) {
                 handleSubmit();
@@ -108,7 +108,7 @@ export function ForgotPasswordModal({ open, onOpenChange, defaultEmail = '' }: F
             onClick={() => handleOpenChange(false)}
             disabled={isSubmitting}
             variant="outline"
-            className="flex-1 bg-ods-card border border-ods-border text-ods-text-primary text-h6 font-bold px-4 py-2.5 rounded-[6px] hover:bg-ods-bg-hover"
+            className="flex-1 rounded-[6px] border border-ods-border bg-ods-card px-4 py-2.5 font-bold text-ods-text-primary text-h6 hover:bg-ods-bg-hover"
           >
             Cancel
           </Button>
@@ -116,7 +116,7 @@ export function ForgotPasswordModal({ open, onOpenChange, defaultEmail = '' }: F
             onClick={handleSubmit}
             disabled={!email.trim() || isSubmitting}
             loading={isSubmitting}
-            className="flex-1 bg-ods-accent text-ods-text-on-accent text-h6 font-bold px-4 py-2.5 rounded-[6px] hover:opacity-90"
+            className="flex-1 rounded-[6px] bg-ods-accent px-4 py-2.5 font-bold text-ods-text-on-accent text-h6 hover:opacity-90"
           >
             Send Reset Link
           </Button>

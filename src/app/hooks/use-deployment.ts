@@ -65,7 +65,19 @@ const useDeploymentStore = create<DeploymentState>()(
  */
 export function useDeployment() {
   const { deployment, isInitialized, initialize } = useDeploymentStore();
+  // Through the hook, not `useDeploymentStore.getState().reset`: naming a hook as a value
+  // is a rule violation the compiler bails out over. The action never changes.
+  const reset = useDeploymentStore(state => state.reset);
   const [isLoading, setIsLoading] = useState(!isInitialized);
+
+  // Already initialized (another consumer got there first): nothing to wait for.
+  // Derived here rather than set from the effect, which would render a spinner
+  // for one frame on every later mount.
+  const [lastInitialized, setLastInitialized] = useState(isInitialized);
+  if (isInitialized !== lastInitialized) {
+    setLastInitialized(isInitialized);
+    if (isInitialized) setIsLoading(false);
+  }
 
   useEffect(() => {
     // Initialize deployment detection if not already done
@@ -79,9 +91,8 @@ export function useDeployment() {
       }, 0);
 
       return () => clearTimeout(timer);
-    } else {
-      setIsLoading(false);
     }
+    return undefined;
   }, [isInitialized, initialize]);
 
   // Convenience getters
@@ -109,7 +120,7 @@ export function useDeployment() {
     hostname,
 
     // Actions (rarely needed)
-    reset: useDeploymentStore.getState().reset,
+    reset,
   };
 }
 

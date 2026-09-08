@@ -11,7 +11,7 @@ interface GuardrailsPresetCardProps {
 /** Read-only "Guardrails Preset" summary card. */
 export function GuardrailsPresetCard({ label, muted = false }: GuardrailsPresetCardProps) {
   return (
-    <div className="bg-ods-card border border-ods-border rounded-md flex items-center px-[var(--spacing-system-mf)] min-h-20">
+    <div className="flex min-h-20 items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-mf)]">
       <InfoCell
         value={muted ? <span className="text-ods-text-secondary">{label}</span> : label}
         label="Guardrails Preset"

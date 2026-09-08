@@ -2,31 +2,15 @@
 
 import { ChatMessageListSkeleton } from '@flamingo-stack/openframe-frontend-core';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  type ActionsMenuGroup,
-  type PageActionButton,
-  PageLayout,
-  Skeleton,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { type PageActionButton, PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 
 interface TicketDetailsSkeletonProps {
   onBack: () => void;
-  /**
-   * Classic two-chat layout (flag off) vs the new sidebar layout (flag on).
-   * `showTechnicianChat` is `isTechnicianChatEnabled`, which is exactly the
-   * inverse of the sidebar layout, so it doubles as the layout discriminator.
-   *
-   * Omitted by the route-level skeleton, which has no caller to tell it — it
-   * reads the flag itself and renders a layout-agnostic placeholder until the
-   * answer arrives.
-   */
-  showTechnicianChat?: boolean;
 }
 
 /**
- * Header actions for the sidebar layout. "Track Time" is omitted on purpose —
- * it depends on the ticket's status, which is exactly what's still loading.
+ * Header actions. "Track Time" is omitted on purpose — it depends on the ticket's
+ * status, which is exactly what's still loading.
  */
 const SIDEBAR_ACTIONS: PageActionButton[] = [
   {
@@ -40,27 +24,6 @@ const SIDEBAR_ACTIONS: PageActionButton[] = [
 ];
 
 /**
- * The classic layout puts everything behind the "…" menu. Only "Edit Ticket" is
- * unconditional; the device entries appear once the ticket resolves a machine.
- * Its presence is what matters here — the button's width is fixed.
- */
-const CLASSIC_MENU_ACTIONS: ActionsMenuGroup[] = [
-  {
-    items: [
-      {
-        id: 'edit-ticket',
-        label: 'Edit Ticket',
-        icon: <PenEditIcon className="text-ods-text-secondary" />,
-        disabled: true,
-      },
-    ],
-  },
-];
-
-/** Archive/Unarchive are status-dependent, so the loading header shows neither. */
-const CLASSIC_ACTIONS: PageActionButton[] = [];
-
-/**
  * Loading skeleton shaped like the real ticket details page. Reusing the message
  * list's own `ChatMessageListSkeleton` keeps the transition seamless once the
  * dialog resolves but messages are still loading.
@@ -69,63 +32,27 @@ const CLASSIC_ACTIONS: PageActionButton[] = [];
  * always renders `dialog.title`, so omitting it left the `h1` line out entirely
  * and the whole page shifted up by one line while loading.
  */
-export function TicketDetailsSkeleton({ onBack, showTechnicianChat }: TicketDetailsSkeletonProps) {
-  // Hook, not a prop default: as a route-level skeleton this renders with no
-  // caller to tell it which layout is coming, so it has to read the flag itself.
-  const gate = useFeatureFlagGate('mingo-sidebar-context');
-
-  // A caller that already knows wins. Otherwise 'unknown' until the flag answers —
-  // never a guessed layout (see `UnknownLayoutSkeleton`).
-  const layout: 'classic' | 'sidebar' | 'unknown' =
-    showTechnicianChat === undefined
-      ? gate === 'loading'
-        ? 'unknown'
-        : gate === 'on'
-          ? 'sidebar'
-          : 'classic'
-      : showTechnicianChat
-        ? 'classic'
-        : 'sidebar';
-
-  const isClassic = layout === 'classic';
-
-  // The header props below split their conditions on purpose, and the three do
-  // agree: `actions` keys off `sidebar`, the other two off `classic`, so 'unknown'
-  // lands on `CLASSIC_ACTIONS` — empty, because the classic layout puts everything
-  // behind the kebab — with no `menuActions`. That is an empty action area, the same
-  // refusal to guess as `UnknownLayoutSkeleton`. Keying `actions` off `isClassic`
-  // instead would hand 'unknown' the sidebar's buttons, i.e. a coin flip.
+export function TicketDetailsSkeleton({ onBack }: TicketDetailsSkeletonProps) {
   return (
     <PageLayout
       loading
       backButton={{ label: 'Back', onClick: onBack }}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] h-[calc(100%)]"
-      actions={layout === 'sidebar' ? SIDEBAR_ACTIONS : CLASSIC_ACTIONS}
-      actionsVariant={isClassic ? 'menu-primary' : 'icon-buttons'}
-      menuActions={isClassic ? CLASSIC_MENU_ACTIONS : undefined}
-      contentClassName="flex flex-col min-h-0"
+      className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      actions={SIDEBAR_ACTIONS}
+      actionsVariant="icon-buttons"
+      contentClassName="flex min-h-0 flex-col"
     >
-      {layout === 'unknown' ? (
-        <UnknownLayoutSkeleton />
-      ) : isClassic ? (
-        <ClassicChatSkeleton />
-      ) : (
-        <SidebarLayoutSkeleton />
-      )}
+      <SidebarLayoutSkeleton />
     </PageLayout>
   );
 }
 
-/**
- * The chat pane both layouts are built around — the sidebar layout puts a details
- * column beside it, the classic layout a second chat. Shared so the
- * layout-unknown state can render exactly the part that is certain.
- */
+/** The chat pane the layout is built around, with the details column beside it. */
 function MainChatPaneSkeleton() {
   return (
-    <div className="flex-1 min-w-0 flex flex-col gap-[var(--spacing-system-xxs)] min-h-0">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
       <Skeleton className="h-5 w-24" />
-      <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
+      <div className="relative flex min-h-0 flex-1 flex-col rounded-md border border-ods-border bg-ods-bg">
         <ChatMessageListSkeleton fullWidth contentClassName="px-[var(--spacing-system-mf)]" />
       </div>
       <Skeleton className="mt-[var(--spacing-system-xsf)] h-12 w-full rounded-lg" />
@@ -133,33 +60,15 @@ function MainChatPaneSkeleton() {
   );
 }
 
-/**
- * Rendered while `mingo-sidebar-context` hasn't answered: the pane common to both
- * layouts, full width, and no layout-specific header actions.
- *
- * Picking a layout here would be a coin flip that is visibly wrong half the time —
- * the two differ in column count AND in how the header renders its actions (a "…"
- * menu vs icon buttons), so a wrong guess reshuffles the whole page when the answer
- * lands. Showing only the certain part means the second column appears, rather than
- * one appearing and another disappearing.
- */
-function UnknownLayoutSkeleton() {
-  return (
-    <div className="flex-1 flex min-h-0">
-      <MainChatPaneSkeleton />
-    </div>
-  );
-}
-
-/** Mirrors the new layout: a main pane beside a Ticket Details / Attachments / Tags sidebar. */
+/** A main pane beside a Ticket Details / Attachments / Tags sidebar. */
 function SidebarLayoutSkeleton() {
   return (
-    <div className="flex-1 flex flex-col lg:flex-row gap-[var(--spacing-system-l)] min-h-0">
+    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] lg:flex-row">
       {/* Main pane — chat is the most common case; transitions seamlessly into it */}
       <MainChatPaneSkeleton />
 
       {/* Right sidebar — desktop only, matching the loaded layout */}
-      <aside className="hidden lg:flex shrink-0 lg:w-80 flex-col gap-[var(--spacing-system-l)] min-h-0">
+      <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] lg:flex lg:w-80">
         {/* Ticket Details info card */}
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <Skeleton className="h-5 w-28" />
@@ -167,7 +76,7 @@ function SidebarLayoutSkeleton() {
             {Array.from({ length: 6 }, (_, i) => (
               <div key={`info-${i}`} className="flex items-center gap-[var(--spacing-system-xsf)]">
                 <Skeleton className="h-5 w-16 shrink-0" />
-                <div className="flex-1 h-px bg-ods-border" />
+                <div className="h-px flex-1 bg-ods-border" />
                 <Skeleton className="h-5 w-24 shrink-0" />
               </div>
             ))}
@@ -177,14 +86,14 @@ function SidebarLayoutSkeleton() {
         {/* Attachments */}
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <Skeleton className="h-5 w-24" />
-          <div className="rounded-md border border-ods-border overflow-hidden">
+          <div className="overflow-hidden rounded-md border border-ods-border">
             {Array.from({ length: 2 }, (_, i) => (
               <div
                 key={`attachment-${i}`}
-                className="flex items-center gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] bg-ods-card border-b border-ods-border last:border-b-0"
+                className="flex items-center gap-[var(--spacing-system-mf)] border-b border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] last:border-b-0"
               >
-                <Skeleton className="size-10 rounded-md shrink-0" />
-                <div className="flex-1 flex flex-col gap-[var(--spacing-system-xxs)] min-w-0">
+                <Skeleton className="size-10 shrink-0 rounded-md" />
+                <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
                   <Skeleton className="h-4 w-32" />
                   <Skeleton className="h-3 w-16" />
                 </div>
@@ -206,69 +115,5 @@ function SidebarLayoutSkeleton() {
         </div>
       </aside>
     </div>
-  );
-}
-
-/** The classic flag-off layout: info bar + two-column client/technician chat. */
-function ClassicChatSkeleton() {
-  return (
-    <>
-      {/* Info bar — mirrors TicketInfoSection's collapsed header row */}
-      <div className="hidden lg:block shrink-0 rounded-[6px] border border-ods-border overflow-hidden">
-        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-4 px-4 py-3 bg-ods-card items-center">
-          <div className="flex items-center gap-2 min-w-0">
-            <Skeleton className="size-9 rounded-[6px] shrink-0" />
-            <div className="flex flex-col gap-1 min-w-0">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-3 w-20" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 min-w-0">
-            <Skeleton className="size-9 rounded-full shrink-0" />
-            <div className="flex flex-col gap-1 min-w-0">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-3 w-16" />
-            </div>
-          </div>
-          <div className="flex flex-col gap-1 min-w-0">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-3 w-16" />
-          </div>
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-6 w-24 rounded-full" />
-            <Skeleton className="size-11 rounded-[6px]" />
-          </div>
-        </div>
-      </div>
-
-      {/* Chat section — two columns on desktop, matching the loaded layout.
-          The 500px floor is `lg:` for the same reason it is in the loaded view:
-          below that width the section is the only flexible child, so keeping the
-          floor here would draw a taller skeleton than the content that replaces
-          it and jump the page on load. */}
-      <div className="flex-1 flex flex-col min-h-0 lg:min-h-[500px]">
-        <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
-          <div className="flex-1 lg:basis-1/2 min-w-0 flex flex-col gap-1 min-h-0">
-            <Skeleton className="hidden lg:block h-5 w-24" />
-            <div className="flex-1 bg-ods-bg border border-ods-border rounded-md flex flex-col relative min-h-0">
-              <ChatMessageListSkeleton fullWidth contentClassName="px-[var(--spacing-system-mf)]" />
-            </div>
-            <Skeleton className="mt-[var(--spacing-system-xsf)] h-12 w-full rounded-lg" />
-          </div>
-
-          <div className="flex-1 lg:basis-1/2 min-w-0 flex flex-col gap-1 min-h-0">
-            <Skeleton className="hidden lg:block h-5 w-32" />
-            <div className="flex-1 flex flex-col relative min-h-0">
-              <ChatMessageListSkeleton
-                className="flex-1 bg-ods-card border border-ods-border rounded-lg"
-                contentClassName="px-[var(--spacing-system-mf)]"
-                fullWidth
-              />
-            </div>
-            <Skeleton className="mt-[var(--spacing-system-xsf)] h-12 w-full rounded-lg" />
-          </div>
-        </div>
-      </div>
-    </>
   );
 }

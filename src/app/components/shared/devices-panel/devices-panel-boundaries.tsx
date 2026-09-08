@@ -51,7 +51,7 @@ export interface DevicesPanelSkeletonProps extends DevicesPanelChrome, DevicePan
  * Suspense fallback for `DevicesPanel`.
  *
  * The panel's own chrome, drawn from the real components and locked — the same
- * approach the scripts pages take (`ScriptsPageSkeleton`, `SchedulePickerSkeleton`):
+ * approach the scripts pages take (`SchedulePickerSkeleton`):
  * a loading state made of the REAL controls cannot drift from the thing it stands
  * in for, because it IS that thing with its data missing.
  *

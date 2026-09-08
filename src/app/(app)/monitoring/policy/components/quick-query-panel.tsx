@@ -3,7 +3,7 @@
 import { Button, TestRunResults, TestRunStatusStat, TimingStat } from '@flamingo-stack/openframe-frontend-core';
 import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import { ScriptEditor } from '../../../scripts/components/script/script-editor';
+import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { useQueryTestRun } from '../../components/query-test-run';
 
 export interface QuickQueryPanelProps {

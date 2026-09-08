@@ -20,12 +20,15 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
+import { useQueryClient } from '@tanstack/react-query';
 import { type ComponentType, useMemo, useState } from 'react';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device, Software } from '../../types/device.types';
+import { fleetTimestampMs } from '../../utils/fleet-timestamp';
+import { deviceQueryKeys } from '../../utils/query-keys';
 import { SOFTWARE_COLUMNS } from './device-tab-columns';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface SoftwareTabProps {
   device: Device | null;
@@ -54,6 +57,7 @@ function formatLastUsed(dateString?: string): string {
 }
 
 export function SoftwareTab({ device }: SoftwareTabProps) {
+  const queryClient = useQueryClient();
   const allSoftware = device?.software || EMPTY_SOFTWARE;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [search, setSearch] = useState('');
@@ -74,7 +78,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
         accessorKey: 'name',
         header: SOFTWARE_COLUMNS.name.header,
         cell: ({ row }: { row: Row<Software> }) => (
-          <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <TruncateText>{row.original.name}</TruncateText>
             {row.original.version && (
               <TruncateText variant="h6" tone="secondary">
@@ -92,8 +96,8 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
         cell: ({ row }: { row: Row<Software> }) => {
           const { Icon, label } = getSourceIcon(row.original.source);
           return (
-            <div className="inline-flex items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary min-w-0">
-              <Icon className="w-4 h-4 md:w-6 md:h-6 shrink-0" />
+            <div className="inline-flex min-w-0 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary">
+              <Icon className="h-4 w-4 shrink-0 md:h-6 md:w-6" />
               <div className="min-w-0">
                 <TruncateText tone="secondary">{label}</TruncateText>
               </div>
@@ -134,7 +138,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
           return path ? (
             <TruncateText>{path}</TruncateText>
           ) : (
-            <span className="text-h4 text-ods-text-secondary">—</span>
+            <span className="text-ods-text-secondary text-h4">—</span>
           );
         },
         enableSorting: false,
@@ -144,7 +148,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
         accessorKey: 'last_opened_at',
         header: SOFTWARE_COLUMNS.lastUsed.header,
         cell: ({ row }: { row: Row<Software> }) => (
-          <div className="text-h6 text-ods-text-primary">{formatLastUsed(row.original.last_opened_at)}</div>
+          <div className="text-ods-text-primary text-h6">{formatLastUsed(row.original.last_opened_at)}</div>
         ),
         enableSorting: true,
         meta: liveColumnMeta(SOFTWARE_COLUMNS.lastUsed),
@@ -173,6 +177,47 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
   }
 
   if (allSoftware.length === 0) {
+    const fleetSource = device.sources?.fleet;
+
+    if (fleetSource === 'error') {
+      return (
+        <TabEmptyState
+          icon={<WebDesignIcon />}
+          title="Couldn't load software data"
+          description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
+          buttonLabel="Retry"
+          onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
+        />
+      );
+    }
+
+    if (fleetSource === 'skipped-disconnected') {
+      return (
+        <TabEmptyState
+          icon={<WebDesignIcon />}
+          title="Fleet is not connected"
+          description="The Fleet agent for this device is disconnected, so its software inventory is unavailable."
+        />
+      );
+    }
+
+    // Agent still deploying → the design's connecting-state copy.
+    if (fleetSource === 'skipped-pending') {
+      return <TabDeployingEmptyState icon={<WebDesignIcon />} section="Software" />;
+    }
+
+    // Not yet collected: the host has never completed a software inventory scan
+    // (software_updated_at unset/sentinel).
+    if (fleetTimestampMs(device.software_updated_at) === null) {
+      return (
+        <TabEmptyState
+          icon={<WebDesignIcon />}
+          title="Collecting software inventory"
+          description="This device hasn't reported its installed software yet. It will appear here once the inventory arrives."
+        />
+      );
+    }
+
     return (
       <TabEmptyState
         icon={<WebDesignIcon />}
@@ -192,7 +237,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <SearchInput value={search} onChange={setSearch} placeholder="Search for Software" />
         </div>
