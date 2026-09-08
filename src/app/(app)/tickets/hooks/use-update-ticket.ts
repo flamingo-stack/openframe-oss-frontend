@@ -2,10 +2,7 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
-import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { apiClient } from '@/lib/api-client';
-import { routes } from '@/lib/routes';
 import { API_ENDPOINTS } from '../constants';
 import {
   ASSIGN_TICKET_MUTATION,
@@ -76,18 +73,20 @@ async function updateTicketApi(input: UpdateTicketInput): Promise<Ticket | null>
   return latest;
 }
 
+/**
+ * Writes the ticket and reports it; navigation is the form's job
+ * (`useCreateTicketForm`), which still has assignments to apply afterwards.
+ */
 export function useUpdateTicket() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const router = useRouter();
 
   return useMutation({
     mutationFn: updateTicketApi,
-    onSuccess: ticket => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ticketsQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: dialogsQueryKeys.all });
       toast({ title: 'Success', description: 'Ticket updated successfully', variant: 'success' });
-      safeBackOrReplace(router, ticket?.id ? routes.tickets.dialog(ticket.id) : routes.tickets.list);
     },
     onError: err => {
       toast({

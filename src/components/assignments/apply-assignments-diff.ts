@@ -1,5 +1,6 @@
 'use client';
 
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { postGraphQl } from './graphql';
 import { ensureGlobalId } from './relay-id';
@@ -66,11 +67,22 @@ async function applyAssignmentsDiff({ itemId, itemType, prev, next }: ApplyAssig
 }
 
 export function useApplyAssignmentsDiff() {
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: applyAssignmentsDiff,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assignments', 'assigned-items'] });
+    },
+    // The forms that await this catch to keep the rejection from going unhandled
+    // and rely on each mutation to report itself — without this the assignments
+    // half of a save failed silently.
+    onError: err => {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to update assignments',
+        variant: 'destructive',
+      });
     },
   });
 }

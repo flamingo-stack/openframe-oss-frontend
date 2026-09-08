@@ -4,9 +4,10 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { fetchQuery } from 'relay-runtime';
+import { isOptimisticTagId } from '@/app/components/shared/tags';
 import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { useApplyAssignmentsDiff, useAssignedItems } from '@/components/assignments';
 import { getRelayEnvironment } from '@/lib/relay/environment';
@@ -73,8 +74,18 @@ export function useEditArticleForm({ articleId, initialFolderId, initialArticle 
     enabled: isEditMode,
   });
 
+  // Seed the form once per article REVISION (`updatedAt`: a `store-and-network`
+  // read can deliver a stale record first and the fresh one after), or once per
+  // folder for a new article — not once per dependency change. `tempAttachments`
+  // changes with every upload/remove and `assignedItems.value` with every
+  // refetch, and a reset on either wiped whatever the user had typed.
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
-    if (isEditMode && initialArticle && initialArticle.type === 'ARTICLE' && assignedItems.isReady) {
+    if (isEditMode) {
+      if (!initialArticle || initialArticle.type !== 'ARTICLE' || !assignedItems.isReady) return;
+      const revision = `${initialArticle.id}:${initialArticle.updatedAt}`;
+      if (seededFor.current === revision) return;
+      seededFor.current = revision;
       form.reset({
         title: initialArticle.name,
         folderId: initialArticle.parentId ?? null,
@@ -85,12 +96,15 @@ export function useEditArticleForm({ articleId, initialFolderId, initialArticle 
       if (initialArticle.attachments?.length) {
         tempAttachments.initializeExisting(initialArticle.attachments);
       }
-    } else if (!isEditMode) {
-      form.reset({
-        ...ARTICLE_FORM_DEFAULTS,
-        folderId: initialFolderId ?? null,
-      });
+      return;
     }
+    const target = `new:${initialFolderId ?? ''}`;
+    if (seededFor.current === target) return;
+    seededFor.current = target;
+    form.reset({
+      ...ARTICLE_FORM_DEFAULTS,
+      folderId: initialFolderId ?? null,
+    });
   }, [
     isEditMode,
     initialArticle,
@@ -109,9 +123,10 @@ export function useEditArticleForm({ articleId, initialFolderId, initialArticle 
       form.handleSubmit(
         async data => {
           try {
-            // Tags are created eagerly in the picker, so `data.tags` already holds
-            // persisted Tag ids — no resolution / create-on-save step needed.
-            const tagIds = data.tags;
+            // Tags are created eagerly in the picker, so `data.tags` holds persisted
+            // Tag ids — except for a create still in flight, whose placeholder the
+            // backend has never seen. The picker swaps it in once the create lands.
+            const tagIds = data.tags.filter(id => !isOptimisticTagId(id));
             const folderId = data.folderId;
 
             if (isEditMode && articleId && initialArticle && initialArticle.type === 'ARTICLE') {
