@@ -68,10 +68,18 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   // put. Below md that drawer covers the whole viewport, so the click reads as
   // dead. Only in same-window mode: a new-tab chip leaves this page alone, and
   // the conversation should still be here when the user comes back.
+  //
+  // `closeForNavigation`, not `close`: the push is a pending transition, and the
+  // URL sync runs off this close BEFORE it commits, still reading the
+  // pre-navigation location. A plain close told it the drawer no longer owned
+  // `?mingoDialog=`, so it stripped the param with a `replaceState` of the OLD
+  // URL — stamped over the navigation in flight, which is why the tap did nothing
+  // on the phone while the same chip, opening a new tab on the desktop, worked.
+  // Same rule as the runtime's `navigate` for in-chat cards.
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
     if (!sameWindow || !navigatesCurrentWindow(e)) return;
     e.preventDefault();
-    useMingoLauncherStore.getState().close();
+    useMingoLauncherStore.getState().closeForNavigation();
     router.push(href);
   };
 
