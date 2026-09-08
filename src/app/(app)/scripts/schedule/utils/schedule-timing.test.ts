@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScheduleTimeReference } from '@/generated/schema-enums';
-import { fromScheduleInstant, getTimeSlotOptions, isSlotOnGrid, toScheduleInstant } from './schedule-timing';
+import {
+  earliestDeviceLocalDay,
+  fromScheduleInstant,
+  getTimeSlotOptions,
+  isScheduleStartInPast,
+  isSlotOnGrid,
+  startOfToday,
+  toScheduleInstant,
+} from './schedule-timing';
 
 /**
  * The Time dropdown's option list, pinned around the one condition the form
@@ -75,6 +83,73 @@ describe('getTimeSlotOptions', () => {
     // this is the grid the SERVER reading cannot use, and vice versa.
     expect(slots).toHaveLength(48);
     expect(slots.every(slot => slot.value.endsWith(':00') || slot.value.endsWith(':30'))).toBe(true);
+  });
+
+  it('keeps every slot of TODAY for a device-local start, however late it is here', () => {
+    // The case the SERVER reading empties. A wall clock is not the viewer's
+    // moment: at 23:59 for the author, 8:00 AM is still hours ahead for every
+    // device west of them, so withholding it would hide a working schedule
+    // behind where the admin happens to sit.
+    freezeAt(23, 59);
+    expect(getTimeSlotOptions(today(), ScheduleTimeReference.DEVICE_LOCAL)).toHaveLength(48);
+  });
+});
+
+/**
+ * The two bounds a device-local start is still held to — and the one it is not.
+ *
+ * The fleet's clocks span 26 hours (UTC−12 … UTC+14), so "in the past" is not
+ * the viewer's to judge per SLOT; it is only decidable per DAY, and only against
+ * the westernmost clock on Earth.
+ */
+describe('device-local bounds', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('never calls a device-local pair past, even a full day behind the viewer', () => {
+    vi.setSystemTime(new Date(2026, 0, 15, 23, 59));
+    const yesterday = new Date(2026, 0, 14);
+    expect(isScheduleStartInPast(yesterday, '08:00', ScheduleTimeReference.DEVICE_LOCAL)).toBe(false);
+    // The SERVER reading is unchanged: there the pair IS an instant, and it has gone.
+    expect(isScheduleStartInPast(yesterday, '08:00', ScheduleTimeReference.SERVER)).toBe(true);
+  });
+
+  it('offers every day that is TODAY somewhere — a UTC+14 author can pick a UTC−12 device day', () => {
+    // 00:30 on a UTC+14 clock, which is the worst case in the whole 26-hour
+    // spread: the UTC−12 clock is then still on 14 Jan while the author's own
+    // calendar has already turned 16 Jan. A floor built from the author's today
+    // would refuse two days that are perfectly live for part of the fleet.
+    vi.setSystemTime(new Date('2026-01-15T10:30:00Z'));
+    const floor = earliestDeviceLocalDay();
+    const floorDay = Date.UTC(floor.getFullYear(), floor.getMonth(), floor.getDate());
+    expect(floorDay).toBe(Date.UTC(2026, 0, 14));
+
+    // The property that matters, stated over the whole span rather than the one
+    // zone: no clock on Earth is currently living in a day this bound refuses.
+    // Compared as UTC-normalised days so the run's own timezone (and its DST)
+    // cannot decide the outcome.
+    for (let offset = -12; offset <= 14; offset++) {
+      const at = new Date(Date.now() + offset * 60 * 60 * 1000);
+      const dayThere = Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate());
+      expect(dayThere).toBeGreaterThanOrEqual(floorDay);
+    }
+  });
+
+  it('floors the calendar at the westernmost clock, never later than the viewer own day', () => {
+    vi.setSystemTime(new Date(2026, 0, 15, 12, 0));
+    const floor = earliestDeviceLocalDay();
+    // Never later than the viewer's own today — a floor that cut into the day
+    // they are looking at would refuse a start that is still hours away for
+    // devices west of them.
+    expect(floor.getTime()).toBeLessThanOrEqual(startOfToday().getTime());
+    // And never further back than the 26-hour spread can justify: the UTC−12
+    // clock is at most two calendar days behind a UTC+14 viewer, and anything
+    // beyond that is a day no device on Earth can still reach.
+    expect(startOfToday().getTime() - floor.getTime()).toBeLessThanOrEqual(2 * 24 * 60 * 60 * 1000);
   });
 });
 

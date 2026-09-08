@@ -2,9 +2,7 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
-import { routes } from '@/lib/routes';
 import { API_ENDPOINTS } from '../constants';
 import { CREATE_TICKET_MUTATION } from '../queries/ticket-queries';
 import type { CreateTicketInput, TicketPayload } from '../types/ticket.types';
@@ -28,22 +26,20 @@ async function createTicketApi(input: CreateTicketInput) {
   return payload.ticket;
 }
 
+/**
+ * Creates the ticket and reports it; navigation is the form's job
+ * (`useCreateTicketForm`), which still has assignments to apply afterwards.
+ */
 export function useCreateTicket() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const router = useRouter();
 
   return useMutation({
     mutationFn: createTicketApi,
-    onSuccess: ticket => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ticketsQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: dialogsQueryKeys.all });
       toast({ title: 'Success', description: 'Ticket created successfully', variant: 'success' });
-      if (ticket?.id) {
-        router.replace(routes.tickets.dialog(ticket.id));
-      } else {
-        router.replace(routes.tickets.list);
-      }
     },
     onError: err => {
       toast({

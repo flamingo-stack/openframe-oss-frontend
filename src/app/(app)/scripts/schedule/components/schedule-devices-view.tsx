@@ -274,6 +274,7 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
           repeat={repeatToLabel(schedule.repeat)}
           platforms={platformsToIds(schedule.supportedPlatforms)}
           trigger={schedule.trigger}
+          timeReference={schedule.timeReference}
         />
 
         <DeviceSelectionModeRadio value={selectionMode} onChange={handleModeChange} disabled={isSavingTargetingMode} />

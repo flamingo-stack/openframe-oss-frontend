@@ -5,7 +5,6 @@ import {
   type BoardChange,
   type BoardColumnDef,
   type BoardTicket,
-  type BoardTicketActivity,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -18,7 +17,6 @@ import {
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNow } from '@/app/hooks/use-now';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
@@ -35,17 +33,15 @@ import {
   type TicketStatusDefinition,
   usesCanonicalStatusStyle,
 } from '../statuses/types/ticket-statuses.types';
-import type { Dialog, TicketActivityFilter } from '../types/dialog.types';
+import type { Dialog } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
-import { resolveBoardActivity } from '../utils/board-activity';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
-import { ActivityFilter } from './activity-filter';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
 import { type CachedBoardColumn, usePlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
-import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
+import { ReopenTicketModal, type ReopenTicketSelection, type ReopenTicketTarget } from './reopen-ticket-modal';
 import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
 import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
@@ -57,17 +53,11 @@ import { TicketsFilterModal } from './tickets-filter-modal';
  *  hold has no time limit while the modal is still open. */
 const HELD_MOVE_SETTLE_TIMEOUT_MS = 5000;
 
-/** Stable identity for lanes no transition rule targets: the boardColumns memo
- *  now also rebuilds on the staleness minute tick, and a fresh `[]` per rebuild
- *  would fail the cards' shallow compare and re-register the lane's drop target
- *  every minute for nothing. */
-const NO_ALLOWED_FROM_COLUMNS: string[] = [];
-
 /**
  * Re-seats a dropped ticket at its drop position on top of the raw columns.
  *
- * A drop intercepted by the Take Over modal persists nothing, so the data
- * still holds the card at its origin — without this overlay the Board's own
+ * A drop intercepted by a lifecycle modal (Take Over / Reopen) persists
+ * nothing, so the data still holds the card at its origin — without this overlay the Board's own
  * optimistic view times out (2s) and the card visibly snaps back BEHIND the
  * open modal. Pure view transform: remove the ticket from wherever the data
  * has it, insert it into the target lane at the drop anchor (after → before →
@@ -138,16 +128,8 @@ interface TicketsBoardProps {
   /** Only tickets the caller has unread notifications about. */
   unreadOnly?: boolean;
   onUnreadOnlyChange?: (value: boolean) => void;
-  /** Server-side activity filter (active / stale / awaiting client); OR within the list. */
-  activity?: TicketActivityFilter[];
-  onActivityChange?: (values: TicketActivityFilter[]) => void;
-  /** Applies organization+assignee+new-messages+activity filters atomically (mobile filter modal). */
-  onFiltersChange?: (filters: {
-    organizationIds: string[];
-    assigneeIds: string[];
-    unreadOnly: boolean;
-    activity: TicketActivityFilter[];
-  }) => void;
+  /** Applies organization+assignee+new-messages filters atomically (mobile filter modal). */
+  onFiltersChange?: (filters: { organizationIds: string[]; assigneeIds: string[]; unreadOnly: boolean }) => void;
   search: string;
   onSearchChange: (value: string) => void;
 }
@@ -165,29 +147,19 @@ type IsUserDeleted = (id?: string | null) => boolean;
  * the 15s refetch, each optimistic move. Handing the memoized cards a fresh
  * object each time would re-render the whole board (and every assignee picker
  * in it), so cache per dialog: react-query's structural sharing keeps unchanged
- * dialogs identical, and the derived inputs are part of the cache key. The
- * activity indicator is keyed by value (kind + label): it shifts without the
- * dialog changing — staleness crosses its threshold on the minute tick.
+ * dialogs identical, and the one derived input is part of the cache key.
  */
-const boardTicketCache = new WeakMap<
-  Dialog,
-  { isUserDeleted?: IsUserDeleted; activityKey: string; ticket: BoardTicket }
->();
+const boardTicketCache = new WeakMap<Dialog, { isUserDeleted?: IsUserDeleted; ticket: BoardTicket }>();
 
-function toBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted, activity?: BoardTicketActivity): BoardTicket {
-  const activityKey = activity ? `${activity.kind}|${activity.label ?? ''}` : '';
+function toBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTicket {
   const cached = boardTicketCache.get(dialog);
-  if (cached && cached.isUserDeleted === isUserDeleted && cached.activityKey === activityKey) return cached.ticket;
-  const ticket = dialogToBoardTicket(dialog, isUserDeleted, activity);
-  boardTicketCache.set(dialog, { isUserDeleted, activityKey, ticket });
+  if (cached && cached.isUserDeleted === isUserDeleted) return cached.ticket;
+  const ticket = dialogToBoardTicket(dialog, isUserDeleted);
+  boardTicketCache.set(dialog, { isUserDeleted, ticket });
   return ticket;
 }
 
-function dialogToBoardTicket(
-  dialog: Dialog,
-  isUserDeleted?: IsUserDeleted,
-  activity?: BoardTicketActivity,
-): BoardTicket {
+function dialogToBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTicket {
   return {
     id: dialog.id,
     title: dialog.title,
@@ -217,7 +189,6 @@ function dialogToBoardTicket(
     hasNewMessage: (dialog.unreadNotificationCount ?? 0) > 0,
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
-    activity,
   };
 }
 
@@ -231,16 +202,12 @@ export function TicketsBoard({
   onTagIdsChange,
   unreadOnly,
   onUnreadOnlyChange,
-  activity,
-  onActivityChange,
   onFiltersChange,
   search,
   onSearchChange,
 }: TicketsBoardProps) {
   const debouncedSearch = useDebounce(search, 300);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  // Keeps staleness labels ticking between the 15s column polls.
-  const now = useNow(60_000);
 
   const { data: statusesData, isLoading: statusesLoading, error: statusesError } = useTicketStatusesQuery();
   const { data: transitionRules } = useTicketStatusTransitionRules();
@@ -285,24 +252,25 @@ export function TicketsBoard({
   );
 
   const [columnUpdates, setColumnUpdates] = useState<Record<string, BoardColumnUpdate>>({});
-  // Bumped when an intercepted drag is discarded (Take Over cancelled): nothing
-  // was persisted, but the Board's internal drag state still shows the card in
-  // the target column. A fresh `columns` array identity makes it resync from props.
+  // Bumped when an intercepted drag is discarded (Take Over / Reopen cancelled):
+  // nothing was persisted, but the Board's internal drag state still shows the
+  // card in the target column. A fresh `columns` array identity makes it resync
+  // from props.
   const [boardResetNonce, setBoardResetNonce] = useState(0);
-  // A drop the Take Over modal intercepted: the view keeps the card at the
-  // drop position (see `applyHeldMove`) until the modal decides. The ref
-  // mirrors the state for the success/close handlers, which run back to back
-  // in one event and must see each other's writes.
+  // A drop a lifecycle modal (Take Over / Reopen) intercepted: the view keeps
+  // the card at the drop position (see `applyHeldMove`) until the modal
+  // decides. The ref mirrors the state for the success/close handlers, which
+  // run back to back in one event and must see each other's writes.
   const heldMoveRef = useRef<BoardChange | null>(null);
   const [heldMove, setHeldMoveState] = useState<BoardChange | null>(null);
   const setHeldMove = useCallback((move: BoardChange | null) => {
     heldMoveRef.current = move;
     setHeldMoveState(move);
   }, []);
-  // Whether the modal is closing because the take-over COMMITTED — then the
-  // hold survives the close and keeps the card in place until the refetch
-  // shows it in the target lane.
-  const takeOverConfirmedRef = useRef(false);
+  // Whether the modal is closing because its action COMMITTED — then the hold
+  // survives the close and keeps the card in place until the refetch shows it
+  // in the target lane.
+  const holdConfirmedRef = useRef(false);
   const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
@@ -310,8 +278,8 @@ export function TicketsBoard({
   // Every filter the lanes are fetched under, so "Archive Resolved" archives
   // exactly the tickets the Resolved lane shows (its count is the lane total).
   const archiveFilter = useMemo(
-    () => ({ organizationIds, assigneeIds, tagIds, unreadOnly, activity }),
-    [organizationIds, assigneeIds, tagIds, unreadOnly, activity],
+    () => ({ organizationIds, assigneeIds, tagIds, unreadOnly }),
+    [organizationIds, assigneeIds, tagIds, unreadOnly],
   );
   const filteredResolvedTotal = useMemo(() => {
     const resolvedId = statuses.find(s => s.kind === 'RESOLVED')?.id;
@@ -340,8 +308,8 @@ export function TicketsBoard({
   }, []);
 
   const params = useMemo(
-    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly, activity }),
-    [debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly, activity],
+    () => ({ search: debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly }),
+    [debouncedSearch, organizationIds, assigneeIds, tagIds, unreadOnly],
   );
 
   const allowedFromByStatusId = useMemo<Record<string, string[]>>(() => {
@@ -378,14 +346,12 @@ export function TicketsBoard({
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
-        tickets: (state?.tickets ?? []).map(ticket =>
-          toBoardTicket(ticket, isUserDeleted, resolveBoardActivity(ticket, status, now)),
-        ),
+        tickets: (state?.tickets ?? []).map(ticket => toBoardTicket(ticket, isUserDeleted)),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
         isLoadingMore: state?.isLoadingMore,
-        allowedFromColumns: transitionRules ? (allowedFromByStatusId[status.id] ?? NO_ALLOWED_FROM_COLUMNS) : undefined,
+        allowedFromColumns: transitionRules ? (allowedFromByStatusId[status.id] ?? []) : undefined,
         archivable: status.kind === 'RESOLVED' && canArchiveResolved,
       };
     });
@@ -399,7 +365,6 @@ export function TicketsBoard({
     isLoading,
     canArchiveResolved,
     isUserDeleted,
-    now,
     boardResetNonce,
   ]);
 
@@ -509,35 +474,39 @@ export function TicketsBoard({
 
   const [takeOverTarget, setTakeOverTarget] = useState<TakeOverTicketTarget | null>(null);
 
-  const handleTakeOverSuccess = useCallback(
-    (selection: TakeOverTicketSelection) => {
-      takeOverConfirmedRef.current = true;
+  // A lifecycle modal (Take Over / Reopen) COMMITTED the drop it was holding.
+  // Runs from the modal's `onSuccess`, which fires BEFORE its `onClose`, so
+  // `closeHeldModal` below can tell a confirmed close from a cancel.
+  const confirmHeldMove = useCallback(
+    (statusId: string) => {
+      holdConfirmedRef.current = true;
       const held = heldMoveRef.current;
       if (!held) return;
       // The user may have picked a different status in the modal than the lane they
       // dropped into — hold the card in the CONFIRMED lane, and drop the anchors
       // with it: they describe slots in a lane the ticket is no longer headed for.
-      if (held.toColumnId !== selection.statusId) {
+      if (held.toColumnId !== statusId) {
         setHeldMove({
           ticketId: held.ticketId,
           fromColumnId: held.fromColumnId,
-          toColumnId: selection.statusId,
+          toColumnId: statusId,
           afterTicketId: null,
           beforeTicketId: null,
         });
         return;
       }
-      // `takeOverTicket` carries no ordering, so the dropped slot is lost and the
-      // ticket lands wherever the backend ranks it. Replay the drop as a reorder now
-      // that the take-over has put it in the lane those anchors belong to.
-      // `sourceStatusId` is the lane it came FROM — the entry the optimistic update
-      // has to lift the card out of; the request is a plain re-rank either way,
-      // since the ticket already has the status it asks for.
+      // Neither `takeOverTicket` nor the reopen transition carries ordering, so
+      // the dropped slot is lost and the ticket lands wherever the backend ranks
+      // it. Replay the drop as a reorder now that the modal's action has put it
+      // in the lane those anchors belong to. `sourceStatusId` is the lane it
+      // came FROM — the entry the optimistic update has to lift the card out of;
+      // the request is a plain re-rank either way (an anchored move never
+      // transitions), since the ticket already has the status it asks for.
       if (held.afterTicketId === null && held.beforeTicketId === null) return;
       moveTicket({
         ticketId: held.ticketId,
         sourceStatusId: held.fromColumnId,
-        targetStatusId: selection.statusId,
+        targetStatusId: statusId,
         afterTicketId: held.afterTicketId,
         beforeTicketId: held.beforeTicketId,
       });
@@ -545,10 +514,11 @@ export function TicketsBoard({
     [moveTicket, setHeldMove],
   );
 
-  const handleTakeOverClose = useCallback(() => {
-    setTakeOverTarget(null);
-    if (takeOverConfirmedRef.current) {
-      takeOverConfirmedRef.current = false;
+  // The holding modal closed: keep the hold if it confirmed (until the refetch
+  // shows the ticket in the target lane), release the card otherwise.
+  const closeHeldModal = useCallback(() => {
+    if (holdConfirmedRef.current) {
+      holdConfirmedRef.current = false;
     } else {
       // Cancelled/dismissed: nothing was persisted — release the card.
       setHeldMove(null);
@@ -556,39 +526,41 @@ export function TicketsBoard({
     setBoardResetNonce(nonce => nonce + 1);
   }, [setHeldMove]);
 
-  // Backstop for a confirmed take-over whose refetch never lands the ticket in
-  // the target lane (filters can legitimately exclude it there). Deliberately
-  // NOT armed while the modal is open — the hold has no time limit there.
+  const handleTakeOverSuccess = useCallback(
+    (selection: TakeOverTicketSelection) => confirmHeldMove(selection.statusId),
+    [confirmHeldMove],
+  );
+  const handleTakeOverClose = useCallback(() => {
+    setTakeOverTarget(null);
+    closeHeldModal();
+  }, [closeHeldModal]);
+
+  const handleReopenSuccess = useCallback(
+    (selection: ReopenTicketSelection) => confirmHeldMove(selection.statusId),
+    [confirmHeldMove],
+  );
+  const handleReopenClose = useCallback(() => {
+    setReopenTarget(null);
+    closeHeldModal();
+  }, [closeHeldModal]);
+
+  // Backstop for a confirmed take-over / reopen whose refetch never lands the
+  // ticket in the target lane (filters can legitimately exclude it there).
+  // Deliberately NOT armed while a modal is open — the hold has no time limit
+  // there.
   useEffect(() => {
-    if (!heldMove || takeOverTarget) return undefined;
+    if (!heldMove || takeOverTarget || reopenTarget) return undefined;
     const timer = setTimeout(() => setHeldMove(null), HELD_MOVE_SETTLE_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [heldMove, takeOverTarget, setHeldMove]);
-
-  // The dialog map is read through a ref like the AI-owned set above — its
-  // identity changes on every column tick, and this callback sits in every card.
-  const dialogByIdRef = useRef(dialogById);
-  // Latest-value refs, written after the commit rather than during render:
-  // a render-phase ref write is what `react-hooks/refs` forbids, and every
-  // reader below runs in an effect, a timer or an event handler.
-  useEffect(() => {
-    dialogByIdRef.current = dialogById;
-  });
+  }, [heldMove, takeOverTarget, reopenTarget, setHeldMove]);
 
   // AI-owned cards (AI Handling lane, AI/user-closed Resolved) render no
-  // assign control at all — assignment stays on the dialog page. The rest
-  // keep the picker; AI-worked tickets get the Take Over interception
-  // instead of the dropdown.
+  // assign control at all - assignment stays on the dialog page. Everything
+  // else gets the plain picker: outside AI Handling the AI is already stopped
+  // (`hasActiveAiDialog`), so assigning is a one-click change, not a take-over.
   const renderAssignSlot = useCallback((ticket: BoardTicket) => {
     if (aiOwnedTicketIdsRef.current.has(ticket.id)) return null;
-    const dialog = dialogByIdRef.current.get(ticket.id);
-    const aiActive = !!dialog && hasActiveAiDialog(dialog);
-    return (
-      <BoardAssigneePicker
-        ticket={ticket}
-        onTakeOver={aiActive ? () => setTakeOverTarget({ ticket: dialog }) : undefined}
-      />
-    );
+    return <BoardAssigneePicker ticket={ticket} />;
   }, []);
 
   const handleChange = useCallback(
@@ -596,21 +568,22 @@ export function TicketsBoard({
       if (change.fromColumnId !== change.toColumnId) {
         // Dragging OUT of the Resolved lane is a REOPEN, not a plain move: it
         // goes through the confirmation modal (target status + assignee +
-        // reason) instead of committing the drop. The optimistic move never
-        // runs, so the card snaps back until the modal confirms. Gated on
+        // reason) instead of committing the drop. The card is HELD at the drop
+        // position while the modal is open, exactly like Take Over below -
+        // confirming keeps it there, cancelling releases it back. Gated on
         // `ai-resolution` — with the flag off the drop commits directly (legacy).
         if (featureFlags.aiResolution.enabled()) {
           const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
           if (sourceKind === 'RESOLVED') {
+            setHeldMove(change);
             setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
             return;
           }
         }
         // Dragging an AI-worked ticket into another column is a take-over: ask
         // for confirmation (status pre-set to the target column) instead of
-        // moving. The card is HELD at the drop position while the modal is
-        // open — confirming keeps it there, cancelling releases it back;
-        // reordering within a column never needs confirmation.
+        // moving. Same hold as the reopen above; reordering within a column
+        // never needs confirmation.
         const dialog = dialogById.get(change.ticketId);
         if (dialog && hasActiveAiDialog(dialog)) {
           setHeldMove(change);
@@ -636,7 +609,6 @@ export function TicketsBoard({
     (assigneeIds?.length ?? 0) === 0 &&
     (tagIds?.length ?? 0) === 0 &&
     !unreadOnly &&
-    (activity?.length ?? 0) === 0 &&
     boardColumns.length > 0 &&
     boardColumns.every(column => column.tickets.length === 0);
 
@@ -705,11 +677,6 @@ export function TicketsBoard({
                 onChange={ids => onAssigneeIdsChange?.(ids)}
                 className="col-span-1"
               />
-              <ActivityFilter
-                value={activity ?? []}
-                onChange={values => onActivityChange?.(values)}
-                className="col-span-1"
-              />
               <CheckboxBlock
                 checked={unreadOnly ?? false}
                 onCheckedChange={checked => onUnreadOnlyChange?.(checked)}
@@ -726,8 +693,7 @@ export function TicketsBoard({
           organizationIds={organizationIds ?? []}
           assigneeIds={assigneeIds ?? []}
           unreadOnly={unreadOnly ?? false}
-          activity={activity ?? []}
-          onApply={filters => onFiltersChange?.({ ...filters, activity: filters.activity ?? [] })}
+          onApply={filters => onFiltersChange?.(filters)}
         />
 
         {showEmptyState ? (
@@ -751,7 +717,7 @@ export function TicketsBoard({
       </PageLayout>
       {ticketsActionsDialog}
       <TakeOverTicketModal target={takeOverTarget} onClose={handleTakeOverClose} onSuccess={handleTakeOverSuccess} />
-      <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
+      <ReopenTicketModal target={reopenTarget} onClose={handleReopenClose} onSuccess={handleReopenSuccess} />
     </>
   );
 }

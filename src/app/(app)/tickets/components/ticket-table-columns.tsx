@@ -23,7 +23,6 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { ClientDialogOwner, Dialog } from '../types/dialog.types';
-import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { UnassignedTicketCell } from './table-assignee-cell';
 import { TICKET_COLUMNS } from './ticket-table-layout';
@@ -135,10 +134,10 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
       // cell, per design — not even a dash.
       if (ticket.statusKind === TICKET_STATUS_KIND.AI_ASSISTANCE) return null;
       // Unassigned: the ghost avatar + label, with the first assignment offered
-      // right here (the board card's affordance). Not for archived rows, and
-      // not while the AI still works the ticket — assigning that one is a
-      // take-over, which the details page runs.
-      return <UnassignedTicketCell ticketId={ticket.id} interactive={!isArchived && !hasActiveAiDialog(ticket)} />;
+      // right here (the board card's affordance). Not for archived rows. The AI
+      // Handling early-return above already covers the take-over case - outside
+      // that kind the AI is stopped and assigning is a plain change.
+      return <UnassignedTicketCell ticketId={ticket.id} interactive={!isArchived} />;
     },
     enableSorting: false,
     meta: liveColumnMeta(TICKET_COLUMNS.assignee),

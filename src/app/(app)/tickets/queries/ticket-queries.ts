@@ -291,10 +291,6 @@ export const GET_TICKETS_QUERY = `
  * carrying the field must ship BEFORE this frontend, or the board columns, the
  * tickets table and the ticket picker (`use-ticket-options.ts`, same document)
  * all come back empty. Same constraint at the `GET_TICKETS_QUERY` selection.
- *
- * `lastActivityAt` / `activityState` (board activity indicators) are in the
- * same unconditional, no-flag position: the saas-ai-agent build exposing them
- * (openframe-saas-tenant#2938) must be deployed before this frontend.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
@@ -306,6 +302,7 @@ const boardCardTicketFragment = () => `
       id
       name
       color
+      kind
     }
     availableTransitions {
       id
@@ -353,8 +350,6 @@ const boardCardTicketFragment = () => `
       color
     }
     unreadNotificationCount
-    lastActivityAt
-    activityState
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
     ${featureFlags.aiResolution.enabled() ? 'resolvedBy' : ''}
     pendingApproval {
@@ -382,9 +377,9 @@ const boardCardTicketFragment = () => `
 `;
 
 export const getBoardColumnTicketsQuery = () => `
-  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!], $hasUnreadNotifications: Boolean, $activity: [TicketActivityFilter!]) {
+  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!], $hasUnreadNotifications: Boolean) {
     tickets(
-      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds, hasUnreadNotifications: $hasUnreadNotifications, activity: $activity }
+      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds, hasUnreadNotifications: $hasUnreadNotifications }
       pagination: { limit: $limit, cursor: $cursor }
       search: $search
       sort: { field: "order", direction: ASC }

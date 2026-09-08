@@ -21,8 +21,8 @@ import { type EditScheduleFormData, TIME_REFERENCE_OPTIONS } from '../types/edit
 import {
   DURATION_UNIT_OPTIONS,
   type DurationUnit,
+  earliestScheduleDay,
   getTimeSlotOptions,
-  isDeviceLocalTime,
   isEventTrigger,
   isScheduleStartInPast,
   isSlotOnGrid,
@@ -32,7 +32,6 @@ import {
   PAST_START_MESSAGE,
   slotToLabel,
   snapRepeatInterval,
-  startOfToday,
 } from '../utils/schedule-timing';
 import { ScheduleIntervalInput } from './schedule-interval-input';
 
@@ -51,8 +50,24 @@ import { ScheduleIntervalInput } from './schedule-interval-input';
  * five-control row: with the picker on, the design wraps Repeat onto a second
  * line, which is why the row is a 4-column GRID rather than the flex row it
  * used to be — the wrap is then a `col-start-1` on one cell instead of a second
- * layout. DEVICE_LOCAL rules out recurrence (the schema does not accept
- * `repeat` for it), so picking it clears and locks the Repeat controls.
+ * layout.
+ *
+ * Recurrence stays OFFERED for DEVICE_LOCAL — "every day at 9 AM on each
+ * device's own clock" is the reason the reading exists — even though the API
+ * refuses it today ("A DEVICE_LOCAL schedule does not support repeat **yet**",
+ * `ScheduleScriptService.validateTiming`). Saving one is answered by that
+ * message in the error toast until the backend drops the check; nothing here
+ * has to change when it does. Its offline setting is refused the same way and
+ * IS hidden, because that one is not merely unimplemented: the device-local
+ * runner already retries on reconnect within its catch-up window, so the
+ * setting would have nothing to add — see `ScheduleOfflineFields`.
+ *
+ * What it does NOT constrain is the clock. The picked pair is a wall clock every
+ * device reads on its own timezone, so the viewer's "already gone by" says
+ * nothing about the fleet's: all 48 slots stay offered, the past-start rule is
+ * off, and the only bound left is the day one (`earliestScheduleDay` — today as
+ * read in UTC−12). The API validates no start against the past either, for
+ * either reading.
  *
  * Only DATE_TIME schedules have timing, so the row collapses when the event
  * trigger is picked. It stays MOUNTED (a toggle back restores what was typed)
@@ -114,11 +129,6 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
   const scheduledTime = useWatch({ control, name: 'scheduledTime' });
   const timeReference = useWatch({ control, name: 'timeReference' });
   const eventDriven = isEventTrigger(trigger);
-  // Recurrence is a SERVER-only setting: the schema documents `repeat` as
-  // unsupported for DEVICE_LOCAL (one-shot only). Watched rather than read off
-  // the control, so a schedule seeded with it locks the Repeat pair on arrival
-  // and not only when the dropdown is touched.
-  const deviceLocal = isDeviceLocalTime(timeReference);
   // Minutes are the one unit that can express a cadence finer than the runner's
   // 30-minute grid, so they are the one unit the stepper has to constrain — it
   // then produces only legal values, and the schema rule behind it is left to
@@ -156,7 +166,13 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
   // They are not a fallback in any case: a disabled day cannot stop the clock
   // from passing the SLOT this form already holds, and the seeded value never
   // went through the calendar at all.
-  const minDate = useMemo(() => startOfToday(), []);
+  //
+  // DEVICE_LOCAL moves the bound west instead of dropping it: a wall clock is
+  // gone only once it is gone on every clock on Earth, so the floor is today as
+  // read in UTC−12 (`earliestScheduleDay`). Depends on the reading, so it is
+  // rebuilt when that changes — and on nothing else, so a tab left open still
+  // cannot walk the bound backwards past its own mount.
+  const minDate = useMemo(() => earliestScheduleDay(timeReference), [timeReference]);
 
   /**
    * Moving the DAY can invalidate the time already chosen: 8:00 AM is a fine
@@ -168,40 +184,44 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
    * Only for a day that is itself selectable: on a PAST day every slot is in the
    * past, and clearing the time there would replace the real complaint ("that
    * day has gone") with a second, misleading one ("pick a time").
+   *
+   * Never for DEVICE_LOCAL — no slot of a selectable day is withheld there, so
+   * moving the day cannot invalidate the time (`isScheduleStartInPast` answers
+   * false, which is what makes this a no-op rather than a second condition).
    */
   const handleDateChange = useCallback(
     (onChange: (date: Date | null) => void, date: Date | null) => {
       onChange(date);
       const time = getValues('scheduledTime');
-      if (date && time && date >= minDate && isScheduleStartInPast(date, time)) setValue('scheduledTime', '');
+      if (date && time && date >= minDate && isScheduleStartInPast(date, time, getValues('timeReference')))
+        setValue('scheduledTime', '');
     },
     [getValues, setValue, minDate],
   );
 
   /**
-   * Switching the reading changes two things under the fields, and both have to
-   * be settled here rather than left to Save.
+   * Switching the reading can invalidate the time already picked: the two do not
+   * share a slot grid in the 45-minute zones (see `getTimeSlotOptions`), so a
+   * value the dropdown no longer lists would sit in the form as an empty-looking
+   * Select that fails on Save. Cleared for the same reason a day change clears
+   * it — and asked of the GRID, not of the option list, so a stored slot that
+   * has merely gone by is left alone.
    *
-   * DEVICE_LOCAL cannot repeat, so the toggle is cleared as well as locked —
-   * leaving it checked would submit a cadence the schema refuses, from a control
-   * the user can no longer see the state of.
+   * Nothing else is reset. Recurrence survives the switch: the pair "every day,
+   * on each device's own clock" is a setting the user meant, not a leftover, and
+   * the API refusing it today is a message on Save rather than a reason to
+   * silently uncheck a box.
    *
-   * And the two readings do not share a slot grid in the 45-minute zones (see
-   * `getTimeSlotOptions`), so a time already picked can stop being offered. It
-   * is cleared for the same reason a day change clears it: a value the dropdown
-   * no longer lists renders as an empty-looking Select that fails on Save.
-   * Asked of the GRID, not of the option list — a stored slot that has merely
-   * gone by is legal and must survive.
+   * The offline block is the exception, and it resets itself: it collapses for
+   * DEVICE_LOCAL and submit writes SKIP for it regardless of what the collapsed
+   * controls hold.
    */
   const handleTimeReferenceChange = useCallback(
     (onChange: (next: ScheduleTimeReference) => void, next: ScheduleTimeReference) => {
       onChange(next);
-      if (isDeviceLocalTime(next) && getValues('repeatEnabled')) {
-        setValue('repeatEnabled', false);
-        // Recurrence is what the reconnect window is measured against, so the
-        // rule that compares them stops applying.
-        recheckReconnectWindow();
-      }
+      // The window-shorter-than-cadence rule is graded only while the offline
+      // block applies, and this switch decides whether it does.
+      recheckReconnectWindow();
       const time = getValues('scheduledTime');
       if (time && !isSlotOnGrid(time, next)) setValue('scheduledTime', '');
     },
@@ -377,10 +397,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                     // measured against, so the rule stops applying entirely.
                     recheckReconnectWindow();
                   }}
-                  // Locked under DEVICE_LOCAL, where a cadence has nothing to
-                  // repeat FROM: the reading is re-based per device, and the
-                  // schema takes `repeat` for the SERVER reading only.
-                  disabled={fieldsDisabled || deviceLocal}
+                  disabled={fieldsDisabled}
                   className="w-full"
                 />
               )}
@@ -403,7 +420,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                       field.onBlur();
                       recheckReconnectWindow();
                     }}
-                    disabled={fieldsDisabled || !repeatEnabled || deviceLocal}
+                    disabled={fieldsDisabled || !repeatEnabled}
                     error={showErrors ? fieldState.error?.message : undefined}
                     invalid={showErrors && !!fieldState.error}
                   />
@@ -428,7 +445,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
                       if (snapped !== getValues('repeatInterval')) setValue('repeatInterval', snapped);
                       recheckReconnectWindow();
                     }}
-                    disabled={fieldsDisabled || !repeatEnabled || deviceLocal}
+                    disabled={fieldsDisabled || !repeatEnabled}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
