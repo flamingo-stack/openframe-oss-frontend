@@ -233,11 +233,8 @@ export const editScheduleFormSchema = z
     // of one. Event-driven schedules carry no timing at all — their controls are
     // collapsed and both fields are submitted as null.
     if (isEventTrigger(data.trigger)) return;
-    // The device-local reading grades like any other: its offline block and its
-    // recurrence controls are both OFFERED, so both rule sets keep applying and
-    // what the form shows is what gets sent. (The API may still refuse either
-    // beside DEVICE_LOCAL — that refusal is the save's error toast, not a rule
-    // the client pre-empts by dropping a value the user can see.)
+    // The device-local reading grades like any other: both its offline block and
+    // its recurrence controls are offered, so both rule sets keep applying.
     const repeats = data.repeatEnabled;
     const retries = isRetryOnReconnect(data.offlineBehavior);
     if (data.scheduledDate == null) {

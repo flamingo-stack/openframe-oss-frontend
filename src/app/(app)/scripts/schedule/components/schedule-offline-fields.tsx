@@ -111,33 +111,22 @@ function ReconnectWindowFields({
  * optional-meaning-forever: nothing in the contract says a null window queues a
  * run indefinitely, so the form never offers a reading it cannot back up.
  *
- * The whole block presupposes a scheduled time the device can be absent FOR, so
- * it collapses for the one reading that has no such moment to decide about:
- * **DEVICE_ONLINE**, which fires on the reconnect already, and submits the SKIP
- * default rather than whatever the collapsed block holds — exactly as the timing
- * fields submit null.
+ * The block presupposes a scheduled time the device can be absent FOR, so it
+ * collapses for DEVICE_ONLINE — which fires on the reconnect already — and
+ * submits the SKIP default instead of what the collapsed controls hold.
+ * DEVICE_LOCAL keeps it: its scheduled moment is the device's own wall clock.
  *
- * **DEVICE_LOCAL keeps the block.** A device-local schedule has a scheduled
- * moment like any other — its own wall clock — so the question is a real one for
- * it, and the setting is offered and sent as picked. The API may still refuse
- * RETRY_ON_RECONNECT beside it ("RETRY_ON_RECONNECT is not supported for a
- * DEVICE_LOCAL schedule", `ScheduleScriptService.validateOfflineBehavior`); that
- * refusal surfaces as the error toast, the same way `repeat`'s does, because
- * silently writing back SKIP would save a schedule that skips while the form
- * shows it retrying.
- *
- * It collapses with the `0fr → 1fr` grid-rows technique, a stays-MOUNTED
- * contract (toggling the trigger back restores what was picked), `inert` to drop
- * the collapsed controls out of the tab order, and a padding/negative-margin
- * pair: the bottom padding is the room the absolutely-positioned error renders
- * into, and the constant negative margin cancels it so a collapsed block leaves
- * no hole.
+ * It collapses with the `0fr → 1fr` grid-rows technique, staying MOUNTED so
+ * toggling the trigger back restores what was picked, `inert` to drop the
+ * collapsed controls out of the tab order, and a padding/negative-margin pair:
+ * the bottom padding is the room the absolutely-positioned error renders into,
+ * and the constant negative margin cancels it so a collapsed block leaves no
+ * hole.
  */
 export function ScheduleOfflineFields({ showErrors, disabled = false }: { showErrors: boolean; disabled?: boolean }) {
   const { control } = useFormContext<EditScheduleFormData>();
   const trigger = useWatch({ control, name: 'trigger' });
   // The one reading with no offline moment to decide about — see the docstring.
-  // Device-local keeps the block: its scheduled moment is the device's own.
   const collapsed = isEventTrigger(trigger);
 
   const { field: behaviorField } = useController({ control, name: 'offlineBehavior' });

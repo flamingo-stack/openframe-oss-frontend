@@ -178,9 +178,8 @@ function ScheduleInfoBar({ scheduleId }: ScheduleDetailsViewProps) {
   const { date, time } = formatScheduleStartAt(schedule.startAt, schedule.timeReference);
 
   // A DEVICE_ONLINE schedule waits for the device by definition, so the offline
-  // rule does not apply to it. The edit form collapses its block for exactly
-  // that one, and a value shown here that cannot be edited there would read as a
-  // setting the page had lost. A DEVICE_LOCAL schedule keeps both.
+  // rule does not apply to it — and the edit form collapses its block for that
+  // one too, so nothing is shown here that cannot be edited there.
   const ifDeviceOffline = isEventTrigger(schedule.trigger)
     ? undefined
     : offlineBehaviorToLabel(schedule.offlineBehavior, schedule.reconnectWindowSeconds);

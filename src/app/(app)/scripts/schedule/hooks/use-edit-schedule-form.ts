@@ -86,14 +86,10 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         !isEventDriven && data.scheduledDate && data.scheduledTime
           ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime), data.timeReference)
           : null;
-      // Nothing is forced for a device-local schedule — neither its
-      // `offlineBehavior` nor its `repeat`. The API may refuse either beside
-      // DEVICE_LOCAL today ("RETRY_ON_RECONNECT is not supported…", "does not
-      // support repeat yet"), but both sets of controls are OFFERED, so what the
-      // user set is what gets sent: silently dropping a setting the form shows
-      // would save a schedule that skips, or runs once, while reading otherwise.
-      // The refusal surfaces as the error toast, and these lines need no edit
-      // when the backend lifts it.
+      // Nothing is forced for a device-local schedule — neither `offlineBehavior`
+      // nor `repeat`. The API may still refuse either beside DEVICE_LOCAL, but
+      // both sets of controls are offered, so what the user set is what gets
+      // sent and the refusal surfaces as the error toast.
       //
       // The window is written only when the behavior that uses it is in force,
       // which an event-driven schedule never has.
@@ -135,10 +131,9 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
             ? resolveDurationSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
             : null,
         // "If device is offline at scheduled time" — meaningless without such a
-        // moment, so the one reading that has none is written back as the SKIP
-        // default rather than carrying whatever the collapsed block holds: an
-        // event-driven schedule fires ON the reconnect. A device-local one has a
-        // scheduled moment (its own wall clock) and sends what was picked.
+        // moment, and an event-driven schedule fires ON the reconnect, so it is
+        // written back as the SKIP default instead of what the collapsed block
+        // holds.
         offlineBehavior: isEventDriven ? ScheduleOfflineBehavior.SKIP : data.offlineBehavior,
         // Only ever set alongside RETRY_ON_RECONNECT — the schema says the field
         // is "set only when offlineBehavior is RETRY_ON_RECONNECT; null/ignored
