@@ -3,12 +3,16 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
+import { isOptimisticTagId } from '@/app/components/shared/tags';
+import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { useApplyAssignmentsDiff, useAssignedItems } from '@/components/assignments';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
 import { queryState } from '@/lib/query-state';
+import { routes } from '@/lib/routes';
 import { API_ENDPOINTS, CREATION_SOURCE } from '../constants';
 import { GET_TICKET_QUERY } from '../queries/ticket-queries';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
@@ -30,6 +34,7 @@ interface UseCreateTicketFormOptions {
 
 export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {}) {
   const isEditMode = !!ticketId;
+  const router = useRouter();
   const createTicketMutation = useCreateTicket();
   const updateTicketMutation = useUpdateTicket();
   const transitionTicketMutation = useTransitionTicket();
@@ -84,89 +89,120 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
     enabled: isEditMode,
   });
 
-  // Prefill form when ticket data loads
+  // Everything the prefill needs, from a fetch made AFTER mount. `editForm`
+  // keeps the previous session's ticket for gcTime and the save-time
+  // invalidation only refetches ACTIVE observers, so a re-opened form would
+  // otherwise seed itself from the pre-save values. The status conjunct is for
+  // legacy tickets, whose current status resolves only once the snapshot is in;
+  // a settled snapshot that still resolves nothing (legacy ON_HOLD) proceeds
+  // without one.
+  const statusReady = !!currentStatus || !statusesQuery.isPending;
+  const prefillReady =
+    isEditMode && !!ticket && ticketQuery.isFetchedAfterMount && assignedItems.isReady && statusReady;
+
+  // Prefill exactly once per ticket. `tempAttachments` is a new object on
+  // every render (its callbacks key on TanStack's per-render mutation object)
+  // and `form.reset` re-renders the `useForm` owner, so a prefill that re-ran
+  // on every dependency change was a render loop — and wiped every edit on the
+  // way. The ref, not the dependency list, is what makes this run once.
+  const prefilledTicketId = useRef<string | null>(null);
   useEffect(() => {
-    if (ticket && isEditMode && assignedItems.isReady) {
-      form.reset({
-        title: ticket.title || '',
-        description: ticket.description || '',
-        statusId: currentStatus?.id || undefined,
-        organizationId: ticket.organizationId || undefined,
-        deviceId: ticket.deviceId || undefined,
-        assignedTo: ticket.assignedTo || undefined,
-        userId: undefined,
-        type: 'text',
-        tagIds: ticket.tags?.map(t => t.id) || [],
-        assignKnowledgeBase: false,
-        assignments: assignedItems.value,
-      });
+    if (!prefillReady || !ticket || prefilledTicketId.current === ticket.id) return;
+    prefilledTicketId.current = ticket.id;
 
-      if (ticket.attachments?.length) {
-        tempAttachments.initializeExisting(ticket.attachments);
-      }
+    form.reset({
+      title: ticket.title || '',
+      description: ticket.description || '',
+      statusId: currentStatus?.id || undefined,
+      organizationId: ticket.organizationId || undefined,
+      deviceId: ticket.deviceId || undefined,
+      assignedTo: ticket.assignedTo || undefined,
+      userId: undefined,
+      type: 'text',
+      tagIds: ticket.tags?.map(t => t.id) || [],
+      assignKnowledgeBase: false,
+      assignments: assignedItems.value,
+    });
+
+    if (ticket.attachments?.length) {
+      tempAttachments.initializeExisting(ticket.attachments);
     }
-  }, [ticket, isEditMode, form, tempAttachments, assignedItems.isReady, assignedItems.value, currentStatus?.id]);
+  }, [prefillReady, ticket, form, tempAttachments, assignedItems.value, currentStatus?.id]);
 
+  // Navigation is the LAST step here, not a mutation's `onSuccess`: the
+  // assignments diff runs after the ticket write, and a failure there has to
+  // land on this form — toast, input intact — not on the page after it. Every
+  // awaited call toasts and rejects on its own, so the catch only keeps the
+  // rejection from going unhandled (and lets `formState.isSubmitting` settle).
   const handleSave = form.handleSubmit(async data => {
     const nextAssignments = data.assignments ?? {};
-    if (isEditMode && ticketId) {
-      const tempAttachmentIds = tempAttachments.getTempAttachmentIds();
+    // A tag whose create is still in flight holds a placeholder id the backend
+    // has never seen; the picker swaps in the persisted id when the create lands.
+    const tagIds = data.tagIds.filter(id => !isOptimisticTagId(id));
+    const tempAttachmentIds = tempAttachments.getTempAttachmentIds();
 
-      if (tempAttachments.hasPendingDeletes) {
-        await tempAttachments.deleteRemovedAttachments();
-      }
-
-      // Transition first: updateTicket's onSuccess navigates away, so a failed
-      // transition afterwards would strand the user on the next page mid-error.
-      if (data.statusId && data.statusId !== currentStatus?.id) {
-        // Editing a ticket into a RESOLVED-kind status is also a "resolve".
-        // Track optimistically before the mutation, same as the detail-view
-        // status changer (see isResolvedStatusId).
-        if (isResolvedStatusId(data.statusId, statusesQuery.data?.snapshot)) {
-          trackDashboardActivity(EVENT_SUBTYPE.RESOLVE_TICKET);
+    try {
+      if (isEditMode && ticketId) {
+        if (tempAttachments.hasPendingDeletes) {
+          await tempAttachments.deleteRemovedAttachments();
         }
-        await transitionTicketMutation.mutateAsync({ ticketId, toStatusId: data.statusId });
-      }
 
-      await updateTicketMutation.mutateAsync({
-        id: ticketId,
-        title: data.title,
-        description: data.description || undefined,
-        organizationId: data.organizationId ?? null,
-        deviceId: data.deviceId ?? null,
-        assigneeId: data.assignedTo ?? null,
-        tagIds: data.tagIds,
-        tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
-      });
+        // Transition before the field write: a rejected transition leaves the
+        // ticket untouched, while the reverse order leaves it half-saved.
+        if (data.statusId && data.statusId !== currentStatus?.id) {
+          // Editing a ticket into a RESOLVED-kind status is also a "resolve".
+          // Track optimistically before the mutation, same as the detail-view
+          // status changer (see isResolvedStatusId).
+          if (isResolvedStatusId(data.statusId, statusesQuery.data?.snapshot)) {
+            trackDashboardActivity(EVENT_SUBTYPE.RESOLVE_TICKET);
+          }
+          await transitionTicketMutation.mutateAsync({ ticketId, toStatusId: data.statusId });
+        }
 
-      await applyAssignmentsDiff({
-        itemId: ticketId,
-        itemType: 'TICKET',
-        prev: assignedItems.value,
-        next: nextAssignments,
-      });
-    } else {
-      const tempAttachmentIds = tempAttachments.getTempAttachmentIds();
+        await updateTicketMutation.mutateAsync({
+          id: ticketId,
+          title: data.title,
+          description: data.description || undefined,
+          organizationId: data.organizationId ?? null,
+          deviceId: data.deviceId ?? null,
+          assigneeId: data.assignedTo ?? null,
+          tagIds,
+          tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
+        });
 
-      const created = await createTicketMutation.mutateAsync({
-        title: data.title,
-        description: data.description || undefined,
-        statusId: data.statusId || undefined,
-        organizationId: data.organizationId || undefined,
-        deviceId: data.deviceId || undefined,
-        assigneeId: data.assignedTo || undefined,
-        tagIds: data.tagIds.length ? data.tagIds : undefined,
-        tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
-      });
-
-      if (created?.id && Object.keys(nextAssignments).length > 0) {
         await applyAssignmentsDiff({
-          itemId: created.id,
+          itemId: ticketId,
           itemType: 'TICKET',
-          prev: {},
+          prev: assignedItems.value,
           next: nextAssignments,
         });
+
+        safeBackOrReplace(router, routes.tickets.dialog(ticketId));
+      } else {
+        const created = await createTicketMutation.mutateAsync({
+          title: data.title,
+          description: data.description || undefined,
+          statusId: data.statusId || undefined,
+          organizationId: data.organizationId || undefined,
+          deviceId: data.deviceId || undefined,
+          assigneeId: data.assignedTo || undefined,
+          tagIds: tagIds.length ? tagIds : undefined,
+          tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
+        });
+
+        if (created?.id && Object.keys(nextAssignments).length > 0) {
+          await applyAssignmentsDiff({
+            itemId: created.id,
+            itemType: 'TICKET',
+            prev: {},
+            next: nextAssignments,
+          });
+        }
+
+        router.replace(created?.id ? routes.tickets.dialog(created.id) : routes.tickets.list);
       }
+    } catch {
+      // Reported by the mutation that threw; see above.
     }
   });
 
@@ -177,12 +213,17 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
     ticket,
     isEditMode,
     isLoadingTicket,
-    // Gates Save in edit mode. `isLoadingTicket` cannot: offline the query PAUSES
-    // and reports false with no data, so the form renders blank and Save writes
-    // those blanks over the real ticket.
-    ticketLoaded: ticketState.hasData,
-    isSubmitting:
-      createTicketMutation.isPending || updateTicketMutation.isPending || transitionTicketMutation.isPending,
+    // Gates Save in edit mode: the form has been seeded from a post-mount fetch.
+    // `isLoadingTicket` cannot: offline the query PAUSES and reports false with
+    // no data, so the form renders blank and Save writes those blanks over the
+    // real ticket. `hasData` cannot either: it is true for a stale cache entry
+    // and true before the assignments answer, and a Save in either window writes
+    // the defaults (null org/device/assignee, no tags) over the ticket.
+    ticketLoaded: prefillReady,
+    // The whole `handleSave` run, attachment deletes and the assignments diff
+    // included — the mutations' own pending flags left Save re-enabled between
+    // steps, and a second click mid-save re-sent the write.
+    isSubmitting: form.formState.isSubmitting,
     handleSave,
     tempAttachments,
     isFaeForm,
