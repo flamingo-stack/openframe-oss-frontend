@@ -127,6 +127,14 @@ jobs:
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" "."
 
+      - name: Scan image
+        uses: ./.github/steps/trivy
+        with:
+          scan: image
+          image-name: ${{ env.REPOSITORY }}
+          dockerfile: ./Dockerfile
+          context: .
+
       - name: Push image
         id: docker_push
         uses: nick-fields/retry@v4
@@ -143,14 +151,6 @@ jobs:
                   -f "./Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" --push --provenance=false --sbom=true "."
-
-      - name: Scan image
-        uses: ./.github/steps/trivy
-        with:
-          scan: image
-          image-name: ${{ env.REPOSITORY }}
-          dockerfile: ./Dockerfile
-          context: .
 
   cleanup:
     name: Cleanup
