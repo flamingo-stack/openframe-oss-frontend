@@ -277,7 +277,7 @@ export const useTicketDetailsStore = create<TicketDetailsStore>((set, get) => ({
   getMessages: side => get()[side].messages,
 
   updateApprovalStatusInMessages: (side, requestId, status, resolvedByName) => {
-    mutateTicketSide(side, r => r.updateApprovalStatus(requestId, status, resolvedByName));
+    mirror.updateApprovalStatus(side, requestId, status, resolvedByName);
     get().setApprovalStatus(requestId, status);
   },
 

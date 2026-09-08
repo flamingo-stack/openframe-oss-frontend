@@ -2,6 +2,7 @@ import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-
 import { createChatDialogStore, DEFAULT_DIALOG_SIDE } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { describe, expect, it } from 'vitest';
 import { bindMingoDialog, useMingoMessagesStore } from '@/app/(app)/mingo/stores/mingo-messages-store';
+import { bindTicketSide, useTicketDetailsStore } from '@/app/(app)/tickets/stores/ticket-details-store';
 import { createReducerMirror, type ReducerMirrorSnapshot } from '@/lib/chat-stream-thread';
 
 /**
@@ -46,6 +47,29 @@ function unfinishedThread(): ChatMessage[] {
             toolFunction: 'search_machines',
             toolExecutionRequestId: 'req-1',
           },
+        },
+      ],
+    } as ChatMessage,
+  ];
+}
+
+/**
+ * The same thread blocked on the USER instead: a pending approval at the tail.
+ * Unfinished by the extractor's rules too, so a hydrate arms adoption — but
+ * nothing is executing, so the phase stays idle.
+ */
+function pendingApprovalThread(): ChatMessage[] {
+  return [
+    { id: 'u1', role: 'user', content: 'run it' },
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'This needs your go-ahead.' },
+        {
+          type: 'approval_request',
+          status: 'pending',
+          data: { requestId: 'req-9', command: 'rm -rf /tmp/cache', approvalType: 'CLIENT' },
         },
       ],
     } as ChatMessage,
@@ -154,6 +178,47 @@ describe('adopt-once', () => {
     expect(messages).toHaveLength(hydratedCount + 1);
     expect(textOf(messages.at(-1))).toBe('');
   });
+
+  it('disarms when the user resolves the approval the tail is waiting on', async () => {
+    // A pending approval is an unfinished tail, so an idle refetch's hydrate
+    // arms adoption while the agent sits blocked on the user. The user then
+    // approves and the backend answers by STARTING a turn. Nothing guarantees
+    // an APPROVAL_RESULT lands before that turn's MESSAGE_START, and a
+    // still-armed flag would re-stream the continuation INTO the approval
+    // bubble — card and preamble gone.
+    const dialogId = 'dialog-disarm-approval';
+    const store = useMingoMessagesStore.getState();
+
+    store.setMessages(dialogId, pendingApprovalThread());
+    const hydratedCount = useMingoMessagesStore.getState().getMessages(dialogId).length;
+
+    store.updateApprovalStatusInMessages(dialogId, 'req-9', 'approved');
+    bindMingoDialog(dialogId).apply({ type: 'turn-start' });
+    await flushDeltas();
+
+    const messages = useMingoMessagesStore.getState().getMessages(dialogId);
+    expect(messages).toHaveLength(hydratedCount + 1);
+    expect(textOf(messages.at(-2))).toContain('This needs your go-ahead.');
+    expect(textOf(messages.at(-1))).toBe('');
+  });
+
+  it('disarms on the ticket host too — both sides flip through the same mirror door', async () => {
+    // Same hazard, other host: the ticket view resolves a client-side approval
+    // (and rejects one on an interrupting send) through this store.
+    const store = useTicketDetailsStore.getState();
+
+    store.setMessages('client', pendingApprovalThread());
+    const hydratedCount = useTicketDetailsStore.getState().getMessages('client').length;
+
+    store.updateApprovalStatusInMessages('client', 'req-9', 'approved');
+    bindTicketSide('client').apply({ type: 'turn-start' });
+    await flushDeltas();
+
+    const messages = useTicketDetailsStore.getState().getMessages('client');
+    expect(messages).toHaveLength(hydratedCount + 1);
+    expect(textOf(messages.at(-2))).toContain('This needs your go-ahead.');
+    expect(textOf(messages.at(-1))).toBe('');
+  });
 });
 
 describe('LRU eviction', () => {
@@ -250,20 +315,7 @@ describe('activity indicator after hydration', () => {
     // The opposite state: the agent is blocked on the USER. Spinning here
     // would claim work that is not happening.
     const dialogId = 'dialog-approval-idle';
-    useMingoMessagesStore.getState().setMessages(dialogId, [
-      { id: 'u1', role: 'user', content: 'run it' },
-      {
-        id: 'a1',
-        role: 'assistant',
-        content: [
-          {
-            type: 'approval_request',
-            status: 'pending',
-            data: { requestId: 'req-9', command: 'rm -rf /tmp/cache', approvalType: 'CLIENT' },
-          },
-        ],
-      } as ChatMessage,
-    ]);
+    useMingoMessagesStore.getState().setMessages(dialogId, pendingApprovalThread());
 
     expect(useMingoMessagesStore.getState().getTyping(dialogId)).toBe(false);
   });

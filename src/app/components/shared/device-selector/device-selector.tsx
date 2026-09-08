@@ -523,7 +523,7 @@ export function DeviceSelector({
         },
         enableSorting: false,
         meta: {
-          width: 'w-[80px] md:w-[160px]',
+          width: 'w-auto shrink-0 md:w-[160px]',
           filter: { options: statusFilterOptions },
         },
       },
