@@ -17,7 +17,6 @@ import {
   MIN_REPEAT_MINUTES,
   PAST_START_MESSAGE,
   earliestScheduleDay,
-  isDeviceLocalTime,
   resolveOfflineBehavior,
   resolveTimeReference,
   secondsToDuration,
@@ -234,15 +233,13 @@ export const editScheduleFormSchema = z
     // of one. Event-driven schedules carry no timing at all — their controls are
     // collapsed and both fields are submitted as null.
     if (isEventTrigger(data.trigger)) return;
-    // The device-local reading COLLAPSES the offline block (the API refuses
-    // RETRY_ON_RECONNECT beside it, and submit writes SKIP regardless), so its
-    // rules stop grading — a value left in a hidden control must not fail a save
-    // on a field nobody can see. Recurrence is the other way round: its controls
-    // stay offered for device-local, so its rules keep applying, and the cadence
-    // the form shows is the cadence that gets sent.
-    const deviceLocal = isDeviceLocalTime(data.timeReference);
+    // The device-local reading grades like any other: its offline block and its
+    // recurrence controls are both OFFERED, so both rule sets keep applying and
+    // what the form shows is what gets sent. (The API may still refuse either
+    // beside DEVICE_LOCAL — that refusal is the save's error toast, not a rule
+    // the client pre-empts by dropping a value the user can see.)
     const repeats = data.repeatEnabled;
-    const retries = isRetryOnReconnect(data.offlineBehavior) && !deviceLocal;
+    const retries = isRetryOnReconnect(data.offlineBehavior);
     if (data.scheduledDate == null) {
       ctx.addIssue({ code: 'custom', message: 'Please select a start date', path: ['scheduledDate'] });
     }
