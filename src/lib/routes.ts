@@ -286,6 +286,17 @@ export const routes = {
     execution: (id: string | number) => withQuery('/scripts/executions', { id }),
   },
 
+  /**
+   * Fleet software inventory. The three views are separate routes, not `?tab=`
+   * views of one page (like `/scripts` vs `/scripts/schedules`), so they have no
+   * `TAB_IDS` entry — `SoftwareTabNavigation` navigates between them.
+   */
+  software: {
+    list: '/software',
+    updates: '/software/updates',
+    vulnerabilities: '/software/vulnerabilities',
+  },
+
   monitoring: {
     root: (o?: { tab?: MonitoringTab }) => withQuery('/monitoring', { tab: o?.tab }),
     query: (id: string | number, o?: { tab?: QueryDetailTab }) => withQuery('/monitoring/query', { id, tab: o?.tab }),
