@@ -1,6 +1,6 @@
 'use client';
 
-import type { AuthorType, MessageSegment } from '@flamingo-stack/openframe-frontend-core';
+import type { MessageSegment } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,26 +26,25 @@ export interface MingoSendContext {
   recentViews?: Array<{ type: string; id: string }>;
 }
 
-interface ProcessedMessage {
-  id: string;
-  content: string | MessageSegment[];
-  role: 'user' | 'assistant' | 'error';
+/**
+ * A reducer row, ready to render.
+ *
+ * An INTERSECTION with the lib's own `Message`, never a re-declaration of the
+ * fields this hook happens to touch. Everything the reducer and the history
+ * decoder stamp on a row is owned by the lib — `hidden`, `streamSeq`,
+ * `scrollAnchor`, and (Guide Mode V3) the answer's source/card/video metadata —
+ * and a hand-listed shape silently drops whatever it does not name. That has
+ * already cost a release once: `hidden` was missing here, so an
+ * auto-continuation directive the reader must never see rendered as a bubble.
+ *
+ * What this adds is only what THIS hook guarantees beyond the lib's optional
+ * fields: a resolved display name and a real timestamp.
+ */
+export type ProcessedMessage = CoreMessage & {
   name: string;
-  /** Entity-context chips for user bubbles (optimistic send only). */
-  contextItems?: ChatContextItem[];
-  /** Author avatar, resolved to a full/absolute URL (relative `imageUrl`s from
-   *  GraphQL/the auth store are prefixed via `getFullImageUrl`). */
-  avatar?: string | null;
-  authorType?: AuthorType;
   assistantType?: 'fae' | 'mingo';
   timestamp: Date;
-  /** Synthetic row the model must see but the reader must not (e.g. an
-   *  auto-continuation directive). Part of the conversation, never rendered —
-   *  the lib's message list skips it. Every field-by-field seam between the
-   *  reducer and the lib has to forward this or the raw directive text (or a
-   *  bare author label) leaks into the transcript. */
-  hidden?: boolean;
-}
+};
 
 interface UseMingoChat {
   // Messages
@@ -80,22 +79,34 @@ function isContentEqual(a: ProcessedMessage['content'], b: ProcessedMessage['con
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/** Keys compared by a dedicated rule above, and therefore skipped by the
+ *  catch-all sweep. */
+const STRUCTURALLY_COMPARED_KEYS: ReadonlySet<string> = new Set(['content', 'timestamp']);
+
 /** Whether two processed messages render identically — drives reference reuse
- *  so the lib's reference-equality memo can skip unchanged messages. */
+ *  so the lib's reference-equality memo can skip unchanged messages.
+ *
+ *  The remaining fields are swept generically rather than listed. A list has to
+ *  be extended for every field the lib adds to a row, and forgetting to is
+ *  invisible: the pair compares equal, the previous object is reused, and the
+ *  new field never reaches the screen — which is the same class of bug as the
+ *  `hidden` omission this type's doc-comment describes, one step later in the
+ *  pipeline. The sweep compares by reference, exactly as the `contextItems`
+ *  rule it replaces did (that value is set once on the optimistic send and
+ *  never mutated), so a field the reducer rebuilds per chunk costs a re-render
+ *  rather than a stale bubble — the safe direction of the two. */
 function isSameProcessedMessage(a: ProcessedMessage, b: ProcessedMessage): boolean {
-  return (
-    a.role === b.role &&
-    a.name === b.name &&
-    a.avatar === b.avatar &&
-    a.authorType === b.authorType &&
-    a.assistantType === b.assistantType &&
-    a.hidden === b.hidden &&
-    a.timestamp.getTime() === b.timestamp.getTime() &&
-    // Reference equality — contextItems is set once on the optimistic send and
-    // never mutated, so a stable reference means the chips are unchanged.
-    a.contextItems === b.contextItems &&
-    isContentEqual(a.content, b.content)
-  );
+  if (a.timestamp.getTime() !== b.timestamp.getTime()) return false;
+  if (!isContentEqual(a.content, b.content)) return false;
+
+  return shallowEqualExcept(a, b, STRUCTURALLY_COMPARED_KEYS);
+}
+
+/** Own-key shallow equality, minus the keys the caller compares itself. */
+function shallowEqualExcept<T extends object>(a: T, b: T, skip: ReadonlySet<string>): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every(key => skip.has(key) || a[key as keyof T] === b[key as keyof T]);
 }
 
 export function useMingoChat(dialogId: string | null): UseMingoChat {
@@ -140,11 +151,12 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
     const processed: ProcessedMessage[] = [];
 
     for (const msg of stripPendingApprovals(currentMessages)) {
+      // SPREAD FIRST, then override. The row already carries everything the lib
+      // stamped on it; this hook only resolves the two fields it owns. Listing
+      // the fields to copy instead is what drops the lib's own metadata (see
+      // `ProcessedMessage`).
       processed.push({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role,
-        authorType: msg.authorType,
+        ...msg,
         name: msg.name || 'Unknown',
         // `msg.avatar` is a relative `imageUrl` (GraphQL owner image or the
         // optimistic auth-store avatar); resolve to a full URL once here so
@@ -152,9 +164,6 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
         avatar: getFullImageUrl(msg.avatar) ?? null,
         assistantType: msg.assistantType as 'fae' | 'mingo' | undefined,
         timestamp: msg.timestamp || new Date(),
-        contextItems: msg.contextItems,
-        // Carry the invisible-but-real flag through (see ProcessedMessage).
-        ...(msg.hidden ? { hidden: true as const } : {}),
       });
     }
 

@@ -30,12 +30,20 @@ import type {
   DialogItem,
   DialogTokenUsage,
   MessageSegment,
+  SlashCommandSummary,
   StreamingPhase,
   UnifiedChatMessage,
   UnifiedChatState,
   UnifiedSendMessageOptions,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { buildDiscussPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  buildDiscussPrompt,
+  defaultTableIdForDocumentType,
+  formatSingularLookupInvocation,
+  sanitizeTitleForChat,
+  useSlashCommandRegistry,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
@@ -43,7 +51,7 @@ import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import { type MingoSendContext, useMingoChat } from './use-mingo-chat';
+import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
 import { useMingoDialogs } from './use-mingo-dialogs';
@@ -127,8 +135,100 @@ export function needsAllChatsScope(ownerUserId: string | undefined, currentUserI
   return ownerUserId !== currentUserId;
 }
 
+/** Slash-command action that dumps a row's body into the chat verbatim. */
+const DISPLAY_ACTION_ID = 'display';
+
+/**
+ * ProcessedMessage → UnifiedChatMessage.
+ *
+ * Destructure-and-spread, NOT a field-by-field rebuild. Every field the lib
+ * stamps on a row and later reads back off it — `streamSeq`, `scrollAnchor`,
+ * `hidden`, and Guide Mode V3's per-answer source/card/video metadata — rides
+ * through `metadata` without this seam having to name it. A rebuild silently
+ * drops whatever it does not list, and the drop is invisible: the message still
+ * renders, just without the part the new field carried. Only the fields whose
+ * SHAPE differs between the two types are handled explicitly below.
+ */
+export function mapMingoMessageToUnified(message: ProcessedMessage): UnifiedChatMessage {
+  const { content, role: sourceRole, name, avatar, authorType, assistantType, contextItems, ...metadata } = message;
+
+  // The lib folds 'error' into the assistant bubble and re-derives the assistant
+  // identity (brand icon + "Mingo") itself, which is why `assistantType` is
+  // destructured off rather than forwarded.
+  const role: 'user' | 'assistant' = sourceRole === 'user' ? 'user' : 'assistant';
+
+  // USER bubbles carry the real sender identity — the admin's name, avatar and
+  // `authorType` (accent name colour) — so the drawer reads like the standalone
+  // /mingo page instead of a hardcoded "You". A missing/Unknown name degrades to
+  // the lib's own fallback.
+  const identity =
+    role === 'user' ? { name: name && name !== 'Unknown' ? name : undefined, avatar: avatar ?? null, authorType } : {};
+
+  // Entity-context chips under a user bubble (Figma 1:6437). They ride the
+  // optimistic send and the realtime MESSAGE_REQUEST echo; the lib resolves each
+  // chip's icon from `contextPicker.entityTypes` by `type`.
+  const context = role === 'user' && contextItems?.length ? { contextItems } : {};
+
+  // Segment lists travel in `segments`; `content` must then be the empty string,
+  // which is what tells the lib to render the structured form.
+  const body = Array.isArray(content) ? { content: '', segments: content } : { content };
+
+  return { ...metadata, role, ...body, ...identity, ...context };
+}
+
+function supportsDisplay(command: SlashCommandSummary): boolean {
+  return command.actions.some(action => action.id === DISPLAY_ACTION_ID);
+}
+
+/**
+ * The chat message that displays `reference`, or null when the catalog has no
+ * command for it.
+ *
+ * Two table-id lookups, in priority order:
+ *   1. `reference.sourceRepo` — Guide Mode V3, where the MCP metadata hands the
+ *      registry table id back with the card, so no mapping is guessed;
+ *   2. the lib's documentType→table map, for refs that carry no repo.
+ *
+ * Both are matched against `SlashCommandSummary.primarySourceId`, and only a
+ * command that declares the `display` action counts — the others resolve the
+ * same source but would run a search instead of dumping the row.
+ */
+export function buildMingoDisplayCommand(reference: ChatRef, commands: SlashCommandSummary[]): string | null {
+  const tableIds = [reference.sourceRepo, defaultTableIdForDocumentType(reference.type)];
+  const command = tableIds
+    .filter((tableId): tableId is string => Boolean(tableId))
+    .map(tableId => commands.find(candidate => candidate.primarySourceId === tableId && supportsDisplay(candidate)))
+    .find((candidate): candidate is SlashCommandSummary => Boolean(candidate));
+  if (!command) return null;
+
+  // The slug is what the backend resolves fastest; the title is the V2 fallback
+  // and the id the last resort, so a card with neither still opens something.
+  const slug = typeof reference.metadata?.slug === 'string' ? reference.metadata.slug : '';
+  const value = slug || sanitizeTitleForChat(reference.title) || reference.id;
+
+  // `formatSingularLookupInvocation` is the SSOT for the quoting the backend's
+  // slash parser consumes (it escapes `\` BEFORE `"`, so a value ending in a
+  // backslash cannot smuggle the closing quote past the parser). The action word
+  // rides in the command position because that IS the grammar the parser reads:
+  // `/<cmd> display "<value>"`.
+  return formatSingularLookupInvocation(`${command.id} ${DISPLAY_ACTION_ID}`, value);
+}
+
+/** Whether ANY command in the catalog can display a row — the gate on offering
+ *  the affordance at all (see `displayRef` below). */
+export function hasMingoDisplayCommand(commands: SlashCommandSummary[]): boolean {
+  return commands.some(supportsDisplay);
+}
+
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const { aiModel } = useAiModelStatus();
+
+  // Same react-query entry `<EmbeddableChat>`'s onboarding-card list reads
+  // (keyed on `commandsUrl` alone), so this adds no request of its own. What the
+  // catalog contains is decided upstream by `chat-slash-command-visibility.ts`:
+  // the full server-owned set under Guide Mode V3, the four V2 commands without it.
+  const commandsUrl = useChatRuntime()?.endpoints.commandsUrl ?? '';
+  const { commands: slashCommands } = useSlashCommandRegistry(commandsUrl, { enabled: Boolean(commandsUrl) });
 
   const { activeDialogId, setActiveDialogId, resetUnread, addMessage, tokenUsageByDialog } = useMingoMessagesStore();
 
@@ -252,14 +352,8 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   }, [activeDialogId, tokenUsageByDialog, dialogData?.tokenUsage]);
 
   // ─── Messages: ProcessedMessage[] → UnifiedChatMessage[] ──────────────────
-  // The lib re-derives assistantType itself and folds 'error' into the
-  // assistant bubble (same as the /mingo list). For USER bubbles we surface the
-  // real sender identity — the admin's name (GraphQL `owner.user` / optimistic
-  // auth-store), avatar, and `authorType` — so the embeddable chat matches the
-  // standalone /mingo page: the sender shows up as the admin (accent name color)
-  // instead of the hardcoded "You". Assistant rows keep the lib's Mingo defaults
-  // (brand icon + "Mingo"), and a missing/Unknown name degrades to the lib's
-  // "You" fallback.
+  // The row-level mapping is `mapMingoMessageToUnified` (above, and unit-tested);
+  // what lives here is only the CACHING around it.
   // `processedMessages` hands back referentially-stable objects for unchanged
   // messages (see useMingoChat's reconciliation), so keying a WeakMap by the
   // source object yields a stable UnifiedChatMessage too — the lib's reference-
@@ -273,45 +367,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     return processedMessages.map(m => {
       const cached = cache.get(m);
       if (cached) return cached;
-
-      const role: 'user' | 'assistant' = m.role === 'user' ? 'user' : 'assistant';
-      const identity =
-        role === 'user'
-          ? {
-              name: m.name && m.name !== 'Unknown' ? m.name : undefined,
-              avatar: m.avatar ?? null,
-              authorType: m.authorType,
-            }
-          : {};
-      // Forward the real message timestamp so the lib renders the actual
-      // send time AND its memoized message keeps a stable `getTime()` across
-      // realtime chunks (a missing/`new Date()` timestamp would re-render the
-      // whole list and collapse open menus on every chunk).
-      // Forward attached entity-context items on user messages so the lib
-      // renders the read-only chip strip under the bubble (Figma 1:6437). They
-      // ride the optimistic message (full `ChatContextItem` with labels) and the
-      // realtime `MESSAGE_REQUEST` echo; the lib resolves each chip's icon from
-      // `contextPicker.entityTypes` by `type`.
-      const context = role === 'user' && m.contextItems?.length ? { contextItems: m.contextItems } : {};
-      // `hidden` is load-bearing, NOT cosmetic: it marks synthetic rows (e.g.
-      // an auto-continuation directive) that the model must see but the reader
-      // must not. This field-by-field rebuild drops anything not listed, so the
-      // flag has to be forwarded explicitly — without it the lib's message list
-      // has nothing to skip on and renders an author label with no body (or the
-      // raw directive text) in the transcript.
-      const visibility = m.hidden ? { hidden: true as const } : {};
-      const unified: UnifiedChatMessage = Array.isArray(m.content)
-        ? {
-            id: m.id,
-            role,
-            content: '',
-            segments: m.content,
-            timestamp: m.timestamp,
-            ...identity,
-            ...context,
-            ...visibility,
-          }
-        : { id: m.id, role, content: m.content, timestamp: m.timestamp, ...identity, ...context, ...visibility };
+      const unified = mapMingoMessageToUnified(m);
       cache.set(m, unified);
       return unified;
     });
@@ -482,12 +538,30 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     },
     [sendMessage],
   );
-  // Display dumps a row's raw body via a `/<cmd> display "<x>"` slash command, which
-  // only the hub's SSE transport has a registry for — the agent has no verbatim-dump
-  // path. Left UNDEFINED rather than stubbed: the lib gates the affordance on this
-  // callback, so a stub renders a dead "Display" row where "Ask Mingo" (which works)
-  // belongs. The lib's type makes it optional for exactly this case.
-  const displayRef: UnifiedChatState['displayRef'] = undefined;
+  // Display dumps a row's raw body via a `/<cmd> display "<x>"` slash command.
+  // Guide Mode V3 is what makes that reachable from Mingo: the agent resolves the
+  // command through MCP `prompts/get` and forces the tool the prompt declares, so
+  // the same catalog the composer autocompletes from is the one that runs here.
+  const handleDisplayRef = useCallback(
+    (reference: ChatRef) => {
+      const text = buildMingoDisplayCommand(reference, slashCommands);
+      if (!text) {
+        console.warn(
+          `[MingoChat] displayRef: no display command for type="${reference.type}" sourceRepo="${reference.sourceRepo}"; ignoring click`,
+        );
+        return;
+      }
+      void sendMessage(text);
+    },
+    [sendMessage, slashCommands],
+  );
+  // UNDEFINED, not a stub, while the catalog can't display anything: the lib gates
+  // the affordance on this callback's presence, so a stub renders a dead "Display"
+  // row where "Ask Mingo" (which works) belongs. Its type is optional for exactly
+  // this case — which is also the V2 state, where the trimmed catalog has none.
+  const displayRef: UnifiedChatState['displayRef'] = hasMingoDisplayCommand(slashCommands)
+    ? handleDisplayRef
+    : undefined;
 
   const state = useMemo<UnifiedChatState>(
     () => ({

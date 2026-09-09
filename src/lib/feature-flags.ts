@@ -12,6 +12,11 @@ export const FEATURE_FLAG_NAMES = [
   'notifications',
   'notifications-legacy-path',
   'debug-nats-chunks',
+  // Mingo Guide Mode V3 — the agent answers through Hub MCP remote tools instead
+  // of the local V2 tool set. Same flag name the saas-ai-agent backend reads, on
+  // purpose: the command catalog the frontend shows and the tools the backend can
+  // actually run have to be the same generation, and two names could drift.
+  'ai-mingo-remote-tools',
   'mingo-ai-chat-settings',
   'customer-ai-assistant-settings',
   'customer-ai-configuration',
@@ -143,6 +148,16 @@ export const featureFlags = {
       return getFlagValue('ai-resolution', () => false);
     },
   },
+  /**
+   * Mingo Guide Mode V3 (Hub MCP remote tools). OFF is V2: the local tool set and
+   * the four commands openframe ships. ON exposes the whole server-owned command
+   * catalog — see `chat-slash-command-visibility.ts`.
+   */
+  mingoRemoteTools: {
+    enabled(): boolean {
+      return getFlagValue('ai-mingo-remote-tools', () => false);
+    },
+  },
   mingoAiChatSettings: {
     enabled(): boolean {
       return getFlagValue('mingo-ai-chat-settings', () => false);
@@ -193,3 +208,29 @@ export const featureFlags = {
  * Feature flag keys
  */
 export type FeatureFlagKey = keyof typeof featureFlags;
+
+/**
+ * Resolve once the server has answered — or terminally failed.
+ *
+ * `featureFlags.*.enabled()` reports the env fallback before the answer, which is
+ * acceptable wherever the read REPEATS (a render re-runs, a handler runs again on
+ * the next click) and wrong wherever its result is KEPT. The slash-command filter
+ * is the second kind: it rewrites a response the lib caches for the whole session
+ * (`useSlashCommandRegistry` runs at `staleTime: Infinity`), so a guess made in
+ * that window is the catalog the panel shows until the next reload.
+ *
+ * Always settles — the same guarantee `useFeatureFlagsReady` is built on:
+ * `FeatureFlagsLoader` marks the flags loaded on query error and offline, and
+ * marks them at mount in saas-shared mode.
+ */
+export function whenFeatureFlagsResolved(): Promise<void> {
+  if (useFeatureFlagsStore.getState().isLoaded) return Promise.resolve();
+
+  return new Promise(resolve => {
+    const unsubscribe = useFeatureFlagsStore.subscribe(state => {
+      if (!state.isLoaded) return;
+      unsubscribe();
+      resolve();
+    });
+  });
+}
