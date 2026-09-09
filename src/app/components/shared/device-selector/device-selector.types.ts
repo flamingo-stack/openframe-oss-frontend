@@ -69,24 +69,19 @@ export interface DeviceSelectorProps {
   /** Whether the device list is loading. */
   loading: boolean;
   /**
-   * Currently selected device keys. Required unless `readOnly`.
+   * Currently selected device keys. Optional so a skeleton can render the real
+   * picker with nothing selected — the component falls back to an empty set and
+   * a no-op change handler. Every consumer a user can act on passes both.
    *
    * In `server` mode this is not the picker's own state — the parent fills it
    * with the rows the backend reports as already assigned, so the Available tab
    * pre-checks them instead of offering to add what is already in.
    */
   selectedIds?: Set<string>;
-  /** Called when selection changes. Required unless `readOnly`. */
+  /** Called when selection changes. Optional for the same reason as `selectedIds`. */
   onSelectionChange?: (ids: Set<string>) => void;
   /** Extract the unique string key for selection from a device. Defaults to `d.machineId ?? d.id`. */
   getDeviceKey?: (device: Device) => string | undefined;
-  /**
-   * Read-only viewer mode. Skips Available/Selected tabs, selection radio and
-   * +/- action buttons. The consumer no longer needs `selectedIds` /
-   * `onSelectionChange`. Combine with `hideColumns: ['actions']` to remove the
-   * trailing action column entirely.
-   */
-  readOnly?: boolean;
   /** Infinite scroll config for the available tab. */
   infiniteScroll?: InfiniteScrollConfig;
   /** Disable all interactions (e.g. during save). */
