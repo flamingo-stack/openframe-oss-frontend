@@ -13,6 +13,7 @@ const SOFTWARE_LIST_COLUMNS = {
   // DEVICES and VULNS carry the server-side sort toggles (see SORTABLE_COLUMN_IDS).
   devicesCount: { id: 'devicesCount', header: 'Devices', width: 'w-[100px] md:w-[144px]', sortable: true },
   vulnerabilities: { id: 'severity', header: 'Vulns', width: 'w-[96px]', sortable: true },
+  open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
 export { SOFTWARE_LIST_COLUMNS };
@@ -23,4 +24,5 @@ export const SOFTWARE_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
   SOFTWARE_LIST_COLUMNS.currentVersion,
   SOFTWARE_LIST_COLUMNS.devicesCount,
   SOFTWARE_LIST_COLUMNS.vulnerabilities,
+  SOFTWARE_LIST_COLUMNS.open,
 ];

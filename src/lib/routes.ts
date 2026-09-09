@@ -52,6 +52,7 @@ export const TAB_IDS = {
     'remote-sessions',
   ],
   scriptDetails: ['details', 'executions'],
+  softwareDetails: ['devices', 'vulnerabilities'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
   monitoring: ['policies', 'queries'],
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
@@ -66,6 +67,7 @@ export type CustomerDetailTab = (typeof TAB_IDS.customerDetails)[number];
 export type CustomerEditTab = (typeof TAB_IDS.customerEdit)[number];
 export type DeviceDetailTab = (typeof TAB_IDS.deviceDetails)[number];
 export type ScriptDetailTab = (typeof TAB_IDS.scriptDetails)[number];
+export type SoftwareDetailTab = (typeof TAB_IDS.softwareDetails)[number];
 export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
 export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
 export type QueryDetailTab = (typeof TAB_IDS.queryDetails)[number];
@@ -295,6 +297,8 @@ export const routes = {
     list: '/software',
     updates: '/software/updates',
     vulnerabilities: '/software/vulnerabilities',
+    details: (id: string | number, o?: { tab?: SoftwareDetailTab }) =>
+      withQuery('/software/details', { id, tab: o?.tab }),
   },
 
   monitoring: {

@@ -1,8 +1,13 @@
 'use client';
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
-import { Parcel02Icon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  ArrowRightUpIcon,
+  Parcel02Icon,
+  SearchIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  Button,
   type ColumnDef,
   DataTable,
   type DataTableSortState,
@@ -28,6 +33,8 @@ import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { SoftwareCveSeverity, SoftwareVersionStatus } from '@/generated/schema-enums';
 import { softwaresTableRelayFragment, softwaresTableRelayQuery } from '@/graphql/software/softwares-table-relay';
+import { openInNewTab } from '@/lib/open-in-new-tab';
+import { routes } from '@/lib/routes';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_TABLE_COLUMNS } from './software-table-columns';
 
 const PAGE_SIZE = 20;
@@ -238,6 +245,23 @@ function SoftwareTableContent({
         enableSorting: false,
         meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.vulnerabilities),
       },
+      {
+        id: 'open',
+        cell: ({ row }: { row: Row<UiSoftwareEntry> }) => (
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+            <Button
+              onClick={openInNewTab(routes.software.details(row.original.id))}
+              variant="outline"
+              size="icon"
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+              aria-label="Open in new tab"
+              className="bg-ods-card"
+            />
+          </div>
+        ),
+        enableSorting: false,
+        meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.open),
+      },
     ],
     [],
   );
@@ -248,6 +272,8 @@ function SoftwareTableContent({
     getRowId: (row: UiSoftwareEntry) => row.id,
     enableSorting: false,
   });
+
+  const rowHref = useCallback((row: UiSoftwareEntry) => routes.software.details(row.id), []);
 
   const showEmptyState = !debouncedSearch && !isPending && transformedSoftware.length === 0;
 
@@ -280,6 +306,7 @@ function SoftwareTableContent({
               : 'No software found.'
           }
           rowClassName="mb-1"
+          rowHref={rowHref}
           autoHeight
         />
         <DataTable.InfiniteFooter
