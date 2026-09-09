@@ -9,7 +9,7 @@
  */
 import { clearAuthedImageCache } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { BIOMETRIC_ERROR, biometricErrorCode, isBiometricLoginEnabled } from './native-biometrics';
-import { nativeAuthPlugin, onNativeTokenUpdate } from './native-shell';
+import { getStoredTenantHost, nativeAuthPlugin, onNativeTokenUpdate } from './native-shell';
 import { isAppShell } from './platform';
 import { runtimeEnv } from './runtime-config';
 
@@ -183,6 +183,23 @@ export function initTokenStore(): Promise<void> {
       if (!tokenUpdateListenerRegistered) {
         tokenUpdateListenerRegistered = true;
         onNativeTokenUpdate(adoptNativeTokens);
+      }
+      // A shell that owns refresh needs a gateway before its first rotation, and
+      // native-login.ts only hands it one at LOGIN. A session that predates that
+      // call — an install upgraded to a shell with its own refresher, or an
+      // Xcode build with no baked shared host — leaves the shell with none, and
+      // every delegated refresh fails NO_HOST with nothing to recover it: the
+      // delegation has silenced this side's refresher too. So re-push the host
+      // this side already persisted, every hydration. The stored value is the
+      // last login's tenant origin, which serves /oauth/refresh for that
+      // session (the BFF resolves the tenant from the token).
+      const storedHost = getStoredTenantHost();
+      if (storedHost) {
+        try {
+          await nativeAuthPlugin()?.setTenantHost?.({ origin: storedHost });
+        } catch (error) {
+          console.error('[Token Store] tenant host push failed:', error);
+        }
       }
       try {
         const tokens = await nativeAuthPlugin()?.getTokens();
