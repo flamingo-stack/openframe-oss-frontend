@@ -16,6 +16,9 @@ import { runtimeEnv } from './runtime-config';
 export const ACCESS_TOKEN_KEY = 'of_access_token';
 export const REFRESH_TOKEN_KEY = 'of_refresh_token';
 
+/** The shell's reject code for a Keychain it may not read yet: the device is locked. */
+const DEVICE_LOCKED_ERROR = 'DEVICE_LOCKED';
+
 let cachedAccessToken: string | null = null;
 let cachedRefreshToken: string | null = null;
 let hydration: Promise<void> | null = null;
@@ -161,6 +164,11 @@ export function adoptNativeTokens(tokens: { accessToken?: string | null; refresh
   cachedAccessToken = nextAccess;
   cachedRefreshToken = tokens.refreshToken || null;
   if (rotated) markTokenRotation();
+  // A pair in hand is the end of any lock: the launch read that was refused
+  // (device locked, or a biometric prompt the shell has since satisfied) has
+  // been answered by the shell itself. The lock boundary re-drives the session
+  // check on this transition.
+  if (nextAccess && biometricLockState === 'locked') setBiometricLockState(null);
   emitTokenChange();
 }
 
@@ -219,12 +227,27 @@ export function initTokenStore(): Promise<void> {
         // An invalidated enrollment means the key is gone: flag it so the
         // initializer forces a fresh login.
         const code = biometricErrorCode(error);
+        // The shell's own codes are not biometric ones; read this one raw.
+        const shellCode = (error as { code?: unknown } | null)?.code;
         if (code === BIOMETRIC_ERROR.INVALIDATED) {
           setBiometricLockState('invalidated');
-        } else if (code === BIOMETRIC_ERROR.CANCELED || (await isBiometricLoginEnabled())) {
+        } else if (
+          code === BIOMETRIC_ERROR.CANCELED ||
+          shellCode === DEVICE_LOCKED_ERROR ||
+          (await isBiometricLoginEnabled())
+        ) {
           // Explicit cancel, or any failure while biometric login is on: the
           // tokens are still in the Keychain, unread — lock (retryable), don't
-          // fall through to a logged-out state.
+          // fall through to a logged-out state. DEVICE_LOCKED is the same
+          // situation without biometrics: iOS launched the app in the
+          // background (a push, a Watch action) at a moment the Keychain item
+          // could not be read — before the first unlock after a reboot, or on
+          // a locked phone for an item still on the pre-2026-09-09 protection
+          // class. Reading that as signed out is what wiped a live session: the
+          // next 401 asked the shell to refresh, it found nothing, and the
+          // store cleared the Keychain. The shell pushes the pair on the first
+          // activation after the unlock, which lifts this lock (see
+          // adoptNativeTokens).
           setBiometricLockState('locked');
         } else {
           // Non-biometric failure (or shells without biometric login): keep the

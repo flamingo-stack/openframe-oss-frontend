@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { invalidateAuthSession, signOutToLogin } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { routes } from '@/lib/routes';
 import {
@@ -38,6 +38,19 @@ export function BiometricLockBoundary({ children }: { children: React.ReactNode 
     () => null,
   );
   const [leavingToLogin, setLeavingToLogin] = useState(false);
+
+  // The lock can lift without the gate's Retry button: the shell pushes the
+  // pair on the first activation after a launch that found the device locked,
+  // and the token store clears the lock as it adopts it. The session query is
+  // then sitting in the error state the lock put it in, so re-drive it here —
+  // exactly what the gate's own Retry does — or the app stays on its skeleton.
+  const previousLock = useRef<BiometricLockState>(lock);
+  useEffect(() => {
+    if (previousLock.current === 'locked' && lock === null) {
+      invalidateAuthSession(queryClient);
+    }
+    previousLock.current = lock;
+  }, [lock, queryClient]);
 
   // Biometric enrollment changed → the Keychain key is gone, tokens are
   // unrecoverable. Same hard sign-out as the card's INVALIDATED path — lands
