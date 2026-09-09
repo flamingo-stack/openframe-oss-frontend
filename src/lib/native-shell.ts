@@ -114,12 +114,16 @@ export interface NativeAuthPlugin {
    */
   refreshTokens?(options?: { rejectedAccessToken?: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
   /**
-   * Persist the login-learned tenant host in the shell, so shell-side
-   * networking (token refresh, background NATS) has a gateway without
-   * depending on webview localStorage. Optional; desktop and iOS. Rejects a
-   * non-https origin.
+   * Persist the hosts the web view knows in the shell, so shell-side
+   * networking has a gateway without depending on webview localStorage.
+   * `origin` is the login-learned tenant host (desktop: refresh + NATS; iOS:
+   * the chat calls a notification action makes). `sharedOrigin` is the shared
+   * auth host THIS side refreshes against, and is what iOS refreshes against
+   * when the build carries no plist host — never the tenant host, whose gateway
+   * may answer a header-based refresh without the rotated pair. Desktop ignores
+   * `sharedOrigin`. Optional; both shells. Rejects a non-https origin.
    */
-  setTenantHost?(options: { origin: string }): Promise<void>;
+  setTenantHost?(options: { origin: string; sharedOrigin?: string }): Promise<void>;
   /**
    * Shell-pushed token changes — the MOBILE transport (Capacitor's generated
    * per-plugin `addListener`; desktop delivers the same payload as a Tauri

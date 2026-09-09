@@ -189,14 +189,19 @@ export function initTokenStore(): Promise<void> {
       // call — an install upgraded to a shell with its own refresher, or an
       // Xcode build with no baked shared host — leaves the shell with none, and
       // every delegated refresh fails NO_HOST with nothing to recover it: the
-      // delegation has silenced this side's refresher too. So re-push the host
-      // this side already persisted, every hydration. The stored value is the
-      // last login's tenant origin, which serves /oauth/refresh for that
-      // session (the BFF resolves the tenant from the token).
+      // delegation has silenced this side's refresher too. So re-push the hosts
+      // this side already knows, every hydration: the last login's tenant origin
+      // (where a shell-side notification action's chat calls go) and the shared
+      // auth host this side refreshes against, which is what the shell must
+      // refresh against too — the tenant gateway may answer a header-based
+      // refresh with the rotated pair in cookies only, which strands the session.
       const storedHost = getStoredTenantHost();
       if (storedHost) {
         try {
-          await nativeAuthPlugin()?.setTenantHost?.({ origin: storedHost });
+          await nativeAuthPlugin()?.setTenantHost?.({
+            origin: storedHost,
+            sharedOrigin: runtimeEnv.sharedHostUrl() || undefined,
+          });
         } catch (error) {
           console.error('[Token Store] tenant host push failed:', error);
         }
