@@ -80,30 +80,41 @@ function TabTitleSkeleton({ titleWidth = 'w-32', actionWidth }: { titleWidth?: s
 }
 
 /**
- * Skeleton matching the redesigned Details tab: a single info card with
- * Website (full-width row) + Physical/Mailing Address (two cells, stacking on mobile).
+ * Skeleton matching the Details tab: the info card — Website (full-width row) +
+ * Physical/Mailing Address (two cells, stacking on mobile) — and the Notes card.
  */
 export function CustomerDetailsTabSkeleton() {
   return (
-    <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-card">
-      {/* Row 1: Website (with leading icon) */}
-      <div className="flex h-20 items-center gap-4 border-b border-ods-border px-4">
-        <div className="flex min-w-0 flex-1 items-center gap-1">
-          <Skeleton className="size-6 shrink-0" />
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <Skeleton className="h-5 w-40 max-w-full" />
-            <Skeleton className="h-4 w-20" />
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-card">
+        {/* Row 1: Website (with leading icon) */}
+        <div className="flex h-20 items-center gap-4 border-b border-ods-border px-4">
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <Skeleton className="size-6 shrink-0" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <Skeleton className="h-5 w-40 max-w-full" />
+              <Skeleton className="h-4 w-20" />
+            </div>
           </div>
         </div>
+        {/* Row 2: Physical + Mailing Address — stacks on mobile, side-by-side on md+ */}
+        <div className="flex flex-col gap-4 px-4 py-4 md:h-20 md:flex-row md:items-center md:gap-4 md:py-0">
+          {[0, 1].map(i => (
+            <div key={i} className="flex min-w-0 flex-1 flex-col gap-1">
+              <Skeleton className="h-5 w-72 max-w-full" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          ))}
+        </div>
       </div>
-      {/* Row 2: Physical + Mailing Address — stacks on mobile, side-by-side on md+ */}
-      <div className="flex flex-col gap-4 px-4 py-4 md:h-20 md:flex-row md:items-center md:gap-4 md:py-0">
-        {[0, 1].map(i => (
-          <div key={i} className="flex min-w-0 flex-1 flex-col gap-1">
-            <Skeleton className="h-5 w-72 max-w-full" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-        ))}
+      {/* Notes card: h2 title + a couple of text lines */}
+      <div className="flex flex-col gap-[var(--spacing-system-mf)] rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
+        {/* text-h2 is 24/32 on mobile and 32/40 from tablet up; body lines match the h-5 the rows above use */}
+        <Skeleton className="h-8 w-32 md:h-10" />
+        <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-2/3" />
+        </div>
       </div>
     </div>
   );
