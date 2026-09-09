@@ -28,9 +28,29 @@ export function getVulnerabilitiesEmptyReason(device: Device): VulnerabilitiesEm
   const softwareAt = fleetTimestampMs(device.software_updated_at);
   if (softwareAt === null) return 'collecting';
 
+  return isVulnerabilityScanPending(device) ? 'scan-pending' : 'clean';
+}
+
+/**
+ * True while the last completed vulnerability-matching run does NOT cover this
+ * device's current software inventory — matching never completed, or the
+ * software changed after the run. Independent of whether the list is empty:
+ * with results on screen it means a recent change (e.g. a patched CVE) may not
+ * be reflected yet, which is what the "Data sync in progress" banner conveys.
+ * False while there is nothing to match against (fleet failed / disconnected /
+ * agent deploying / inventory never scanned) — those are earlier pipeline
+ * stages with their own states, not a sync window.
+ */
+export function isVulnerabilityScanPending(device: Device): boolean {
+  const fleetSource = device.sources?.fleet;
+  if (fleetSource === 'error' || fleetSource === 'skipped-disconnected' || fleetSource === 'skipped-pending') {
+    return false;
+  }
+
+  const softwareAt = fleetTimestampMs(device.software_updated_at);
+  if (softwareAt === null) return false;
+
   const fleet = device.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');
   const matchedAt = fleetTimestampMs(fleet?.vulnerabilitiesUpdatedAt);
-  if (matchedAt === null || softwareAt > matchedAt) return 'scan-pending';
-
-  return 'clean';
+  return matchedAt === null || softwareAt > matchedAt;
 }
