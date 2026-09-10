@@ -10,6 +10,7 @@ import { useReopenTicket } from '../hooks/use-reopen-ticket';
 import { useTicketDetail } from '../hooks/use-ticket-detail';
 import { useAssigneeOptions } from '../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
+import { formatTicketRef } from '../utils/ticket-ref';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 
 /**
@@ -85,7 +86,7 @@ export function ReopenTicketModal({ target, onClose, onSuccess }: ReopenTicketMo
     return statusOptions.find(o => kindById.get(o.value) === TICKET_STATUS_KIND.TECH_REQUIRED)?.value ?? null;
   }, [target?.initialStatusId, statusOptions, kindById]);
 
-  const ticketRef = ticket ? [ticket.ticketNumber, ticket.title].filter(Boolean).join(': ') : '';
+  const ticketRef = ticket ? formatTicketRef(ticket) : '';
 
   return (
     <ReopenTicketModalView

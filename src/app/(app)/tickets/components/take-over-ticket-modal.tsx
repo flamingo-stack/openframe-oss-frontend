@@ -13,6 +13,7 @@ import { useSelfFirstAssigneeOptions } from '../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { Dialog } from '../types/dialog.types';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
+import { formatTicketRef } from '../utils/ticket-ref';
 
 /**
  * What the take-over flow needs to know about the ticket, plus trigger-specific
@@ -108,7 +109,7 @@ export function TakeOverTicketModal({ target, onClose, onSuccess }: TakeOverTick
     <CoreTakeOverTicketModal
       isOpen={target !== null}
       onClose={onClose}
-      ticketRef={ticket ? [ticket.ticketNumber, ticket.title].filter(Boolean).join(': ') : ''}
+      ticketRef={ticket ? formatTicketRef(ticket) : ''}
       statusOptions={statusOptions}
       assigneeOptions={assigneeOptions.options}
       assigneesLoading={assigneeOptions.isLoading}
