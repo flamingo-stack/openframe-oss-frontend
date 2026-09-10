@@ -26,6 +26,31 @@ export const APP_SCHEME = 'com.openframe.app';
 /** Biometry the device supports; `'none'` when biometric auth is unavailable. */
 export type BiometryType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'none';
 
+/** The token set as the shells exchange it; an absent half is omitted, never nulled. */
+export type NativeTokens = { accessToken?: string; refreshToken?: string };
+
+/**
+ * What a Capacitor plugin's `addListener` hands back — a union on purpose: this
+ * reads the document-start bridge shim (`window.Capacitor.Plugins.*`), NOT the
+ * npm package's `registerPlugin` proxy whose types promise a Promise, and the
+ * shim returns the handle synchronously. Normalize with Promise.resolve()
+ * before chaining — calling .catch/.then on it directly crashes at boot on a
+ * sync bridge.
+ */
+export type CapacitorListenerHandle =
+  Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
+
+/**
+ * Either shell surfaces a rejected bridge call as an Error whose `code` carries
+ * the native error string (Capacitor's `CAPError.code`; the desktop commands
+ * reject with the same shape). Read it defensively — a generic failure has no
+ * code.
+ */
+export function nativeErrorCode(error: unknown): string | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : null;
+}
+
 /**
  * The auth bridge contract, implemented by BOTH shells. The five methods above
  * `refreshTokens` are the shared core; everything optional below is
@@ -45,7 +70,7 @@ export interface NativeAuthPlugin {
    */
   start(options: { url: string; callbackScheme: string }): Promise<{ callbackUrl: string }>;
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
-  exchangeTicket(options: { url: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
+  exchangeTicket(options: { url: string }): Promise<NativeTokens>;
   /**
    * Native Sign in with Apple (ASAuthorizationController) — iOS-only, and
    * absent on binaries that predate it; callers must feature-check and fall
@@ -66,26 +91,26 @@ export interface NativeAuthPlugin {
    * from the Access-Token / Refresh-Token response headers. Paired with
    * `signInWithApple`; same availability caveat.
    */
-  exchangeApple?(options: { url: string; body: Record<string, string> }): Promise<{
-    /**
-     * Present on shells that resolve every HTTP status instead of rejecting non-2xx. Absent on
-     * older binaries, where a 4xx arrives as a rejection — callers must treat `undefined` as
-     * "this shell cannot report status" and fall back rather than assume success.
-     */
-    status?: number;
-    /** Raw response body, when the server sent one. JSON for the `{"error": …}` cases. */
-    body?: string;
-    accessToken?: string;
-    refreshToken?: string;
-  }>;
+  exchangeApple?(options: { url: string; body: Record<string, string> }): Promise<
+    NativeTokens & {
+      /**
+       * Present on shells that resolve every HTTP status instead of rejecting non-2xx. Absent on
+       * older binaries, where a 4xx arrives as a rejection — callers must treat `undefined` as
+       * "this shell cannot report status" and fall back rather than assume success.
+       */
+      status?: number;
+      /** Raw response body, when the server sent one. JSON for the `{"error": …}` cases. */
+      body?: string;
+    }
+  >;
   /**
    * Reads the stored tokens. When biometric login is enabled the shell gates
    * this behind a biometric prompt, so it may reject with `BIOMETRIC_CANCELED`
    * (user dismissed the prompt) or `BIOMETRIC_INVALIDATED` (enrollment changed —
    * the token is no longer decryptable). See native-biometrics.ts for handling.
    */
-  getTokens(): Promise<{ accessToken?: string; refreshToken?: string }>;
-  setTokens(options: { accessToken?: string; refreshToken?: string }): Promise<void>;
+  getTokens(): Promise<NativeTokens>;
+  setTokens(options: NativeTokens): Promise<void>;
   clearTokens(): Promise<void>;
   /**
    * Biometric login — MOBILE-only, and absent on mobile binaries that predate
@@ -112,7 +137,7 @@ export interface NativeAuthPlugin {
    * rotation the shell ran on its own beat this call, and rotating again would
    * only spend another refresh token. The desktop shell ignores it.
    */
-  refreshTokens?(options?: { rejectedAccessToken?: string }): Promise<{ accessToken?: string; refreshToken?: string }>;
+  refreshTokens?(options?: { rejectedAccessToken?: string }): Promise<NativeTokens>;
   /**
    * Persist the hosts the web view knows in the shell, so shell-side
    * networking has a gateway without depending on webview localStorage.
@@ -127,13 +152,9 @@ export interface NativeAuthPlugin {
   /**
    * Shell-pushed token changes — the MOBILE transport (Capacitor's generated
    * per-plugin `addListener`; desktop delivers the same payload as a Tauri
-   * event). Consumed through `onNativeTokenUpdate`, never directly. Same
-   * sync-or-Promise handle as the other Capacitor plugins (see AppPlugin).
+   * event). Consumed through `onNativeTokenUpdate`, never directly.
    */
-  addListener?(
-    eventName: 'tokenUpdate',
-    listenerFunc: (tokens: { accessToken?: string; refreshToken?: string }) => void,
-  ): Promise<{ remove: () => void }> | { remove: () => void };
+  addListener?(eventName: 'tokenUpdate', listenerFunc: (tokens: NativeTokens) => void): CapacitorListenerHandle;
   /**
    * Real safe-area insets from UIKit / WindowInsets — the WebView reports
    * env(safe-area-inset-*) as 0 in the shell. MOBILE-only: the desktop bridge
@@ -159,7 +180,7 @@ export interface FirebaseMessagingPlugin {
   getToken(): Promise<{ token: string }>;
   deleteToken(): Promise<void>;
   /** Fires when FCM first issues or later rotates the registration token. */
-  addListener(eventName: 'tokenReceived', listenerFunc: (event: { token: string }) => void): Promise<unknown>;
+  addListener(eventName: 'tokenReceived', listenerFunc: (event: { token: string }) => void): CapacitorListenerHandle;
   /**
    * `notificationActionPerformed` fires on a tap; `notificationReceived` fires for a
    * push that arrives while the app is alive, including the data-only retraction push,
@@ -171,7 +192,7 @@ export interface FirebaseMessagingPlugin {
   addListener(
     eventName: 'notificationActionPerformed' | 'notificationReceived',
     listenerFunc: (event: { notification: { data?: Record<string, unknown> } }) => void,
-  ): Promise<unknown>;
+  ): CapacitorListenerHandle;
   getDeliveredNotifications(): Promise<{ notifications: DeliveredNotification[] }>;
   /** Takes the objects `getDeliveredNotifications` returned, not ids. */
   removeDeliveredNotifications(options: { notifications: DeliveredNotification[] }): Promise<void>;
@@ -223,17 +244,9 @@ export interface StatusBarPlugin {
 /**
  * Subset of @capacitor/app. `backButton` is Android-only (hardware/gesture back);
  * iOS has no hardware back and uses the WKWebView edge-swipe instead.
- *
- * addListener's return is typed as a union on purpose: the natively-injected
- * bridge proxy hands back the handle synchronously, not the Promise the npm
- * plugin types advertise. Normalize with Promise.resolve() before chaining —
- * calling .catch/.then on it directly crashes at boot on a sync bridge.
  */
 export interface AppPlugin {
-  addListener(
-    eventName: 'backButton',
-    listenerFunc: (event: { canGoBack?: boolean }) => void,
-  ): Promise<{ remove: () => void }> | { remove: () => void };
+  addListener(eventName: 'backButton', listenerFunc: (event: { canGoBack?: boolean }) => void): CapacitorListenerHandle;
   /**
    * Foreground/background transitions. The WebView's own `visibilitychange` is
    * unreliable for this on iOS — WKWebView does not consistently flip
@@ -243,7 +256,7 @@ export interface AppPlugin {
   addListener(
     eventName: 'appStateChange',
     listenerFunc: (state: { isActive: boolean }) => void,
-  ): Promise<{ remove: () => void }> | { remove: () => void };
+  ): CapacitorListenerHandle;
   exitApp(): Promise<void>;
 }
 
@@ -255,19 +268,15 @@ export interface AppPlugin {
  * Consumed on iOS ONLY: the shell configures `resize: 'none'` (an iOS-only
  * knob), so there these events are the only notice the web layer gets that a
  * keyboard exists, while on Android Capacitor's own SystemBars plugin resizes
- * the WebView and the layout viewport reports it — see keyboard-inset.ts. Same
- * sync-or-Promise addListener return as AppPlugin.
+ * the WebView and the layout viewport reports it — see keyboard-inset.ts.
  */
 export interface KeyboardPlugin {
   addListener(
     eventName: 'keyboardWillShow',
     listenerFunc: (info: { keyboardHeight: number }) => void,
-  ): Promise<{ remove: () => void }> | { remove: () => void };
+  ): CapacitorListenerHandle;
   /** Hide carries no payload — iOS notifies with nil, Android with an empty object. */
-  addListener(
-    eventName: 'keyboardWillHide',
-    listenerFunc: () => void,
-  ): Promise<{ remove: () => void }> | { remove: () => void };
+  addListener(eventName: 'keyboardWillHide', listenerFunc: () => void): CapacitorListenerHandle;
 }
 
 /**
@@ -275,20 +284,14 @@ export interface KeyboardPlugin {
  * the OS by up to minutes — see `lib/connectivity.ts` for the device
  * measurements and why that matters to react-query.
  *
- * Same sync-or-Promise `addListener` union as `AppPlugin`/`KeyboardPlugin`, and
- * for the same reason: this reads `window.Capacitor.Plugins.Network`, the
- * document-start bridge shim, NOT the npm package's `registerPlugin` proxy whose
- * types promise a Promise. The shim hands the handle back synchronously.
- * Normalize with `Promise.resolve()` before chaining.
- *
- * Payload fields are optional because they arrive from that bridge untyped.
+ * Payload fields are optional because they arrive from the bridge shim untyped.
  */
 export interface NetworkPlugin {
   getStatus(): Promise<{ connected?: boolean; connectionType?: string }>;
   addListener(
     eventName: 'networkStatusChange',
     listenerFunc: (status: { connected?: boolean; connectionType?: string }) => void,
-  ): Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
+  ): CapacitorListenerHandle;
 }
 
 /**
@@ -421,23 +424,26 @@ export function storeTenantHost(origin: string): void {
  * NativeAuth bridge; the Android plugin emits nothing yet, so the listener
  * simply never fires there. No-op on the web.
  */
-export function onNativeTokenUpdate(callback: (tokens: { accessToken?: string; refreshToken?: string }) => void): void {
+export function onNativeTokenUpdate(callback: (tokens: NativeTokens) => void): void {
   if (isDesktopShell()) {
     const tauriEvent = tauriEventApi();
     if (!tauriEvent) return;
     void tauriEvent.listen('native-auth:token-update', event =>
-      callback((event?.payload as { accessToken?: string; refreshToken?: string } | undefined) ?? {}),
+      callback((event?.payload as NativeTokens | undefined) ?? {}),
     );
     return;
   }
   if (!isMobileShell()) return;
+  // Nothing needs the handle: the subscription lives as long as the document.
+  // The registration can fail either way the bridge answers — a synchronous
+  // throw, or a rejected Promise — and neither may take token hydration down.
+  const failed = (error: unknown) => console.error('[Native Shell] tokenUpdate listener registration failed:', error);
   try {
-    // Nothing needs the handle: the subscription lives as long as the document.
-    // Wrapped because the bridge proxy runs synchronously, and a throw here would
-    // take token hydration down with it.
-    nativeAuthPlugin()?.addListener?.('tokenUpdate', tokens => callback(tokens ?? {}));
+    void Promise.resolve(nativeAuthPlugin()?.addListener?.('tokenUpdate', tokens => callback(tokens ?? {}))).catch(
+      failed,
+    );
   } catch (error) {
-    console.error('[Native Shell] tokenUpdate listener registration failed:', error);
+    failed(error);
   }
 }
 

@@ -8,8 +8,8 @@
  * WebSocket URL builders) need synchronous reads.
  */
 import { clearAuthedImageCache } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { BIOMETRIC_ERROR, biometricErrorCode, isBiometricLoginEnabled } from './native-biometrics';
-import { getStoredTenantHost, nativeAuthPlugin, onNativeTokenUpdate } from './native-shell';
+import { BIOMETRIC_ERROR, isBiometricLoginEnabled } from './native-biometrics';
+import { getStoredTenantHost, nativeAuthPlugin, nativeErrorCode, onNativeTokenUpdate } from './native-shell';
 import { isAppShell } from './platform';
 import { runtimeEnv } from './runtime-config';
 
@@ -226,14 +226,12 @@ export function initTokenStore(): Promise<void> {
         // retry, rather than letting downstream null-token reads look logged out.
         // An invalidated enrollment means the key is gone: flag it so the
         // initializer forces a fresh login.
-        const code = biometricErrorCode(error);
-        // The shell's own codes are not biometric ones; read this one raw.
-        const shellCode = (error as { code?: unknown } | null)?.code;
+        const code = nativeErrorCode(error);
         if (code === BIOMETRIC_ERROR.INVALIDATED) {
           setBiometricLockState('invalidated');
         } else if (
           code === BIOMETRIC_ERROR.CANCELED ||
-          shellCode === DEVICE_LOCKED_ERROR ||
+          code === DEVICE_LOCKED_ERROR ||
           (await isBiometricLoginEnabled())
         ) {
           // Explicit cancel, or any failure while biometric login is on: the
