@@ -199,6 +199,13 @@ export const routes = {
      * SAS session and collects only what SSO cannot supply: organization name and domain.
      */
     ssoContinue: '/auth/sso-continue',
+    /**
+     * "One Last Step": where the auth server parks an SSO flow that is about to CREATE a user - a new
+     * member accepting an invitation, or a first login through a shared domain
+     * (`openframe.sso.join-confirm-url`). The page confirms the identity + organization from the SAS
+     * session and takes the Terms consent; nothing travels in the URL.
+     */
+    ssoJoin: '/auth/sso-join',
   },
 
   customers: {
