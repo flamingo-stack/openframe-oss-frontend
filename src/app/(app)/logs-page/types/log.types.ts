@@ -16,6 +16,8 @@ export interface LogEntry {
 
   // Device-related fields from backend
   hostname?: string;
+  /** User-defined device name, stamped on the event when it was ingested. */
+  nickname?: string;
   organizationName?: string;
   organizationId?: string;
 

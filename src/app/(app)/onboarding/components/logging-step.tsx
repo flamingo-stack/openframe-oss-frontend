@@ -16,6 +16,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { getDeviceName } from '../../devices/utils/device-name';
 import { useLogs } from '../../logs-page/hooks/use-logs';
 import type { LogEntry } from '../../logs-page/types/log.types';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
@@ -79,7 +80,7 @@ export function LoggingStep({
         status: { label: log.severity, variant: severityVariant(log.severity) },
         toolType: normalizeToolTypeWithFallback(log.toolType),
         device: {
-          name: log.device?.hostname || log.hostname || log.deviceId || '-',
+          name: getDeviceName(log.device) || log.hostname || log.deviceId || '-',
           organization: log.device?.organization || log.organizationName || '-',
         },
         summary: log.summary || 'No summary available',

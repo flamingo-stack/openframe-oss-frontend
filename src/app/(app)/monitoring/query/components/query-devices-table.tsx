@@ -30,6 +30,7 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
+import { matchesDeviceName } from '../../../devices/utils/device-name';
 import { getDeviceStatusConfig } from '../../../devices/utils/device-status';
 import { QUERY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
 import { QuickQueryPanel } from '../../policy/components/quick-query-panel';
@@ -86,10 +87,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
     const term = search.trim().toLowerCase();
     return rows.filter(row => {
       const matchesSearch =
-        term.length === 0 ||
-        row.displayName.toLowerCase().includes(term) ||
-        row.hostname.toLowerCase().includes(term) ||
-        (row.organization?.toLowerCase().includes(term) ?? false);
+        term.length === 0 || matchesDeviceName(row, term) || (row.organization?.toLowerCase().includes(term) ?? false);
       const matchesTags =
         selectedTags.length === 0 || row.tags.some(tag => selectedTags.includes(`${tag.key}:${tag.value}`));
       return matchesSearch && matchesTags;

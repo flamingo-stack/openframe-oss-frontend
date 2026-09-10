@@ -4,6 +4,7 @@ import { DeviceCard } from '@flamingo-stack/openframe-frontend-core/components/u
 import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getDeviceOperatingSystem, getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { DeviceInfoSectionSkeleton } from './device-info-section-skeleton';
 
@@ -46,7 +47,7 @@ export function DeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceI
           device={{
             id: device.id || deviceId || '',
             machineId: device.machineId || deviceId || '',
-            name: device.displayName || device.hostname || device.description || device.machineId || deviceId || '',
+            name: getDeviceName(device) || deviceId || '',
             organization: device.organization || device.machineId || deviceId || '',
             lastSeen: device.lastSeen || device.last_seen,
             operatingSystem: getDeviceOperatingSystem(device.osType),

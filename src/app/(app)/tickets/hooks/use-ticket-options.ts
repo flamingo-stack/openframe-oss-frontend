@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { GET_ORGANIZATIONS_MIN_QUERY } from '@/app/(app)/customers/queries/customers-queries';
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import type { Tag } from '@/app/components/shared/tags';
@@ -121,7 +122,7 @@ export function useDeviceOptions(organizationId?: string, search = '') {
   const options = useMemo<AutocompleteOption[]>(
     () =>
       (query.data?.devices ?? []).map(device => ({
-        label: device.displayName || device.hostname || device.machineId,
+        label: getDeviceName(device) || device.machineId,
         value: device.machineId,
       })),
     [query.data],

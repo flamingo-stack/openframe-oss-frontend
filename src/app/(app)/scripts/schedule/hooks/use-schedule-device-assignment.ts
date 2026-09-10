@@ -9,6 +9,7 @@ import type { removeAllDevicesFromScheduleMutation as RemoveAllDevicesMutationTy
 import type { removeDevicesFromScheduleMutation as RemoveDevicesMutationType } from '@/__generated__/removeDevicesFromScheduleMutation.graphql';
 import type { setScheduleDeviceCriteriaMutation as SetCriteriaMutationType } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { addAllDevicesToScheduleMutation } from '@/graphql/scripts/add-all-devices-to-schedule-mutation';
 import { addDevicesToScheduleMutation } from '@/graphql/scripts/add-devices-to-schedule-mutation';
 import { removeAllDevicesFromScheduleMutation } from '@/graphql/scripts/remove-all-devices-from-schedule-mutation';
@@ -149,7 +150,7 @@ export function useScheduleDeviceAssignment({
         onCompleted: () => {
           toast({
             title: 'Device assigned',
-            description: `"${device.displayName || device.hostname}" was added to this schedule.`,
+            description: `"${getDeviceName(device)}" was added to this schedule.`,
             variant: 'success',
           });
         },
@@ -167,7 +168,7 @@ export function useScheduleDeviceAssignment({
         onCompleted: () => {
           toast({
             title: 'Device unassigned',
-            description: `"${device.displayName || device.hostname}" was removed from this schedule.`,
+            description: `"${getDeviceName(device)}" was removed from this schedule.`,
             variant: 'success',
           });
         },
