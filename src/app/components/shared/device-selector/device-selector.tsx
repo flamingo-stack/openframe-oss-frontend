@@ -80,27 +80,22 @@ export function DeviceSelector({
   onSelectionChange: onSelectionChangeProp,
   getDeviceKey: getDeviceKeyProp,
   infiniteScroll,
-  disabled: disabledProp = false,
-  showSelectionModeRadio: showSelectionModeRadioProp = true,
+  disabled = false,
+  showSelectionModeRadio = true,
   headerContent,
   addAllBehavior = 'merge',
-  singleSelect: singleSelectProp = false,
+  singleSelect = false,
   isDeviceDisabled,
   hideColumns,
   totalCount,
-  readOnly = false,
   server,
   selectionMode,
   onSelectionModeChange,
   criteriaContent,
 }: DeviceSelectorProps) {
-  // In readOnly mode, force-disable interactions and hide the selection UI.
   const selectedIds = (selectedIdsProp ?? EMPTY_SET) as Set<string>;
   const onSelectionChange = onSelectionChangeProp ?? NOOP;
   const getDeviceKey = getDeviceKeyProp ?? DEFAULT_GET_DEVICE_KEY;
-  const disabled = readOnly || disabledProp;
-  const showSelectionModeRadio = readOnly ? false : showSelectionModeRadioProp;
-  const singleSelect = readOnly ? true : singleSelectProp;
   // Criteria mode replaces the whole picker — card, tabs and search row — with
   // the rule editor over a read-only preview of what that rule resolves to.
   const isCriteria = selectionMode === 'criteria';
