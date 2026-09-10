@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
+import type { TicketListSort } from '../services/ticket-service.types';
 
 /**
  * Query keys for tickets/dialogs React Query hooks
@@ -14,6 +15,9 @@ export interface DialogsQueryParams {
   tagIds?: string[];
   /** Only tickets the caller has unread notifications about. */
   unreadOnly?: boolean;
+  /** User-chosen list sort; part of the key so a sort change restarts the
+   *  cursor from the first page instead of interleaving two orders. */
+  sort?: TicketListSort | null;
   /** Page size override (default 20). Part of the query key — lists fetched
    *  with different page sizes must not share a cache entry. */
   pageSize?: number;
@@ -39,6 +43,7 @@ export const dialogsQueryKeys = {
         assigneeIds: params.assigneeIds || [],
         tagIds: params.tagIds || [],
         unreadOnly: params.unreadOnly ?? false,
+        sort: params.sort ? `${params.sort.field}:${params.sort.direction}` : '',
         pageSize: params.pageSize ?? 20,
       },
     ] as const,
