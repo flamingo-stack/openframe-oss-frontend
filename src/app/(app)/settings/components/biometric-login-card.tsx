@@ -8,7 +8,6 @@ import { useEffect, useId, useState } from 'react';
 import { signOutToLogin } from '@/app/(auth)/auth/hooks/use-auth-session';
 import {
   BIOMETRIC_ERROR,
-  biometricErrorCode,
   biometryLabel,
   disableBiometricLogin,
   enableBiometricLogin,
@@ -16,6 +15,7 @@ import {
   isBiometricLoginEnabled,
   setBiometricLoginChoice,
 } from '@/lib/native-biometrics';
+import { nativeErrorCode } from '@/lib/native-shell';
 import { isMobileShell } from '@/lib/platform';
 
 /**
@@ -73,7 +73,7 @@ export function BiometricLoginCard() {
       }
     } catch (error) {
       setEnabled(!next);
-      const code = biometricErrorCode(error);
+      const code = nativeErrorCode(error);
       // A user-canceled prompt is not an error worth a destructive toast.
       if (code === BIOMETRIC_ERROR.CANCELED) return;
       // Enrollment changed while enabled: the gated tokens are unrecoverable

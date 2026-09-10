@@ -10,9 +10,22 @@ export default function Home() {
   const { isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    if (isAuthenticated !== null) {
-      router.replace(getDefaultRedirectPath(isAuthenticated));
-    }
+    if (isAuthenticated === null) return undefined;
+
+    // Carry the query string and hash over: ad traffic lands on the bare root as
+    // `/?fbclid=…&utm_source=…&__hstc=…#distinct_id=…`, and GTM (HubSpot, Meta,
+    // GA) and the PostHog bootstrap only read them after this redirect — on /auth.
+    const target = () => `${getDefaultRedirectPath(isAuthenticated)}${window.location.search}${window.location.hash}`;
+    router.replace(target());
+
+    // The GTM PostHog tag strips `#distinct_id` with `history.replaceState({}, …)`.
+    // Landing mid-transition, that empty state wipes the router's tree and the
+    // navigation above is dropped: a blank page stuck on `/`. Fall back to a hard
+    // navigation if we are still here.
+    const fallback = window.setTimeout(() => {
+      if (window.location.pathname === '/') window.location.replace(target());
+    }, 1500);
+    return () => window.clearTimeout(fallback);
   }, [router, isAuthenticated]);
 
   // This route only ever redirects — it holds until the effect above lands on the

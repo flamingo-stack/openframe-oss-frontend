@@ -2,7 +2,6 @@
 
 import {
   type ActionsMenuGroup,
-  CardLoader,
   LoadError,
   NotFoundError,
   type PageActionButton,
@@ -20,6 +19,7 @@ import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
+import { MonitoringDetailSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
 import type { Policy } from '../../types/policies.types';
@@ -70,7 +70,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
   };
 
   if (isLoading) {
-    return <CardLoader items={4} />;
+    return <MonitoringDetailSkeleton kind="policy" onBack={handleBack} />;
   }
 
   if (error) {
@@ -99,6 +99,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
           icon: <TrashIcon />,
           onClick: () => setIsDeleteModalOpen(true),
           disabled: isDeleting,
+          danger: true,
         },
       ],
     },

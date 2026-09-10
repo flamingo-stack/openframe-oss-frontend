@@ -6,8 +6,6 @@ import { biometryLabel, isBiometricAvailable } from '@/lib/native-biometrics';
 import { retryTokenHydration } from '@/lib/token-store';
 
 interface BiometricUnlockGateProps {
-  /** Re-run the auth session check after the Keychain read succeeds. */
-  onUnlocked: () => void;
   /**
    * Abandon the locked session and go to the normal sign-in flow (OpenFrame
    * SSO / Google / Microsoft). The gate stays mounted (buttons disabled) until
@@ -20,13 +18,13 @@ interface BiometricUnlockGateProps {
  * Cold-start unlock screen shown when biometric login is on and the Keychain
  * read was canceled / failed (token-store lock state `'locked'`). The tokens are
  * still there — this is not a signed-out state — so Retry re-prompts via
- * `retryTokenHydration()`; on success the lock clears and `onUnlocked` re-drives
- * the auth check. "Log in another way" is the escape hatch for users whose
- * biometrics keep failing — it abandons the locked session for a fresh sign-in.
- * Native-shell only (the caller gates on the lock state, which is only ever set
- * in the shell).
+ * `retryTokenHydration()`; on success the lock clears, and the caller re-drives
+ * the auth check off that transition. "Log in another way" is the escape hatch
+ * for users whose biometrics keep failing — it abandons the locked session for
+ * a fresh sign-in. Native-shell only (the caller gates on the lock state, which
+ * is only ever set in the shell).
  */
-export function BiometricUnlockGate({ onUnlocked, onUseAnotherLogin }: BiometricUnlockGateProps) {
+export function BiometricUnlockGate({ onUseAnotherLogin }: BiometricUnlockGateProps) {
   const [label, setLabel] = useState('Biometrics');
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -49,6 +47,8 @@ export function BiometricUnlockGate({ onUnlocked, onUseAnotherLogin }: Biometric
     };
   }, []);
 
+  // If the read succeeds the store clears the lock and the caller unmounts this
+  // gate; if it was canceled again the store re-armed 'locked' and it stays.
   const handleRetry = useCallback(async () => {
     setIsUnlocking(true);
     try {
@@ -56,11 +56,7 @@ export function BiometricUnlockGate({ onUnlocked, onUseAnotherLogin }: Biometric
     } finally {
       setIsUnlocking(false);
     }
-    // If the read succeeded the store cleared the lock; re-check auth so the app
-    // renders. If it was canceled again the store re-armed 'locked' and this
-    // gate stays mounted.
-    onUnlocked();
-  }, [onUnlocked]);
+  }, []);
 
   const handleUseAnotherLogin = useCallback(async () => {
     // No reset: the gate unmounts when the caller lands on the sign-in route.

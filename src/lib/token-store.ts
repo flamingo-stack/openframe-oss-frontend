@@ -8,13 +8,16 @@
  * WebSocket URL builders) need synchronous reads.
  */
 import { clearAuthedImageCache } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { BIOMETRIC_ERROR, biometricErrorCode, isBiometricLoginEnabled } from './native-biometrics';
-import { nativeAuthPlugin, onNativeTokenUpdate } from './native-shell';
+import { BIOMETRIC_ERROR, isBiometricLoginEnabled } from './native-biometrics';
+import { getStoredTenantHost, nativeAuthPlugin, nativeErrorCode, onNativeTokenUpdate } from './native-shell';
 import { isAppShell } from './platform';
 import { runtimeEnv } from './runtime-config';
 
 export const ACCESS_TOKEN_KEY = 'of_access_token';
 export const REFRESH_TOKEN_KEY = 'of_refresh_token';
+
+/** The shell's reject code for a Keychain it may not read yet: the device is locked. */
+const DEVICE_LOCKED_ERROR = 'DEVICE_LOCKED';
 
 let cachedAccessToken: string | null = null;
 let cachedRefreshToken: string | null = null;
@@ -141,6 +144,34 @@ function emitTokenChange(): void {
   }
 }
 
+/**
+ * Mirror a pair the SHELL already holds into this module — a rotation it ran on
+ * its own (pushed through `onNativeTokenUpdate`) or one it ran on the webview's
+ * behalf (the `refreshTokens` delegation). Cache-only, deliberately: the shell
+ * is the store, and writing the pair back through `setTokens` would let a stale
+ * copy land on top of a rotation the shell completed in between — putting a
+ * spent refresh token back in the Keychain, which is the end of the session.
+ * The payload is the full stored set, so an empty one is the session ending
+ * (same reasoning as `clearTokens`).
+ */
+export function adoptNativeTokens(tokens: { accessToken?: string | null; refreshToken?: string | null }): void {
+  const nextAccess = tokens.accessToken || null;
+  // Compared BEFORE the overwrite, and only a genuinely different token counts:
+  // a shell that re-emits the SAME tokens on resume would otherwise advance the
+  // epoch with no new credential, making every in-flight 401 short-circuit to a
+  // retry with the dead token.
+  const rotated = !!nextAccess && nextAccess !== cachedAccessToken;
+  cachedAccessToken = nextAccess;
+  cachedRefreshToken = tokens.refreshToken || null;
+  if (rotated) markTokenRotation();
+  // A pair in hand is the end of any lock: the launch read that was refused
+  // (device locked, or a biometric prompt the shell has since satisfied) has
+  // been answered by the shell itself. The lock boundary re-drives the session
+  // check on this transition.
+  if (nextAccess && biometricLockState === 'locked') setBiometricLockState(null);
+  emitTokenChange();
+}
+
 /** Bearer-header auth is used instead of cookies: dev-ticket web mode, or always in the native shell. */
 export function isBearerAuthMode(): boolean {
   return isAppShell() || runtimeEnv.enableDevTicketObserver();
@@ -159,19 +190,29 @@ export function initTokenStore(): Promise<void> {
       // registration would stack another listener firing emitTokenChange.
       if (!tokenUpdateListenerRegistered) {
         tokenUpdateListenerRegistered = true;
-        onNativeTokenUpdate(tokens => {
-          const nextAccess = tokens.accessToken || null;
-          // Compared BEFORE the overwrite, and only a genuinely different token
-          // counts: an empty payload is the session ending (same reasoning as
-          // `clearTokens`), and a shell that re-emits the SAME tokens on resume
-          // would otherwise advance the epoch with no new credential, making
-          // every in-flight 401 short-circuit to a retry with the dead token.
-          const rotated = !!nextAccess && nextAccess !== cachedAccessToken;
-          cachedAccessToken = nextAccess;
-          cachedRefreshToken = tokens.refreshToken || null;
-          if (rotated) markTokenRotation();
-          emitTokenChange();
-        });
+        onNativeTokenUpdate(adoptNativeTokens);
+      }
+      // A shell that owns refresh needs a gateway before its first rotation, and
+      // native-login.ts only hands it one at LOGIN. A session that predates that
+      // call — an install upgraded to a shell with its own refresher, or an
+      // Xcode build with no baked shared host — leaves the shell with none, and
+      // every delegated refresh fails NO_HOST with nothing to recover it: the
+      // delegation has silenced this side's refresher too. So re-push the hosts
+      // this side already knows, every hydration: the last login's tenant origin
+      // (where a shell-side notification action's chat calls go) and the shared
+      // auth host this side refreshes against, which is what the shell must
+      // refresh against too — the tenant gateway may answer a header-based
+      // refresh with the rotated pair in cookies only, which strands the session.
+      const storedHost = getStoredTenantHost();
+      if (storedHost) {
+        try {
+          await nativeAuthPlugin()?.setTenantHost?.({
+            origin: storedHost,
+            sharedOrigin: runtimeEnv.sharedHostUrl() || undefined,
+          });
+        } catch (error) {
+          console.error('[Token Store] tenant host push failed:', error);
+        }
       }
       try {
         const tokens = await nativeAuthPlugin()?.getTokens();
@@ -185,13 +226,26 @@ export function initTokenStore(): Promise<void> {
         // retry, rather than letting downstream null-token reads look logged out.
         // An invalidated enrollment means the key is gone: flag it so the
         // initializer forces a fresh login.
-        const code = biometricErrorCode(error);
+        const code = nativeErrorCode(error);
         if (code === BIOMETRIC_ERROR.INVALIDATED) {
           setBiometricLockState('invalidated');
-        } else if (code === BIOMETRIC_ERROR.CANCELED || (await isBiometricLoginEnabled())) {
+        } else if (
+          code === BIOMETRIC_ERROR.CANCELED ||
+          code === DEVICE_LOCKED_ERROR ||
+          (await isBiometricLoginEnabled())
+        ) {
           // Explicit cancel, or any failure while biometric login is on: the
           // tokens are still in the Keychain, unread — lock (retryable), don't
-          // fall through to a logged-out state.
+          // fall through to a logged-out state. DEVICE_LOCKED is the same
+          // situation without biometrics: iOS launched the app in the
+          // background (a push, a Watch action) at a moment the Keychain item
+          // could not be read — before the first unlock after a reboot, or on
+          // a locked phone for an item still on the pre-2026-09-09 protection
+          // class. Reading that as signed out is what wiped a live session: the
+          // next 401 asked the shell to refresh, it found nothing, and the
+          // store cleared the Keychain. The shell pushes the pair on the first
+          // activation after the unlock, which lifts this lock (see
+          // adoptNativeTokens).
           setBiometricLockState('locked');
         } else {
           // Non-biometric failure (or shells without biometric login): keep the

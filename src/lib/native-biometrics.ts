@@ -22,18 +22,6 @@ export const BIOMETRIC_ERROR = {
   INVALIDATED: 'BIOMETRIC_INVALIDATED',
 } as const;
 
-export type BiometricErrorCode = (typeof BIOMETRIC_ERROR)[keyof typeof BIOMETRIC_ERROR];
-
-/**
- * Capacitor surfaces a rejected plugin call as an Error whose `code` carries the
- * native error string (`CAPError.code`). Read it defensively — a generic failure
- * (no biometric hardware access, etc.) has no code.
- */
-export function biometricErrorCode(error: unknown): BiometricErrorCode | null {
-  const code = (error as { code?: unknown } | null)?.code;
-  return typeof code === 'string' ? (code as BiometricErrorCode) : null;
-}
-
 /**
  * Whether the device can do biometric auth. Resolves `{ available: false }` off
  * the native shell or on shells without the method, so callers can gate UI on it

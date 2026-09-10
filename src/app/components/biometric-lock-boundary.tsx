@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { invalidateAuthSession, signOutToLogin } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { routes } from '@/lib/routes';
 import {
@@ -38,6 +38,20 @@ export function BiometricLockBoundary({ children }: { children: React.ReactNode 
     () => null,
   );
   const [leavingToLogin, setLeavingToLogin] = useState(false);
+
+  // The session query is sitting in the error state the lock put it in, so
+  // re-drive it whenever the lock lifts, or the app stays on its skeleton. The
+  // transition is the one trigger for both ways a lock lifts: the gate's Retry
+  // (a successful re-read clears the lock), and the shell pushing the pair on
+  // the first activation after a launch that found the device locked, which the
+  // token store adopts and clears the lock on.
+  const previousLock = useRef<BiometricLockState>(lock);
+  useEffect(() => {
+    if (previousLock.current === 'locked' && lock === null) {
+      invalidateAuthSession(queryClient);
+    }
+    previousLock.current = lock;
+  }, [lock, queryClient]);
 
   // Biometric enrollment changed → the Keychain key is gone, tokens are
   // unrecoverable. Same hard sign-out as the card's INVALIDATED path — lands
@@ -83,14 +97,9 @@ export function BiometricLockBoundary({ children }: { children: React.ReactNode 
 
   // Prompt canceled/failed at cold start: the tokens are still in the Keychain,
   // so this is NOT logged-out — hold the whole app behind the unlock gate and
-  // let Retry re-prompt; on success re-drive the auth session check.
+  // let Retry re-prompt; the lock transition above re-drives the session check.
   if (lock === 'locked' || leavingToLogin) {
-    return (
-      <BiometricUnlockGate
-        onUnlocked={() => invalidateAuthSession(queryClient)}
-        onUseAnotherLogin={handleUseAnotherLogin}
-      />
-    );
+    return <BiometricUnlockGate onUseAnotherLogin={handleUseAnotherLogin} />;
   }
 
   return <>{children}</>;
