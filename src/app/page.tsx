@@ -11,7 +11,11 @@ export default function Home() {
 
   useEffect(() => {
     if (isAuthenticated !== null) {
-      router.replace(getDefaultRedirectPath(isAuthenticated));
+      // Carry the query string and hash over: ad traffic lands on the bare root as
+      // `/?fbclid=…&utm_source=…&__hstc=…#distinct_id=…`, and GTM (HubSpot, Meta,
+      // GA) and the PostHog bootstrap only read them after this redirect — on /auth.
+      const { search, hash } = window.location;
+      router.replace(`${getDefaultRedirectPath(isAuthenticated)}${search}${hash}`);
     }
   }, [router, isAuthenticated]);
 
