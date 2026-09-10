@@ -134,11 +134,6 @@ class AuthApiClient {
     return null;
   }
 
-  /** No `tenantId` — the BFF resolves it from the refresh token. See `token-refresh-manager.ts`. */
-  refresh<T = unknown>() {
-    return requestRefresh<T>('/oauth/refresh', { method: 'POST' });
-  }
-
   devExchange(ticket: string): Promise<Response> {
     const base = runtimeEnv.sharedHostUrl() || '';
     const url = `${base}/oauth/dev-exchange?ticket=${encodeURIComponent(ticket)}`;
@@ -460,64 +455,6 @@ class AuthApiClient {
 }
 
 const authApiClient = new AuthApiClient();
-
-async function requestRefresh<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
-  const url = buildAuthUrl(path);
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-    ...(init.headers as Record<string, string> | undefined),
-  };
-
-  if (isBearerAuthMode()) {
-    const refreshToken = await getRefreshToken();
-    if (refreshToken) {
-      headers['Refresh-Token'] = refreshToken;
-    }
-  }
-
-  try {
-    // `headers` LAST: `init.headers` is already merged into it above, so
-    // spreading `init` over it would only drop the `Refresh-Token` added here.
-    const res = await fetch(url, {
-      credentials: 'include',
-      ...init,
-      headers,
-    });
-
-    let data: T | undefined;
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      try {
-        data = await res.json();
-      } catch {
-        // Same as above: `data` stays undefined and the status carries the result.
-      }
-    }
-
-    if (isBearerAuthMode() && res.ok) {
-      const accessToken = res.headers.get('Access-Token') || res.headers.get('access-token');
-      const refreshToken = res.headers.get('Refresh-Token') || res.headers.get('refresh-token');
-
-      if (accessToken || refreshToken) {
-        data = {
-          ...data,
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        } as T;
-      }
-    }
-
-    return {
-      data,
-      error: res.ok ? undefined : `Request failed with status ${res.status}`,
-      status: res.status,
-      ok: res.ok,
-    };
-  } catch (e) {
-    return { ok: false, status: 0, error: e instanceof Error ? e.message : 'Network error' };
-  }
-}
 
 async function request<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
   const url = buildAuthUrl(path);

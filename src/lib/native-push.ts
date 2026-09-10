@@ -18,7 +18,7 @@ import type { unregisterPushDeviceMutation as UnregisterPushDeviceMutationType }
 import type { PushPlatform } from '@/generated/schema-enums';
 import { registerPushDeviceMutation } from '@/graphql/notifications/register-push-device-mutation';
 import { unregisterPushDeviceMutation } from '@/graphql/notifications/unregister-push-device-mutation';
-import { firebaseMessagingPlugin } from './native-shell';
+import { type CapacitorListenerHandle, firebaseMessagingPlugin } from './native-shell';
 import { mobilePlatform } from './platform';
 import { parseRetractedIds, removeRetracted } from './push-retraction';
 import { getRelayEnvironment } from './relay';
@@ -95,7 +95,7 @@ async function unregisterPushDevice(token: string): Promise<void> {
  * Registers one plugin listener, absorbing a failure to attach. See the call site for
  * why a rejection must not propagate.
  */
-async function attachListener(eventName: string, register: () => Promise<unknown>): Promise<void> {
+async function attachListener(eventName: string, register: () => CapacitorListenerHandle): Promise<void> {
   try {
     await register();
   } catch (error) {

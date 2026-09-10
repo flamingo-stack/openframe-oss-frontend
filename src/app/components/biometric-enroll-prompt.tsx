@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import {
   BIOMETRIC_ERROR,
-  biometricErrorCode,
   biometryLabel,
   enableBiometricLogin,
   getBiometricLoginChoice,
@@ -13,6 +12,7 @@ import {
   isBiometricLoginEnabled,
   setBiometricLoginChoice,
 } from '@/lib/native-biometrics';
+import { nativeErrorCode } from '@/lib/native-shell';
 import { isMobileShell } from '@/lib/platform';
 
 /**
@@ -60,7 +60,7 @@ export function BiometricEnrollPrompt() {
       toast({ title: `${label} enabled`, description: `You'll unlock OpenFrame with ${label}.`, variant: 'success' });
     } catch (error) {
       // OS prompt canceled: keep the offer open, no choice recorded.
-      if (biometricErrorCode(error) === BIOMETRIC_ERROR.CANCELED) return;
+      if (nativeErrorCode(error) === BIOMETRIC_ERROR.CANCELED) return;
       // Transient failure: close without recording, so a later session may
       // offer again; the settings toggle stays available meanwhile.
       setOpen(false);

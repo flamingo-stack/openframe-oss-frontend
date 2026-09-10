@@ -201,11 +201,15 @@ function tenantOrigin(domain: string): string {
   return domain.startsWith('http') ? domain : `https://${domain}`;
 }
 
-/** Persist the gateway origin on both sides: the web layer, and the shell's own networking. */
+/**
+ * Persist the gateway origin on both sides: the web layer, and the shell's own
+ * networking. The shared host goes along so a shell-side refresher targets the
+ * same gateway this side always has (see NativeAuthPlugin.setTenantHost).
+ */
 async function persistTenantHost(plugin: NativeAuthPlugin, origin: string): Promise<void> {
   storeTenantHost(origin);
   try {
-    await plugin.setTenantHost?.({ origin });
+    await plugin.setTenantHost?.({ origin, sharedOrigin: runtimeEnv.sharedHostUrl() || undefined });
   } catch {
     // Optional capability — older shells don't implement it.
   }
