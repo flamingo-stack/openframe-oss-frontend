@@ -633,6 +633,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     undefined;
 
   const infoRows: InfoSectionRow[] = [
+    // First row per Figma tickets 8001-100805: the bare sequential number, no
+    // `#`, no trailing icon - the reference technicians and clients quote.
+    {
+      id: 'ticket-number',
+      label: 'Ticket Number',
+      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : '—' },
+    },
     {
       id: 'customer',
       label: 'Customer',
