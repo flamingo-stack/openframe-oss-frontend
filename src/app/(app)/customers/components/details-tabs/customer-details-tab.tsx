@@ -20,7 +20,7 @@ function InfoCell({ value, label, icon, href }: InfoCellProps) {
 
   const content = (
     <div className="flex min-w-0 flex-1 flex-col justify-center">
-      <div className="flex min-w-0 items-center gap-1">
+      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
         {icon}
         <div className="min-w-0 flex-1">
           <TruncateText>{display}</TruncateText>
@@ -55,7 +55,7 @@ function InfoCell({ value, label, icon, href }: InfoCellProps) {
  */
 function CustomerNotesCard({ notes }: { notes: string }) {
   return (
-    <section className="flex flex-col gap-[var(--spacing-system-mf)] rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
+    <section className="flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] pb-[var(--spacing-system-s)] pt-[var(--spacing-system-l)]">
       <h2 className="text-ods-text-primary text-h2">Notes</h2>
       {notes ? (
         <p className="whitespace-pre-wrap break-words text-ods-text-primary text-h4">{notes}</p>
@@ -81,8 +81,8 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex flex-col rounded-[6px] border border-ods-border bg-ods-card">
-        <div className="flex h-20 items-center gap-4 border-b border-ods-border px-4">
+      <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
+        <div className="flex h-20 items-center gap-[var(--spacing-system-m)] border-b border-ods-border px-[var(--spacing-system-m)]">
           <InfoCell
             value={organization.website}
             label="Website"
@@ -90,7 +90,7 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
             href={websiteHref}
           />
         </div>
-        <div className="flex flex-col px-4 py-4 md:h-20 md:flex-row md:items-center md:gap-4 md:py-0">
+        <div className="flex flex-col px-[var(--spacing-system-m)] py-[var(--spacing-system-m)] md:h-20 md:flex-row md:items-center md:gap-[var(--spacing-system-m)] md:py-0">
           <InfoCell value={organization.physicalAddress} label="Physical Address" />
           <InfoCell value={organization.mailingAddress} label="Mailing Address" />
         </div>
