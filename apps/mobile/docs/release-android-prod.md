@@ -28,7 +28,7 @@ otherwise emits an unsigned bundle with nothing but a log line.
 
 `VERSION_CODE` / `VERSION_NAME` map to `-PofVersionCode` / `-PofVersionName`, so
 bumping a release needs no commit. Without them the `build.gradle` defaults
-(`1` / `1.0`) apply.
+(`1` / `1.0.1`) apply.
 
 Flags: `SKIP_WEB=1`, `WEB_ONLY=1` (stop after sync — then Android Studio, Build
 Variants → `prodDebug`).

@@ -20,8 +20,18 @@ import UIKit
  *   cancelling the navigation to it inside its own window.
  * - exchangeTicket: dev-ticket -> tokens over native HTTP, so the WebView
  *   never fights CORS for the Access-Token/Refresh-Token response headers.
- * - get/set/clearTokens: Keychain storage, WhenUnlockedThisDeviceOnly
- *   (device-bound: excluded from iCloud Keychain sync and backups).
+ * - get/set/clearTokens: Keychain storage, AfterFirstUnlockThisDeviceOnly
+ *   (device-bound: excluded from iCloud Keychain sync and backups; readable on
+ *   a locked phone so a Watch-initiated notification action can act), fronted by
+ *   the in-memory pair `TokenLifecycle` holds for the life of the process.
+ * - refreshTokens: shell-owned refresh. Its presence is what makes the web
+ *   view's token-refresh-manager delegate here and stop calling /oauth/refresh
+ *   itself — rotating refresh tokens tolerate exactly one refresher. The
+ *   mechanics live in TokenLifecycle.swift; what stays here is the mapping of
+ *   an outcome onto the bridge contract: tokens, an empty set for a session
+ *   that is over, a rejection for everything that leaves the session intact.
+ * - setTenantHost: the login-learned tenant origin, persisted shell-side so the
+ *   refresher has a gateway without depending on web-view storage.
  */
 @objc(NativeAuthPlugin)
 public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -39,8 +49,16 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "disableBiometricLogin", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getSafeAreaInsets", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "signInWithApple", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "exchangeApple", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "exchangeApple", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "refreshTokens", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setTenantHost", returnType: CAPPluginReturnPromise)
     ]
+
+    public override func load() {
+        // The lifecycle pushes token changes to the web view through this
+        // plugin (`notifyListeners`), and its foreground observers start here.
+        TokenLifecycle.shared.attach(plugin: self)
+    }
 
     // Not auth-related, but this is the shell's only local plugin: WKWebView
     // reports env(safe-area-inset-*) as 0 until it has laid out, so the frontend
@@ -71,23 +89,8 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private static let callbackScheme = "com.openframe.app"
 
-    /**
-     * Session for the token-exchange calls, carrying NO ambient credentials.
-     *
-     * `URLSession.shared` uses `HTTPCookieStorage.shared`, which the gateway populates with auth
-     * cookies on these very endpoints. Both methods take a URL from the web layer and hand the
-     * response back to it, so borrowing that cookie jar would turn them into a credentialed
-     * cross-origin request primitive for anything executing in the WebView — which renders remote
-     * Help Center and chat content. The app reads the tokens off the response HEADERS and never
-     * needs the cookies, so dropping them costs nothing.
-     */
-    private static let exchangeSession: URLSession = {
-        let config = URLSessionConfiguration.ephemeral
-        config.httpCookieStorage = nil
-        config.httpShouldSetCookies = false
-        config.urlCredentialStorage = nil
-        return URLSession(configuration: config)
-    }()
+    /// Session for the token-exchange calls — see `URLSessionConfiguration.credentialFree`.
+    private static let exchangeSession = URLSession(configuration: .credentialFree)
 
     /**
      * Destination guard for the JS-supplied URLs on `start`, `exchangeTicket`, `exchangeApple`.
@@ -193,14 +196,7 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.reject("Ticket exchange failed with status \(http.statusCode)")
                 return
             }
-            var result = JSObject()
-            if let accessToken = http.value(forHTTPHeaderField: "Access-Token") {
-                result["accessToken"] = accessToken
-            }
-            if let refreshToken = http.value(forHTTPHeaderField: "Refresh-Token") {
-                result["refreshToken"] = refreshToken
-            }
-            call.resolve(result)
+            call.resolve(Self.tokensResult(from: TokenPair(headersOf: http)))
         }.resume()
     }
 
@@ -273,14 +269,8 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.reject("Apple exchange failed: no HTTP response")
                 return
             }
-            var result = JSObject()
+            var result = Self.tokensResult(from: TokenPair(headersOf: http))
             result["status"] = http.statusCode
-            if let accessToken = http.value(forHTTPHeaderField: "Access-Token") {
-                result["accessToken"] = accessToken
-            }
-            if let refreshToken = http.value(forHTTPHeaderField: "Refresh-Token") {
-                result["refreshToken"] = refreshToken
-            }
             // The body is relayed ONLY for a failure. The caller reads it for one
             // thing — the machine code in {"error": "..."} that distinguishes `registration_required`
             // from a real failure — and a success is a 204 whose tokens arrive in the headers above.
@@ -305,55 +295,65 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     // MARK: - Keychain token storage
-
-    private static let service = "ai.openframe.mobile.auth"
-    // Both tokens live in ONE Keychain item (a JSON blob) so a gated read shows
-    // a single biometric prompt, not one per token.
-    private static let tokensAccount = "tokens"
-    // Serializes compound Keychain mutations that can race: a token rotation
-    // (setTokens) landing while the enable completion re-gates the item must
-    // land either fully before (the enable re-read sees it) or fully after
-    // (the marker is on, so the rotation writes gated).
-    private static let storeQueue = DispatchQueue(label: "ai.openframe.mobile.auth.store")
-    // Pre-2026-07-22 builds stored access/refresh as two separate items; delete
-    // them on write/clear so old gated orphans don't linger.
-    private static let legacyAccessTokenAccount = "accessToken"
-    private static let legacyRefreshTokenAccount = "refreshToken"
+    //
+    // The raw Keychain calls live in `TokenStore`; the in-memory pair and the
+    // refresher in `TokenLifecycle`. What stays here is policy: when a read may
+    // prompt, and what a failure means to the session.
 
     @objc func getTokens(_ call: CAPPluginCall) {
+        let lifecycle = TokenLifecycle.shared
+        // The process already holds the pair — from the launch read, a login or
+        // a rotation. Answer from it: with biometric login on, this is what
+        // keeps a launch to ONE prompt however many times the web view
+        // re-hydrates (the full navigation after login, an unlock-gate retry).
+        if let pair = lifecycle.cachedPair() {
+            call.resolve(Self.tokensResult(from: pair))
+            return
+        }
         // Both tokens live in one item. With biometric login on it carries a
         // .biometryCurrentSet access-control, so the single SecItemCopyMatching
         // drives one Face ID / Touch ID prompt. Off the marker path there's no
         // prompt and a missing item just yields an empty result.
-        if Self.biometricGated {
+        if TokenStore.isBiometricGated {
             // The gated read must run off the main thread: the biometric prompt
             // SecItemCopyMatching drives is synchronous and would block the UI.
+            let epoch = lifecycle.custodyEpoch()
             DispatchQueue.global(qos: .userInitiated).async {
-                let (blob, status) = Self.keychainReadStatus(account: Self.tokensAccount)
+                let (blob, status) = TokenStore.readStatus(account: TokenStore.tokensAccount)
                 if let code = Self.biometricRejectCode(for: status) {
                     call.reject(code, code)
                     return
                 }
-                call.resolve(Self.tokensResult(from: blob))
+                call.resolve(Self.tokensResult(from: lifecycle.adopt(promptedRead: TokenStore.decode(blob), under: epoch)))
             }
             return
         }
-        call.resolve(Self.tokensResult(from: Self.keychainRead(account: Self.tokensAccount)))
+        switch lifecycle.readSilently() {
+        case .pair(let pair):
+            call.resolve(Self.tokensResult(from: pair))
+        case .absent:
+            call.resolve([:])
+        case .unreadable:
+            // A locked device: the item exists and cannot be read until it is
+            // unlocked. Rejecting (rather than resolving empty) is what keeps the
+            // web view from reading "signed out" into a background launch — the
+            // frontend treats DEVICE_LOCKED as a retryable lock, and its
+            // force-logout leaves the Keychain alone while one is up.
+            call.reject("The stored tokens cannot be read while the device is locked", TokenLifecycle.Code.deviceLocked)
+        }
     }
 
     @objc func setTokens(_ call: CAPPluginCall) {
-        // The frontend sends the full current pair (token-store mirrors both in
-        // memory), so we always write the complete set as ONE item — no gated
-        // read-modify-write, so the write stays silent even when gated.
-        let blob = Self.encodeTokens(
-            access: call.getString("accessToken"),
-            refresh: call.getString("refreshToken")
+        // A login result. The lifecycle merges it over what it holds, writes the
+        // full pair as ONE item (gated per the marker; no gated read-modify-write,
+        // so the write stays silent), and treats it as a custody change so a
+        // rotation still in flight for the previous pair cannot land on top.
+        let incoming = TokenPair(
+            access: call.getString(TokenPair.accessKey),
+            refresh: call.getString(TokenPair.refreshKey)
         )
-        // Marker read + write as one unit on storeQueue — see its comment.
-        let status = Self.storeQueue.sync {
-            Self.keychainWrite(account: Self.tokensAccount, value: blob, gated: Self.biometricGated)
-        }
-        Self.deleteLegacyTokenItems()
+        let status = TokenLifecycle.shared.store(incoming)
+        TokenStore.deleteLegacyItems()
         guard status == errSecSuccess else {
             call.reject("Keychain write failed: OSStatus \(status)")
             return
@@ -362,16 +362,59 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func clearTokens(_ call: CAPPluginCall) {
-        // On storeQueue: a logout landing inside the enable completion's
-        // read→gated-rewrite window would otherwise be resurrected — the
-        // enable block re-creating the just-deleted item, marker re-set.
-        Self.storeQueue.sync {
-            Self.keychainDelete(account: Self.tokensAccount)
-            // Logout resets to a clean ungated state: the next login writes
-            // fresh ungated tokens and the user re-opts into biometric.
-            Self.setBiometricGated(false)
+        // Logout resets to a clean ungated state: the next login writes fresh
+        // ungated tokens and the user re-opts into biometric. Runs on
+        // TokenStore.queue (inside endSession), so a logout landing inside the
+        // enable completion's read→gated-rewrite window cannot be resurrected by
+        // it — the enable block re-creating the just-deleted item, marker re-set.
+        TokenLifecycle.shared.endSession()
+        TokenStore.deleteLegacyItems()
+        call.resolve()
+    }
+
+    // MARK: - Shell-owned refresh
+
+    /**
+     * The web view's delegated refresh. `rejectedAccessToken` is the bearer the
+     * gateway refused; when the stored one already differs, a rotation beat this
+     * call and is answered from, instead of spending another refresh token.
+     *
+     * Reject — never resolve empty — for anything that leaves the session
+     * intact. The web view maps an empty resolve to "session over", which runs
+     * `clearStoredTokens` and with it this plugin's `clearTokens`, turning
+     * biometric login off on top of signing the user out. A locked device or an
+     * unsettled network must not do that. Only a gateway rejection, or no refresh
+     * token to present at all, resolves empty.
+     */
+    @objc func refreshTokens(_ call: CAPPluginCall) {
+        TokenLifecycle.shared.refresh(rejectedAccessToken: call.getString("rejectedAccessToken")) { result in
+            switch result {
+            case .tokens(let pair):
+                call.resolve(Self.tokensResult(from: pair))
+            case .sessionOver:
+                call.resolve([:])
+            case .failed(let code, let message):
+                call.reject(message, code)
+            }
         }
-        Self.deleteLegacyTokenItems()
+    }
+
+    /**
+     * The hosts the web view knows: `origin`, the tenant gateway learned at
+     * login (where a notification action's chat calls go), and `sharedOrigin`,
+     * the shared auth host the web view refreshes against — the refresher's
+     * base when the build carries no plist host. Never the other way round: see
+     * `TokenLifecycle.setSharedHost` for why the tenant host must not refresh.
+     */
+    @objc func setTenantHost(_ call: CAPPluginCall) {
+        guard let origin = call.getString("origin"), TokenLifecycle.shared.setTenantHost(origin) else {
+            call.reject("Refusing a tenant host that is not an https origin", "URL_NOT_ALLOWED")
+            return
+        }
+        if let shared = call.getString("sharedOrigin"), !shared.isEmpty, !TokenLifecycle.shared.setSharedHost(shared) {
+            call.reject("Refusing a shared host that is not an https origin", "URL_NOT_ALLOWED")
+            return
+        }
         call.resolve()
     }
 
@@ -392,7 +435,7 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     /// Reads the non-gated marker only — never touches the gated token items,
     /// so this never prompts.
     @objc func isBiometricLoginEnabled(_ call: CAPPluginCall) {
-        call.resolve(["enabled": Self.biometricGated])
+        call.resolve(["enabled": TokenStore.isBiometricGated])
     }
 
     /// Verifies the user with the OS biometric prompt, then re-stores the
@@ -413,8 +456,8 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("BIOMETRIC_UNAVAILABLE", "BIOMETRIC_UNAVAILABLE")
             return
         }
-        // Fail fast before prompting; the item is still ungated at this point.
-        guard Self.keychainRead(account: Self.tokensAccount) != nil else {
+        // Fail fast before prompting.
+        guard TokenLifecycle.shared.cachedPair() != nil else {
             call.reject("NO_TOKENS", "NO_TOKENS")
             return
         }
@@ -427,27 +470,17 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.reject(code, code)
                 return
             }
-            // Re-read AFTER the prompt: a token refresh may have rotated the
-            // pair while the sheet was up; gating the pre-prompt snapshot
-            // would wind the session back to dropped tokens. The whole
-            // read→gated-rewrite→marker flip runs on storeQueue so a rotation
-            // can't interleave (see the queue's comment).
-            let failure: (message: String, code: String?)? = Self.storeQueue.sync {
-                guard let blob = Self.keychainRead(account: Self.tokensAccount) else {
-                    return ("NO_TOKENS", "NO_TOKENS")
-                }
-                let status = Self.keychainWrite(account: Self.tokensAccount, value: blob, gated: true)
-                guard status == errSecSuccess else {
-                    return ("Keychain write failed: OSStatus \(status)", nil)
-                }
-                Self.setBiometricGated(true)
-                return nil
+            // The pair the process holds AFTER the prompt, gated on the store
+            // queue: a rotation may have landed while the sheet was up, and
+            // gating a pre-prompt snapshot would wind the session back.
+            switch TokenLifecycle.shared.gate() {
+            case errSecSuccess:
+                call.resolve()
+            case errSecItemNotFound:
+                call.reject("NO_TOKENS", "NO_TOKENS")
+            case let status:
+                call.reject("Keychain write failed: OSStatus \(status)")
             }
-            if let failure {
-                call.reject(failure.message, failure.code)
-                return
-            }
-            call.resolve()
         }
     }
 
@@ -455,30 +488,33 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     /// clears the marker. Rejects BIOMETRIC_CANCELED if the user dismisses the
     /// prompt. Runs the gated read off the main thread.
     @objc func disableBiometricLogin(_ call: CAPPluginCall) {
-        guard Self.biometricGated else {
+        guard TokenStore.isBiometricGated else {
             // Already ungated — nothing to do.
             call.resolve()
             return
         }
+        let epoch = TokenLifecycle.shared.custodyEpoch()
         DispatchQueue.global(qos: .userInitiated).async {
-            let (blob, status) = Self.keychainReadStatus(account: Self.tokensAccount)
+            let (blob, status) = TokenStore.readStatus(account: TokenStore.tokensAccount)
             if let code = Self.biometricRejectCode(for: status) {
                 if code == "BIOMETRIC_INVALIDATED" {
                     // Enrollment change dropped the item — the tokens are gone
                     // either way, so return to a clean ungated state instead of
                     // leaving the marker pointing at nothing; the frontend
                     // reacts to INVALIDATED with a forced re-login.
-                    Self.keychainDelete(account: Self.tokensAccount)
-                    Self.setBiometricGated(false)
+                    TokenLifecycle.shared.endSession()
                 }
                 call.reject(code, code)
                 return
             }
-            // Re-store ungated (if anything unlocked), then clear the marker.
-            if let blob {
-                _ = Self.keychainWrite(account: Self.tokensAccount, value: blob, gated: false)
+            // The prompt was the consent; the pair the process holds NOW is what
+            // gets re-stored, the blob read before the sheet went up only a
+            // fallback under an unchanged epoch (see `TokenLifecycle.ungate`).
+            let writeStatus = TokenLifecycle.shared.ungate(promptedRead: TokenStore.decode(blob), under: epoch)
+            guard writeStatus == errSecSuccess else {
+                call.reject("Keychain write failed: OSStatus \(writeStatus)")
+                return
             }
-            Self.setBiometricGated(false)
             call.resolve()
         }
     }
@@ -510,27 +546,10 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
             // auth-failed. Consumers of INVALIDATED destroy state, so report it
             // only when the item is provably gone; a still-present item is a
             // retryable failure.
-            return gatedTokensItemExists() ? "BIOMETRIC_CANCELED" : "BIOMETRIC_INVALIDATED"
+            return TokenStore.existsWithoutPrompting(account: TokenStore.tokensAccount) ? "BIOMETRIC_CANCELED" : "BIOMETRIC_INVALIDATED"
         default:
             return "BIOMETRIC_CANCELED"
         }
-    }
-
-    /// Whether the gated tokens item still exists, WITHOUT prompting: an
-    /// interaction-disallowed LAContext makes SecItemCopyMatching return
-    /// errSecInteractionNotAllowed — instead of driving the biometric prompt —
-    /// when the item is present but auth-gated. (The old spelling of this,
-    /// kSecUseAuthenticationUIFail, is deprecated since iOS 14.)
-    private static func gatedTokensItemExists() -> Bool {
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        var query = baseQuery(account: tokensAccount)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        query[kSecUseAuthenticationContext as String] = context
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        return status == errSecSuccess || status == errSecInteractionNotAllowed
     }
 
     /// Maps an LAContext evaluatePolicy failure to a JS reject code. Cancels
@@ -548,120 +567,9 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    private static func baseQuery(account: String) -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-    }
-
-    private static func keychainRead(account: String) -> String? {
-        keychainReadStatus(account: account).0
-    }
-
-    /// Read returning the raw OSStatus alongside the value, so the gated path
-    /// can tell a user cancel / enrollment-change invalidation apart from a
-    /// genuine miss. On the gated path SecItemCopyMatching itself drives the
-    /// biometric prompt (the item carries a .biometryCurrentSet access-control),
-    /// so this call blocks until the user responds — callers must run it off
-    /// the main thread.
-    private static func keychainReadStatus(account: String) -> (String?, OSStatus) {
-        var query = baseQuery(account: account)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else {
-            return (nil, status)
-        }
-        return (String(data: data, encoding: .utf8), status)
-    }
-
-    /// Delete-then-add rather than add/update: replacing an item's
-    /// access-control (ungated <-> gated) via SecItemUpdate is unreliable, and
-    /// adding a fresh .biometryCurrentSet item never prompts — so this stays
-    /// silent whether or not `gated` is set.
-    private static func keychainWrite(account: String, value: String, gated: Bool) -> OSStatus {
-        let data = Data(value.utf8)
-        SecItemDelete(baseQuery(account: account) as CFDictionary)
-        var query = baseQuery(account: account)
-        query[kSecValueData as String] = data
-        if gated {
-            var acError: Unmanaged<CFError>?
-            guard let access = SecAccessControlCreateWithFlags(
-                kCFAllocatorDefault,
-                kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-                .biometryCurrentSet,
-                &acError
-            ) else {
-                print("[NativeAuth] keychainWrite(\(account)) access-control creation failed")
-                return errSecParam
-            }
-            query[kSecAttrAccessControl as String] = access
-        } else {
-            query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        }
-        let status = SecItemAdd(query as CFDictionary, nil)
-        if status != errSecSuccess {
-            print("[NativeAuth] keychainWrite(\(account)) failed: \(status)")
-        }
-        return status
-    }
-
-    private static func keychainDelete(account: String) {
-        SecItemDelete(baseQuery(account: account) as CFDictionary)
-    }
-
-    private static func deleteLegacyTokenItems() {
-        keychainDelete(account: legacyAccessTokenAccount)
-        keychainDelete(account: legacyRefreshTokenAccount)
-    }
-
-    /// Serialize the token pair to a JSON blob for single-item storage. Absent
-    /// fields are omitted; the frontend sends the full current pair.
-    private static func encodeTokens(access: String?, refresh: String?) -> String {
-        var dict: [String: String] = [:]
-        if let access { dict["accessToken"] = access }
-        if let refresh { dict["refreshToken"] = refresh }
-        guard let data = try? JSONSerialization.data(withJSONObject: dict),
-              let json = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-        return json
-    }
-
-    /// Parse the stored JSON blob into a JS result; empty when nil/unparseable.
-    private static func tokensResult(from blob: String?) -> JSObject {
-        var result = JSObject()
-        guard let blob,
-              let data = blob.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
-            return result
-        }
-        if let access = obj["accessToken"] { result["accessToken"] = access }
-        if let refresh = obj["refreshToken"] { result["refreshToken"] = refresh }
-        return result
-    }
-
-    // MARK: - Biometric marker (non-gated)
-
-    // Records whether the tokens are currently stored biometric-gated. Kept in
-    // the same Keychain service but WITHOUT any access-control, so reading it
-    // never prompts. A plain-Keychain item (not UserDefaults) keeps the state
-    // co-located with, and cleared alongside, the tokens.
-    private static let biometricMarkerAccount = "biometricGated"
-
-    private static var biometricGated: Bool {
-        keychainRead(account: biometricMarkerAccount) == "1"
-    }
-
-    private static func setBiometricGated(_ enabled: Bool) {
-        if enabled {
-            _ = keychainWrite(account: biometricMarkerAccount, value: "1", gated: false)
-        } else {
-            keychainDelete(account: biometricMarkerAccount)
-        }
+    /// The pair as a JS result; absent halves are omitted.
+    private static func tokensResult(from pair: TokenPair) -> JSObject {
+        pair.fields.mapValues { $0 as JSValue }
     }
 }
 

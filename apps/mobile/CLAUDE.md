@@ -49,9 +49,16 @@ exists.**
   web view — see the fullscreen gotcha below; `env()` insets read 0 only for the first
   ~100ms after load, measured on iOS 26.5 — not permanently), and
   `isBiometricAvailable` / `isBiometricLoginEnabled` /
-  `enableBiometricLogin` / `disableBiometricLogin`. The callback scheme is registered in
-  **Info.plist `CFBundleURLTypes`** (iOS) and **`strings.xml` + the manifest intent-filter**
-  (Android).
+  `enableBiometricLogin` / `disableBiometricLogin`, and — **iOS only so far** —
+  `refreshTokens` (shell-owned refresh, see below) + `setTenantHost` (the login-learned
+  origin, https only). The Android plugin lacks those two, so the frontend's
+  presence-check keeps the WebView as Android's refresher. The callback scheme is
+  registered in **Info.plist `CFBundleURLTypes`** (iOS) and **`strings.xml` + the manifest
+  intent-filter** (Android).
+- **`TokenLifecycle.swift`** (iOS) — the in-memory token pair, the single-flight refresher
+  against `/oauth/refresh`, the foreground poll, and the `tokenUpdate` plugin event that
+  mirrors every change into the WebView. `TokenStore.swift` underneath is the dumb
+  Keychain accessor (plus the biometric marker); policy stays in the plugin.
 - **`NativeFilesPlugin`** — `ios/App/App/NativeFilesPlugin.swift`, mirrored on Android by
   `android/app/src/main/java/ai/openframe/mobile/NativeFilesPlugin.java` (same jsName +
   method surface). Backs frontend `src/lib/native-files.ts`. Methods: `downloadFile`
@@ -72,8 +79,11 @@ exists.**
 ### Token storage & biometrics
 
 Both tokens live in **one item** — iOS Keychain service `ai.openframe.mobile.auth`
-account `tokens`, `WhenUnlockedThisDeviceOnly`; Android one RSA-wrapped Keystore blob,
-device-bound. With biometric login on, that item is access-control-bound (iOS
+account `tokens`, **`AfterFirstUnlockThisDeviceOnly`** (was `WhenUnlocked` until
+2026-09-09: a notification action taken from the Apple Watch launches the app on a
+locked iPhone, and a `WhenUnlocked` item cannot be read there — the action failed and,
+worse, the launch's empty read cascaded into a Keychain wipe; see below); Android one
+RSA-wrapped Keystore blob, device-bound. With biometric login on, that item is access-control-bound (iOS
 `.biometryCurrentSet`; Android `BiometricPrompt`+`CryptoObject` on an auth-required RSA
 key), so a gated read shows **one** prompt and writes stay silent.
 `NSFaceIDUsageDescription` is in Info.plist.
@@ -88,6 +98,69 @@ key), so a gated read shows **one** prompt and writes stay silent.
 - Frontend settings toggle + cold-start unlock gate: `native-biometrics.ts`,
   `token-store.ts` in `openframe-frontend`.
 - Detail: vault `Authentication/Mobile Auth - Token Storage, Biometrics, Passkeys`.
+
+### Token refresh (shell-owned, iOS)
+
+The iOS plugin implements `refreshTokens`, and **its presence is the switch**: frontend
+`token-refresh-manager.ts` delegates every refresh to it and stops POSTing `/oauth/refresh`
+itself, and `refreshIfStale()` (the resume refresh) becomes a no-op. Refresh tokens rotate
+with no grace window, so there must be exactly one refresher — the shell, which also keeps
+the session alive while the WebView is idle. Mirrors desktop `tokens.rs`. Consequence: a
+misconfigured native refresher is a dead session in ~15 min; the device log tags every
+step `[TokenLifecycle]`.
+
+- **In-memory pair.** Primed by the first successful read (with biometric login on, that is
+  the ONE prompt the WebView drives at launch) and by every write; `getTokens` answers from
+  it, so re-hydration (post-login full navigation, unlock retry) never prompts again.
+  Without it every background rotation would drive a gated `SecItemCopyMatching`.
+- **Outcome taxonomy** per POST: rotated / rejected (401 only) / unreached (never left the
+  device: no path, DNS, connect, TLS — retried at 1s, 3s) / unknown (went out, no usable
+  answer: timeout, broken response, 5xx, **403**, 2xx with no token headers — never retried,
+  and the token is held back for a 60s cooldown so the next caller can't cash the ambiguity
+  in as a 401). A 403 is deliberately not a rejection: the BFF never answers one here, so it
+  is the WAF's, and says nothing about the credential.
+- **Bridge mapping — reject, never resolve empty.** The frontend maps an empty resolve to
+  session-over → `clearStoredTokens()` → `clearTokens`, which also turns biometric login
+  off. So only a 401, or a store that is provably **absent**, resolves empty. A store the
+  shell cannot read *right now* — `errSecInteractionNotAllowed`: before the first unlock
+  after a reboot, or an item still on the old `WhenUnlocked` class while the phone is
+  locked — is `DEVICE_LOCKED` on both `getTokens` and `refreshTokens`; a gated store not
+  yet unlocked is `BIOMETRIC_LOCKED`; no host is `NO_HOST`; unreached/unknown/held all
+  **reject**, which the frontend reads as transient. `DEVICE_LOCKED` on the launch read
+  parks the frontend behind its unlock gate, and the shell pushes the pair on the first
+  activation after the unlock, which lifts it. Field incident 2026-09-09: a Watch reply on
+  a locked phone, then a background relaunch, read an empty store and wiped the session.
+- **`rejectedAccessToken`.** The frontend passes the bearer the gateway refused; if the
+  stored one already differs, a rotation beat the call and is answered from without a
+  POST. Desktop ignores the argument.
+- **Custody epoch.** `clearTokens` and a JS `setTokens` (a login) both bump it; a rotation
+  that settles under a different epoch is dropped (`SESSION_REPLACED`, transient), never
+  written over the new pair or used to clear it.
+- **Wall-clock deadline + background task.** Each refresh runs under `beginBackgroundTask`
+  and a 10s budget measured on `Date()`, because URLSession's own timers stop while the
+  process is suspended. A rotation whose write fails is kept in memory and re-written on
+  the next activation / `protectedDataDidBecomeAvailable`.
+- **Triggers:** the WebView's delegated call, `didBecomeActive`, and a 30s foreground poll
+  (refresh when `exp` is within 120s). Nothing runs in the background.
+- **Refresh base: the SHARED auth host, never the tenant host.** Info.plist
+  `OpenFrameSharedHostURL` (from the `OPENFRAME_SHARED_HOST_URL` build setting — the lanes
+  pass it from `NEXT_PUBLIC_SHARED_HOST_URL`, so bundle and plist can't drift), else the
+  `sharedOrigin` the frontend pushes with `setTenantHost` at login **and on every
+  hydration** (`initTokenStore`), so an upgraded install with an old session still gets
+  one. Nothing else: the tenant host is a **different gateway**, and its BFF only puts the
+  rotated pair in the `Access-Token`/`Refresh-Token` headers when its own
+  `mobile-auth-enabled` flag is on — a refresh sent there succeeded server-side, came back
+  as a 204 without the tokens, the shell kept the spent refresh token, and the next refresh
+  was a 401 that logged the user out (stage, 2026-09-09). Belt and braces, the refresher also
+  reads the pair out of `Set-Cookie` when the headers are missing (the BFF always sets
+  them). A plain Xcode build has an empty plist value and uses the pushed host; `NO_HOST` in
+  the log means the WebView has not pushed one yet — a launch-time poll tick before
+  hydration is normal, a repeating one is not.
+- **The WebView never writes a rotation back.** Frontend `adoptNativeTokens` mirrors the
+  shell's pair (event or delegation result) into the JS cache only; a `setTokens` write-back
+  could land on top of a later shell rotation and restore a spent refresh token.
+- Android keeps the WebView refresher until `NativeAuthPlugin.java` grows the same two
+  methods; the frontend gate is per-plugin, so nothing there changes until then.
 
 ### Push (all FCM)
 
@@ -106,6 +179,51 @@ block in `capacitor.config.ts` avoids a package-identity collision).
   `notificationSettings`).
 - **Before push delivers**, three manual steps: iOS plist in the App target's **Copy Bundle
   Resources**, APNs `.p8` uploaded to Firebase, Push capability on the App ID.
+
+### Interactive notifications (iOS): Approve / Reject / Reply
+
+`ios/App/App/NotificationActions.swift` completes two actions natively, no WebView:
+Approve/Reject on an approval push, inline Reply on a Mingo message. The server names
+the category (`aps.category` = `APPROVAL_REQUEST` | `MINGO_REPLY`, `ApplePushCategories.java`)
+and flattens the ids into top-level payload keys (`approvalRequestId`, `dialogId`, `type`);
+the shell registers the button sets under those identifiers and POSTs to the **tenant**
+host: `/chat/api/v1/approval-requests/{id}/approve` `{"approve": bool}` and
+`/chat/api/v1/messages` `{dialogId, content, chatType: "ADMIN_AI_CHAT"}`. Android gets no
+buttons: the backend sends Android a `notification`-block message the system tray renders.
+
+- **The shell owns `UNUserNotificationCenter`'s delegate** (`ios.handleApplicationNotifications:
+  false` in `capacitor.config.ts`, so Capacitor's router never claims it). Installed in
+  `AppDelegate.didFinishLaunching` (an action can launch the app in the background with its
+  response delivered during launch); the bridge attaches in `MainViewController`. Only the
+  three `of.*` action ids are consumed. Everything else — body taps, `willPresent` — is
+  forwarded **directly to the Firebase plugin's handler** (not through the router, which
+  routes by trigger type and would drop taps on our own local outcome notifications), so
+  `presentationOptions: []`, `notificationReceived`, and the frontend's tap → deep-link all
+  keep working with no frontend change.
+- **Credential = `TokenLifecycle.ensureFresh`**: the in-memory pair, refreshed first if stale,
+  never a prompt. A cold launch on a locked phone (the Watch case) reads the item because
+  it is `AfterFirstUnlock`, so Approve/Reject/Reply complete from the wrist. A cold, gated
+  process cannot read the pair silently: the actions are registered **`.foreground` while
+  the marker is on** (re-registered on every marker flip via
+  `TokenStore.biometricGatingDidChange`), the app comes forward, the launch read prompts,
+  and the response is forwarded so the WebView deep-links to the item to finish there.
+  `.authenticationRequired` on all three regardless: an unlock on the phone's lock screen,
+  wrist detection on the Watch.
+- **Every action ends in exactly one local outcome notification** (there is no window):
+  Approved / Rejected / Reply sent; 409 `ILLEGAL_STATE` → "Already handled" (not a failure);
+  409 `DIALOG_LOCKED` → "Mingo is busy" with the typed text echoed and the original category
+  kept so the button is still there; 404 → "No longer available"; 401 or no session → "Sign
+  in to OpenFrame"; `recipientUserId` ≠ the token's `userId` → "different account"; no host
+  yet → open the app once. Failures keep the category (retry); the original `userInfo` rides
+  along so tapping the outcome deep-links like the push would. The handler's completion is
+  called by 25s regardless; refresh + POST run under one `beginBackgroundTask`.
+- **Consent caveat (product decision 2026-08-26):** an approval push describes the FIRST
+  tool call; one tap resolves the whole request. Honest only once approvals are one-per-tool.
+- **Try it on the simulator:** `npm run push:approval` / `push:reply` with the app
+  backgrounded, long-press the banner. The demo ids don't exist on any gateway, so expect
+  "No longer available"; a real id from a live approval resolves. `simctl push` reaches the
+  UN delegate, so the whole action path is simulator-testable; the gated cold-start branch
+  is device-only.
 
 ### Native chrome + navigation
 
@@ -177,6 +295,10 @@ build configurations.
 
 - iOS identity is driven by the **`OPENFRAME_DISPLAY_NAME` / `OPENFRAME_URL_SCHEME` build
   settings** that Info.plist references — the prod configs must define them too.
+- **`OPENFRAME_SHARED_HOST_URL`** (→ Info.plist `OpenFrameSharedHostURL`) is the native
+  refresher's gateway. Empty in every committed config; the iOS lanes pass it on the
+  `xcodebuild archive` line from `NEXT_PUBLIC_SHARED_HOST_URL`, which is therefore required
+  even with `SKIP_WEB=1`.
 - A **"Select Firebase config" build phase** swaps in
   `App/GoogleServices/{stage,dev}/GoogleService-Info.plist`, keyed off the `*-stage`/`*-dev`
   config-name suffix.

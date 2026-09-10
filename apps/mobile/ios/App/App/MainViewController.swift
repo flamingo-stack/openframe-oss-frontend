@@ -11,6 +11,11 @@ class MainViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(NativeAuthPlugin())
         bridge?.registerPluginInstance(NativeFilesPlugin())
+        // The notification delegate lives in AppDelegate; from here on it can hand
+        // taps to the Firebase plugin (and drains any it buffered meanwhile).
+        if let bridge {
+            NotificationActions.shared.attach(bridge: bridge)
+        }
         // Native left-edge swipe navigates WKWebView history back/forward. The
         // WebKit back-forward list includes History API (pushState) entries, so
         // this drives the frontend SPA router via popstate. Non-interceptable

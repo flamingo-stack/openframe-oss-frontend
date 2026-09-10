@@ -11,6 +11,14 @@ const config: CapacitorConfig = {
   // + the frontend's shell-scoped safe-area CSS handle the rest). Matches the
   // ODS background (--ods-system-greys-background).
   backgroundColor: '#161616',
+  ios: {
+    // The shell owns UNUserNotificationCenter's delegate (NotificationActions.swift:
+    // Approve/Reject and inline Reply complete natively). Off, Capacitor's
+    // NotificationRouter never claims the delegate; the shell forwards every
+    // response it does not consume to the Firebase plugin's handler itself, so
+    // taps still reach the web view and `presentationOptions` below still applies.
+    handleApplicationNotifications: false,
+  },
   plugins: {
     // iOS-only: suppress foreground push banners (plugin default is
     // badge+sound+alert). Matches Android, where FCM never auto-displays

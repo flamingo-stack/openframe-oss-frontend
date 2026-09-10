@@ -7,7 +7,9 @@
 #   NEXT_PUBLIC_SHARED_HOST_URL=https://openframe.build \
 #   [BUILD_NUMBER=42] [SKIP_WEB=1] scripts/build-ios-dev.sh
 #
-# Required:  NEXT_PUBLIC_SHARED_HOST_URL — the DEV shared auth host.
+# Required:  NEXT_PUBLIC_SHARED_HOST_URL — the DEV shared auth host. Baked
+#                            into the web bundle AND Info.plist (native token
+#                            refresher), so it is needed with SKIP_WEB=1 too.
 # Optional:  BUILD_NUMBER  — CURRENT_PROJECT_VERSION for this archive
 #                            (TestFlight requires it to increase per upload).
 #            SKIP_WEB=1    — reuse the already-staged www/ bundle (must have
@@ -30,8 +32,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARCHIVE="$HERE/build/OpenFrame-dev.xcarchive"
 EXPORT_DIR="$HERE/build/dev"
 
+# Required even with SKIP_WEB=1: the archive bakes it into Info.plist
+# (OpenFrameSharedHostURL) for the native token refresher, from the same
+# variable the web bundle bakes, so the two cannot drift.
+: "${NEXT_PUBLIC_SHARED_HOST_URL:?set NEXT_PUBLIC_SHARED_HOST_URL to the dev shared auth host}"
+
 if [ "${SKIP_WEB:-0}" != "1" ]; then
-  : "${NEXT_PUBLIC_SHARED_HOST_URL:?set NEXT_PUBLIC_SHARED_HOST_URL to the dev shared auth host}"
   # Dev identity: saas-tenant mode. The callback scheme stays com.openframe.app
   # (mirrors the stage lane): ASWebAuthenticationSession intercepts the redirect
   # session-internally, so it need not match OPENFRAME_URL_SCHEME — and the
@@ -68,6 +74,7 @@ xcodebuild archive \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
+  OPENFRAME_SHARED_HOST_URL="$NEXT_PUBLIC_SHARED_HOST_URL" \
   ${BUILD_NUMBER:+CURRENT_PROJECT_VERSION=$BUILD_NUMBER}
 
 echo "▸ Exporting .ipa for App Store Connect…"

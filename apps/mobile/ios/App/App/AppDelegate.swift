@@ -11,6 +11,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // (openframe-frontend src/lib/native-push.ts) — not at launch.
         // Note for `npm run push:demo`: banners display only after that in-app
         // permission grant.
+        //
+        // The notification delegate, here rather than with the bridge: Apple wants
+        // it before launch finishes, and an action button can launch the app in the
+        // background with its response delivered during that launch. Capacitor's
+        // router stays out of the way (`ios.handleApplicationNotifications: false`).
+        NotificationActions.shared.install()
         return true
     }
 

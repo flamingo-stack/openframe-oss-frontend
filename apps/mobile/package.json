@@ -10,7 +10,9 @@
     "sync": "cap sync",
     "open:ios": "cap open ios",
     "run:ios": "cap run ios",
-    "push:demo": "xcrun simctl push booted ai.openframe.mobile dev/push-sample.apns"
+    "push:demo": "xcrun simctl push booted ai.openframe.mobile dev/push-sample.apns",
+    "push:approval": "xcrun simctl push booted ai.openframe.mobile dev/push-approval.apns",
+    "push:reply": "xcrun simctl push booted ai.openframe.mobile dev/push-reply.apns"
   },
   "dependencies": {
     "@capacitor-firebase/messaging": "^8.3.0",
