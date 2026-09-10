@@ -2,19 +2,21 @@
 
 import { SsoJoinForm } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { AuthFormSkeleton } from '@/app/(auth)/auth/components/auth-page-skeleton';
 import { SsoJoinCardLayout } from '@/app/(auth)/auth/components/sso-join-card-layout';
 import { authApiClient, type PendingSsoJoin } from '@/lib/auth-api-client';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
+import { MOBILE_AUTH_ERROR, mobileAuthReturnUrl, readMobileAuthReturn } from '@/lib/mobile-auth-return';
 import { routes } from '@/lib/routes';
 
 /**
  * "One Last Step": the consent gate the auth server shows before an SSO flow CREATES a user - a new
  * member accepting an invitation, or a first login through a shared domain. The server redirects
- * here (`openframe.sso.join-confirm-url`) with nothing in the URL: the identity and the destination
- * live in the SAS session plus the flow cookie its callback kept, and this page only reads them back.
+ * here (`openframe.sso.join-confirm-url`) with nothing about the identity in the URL: it and the
+ * destination live in the SAS session plus the flow cookie its callback kept, and this page only
+ * reads them back.
  * An existing member, or a returning user, never lands here - the server lets them straight through.
  *
  * Two things carry over from `sso-continue`, and are easy to get wrong:
@@ -26,10 +28,18 @@ import { routes } from '@/lib/routes';
  *     committing them, and the user would land back here signed out.
  *
  * Back to Login is a plain navigation: nothing was created, and the flow cookie simply expires.
+ *
+ * On a native login this page renders inside the shell's browser sheet, which closes only on a
+ * navigation to the app's custom scheme. Create Account gets there through `/oauth/continue`; the
+ * two ways OUT (Back to Login, an expired session) would otherwise strand the person on the web
+ * login inside the sheet. For a mobile flow the server appends `authMobile=true` and the app's
+ * `redirectTo` to this page's URL, and both exits leave through it with an outcome the app reads.
  */
 export default function SsoJoinPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+  const mobileReturn = readMobileAuthReturn(searchParams);
 
   const [pending, setPending] = useState<PendingSsoJoin | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -49,6 +59,12 @@ export default function SsoJoinPage() {
         return;
       }
 
+      // Mobile: hand the outcome back to the app, which shows its own message once the sheet closes.
+      if (mobileReturn) {
+        window.location.replace(mobileAuthReturnUrl(mobileReturn, MOBILE_AUTH_ERROR.SESSION_EXPIRED));
+        return;
+      }
+
       // 409 is the documented expiry signal and carries copy worth showing; anything else (an
       // invitation revoked meanwhile, a network failure) gets a generic line rather than a raw status.
       toast({
@@ -62,7 +78,7 @@ export default function SsoJoinPage() {
     return () => {
       active = false;
     };
-  }, [router, toast]);
+  }, [mobileReturn, router, toast]);
 
   const handleSubmit = () => {
     if (hasNavigated.current || !agreedToTerms) return;
@@ -70,6 +86,18 @@ export default function SsoJoinPage() {
     setIsNavigating(true);
     // A TOP-LEVEL navigation, not a fetch: see the note above.
     window.location.href = authApiClient.completeSsoJoinUrl();
+  };
+
+  const handleBack = () => {
+    if (hasNavigated.current) return;
+    if (mobileReturn) {
+      // Closes the sheet; the app treats the code like its own dismissed-sheet cancel (no toast).
+      hasNavigated.current = true;
+      setIsNavigating(true);
+      window.location.href = mobileAuthReturnUrl(mobileReturn, MOBILE_AUTH_ERROR.USER_CANCELED);
+      return;
+    }
+    router.push(routes.auth.login);
   };
 
   if (!pending) {
@@ -94,7 +122,7 @@ export default function SsoJoinPage() {
         agreedToTerms={agreedToTerms}
         onAgreedToTermsChange={setAgreedToTerms}
         onSubmit={handleSubmit}
-        onBack={() => router.push(routes.auth.login)}
+        onBack={handleBack}
         loading={isNavigating}
         termsUrl={TERMS_URL}
         privacyPolicyUrl={PRIVACY_POLICY_URL}
