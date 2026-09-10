@@ -52,6 +52,8 @@ export const TAB_IDS = {
   scriptDetails: ['details', 'executions'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
   monitoring: ['policies', 'queries'],
+  /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
+  queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
   aiSettings: ['mingo', 'customer', 'guardrails'],
   notifications: ['history'],
@@ -64,6 +66,7 @@ export type DeviceDetailTab = (typeof TAB_IDS.deviceDetails)[number];
 export type ScriptDetailTab = (typeof TAB_IDS.scriptDetails)[number];
 export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
 export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
+export type QueryDetailTab = (typeof TAB_IDS.queryDetails)[number];
 export type SettingsTab = (typeof TAB_IDS.settings)[number];
 export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
 export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
@@ -252,7 +255,7 @@ export const routes = {
 
   monitoring: {
     root: (o?: { tab?: MonitoringTab }) => withQuery('/monitoring', { tab: o?.tab }),
-    query: (id: string | number) => withQuery('/monitoring/query', { id }),
+    query: (id: string | number, o?: { tab?: QueryDetailTab }) => withQuery('/monitoring/query', { id, tab: o?.tab }),
     queryNew: '/monitoring/query/new',
     queryEdit: (id: string | number) => withQuery('/monitoring/query/edit', { id }),
     policy: (id: string | number) => withQuery('/monitoring/policy', { id }),
