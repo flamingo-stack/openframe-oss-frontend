@@ -9,6 +9,7 @@
  * to the scheme, which only an `authMobile=true` login gets. Hardening still
  * pending on the ticket path (PKCE, POST exchange, rotation).
  */
+import { MOBILE_AUTH_ERROR_PARAM, mobileAuthErrorMessage } from '@/lib/mobile-auth-return';
 import { authApiClient } from './auth-api-client';
 import { type NativeAuthPlugin, nativeAuthPlugin, storeTenantHost } from './native-shell';
 import { mobilePlatform } from './platform';
@@ -233,6 +234,14 @@ async function completeTicketFlow(
   const signupTicket = parsedResult.searchParams.get('signupTicket');
   if (signupTicket) {
     throw new SsoRegistrationRequiredError(signupTicket);
+  }
+
+  // A page shown mid-flow (the "One Last Step" consent) leaves the sheet through the same scheme
+  // with an outcome instead of a ticket - `USER_CANCELED` for a deliberate Back, which the caller
+  // keeps silent like a dismissed sheet; anything else is worth a message.
+  const outcome = parsedResult.searchParams.get(MOBILE_AUTH_ERROR_PARAM);
+  if (outcome) {
+    throw new Error(mobileAuthErrorMessage(outcome));
   }
 
   const ticket = parsedResult.searchParams.get('devTicket');
