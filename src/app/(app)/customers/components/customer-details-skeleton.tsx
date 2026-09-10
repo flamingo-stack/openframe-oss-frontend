@@ -98,7 +98,7 @@ export function CustomerDetailsTabSkeleton() {
           </div>
         </div>
         {/* Row 2: Physical + Mailing Address — stacks on mobile, side-by-side on md+ */}
-        <div className="flex flex-col px-[var(--spacing-system-m)] py-[var(--spacing-system-m)] md:h-20 md:flex-row md:items-center md:gap-[var(--spacing-system-m)] md:py-0">
+        <div className="flex flex-col gap-[var(--spacing-system-mf)] px-[var(--spacing-system-m)] py-[var(--spacing-system-m)] md:h-20 md:flex-row md:items-center md:gap-[var(--spacing-system-m)] md:py-0">
           {[0, 1].map(i => (
             <div key={i} className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
               <Skeleton className="h-5 w-72 max-w-full" />
@@ -107,13 +107,12 @@ export function CustomerDetailsTabSkeleton() {
           ))}
         </div>
       </div>
-      {/* Notes card: h2 title + a couple of text lines */}
+      {/* Notes card: title + two lines of text */}
       <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] pb-[var(--spacing-system-s)] pt-[var(--spacing-system-l)]">
-        {/* text-h2 is 24/32 on mobile and 32/40 from tablet up; body lines match the h-5 the rows above use */}
         <Skeleton className="h-8 w-32 md:h-10" />
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-2/3" />
+          <Skeleton className="h-5 w-full md:h-6" />
+          <Skeleton className="h-5 w-2/3 md:h-6" />
         </div>
       </div>
     </div>

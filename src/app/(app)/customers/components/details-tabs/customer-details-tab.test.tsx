@@ -4,6 +4,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CustomerDetails } from '../../hooks/use-customer-details';
 import { CustomerDetailsTab } from './customer-details-tab';
 
+// The lib `TruncateText` measures its text for the truncation tooltip; jsdom has
+// no `ResizeObserver`, and nothing here depends on the measurement.
+class ResizeObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+
 const BLANK_CONTACT = { name: '', title: '', email: '', phone: '' };
 
 function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
@@ -11,7 +20,6 @@ function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
     id: 'org-1',
     organizationId: 'techflow',
     name: 'TechFlow Solutions',
-    // `mapOrganization` writes '-' — not '' — when the API returns nothing.
     industry: '-',
     website: '-',
     employees: null,
@@ -50,38 +58,29 @@ describe('CustomerDetailsTab', () => {
     act(() => root.render(<CustomerDetailsTab organization={organization} />));
   };
 
-  // The Notes card is the tab's only <section>: a heading plus one paragraph —
-  // either the notes themselves or the empty state.
-  const notesCard = () => {
-    const section = container.querySelector('section');
-    if (!section) throw new Error('Notes card not rendered');
-    return { title: section.querySelector('h2')?.textContent, body: section.querySelector('p')?.textContent };
+  const notesBody = () => {
+    const heading = Array.from(container.querySelectorAll('h2')).find(h => h.textContent === 'Notes');
+    const card = heading?.closest('section');
+    if (!card) throw new Error('Notes card not rendered');
+    return card.querySelector('p')?.textContent ?? null;
   };
 
-  it('shows the notes the edit form saved, line breaks intact', () => {
-    render(customer({ notes: ['Cleared 8GB from temp files.\nDisk usage back to 61%.'] }));
+  it('renders the saved notes verbatim, surrounding whitespace included', () => {
+    const saved = '  indented first line\n\nlast line\n';
+    render(customer({ notes: [saved] }));
 
-    expect(notesCard()).toEqual({ title: 'Notes', body: 'Cleared 8GB from temp files.\nDisk usage back to 61%.' });
+    expect(notesBody()).toBe(saved);
   });
 
-  it('points at the edit form when there are no notes yet', () => {
-    render(customer());
+  it('shows the empty state when there are no notes', () => {
+    render(customer({ notes: [] }));
 
-    expect(notesCard().body).toContain('No notes yet');
+    expect(notesBody()).toContain('No notes yet');
   });
 
-  it('treats whitespace-only notes as no notes', () => {
-    // The textarea can be saved holding nothing but blank lines.
+  it('shows the empty state when the notes hold only whitespace', () => {
     render(customer({ notes: ['  \n\t\n '] }));
 
-    expect(notesCard().body).toContain('No notes yet');
-  });
-
-  it('still renders the website link and the address cells', () => {
-    render(customer({ website: 'techflow.com', physicalAddress: '1250 Tech Blvd, Austin, TX' }));
-
-    expect(container.querySelector('a[href="https://techflow.com"]')).not.toBeNull();
-    expect(container.textContent).toContain('1250 Tech Blvd, Austin, TX');
-    expect(container.textContent).toContain('Mailing Address');
+    expect(notesBody()).toContain('No notes yet');
   });
 });

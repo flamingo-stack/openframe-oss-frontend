@@ -20,7 +20,7 @@ function InfoCell({ value, label, icon, href }: InfoCellProps) {
 
   const content = (
     <div className="flex min-w-0 flex-1 flex-col justify-center">
-      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+      <div className="flex min-w-0 items-center gap-1">
         {icon}
         <div className="min-w-0 flex-1">
           <TruncateText>{display}</TruncateText>
@@ -48,16 +48,11 @@ function InfoCell({ value, label, icon, href }: InfoCellProps) {
   return <div className="flex min-w-0 flex-1 items-center">{content}</div>;
 }
 
-/**
- * `Organization.notes` is a single free-text field (see `schema.graphql`), not a
- * thread — there is no per-note author, timestamp or id to render. It is edited
- * in the customer form, so the empty state points there.
- */
 function CustomerNotesCard({ notes }: { notes: string }) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] pb-[var(--spacing-system-s)] pt-[var(--spacing-system-l)]">
       <h2 className="text-ods-text-primary text-h2">Notes</h2>
-      {notes ? (
+      {notes.trim() ? (
         <p className="whitespace-pre-wrap break-words text-ods-text-primary text-h4">{notes}</p>
       ) : (
         <p className="text-ods-text-secondary text-h4">No notes yet — add them from Edit Customer.</p>
@@ -77,7 +72,6 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
       ? organization.website
       : `https://${organization.website}`
     : undefined;
-  const notes = organization.notes.join('\n').trim();
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
@@ -95,7 +89,7 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
           <InfoCell value={organization.mailingAddress} label="Mailing Address" />
         </div>
       </div>
-      <CustomerNotesCard notes={notes} />
+      <CustomerNotesCard notes={organization.notes.join('\n')} />
     </div>
   );
 }
