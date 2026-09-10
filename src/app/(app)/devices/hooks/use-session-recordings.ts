@@ -28,8 +28,11 @@ export function useDeleteSessionRecording(deviceId: string) {
 
   return useMutation({
     mutationFn: (recordingId: string) => sessionRecordingsService.delete(recordingId),
-    onSuccess: () => {
+    onSuccess: (_data, recordingId) => {
       queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionRecordings(deviceId) });
+      // The record is gone - drop its cached detail instead of invalidating,
+      // which would refetch a recording that no longer exists.
+      queryClient.removeQueries({ queryKey: deviceQueryKeys.sessionRecording(recordingId) });
       toast({ title: 'Recording Deleted', description: 'The session recording was removed', variant: 'success' });
     },
     onError: error => {

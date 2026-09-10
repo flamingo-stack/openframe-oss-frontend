@@ -136,36 +136,44 @@ export class McrecPlayer {
 
     this.stopClock();
     this.setState('seeking');
-    await renderer.reset();
-    if (generation !== this.seekGeneration || this.disposed) return;
+    try {
+      await renderer.reset();
+      if (generation !== this.seekGeneration || this.disposed) return;
 
-    const { agentRecords, baseTimeMs } = recording;
-    let index = 0;
-    while (index < agentRecords.length && agentRecords[index].timeMs - baseTimeMs <= target) {
-      renderer.feed(agentRecords[index].data);
-      index++;
-      if (index % SEEK_DRAIN_BATCH === 0) {
-        await renderer.waitForIdle();
-        if (generation !== this.seekGeneration || this.disposed) return;
+      const { agentRecords, baseTimeMs } = recording;
+      let index = 0;
+      while (index < agentRecords.length && agentRecords[index].timeMs - baseTimeMs <= target) {
+        renderer.feed(agentRecords[index].data);
+        index++;
+        if (index % SEEK_DRAIN_BATCH === 0) {
+          await renderer.waitForIdle();
+          if (generation !== this.seekGeneration || this.disposed) return;
+        }
       }
-    }
-    await renderer.waitForIdle();
-    if (generation !== this.seekGeneration || this.disposed) return;
+      await renderer.waitForIdle();
+      if (generation !== this.seekGeneration || this.disposed) return;
 
-    this.cursor = index;
-    this.setVirtualTime(target);
+      this.cursor = index;
+      this.setVirtualTime(target);
 
-    if (target >= recording.durationMs && recording.durationMs > 0) {
-      this.setState('ended');
-      return;
-    }
-    if (wasPlaying) {
-      this.anchorVirtualMs = target;
-      this.anchorRealMs = performance.now();
-      this.setState('playing');
-      this.startClock();
-    } else {
-      this.setState('paused');
+      if (target >= recording.durationMs && recording.durationMs > 0) {
+        this.setState('ended');
+        return;
+      }
+      if (wasPlaying) {
+        this.anchorVirtualMs = target;
+        this.anchorRealMs = performance.now();
+        this.setState('playing');
+        this.startClock();
+      } else {
+        this.setState('paused');
+      }
+    } catch (error) {
+      // A failed CURRENT seek must not leave the player wedged in 'seeking' -
+      // land paused at the last known position. A stale seek (newer one took
+      // over) leaves state ownership to that newer call.
+      if (generation === this.seekGeneration && !this.disposed) this.setState('paused');
+      throw error;
     }
   }
 
