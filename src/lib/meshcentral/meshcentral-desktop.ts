@@ -132,6 +132,41 @@ export class MeshDesktop implements DesktopInputHandlers {
     }
   }
 
+  /**
+   * Attach a canvas as a pure render target, without binding any mouse or
+   * keyboard listeners. Used by the session-recording player, which feeds
+   * `onBinaryFrame` from a `.mcrec` file and must not register the live
+   * viewer's window-level input handlers. `detach()` remains the teardown.
+   */
+  attachRenderOnly(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.stopped = false;
+  }
+
+  /**
+   * Resolves once every queued tile has been decoded and handed to the draw
+   * loop. The decode pipeline drops the oldest tile past a 300-entry queue, so
+   * a bulk feeder (recording seek) must drain periodically or lose frames.
+   * Polls on a timer, NOT requestAnimationFrame - rAF stops entirely in
+   * hidden/occluded tabs, which would hang a recording seek forever there.
+   * Safety-capped so a stalled decode can never wedge the caller.
+   */
+  waitForIdle(timeoutMs = 2000): Promise<void> {
+    return new Promise(resolve => {
+      const startedAt = Date.now();
+      const check = () => {
+        const idle = this.tileQueue.length === 0 && this.activeDecodes === 0 && this.drawQueue.length === 0;
+        if (idle || this.stopped || Date.now() - startedAt >= timeoutMs) {
+          resolve();
+          return;
+        }
+        setTimeout(check, 40);
+      };
+      check();
+    });
+  }
+
   attach(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
