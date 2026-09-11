@@ -48,6 +48,7 @@ export const TAB_IDS = {
     'network',
     'users',
     'software',
+    'remote-sessions',
   ],
   scriptDetails: ['details', 'executions'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
