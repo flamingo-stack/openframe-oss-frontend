@@ -48,6 +48,7 @@ export const TAB_IDS = {
     'network',
     'users',
     'software',
+    'remote-sessions',
   ],
   scriptDetails: ['details', 'executions'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
@@ -228,6 +229,7 @@ export const routes = {
     remoteShell: (id: string | number) => withQuery('/devices/details/remote-shell', { id }),
     remoteDesktop: (id: string | number) => withQuery('/devices/details/remote-desktop', { id }),
     fileManager: (id: string | number) => withQuery('/devices/details/file-manager', { id }),
+    remoteSessionRecording: (id: string | number) => withQuery('/devices/details/remote-session', { id }),
   },
 
   scripts: {

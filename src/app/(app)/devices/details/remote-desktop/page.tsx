@@ -14,10 +14,11 @@ import {
   MonitorIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useLocalStorage, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -30,7 +31,16 @@ import { MeshTunnel, type TunnelState } from '@/lib/meshcentral/meshcentral-tunn
 import { DEFAULT_SETTINGS, RemoteDesktopSettings, type RemoteSettingsConfig } from '@/lib/meshcentral/remote-settings';
 import { routes } from '@/lib/routes';
 import { type ActionHandlers, createActionsMenuGroups } from './actions-menu-config';
+import { FullscreenToolbar } from './fullscreen-toolbar';
 import { RemoteSettingsModal } from './remote-settings-modal';
+import {
+  comboLabel,
+  DEFAULT_REMOTE_SHORTCUTS,
+  REMOTE_SHORTCUTS_STORAGE_KEY,
+  type RemoteShortcut,
+  SHORTCUT_DESCRIPTIONS,
+} from './remote-shortcuts';
+import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
 
 interface LegacyDeviceData {
   id: string;
@@ -51,6 +61,7 @@ export default function RemoteDesktopPage() {
   const router = useRouter();
   const deviceId = useSearchParams().get('id') ?? '';
   const isMobileShell = useIsMobileShell();
+  const handleBack = useSafeBack(routes.devices.details(deviceId));
 
   useEffect(() => {
     if (!isMobileShell) return;
@@ -58,7 +69,14 @@ export default function RemoteDesktopPage() {
   }, [isMobileShell, deviceId, router]);
 
   if (isMobileShell) return null;
-  return <RemoteDesktopSession />;
+  return (
+    // The session component below opens the MeshCentral tunnel from its own
+    // effects, so the approval gate keeps it UNMOUNTED until the end user
+    // approves - not merely hidden.
+    <RemoteAccessGate deviceId={deviceId} sessionKind="desktop" onBack={handleBack}>
+      <RemoteDesktopSession />
+    </RemoteAccessGate>
+  );
 }
 
 function RemoteDesktopSession() {
@@ -141,9 +159,22 @@ function RemoteDesktopSession() {
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
   const [currentDisplay, setCurrentDisplay] = useState(0);
   const currentDisplayRef = useRef(currentDisplay);
+  const didAutoSelectDisplayRef = useRef(false);
   const [firstFrameReceived, setFirstFrameReceived] = useState(false);
   const [clipboardEnabled, setClipboardEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [shortcuts, setShortcuts] = useLocalStorage<RemoteShortcut[]>(
+    REMOTE_SHORTCUTS_STORAGE_KEY,
+    DEFAULT_REMOTE_SHORTCUTS,
+  );
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Page-visible connection lifecycle, driven from tunnel state changes. The
+  // toasts stay, but terminal/transient states must be visible on the page
+  // itself - a failed session used to leave a dead canvas behind a toast.
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'reconnecting' | 'failed'>(
+    'connecting',
+  );
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     currentDisplayRef.current = currentDisplay;
@@ -186,9 +217,12 @@ function RemoteDesktopSession() {
     // Set up display list change callback
     desktop.onDisplayListChange?.(newDisplays => {
       setDisplays(newDisplays);
-      // Auto-select primary display if available
+      // Auto-select primary display once, on the initial list. Later callbacks
+      // (cmd 82 location updates) must not kick the user off an explicitly
+      // chosen "All Displays" (id 0) selection.
       const primaryDisplay = newDisplays.find(d => d.primary);
-      if (primaryDisplay && currentDisplayRef.current === 0) {
+      if (primaryDisplay && currentDisplayRef.current === 0 && !didAutoSelectDisplayRef.current) {
+        didAutoSelectDisplayRef.current = true;
         setCurrentDisplay(primaryDisplay.id);
       }
     });
@@ -207,10 +241,13 @@ function RemoteDesktopSession() {
   }, [isPageReady]);
 
   useEffect(() => {
+    // retryNonce re-arms this effect after a failed session (Retry button).
+    void retryNonce;
     if (!isPageReady || !meshcentralAgentId || initializingRef.current) return undefined;
 
     initializingRef.current = true;
     setFirstFrameReceived(false);
+    setConnectionStatus('connecting');
     let cancelled = false;
     let control: MeshControlClient | undefined;
     let tunnel: MeshTunnel | undefined;
@@ -260,25 +297,32 @@ function RemoteDesktopSession() {
             setState(s);
             if (s === 1 && tunnelRef.current?.getState() === 0) {
               isReconnectingRef.current = true;
+              setConnectionStatus('reconnecting');
               toastRef.current({
                 title: 'Connection Lost',
                 description: 'Attempting to reconnect...',
                 variant: 'info',
               });
-            } else if (s === 3 && isReconnectingRef.current) {
-              isReconnectingRef.current = false;
-              toastRef.current({
-                title: 'Reconnected',
-                description: 'Connection restored successfully',
-                variant: 'success',
-              });
+            } else if (s === 3) {
+              if (isReconnectingRef.current) {
+                isReconnectingRef.current = false;
+                toastRef.current({
+                  title: 'Reconnected',
+                  description: 'Connection restored successfully',
+                  variant: 'success',
+                });
+              }
+              setConnectionStatus('connected');
             } else if (s === 0 && isReconnectingRef.current) {
               isReconnectingRef.current = false;
+              setConnectionStatus('failed');
               toastRef.current({
                 title: 'Reconnection Failed',
                 description: 'Unable to restore connection. Please try again.',
                 variant: 'destructive',
               });
+            } else if (s === 0) {
+              setConnectionStatus('failed');
             }
           },
         });
@@ -296,6 +340,7 @@ function RemoteDesktopSession() {
         tunnel.start();
       } catch (e) {
         if (cancelled) return;
+        setConnectionStatus('failed');
         toastRef.current({ title: 'Remote Desktop failed', description: (e as Error).message, variant: 'destructive' });
       }
     })();
@@ -308,7 +353,7 @@ function RemoteDesktopSession() {
       tunnel?.stop();
       tunnelRef.current = null;
     };
-  }, [isPageReady, meshcentralAgentId]);
+  }, [isPageReady, meshcentralAgentId, retryNonce]);
 
   useEffect(() => {
     if (state !== 3) return;
@@ -402,34 +447,14 @@ function RemoteDesktopSession() {
     }
   };
 
-  const sendKeyCombo = (keys: number[]) => {
-    const desktop = desktopRef.current;
-    if (!desktop) return;
-
-    const keyMappings: Record<string, string> = {
-      [`${0x5b},${0x4d}`]: 'win+m',
-      [`${0x5b},${0x28}`]: 'win+down',
-      [`${0x5b},${0x26}`]: 'win+up',
-      [`${0x10},${0x5b},${0x4d}`]: 'shift+win+m',
-      [`${0x5b},${0x4c}`]: 'win+l',
-      [`${0x5b},${0x52}`]: 'win+r',
-      [`${0x11},${0x57}`]: 'ctrl+w',
-    };
-
-    const comboString = keyMappings[keys.join(',')];
-    if (comboString) {
-      desktop.sendKeyCombo(comboString);
-    } else {
-      console.warn('Unmapped key combination:', keys);
-    }
-  };
-
-  const sendCtrlAltDel = () => {
+  const sendShortcut = (combo: string) => {
     if (state !== 3) return;
-    desktopRef.current?.sendCtrlAltDel();
+    // MeshDesktop.sendKeyCombo parses the combo string itself and special-cases
+    // 'alt+ctrl+del' into the secure attention sequence.
+    desktopRef.current?.sendKeyCombo(combo);
     toast({
-      title: 'Ctrl+Alt+Del',
-      description: 'Shortcut sent',
+      title: comboLabel(combo),
+      description: SHORTCUT_DESCRIPTIONS[combo] ?? 'Shortcut sent',
       variant: 'success',
       duration: 2000,
     });
@@ -456,8 +481,8 @@ function RemoteDesktopSession() {
   };
 
   const actionHandlers: ActionHandlers = {
-    sendCtrlAltDel,
-    sendKeyCombo,
+    sendShortcut,
+    openShortcutsManager: () => setShortcutsOpen(true),
     sendPower,
     setEnableInput: (enabled: boolean) => {
       setEnableInput(enabled);
@@ -467,7 +492,7 @@ function RemoteDesktopSession() {
     toast,
   };
 
-  const actionsMenuGroups = createActionsMenuGroups(actionHandlers, enableInput, clipboardEnabled);
+  const actionsMenuGroups = createActionsMenuGroups(actionHandlers, enableInput, clipboardEnabled, shortcuts);
 
   const displayMenuGroups: ActionsMenuGroup[] =
     displays.length > 1
@@ -563,11 +588,7 @@ function RemoteDesktopSession() {
   );
 
   const controlsBar = (
-    <div
-      className={`flex flex-shrink-0 items-center justify-between gap-[var(--spacing-system-mf)] border border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)] ${
-        isFullscreen ? '' : 'rounded-md'
-      }`}
-    >
+    <div className="flex flex-shrink-0 items-center justify-between gap-[var(--spacing-system-mf)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)]">
       {deviceInfoBlock}
       <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
         {displays.length > 1 && (
@@ -599,21 +620,66 @@ function RemoteDesktopSession() {
     </div>
   );
 
+  // "Show All" grid: the main canvas keeps receiving the combined
+  // virtual-desktop stream and stays mounted (hidden) as the blit source;
+  // each display with known geometry (cmd 82) gets its own cropped view.
+  const gridDisplays = displays.filter(d => d.id !== 0 && d.w > 0 && d.h > 0);
+  const isGridActive = currentDisplay === 0 && gridDisplays.length > 1;
+
   const canvasContainer = (
     <div className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-black ${isFullscreen ? '' : 'rounded-lg'}`}>
       <canvas
         ref={canvasRef}
         tabIndex={0}
         className="absolute inset-0 h-full w-full object-contain outline-none"
-        style={{ visibility: firstFrameReceived ? 'visible' : 'hidden' }}
+        style={{ visibility: firstFrameReceived && !isGridActive ? 'visible' : 'hidden' }}
         onContextMenu={e => e.preventDefault()}
       />
-      {!firstFrameReceived && state >= 1 && (
+      {isGridActive && firstFrameReceived && (
+        <div className="absolute inset-0 grid grid-cols-2 content-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-mf)]">
+          {gridDisplays.map(display => (
+            <div key={display.id} className="relative flex min-h-0 min-w-0 items-center justify-center">
+              <canvas
+                ref={el => {
+                  const desktop = desktopRef.current;
+                  if (!desktop || !el) return undefined;
+                  desktop.attachDisplayView?.(display.id, el);
+                  return () => desktop.detachDisplayView?.(display.id);
+                }}
+                tabIndex={0}
+                aria-label={`Display ${display.id}${display.primary ? ' (Primary)' : ''}`}
+                className="max-h-full max-w-full object-contain outline-none"
+                onContextMenu={e => e.preventDefault()}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      {!firstFrameReceived && state >= 1 && connectionStatus !== 'failed' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)]">
           <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
           <span className="text-ods-text-secondary text-h6">
             {state === 3 ? 'Waiting for desktop stream...' : 'Connecting to desktop...'}
           </span>
+        </div>
+      )}
+      {connectionStatus === 'reconnecting' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
+          <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
+          <span className="text-ods-text-primary text-h4">Connection lost</span>
+          <span className="text-ods-text-secondary text-h6">Attempting to reconnect...</span>
+        </div>
+      )}
+      {connectionStatus === 'failed' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
+          <span className="text-ods-text-primary text-h4">Connection lost</span>
+          <span className="text-ods-text-secondary text-h6">Unable to restore the remote desktop connection.</span>
+          <div className="mt-[var(--spacing-system-xsf)] flex items-center gap-[var(--spacing-system-sf)]">
+            <Button variant="outline" onClick={handleBack}>
+              Back
+            </Button>
+            <Button onClick={() => setRetryNonce(n => n + 1)}>Retry</Button>
+          </div>
         </div>
       )}
     </div>
@@ -626,7 +692,18 @@ function RemoteDesktopSession() {
       showHeader={!isFullscreen}
     >
       <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}>
-        {controlsBar}
+        {isFullscreen ? (
+          <FullscreenToolbar
+            deviceName={hostname || `Device ${deviceId}`}
+            displayMenuGroups={displayMenuGroups}
+            currentDisplayLabel={`Display ${currentDisplay === 0 ? 'All' : currentDisplay}`}
+            actionsMenuGroups={actionsMenuGroups}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onExitFullscreen={exitFullscreen}
+          />
+        ) : (
+          controlsBar
+        )}
         {canvasContainer}
       </div>
 
@@ -639,6 +716,15 @@ function RemoteDesktopSession() {
         connectionState={state}
         onSettingsChange={setRemoteSettings}
       />
+
+      {shortcutsOpen && (
+        <ShortcutsSettingsModal
+          open={shortcutsOpen}
+          onOpenChange={setShortcutsOpen}
+          shortcuts={shortcuts}
+          onSave={setShortcuts}
+        />
+      )}
     </PageLayout>
   );
 }
