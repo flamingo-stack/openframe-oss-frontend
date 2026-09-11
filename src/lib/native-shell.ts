@@ -129,8 +129,9 @@ export interface NativeAuthPlugin {
    * webview must not race a shell-side refresher with its own /oauth/refresh.
    * Resolves with the stored tokens after the attempt (empty = session over);
    * rejects on transient failure. Implemented by the desktop (Tauri) shell and
-   * the iOS plugin (openframe-mobile `TokenLifecycle.swift`); the Android
-   * plugin does not yet, so the webview stays the refresher there.
+   * both mobile plugins (openframe-mobile `TokenLifecycle.swift` /
+   * `TokenLifecycle.java`); a mobile binary that predates its port keeps the
+   * webview as the refresher, which is what the presence check is for.
    *
    * `rejectedAccessToken` is the bearer the gateway just refused. A shell that
    * reads it skips the rotation when its stored token already differs — a
@@ -257,6 +258,8 @@ export interface AppPlugin {
     eventName: 'appStateChange',
     listenerFunc: (state: { isActive: boolean }) => void,
   ): CapacitorListenerHandle;
+  /** `version` is the marketing version (`MARKETING_VERSION` / `versionName`), `build` the build number. */
+  getInfo(): Promise<{ name: string; id: string; build: string; version: string }>;
   exitApp(): Promise<void>;
 }
 
@@ -420,9 +423,8 @@ export function storeTenantHost(origin: string): void {
  * Subscribe to shell-pushed token changes. A shell that owns refresh rotates
  * tokens on its own schedule (the webview may be idle) and emits the full
  * token set after every change — including an empty set when the session is
- * over. Desktop delivers it as a Tauri event, iOS as a plugin event on the
- * NativeAuth bridge; the Android plugin emits nothing yet, so the listener
- * simply never fires there. No-op on the web.
+ * over. Desktop delivers it as a Tauri event, both mobile shells as a plugin
+ * event on the NativeAuth bridge. No-op on the web.
  */
 export function onNativeTokenUpdate(callback: (tokens: NativeTokens) => void): void {
   if (isDesktopShell()) {
