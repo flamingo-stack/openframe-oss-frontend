@@ -6,6 +6,7 @@
 
 import { isSaasSharedMode } from './app-mode';
 import { forceLogout } from './force-logout';
+import type { MobileAuthError } from './mobile-auth-return';
 import { isAppShell } from './platform';
 import {
   appendAttributionQueryParams,
@@ -223,6 +224,19 @@ class AuthApiClient {
    */
   completeSsoJoinUrl(): string {
     return buildAuthUrl('/sas/oauth/join/complete?agreeTerms=true');
+  }
+
+  /**
+   * Where a mobile flow leaves the join page WITHOUT creating the user (Back to Login, an expired
+   * session). Goes through the BFF rather than to the app URI: `/oauth/join-return` validates
+   * `redirectTo` against the redirect allow-list and 302s to the app, or to the web login when it is
+   * not allow-listed - the open redirect a page-side navigation to `redirectTo` would reopen. Like
+   * `completeSsoJoinUrl`, a URL for a TOP-LEVEL navigation. `reason` rides along for the BFF to
+   * forward as the callback's `error`, so the app can tell a deliberate Back from a broken flow.
+   */
+  ssoJoinReturnUrl(redirectTo: string, reason: MobileAuthError): string {
+    const params = new URLSearchParams({ redirectTo, reason });
+    return buildAuthUrl(`/oauth/join-return?${params.toString()}`);
   }
 
   /**

@@ -8,7 +8,7 @@ import { AuthFormSkeleton } from '@/app/(auth)/auth/components/auth-page-skeleto
 import { SsoJoinCardLayout } from '@/app/(auth)/auth/components/sso-join-card-layout';
 import { authApiClient, type PendingSsoJoin } from '@/lib/auth-api-client';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
-import { MOBILE_AUTH_ERROR, mobileAuthReturnUrl, readMobileAuthReturn } from '@/lib/mobile-auth-return';
+import { MOBILE_AUTH_ERROR, readMobileAuthReturn } from '@/lib/mobile-auth-return';
 import { routes } from '@/lib/routes';
 
 /**
@@ -33,7 +33,9 @@ import { routes } from '@/lib/routes';
  * navigation to the app's custom scheme. Create Account gets there through `/oauth/continue`; the
  * two ways OUT (Back to Login, an expired session) would otherwise strand the person on the web
  * login inside the sheet. For a mobile flow the server appends `authMobile=true` and the app's
- * `redirectTo` to this page's URL, and both exits leave through it with an outcome the app reads.
+ * `redirectTo` to this page's URL, and both exits hand that address to the BFF's `/oauth/join-return`
+ * with a reason; the BFF checks it against its allow-list and 302s into the app. The page never
+ * navigates to the address itself.
  */
 export default function SsoJoinPage() {
   const router = useRouter();
@@ -59,9 +61,10 @@ export default function SsoJoinPage() {
         return;
       }
 
-      // Mobile: hand the outcome back to the app, which shows its own message once the sheet closes.
+      // Mobile: hand the outcome back to the app through the BFF; the app shows its own message
+      // once the sheet closes.
       if (mobileReturn) {
-        window.location.replace(mobileAuthReturnUrl(mobileReturn, MOBILE_AUTH_ERROR.SESSION_EXPIRED));
+        window.location.replace(authApiClient.ssoJoinReturnUrl(mobileReturn, MOBILE_AUTH_ERROR.SESSION_EXPIRED));
         return;
       }
 
@@ -91,10 +94,11 @@ export default function SsoJoinPage() {
   const handleBack = () => {
     if (hasNavigated.current) return;
     if (mobileReturn) {
-      // Closes the sheet; the app treats the code like its own dismissed-sheet cancel (no toast).
+      // Through the BFF into the app, which treats the code like its own dismissed-sheet cancel
+      // (no toast). A TOP-LEVEL navigation, like the submit.
       hasNavigated.current = true;
       setIsNavigating(true);
-      window.location.href = mobileAuthReturnUrl(mobileReturn, MOBILE_AUTH_ERROR.USER_CANCELED);
+      window.location.href = authApiClient.ssoJoinReturnUrl(mobileReturn, MOBILE_AUTH_ERROR.USER_CANCELED);
       return;
     }
     router.push(routes.auth.login);
