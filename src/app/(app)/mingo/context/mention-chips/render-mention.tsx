@@ -23,12 +23,14 @@
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import type { ReactNode } from 'react';
 import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
+import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
 import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
 
-const KB_FOLDER_ICON = <KB_ITEM_ICON.FOLDER size={24} />;
+const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
+const KB_FOLDER_ICON = <KbFolderIcon size={24} />;
 
 /** marker → lead icon, taken from the picker's entity-type config, plus the
  *  mention-only kinds the picker doesn't offer. */
