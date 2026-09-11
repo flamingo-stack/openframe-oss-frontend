@@ -30,6 +30,7 @@ export const GET_LOGS_QUERY = `
           userId
           deviceId
           hostname
+          nickname
           organizationName
           organizationId
           summary

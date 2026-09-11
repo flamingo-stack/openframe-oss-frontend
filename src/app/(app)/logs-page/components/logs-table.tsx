@@ -42,6 +42,7 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { logsTableRelay_query$key as LogsFragmentKey } from '@/__generated__/logsTableRelay_query.graphql';
 import type { logsTableRelayPaginationQuery as LogsPaginationQueryType } from '@/__generated__/logsTableRelayPaginationQuery.graphql';
 import type { logsTableRelayQuery as LogsQueryType } from '@/__generated__/logsTableRelayQuery.graphql';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import {
   DateColumnHeader,
   EMBEDDED_PAGE_OFFSET,
@@ -113,6 +114,7 @@ const logsTableRelayFragment = graphql`
           severity
           deviceId
           hostname
+          nickname
           organizationId
           organizationName
           summary
@@ -279,7 +281,7 @@ function LogsTableContent({
                 id: node.deviceId || '',
                 machineId: node.deviceId || '',
                 hostname: node.hostname || node.deviceId || '',
-                displayName: node.hostname || '',
+                nickname: node.nickname ?? undefined,
                 organizationId: node.organizationId,
                 organization: node.organizationName || node.organizationId || '',
               }
@@ -350,7 +352,7 @@ function LogsTableContent({
         toolType: normalizeToolTypeWithFallback(log.toolType),
       },
       device: {
-        name: log.device?.hostname || log.hostname || log.deviceId || '-',
+        name: getDeviceName(log.device) || log.hostname || log.deviceId || '-',
         organization: log.device?.organization || log.organizationName || '-',
       },
       description: {

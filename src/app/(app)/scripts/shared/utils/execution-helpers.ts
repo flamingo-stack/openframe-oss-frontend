@@ -1,5 +1,6 @@
 // Value import: the generated module exports each enum as both a `const` and a
 // `type` under the same name, so these stand in for hardcoded literals.
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { PrivilegeLevel, ScriptExecutionStatus } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDate, formatTime } from '@/lib/format-date';
@@ -76,12 +77,16 @@ interface MachineLike {
   machineId?: string | null;
   hostname?: string | null;
   displayName?: string | null;
+  nickname?: string | null;
   organization?: { name?: string | null } | null;
 }
 
-/** Best display name for a machine (displayName → hostname → machineId). */
+/**
+ * Best display name for a machine — the shared device name, then `machineId` as
+ * a last resort so a row that has no name at all still identifies its machine.
+ */
 export function machineLabel(machine: MachineLike | null | undefined): string {
-  return machine?.displayName || machine?.hostname || machine?.machineId || '—';
+  return getDeviceName(machine) || machine?.machineId || '—';
 }
 
 /** Organization name for a machine, or empty string. */

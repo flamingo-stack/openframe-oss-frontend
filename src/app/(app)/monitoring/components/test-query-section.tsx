@@ -17,6 +17,7 @@ import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { Device } from '../../devices/types/device.types';
 import { getFleetHostId } from '../../devices/utils/device-action-utils';
+import { getDeviceName } from '../../devices/utils/device-name';
 import { getDeviceStatusConfig } from '../../devices/utils/device-status';
 import { useQueryTestRun } from './query-test-run';
 
@@ -46,8 +47,8 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
     () =>
       devices
         .filter(d => getFleetHostId(d) !== undefined)
-        .sort((a, b) => (a.displayName || a.hostname || '').localeCompare(b.displayName || b.hostname || ''))
-        .map(d => ({ value: String(getFleetHostId(d)), label: d.displayName || d.hostname || '' })),
+        .sort((a, b) => getDeviceName(a).localeCompare(getDeviceName(b)))
+        .map(d => ({ value: String(getFleetHostId(d)), label: getDeviceName(d) })),
     [devices],
   );
 

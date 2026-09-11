@@ -4,6 +4,7 @@ import { fleetApiClient } from '@/lib/fleet-api-client';
 import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-statuses';
 import { useAllDevices } from '../../../devices/hooks/use-all-devices';
 import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
+import { getDeviceName } from '../../../devices/utils/device-name';
 import type { QueryDeviceRow } from '../types/query-device-row';
 
 const QUERY_HOSTS_PAGE_SIZE = 100;
@@ -60,7 +61,7 @@ export function useQueryDevicesTable(queryId: number | null) {
       return {
         id: String(host.id),
         hostname: device?.hostname || host.hostname || `Host ${host.id}`,
-        displayName: device?.displayName || device?.hostname || host.hostname || `Host ${host.id}`,
+        displayName: getDeviceName(device) || host.hostname || `Host ${host.id}`,
         deviceType: device?.type,
         organization: device?.organization,
         organizationImageUrl: device?.organizationImageUrl,

@@ -43,7 +43,7 @@ function transformLogEntry(logEntry: LogEntry): LogEntry {
         id: logEntry.deviceId || '',
         machineId: logEntry.deviceId || '',
         hostname: logEntry.hostname || logEntry.deviceId || '',
-        displayName: logEntry.hostname || '',
+        nickname: logEntry.nickname,
         organizationId: logEntry.organizationId,
         organization: logEntry.organizationName || logEntry.organizationId || '',
       },
