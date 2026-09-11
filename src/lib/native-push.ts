@@ -70,7 +70,8 @@ async function reportedAppVersion(): Promise<string | null> {
   try {
     const info = await appPlugin()?.getInfo();
     return info?.version || null;
-  } catch {
+  } catch (error) {
+    console.warn('[Native Push] reportedAppVersion failed:', error);
     return null;
   }
 }
