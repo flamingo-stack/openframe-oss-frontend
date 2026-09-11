@@ -18,6 +18,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -51,6 +52,7 @@ export default function RemoteDesktopPage() {
   const router = useRouter();
   const deviceId = useSearchParams().get('id') ?? '';
   const isMobileShell = useIsMobileShell();
+  const handleBack = useSafeBack(routes.devices.details(deviceId));
 
   useEffect(() => {
     if (!isMobileShell) return;
@@ -58,7 +60,14 @@ export default function RemoteDesktopPage() {
   }, [isMobileShell, deviceId, router]);
 
   if (isMobileShell) return null;
-  return <RemoteDesktopSession />;
+  return (
+    // The session component below opens the MeshCentral tunnel from its own
+    // effects, so the approval gate keeps it UNMOUNTED until the end user
+    // approves - not merely hidden.
+    <RemoteAccessGate deviceId={deviceId} sessionKind="desktop" onBack={handleBack}>
+      <RemoteDesktopSession />
+    </RemoteAccessGate>
+  );
 }
 
 function RemoteDesktopSession() {

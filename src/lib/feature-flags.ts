@@ -24,6 +24,9 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   'test-clock',
   'download-apps',
+  // Attended remote access: the approval-gated connect flow (CU-86ajx03db).
+  // Off = the legacy auto-start tunnel behavior.
+  'remote-access-approval',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
