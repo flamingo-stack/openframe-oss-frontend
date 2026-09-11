@@ -8,6 +8,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
+import { TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
 
 /**
  * Mirrors PageLayout's TitleBlock used by CustomerDetailsView with `variant="outline"`.
@@ -168,7 +169,9 @@ const DevicesTableSkeletonInner = makeTableTabSkeleton([
 ]);
 
 const TicketsTableSkeletonInner = makeTableTabSkeleton([
-  { id: 'title', header: 'TITLE', width: 'flex-1' },
+  // The label comes from the shared ticket layout so it cannot drift from the
+  // loaded tab (`getTicketTableColumns`), which renders TICKET.
+  { id: 'title', header: TICKET_COLUMNS.title.header, width: 'flex-1' },
   { id: 'source', header: 'SOURCE', width: 'w-[240px]' },
   { id: 'created', header: 'CREATED', width: 'w-[180px]' },
   { id: 'status', header: 'STATUS', width: 'w-[140px]' },

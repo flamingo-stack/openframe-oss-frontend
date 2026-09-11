@@ -14,6 +14,7 @@ import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/co
 import { ContextItemsList } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { CONTEXT_ENTITY_KIND } from './context-types';
@@ -58,10 +59,10 @@ async function fetchTicketsPage(
   const items = (conn?.edges ?? []).map(e => ({
     type: CONTEXT_ENTITY_KIND.TICKET,
     id: e.node.id,
-    label: e.node.title || (e.node.ticketNumber != null ? `#${e.node.ticketNumber}` : e.node.id),
-    description:
-      [e.node.ticketNumber != null ? `#${e.node.ticketNumber}` : null, e.node.status].filter(Boolean).join(' · ') ||
-      undefined,
+    // The picked label becomes the chip's fallback label, so it carries the
+    // number the same way the resolved chip does.
+    label: formatTicketRef(e.node, e.node.id),
+    description: e.node.status || undefined,
   }));
   return { items, nextCursor: conn?.pageInfo?.hasNextPage ? (conn.pageInfo.endCursor ?? null) : null };
 }
