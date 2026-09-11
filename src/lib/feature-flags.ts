@@ -27,6 +27,9 @@ export const FEATURE_FLAG_NAMES = [
   // MeshCentral session recordings: the "Remote Sessions" device tab and the
   // recording player page (CU-86akc3ce5). Off until the storage backend ships.
   'session-recordings',
+  // Attended remote access: the approval-gated connect flow (CU-86ajx03db).
+  // Off = the legacy auto-start tunnel behavior.
+  'remote-access-approval',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

@@ -3,6 +3,7 @@
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import { useSearchParams } from 'next/navigation';
+import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
 import { FileManagerContainer } from '@/app/(app)/devices/details/file-manager/components/file-manager-container';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getToolConnection } from '@/app/(app)/devices/utils/device-action-utils';
@@ -87,12 +88,18 @@ export default function FileManagerPage() {
   const hostname = deviceDetails?.hostname || deviceDetails?.displayName;
 
   return (
-    <FileManagerContainer
-      deviceId={deviceId}
-      meshcentralAgentId={meshcentralAgentId}
-      hostname={hostname}
-      className={PAGE_PADDING}
-    />
+    // After the loading/error/blocked checks on purpose: approval is only asked
+    // for a device the file manager could actually reach. The container opens
+    // the MeshCentral connection on mount, so the gate keeps it UNMOUNTED until
+    // the end user approves.
+    <RemoteAccessGate deviceId={deviceId} deviceName={hostname} sessionKind="files" onBack={handleBack}>
+      <FileManagerContainer
+        deviceId={deviceId}
+        meshcentralAgentId={meshcentralAgentId}
+        hostname={hostname}
+        className={PAGE_PADDING}
+      />
+    </RemoteAccessGate>
   );
 }
 
