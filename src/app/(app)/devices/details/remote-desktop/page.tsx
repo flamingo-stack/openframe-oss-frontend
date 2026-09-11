@@ -159,6 +159,13 @@ function RemoteDesktopSession() {
     DEFAULT_REMOTE_SHORTCUTS,
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Page-visible connection lifecycle, driven from tunnel state changes. The
+  // toasts stay, but terminal/transient states must be visible on the page
+  // itself - a failed session used to leave a dead canvas behind a toast.
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'reconnecting' | 'failed'>(
+    'connecting',
+  );
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     currentDisplayRef.current = currentDisplay;
@@ -225,10 +232,13 @@ function RemoteDesktopSession() {
   }, [isPageReady]);
 
   useEffect(() => {
+    // retryNonce re-arms this effect after a failed session (Retry button).
+    void retryNonce;
     if (!isPageReady || !meshcentralAgentId || initializingRef.current) return undefined;
 
     initializingRef.current = true;
     setFirstFrameReceived(false);
+    setConnectionStatus('connecting');
     let cancelled = false;
     let control: MeshControlClient | undefined;
     let tunnel: MeshTunnel | undefined;
@@ -278,25 +288,32 @@ function RemoteDesktopSession() {
             setState(s);
             if (s === 1 && tunnelRef.current?.getState() === 0) {
               isReconnectingRef.current = true;
+              setConnectionStatus('reconnecting');
               toastRef.current({
                 title: 'Connection Lost',
                 description: 'Attempting to reconnect...',
                 variant: 'info',
               });
-            } else if (s === 3 && isReconnectingRef.current) {
-              isReconnectingRef.current = false;
-              toastRef.current({
-                title: 'Reconnected',
-                description: 'Connection restored successfully',
-                variant: 'success',
-              });
+            } else if (s === 3) {
+              if (isReconnectingRef.current) {
+                isReconnectingRef.current = false;
+                toastRef.current({
+                  title: 'Reconnected',
+                  description: 'Connection restored successfully',
+                  variant: 'success',
+                });
+              }
+              setConnectionStatus('connected');
             } else if (s === 0 && isReconnectingRef.current) {
               isReconnectingRef.current = false;
+              setConnectionStatus('failed');
               toastRef.current({
                 title: 'Reconnection Failed',
                 description: 'Unable to restore connection. Please try again.',
                 variant: 'destructive',
               });
+            } else if (s === 0) {
+              setConnectionStatus('failed');
             }
           },
         });
@@ -314,6 +331,7 @@ function RemoteDesktopSession() {
         tunnel.start();
       } catch (e) {
         if (cancelled) return;
+        setConnectionStatus('failed');
         toastRef.current({ title: 'Remote Desktop failed', description: (e as Error).message, variant: 'destructive' });
       }
     })();
@@ -326,7 +344,7 @@ function RemoteDesktopSession() {
       tunnel?.stop();
       tunnelRef.current = null;
     };
-  }, [isPageReady, meshcentralAgentId]);
+  }, [isPageReady, meshcentralAgentId, retryNonce]);
 
   useEffect(() => {
     if (state !== 3) return;
@@ -628,12 +646,31 @@ function RemoteDesktopSession() {
           ))}
         </div>
       )}
-      {!firstFrameReceived && state >= 1 && (
+      {!firstFrameReceived && state >= 1 && connectionStatus !== 'failed' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)]">
           <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
           <span className="text-ods-text-secondary text-h6">
             {state === 3 ? 'Waiting for desktop stream...' : 'Connecting to desktop...'}
           </span>
+        </div>
+      )}
+      {connectionStatus === 'reconnecting' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
+          <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
+          <span className="text-ods-text-primary text-h4">Connection lost</span>
+          <span className="text-ods-text-secondary text-h6">Attempting to reconnect...</span>
+        </div>
+      )}
+      {connectionStatus === 'failed' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
+          <span className="text-ods-text-primary text-h4">Connection lost</span>
+          <span className="text-ods-text-secondary text-h6">Unable to restore the remote desktop connection.</span>
+          <div className="mt-[var(--spacing-system-xsf)] flex items-center gap-[var(--spacing-system-sf)]">
+            <Button variant="outline" onClick={handleBack}>
+              Back
+            </Button>
+            <Button onClick={() => setRetryNonce(n => n + 1)}>Retry</Button>
+          </div>
         </div>
       )}
     </div>
