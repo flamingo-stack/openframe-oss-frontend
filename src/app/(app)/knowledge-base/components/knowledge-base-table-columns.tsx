@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  ArrowRightUpIcon,
-  BookTextIcon,
-  FolderIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { ArrowRightUpIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnDef,
@@ -15,9 +11,11 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useMemo } from 'react';
+import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { formatDate, formatTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { KB_ITEM_ICON } from './knowledge-base-item-icon';
 
 export type KnowledgeBaseRowType = 'ARTICLE' | 'FOLDER' | string;
 export type KnowledgeBaseRowStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | string | null | undefined;
@@ -69,7 +67,10 @@ export function getKnowledgeBaseColumns(mode: KnowledgeBaseTableMode): ColumnDef
       header: 'Name',
       cell: ({ row }: { row: Row<KnowledgeBaseRow> }) => {
         const item = row.original;
-        const Icon = item.type === 'FOLDER' ? FolderIcon : BookTextIcon;
+        const Icon =
+          item.type === KnowledgeBaseItemType.FOLDER
+            ? KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER]
+            : KB_ITEM_ICON[KnowledgeBaseItemType.ARTICLE];
         const status = item.status as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | null | undefined;
         const tagStatus = status === 'DRAFT' || status === 'ARCHIVED' ? status : null;
         return (
