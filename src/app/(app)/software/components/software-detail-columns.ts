@@ -17,7 +17,6 @@ const SOFTWARE_DEVICE_COLUMNS = {
     sortable: true,
     filterable: true,
   },
-  actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
@@ -41,7 +40,6 @@ export { SOFTWARE_DEVICE_COLUMNS, SOFTWARE_VULNERABILITY_COLUMNS };
 export const SOFTWARE_DEVICES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
   SOFTWARE_DEVICE_COLUMNS.device,
   SOFTWARE_DEVICE_COLUMNS.softwareVersion,
-  SOFTWARE_DEVICE_COLUMNS.actions,
   SOFTWARE_DEVICE_COLUMNS.open,
 ];
 

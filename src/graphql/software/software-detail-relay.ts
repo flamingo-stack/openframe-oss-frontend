@@ -13,7 +13,6 @@ export const softwareDetailRelayQuery = graphql`
       id
       name
       publisher
-      type
       latestVersion
     }
   }

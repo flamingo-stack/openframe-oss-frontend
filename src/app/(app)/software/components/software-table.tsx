@@ -4,6 +4,7 @@ import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import {
   ArrowRightUpIcon,
   Parcel02Icon,
+  PlusCircleIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -12,6 +13,7 @@ import {
   DataTable,
   type DataTableSortState,
   Input,
+  type PageActionButton,
   PageLayout,
   type Row,
   TruncateText,
@@ -36,6 +38,15 @@ import { softwaresTableRelayFragment, softwaresTableRelayQuery } from '@/graphql
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_TABLE_COLUMNS } from './software-table-columns';
+
+const PAGE_ACTIONS: PageActionButton[] = [
+  {
+    label: 'Install Software',
+    variant: 'outline',
+    href: routes.software.install,
+    icon: <PlusCircleIcon size={24} className="text-ods-text-secondary" />,
+  },
+];
 
 const PAGE_SIZE = 20;
 
@@ -437,7 +448,7 @@ export function SoftwareTable({ title, scopeFilter = null, emptyTitle, emptyDesc
     // No page padding here: it lives on the wrapper around `ContentErrorBoundary`
     // (see the pages), so a thrown query keeps the title indented instead of
     // taking the padding down with the layout that declared it.
-    <PageLayout title={title}>
+    <PageLayout title={title} actions={PAGE_ACTIONS}>
       <div className="flex flex-col" style={containerStyle}>
         {!isEmpty && (
           <div
