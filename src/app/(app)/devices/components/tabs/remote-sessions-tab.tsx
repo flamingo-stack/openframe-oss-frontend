@@ -49,7 +49,7 @@ const EMPTY_RECORDINGS: RecordingSummary[] = [];
 const EMPTY_COLUMN_FILTERS: ColumnFiltersState = [];
 
 /** Newest session first, like every history list on the device page. */
-const DEFAULT_SORTING: SortingState = [{ id: 'session', desc: true }];
+const DEFAULT_SORTING: SortingState = [{ id: REMOTE_SESSION_COLUMNS.session.id, desc: true }];
 
 function employeeInitials(name: string): string {
   return name
