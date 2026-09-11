@@ -50,7 +50,20 @@ const VULNERABILITY_COLUMNS = {
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
-export { SOFTWARE_COLUMNS, USER_COLUMNS, VULNERABILITY_COLUMNS };
+/**
+ * Remote Sessions tab (Figma 744-40363, mobile 758-46869): three equal content
+ * columns plus one actions cell holding both the delete and the open button -
+ * a single column so its header can carry the results count the mockup shows
+ * above the buttons. On mobile the row is date + actions only.
+ */
+const REMOTE_SESSION_COLUMNS = {
+  session: { id: 'session', header: 'SESSION', width: 'flex-1 min-w-0', dateFilterable: true },
+  employee: { id: 'employee', header: 'EMPLOYEE', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
+  duration: { id: 'duration', header: 'DURATION', width: 'flex-1 min-w-0', hideAt: 'md', sortable: true },
+  actions: { id: 'actions', width: 'w-[112px] shrink-0 flex-none', align: 'right' },
+} satisfies Record<string, TableSkeletonColumn>;
+
+export { REMOTE_SESSION_COLUMNS, SOFTWARE_COLUMNS, USER_COLUMNS, VULNERABILITY_COLUMNS };
 
 /** Users tab — render order for the live table and the page skeleton. */
 export const USERS_TAB_COLUMNS: readonly TableSkeletonColumn[] = [
@@ -78,4 +91,12 @@ export const VULNERABILITIES_TAB_COLUMNS: readonly TableSkeletonColumn[] = [
   VULNERABILITY_COLUMNS.software,
   VULNERABILITY_COLUMNS.discovered,
   VULNERABILITY_COLUMNS.open,
+];
+
+/** Remote Sessions tab — render order for the live table and the page skeleton. */
+export const REMOTE_SESSIONS_TAB_COLUMNS: readonly TableSkeletonColumn[] = [
+  REMOTE_SESSION_COLUMNS.session,
+  REMOTE_SESSION_COLUMNS.employee,
+  REMOTE_SESSION_COLUMNS.duration,
+  REMOTE_SESSION_COLUMNS.actions,
 ];

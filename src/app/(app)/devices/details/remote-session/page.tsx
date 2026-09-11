@@ -4,17 +4,13 @@ import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/compo
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { RemoteSessionView } from '@/app/(app)/devices/components/remote-sessions/remote-session-view';
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { useSessionRecordingsGate } from '@/app/(app)/devices/hooks/use-session-recordings-gate';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
 
 export default function RemoteSessionPage() {
   const router = useRouter();
-  const serverGate = useFeatureFlagGate('session-recordings');
-  // The backend does not register 'session-recordings' yet (unknown names come
-  // back disabled), so the dev server bypasses the gate - the player must be
-  // testable against local sample files before the storage backend exists.
-  const gate = process.env.NODE_ENV === 'development' ? 'on' : serverGate;
+  const gate = useSessionRecordingsGate();
   const recordingId = useRequiredIdParam(routes.devices.list);
 
   useEffect(() => {
