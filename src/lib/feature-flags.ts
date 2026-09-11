@@ -24,6 +24,9 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   'test-clock',
   'download-apps',
+  // MeshCentral session recordings: the "Remote Sessions" device tab and the
+  // recording player page (CU-86akc3ce5). Off until the storage backend ships.
+  'session-recordings',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
