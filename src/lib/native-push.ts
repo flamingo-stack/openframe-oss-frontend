@@ -18,7 +18,7 @@ import type { unregisterPushDeviceMutation as UnregisterPushDeviceMutationType }
 import type { PushPlatform } from '@/generated/schema-enums';
 import { registerPushDeviceMutation } from '@/graphql/notifications/register-push-device-mutation';
 import { unregisterPushDeviceMutation } from '@/graphql/notifications/unregister-push-device-mutation';
-import { type CapacitorListenerHandle, firebaseMessagingPlugin } from './native-shell';
+import { appPlugin, type CapacitorListenerHandle, firebaseMessagingPlugin } from './native-shell';
 import { mobilePlatform } from './platform';
 import { parseRetractedIds, removeRetracted } from './push-retraction';
 import { getRelayEnvironment } from './relay';
@@ -59,9 +59,26 @@ function commitPushMutation<T extends MutationParameters>(
 }
 
 /**
- * Push contract `registerPushDevice(token, platform)`: idempotent upsert by
- * token, re-binding a token previously owned by another user. The token is also
- * persisted locally for logout-time deregistration.
+ * The shell's marketing version, which the backend records on the device row and
+ * picks the push payload shape by: an Android shell from 1.0.0 gets DATA-ONLY
+ * pushes it must render itself (`AndroidDataOnlyPushFormatter.SINCE`), so this
+ * must only ever be reported by a bundle shipped inside a shell that can. Null
+ * when the shell cannot say — the backend then nulls the column, which keeps a
+ * reinstalled older build on the payload it can show.
+ */
+async function reportedAppVersion(): Promise<string | null> {
+  try {
+    const info = await appPlugin()?.getInfo();
+    return info?.version || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Push contract `registerPushDevice(token, platform, appVersion)`: idempotent
+ * upsert by token, re-binding a token previously owned by another user. The token
+ * is also persisted locally for logout-time deregistration.
  */
 async function registerPushDevice(token: string): Promise<void> {
   const platform = pushPlatform();
@@ -72,7 +89,12 @@ async function registerPushDevice(token: string): Promise<void> {
     // Best-effort: only affects logout-time deregistration.
   }
   try {
-    await commitPushMutation<RegisterPushDeviceMutationType>(registerPushDeviceMutation, { token, platform });
+    const appVersion = await reportedAppVersion();
+    await commitPushMutation<RegisterPushDeviceMutationType>(registerPushDeviceMutation, {
+      token,
+      platform,
+      appVersion,
+    });
   } catch (error) {
     // Non-fatal: FCM re-emits the token on rotation and every init re-registers.
     console.warn('[Native Push] registerPushDevice failed:', error);
