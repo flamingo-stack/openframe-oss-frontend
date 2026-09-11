@@ -11,8 +11,8 @@
  * stable identity falls out for free — the lib's per-message memo relies on
  * `renderMention` keeping reference equality across streaming chunks.
  *
- * Coverage = all nine markers the agent can emit. GraphQL types (device,
- * customer, kb, scheduled script) resolve via Relay; REST/ai-agent types (policy,
+ * Coverage = all ten markers the agent can emit. GraphQL types (device,
+ * customer, kb article, kb folder, scheduled script) resolve via Relay; REST/ai-agent types (policy,
  * query, user, ticket) via `RestMentionChip`. SCRIPT is dual-sourced — a NEW
  * script (24-char ObjectId) resolves via Relay, a LEGACY Tactical script (numeric
  * id) via REST — so both kinds of script id render regardless of the flag. Every
@@ -21,16 +21,22 @@
  */
 
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { FolderIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
 import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
 
-/** marker → lead icon, taken from the picker's entity-type config. */
-const ICON_BY_MARKER = new Map<string, ReactNode>(
-  MINGO_CONTEXT_ENTITY_TYPES.flatMap(t => (t.marker ? [[t.marker, t.icon] as const] : [])),
-);
+/** Same glyph the Knowledge Base table draws beside a folder row. */
+const KB_FOLDER_ICON = <FolderIcon size={24} />;
+
+/** marker → lead icon, taken from the picker's entity-type config, plus the
+ *  mention-only kinds the picker doesn't offer. */
+const ICON_BY_MARKER = new Map<string, ReactNode>([
+  ...MINGO_CONTEXT_ENTITY_TYPES.flatMap(t => (t.marker ? [[t.marker, t.icon] as const] : [])),
+  [M.KB_FOLDER, KB_FOLDER_ICON],
+]);
 
 /**
  * New OpenFrame scripts carry a 24-char Mongo ObjectId raw db id; legacy Tactical
@@ -60,6 +66,8 @@ export function renderMingoMention({
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.ORGANIZATION} id={id} icon={icon} fallbackLabel={label} />;
     case M.KB_ARTICLE:
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_ARTICLE} id={id} icon={icon} fallbackLabel={label} />;
+    case M.KB_FOLDER:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_FOLDER} id={id} icon={icon} fallbackLabel={label} />;
     case M.SCHEDULED_SCRIPT:
       // Native-only (schedules never existed in Tactical), so — unlike SCRIPT
       // below — there is no id-shape dispatch: every id resolves through Relay.
