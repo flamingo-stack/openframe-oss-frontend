@@ -254,6 +254,9 @@ export const routes = {
     list: '/software',
     updates: '/software/updates',
     vulnerabilities: '/software/vulnerabilities',
+    install: '/software/install',
+    /** A CVE id (`CVE-2024-38063`) rides as `id`, like every other detail page. */
+    vulnerability: (cveId: string) => withQuery('/software/vulnerability', { id: cveId }),
     details: (id: string | number, o?: { tab?: SoftwareDetailTab }) =>
       withQuery('/software/details', { id, tab: o?.tab }),
   },

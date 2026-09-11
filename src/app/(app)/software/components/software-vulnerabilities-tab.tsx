@@ -36,7 +36,7 @@ import { formatDate } from '@/lib/format-date';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { SOFTWARE_VULNERABILITIES_TABLE_COLUMNS, SOFTWARE_VULNERABILITY_COLUMNS } from './software-detail-columns';
 import type { SoftwareTabProps } from './software-devices-tab';
-import { severityVariant, toSeverity } from './software-tags';
+import { nvdUrl, severityVariant, toSeverity } from './software-tags';
 
 const PAGE_SIZE = 20;
 
@@ -57,15 +57,6 @@ const SEVERITY_OPTIONS = [
   { id: SoftwareCveSeverity.MEDIUM, label: 'Medium', value: SoftwareCveSeverity.MEDIUM },
   { id: SoftwareCveSeverity.LOW, label: 'Low', value: SoftwareCveSeverity.LOW },
 ];
-
-/**
- * Where a CVE is read in full. The schema carries no details link for a
- * `SoftwareVulnerability`, and NVD is the canonical record every CVE id resolves
- * against — the same place the device Vulnerabilities tab's link points at.
- */
-function nvdUrl(cveId: string): string {
-  return `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cveId)}`;
-}
 
 interface UiVulnerability {
   cveId: string;

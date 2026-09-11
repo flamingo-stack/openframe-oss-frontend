@@ -15,7 +15,7 @@ import { SOFTWARE_DEFAULT_TAB, SOFTWARE_DETAIL_TABS, softwareTabBody } from './s
 
 /** Summary-card cell metrics, shared by the card and its skeleton. */
 const CELL = 'flex items-center gap-2 min-h-14 md:min-h-20 px-3 md:px-4 py-3 md:py-4';
-const CARD = 'grid grid-cols-1 rounded-md border border-ods-border bg-ods-card md:grid-cols-3';
+const CARD = 'grid grid-cols-1 rounded-md border border-ods-border bg-ods-card md:grid-cols-2';
 
 interface SoftwareDetailViewProps {
   softwareId: string;
@@ -51,7 +51,7 @@ function SoftwareHeader({ softwareId }: SoftwareDetailViewProps) {
 }
 
 /**
- * The summary island: publisher, type and latest version — and the page's single
+ * The summary island: publisher and latest version — and the page's single
  * not-found report, so a bad id is stated once instead of by every tab.
  */
 function SoftwareSummary({ softwareId }: SoftwareDetailViewProps) {
@@ -63,12 +63,6 @@ function SoftwareSummary({ softwareId }: SoftwareDetailViewProps) {
 
   const cells = [
     <InfoCell key="publisher" value={software.publisher ?? '—'} label="Publisher" />,
-    // `type` is APPLICATION | DRIVER — sentence case reads as a value, not a shout.
-    <InfoCell
-      key="type"
-      value={software.type ? software.type.charAt(0) + software.type.slice(1).toLowerCase() : '—'}
-      label="Type"
-    />,
     <InfoCell key="latest-version" value={software.latestVersion ?? '—'} label="Latest Version" />,
   ];
 
@@ -90,8 +84,8 @@ function SoftwareHeaderSkeleton() {
 function SoftwareSummarySkeleton() {
   return (
     <div className={CARD}>
-      {[0, 1, 2].map(idx => (
-        <div key={idx} className={cn(CELL, idx < 2 && 'border-b border-ods-border md:border-b-0')}>
+      {[0, 1].map(idx => (
+        <div key={idx} className={cn(CELL, idx < 1 && 'border-b border-ods-border md:border-b-0')}>
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
             <InlineSkeleton className="h-6 w-32" />
             <InlineSkeleton className="h-5 w-20" />
@@ -111,8 +105,7 @@ function SoftwareSummarySkeleton() {
  * boxes and composes the frozen `TitleBlock` directly, so only the islands that
  * read the record wait — the container, the padding and the tab bar paint at once.
  *
- * The tab BODIES need the software name (the uninstall confirmation says which
- * title it is removing), so they mount under the summary's data — see the inner
+ * The tab BODIES receive the software name, so they mount under the summary's data — see the inner
  * `SoftwareTabs`, which reads the same deduped query.
  */
 export const SoftwareDetailView = memo(function SoftwareDetailViewImpl({ softwareId }: SoftwareDetailViewProps) {
@@ -145,8 +138,8 @@ SoftwareDetailView.displayName = 'SoftwareDetailView';
 
 /**
  * The tab strip and whichever body it is on. Reads the same deduped detail query
- * purely for the software NAME, which the Devices tab quotes in its uninstall
- * confirmation — the tables themselves fetch by id.
+ * purely for the software NAME the tab bodies receive — the tables themselves
+ * fetch by id.
  */
 function SoftwareTabs({ softwareId }: SoftwareDetailViewProps) {
   const software = useSoftware(softwareId);

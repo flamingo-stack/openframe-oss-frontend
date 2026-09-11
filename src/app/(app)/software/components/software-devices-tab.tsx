@@ -3,8 +3,6 @@
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import { ArrowRightUpIcon, MonitorIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  ActionsMenuDropdown,
-  type ActionsMenuGroup,
   Button,
   type ColumnDef,
   DataTable,
@@ -14,9 +12,9 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useCallback, useMemo, useState } from 'react';
-import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
+import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { memo, Suspense, useCallback, useMemo } from 'react';
+import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { softwareDevicesRelay_query$key as SoftwareDevicesFragmentKey } from '@/__generated__/softwareDevicesRelay_query.graphql';
 import type { softwareDevicesRelayPaginationQuery as SoftwareDevicesPaginationQueryType } from '@/__generated__/softwareDevicesRelayPaginationQuery.graphql';
 import type {
@@ -24,20 +22,16 @@ import type {
   softwareDevicesRelayQuery as SoftwareDevicesQueryType,
   SortInput,
 } from '@/__generated__/softwareDevicesRelayQuery.graphql';
-import type { uninstallSoftwareMutation as UninstallSoftwareMutationType } from '@/__generated__/uninstallSoftwareMutation.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
 import { liveColumnMeta, skeletonColumnDefs, useRetryKey } from '@/app/components/shared';
-import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { SoftwareOnDeviceStatus } from '@/generated/schema-enums';
 import { softwareDevicesRelayFragment, softwareDevicesRelayQuery } from '@/graphql/software/software-devices-relay';
-import { uninstallSoftwareMutation } from '@/graphql/software/uninstall-software-mutation';
-import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -78,7 +72,7 @@ const STATUS_OPTIONS = [
 ];
 
 interface UiSoftwareDevice {
-  /** The machine's Relay global id — the row key, and what the mutations take. */
+  /** The machine's Relay global id — the row key. */
   id: string;
   device: Device;
   softwareVersion: string | null;
@@ -91,7 +85,6 @@ interface UiSoftwareDevice {
 
 interface SoftwareDevicesContentProps {
   softwareId: string;
-  softwareName: string;
   backendFilters: SoftwareOnDeviceFilterInput | null;
   debouncedSearch: string;
   sort: SortInput | null;
@@ -105,7 +98,6 @@ interface SoftwareDevicesContentProps {
 
 function SoftwareDevicesContent({
   softwareId,
-  softwareName,
   backendFilters,
   debouncedSearch,
   sort,
@@ -116,8 +108,6 @@ function SoftwareDevicesContent({
   isPending,
   stickyHeaderOffset,
 }: SoftwareDevicesContentProps) {
-  const { toast } = useToast();
-  const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
 
   const variables = useMemo(
@@ -141,11 +131,6 @@ function SoftwareDevicesContent({
     SoftwareDevicesPaginationQueryType,
     SoftwareDevicesFragmentKey
   >(softwareDevicesRelayFragment, queryData);
-
-  const [commitUninstall, isUninstalling] = useMutation<UninstallSoftwareMutationType>(uninstallSoftwareMutation);
-
-  /** Row awaiting uninstall confirmation (null = closed). */
-  const [uninstallTarget, setUninstallTarget] = useState<UiSoftwareDevice | null>(null);
 
   const rows: UiSoftwareDevice[] = useMemo(() => {
     const edges = data.softwareDevices?.edges ?? [];
@@ -171,43 +156,6 @@ function SoftwareDevicesContent({
       loadNext(PAGE_SIZE);
     }
   }, [hasNext, isLoadingNext, loadNext]);
-
-  /**
-   * The uninstall is dispatched to an agent, so the row's own status is what
-   * changes — and only server-side. Refetch the list into the store instead of
-   * guessing at an optimistic status the backend may never reach.
-   */
-  const refreshList = useCallback(() => {
-    fetchQuery<SoftwareDevicesQueryType>(environment, softwareDevicesRelayQuery, variables, {
-      fetchPolicy: 'network-only',
-    }).subscribe({});
-  }, [environment, variables]);
-
-  const handleConfirmUninstall = useCallback(() => {
-    if (!uninstallTarget) return;
-    const { id, device } = uninstallTarget;
-    const deviceName = device.displayName || device.hostname || id;
-    commitUninstall({
-      variables: { input: { softwareId, machineIds: [id] } },
-      onCompleted: () => {
-        toast({
-          title: 'Uninstall requested',
-          description: `"${softwareName}" will be removed from ${deviceName}.`,
-          variant: 'success',
-        });
-        setUninstallTarget(null);
-        refreshList();
-      },
-      onError: error => {
-        toast({
-          title: 'Error',
-          description: getRelayErrorMessage(error, 'Failed to request the uninstall'),
-          variant: 'destructive',
-        });
-        setUninstallTarget(null);
-      },
-    });
-  }, [uninstallTarget, softwareId, softwareName, commitUninstall, toast, refreshList]);
 
   const columns = useMemo<ColumnDef<UiSoftwareDevice>[]>(
     () => [
@@ -259,31 +207,6 @@ function SoftwareDevicesContent({
         }),
       },
       {
-        id: 'actions',
-        cell: ({ row }: { row: Row<UiSoftwareDevice> }) => {
-          const groups: ActionsMenuGroup[] = [
-            {
-              items: [
-                {
-                  id: 'uninstall-software',
-                  label: 'Uninstall Software',
-                  icon: <MonitorIcon className="h-6 w-6 text-ods-text-secondary" />,
-                  disabled: isUninstalling,
-                  onClick: () => setUninstallTarget(row.original),
-                },
-              ],
-            },
-          ];
-          return (
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
-              <ActionsMenuDropdown groups={groups} />
-            </div>
-          );
-        },
-        enableSorting: false,
-        meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.actions),
-      },
-      {
         id: 'open',
         cell: ({ row }: { row: Row<UiSoftwareDevice> }) => {
           const { device } = row.original;
@@ -304,7 +227,7 @@ function SoftwareDevicesContent({
         meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.open),
       },
     ],
-    [isUninstalling],
+    [],
   );
 
   const columnFilters = useMemo<ColumnFilterState>(
@@ -337,53 +260,34 @@ function SoftwareDevicesContent({
   );
 
   return (
-    <>
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          <DataTable.Header
-            stickyHeader
-            stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-            sort={sortState}
-            onSortChange={onSortChange}
-          />
-          <DataTable.Body
-            skeletonRows={PAGE_SIZE}
-            emptyMessage={
-              debouncedSearch
-                ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No devices have this software installed.'
-            }
-            rowClassName="mb-1"
-            rowHref={rowHref}
-            autoHeight
-          />
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
-          />
-        </DataTable>
-      </div>
-
-      <ConfirmDialog
-        open={uninstallTarget !== null}
-        onOpenChange={open => !open && setUninstallTarget(null)}
-        title="Uninstall software"
-        description={
-          uninstallTarget
-            ? `"${softwareName}" will be uninstalled from ${
-                uninstallTarget.device.displayName || uninstallTarget.device.hostname || 'this device'
-              }. The agent performs it in the background.`
-            : ''
-        }
-        confirmLabel="Uninstall"
-        variant="destructive"
-        isPending={isUninstalling}
-        onConfirm={handleConfirmUninstall}
-      />
-    </>
+    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
+      <DataTable table={table}>
+        <DataTable.Header
+          stickyHeader
+          stickyHeaderOffset={stickyHeaderOffset}
+          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
+          sort={sortState}
+          onSortChange={onSortChange}
+        />
+        <DataTable.Body
+          skeletonRows={PAGE_SIZE}
+          emptyMessage={
+            debouncedSearch
+              ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
+              : 'No devices have this software installed.'
+          }
+          rowClassName="mb-1"
+          rowHref={rowHref}
+          autoHeight
+        />
+        <DataTable.InfiniteFooter
+          hasNextPage={hasNext}
+          isFetchingNextPage={isLoadingNext}
+          onLoadMore={fetchNextPage}
+          skeletonRows={2}
+        />
+      </DataTable>
+    </div>
   );
 }
 
@@ -425,9 +329,9 @@ export interface SoftwareTabProps {
 
 /**
  * Software → Devices: every machine carrying this title, with its own installed
- * version and lifecycle status, plus the per-row uninstall.
+ * version and lifecycle status.
  */
-export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({ softwareId, softwareName }: SoftwareTabProps) {
+export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({ softwareId }: SoftwareTabProps) {
   const { params, setParam, setParams } = useApiParams({
     deviceSearch: { type: 'string', default: '' },
     deviceStatus: { type: 'array', default: [] },
@@ -505,7 +409,6 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({ softwar
       <Suspense fallback={<SoftwareDevicesSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
         <SoftwareDevicesContent
           softwareId={softwareId}
-          softwareName={softwareName}
           backendFilters={deferredVars.filter}
           debouncedSearch={deferredSearch}
           sort={deferredVars.sort}

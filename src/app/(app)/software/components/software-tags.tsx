@@ -27,6 +27,14 @@ export function toSeverity(value: string | null | undefined): SoftwareCveSeverit
   return value && known.includes(value) ? (value as SoftwareCveSeverity) : null;
 }
 
+/**
+ * Where a CVE is read in full when the backend hands no link of its own: NVD is
+ * the canonical record every CVE id resolves against.
+ */
+export function nvdUrl(cveId: string): string {
+  return `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cveId)}`;
+}
+
 /** Same narrowing for the per-device lifecycle status. */
 export function toDeviceSoftwareStatus(value: string | null | undefined): SoftwareOnDeviceStatus | null {
   const known = Object.values(SoftwareOnDeviceStatus) as string[];
