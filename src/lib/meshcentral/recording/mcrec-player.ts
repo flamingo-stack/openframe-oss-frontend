@@ -143,6 +143,10 @@ export class McrecPlayer {
       const { agentRecords, baseTimeMs } = recording;
       let index = 0;
       while (index < agentRecords.length && agentRecords[index].timeMs - baseTimeMs <= target) {
+        // Checked on EVERY feed, not only at drain points: a newer seek resets
+        // the renderer mid-replay, and even one stale tile fed into the fresh
+        // decoder draws into the wrong frame (KVM tiles are incremental).
+        if (generation !== this.seekGeneration || this.disposed) return;
         renderer.feed(agentRecords[index].data);
         index++;
         if (index % SEEK_DRAIN_BATCH === 0) {
@@ -170,9 +174,14 @@ export class McrecPlayer {
       }
     } catch (error) {
       // A failed CURRENT seek must not leave the player wedged in 'seeking' -
-      // land paused at the last known position. A stale seek (newer one took
-      // over) leaves state ownership to that newer call.
-      if (generation === this.seekGeneration && !this.disposed) this.setState('paused');
+      // land paused, and at ZERO: the renderer was reset before the failure, so
+      // the last pre-seek position no longer matches what is on screen. A stale
+      // seek (newer one took over) leaves state ownership to that newer call.
+      if (generation === this.seekGeneration && !this.disposed) {
+        this.cursor = 0;
+        this.setVirtualTime(0);
+        this.setState('paused');
+      }
       throw error;
     }
   }

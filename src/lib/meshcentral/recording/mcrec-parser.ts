@@ -64,9 +64,16 @@ export function parseMcrec(buffer: ArrayBuffer): ParsedRecording {
 
   const protocol = Number(metadata.protocol) === 1 ? 1 : 2;
 
-  const agentRecords = records.filter(
-    r => r.type === MCREC_RECORD_TYPE.NETWORK_DATA && (r.flags & MCREC_FLAG_FROM_BROWSER) === 0 && r.data.length > 0,
-  );
+  const agentRecords = records
+    .filter(
+      r => r.type === MCREC_RECORD_TYPE.NETWORK_DATA && (r.flags & MCREC_FLAG_FROM_BROWSER) === 0 && r.data.length > 0,
+    )
+    // The player's monotonic cursor (feedDue / seek replay) assumes ascending
+    // timestamps; a relay writes them in order, but a record landing out of
+    // order in a damaged file would otherwise be silently skipped forever.
+    // Array.prototype.sort is stable, so equal timestamps keep file order -
+    // which is the decode order KVM tiles require.
+    .sort((a, b) => a.timeMs - b.timeMs);
 
   const baseTimeMs = agentRecords[0]?.timeMs ?? first.timeMs;
   const lastTimeMs = agentRecords[agentRecords.length - 1]?.timeMs ?? baseTimeMs;

@@ -29,5 +29,7 @@ export function formatBytes(bytes: number): string {
     value /= 1024;
     unit = next;
   }
-  return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${unit}`;
+  // `>= 99.95`, not `>= 100`: `toFixed(1)` rounds 99.96 up to "100.0", which
+  // would sit next to a rounded "100" - same number, two formats.
+  return `${value >= 99.95 ? Math.round(value) : value.toFixed(1)} ${unit}`;
 }

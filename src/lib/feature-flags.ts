@@ -193,6 +193,29 @@ export const featureFlags = {
       return getFlagValue('test-clock', () => false);
     },
   },
+  /**
+   * MeshCentral session recordings (CU-86akc3ce5): the "Remote Sessions" device
+   * tab and the recording player page. Off until the storage backend registers
+   * the flag. Route/tab gating goes through `useSessionRecordingsGate` (the
+   * tri-state read this snapshot cannot express); this accessor is for
+   * imperative reads.
+   */
+  sessionRecordings: {
+    enabled(): boolean {
+      return getFlagValue('session-recordings', () => false);
+    },
+  },
+  /**
+   * Attended remote access (CU-86ajx03db): the approval-gated connect flow.
+   * Off = the legacy auto-start tunnel behavior. Route gating goes through
+   * `useRemoteAccessApprovalGate` (tri-state); this accessor is for imperative
+   * reads.
+   */
+  remoteAccessApproval: {
+    enabled(): boolean {
+      return getFlagValue('remote-access-approval', () => false);
+    },
+  },
 } as const;
 
 /**
