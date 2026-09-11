@@ -61,6 +61,13 @@ export interface PendingSsoIdentity {
   provider: string;
 }
 
+/** What the "One Last Step" page confirms: the asserted identity plus where it is about to be joined. */
+export interface PendingSsoJoin extends PendingSsoIdentity {
+  tenantName: string;
+  /** Role names as the server grants them (`ADMIN`); empty for a plain member. */
+  roles: string[];
+}
+
 class AuthApiClient {
   /**
    * `sentAtEpoch` is the {@link getTokenEpoch} value captured before the request
@@ -194,15 +201,44 @@ class AuthApiClient {
    * Session-cookie authenticated: no bearer token, and no 401 retry — an expired session here is a
    * 409 with a message for the user, not a credential that can be rotated.
    */
-  async pendingSsoIdentity(): Promise<AuthApiResponse<PendingSsoIdentity>> {
-    const url = buildAuthUrl('/sas/oauth/login/sso/pending');
+  pendingSsoIdentity(): Promise<AuthApiResponse<PendingSsoIdentity>> {
+    return this.sessionGet<PendingSsoIdentity>('/sas/oauth/login/sso/pending');
+  }
+
+  /**
+   * What the "One Last Step" page confirms before an SSO flow creates a user: the asserted identity
+   * plus the organization and roles it is about to be joined with. Which flow (invitation accept or
+   * shared-domain first login) is the server's business - the flow cookie its callback kept says so.
+   * Same session-cookie contract as `pendingSsoIdentity`; a 409 means that cookie or the session expired.
+   */
+  pendingSsoJoin(): Promise<AuthApiResponse<PendingSsoJoin>> {
+    return this.sessionGet<PendingSsoJoin>('/sas/oauth/join/pending');
+  }
+
+  /**
+   * Finishes the join after the Terms consent. Returns the URL rather than navigating: the response
+   * is a 302 into `/oauth/continue` that sets the auth cookies, so the caller must perform a TOP-LEVEL
+   * navigation - a fetch would follow the redirect without ever committing them. `agreeTerms` is the
+   * server's precondition for creating the user, which is why it is baked in rather than a parameter.
+   */
+  completeSsoJoinUrl(): string {
+    return buildAuthUrl('/sas/oauth/join/complete?agreeTerms=true');
+  }
+
+  /**
+   * A session-cookie GET against the auth server, for the pages that continue an SSO flow from the
+   * identity parked in the SAS session. No bearer token and no 401 retry: an expired session here is
+   * a 409 with a message for the user, not a credential that can be rotated.
+   */
+  private async sessionGet<T>(path: string): Promise<AuthApiResponse<T>> {
+    const url = buildAuthUrl(path);
     try {
       const res = await fetch(url, {
         method: 'GET',
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
-      let data: (PendingSsoIdentity & { message?: string }) | undefined;
+      let data: (T & { message?: string }) | undefined;
       if ((res.headers.get('content-type') || '').includes('application/json')) {
         try {
           data = await res.json();

@@ -77,6 +77,11 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
         <DeviceSelector
           devices={NO_DEVICES}
           loading
+          // Same lock as `DeviceSelectorSkeleton` and `SchedulePickerSkeleton`:
+          // the search box, the tag filter and the tab strip render for real
+          // here, so without it they take input that the loaded picker throws
+          // away a moment later.
+          disabled
           selectedIds={EMPTY_SELECTION}
           getDeviceKey={() => ''}
           onSelectionChange={noop}

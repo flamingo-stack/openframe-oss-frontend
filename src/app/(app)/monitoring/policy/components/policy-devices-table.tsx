@@ -19,9 +19,11 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { POLICY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
 import { usePolicyDevicesTable } from '../hooks/use-policy-devices-table';
 import type { PolicyDeviceRow } from '../types/policy-device-row';
 import { QuickQueryPanel } from './quick-query-panel';
@@ -55,9 +57,9 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
   const columns = useMemo<ColumnDef<PolicyDeviceRow>[]>(
     () => [
       {
-        id: 'device',
+        id: POLICY_DEVICE_COLUMNS.device.id,
         accessorKey: 'displayName',
-        header: 'DEVICE',
+        header: POLICY_DEVICE_COLUMNS.device.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const r = row.original;
           return (
@@ -74,12 +76,12 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
             </div>
           );
         },
-        meta: { width: 'flex-1 md:w-1/3' },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.device),
       },
       {
-        id: 'organization',
+        id: POLICY_DEVICE_COLUMNS.organization.id,
         accessorKey: 'organization',
-        header: 'CUSTOMER',
+        header: POLICY_DEVICE_COLUMNS.organization.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const r = row.original;
           const fullImageUrl = getFullImageUrl(r.organizationImageUrl, r.organizationImageHash);
@@ -92,23 +94,23 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
             </div>
           );
         },
-        meta: { width: 'w-1/6', hideAt: 'lg' as const },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.organization),
       },
       {
-        id: 'os',
+        id: POLICY_DEVICE_COLUMNS.os.id,
         accessorKey: 'osType',
-        header: 'OS',
+        header: POLICY_DEVICE_COLUMNS.os.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
           <div className="flex shrink-0 items-start gap-2">
             <OSTypeBadge osType={row.original.osType} />
           </div>
         ),
-        meta: { width: 'w-[120px] md:w-1/6', hideAt: 'md' as const },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.os),
       },
       {
-        id: 'compliance',
+        id: POLICY_DEVICE_COLUMNS.compliance.id,
         accessorKey: 'complianceStatus',
-        header: 'STATUS',
+        header: POLICY_DEVICE_COLUMNS.compliance.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const r = row.original;
           if (r.complianceStatus === 'pending') return <Tag label="Pending" variant="warning" />;
@@ -119,10 +121,10 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
             />
           );
         },
-        meta: { width: 'w-[140px]' },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.compliance),
       },
       {
-        id: 'open',
+        id: POLICY_DEVICE_COLUMNS.open.id,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) =>
           row.original.machineId ? (
             <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
@@ -137,10 +139,10 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
             </div>
           ) : null,
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.open),
       },
       {
-        id: 'quick-query',
+        id: POLICY_DEVICE_COLUMNS.quickQuery.id,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const isOpen = quickQueryIds.has(String(row.original.id));
           return (
@@ -166,7 +168,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
         // Fixed column width (matching the header's empty cell) so the flex
         // columns before it stretch identically in the header and the rows;
         // the w-full button inside also keeps Quick Query / Close equal width.
-        meta: { width: 'w-12 md:w-[160px] shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.quickQuery),
       },
     ],
     [quickQueryIds, toggleQuickQuery, hasQuery],
