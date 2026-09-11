@@ -10,7 +10,6 @@
 
 import type { ChatContextEntityType } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
-  BookBookmarkIcon,
   BracketCurlyEllipsisVrIcon,
   BracketCurlyIcon,
   FolderShieldIcon,
@@ -20,6 +19,7 @@ import {
   TimerIcon,
   UserIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
 import { CONTEXT_ENTITY_KIND, CONTEXT_ENTITY_MARKER } from './context-types';
 
 /**
@@ -66,7 +66,7 @@ export const MINGO_CONTEXT_ENTITY_TYPES: ChatContextEntityType[] = [
     type: CONTEXT_ENTITY_KIND.KB_ARTICLE,
     label: 'Knowledge Article',
     marker: CONTEXT_ENTITY_MARKER.KB_ARTICLE,
-    icon: <BookBookmarkIcon size={24} />,
+    icon: <KB_ITEM_ICON.ARTICLE size={24} />,
   },
   {
     type: CONTEXT_ENTITY_KIND.POLICY,
