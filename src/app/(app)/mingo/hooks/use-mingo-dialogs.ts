@@ -5,6 +5,7 @@ import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
+import { MINGO_DIALOGS_QUERY_KEY } from '../queries/query-keys';
 import { GET_MINGO_DIALOGS_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
 import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
@@ -62,7 +63,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const query = useInfiniteQuery({
     // `scope` is part of the key: MY/ALL are different server-side datasets
     // with their own cursors, so they must not share cached pages.
-    queryKey: ['mingo-dialogs', { search, limit, scope }],
+    queryKey: [...MINGO_DIALOGS_QUERY_KEY, { search, limit, scope }],
     queryFn: async ({
       pageParam,
     }): Promise<{ dialogs: DialogNode[]; pageInfo: { hasNextPage: boolean; endCursor?: string } }> => {

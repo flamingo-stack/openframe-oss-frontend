@@ -107,6 +107,10 @@ export interface UseLiveCampaignReturn {
 const CAMPAIGN_LIMIT = 250_000;
 const CAMPAIGN_TIMEOUT_MS = 5 * 60 * 1000;
 
+// ── Query keys ──────────────────────────────────────────────────────
+
+export const FLEET_API_TOKEN_QUERY_KEY = ['fleet-api-token'] as const;
+
 // ── Cached "All Hosts" label lookup ────────────────────────────────
 
 let cachedAllHostsLabelId: number | null = null;
@@ -191,7 +195,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
   const { toast } = useToast();
 
   const { data: fleetApiToken } = useQuery({
-    queryKey: ['fleet-api-token'],
+    queryKey: FLEET_API_TOKEN_QUERY_KEY,
     queryFn: fetchFleetApiToken,
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -220,6 +224,10 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
       timeoutRef.current = null;
     }
     if (wsRef.current) {
+      wsRef.current.onopen = null;
+      wsRef.current.onmessage = null;
+      wsRef.current.onerror = null;
+      wsRef.current.onclose = null;
       wsRef.current.close();
       wsRef.current = null;
     }
@@ -315,7 +323,8 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         }
 
         case 'error': {
-          const errorStr = typeof msg.data === 'string' ? msg.data : 'Unknown campaign error';
+          const errorStr =
+            typeof msg.data === 'string' ? msg.data : msg.data?.error || 'Unknown campaign error';
           toast({
             title: 'Campaign Error',
             description: errorStr,
@@ -378,11 +387,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         setIsRunning(true);
 
         // 4. Open native WebSocket with SockJS framing
-        let wsUrl = buildWsUrl(fleetApiClient.getSockJsUrl());
-        if (isBearerAuthMode()) {
-          const devToken = getAccessTokenSync();
-          if (devToken) wsUrl += `?authorization=${encodeURIComponent(devToken)}`;
-        }
+        const wsUrl = buildWsUrl(fleetApiClient.getSockJsUrl());
 
         setConnectionState('connecting');
         const socket = new WebSocket(wsUrl);
@@ -417,7 +422,13 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
           switch (frame.type) {
             case 'open': {
               setConnectionState('connected');
-              socket.send(encodeSockJsMessage({ type: 'auth', data: { token: fleetApiToken } }));
+              const devToken = isBearerAuthMode() ? getAccessTokenSync() : null;
+              socket.send(
+                encodeSockJsMessage({
+                  type: 'auth',
+                  data: { token: fleetApiToken, ...(devToken ? { authorization: devToken } : {}) },
+                }),
+              );
               socket.send(encodeSockJsMessage({ type: 'select_campaign', data: { campaign_id: campaignId } }));
               break;
             }

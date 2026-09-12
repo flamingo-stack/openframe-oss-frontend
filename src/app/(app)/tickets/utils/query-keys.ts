@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { DIALOGS_BASE_KEY, TICKETS_BASE_KEY } from '@/hooks/admin-query-keys';
 
 /**
  * Query keys for tickets/dialogs React Query hooks
@@ -21,7 +22,7 @@ export interface DialogsQueryParams {
 
 export const dialogsQueryKeys = {
   // Base key for all dialogs queries
-  all: ['dialogs'] as const,
+  all: DIALOGS_BASE_KEY,
 
   // All list queries (paginated results)
   lists: () => [...dialogsQueryKeys.all, 'list'] as const,
@@ -81,7 +82,7 @@ export const invalidateAllDialogs = (queryClient: QueryClient) => {
  * Query keys for tickets React Query hooks
  */
 export const ticketsQueryKeys = {
-  all: ['tickets'] as const,
+  all: TICKETS_BASE_KEY,
   tags: () => [...ticketsQueryKeys.all, 'tags'] as const,
   detail: (id: string) => [...ticketsQueryKeys.all, 'detail', id] as const,
   // Edit-form ticket fetch. Distinct from `detail` (which caches a Dialog) so the

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { handleApiError } from '@/lib/handle-api-error';
+import { usersQueryKeys } from './admin-query-keys';
 
 // ============ Types ============
 
@@ -44,14 +45,6 @@ export type PagedUsersResponse = {
 };
 
 const EMPTY_USERS: UserRecord[] = [];
-
-// ============ Query Keys ============
-
-export const usersQueryKeys = {
-  all: ['users'] as const,
-  list: (page: number, size: number) => [...usersQueryKeys.all, 'list', { page, size }] as const,
-  detail: (id: string) => [...usersQueryKeys.all, 'detail', id] as const,
-};
 
 // ============ API Functions ============
 

@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { adminQueryKeys } from './admin-query-keys';
 
 export type ApiKeyRecord = {
   id: string;
@@ -17,45 +19,61 @@ export type ApiKeyRecord = {
   failedRequests: number;
 };
 
+async function fetchApiKeysRequest(): Promise<ApiKeyRecord[]> {
+  const res = await apiClient.get<ApiKeyRecord[]>('api/api-keys');
+  if (!res.ok || !Array.isArray(res.data)) {
+    throw new Error(res.error || `Failed to load API keys (${res.status})`);
+  }
+  return res.data;
+}
+
 export function useApiKeys() {
-  const [items, setItems] = useState<ApiKeyRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: adminQueryKeys.apiKeys(),
+    queryFn: fetchApiKeysRequest,
+    enabled: false,
+  });
+
+  const invalidate = useCallback(() => {
+    return queryClient.invalidateQueries({ queryKey: adminQueryKeys.apiKeys() });
+  }, [queryClient]);
 
   const fetchApiKeys = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await apiClient.get<ApiKeyRecord[]>('api/api-keys');
-      if (!res.ok || !Array.isArray(res.data)) {
-        throw new Error(res.error || `Failed to load API keys (${res.status})`);
+    const result = await queryClient.fetchQuery({
+      queryKey: adminQueryKeys.apiKeys(),
+      queryFn: fetchApiKeysRequest,
+    });
+    return result;
+  }, [queryClient]);
+
+  const createApiKeyMutation = useMutation({
+    mutationFn: async (data: { name: string; description?: string; expiresAt?: string | null }) => {
+      const payload = {
+        name: data.name,
+        description: data.description || undefined,
+        expiresAt: data.expiresAt ?? null,
+      };
+      const res = await apiClient.post<{ apiKey: ApiKeyRecord; fullKey: string }>('api/api-keys', payload);
+      if (!res.ok || !res.data) {
+        throw new Error(res.error || `Failed to create API key (${res.status})`);
       }
-      setItems(res.data);
       return res.data;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to load API keys';
-      setError(msg);
-      throw e;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    onSuccess: () => {
+      return invalidate();
+    },
+  });
 
-  const createApiKey = useCallback(async (data: { name: string; description?: string; expiresAt?: string | null }) => {
-    const payload = {
-      name: data.name,
-      description: data.description || undefined,
-      expiresAt: data.expiresAt ?? null,
-    };
-    const res = await apiClient.post<{ apiKey: ApiKeyRecord; fullKey: string }>('api/api-keys', payload);
-    if (!res.ok || !res.data) {
-      throw new Error(res.error || `Failed to create API key (${res.status})`);
-    }
-    return res.data;
-  }, []);
-
-  const updateApiKey = useCallback(
-    async (id: string, data: { name: string; description?: string; expiresAt?: string | null }) => {
+  const updateApiKeyMutation = useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: { name: string; description?: string; expiresAt?: string | null };
+    }) => {
       const payload = {
         name: data.name,
         description: data.description || undefined,
@@ -67,26 +85,71 @@ export function useApiKeys() {
       }
       return res.data;
     },
-    [],
+    onSuccess: () => {
+      return invalidate();
+    },
+  });
+
+  const regenerateApiKeyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.post<{ apiKey: ApiKeyRecord; fullKey: string }>(
+        `api/api-keys/${encodeURIComponent(id)}/regenerate`,
+      );
+      if (!res.ok || !res.data) {
+        throw new Error(res.error || `Failed to regenerate API key (${res.status})`);
+      }
+      return res.data;
+    },
+    onSuccess: () => {
+      return invalidate();
+    },
+  });
+
+  const setApiKeyEnabledMutation = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const res = await apiClient.put<ApiKeyRecord>(`api/api-keys/${encodeURIComponent(id)}`, { enabled });
+      if (!res.ok || !res.data) {
+        throw new Error(res.error || `Failed to ${enabled ? 'enable' : 'disable'} API key (${res.status})`);
+      }
+      return res.data;
+    },
+    onMutate: async ({ id }) => {
+      await queryClient.cancelQueries({ queryKey: adminQueryKeys.apiKeys() });
+    },
+    onSuccess: () => {
+      return invalidate();
+    },
+  });
+
+  const createApiKey = useCallback(
+    (data: { name: string; description?: string; expiresAt?: string | null }) => createApiKeyMutation.mutateAsync(data),
+    [createApiKeyMutation],
   );
 
-  const regenerateApiKey = useCallback(async (id: string) => {
-    const res = await apiClient.post<{ apiKey: ApiKeyRecord; fullKey: string }>(
-      `api/api-keys/${encodeURIComponent(id)}/regenerate`,
-    );
-    if (!res.ok || !res.data) {
-      throw new Error(res.error || `Failed to regenerate API key (${res.status})`);
-    }
-    return res.data;
-  }, []);
+  const updateApiKey = useCallback(
+    (id: string, data: { name: string; description?: string; expiresAt?: string | null }) =>
+      updateApiKeyMutation.mutateAsync({ id, data }),
+    [updateApiKeyMutation],
+  );
 
-  const setApiKeyEnabled = useCallback(async (id: string, enabled: boolean) => {
-    const res = await apiClient.put<ApiKeyRecord>(`api/api-keys/${encodeURIComponent(id)}`, { enabled });
-    if (!res.ok || !res.data) {
-      throw new Error(res.error || `Failed to ${enabled ? 'enable' : 'disable'} API key (${res.status})`);
-    }
-    return res.data;
-  }, []);
+  const regenerateApiKey = useCallback(
+    (id: string) => regenerateApiKeyMutation.mutateAsync(id),
+    [regenerateApiKeyMutation],
+  );
 
-  return { items, isLoading, error, fetchApiKeys, createApiKey, updateApiKey, regenerateApiKey, setApiKeyEnabled };
+  const setApiKeyEnabled = useCallback(
+    (id: string, enabled: boolean) => setApiKeyEnabledMutation.mutateAsync({ id, enabled }),
+    [setApiKeyEnabledMutation],
+  );
+
+  return {
+    items: query.data ?? [],
+    isLoading: query.isFetching,
+    error: query.error instanceof Error ? query.error.message : null,
+    fetchApiKeys,
+    createApiKey,
+    updateApiKey,
+    regenerateApiKey,
+    setApiKeyEnabled,
+  };
 }

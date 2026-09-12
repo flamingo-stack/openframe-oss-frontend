@@ -26,9 +26,9 @@ import { type CustomerDetailTab, type CustomerEditTab, routes } from '@/lib/rout
 import { runtimeEnv } from '@/lib/runtime-config';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
+import { customerDetailsQueryKeys, customersQueryKeys } from '../hooks/admin-query-keys';
 import { useCustomerArchive } from '../hooks/use-customer-archive';
-import { customerDetailsQueryKeys, useCustomerDetails } from '../hooks/use-customer-details';
-import { customersQueryKeys } from '../hooks/use-customers';
+import { useCustomerDetails } from '../hooks/use-customer-details';
 import { ArchiveCustomerModal } from './archive-customer-modal';
 import { CustomerDetailsSkeleton } from './customer-details-skeleton';
 import {
@@ -106,6 +106,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [canArchive, setCanArchive] = useState(false);
+  const [archiveCheckFailed, setArchiveCheckFailed] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [isPending, setIsPending] = useState(false);
 
@@ -119,14 +120,20 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
     try {
       const result = await checkCanArchive(organization.organizationId);
       setCanArchive(result);
+      setArchiveCheckFailed(false);
       setArchiveModalOpen(true);
     } catch {
       setCanArchive(false);
-      setArchiveModalOpen(true);
+      setArchiveCheckFailed(true);
+      toast({
+        title: 'Unable to verify archive eligibility',
+        description: 'We could not confirm whether this customer can be archived. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsChecking(false);
     }
-  }, [organization, checkCanArchive]);
+  }, [organization, checkCanArchive, toast]);
 
   const handleArchiveConfirm = useCallback(async () => {
     if (!organization) return;
@@ -237,13 +244,15 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
         </TabNavigation>
       </PageLayout>
 
-      <ArchiveCustomerModal
-        open={archiveModalOpen}
-        onOpenChange={setArchiveModalOpen}
-        canArchive={canArchive}
-        onConfirm={handleArchiveConfirm}
-        isPending={isPending}
-      />
+      {!archiveCheckFailed && (
+        <ArchiveCustomerModal
+          open={archiveModalOpen}
+          onOpenChange={setArchiveModalOpen}
+          canArchive={canArchive}
+          onConfirm={handleArchiveConfirm}
+          isPending={isPending}
+        />
+      )}
 
       <RestoreCustomerModal
         open={restoreModalOpen}

@@ -3,6 +3,7 @@
 import type { ApprovalLevel } from '@flamingo-stack/openframe-frontend-core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { adminQueryKeys } from '../../hooks/admin-query-keys';
 import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from '../../hooks/chat-graphql';
 import type { PolicyRule } from './guardrails.types';
 
@@ -12,12 +13,14 @@ import type { PolicyRule } from './guardrails.types';
  * The query returns the EFFECTIVE view: when `inheritDefault` is true the
  * rules are the tenant defaults; otherwise the org's own materialized policy.
  * Tenant-level templates stay on the REST hooks (`use-guardrails-policies.ts`).
+ *
+ * NOTE: this is a deliberate, reviewed exception to the react-relay mandate
+ * for new GraphQL call sites (OPENFRAM-002-2) — the ai-agent schema is not
+ * part of the Relay-managed `schema.graphql`, so react-query + raw POST is
+ * used instead, consistent with the tenant-level REST hooks in this feature.
  */
 
-export const organizationGuardrailsQueryKeys = {
-  all: ['organization-guardrails'] as const,
-  detail: (organizationId: string) => [...organizationGuardrailsQueryKeys.all, { organizationId }] as const,
-};
+export const organizationGuardrailsQueryKeys = adminQueryKeys.organizationGuardrails;
 
 const GUARDRAIL_RULE_FIELDS = `
   tool

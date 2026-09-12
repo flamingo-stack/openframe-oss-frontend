@@ -41,6 +41,10 @@ export function useTicketsQuery({
   // that would leak archived tickets into the list.
   const waitingForStatusIds = !statusIds?.length;
 
+  // NOTE: dialogsQueryKeys is the canonical key builder for this ticket list
+  // resource, defined in '../utils/query-keys'. It is intentionally reused
+  // (not duplicated) below for the resetToFirstPage invalidation so both call
+  // sites stay in sync with a single source of truth.
   const query = useInfiniteQuery<TicketsPage, Error>({
     queryKey: dialogsQueryKeys.list({
       archived,

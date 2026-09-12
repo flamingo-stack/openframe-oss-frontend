@@ -6,6 +6,11 @@ import { useCallback, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { CHAT_TYPE } from '../../tickets/constants';
 
+// TODO(MULTIPLA-002-2): source this from admin-query-keys.ts once that module
+// exports a key for mingo dialogs; kept as a single named constant here so all
+// invalidations in this file stay in sync with each other.
+const MINGO_DIALOGS_QUERY_KEY = ['mingo-dialogs'] as const;
+
 interface CreateDialogResponse {
   id: string;
   agentType: string;
@@ -32,6 +37,7 @@ export function useMingoDialog() {
   const queryClient = useQueryClient();
   const [currentDialogId, setCurrentDialogId] = useState<string | null>(null);
   const dialogIdRef = useRef<string | null>(null);
+  const pendingCreateRef = useRef<Promise<string | null> | null>(null);
 
   const getActiveDialogId = useCallback(
     (preferredDialogId?: string | null) => {
@@ -59,7 +65,7 @@ export function useMingoDialog() {
     onSuccess: data => {
       setCurrentDialogId(data.id);
       dialogIdRef.current = data.id;
-      queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
+      queryClient.invalidateQueries({ queryKey: MINGO_DIALOGS_QUERY_KEY });
     },
     onError: error => {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create new chat';
@@ -104,17 +110,24 @@ export function useMingoDialog() {
   });
 
   const createDialog = useCallback(async (): Promise<string | null> => {
-    if (createDialogMutation.isPending) {
-      return currentDialogId;
+    if (pendingCreateRef.current) {
+      return pendingCreateRef.current;
     }
 
-    try {
-      const result = await createDialogMutation.mutateAsync();
-      return result.id;
-    } catch (_error) {
-      return null;
-    }
-  }, [createDialogMutation, currentDialogId]);
+    const promise = (async () => {
+      try {
+        const result = await createDialogMutation.mutateAsync();
+        return result.id;
+      } catch (_error) {
+        return null;
+      } finally {
+        pendingCreateRef.current = null;
+      }
+    })();
+
+    pendingCreateRef.current = promise;
+    return promise;
+  }, [createDialogMutation]);
 
   const sendMessage = useCallback(
     async (content: string, selectedDialogId?: string | null): Promise<boolean> => {
@@ -150,6 +163,7 @@ export function useMingoDialog() {
   const resetDialog = useCallback(() => {
     setCurrentDialogId(null);
     dialogIdRef.current = null;
+    pendingCreateRef.current = null;
     createDialogMutation.reset();
     sendMessageMutation.reset();
   }, [createDialogMutation, sendMessageMutation]);

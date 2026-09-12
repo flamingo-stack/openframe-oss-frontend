@@ -6,6 +6,7 @@ import { fleetApiClient } from '@/lib/fleet-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
 import { queryState } from '@/lib/query-state';
 import type { Policy } from '../types/policies.types';
+import { policiesQueryKeys } from './admin-query-keys';
 
 // ============ Types ============
 
@@ -32,16 +33,6 @@ interface UpdatePolicyData {
 
 const EMPTY_POLICIES: Policy[] = [];
 
-// ============ Query Keys ============
-
-export const policiesQueryKeys = {
-  all: ['policies'] as const,
-  list: (params?: ListPoliciesParams) => [...policiesQueryKeys.all, 'list', params] as const,
-  // `null` is accepted so a hook whose id is not known yet can still build a key;
-  // that query is skipped, so the key it produces is never used to fetch anything.
-  detail: (id: number | null) => [...policiesQueryKeys.all, 'detail', id] as const,
-};
-
 // ============ API Functions ============
 
 async function fetchPolicies(params?: ListPoliciesParams): Promise<Policy[]> {
@@ -50,14 +41,6 @@ async function fetchPolicies(params?: ListPoliciesParams): Promise<Policy[]> {
     throw new Error(res.error || `Failed to load policies (${res.status})`);
   }
   return (res.data as { policies: Policy[] })?.policies || [];
-}
-
-async function _fetchPolicy(id: number): Promise<Policy> {
-  const res = await fleetApiClient.getPolicy(id);
-  if (!res.ok || !res.data) {
-    throw new Error(res.error || `Failed to load policy (${res.status})`);
-  }
-  return res.data.policy;
 }
 
 async function createPolicyApi(data: CreatePolicyData): Promise<Policy> {

@@ -19,6 +19,7 @@ import type { ApprovalStatus } from '../../tickets/constants';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, MESSAGE_TYPE } from '../../tickets/constants';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
 import { GET_MINGO_DIALOG_QUERY, getMingoDialogMessagesQuery } from '../queries/dialogs-queries';
+import { MINGO_QUERY_KEYS } from '../query-keys';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage, MessagesResponse } from '../types';
@@ -172,7 +173,7 @@ export function useMingoDialogSelection() {
   const suspiciousBusyRef = useRef(false);
 
   const dialogQuery = useQuery({
-    queryKey: ['mingo-dialog', activeDialogId],
+    queryKey: MINGO_QUERY_KEYS.dialog(activeDialogId),
     queryFn: async () => {
       if (!activeDialogId) return null;
 
@@ -211,7 +212,7 @@ export function useMingoDialogSelection() {
   });
 
   const messagesQuery = useInfiniteQuery({
-    queryKey: ['mingo-dialog-messages', activeDialogId],
+    queryKey: MINGO_QUERY_KEYS.dialogMessages(activeDialogId),
     queryFn: async ({ pageParam }: { pageParam: string | undefined }): Promise<MessagePage> => {
       if (!activeDialogId) return { messages: [], pageInfo: { hasNextPage: false, hasPreviousPage: false } };
 
@@ -258,7 +259,7 @@ export function useMingoDialogSelection() {
     }
     if (dialogTitle && !titleSeenRef.current.hadTitle) {
       titleSeenRef.current.hadTitle = true;
-      void queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
+      void queryClient.invalidateQueries({ queryKey: MINGO_QUERY_KEYS.dialogsRoot });
     }
   }, [activeDialogId, dialogTitle, queryClient]);
 

@@ -132,6 +132,13 @@ export function useDeviceOptions(organizationId?: string, search = '') {
 
 // --- Users / Assignees (REST via /api/users) ---
 
+/**
+ * Named query key for assignee options, kept alongside the fetcher so any
+ * future `invalidateQueries` call can reference the same constant instead of
+ * re-typing the literal.
+ */
+const ASSIGNEE_OPTIONS_QUERY_KEY = ['ticket-options', 'assignees'] as const;
+
 async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
   const response = await apiClient.get<{ items?: UserOption[] }>('/api/users?page=0&size=100');
   if (!response.ok) throw new Error(response.error || 'Failed to fetch users');
@@ -151,7 +158,7 @@ async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
 
 export function useAssigneeOptions(enabled = true) {
   const query = useQuery({
-    queryKey: ['ticket-options', 'assignees'],
+    queryKey: ASSIGNEE_OPTIONS_QUERY_KEY,
     queryFn: fetchAssigneeOptions,
     enabled,
   });

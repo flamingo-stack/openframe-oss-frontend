@@ -5,11 +5,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
 import { API_ENDPOINTS } from '../constants';
+import { dialogsQueryKeys, ticketsQueryKeys } from '../hooks/admin-query-keys';
 import { TAKE_OVER_TICKET_MUTATION } from '../queries/ticket-queries';
 import type { TicketPayload } from '../types/ticket.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
-import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 
 export interface TakeOverTicketInput {
   ticketId: string;
@@ -36,7 +36,7 @@ export function useTakeOverTicket() {
 
       const payload = extractGraphQlData(response).takeOverTicket;
       if (payload.userErrors?.length) {
-        throw new Error(payload.userErrors[0].message);
+        throw new Error(payload.userErrors.map(e => e.message).join(' '));
       }
       return payload.ticket;
     },
