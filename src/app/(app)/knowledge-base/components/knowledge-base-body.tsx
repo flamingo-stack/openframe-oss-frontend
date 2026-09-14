@@ -79,7 +79,7 @@ function buildActions(
   onNewFolder: () => void,
   emphasizeAddArticle = false,
 ): PageActionButton[] {
-  const newArticleHref = parentId ? `/knowledge-base/new?folderId=${parentId}` : '/knowledge-base/new';
+  const newArticleHref = parentId ? routes.knowledgeBase.new(parentId) : routes.knowledgeBase.new();
   const actions: PageActionButton[] = [
     {
       label: 'New Folder',
