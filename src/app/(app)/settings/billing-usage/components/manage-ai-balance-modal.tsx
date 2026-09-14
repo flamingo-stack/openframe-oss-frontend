@@ -1,9 +1,11 @@
 'use client';
 
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, CheckboxBlock, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useId } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useAiTopUp } from '../hooks/use-ai-top-up';
 import { usePurchaseTokens } from '../hooks/use-purchase-tokens';
+import { AUTO_TOP_UP, AUTO_TOP_UP_DESCRIPTION } from '../lib/auto-top-up';
 import { AI_BALANCE_EXPLANATION, AiTopUpFields } from './ai-top-up-fields';
 
 interface ManageAiBalanceModalProps {
@@ -16,11 +18,11 @@ interface ManageAiBalanceModalProps {
 /**
  * Buying AI tokens from the billing page.
  *
- * One-time top-ups only. The mockup also offers "Enable Auto Top-up" — refill
- * the balance with the chosen amount whenever it runs out — but the API has
- * nothing to store that choice in: `purchaseTokens` is a single purchase, and no
- * field on the subscription says whether to repeat it. The checkbox is not drawn
- * until it can do something.
+ * The mockup's "Enable Auto Top-up" — refill the balance with the chosen amount
+ * whenever it runs out — is drawn but locked: the API has nothing to store that
+ * choice in yet (see `auto-top-up.ts`), so the checkbox stays off and says so,
+ * and the amounts below it are a one-time purchase. Once it can be switched on,
+ * the same amounts become the refill amount, as the mockup relabels them.
  *
  * The purchase raises an invoice rather than charging on the spot, so the
  * button reads "Proceed to Payment" rather than the mockup's "Save": nothing is
@@ -37,6 +39,7 @@ export function ManageAiBalanceModal({ isOpen, onClose, tokenPrice }: ManageAiBa
 function ManageAiBalanceModalBody({ onClose, tokenPrice }: Omit<ManageAiBalanceModalProps, 'isOpen'>) {
   const topUp = useAiTopUp({ tokenPrice });
   const purchase = usePurchaseTokens();
+  const autoTopUpId = useId();
 
   const handleSubmit = () => {
     if (topUp.amountUsd == null) return;
@@ -69,7 +72,22 @@ function ManageAiBalanceModalBody({ onClose, tokenPrice }: Omit<ManageAiBalanceM
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <p className="text-ods-text-primary text-h4">{AI_BALANCE_EXPLANATION}</p>
-        <AiTopUpFields topUp={topUp} label="One-time top up" disabled={purchase.isPending} />
+        {/* Controlled and never toggled: the value is the backend's answer, and
+            today the backend has none. The tag says why the box will not tick,
+            so a locked control does not read as a broken one. */}
+        <CheckboxBlock
+          id={autoTopUpId}
+          label="Enable Auto Top-up"
+          description={AUTO_TOP_UP_DESCRIPTION}
+          checked={AUTO_TOP_UP.enabled}
+          disabled={!AUTO_TOP_UP.available || purchase.isPending}
+          trailing={!AUTO_TOP_UP.available && <Tag as="span" variant="grey" label="Coming soon" />}
+        />
+        <AiTopUpFields
+          topUp={topUp}
+          label={AUTO_TOP_UP.enabled ? 'Auto Top Up Amount' : 'One-time top up'}
+          disabled={purchase.isPending}
+        />
       </div>
     </SimpleModal>
   );

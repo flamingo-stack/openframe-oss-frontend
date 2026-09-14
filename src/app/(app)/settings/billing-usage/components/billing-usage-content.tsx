@@ -3,6 +3,7 @@
 import {
   AlertTriangleIcon,
   ExternalLinkIcon,
+  Refresh02VrIcon,
   TagPercentIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type ActionsMenuGroup, Button, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -21,6 +22,7 @@ import { type AiAlert, useBillingSummary } from '../hooks/use-billing-summary';
 import { useCancelSubscription } from '../hooks/use-cancel-subscription';
 import { useCancellationImpact } from '../hooks/use-cancellation-impact';
 import { useResumeSubscription } from '../hooks/use-resume-subscription';
+import { AUTO_TOP_UP } from '../lib/auto-top-up';
 import { formatCompactCount, formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
 import { openExternalTab } from '../lib/stripe-window';
 import { ModelTokenRatesPopover } from '../subscription/components/model-token-rates';
@@ -390,13 +392,26 @@ export function BillingUsageContent() {
             <UsageStatCard
               title="Paid AI Tokens"
               tone={ai.paidTone}
-              value={formatCompactCount(ai.paid)}
+              value={
+                <>
+                  {formatCompactCount(ai.paid)}
+                  {/* The mockup's mark for a balance that refills itself; the
+                      popover beside it spells the same state out in words. */}
+                  {AUTO_TOP_UP.enabled && (
+                    <Refresh02VrIcon
+                      role="img"
+                      aria-label="Auto top-up enabled"
+                      className="ml-[var(--spacing-system-xsf)] inline-block size-6 align-middle text-ods-success"
+                    />
+                  )}
+                </>
+              }
               caption={
                 <>
                   <StatEmphasis>{formatCurrency(ai.paidUsd)}</StatEmphasis> balance
                 </>
               }
-              trailing={<ModelTokenRatesPopover />}
+              trailing={<ModelTokenRatesPopover autoTopUp={AUTO_TOP_UP} />}
             />
           </>
         )}

@@ -34,8 +34,9 @@ interface AiTokenBalanceCardProps {
  * charged on the same invoice as the devices. So the card writes nothing of its
  * own — the page's "Proceed to Payment" submits the whole form at once.
  *
- * The mockup's "Enable Auto Top-up" is not drawn here either — see
- * `ManageAiBalanceModal` for why.
+ * No "Enable Auto Top-up" here: the mockup keeps that in Manage AI Balance, and
+ * there is no balance yet on the paywall to have that state (see
+ * `auto-top-up.ts`).
  */
 export function AiTokenBalanceCard({ loading, deviceMode, topUp }: AiTokenBalanceCardProps) {
   // A prepaid year is a commitment; pay-as-you-go is not, and it grants less.
