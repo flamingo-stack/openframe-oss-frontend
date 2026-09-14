@@ -10,8 +10,10 @@ const EMPTY_LABELS: FleetLabel[] = [];
 
 // ============ Query Keys ============
 
+const LABELS_BASE_KEY = 'labels' as const;
+
 export const labelsQueryKeys = {
-  all: ['labels'] as const,
+  all: [LABELS_BASE_KEY] as const,
   list: () => [...labelsQueryKeys.all, 'list'] as const,
 };
 
