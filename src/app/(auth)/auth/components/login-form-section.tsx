@@ -4,6 +4,7 @@ import { type AuthSsoProvider, LoginForm } from '@flamingo-stack/openframe-front
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useRef, useState } from 'react';
 import { EMAIL_REGEX, INVALID_EMAIL_ERROR } from '@/app/(auth)/auth/constants/registration-validation';
+import { useLoginOnlyMobileShell } from '@/app/hooks/use-login-only-mobile-shell';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 
 /** Result of a tenant discovery for one email, mapped to form provider ids. */
@@ -28,6 +29,9 @@ interface LoginSectionProps {
 type DiscoveryStatus = 'idle' | 'checking' | 'found' | 'not-found' | 'error';
 
 const DISCOVERY_DEBOUNCE_MS = 400;
+
+const NO_ACCOUNT_INVITATION_NOTICE =
+  "No OpenFrame account is linked to this email. Accounts are created by your organization's administrator. Ask them for an invitation.";
 
 /**
  * Wires the shared LoginForm to the login flow. Single-screen design: the external provider
@@ -92,16 +96,23 @@ export function LoginSection({ onDiscover, onSso, allProviders, isLoading }: Log
     };
   }, [debouncedEmail]);
 
+  const loginOnly = useLoginOnlyMobileShell();
+
   const showStatus = isEmailValid && isResultCurrent;
-  const emailStatus = !showStatus
-    ? undefined
-    : status === 'checking'
-      ? { message: 'Checking your account…', variant: 'muted' as const }
-      : status === 'not-found'
-        ? { message: 'No account found for this email. Please sign up first.', variant: 'error' as const }
-        : status === 'error'
-          ? { message: 'Failed to check your account. Please try again.', variant: 'error' as const }
-          : undefined;
+  // A login-only mobile build cannot send anyone to sign up, so an unknown address is told how an
+  // account comes to exist there instead. It takes the notice row under the field: the field's own
+  // message line is a single truncated line, and cut this down to "Accounts are…" on a phone.
+  const showInvitationNotice = loginOnly && showStatus && status === 'not-found';
+  const emailStatus =
+    !showStatus || showInvitationNotice
+      ? undefined
+      : status === 'checking'
+        ? { message: 'Checking your account…', variant: 'muted' as const }
+        : status === 'not-found'
+          ? { message: 'No account found for this email. Please sign up first.', variant: 'error' as const }
+          : status === 'error'
+            ? { message: 'Failed to check your account. Please try again.', variant: 'error' as const }
+            : undefined;
 
   const unlocked = showStatus && status === 'found';
 
@@ -113,7 +124,9 @@ export function LoginSection({ onDiscover, onSso, allProviders, isLoading }: Log
   // domain has none") that the form renders as a notice, and it must not be shown before asking.
   const customSsoProviders = unlocked
     ? enabledProviders.filter(provider => !externalProviders.includes(provider))
-    : undefined;
+    : showInvitationNotice
+      ? []
+      : undefined;
 
   return (
     <LoginForm
@@ -129,6 +142,7 @@ export function LoginSection({ onDiscover, onSso, allProviders, isLoading }: Log
       // this leaves, and it surfaces at the gateway rather than as a locked button.
       ssoDisabled={false}
       customSsoProviders={customSsoProviders}
+      noCustomSsoLabel={showInvitationNotice ? NO_ACCOUNT_INVITATION_NOTICE : undefined}
       dividerLabel="or enter email to continue with custom SSO"
       emailStatus={emailStatus}
       errors={{
