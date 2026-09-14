@@ -47,9 +47,9 @@ export function MeetFaePreview({
   const { data: tenantInfo, isLoading } = useTenantInfo();
   const orgName = tenantInfo?.name || mspName;
   const orgWebsite = tenantInfo?.website || mspWebsite;
-  const orgLogoUrl =
-    getFullImageUrl(tenantInfo?.image?.imageUrl, tenantInfo?.image?.hash) ??
-    '/assets/ai-settings/chat-preview-logo.svg';
+  const orgLogoUrl = tenantInfo?.image?.imageUrl
+    ? getFullImageUrl(tenantInfo.image.imageUrl, tenantInfo.image.hash)
+    : '/assets/ai-settings/chat-preview-logo.svg';
 
   const isThumbnail = variant === 'thumbnail';
 
