@@ -343,9 +343,13 @@ export class TicketService implements TicketServiceInterface {
   async reorderTicket(params: ReorderTicketParams): Promise<DialogStatus> {
     const input: Record<string, unknown> = {
       id: params.id,
-      afterTicketId: params.afterTicketId,
-      beforeTicketId: params.beforeTicketId,
     };
+    if (params.afterTicketId !== undefined) {
+      input.afterTicketId = params.afterTicketId;
+    }
+    if (params.beforeTicketId !== undefined) {
+      input.beforeTicketId = params.beforeTicketId;
+    }
     if (params.statusId) {
       input.statusId = params.statusId;
     }
@@ -409,8 +413,7 @@ export class TicketService implements TicketServiceInterface {
     const response = await apiClient.get<ChunkData[]>(url);
 
     if (!response.ok) {
-      console.error(`Failed to fetch ${chatType} chunks:`, response.status);
-      return [];
+      throw new Error(response.error || `Failed to fetch ${chatType} chunks (${response.status})`);
     }
 
     return response.data || [];
