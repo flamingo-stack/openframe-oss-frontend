@@ -26,7 +26,7 @@ import { RegistrationAttributionCapture } from './components/registration-attrib
 import { TokenFreshnessWatcher } from './components/token-freshness-watcher';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://openframe.ai'),
+  metadataBase: new URL(runtimeEnv.appUrl()),
 
   title: {
     default: 'OpenFrame - AI-Driven Open-Source OS for MSPs',
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: process.env.NEXT_PUBLIC_APP_URL || 'https://openframe.ai',
+    url: runtimeEnv.appUrl(),
     siteName: 'OpenFrame',
     title: 'OpenFrame - AI-Driven Open-Source OS for MSPs',
     description:
