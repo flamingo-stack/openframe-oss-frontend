@@ -1,7 +1,6 @@
 'use client';
 
-import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { PlusCircle } from 'lucide-react';
+import { Button, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core';
 import { useCallback } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { tagsEditor_keySuggestions$key as KeySuggestionsFragmentKey } from '@/__generated__/tagsEditor_keySuggestions.graphql';
@@ -84,7 +83,7 @@ export function TagsEditor({ tags, onTagsChange, addLabel = 'Add Tag' }: TagsEdi
           size="small"
           className="self-start text-ods-text-primary"
           onClick={addTag}
-          leftIcon={<PlusCircle className="size-6" />}
+          leftIcon={<PlusCircleIcon className="size-6" />}
         >
           {addLabel}
         </Button>
