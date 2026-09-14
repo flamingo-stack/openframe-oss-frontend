@@ -27,11 +27,11 @@ export function detectDeployment(): DeploymentInfo {
   // Development patterns
   const devPatterns = ['localhost', '127.0.0.1', '0.0.0.0', '.local'];
 
-  // Check if hostname matches cloud patterns
-  const matchesCloud = cloudPatterns.some(pattern => hostname.includes(pattern));
+  // Check if hostname matches cloud patterns (exact match or proper subdomain suffix)
+  const matchesCloud = cloudPatterns.some(pattern => hostname === pattern || hostname.endsWith('.' + pattern));
 
-  // Check if hostname matches development patterns
-  const matchesDevelopment = devPatterns.some(pattern => hostname.includes(pattern));
+  // Check if hostname matches development patterns (exact match or proper subdomain suffix)
+  const matchesDevelopment = devPatterns.some(pattern => hostname === pattern || hostname.endsWith('.' + pattern) || hostname.endsWith(pattern));
 
   // Determine type
   let type: DeploymentType;
@@ -82,3 +82,4 @@ export function getDeploymentType(): DeploymentType {
 }
 
 export type { DeploymentInfo };
+
