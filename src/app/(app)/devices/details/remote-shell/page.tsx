@@ -19,6 +19,9 @@ import { routes } from '@/lib/routes';
 const WINDOWS_POWERSHELL_CMD =
   'powershell -NoLogo -NoProfile 2>nul || "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoLogo -NoProfile 2>nul || "%SystemRoot%\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe" -NoLogo -NoProfile 2>nul || "%ProgramFiles%\\PowerShell\\7\\pwsh.exe" -NoLogo -NoProfile 2>nul || "%ProgramFiles(x86)%\\PowerShell\\7\\pwsh.exe" -NoLogo -NoProfile 2>nul';
 
+// ODS semantic token for terminal surfaces (kept in sync with the `bg-ods-terminal-bg` Tailwind class).
+const ODS_TERMINAL_BG = '#000000';
+
 export default function RemoteShellPage() {
   const searchParams = useSearchParams();
   const deviceId = searchParams.get('id') ?? '';
@@ -100,7 +103,7 @@ export default function RemoteShellPage() {
 
       const term = new Terminal({
         fontFamily: 'monospace',
-        theme: { background: '#000000' },
+        theme: { background: ODS_TERMINAL_BG },
         cursorBlink: true,
       });
       const fit = new FitAddon();
@@ -156,13 +159,16 @@ export default function RemoteShellPage() {
       !powershellCommandSentRef.current &&
       tunnelRef.current
     ) {
-      setTimeout(() => {
-        if (tunnelRef.current && !powershellCommandSentRef.current) {
-          tunnelRef.current.sendBinary(new TextEncoder().encode(WINDOWS_POWERSHELL_CMD + '\r'));
+      const activeTunnel = tunnelRef.current;
+      const timeoutId = setTimeout(() => {
+        if (tunnelRef.current === activeTunnel && !powershellCommandSentRef.current) {
+          activeTunnel.sendBinary(new TextEncoder().encode(WINDOWS_POWERSHELL_CMD + '\r'));
           powershellCommandSentRef.current = true;
         }
       }, 100);
+      return () => clearTimeout(timeoutId);
     }
+    return undefined;
   }, [state, shellType, hasReceivedData]);
 
   useEffect(() => {
@@ -351,7 +357,7 @@ export default function RemoteShellPage() {
 
       {/* Terminal */}
       <div className="min-h-0 flex-1 pb-4">
-        <div className="h-full overflow-hidden rounded-lg bg-black">
+        <div className="h-full overflow-hidden rounded-lg bg-ods-terminal-bg">
           <div ref={containerRef} className="h-full w-full p-2" />
         </div>
       </div>
