@@ -6,6 +6,7 @@ import {
   ClockHistoryIcon,
   FileContentIcon,
   MonitorIcon,
+  MonitorShieldIcon,
   ShieldCheckIcon,
   TagIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -15,6 +16,7 @@ import type { CustomerDetailTab } from '@/lib/routes';
 import type { CustomerDetails } from '../../hooks/use-customer-details';
 import { CustomerCustomAiAssistantTab } from './customer-custom-ai-assistant-tab';
 import { CustomerDetailsTab } from './customer-details-tab';
+import { CustomerDeviceGuardrailsTab } from './customer-device-guardrails-tab';
 import { CustomerDevicesTab } from './customer-devices-tab';
 import { CustomerGuardrailsTab } from './customer-guardrails-tab';
 import { CustomerLogsTab } from './customer-logs-tab';
@@ -59,10 +61,15 @@ function GuardrailsTab({ organization }: CustomerTabProps) {
   return <CustomerGuardrailsTab organizationId={organization.organizationId} />;
 }
 
+function DeviceGuardrailsTab({ organization }: CustomerTabProps) {
+  return <CustomerDeviceGuardrailsTab organizationId={organization.organizationId} />;
+}
+
 // `satisfies` links these ids to the route registry's tab union — renaming a
 // tab in TAB_IDS.customerDetails without updating them fails tsc.
 export const CUSTOM_AI_ASSISTANT_TAB_ID = 'custom-ai-assistant' satisfies CustomerDetailTab;
 export const CUSTOMER_GUARDRAILS_TAB_ID = 'customer-ai-guardrails' satisfies CustomerDetailTab;
+export const CUSTOMER_DEVICE_GUARDRAILS_TAB_ID = 'customer-device-guardrails' satisfies CustomerDetailTab;
 
 const BASE_CUSTOMER_TABS: TabItem[] = [
   { id: 'devices', label: 'Devices', icon: MonitorIcon, component: DevicesTab },
@@ -86,21 +93,40 @@ const CUSTOMER_GUARDRAILS_TAB: TabItem = {
   component: GuardrailsTab,
 };
 
+const CUSTOMER_DEVICE_GUARDRAILS_TAB: TabItem = {
+  id: CUSTOMER_DEVICE_GUARDRAILS_TAB_ID,
+  label: 'Customer Device Guardrails',
+  icon: MonitorShieldIcon,
+  component: DeviceGuardrailsTab,
+};
+
 // Superset used to resolve the active tab's component regardless of visibility.
-const ALL_CUSTOMER_TABS: TabItem[] = [...BASE_CUSTOMER_TABS, CUSTOM_AI_ASSISTANT_TAB, CUSTOMER_GUARDRAILS_TAB];
+const ALL_CUSTOMER_TABS: TabItem[] = [
+  ...BASE_CUSTOMER_TABS,
+  CUSTOM_AI_ASSISTANT_TAB,
+  CUSTOMER_GUARDRAILS_TAB,
+  CUSTOMER_DEVICE_GUARDRAILS_TAB,
+];
 
 interface CustomerTabsVisibility {
   /** Appended only when the customer has a custom appearance override. */
   showCustomAiAssistant: boolean;
   /** Read-only guardrails defaults view (saas-tenant, flag-gated). */
   showGuardrails: boolean;
+  /** Remote access policy view (CU-86akeqw8b, `remote-access-approval` gate). */
+  showDeviceGuardrails: boolean;
 }
 
 /** Tabs shown for a customer — base tabs plus the visibility-gated AI tabs. */
-export const getCustomerTabs = ({ showCustomAiAssistant, showGuardrails }: CustomerTabsVisibility): TabItem[] => [
+export const getCustomerTabs = ({
+  showCustomAiAssistant,
+  showGuardrails,
+  showDeviceGuardrails,
+}: CustomerTabsVisibility): TabItem[] => [
   ...BASE_CUSTOMER_TABS,
   ...(showCustomAiAssistant ? [CUSTOM_AI_ASSISTANT_TAB] : []),
   ...(showGuardrails ? [CUSTOMER_GUARDRAILS_TAB] : []),
+  ...(showDeviceGuardrails ? [CUSTOMER_DEVICE_GUARDRAILS_TAB] : []),
 ];
 
 export const getCustomerTab = (tabId: string): TabItem | undefined => ALL_CUSTOMER_TABS.find(tab => tab.id === tabId);

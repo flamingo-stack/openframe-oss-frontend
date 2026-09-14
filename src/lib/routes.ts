@@ -33,6 +33,7 @@ export const TAB_IDS = {
     'details',
     'custom-ai-assistant',
     'customer-ai-guardrails',
+    'customer-device-guardrails',
   ],
   customerEdit: ['details', 'ai-configuration', 'guardrails'],
   deviceDetails: [
@@ -56,7 +57,7 @@ export const TAB_IDS = {
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
   queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
-  aiSettings: ['mingo', 'customer', 'guardrails'],
+  aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
 } as const;
 

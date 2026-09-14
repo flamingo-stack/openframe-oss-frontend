@@ -27,6 +27,7 @@ import { useAiSettingsActions } from './ai-settings-actions';
 import { AiSettingsLayout } from './ai-settings-layout';
 import { type AiSettingsTabId, AiSettingsTabs, useVisibleAiSettingsTabs } from './ai-settings-tabs';
 import { CUSTOMER_AI_ASSISTANT_FORM_ID, CustomerAiAssistantTab } from './customer-ai-assistant-tab';
+import { DEVICE_GUARDRAILS_FORM_ID, DeviceGuardrailsTab } from './device-guardrails/device-guardrails-tab';
 import { GUARDRAILS_FORM_ID, GuardrailsTab } from './guardrails/guardrails-tab';
 import { MingoAiChatTab } from './mingo-ai-chat-tab';
 
@@ -34,6 +35,7 @@ const FORM_ID_BY_TAB: Record<AiSettingsTabId, string> = {
   customer: CUSTOMER_AI_ASSISTANT_FORM_ID,
   mingo: MINGO_AI_CHAT_FORM_ID,
   guardrails: GUARDRAILS_FORM_ID,
+  'device-guardrails': DEVICE_GUARDRAILS_FORM_ID,
 };
 
 export function AiSettings() {
@@ -253,6 +255,10 @@ export function AiSettings() {
 
           if (activeId === 'guardrails') {
             return <GuardrailsTab isEditMode={isEditMode} onSaved={() => setIsEditMode(false)} />;
+          }
+
+          if (activeId === 'device-guardrails') {
+            return <DeviceGuardrailsTab isEditMode={isEditMode} onSaved={() => setIsEditMode(false)} />;
           }
 
           if (activeId === 'customer') {
