@@ -39,9 +39,15 @@ export function TicketDialogSubscription({
   // we've already applied.
   const lastClientStreamSeqRef = useRef<number>(-1);
 
+  // The counter covers both a shared-connection reconnect and per-consumer events
+  // (a JetStream consumer being recreated, a resync after the page was hidden);
+  // the ref keeps a repeated read from re-notifying the parent.
+  const lastNotifiedReconnectRef = useRef(0);
+
   // dialogId change is the reset trigger
   useEffect(() => {
     lastClientStreamSeqRef.current = -1;
+    lastNotifiedReconnectRef.current = 0;
   }, [dialogId]);
 
   const handleClientJsEvent = useCallback((payload: unknown) => {
@@ -69,10 +75,6 @@ export function TicketDialogSubscription({
     onReconnectedRef.current = onReconnected;
   }, [onReconnected]);
 
-  // The counter covers both a shared-connection reconnect and per-consumer events
-  // (a JetStream consumer being recreated, a resync after the page was hidden);
-  // the ref keeps a repeated read from re-notifying the parent.
-  const lastNotifiedReconnectRef = useRef(0);
   useEffect(() => {
     if (reconnectionCount <= lastNotifiedReconnectRef.current) return;
     lastNotifiedReconnectRef.current = reconnectionCount;
