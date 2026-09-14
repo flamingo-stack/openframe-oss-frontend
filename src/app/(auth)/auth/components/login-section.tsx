@@ -29,8 +29,18 @@ interface AuthLoginSectionProps {
 /**
  * Modern login section with SSO providers and email/password option
  */
-export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading }: AuthLoginSectionProps) {
+export function AuthLoginSection({
+  email,
+  tenantInfo,
+  hasDiscoveredTenants,
+  availableProviders,
+  onSso,
+  onBack,
+  isLoading,
+  onEmailPasswordLogin,
+}: AuthLoginSectionProps) {
   const [loginMethod, setLoginMethod] = useState<'sso' | 'email'>('sso');
+  const [password, setPassword] = useState('');
 
   // Separate the built-in OpenFrame login from standard providers.
   // The backend reports it as 'openframe'; 'openframe-sso' is the legacy id.
@@ -58,6 +68,13 @@ export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading 
     await onSso(provider);
   };
 
+  const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onEmailPasswordLogin) return;
+    setLoginMethod('email');
+    await onEmailPasswordLogin(email, password);
+  };
+
   return (
     <div className="mx-auto w-full max-w-md">
       <div className="rounded-lg border border-ods-border bg-ods-card shadow-xl">
@@ -67,6 +84,11 @@ export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading 
           <div className="mb-8">
             <h1 className="mb-2 text-ods-text-primary text-h2">Already registered?</h1>
             <p className="text-ods-text-secondary text-h6">Enter you email to access your organization.</p>
+            {hasDiscoveredTenants && tenantInfo && (
+              <p className="mt-2 text-ods-text-secondary text-h6">
+                Signing in to {tenantInfo.tenantName} ({tenantInfo.tenantDomain})
+              </p>
+            )}
           </div>
         </div>
 
@@ -121,6 +143,39 @@ export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading 
                   </>
                 )}
               </div>
+            )}
+
+            {/* Email/Password fallback */}
+            {onEmailPasswordLogin && (
+              <form className="space-y-3" onSubmit={handleEmailPasswordSubmit}>
+                {(standardProviders.length > 0 || hasOpenFrameSso) && (
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-ods-border"></div>
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-ods-card px-3 text-ods-text-secondary text-h6">or use your password</span>
+                    </div>
+                  </div>
+                )}
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="w-full rounded-md border border-ods-border bg-ods-card px-3 py-2 text-ods-text-primary"
+                  disabled={isLoading}
+                />
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  loading={isLoading && loginMethod === 'email'}
+                  variant="accent"
+                  className="!w-full"
+                >
+                  Sign in with password
+                </Button>
+              </form>
             )}
           </div>
         </div>
