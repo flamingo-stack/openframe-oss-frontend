@@ -6,8 +6,15 @@ import {
   AnthropicLogoIcon,
   GeminiLogoIcon,
   OpenaiLogoGreyIcon,
+  QuestionCircleIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  Skeleton,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ComponentType, Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { modelTokenRatesQuery as ModelTokenRatesQueryType } from '@/__generated__/modelTokenRatesQuery.graphql';
@@ -36,6 +43,30 @@ function formatRate(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '—';
   if (value >= 1) return `${Math.round(value)}:1`;
   return `1:${Math.round(1 / value)}`;
+}
+
+/**
+ * The question-mark button that opens the rates, for every card that counts in
+ * tokens: the paywall's AI Token Balance card and the billing page's Paid AI
+ * Tokens counter. One trigger, so the two cannot open two different panels.
+ */
+export function ModelTokenRatesPopover({ className }: { className?: string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Per-model token rates"
+          className={cn('shrink-0 text-ods-text-secondary transition-colors hover:text-ods-text-primary', className)}
+        >
+          <QuestionCircleIcon className="size-6" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={8} className="border-0 bg-transparent p-0 shadow-none">
+        <ModelTokenRates />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 /**
@@ -88,7 +119,7 @@ function ModelTokenRatesContent() {
     modelTokenRatesQuery,
     {},
     {
-      // Opened from the plan picker, which the lock screen shows — so it has to
+      // Opened from the paywall, which the lock screen shows — so it has to
       // load on a locked workspace too (see `subscription-gate.ts`).
       fetchPolicy: 'store-and-network',
       networkCacheConfig: { metadata: { skipSubscriptionGate: true } },

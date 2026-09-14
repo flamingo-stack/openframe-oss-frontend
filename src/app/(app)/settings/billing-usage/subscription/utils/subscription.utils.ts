@@ -153,10 +153,12 @@ export function buildCheckoutProduct(
     quantity = Number.isFinite(parsed) ? parsed : null;
   }
 
+  // No `payAsYouGoEnabled` on a committed package: the backend decides per
+  // product whether the meter runs beyond the allowance, and asking for it on
+  // a product sold in advance is refused rather than ignored.
   return {
     productName: inputProductName(product),
     packageOptionId: committedOptionId(product, currentSelection.billingPeriod),
     quantity,
-    payAsYouGoEnabled: true,
   };
 }

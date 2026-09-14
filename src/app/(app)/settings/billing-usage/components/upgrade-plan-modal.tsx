@@ -34,11 +34,13 @@ const upgradePlanModalQuery = graphql`
 interface PlanSelection {
   updates: ProductUpdates;
   /**
-   * Every non-device product, as pay-as-you-go. A checkout session describes the
+   * Every non-device product, with no options. A checkout session describes the
    * WHOLE target plan, not a diff, so leaving these out would activate a
-   * subscription with the AI assistants switched off. They are metered-only, so
-   * "pay as you go" is their entire configuration — the same entry the paywall's
-   * AI card contributes.
+   * subscription with the AI assistants switched off. How each is billed is the
+   * product's own decision — the same entry the paywall contributes.
+   *
+   * No `tokenAmountUsd` rides along from here: the modal has no top-up control,
+   * so a checkout configured to require one is refused with the server's message.
    */
   otherProducts: ProductCheckoutInput[];
 }
@@ -136,10 +138,7 @@ function UpgradePlanBody({ onSelectionChange }: { onSelectionChange: (selection:
     data.subscription?.products.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;
 
   const otherProducts = useMemo<ProductCheckoutInput[]>(
-    () =>
-      products
-        .filter(p => p.name !== OpenframeProduct.MANAGED_DEVICES)
-        .map(p => ({ productName: p.name, payAsYouGoEnabled: true })),
+    () => products.filter(p => p.name !== OpenframeProduct.MANAGED_DEVICES).map(p => ({ productName: p.name })),
     [products],
   );
 

@@ -110,7 +110,6 @@ export function BillingUsageSkeleton() {
       <SectionBlock title="Current Plan">
         <BillingRow label="Billing Cycle" value={<Value width="w-16" />} />
         <BillingRow label="Device Rate" value={<Value width="w-20" />} />
-        <BillingRow label="AI Tokens Rate" value={<Value width="w-24" />} />
         <BillingRow label="Free AI Tokens" value={<Value width="w-20" />} />
         <BillingRow label="Next Payment" value={<Value width="w-16" />} />
         <BillingRow label="Next Billing Date" value={<Value width="w-20" />} />

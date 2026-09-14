@@ -13,12 +13,12 @@ import { SubscriptionStatus } from '@/app/components/subscription-lock/subscript
 import { WorkspaceInactiveScreen } from '@/app/components/subscription-lock/workspace-inactive-screen';
 import { OpenframeProduct } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { useAiSpendLimit } from '../../hooks/use-ai-spend-limit';
+import { useAiTopUp } from '../../hooks/use-ai-top-up';
 import { aiTokenPrice } from '../../lib/ai-token-price';
 import type { ProductCheckoutInput } from '../hooks/use-create-checkout-session';
 import type { ProductUpdates } from '../types/subscription.types';
 import { AiAssistantsIncludedNote } from './ai-assistants-included-note';
-import { AiTokensUsageCard } from './ai-tokens-usage-card';
+import { AiTokenBalanceCard } from './ai-token-balance-card';
 import { DeviceManagementCard } from './device-management-card';
 import { PlanTotalSummary } from './plan-total-summary';
 import { SubscriptionSubmitButton } from './subscription-submit-button';
@@ -43,10 +43,9 @@ const subscriptionSettingsViewQuery = graphql`
         packageOptions {
           billingPeriod
         }
-        # AI's metered rate. Read here rather than inside the AI card because the
-        # spending limit it prices is owned by this page now — the card no longer
-        # saves anything of its own. unitSize is what price is quoted per (AI:
-        # a block of tokens), so both are needed to price one token.
+        # AI's metered rate, which prices the top-up amounts (what $20 buys).
+        # unitSize is what price is quoted per (AI: a block of tokens), so both
+        # are needed to price one token.
         unitSize
         payAsYouGoOption {
           id
@@ -57,11 +56,10 @@ const subscriptionSettingsViewQuery = graphql`
     }
     subscription {
       id
-      aiSpendCapUsd
       # NOT aiTokensFree: that is the grant for the period the tenant is in
       # (5M on a trial), and this page previews the plan they are about to buy.
-      # See FREE_TOKENS_BY_PLAN in the AI card for what stands in until a
-      # prospective figure exists.
+      # See freeTokensForPlan (lib/ai-free-tokens.ts) for what stands in until
+      # a prospective figure exists.
       usage {
         activeDevices
       }
@@ -150,7 +148,7 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
   // Paid from the lock screen: the mutation's response carries the subscription's
   // new status into the Relay store, which is what unlocks the app — and Billing
   // & Usage is where the plan just bought is worth looking at.
-  const handleUpdated = useCallback(() => router.push(routes.settings.billingUsage), [router]);
+  const handleUpdated = useCallback(() => router.push(routes.settings.billingUsage()), [router]);
   // No active paid subscription → create a new one via Stripe Checkout instead
   // of an update (no diff/validation gating in that flow).
   const needsCheckout =
@@ -185,32 +183,31 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
    */
   const deviceCount = data?.subscription?.usage?.activeDevices ?? null;
 
-  // Only the device card takes a plan selection. AI is metered — there is no
-  // package to choose (see `AiTokensUsageCard`).
+  // Only the device card takes a plan selection. AI has no package to choose —
+  // its card picks a balance (see `AiTokenBalanceCard`).
   const [deviceUpdates, setDeviceUpdates] = useState<ProductUpdates | null>(null);
 
   /**
-   * The AI spending limit, held HERE rather than in the card that draws it: it
-   * is part of the same form as the plan, and the page's one button is what
-   * stores it. The card used to write every click straight through, so simply
-   * unticking the box to see the options changed the subscription.
+   * The first top-up, held HERE rather than in the card that draws it: it is
+   * part of the same form as the plan, and the page's one button is what sends
+   * it (`CheckoutInput.tokenAmountUsd`). $50 is picked up front, as the mockup
+   * has it — a checkout may require an amount, and a form that starts with
+   * nothing chosen would refuse its own default.
    */
-  const aiLimit = useAiSpendLimit({
-    capUsd: data?.subscription?.aiSpendCapUsd ?? null,
+  const topUp = useAiTopUp({
     tokenPrice: aiTokenPrice(aiProduct?.payAsYouGoOption?.price, aiProduct?.unitSize),
+    initial: 50,
   });
 
   /**
-   * Every non-device product, entered as pay-as-you-go. A checkout session
+   * Every non-device product, entered with no options. A checkout session
    * describes the WHOLE target plan rather than a diff, so leaving these out
-   * would activate a subscription with the AI assistants switched off — the same
-   * entry the AI card used to contribute before it stopped selling packages.
+   * would activate a subscription with the AI assistants switched off. How each
+   * is billed is the product's own decision — `payAsYouGoEnabled` is left out on
+   * purpose, since asking for the meter on a product sold in advance is refused.
    */
   const otherProducts = useMemo<ProductCheckoutInput[]>(
-    () =>
-      products
-        .filter(p => p.name !== OpenframeProduct.MANAGED_DEVICES)
-        .map(p => ({ productName: p.name, payAsYouGoEnabled: true })),
+    () => products.filter(p => p.name !== OpenframeProduct.MANAGED_DEVICES).map(p => ({ productName: p.name })),
     [products],
   );
 
@@ -218,12 +215,10 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
   const checkoutProducts = deviceUpdates?.checkout ? [deviceUpdates.checkout, ...otherProducts] : [];
   const hasInvalidCustom = deviceUpdates != null && !deviceUpdates.valid;
   const selectionTotal = deviceUpdates?.total ?? null;
-  /**
-   * `undefined` when the limit was left as the subscription already has it, so
-   * the submit issues no cap mutation at all. `null` is a real value there — it
-   * is how "no limit" is expressed — which is why this is not a falsy check.
-   */
-  const aiSpendCapUsd = aiLimit.changed ? aiLimit.capUsd : undefined;
+  // Only when the AI product is for sale here: a catalog without it has no
+  // balance to open, and the checkout must not carry an amount for it.
+  const tokenAmountUsd = showAiCard ? topUp.amountUsd : null;
+  const hasInvalidTopUp = showAiCard && !topUp.isComplete;
 
   return (
     <>
@@ -244,16 +239,23 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
             onUpdatesChange={setDeviceUpdates}
           />
         )}
-        {showAiCard && <AiTokensUsageCard loading={loading} deviceMode={deviceUpdates?.mode ?? null} limit={aiLimit} />}
+        {showAiCard && <AiTokenBalanceCard loading={loading} deviceMode={deviceUpdates?.mode ?? null} topUp={topUp} />}
       </div>
 
       {/* The mobile submit bar is fixed to the viewport, so the total it applies
           to rides in the page flow above it rather than inside it. */}
-      <PlanTotalSummary total={selectionTotal} showAiNote={showAiCard} loading={loading} className="md:hidden" />
+      <PlanTotalSummary
+        total={selectionTotal}
+        topUpUsd={tokenAmountUsd}
+        showAiNote={showAiCard}
+        loading={loading}
+        className="md:hidden"
+      />
 
       <div className="hidden flex-row items-center gap-6 md:flex">
         <PlanTotalSummary
           total={selectionTotal}
+          topUpUsd={tokenAmountUsd}
           showAiNote={showAiCard}
           loading={loading}
           className="max-w-[500px] flex-1"
@@ -264,7 +266,8 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
             packageUpdates={packageUpdates}
             checkoutProducts={checkoutProducts}
             hasInvalidCustom={hasInvalidCustom}
-            aiSpendCapUsd={aiSpendCapUsd}
+            tokenAmountUsd={tokenAmountUsd}
+            hasInvalidTopUp={hasInvalidTopUp}
             onUpdated={handleUpdated}
           />
         </div>
@@ -285,7 +288,8 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
             packageUpdates={packageUpdates}
             checkoutProducts={checkoutProducts}
             hasInvalidCustom={hasInvalidCustom}
-            aiSpendCapUsd={aiSpendCapUsd}
+            tokenAmountUsd={tokenAmountUsd}
+            hasInvalidTopUp={hasInvalidTopUp}
             onUpdated={handleUpdated}
             className="w-full"
           />
