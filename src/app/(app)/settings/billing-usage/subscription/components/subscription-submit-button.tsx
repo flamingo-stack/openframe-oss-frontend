@@ -24,8 +24,11 @@ interface SubscriptionSubmitButtonProps {
    * which the backend accepts only when it is configured not to require one.
    */
   tokenAmountUsd?: number | null;
-  /** True when the Custom top-up is selected with an empty/invalid amount. */
-  hasInvalidTopUp?: boolean;
+  /**
+   * The top-up's own check (`AiTopUp.validate`): reveals the problem under the
+   * fields and returns it, or `null` when the amount can go. Checkout flow only.
+   */
+  validateTopUp?: () => string | null;
   /**
    * The update landed. Only the update flow can call this — the checkout flow
    * leaves for Stripe and never comes back to this component.
@@ -47,6 +50,12 @@ interface SubscriptionSubmitButtonProps {
  *   plan change in place and does NOT redirect to a payment page (an upgrade may
  *   raise an invoice afterwards). Disabled when the selection equals the current
  *   plan, validated on click.
+ *
+ * A bad amount — a device count under the floor, a top-up under its minimum —
+ * never disables the button. It is pressed, and the press says what is wrong:
+ * in the form, next to the field, and in a toast for a form scrolled out of
+ * view. A locked button would leave the user to guess which of the two cards
+ * is refusing.
  */
 export function SubscriptionSubmitButton({
   needsCheckout,
@@ -54,7 +63,7 @@ export function SubscriptionSubmitButton({
   checkoutProducts,
   hasInvalidCustom,
   tokenAmountUsd = null,
-  hasInvalidTopUp = false,
+  validateTopUp,
   onUpdated,
   className,
 }: SubscriptionSubmitButtonProps) {
@@ -72,12 +81,8 @@ export function SubscriptionSubmitButton({
     });
   };
 
-  const rejectInvalidTopUp = () => {
-    toast({
-      title: 'Invalid top-up amount',
-      description: 'Enter a whole number of dollars for the AI balance.',
-      variant: 'destructive',
-    });
+  const rejectInvalidTopUp = (problem: string) => {
+    toast({ title: 'Check the AI top-up', description: problem, variant: 'destructive' });
   };
 
   if (needsCheckout) {
@@ -93,8 +98,9 @@ export function SubscriptionSubmitButton({
             rejectInvalidAmount();
             return;
           }
-          if (hasInvalidTopUp) {
-            rejectInvalidTopUp();
+          const topUpProblem = validateTopUp?.() ?? null;
+          if (topUpProblem != null) {
+            rejectInvalidTopUp(topUpProblem);
             return;
           }
           if (!checkoutProducts.length) return;

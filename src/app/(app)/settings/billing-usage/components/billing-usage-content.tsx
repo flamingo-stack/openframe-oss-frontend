@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingUsageContentQuery as BillingUsageContentQueryType } from '@/__generated__/billingUsageContentQuery.graphql';
 import { LockedScreen } from '@/app/components/shared/locked-screen';
-import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
+import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { MANAGE_AI_BALANCE_ACTION, routes } from '@/lib/routes';
@@ -25,6 +25,7 @@ import { useResumeSubscription } from '../hooks/use-resume-subscription';
 import { AUTO_TOP_UP } from '../lib/auto-top-up';
 import { formatCompactCount, formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
 import { openExternalTab } from '../lib/stripe-window';
+import { ActivateSubscriptionModal } from '../subscription/components/activate-subscription-modal';
 import { ModelTokenRatesPopover } from '../subscription/components/model-token-rates';
 import { BillingRow, SectionBlock, TestModeBanner } from './billing-section';
 import { CancelOfferModal } from './cancel-offer-modal';
@@ -166,6 +167,7 @@ export function BillingUsageContent() {
   const resumeSubscription = useResumeSubscription();
   const billingPortal = useBillingPortalSession();
   const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [activateModalOpen, setActivateModalOpen] = useState(false);
   /**
    * The Manage AI Balance modal's open state IS the URL (`?action=`): the
    * app-wide balance bar deep-links to it from any page, and one owner of the
@@ -173,7 +175,6 @@ export function BillingUsageContent() {
    * Closing clears the param, so a reload does not reopen a dismissed dialog.
    */
   const { params: pageParams, setParam: setPageParam } = useApiParams({ action: { type: 'string', default: '' } });
-  const aiBalanceModalOpen = pageParams.action === MANAGE_AI_BALANCE_ACTION;
   const openAiBalanceModal = () => setPageParam('action', MANAGE_AI_BALANCE_ACTION);
   const closeAiBalanceModal = () => setPageParam('action', '');
   const [cancelStep, setCancelStep] = useState<'idle' | 'reason' | 'offer' | 'cancelled'>('idle');
@@ -194,12 +195,22 @@ export function BillingUsageContent() {
   const cancelSubscriptionEnabled = useFeatureFlag('cancel-subscription');
 
   // Nothing to update in place: these three states have no live paid
-  // subscription, so a plan change has to go through Stripe Checkout. PAST_DUE
-  // and SUSPENDED are deliberately NOT here — those subscriptions still exist.
+  // subscription, so the plan is STARTED, through Stripe Checkout — the
+  // Activate Subscription modal, not the plan change. PAST_DUE and SUSPENDED
+  // are deliberately NOT here — those subscriptions still exist.
   const needsCheckout =
     status === SubscriptionStatus.TRIAL ||
     status === SubscriptionStatus.TRIAL_EXPIRED ||
     status === SubscriptionStatus.CANCELED;
+
+  /**
+   * A trial has no balance to manage: its AI runs on the grant, and what a
+   * paused assistant needs is the subscription, not a top-up. So the modal is
+   * not offered — and not reachable through the URL either, which the app-wide
+   * bar never writes on a trial.
+   */
+  const aiBalanceOffered = flags.hasAi && !flags.isTrial;
+  const aiBalanceModalOpen = aiBalanceOffered && pageParams.action === MANAGE_AI_BALANCE_ACTION;
 
   // A committed package is the only thing that gives the device counter a
   // denominator, so the same condition decides the caption — the card cannot end
@@ -210,8 +221,10 @@ export function BillingUsageContent() {
    * A scheduled cancellation drops the plan offer everywhere. The subscription
    * is already on its way out, so a change would be bought into something that
    * ends anyway; renewing is the move that makes the rest meaningful again.
+   * Nor is there a plan to change before one has been bought: on a trial the
+   * header's Activate Subscription is the whole offer.
    */
-  const planOffered = !flags.isPendingCancellation;
+  const planOffered = !flags.isPendingCancellation && !needsCheckout;
 
   const menuActions: ActionsMenuGroup[] = [
     {
@@ -262,10 +275,10 @@ export function BillingUsageContent() {
    * into a subscription. Rendered alongside the plan change rather than instead
    * of it — a trial can both be activated and have its device plan chosen.
    *
-   * All of them end in the same modal — there is no plan page to send anyone to
-   * any more. Activation from a trial is the checkout branch of it, which is why
-   * the modal folds every other product in: a checkout session
-   * describes the whole plan, not just the part the modal edits.
+   * There is no plan page to send anyone to any more: a live plan is changed in
+   * the Upgrade Plan modal, and a trial is turned into a subscription in the
+   * Activate Subscription modal — the paywall's form, which buys the whole plan
+   * (devices, the AI product and the first top-up) on one checkout.
    */
   const statusAction = flags.isPendingCancellation
     ? {
@@ -293,7 +306,7 @@ export function BillingUsageContent() {
       : flags.isTrial
         ? {
             label: 'Activate Subscription',
-            onClick: () => setPlanModalOpen(true),
+            onClick: () => setActivateModalOpen(true),
             variant: 'accent' as const,
           }
         : null;
@@ -302,9 +315,9 @@ export function BillingUsageContent() {
    * The header's second, quieter action: the balance, not the plan. It is the
    * one of the two a paused assistant depends on, and it is what the app-wide
    * balance bar deep-links to. Absent without the AI product — there is no
-   * balance to manage.
+   * balance to manage — and on a trial, where Activate Subscription stands alone.
    */
-  const secondaryAction = flags.hasAi
+  const secondaryAction = aiBalanceOffered
     ? {
         label: 'Manage AI Balance',
         onClick: openAiBalanceModal,
@@ -546,12 +559,21 @@ export function BillingUsageContent() {
 
       <UpgradePlanModal
         isOpen={planModalOpen}
-        needsCheckout={needsCheckout}
         onClose={() => setPlanModalOpen(false)}
         onUpdated={() => {
           setPlanModalOpen(false);
           setRefreshKey(k => k + 1);
         }}
+      />
+
+      {/* Leaves for Stripe in a new tab; the subscription it activates lands on
+          the page's next fetch, not through this modal. */}
+      <ActivateSubscriptionModal
+        isOpen={activateModalOpen}
+        // Narrowed from the widened Relay enum the page reads: the heading it
+        // names is the trial's, and an unknown status falls back to the default.
+        status={resolveSubscriptionStatus(status)}
+        onClose={() => setActivateModalOpen(false)}
       />
 
       <CancelSubscriptionModal

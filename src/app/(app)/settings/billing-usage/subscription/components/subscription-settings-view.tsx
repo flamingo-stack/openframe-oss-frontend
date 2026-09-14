@@ -3,73 +3,21 @@
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useMemo, useState } from 'react';
-import { graphql, useLazyLoadQuery } from 'react-relay';
-import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
+import { Suspense, useCallback } from 'react';
 import { PaywallHeader } from '@/app/components/subscription-lock/paywall-header';
 import { useSubscriptionLock } from '@/app/components/subscription-lock/subscription-guard';
-import { getPaywallCopy, type PaywallCopy } from '@/app/components/subscription-lock/subscription-lock-copy';
+import {
+  getPaywallCopy,
+  type PaywallCopy,
+  PLANS_UNAVAILABLE_COPY,
+} from '@/app/components/subscription-lock/subscription-lock-copy';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { WorkspaceInactiveScreen } from '@/app/components/subscription-lock/workspace-inactive-screen';
-import { OpenframeProduct } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { useAiTopUp } from '../../hooks/use-ai-top-up';
-import { aiTokenPrice } from '../../lib/ai-token-price';
-import type { ProductCheckoutInput } from '../hooks/use-create-checkout-session';
-import type { ProductUpdates } from '../types/subscription.types';
-import { AiAssistantsIncludedNote } from './ai-assistants-included-note';
-import { AiTokenBalanceCard } from './ai-token-balance-card';
-import { DeviceManagementCard } from './device-management-card';
+import { type PlanCheckoutData, usePlanCheckout, usePlanCheckoutData } from '../hooks/use-plan-checkout';
+import { PlanCheckoutCards } from './plan-checkout-cards';
 import { PlanTotalSummary } from './plan-total-summary';
 import { SubscriptionSubmitButton } from './subscription-submit-button';
-
-/**
- * Billing data ONLY.
- *
- * The fleet size is back in the header and in the device panel, and it comes
- * from `subscription.usage` — NOT from the `devices()` query it used to be
- * spread from. That is app data: a locked workspace has it refused with
- * `SUBSCRIPTION_TRIAL_EXPIRED`, and because `devices` is non-null the refusal
- * nulled this whole payload and crashed the one screen a locked workspace has to
- * be able to render. The same count, counted by billing, carries no such risk.
- */
-const subscriptionSettingsViewQuery = graphql`
-  query subscriptionSettingsViewQuery {
-    billingPlan {
-      id
-      products {
-        id
-        name
-        packageOptions {
-          billingPeriod
-        }
-        # AI's metered rate, which prices the top-up amounts (what $20 buys).
-        # unitSize is what price is quoted per (AI: a block of tokens), so both
-        # are needed to price one token.
-        unitSize
-        payAsYouGoOption {
-          id
-          price
-        }
-        ...devicePlanPickerProductFragment
-      }
-    }
-    subscription {
-      id
-      # NOT aiTokensFree: that is the grant for the period the tenant is in
-      # (5M on a trial), and this page previews the plan they are about to buy.
-      # See freeTokensForPlan (lib/ai-free-tokens.ts) for what stands in until
-      # a prospective figure exists.
-      usage {
-        activeDevices
-      }
-      products {
-        name
-        ...devicePlanPickerSubscriptionFragment
-      }
-    }
-  }
-`;
 
 /**
  * The paywall.
@@ -80,13 +28,11 @@ const subscriptionSettingsViewQuery = graphql`
  * `null` refs the cards show their own pending rows (see `DeviceManagementCard`).
  * A parallel skeleton file is what this page used to have, and it drifted from
  * the real thing every time either was touched.
+ *
+ * The form itself — the query, the choices, what the button sends — is
+ * `usePlanCheckout`, shared with the billing page's Activate Subscription
+ * modal. This file is only the page around it.
  */
-/** Shown in place of the plans when their catalog cannot be loaded at all. */
-const PLANS_UNAVAILABLE_COPY = {
-  title: "We couldn't load the plans.",
-  description: 'Something went wrong on our side. Try again in a moment, or contact support if it keeps happening.',
-};
-
 export function SubscriptionSettingsView() {
   const { status } = useSubscriptionLock();
   // Resolved here rather than carried on the context, so the plan-lock wording
@@ -122,24 +68,14 @@ export function SubscriptionSettingsLoading() {
 }
 
 function SubscriptionSettingsContent({ copy }: { copy: PaywallCopy }) {
-  const data = useLazyLoadQuery<SubscriptionSettingsViewQueryType>(
-    subscriptionSettingsViewQuery,
-    {},
-    {
-      fetchPolicy: 'store-and-network',
-      // This IS the lock screen. Gating it behind the subscription gate would
-      // park the paywall on the very state it exists to get the user out of.
-      networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
-    },
-  );
-
+  const data = usePlanCheckoutData();
   return <PaywallBody copy={copy} data={data} />;
 }
 
 interface PaywallBodyProps {
   copy: PaywallCopy;
   /** `null` while the catalog is on its way — every slot below handles that itself. */
-  data: SubscriptionSettingsViewQueryType['response'] | null;
+  data: PlanCheckoutData | null;
 }
 
 function PaywallBody({ copy, data }: PaywallBodyProps) {
@@ -156,121 +92,46 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
     status === SubscriptionStatus.TRIAL_EXPIRED ||
     status === SubscriptionStatus.CANCELED;
 
-  const loading = data == null;
-  // Memoized: the `?? []` fallback is a new array on every render, and the
-  // plan memo below depends on it.
-  const products = useMemo(() => data?.billingPlan?.products ?? [], [data?.billingPlan]);
-  const subscriptionProducts = data?.subscription?.products ?? [];
+  const form = usePlanCheckout(data);
 
-  const deviceProduct = products.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;
-  const aiProduct = products.find(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? null;
-  const deviceSubscriptionProduct = subscriptionProducts.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;
-
-  // Both cards are drawn while loading: this plan has always had the two, and
-  // opening on one column only to reflow into two is a worse wait than a card
-  // that fills in. Once the catalog answers, it decides.
-  const showDeviceCard = loading || deviceProduct != null;
-  const showAiCard = loading || aiProduct != null;
-
-  /**
-   * The devices this workspace is currently running — billing's own count
-   * (`usage.activeDevices`), NOT the `devices()` query the paywall used to spread
-   * (see the query above for why that one cannot come back).
-   *
-   * One number for the whole screen: the header names it, and the pay-as-you-go
-   * panel prices it. A panel that counted one fleet and totalled another would be
-   * two answers to the same question.
-   */
-  const deviceCount = data?.subscription?.usage?.activeDevices ?? null;
-
-  // Only the device card takes a plan selection. AI has no package to choose —
-  // its card picks a balance (see `AiTokenBalanceCard`).
-  const [deviceUpdates, setDeviceUpdates] = useState<ProductUpdates | null>(null);
-
-  /**
-   * The first top-up, held HERE rather than in the card that draws it: it is
-   * part of the same form as the plan, and the page's one button is what sends
-   * it (`CheckoutInput.tokenAmountUsd`). $50 is picked up front, as the mockup
-   * has it — a checkout may require an amount, and a form that starts with
-   * nothing chosen would refuse its own default.
-   */
-  const topUp = useAiTopUp({
-    tokenPrice: aiTokenPrice(aiProduct?.payAsYouGoOption?.price, aiProduct?.unitSize),
-    initial: 50,
-  });
-
-  /**
-   * Every non-device product, entered with no options. A checkout session
-   * describes the WHOLE target plan rather than a diff, so leaving these out
-   * would activate a subscription with the AI assistants switched off. How each
-   * is billed is the product's own decision — `payAsYouGoEnabled` is left out on
-   * purpose, since asking for the meter on a product sold in advance is refused.
-   */
-  const otherProducts = useMemo<ProductCheckoutInput[]>(
-    () => products.filter(p => p.name !== OpenframeProduct.MANAGED_DEVICES).map(p => ({ productName: p.name })),
-    [products],
+  const submitButton = (className?: string) => (
+    <SubscriptionSubmitButton
+      needsCheckout={needsCheckout}
+      packageUpdates={form.packageUpdates}
+      checkoutProducts={form.checkoutProducts}
+      hasInvalidCustom={form.hasInvalidCustom}
+      tokenAmountUsd={form.tokenAmountUsd}
+      validateTopUp={form.topUp.validate}
+      onUpdated={handleUpdated}
+      className={className}
+    />
   );
-
-  const packageUpdates = deviceUpdates?.packageUpdates ?? [];
-  const checkoutProducts = deviceUpdates?.checkout ? [deviceUpdates.checkout, ...otherProducts] : [];
-  const hasInvalidCustom = deviceUpdates != null && !deviceUpdates.valid;
-  const selectionTotal = deviceUpdates?.total ?? null;
-  // Only when the AI product is for sale here: a catalog without it has no
-  // balance to open, and the checkout must not carry an amount for it.
-  const tokenAmountUsd = showAiCard ? topUp.amountUsd : null;
-  const hasInvalidTopUp = showAiCard && !topUp.isComplete;
 
   return (
     <>
-      <PaywallHeader copy={copy} deviceCount={deviceCount} />
+      <PaywallHeader copy={copy} deviceCount={form.deviceCount} />
 
-      {showAiCard && <AiAssistantsIncludedNote />}
-
-      {/* `items-stretch`, not the `items-start` this had: side by side, two cards
-          of different heights read as one unfinished. Each card keeps its content
-          top-aligned (they are `flex-col`), so the shorter one gains empty space
-          at the bottom rather than stretched rows. */}
-      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-        {showDeviceCard && (
-          <DeviceManagementCard
-            productRef={deviceProduct}
-            subscriptionProductRef={deviceSubscriptionProduct}
-            deviceCount={deviceCount}
-            onUpdatesChange={setDeviceUpdates}
-          />
-        )}
-        {showAiCard && <AiTokenBalanceCard loading={loading} deviceMode={deviceUpdates?.mode ?? null} topUp={topUp} />}
-      </div>
+      <PlanCheckoutCards form={form} />
 
       {/* The mobile submit bar is fixed to the viewport, so the total it applies
           to rides in the page flow above it rather than inside it. */}
       <PlanTotalSummary
-        total={selectionTotal}
-        topUpUsd={tokenAmountUsd}
-        showAiNote={showAiCard}
-        loading={loading}
+        total={form.selectionTotal}
+        topUpUsd={form.tokenAmountUsd}
+        showAiNote={form.showAiCard}
+        loading={form.loading}
         className="md:hidden"
       />
 
       <div className="hidden flex-row items-center gap-6 md:flex">
         <PlanTotalSummary
-          total={selectionTotal}
-          topUpUsd={tokenAmountUsd}
-          showAiNote={showAiCard}
-          loading={loading}
+          total={form.selectionTotal}
+          topUpUsd={form.tokenAmountUsd}
+          showAiNote={form.showAiCard}
+          loading={form.loading}
           className="max-w-[500px] flex-1"
         />
-        <div className="flex flex-1 justify-end">
-          <SubscriptionSubmitButton
-            needsCheckout={needsCheckout}
-            packageUpdates={packageUpdates}
-            checkoutProducts={checkoutProducts}
-            hasInvalidCustom={hasInvalidCustom}
-            tokenAmountUsd={tokenAmountUsd}
-            hasInvalidTopUp={hasInvalidTopUp}
-            onUpdated={handleUpdated}
-          />
-        </div>
+        <div className="flex flex-1 justify-end">{submitButton()}</div>
       </div>
 
       {/* Fixed (not sticky) so the bar always pins to the bottom of the viewport,
@@ -282,18 +143,7 @@ function PaywallBody({ copy, data }: PaywallBodyProps) {
           under whatever route the user was on. Its own reservation is the only one
           that holds on all of them. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ods-border bg-ods-card p-[var(--spacing-system-l)] md:hidden">
-        <div className="flex">
-          <SubscriptionSubmitButton
-            needsCheckout={needsCheckout}
-            packageUpdates={packageUpdates}
-            checkoutProducts={checkoutProducts}
-            hasInvalidCustom={hasInvalidCustom}
-            tokenAmountUsd={tokenAmountUsd}
-            hasInvalidTopUp={hasInvalidTopUp}
-            onUpdated={handleUpdated}
-            className="w-full"
-          />
-        </div>
+        <div className="flex">{submitButton('w-full')}</div>
       </div>
     </>
   );

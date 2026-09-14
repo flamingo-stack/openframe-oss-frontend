@@ -1,7 +1,7 @@
 'use client';
 
 import { LockScreenActionsMenu } from './lock-screen-actions';
-import type { PaywallCopy } from './subscription-lock-copy';
+import { type PaywallCopy, paywallDescription } from './subscription-lock-copy';
 
 interface PaywallHeaderProps {
   copy: PaywallCopy;
@@ -35,11 +35,7 @@ export function PaywallHeader({ copy, deviceCount = null }: PaywallHeaderProps) 
         <h1 className="text-ods-text-primary text-h2">{copy.title}</h1>
         <LockScreenActionsMenu triggerClassName="shrink-0" />
       </div>
-      <p className="text-ods-text-secondary text-h6">
-        {deviceCount == null
-          ? copy.description
-          : `We've detected ${deviceCount.toLocaleString('en-US')} active device${deviceCount === 1 ? '' : 's'} in your OpenFrame instance that ${deviceCount === 1 ? 'requires' : 'require'} a subscription to continue management.`}
-      </p>
+      <p className="text-ods-text-secondary text-h6">{paywallDescription(copy, deviceCount)}</p>
     </div>
   );
 }

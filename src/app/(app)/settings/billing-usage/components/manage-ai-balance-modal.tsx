@@ -1,12 +1,12 @@
 'use client';
 
-import { Button, CheckboxBlock, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useId } from 'react';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useAiTopUp } from '../hooks/use-ai-top-up';
 import { usePurchaseTokens } from '../hooks/use-purchase-tokens';
-import { AUTO_TOP_UP, AUTO_TOP_UP_DESCRIPTION } from '../lib/auto-top-up';
+import { AUTO_TOP_UP } from '../lib/auto-top-up';
 import { AI_BALANCE_EXPLANATION, AiTopUpFields } from './ai-top-up-fields';
+import { AutoTopUpCheckbox } from './auto-top-up-checkbox';
 
 interface ManageAiBalanceModalProps {
   isOpen: boolean;
@@ -27,6 +27,10 @@ interface ManageAiBalanceModalProps {
  * The purchase raises an invoice rather than charging on the spot, so the
  * button reads "Proceed to Payment" rather than the mockup's "Save": nothing is
  * saved here, and the tokens land once the invoice is paid.
+ *
+ * The button is never locked over the amount. Pressed with nothing chosen or a
+ * figure under the floor, it says so under the fields (`AiTopUp.validate`) — a
+ * disabled button explains nothing, and the user is left guessing what to fix.
  */
 export function ManageAiBalanceModal({ isOpen, onClose, tokenPrice }: ManageAiBalanceModalProps) {
   // Unmounted while closed, so every opening starts from nothing chosen rather
@@ -39,10 +43,9 @@ export function ManageAiBalanceModal({ isOpen, onClose, tokenPrice }: ManageAiBa
 function ManageAiBalanceModalBody({ onClose, tokenPrice }: Omit<ManageAiBalanceModalProps, 'isOpen'>) {
   const topUp = useAiTopUp({ tokenPrice });
   const purchase = usePurchaseTokens();
-  const autoTopUpId = useId();
 
   const handleSubmit = () => {
-    if (topUp.amountUsd == null) return;
+    if (topUp.validate() != null || topUp.amountUsd == null) return;
     purchase.mutate(topUp.amountUsd, { onSuccess: onClose });
   };
 
@@ -63,7 +66,7 @@ function ManageAiBalanceModalBody({ onClose, tokenPrice }: Omit<ManageAiBalanceM
             className="flex-1"
             onClick={handleSubmit}
             loading={purchase.isPending}
-            disabled={purchase.isPending || !topUp.isComplete}
+            disabled={purchase.isPending}
           >
             Proceed to Payment
           </Button>
@@ -72,17 +75,7 @@ function ManageAiBalanceModalBody({ onClose, tokenPrice }: Omit<ManageAiBalanceM
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <p className="text-ods-text-primary text-h4">{AI_BALANCE_EXPLANATION}</p>
-        {/* Controlled and never toggled: the value is the backend's answer, and
-            today the backend has none. The tag says why the box will not tick,
-            so a locked control does not read as a broken one. */}
-        <CheckboxBlock
-          id={autoTopUpId}
-          label="Enable Auto Top-up"
-          description={AUTO_TOP_UP_DESCRIPTION}
-          checked={AUTO_TOP_UP.enabled}
-          disabled={!AUTO_TOP_UP.available || purchase.isPending}
-          trailing={!AUTO_TOP_UP.available && <Tag as="span" variant="grey" label="Coming soon" />}
-        />
+        <AutoTopUpCheckbox disabled={purchase.isPending} />
         <AiTopUpFields
           topUp={topUp}
           label={AUTO_TOP_UP.enabled ? 'Auto Top Up Amount' : 'One-time top up'}

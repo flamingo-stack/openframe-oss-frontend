@@ -182,19 +182,18 @@ export default defineConfig([
     //    that needs it, and read by a plain mapper function via `readInlineData`
     //    (`device-{row,selector,}-fields.ts` compose into a ladder this way). The
     //    consumer is a function in another file by construction.
-    //  - `subscription-settings-view` spreads the device-plan-picker's fragments
-    //    and hands the refs down through PaywallBody and DeviceManagementCard to
-    //    the picker that reads them. Passing a fragment ref through an intermediate
-    //    component is ordinary Relay; the rule only recognises a direct render.
+    //  - `use-plan-checkout` (the paywall form's query, shared by the lock screen
+    //    and the Activate Subscription modal) spreads the device-plan-picker's
+    //    fragments and hands the refs down through PlanCheckoutCards and
+    //    DeviceManagementCard to the picker that reads them. Passing a fragment
+    //    ref through an intermediate component is ordinary Relay; the rule only
+    //    recognises a direct render.
     //
     // Everywhere else the rule stays on, which is where it earns its place: a
     // component-owned fragment spread far from the component that reads it is how
     // Relay codebases rot.
     name: 'openframe-frontend/fragment-definitions-render-nothing',
-    files: [
-      'src/graphql/**/*.ts',
-      'src/app/(app)/settings/billing-usage/subscription/components/subscription-settings-view.tsx',
-    ],
+    files: ['src/graphql/**/*.ts', 'src/app/(app)/settings/billing-usage/subscription/hooks/use-plan-checkout.ts'],
     rules: { 'relay/must-colocate-fragment-spreads': 'off' },
   },
 

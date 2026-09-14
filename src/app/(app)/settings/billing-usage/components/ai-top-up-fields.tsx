@@ -62,6 +62,11 @@ export function AiTopUpFields({ topUp, label, disabled = false }: AiTopUpFieldsP
             onSelect={topUp.selectCustom}
           />
         </div>
+        {/* Nothing picked yet, said once a submit has asked for it. A custom
+            figure's problems go under its own field instead. */}
+        {topUp.error != null && topUp.selection !== CUSTOM_TOP_UP && (
+          <p className="text-ods-error text-h6">{topUp.error}</p>
+        )}
       </div>
 
       {topUp.selection === CUSTOM_TOP_UP && (
@@ -74,6 +79,7 @@ export function AiTopUpFields({ topUp, label, disabled = false }: AiTopUpFieldsP
             placeholder="0"
             value={topUp.customUsd}
             disabled={disabled}
+            error={topUp.error ?? undefined}
             endAdornment={<span className="text-ods-text-secondary text-h6">USD</span>}
             onChange={event => topUp.setCustomUsd(event.target.value)}
           />

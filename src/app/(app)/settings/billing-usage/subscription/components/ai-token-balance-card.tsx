@@ -3,6 +3,7 @@
 import { GiftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Card, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { AI_BALANCE_EXPLANATION, AiTopUpFields } from '../../components/ai-top-up-fields';
+import { AutoTopUpCheckbox } from '../../components/auto-top-up-checkbox';
 import type { AiTopUp } from '../../hooks/use-ai-top-up';
 import { freeTokensForPlan } from '../../lib/ai-free-tokens';
 import { formatCompactCount } from '../../lib/format';
@@ -34,9 +35,8 @@ interface AiTokenBalanceCardProps {
  * charged on the same invoice as the devices. So the card writes nothing of its
  * own — the page's "Proceed to Payment" submits the whole form at once.
  *
- * No "Enable Auto Top-up" here: the mockup keeps that in Manage AI Balance, and
- * there is no balance yet on the paywall to have that state (see
- * `auto-top-up.ts`).
+ * "Enable Auto Top-up" sits under the amounts as the mockup has it, locked for
+ * the same reason it is locked everywhere (see `auto-top-up.ts`).
  */
 export function AiTokenBalanceCard({ loading, deviceMode, topUp }: AiTokenBalanceCardProps) {
   // A prepaid year is a commitment; pay-as-you-go is not, and it grants less.
@@ -72,6 +72,8 @@ export function AiTokenBalanceCard({ loading, deviceMode, topUp }: AiTokenBalanc
       </div>
 
       <AiTopUpFields topUp={topUp} label="Top up your balance" disabled={loading} />
+
+      <AutoTopUpCheckbox disabled={loading} />
     </Card>
   );
 }
