@@ -49,10 +49,17 @@ function secondsToUnitValue(totalSeconds: number): { value: number; unit: TimeUn
       return { value: totalSeconds / multiplier, unit: unitKey };
     }
   }
-  return { value: Math.ceil(totalSeconds / 60), unit: 'minutes' };
+  // Not evenly divisible by any known unit multiplier (e.g. an interval
+  // created outside this form, such as via the API). Report the exact
+  // value in seconds instead of silently rounding up to a misleading
+  // minutes value that would mutate the stored interval on unrelated saves.
+  return { value: totalSeconds, unit: 'seconds' as TimeUnit };
 }
 
 function unitValueToSeconds(value: number, unit: TimeUnit): number {
+  if (unit === ('seconds' as TimeUnit)) {
+    return Math.max(0, Math.floor(value));
+  }
   const found = TIME_UNITS.find(u => u.value === unit);
   return Math.max(0, Math.floor(value * (found?.multiplier ?? 1)));
 }
@@ -323,6 +330,9 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
                             {u.label}
                           </SelectItem>
                         ))}
+                        {frequencyUnit === ('seconds' as TimeUnit) && (
+                          <SelectItem value="seconds">Seconds</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
