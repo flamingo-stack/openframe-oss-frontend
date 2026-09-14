@@ -15,6 +15,11 @@ import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 import { clearStoredRedditClickId, getStoredRedditClickId } from '@/lib/reddit-click-id';
 import { runtimeEnv } from '@/lib/runtime-config';
 
+const CONTENT_API_WAITLIST_URL =
+  process.env.NEXT_PUBLIC_CONTENT_API_URL
+    ? `${process.env.NEXT_PUBLIC_CONTENT_API_URL}/api/waitlist`
+    : 'https://content-api.openframe.ai/api/waitlist';
+
 export function AuthBenefitsSection() {
   const { toast } = useToast();
   const appMode = runtimeEnv.appMode();
@@ -26,7 +31,7 @@ export function AuthBenefitsSection() {
       setIsSubmitting(true);
       try {
         const rdtCid = getStoredRedditClickId();
-        const response = await fetch('https://content-api.openframe.ai/api/waitlist', {
+        const response = await fetch(CONTENT_API_WAITLIST_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -171,3 +176,4 @@ export function AuthBenefitsSection() {
     </div>
   );
 }
+
