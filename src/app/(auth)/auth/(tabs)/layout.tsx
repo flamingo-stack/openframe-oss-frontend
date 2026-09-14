@@ -1,10 +1,11 @@
 'use client';
 
-import { AuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { AuthShell, CompactAuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useLoginOnlyMobileShell } from '@/app/hooks/use-login-only-mobile-shell';
 import { isAuthOnlyMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 
@@ -22,6 +23,9 @@ const TABS = [
  * mounted across the switch: only the card content is a route segment, so only the card can
  * suspend, and the tab selector never goes away because it is not part of what is loading.
  *
+ * A login-only mobile build has no Sign Up to switch to: both paths render the login card in the
+ * compact shell, with no tabs and no benefits panel.
+ *
  * Scoped to a route group so it wraps ONLY these two paths — `invite`, `sso-continue`,
  * `password-reset` and friends sit outside it and bring their own shell.
  */
@@ -29,6 +33,7 @@ export default function AuthTabsLayout({ children }: { children: React.ReactNode
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated } = useAuthStore();
+  const loginOnly = useLoginOnlyMobileShell();
 
   const active = pathname?.startsWith(routes.auth.login) ? 'login' : 'signup';
 
@@ -46,6 +51,10 @@ export default function AuthTabsLayout({ children }: { children: React.ReactNode
     router.prefetch(routes.auth.root);
     router.prefetch(routes.auth.login);
   }, [router]);
+
+  if (loginOnly) {
+    return <CompactAuthShell>{children}</CompactAuthShell>;
+  }
 
   const tabs = (
     <TabSelector
