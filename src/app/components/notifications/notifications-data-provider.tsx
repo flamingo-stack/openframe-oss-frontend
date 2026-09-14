@@ -299,29 +299,44 @@ interface TileHelpers {
 }
 
 /**
+ * Decide what a notification action resolves to: either a route to navigate to, or a
+ * Mingo drawer dialog id to open in place. This is the single source of truth for the
+ * drawer-vs-navigate branch — both the imperative call sites (tile click, desktop
+ * banner click) and any href/onClick split UI should derive from this function rather
+ * than re-deriving the same decision, so the two can no longer drift apart.
+ */
+function resolveNotificationTargetDecision(
+  action: NotificationAction,
+): { kind: 'drawer'; drawerDialogId: string } | { kind: 'navigate'; route: string } {
+  const drawerDialogId = mingoDrawerDialogId(action);
+  if (drawerDialogId) return { kind: 'drawer', drawerDialogId };
+  return { kind: 'navigate', route: action.route };
+}
+
+/**
  * Open what a notification points at, from either imperative surface — a clicked tile
  * or a desktop OS banner.
  *
- * Shared because the drawer branch carries a compensating step that is easy to omit:
- * it changes no URL of its own here (the sync hook stamps one a commit later), so the
- * location-based `EntityViewAutoReader` never sees the user arrive and the caller has
- * to mark the notification read itself. Written out twice, one copy drifted from the
- * other within a single review pass.
+ * Delegates the drawer-vs-navigate decision to `resolveNotificationTargetDecision` so
+ * any other call site (e.g. a table's href/onClick split) can share the exact same
+ * routing decision instead of re-implementing it and risking drift.
  *
- * The table's action cell does NOT use this — it needs the same decision split across
- * an `href` and an `onClick` rather than run as one statement.
+ * The drawer branch carries a compensating step that is easy to omit: it changes no
+ * URL of its own here (the sync hook stamps one a commit later), so the location-based
+ * `EntityViewAutoReader` never sees the user arrive and the caller has to mark the
+ * notification read itself.
  */
 function openNotificationTarget(
   action: NotificationAction,
   notificationId: string,
   { markRead, navigate }: { markRead: (id: string) => void; navigate: (route: string) => void },
 ): void {
-  const drawerDialogId = mingoDrawerDialogId(action);
-  if (!drawerDialogId) {
-    navigate(action.route);
+  const decision = resolveNotificationTargetDecision(action);
+  if (decision.kind === 'navigate') {
+    navigate(decision.route);
     return;
   }
-  openMingoDialogInDrawer(drawerDialogId);
+  openMingoDialogInDrawer(decision.drawerDialogId);
   markRead(notificationId);
 }
 
