@@ -117,7 +117,9 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
       await publishArticle(article.id);
       toast({ title: 'Published', description: article.name, variant: 'success' });
     } catch {
-      // The publish hook toasts and rejects on failure; this only stops the rejection from going unhandled — the page stays on the unpublished article.
+      // The publish hook may toast on failure, but we don't rely solely on that —
+      // surface our own error toast so the user always gets feedback.
+      toast({ title: 'Failed to publish', description: article.name, variant: 'destructive' });
     }
   }, [publishArticle, article.id, article.name, toast]);
 
@@ -126,7 +128,8 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
       await unpublishArticle(article.id);
       toast({ title: 'Moved to draft', description: article.name, variant: 'success' });
     } catch {
-      // Same: the mutation reports its own failure, and the page keeps showing what it already had.
+      // Same: don't rely solely on the mutation's own failure toast — show ours too.
+      toast({ title: 'Failed to move to draft', description: article.name, variant: 'destructive' });
     }
   }, [unpublishArticle, article.id, article.name, toast]);
 
