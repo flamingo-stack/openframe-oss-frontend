@@ -374,6 +374,8 @@ export interface SoftwareTableProps {
   scopeFilter?: SoftwareFilterInput | null;
   emptyTitle: string;
   emptyDescription: string;
+  /** Header actions. Defaults to Install Software. */
+  actions?: PageActionButton[];
 }
 
 /**
@@ -381,7 +383,13 @@ export interface SoftwareTableProps {
  * the fleet. Shared by the three Software tabs, which differ only in the fixed
  * `scopeFilter` they pass.
  */
-export function SoftwareTable({ title, scopeFilter = null, emptyTitle, emptyDescription }: SoftwareTableProps) {
+export function SoftwareTable({
+  title,
+  scopeFilter = null,
+  emptyTitle,
+  emptyDescription,
+  actions = PAGE_ACTIONS,
+}: SoftwareTableProps) {
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
     // Server-side sort: backend sort field ('devicesCount' / 'severity' from the
@@ -448,7 +456,7 @@ export function SoftwareTable({ title, scopeFilter = null, emptyTitle, emptyDesc
     // No page padding here: it lives on the wrapper around `ContentErrorBoundary`
     // (see the pages), so a thrown query keeps the title indented instead of
     // taking the padding down with the layout that declared it.
-    <PageLayout title={title} actions={PAGE_ACTIONS}>
+    <PageLayout title={title} actions={actions}>
       <div className="flex flex-col" style={containerStyle}>
         {!isEmpty && (
           <div
