@@ -40,47 +40,6 @@ type Address {
   country: String
 }
 
-type AdminAiMessageContext implements NotificationContext {
-  type: String!
-  dialogId: ID!
-}
-
-type AdminAiTicketMessageContext implements NotificationContext {
-  type: String!
-  ticketId: ID!
-  ticketNumber: Int
-
-  """
-  Ticket title snapshotted at emission, so attribution needs no extra fetch.
-  """
-  ticketTitle: String
-  dialogId: ID!
-}
-
-type AdminApprovalRequestContext implements NotificationContext {
-  type: String!
-  approvalRequestId: ID!
-  dialogId: ID!
-  ticketId: ID
-  ticketNumber: Int
-  approvalType: ApprovalType!
-  toolCalls: [ApprovalToolCall!]!
-  resolution: ApprovalResolution
-  resolvedByUserId: ID
-  resolvedByName: String
-  resolvedAt: Instant
-}
-
-type AdminMessagePublishedContext implements NotificationContext {
-  type: String!
-  ticketId: ID!
-
-  """
-  Ticket title snapshotted at emission, so attribution needs no extra fetch.
-  """
-  ticketTitle: String
-}
-
 """
 Rate for converting provider tokens of a single model into OpenFrame tokens.
 """
@@ -105,19 +64,6 @@ enum ApprovalResolution {
   CANCELLED
 }
 
-" A single planned tool invocation awaiting approval.\n `toolCallArguments` is an opaque JSON object whose shape varies by `toolName`; the\n `JSON` scalar is contributed by the runtime that hosts this schema (e.g. saas-api)."
-type ApprovalToolCall {
-  toolExecutionRequestId: String
-  toolName: String!
-  toolTitle: String
-  toolExplanation: String
-  toolType: ToolType
-  requiresApproval: Boolean!
-  approvalType: ApprovalType
-  toolCallArguments: JSON
-}
-
-" SaaS-specific NotificationContext subtypes.\n The base interface `NotificationContext` is declared in the OSS notification schema\n (openframe-api-service-core/.../schema/notification.graphqls); we only contribute the\n concrete SaaS types here. DGS picks up all `classpath*:schema/*.graphqls` and merges them."
 enum ApprovalType {
   CLIENT
   ADMIN
@@ -309,22 +255,6 @@ type CheckoutResult {
   subscription: SubscriptionDetail
 }
 
-type ClientAiMessageContext implements NotificationContext {
-  type: String!
-  dialogId: ID!
-
-  """
-  Set when the client dialog belongs to a ticket; a Fae chat can also run without one.
-  """
-  ticketId: ID
-  ticketNumber: Int
-
-  """
-  Ticket title snapshotted at emission, so attribution needs no extra fetch.
-  """
-  ticketTitle: String
-}
-
 enum ConnectionStatus {
   CONNECTED
   DISCONNECTED
@@ -441,16 +371,6 @@ input CursorPaginationInput {
 
   """Defaults to 20; values above 100 are clamped, not rejected."""
   limit: Int
-}
-
-type CustomerMessagePublishedContext implements NotificationContext {
-  type: String!
-  ticketId: ID!
-
-  """
-  Ticket title snapshotted at emission, so attribution needs no extra fetch.
-  """
-  ticketTitle: String
 }
 
 """"""
@@ -853,11 +773,6 @@ type FreeTokenGrants {
 
   """Free AI tokens per paid period with an active device package."""
   devicePackage: Long
-}
-
-type GenericContext implements NotificationContext {
-  type: String!
-  payload: String
 }
 
 """
@@ -1556,12 +1471,6 @@ type Notification implements Node {
   category: NotificationCategory!
 
   """
-  Nullable during the context→attributes migration: rows written before it lack context once the
-  typed context types are retired, and clients on `attributes` never read it.
-  """
-  context: NotificationContext
-
-  """
   Spec-driven notification type; null on rows written by the legacy dispatcher path.
   """
   type: String
@@ -1588,10 +1497,6 @@ enum NotificationCategory {
 type NotificationConnection {
   edges: [NotificationEdge!]!
   pageInfo: PageInfo!
-}
-
-interface NotificationContext {
-  type: String!
 }
 
 type NotificationEdge {
@@ -2987,76 +2892,6 @@ type Ticket implements AssignableTarget & Node {
   createdAt: Instant
   updatedAt: Instant
   resolvedAt: Instant
-}
-
-type TicketAssignedContext implements NotificationContext {
-  type: String!
-  ticketId: ID!
-  ticketNumber: Int
-
-  """
-  Ticket title snapshotted at emission, so attribution needs no extra fetch.
-  """
-  ticketTitle: String
-  assigneeUserId: ID!
-  assignedByUserId: ID
-  assigneeName: String
-  assignedByName: String
-}
-
-type TicketCreatedByClientContext implements NotificationContext {
-  type: String!
-  ticketId: ID!
-  ticketNumber: Int
-
-  """
-  Ticket title snapshotted at emission, so attribution needs no extra fetch.
-  """
-  ticketTitle: String
-  machineId: ID
-
-  """
-  Device nickname when one is set, hostname otherwise — whoever the ticket is attributed to.
-  """
-  createdByName: String
-}
-
-type TicketEscalatedByUserContext implements NotificationContext {
-  type: String!
-  ticketId: ID!
-  ticketNumber: Int
-
-  """
-  Ticket title snapshotted at emission, so attribution needs no extra fetch.
-  """
-  ticketTitle: String
-  dialogId: ID
-  machineId: ID
-}
-
-type TicketReopenedContext implements NotificationContext {
-  type: String!
-  ticketId: ID!
-  ticketNumber: Int
-  dialogId: ID
-  targetStatusKind: String
-  reason: String
-}
-
-type TicketStatusChangedContext implements NotificationContext {
-  type: String!
-  ticketId: ID!
-  ticketNumber: Int
-
-  """
-  Ticket title snapshotted at emission, so attribution needs no extra fetch.
-  """
-  ticketTitle: String
-  previousStatus: String
-  newStatus: String
-
-  """ nullable: system-driven status transitions have no acting principal"""
-  changedByUserId: ID
 }
 
 type TimeEntry implements Node {
