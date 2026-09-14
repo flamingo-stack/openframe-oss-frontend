@@ -110,7 +110,7 @@ jobs:
             type=raw,value=pr-${{ github.event.pull_request.number }}
             type=raw,value=pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
 
-      - name: Build image
+      - name: Build image pr-${{ github.event.pull_request.number }}
         id: docker_build
         uses: nick-fields/retry@v4
         env:
@@ -135,7 +135,7 @@ jobs:
           dockerfile: ./Dockerfile
           context: .
 
-      - name: Push image
+      - name: Push image pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }} (pr-${{ github.event.pull_request.number }} tag)
         id: docker_push
         uses: nick-fields/retry@v4
         env:
