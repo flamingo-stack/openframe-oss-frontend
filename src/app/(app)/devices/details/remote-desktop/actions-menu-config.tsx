@@ -1,5 +1,5 @@
 import type { ActionsMenuGroup } from '@flamingo-stack/openframe-frontend-core';
-import { Keyboard, Moon, Power, RotateCcw, Sunrise } from 'lucide-react';
+import { Keyboard, Moon, Power, RotateCcw, Sunrise } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 
 // Virtual key codes based on Windows Virtual-Key Codes
 export const VK = {
