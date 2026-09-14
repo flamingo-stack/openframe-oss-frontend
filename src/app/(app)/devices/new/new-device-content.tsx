@@ -189,7 +189,9 @@ export function NewDeviceContent() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col gap-6">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        {/* Mockups 504-46017/46069/46131: one column on mobile, two on tablet,
+            all four selectors in a single row on desktop. */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Controller
             name="organizationId"
             control={form.control}
