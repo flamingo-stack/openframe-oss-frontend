@@ -25,11 +25,13 @@ import {
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { getDeviceStatusConfig } from '../../../devices/utils/device-status';
+import { QUERY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
 import { QuickQueryPanel } from '../../policy/components/quick-query-panel';
 import { useQueryDevicesTable } from '../hooks/use-query-devices-table';
 import type { QueryDeviceRow } from '../types/query-device-row';
@@ -129,9 +131,9 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
   const columns = useMemo<ColumnDef<QueryDeviceRow>[]>(
     () => [
       {
-        id: 'device',
+        id: QUERY_DEVICE_COLUMNS.device.id,
         accessorKey: 'displayName',
-        header: 'DEVICE',
+        header: QUERY_DEVICE_COLUMNS.device.header,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
           const r = row.original;
           return (
@@ -153,12 +155,12 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
             </div>
           );
         },
-        meta: { width: 'flex-1 md:w-1/3' },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.device),
       },
       {
-        id: 'organization',
+        id: QUERY_DEVICE_COLUMNS.organization.id,
         accessorKey: 'organization',
-        header: 'CUSTOMER',
+        header: QUERY_DEVICE_COLUMNS.organization.header,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
           const r = row.original;
           const fullImageUrl = getFullImageUrl(r.organizationImageUrl, r.organizationImageHash);
@@ -172,33 +174,33 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
           );
         },
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-1/6', hideAt: 'lg' as const, filter: { options: customerOptions } },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.organization, { filter: { options: customerOptions } }),
       },
       {
-        id: 'os',
+        id: QUERY_DEVICE_COLUMNS.os.id,
         accessorKey: 'osType',
-        header: 'OS',
+        header: QUERY_DEVICE_COLUMNS.os.header,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => (
           <div className="flex shrink-0 items-start gap-2">
             <OSTypeBadge osType={row.original.osType} />
           </div>
         ),
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px] md:w-1/6', hideAt: 'md' as const, filter: { options: osOptions } },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.os, { filter: { options: osOptions } }),
       },
       {
-        id: 'status',
+        id: QUERY_DEVICE_COLUMNS.status.id,
         accessorKey: 'status',
-        header: 'STATUS',
+        header: QUERY_DEVICE_COLUMNS.status.header,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
           const config = getDeviceStatusConfig(row.original.status);
           return <Tag label={config.label} variant={config.variant} />;
         },
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[140px]', filter: { options: statusOptions } },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.status, { filter: { options: statusOptions } }),
       },
       {
-        id: 'open',
+        id: QUERY_DEVICE_COLUMNS.open.id,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) =>
           row.original.machineId ? (
             <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
@@ -213,10 +215,10 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
             </div>
           ) : null,
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.open),
       },
       {
-        id: 'quick-query',
+        id: QUERY_DEVICE_COLUMNS.quickQuery.id,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
           const isOpen = quickQueryIds.has(String(row.original.id));
           return (
@@ -239,10 +241,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
           );
         },
         enableSorting: false,
-        // Fixed column width (matching the header's empty cell) so the flex
-        // columns before it stretch identically in the header and the rows;
-        // the w-full button inside also keeps Quick Query / Close equal width.
-        meta: { width: 'w-12 md:w-[160px] shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.quickQuery),
       },
     ],
     [statusOptions, osOptions, customerOptions, quickQueryIds, toggleQuickQuery, hasQuery],

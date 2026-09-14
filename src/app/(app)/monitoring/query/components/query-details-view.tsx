@@ -2,7 +2,6 @@
 
 import {
   type ActionsMenuGroup,
-  CardLoader,
   LoadError,
   NotFoundError,
   type PageActionButton,
@@ -20,11 +19,12 @@ import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { routes } from '@/lib/routes';
+import { type QueryDetailTab, routes, TAB_IDS } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
+import { MonitoringDetailSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
 import { useQueries } from '../../hooks/use-queries';
 import { usePolicyDevices } from '../../policy/hooks/use-policy-devices';
@@ -32,12 +32,17 @@ import { useQueryDetails } from '../hooks/use-query-details';
 import { useQueryReport } from '../hooks/use-query-report';
 import { QueryDevicesTable } from './query-devices-table';
 
+const [RESULTS_TAB, DEVICES_TAB] = TAB_IDS.queryDetails;
+
 const QUERY_TABS: TabItem[] = [
-  { id: 'results', label: 'Query Results', icon: CheckCircleIcon },
-  { id: 'devices', label: 'Assigned Devices', icon: MonitorIcon },
+  { id: RESULTS_TAB, label: 'Query Results', icon: CheckCircleIcon },
+  { id: DEVICES_TAB, label: 'Assigned Devices', icon: MonitorIcon },
 ];
-const QUERY_TAB_IDS = QUERY_TABS.map(t => t.id);
-const DEFAULT_QUERY_TAB = 'results';
+const DEFAULT_QUERY_TAB: QueryDetailTab = RESULTS_TAB;
+
+function isQueryDetailTab(value: string): value is QueryDetailTab {
+  return TAB_IDS.queryDetails.some(tab => tab === value);
+}
 
 function formatInterval(seconds: number): string {
   if (seconds === 0) return 'Manual';
@@ -69,7 +74,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
   const getQuery = useCallback(() => queryText, [queryText]);
 
   const requestedTab = searchParams.get('tab') ?? DEFAULT_QUERY_TAB;
-  const activeTab = QUERY_TAB_IDS.includes(requestedTab) ? requestedTab : DEFAULT_QUERY_TAB;
+  const activeTab = isQueryDetailTab(requestedTab) ? requestedTab : DEFAULT_QUERY_TAB;
 
   // Controlled tabs: the URL `?tab=` param is the single source of truth.
   const handleTabChange = useCallback(
@@ -98,7 +103,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
   };
 
   if (isLoading) {
-    return <CardLoader items={4} />;
+    return <MonitoringDetailSkeleton kind="query" onBack={handleBack} queryTab={activeTab} />;
   }
 
   if (error) {
@@ -127,6 +132,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
           icon: <TrashIcon />,
           onClick: () => setIsDeleteModalOpen(true),
           disabled: isDeleting,
+          danger: true,
         },
       ],
     },

@@ -30,12 +30,12 @@ const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Finish', variant: 'accent
  * the wrong shape, and the layout would jump again the moment the real half
  * landed.
  *
- * Locked with `disabled`, NOT `readOnly`, and the difference is the tab strip:
- * `readOnly` forces `singleSelect`, which is the picker's one-device shape and
- * has no Available / Selected split — the loading card came out a header short
- * of the card it stands in for. `disabled` blocks every interaction and leaves
- * the shape alone. `showSelectionModeRadio` is off for the same reason the real
- * lists switch it off: the page draws the mode block itself, above the boundary.
+ * Locked with `disabled`, which blocks every interaction and leaves the picker's
+ * SHAPE alone. Nothing here may switch a block off that the loaded card shows —
+ * the Available / Selected tab strip in particular — or this stands in for a
+ * card a header shorter than the real one. `showSelectionModeRadio` is the one
+ * thing off, for the same reason the real lists switch it off: the page draws
+ * the mode block itself, above the boundary.
  */
 export function SchedulePickerSkeleton({ mode }: { mode: DeviceSelectionMode }) {
   return (

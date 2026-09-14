@@ -155,6 +155,12 @@ html[data-shell='mobile'] .of-auth-shell {
   padding-top: var(--native-safe-top, env(safe-area-inset-top));
 }
 
+/* The auth roots own their bottom edge too: `CompactAuthShell` pins "Powered by" to the bottom of
+   the screen, which on a phone is the home-indicator / navigation band. */
+html[data-shell='mobile'] .of-auth-shell {
+  padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom));
+}
+
 /* Standalone full-screen pages — rendered outside BOTH of the roots above, i.e.
    with no chrome to hand the remaining edges to, so this root owns all four.
    Currently just /account-deleted, which the deletion flow `replace`s onto once

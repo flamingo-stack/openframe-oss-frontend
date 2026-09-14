@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Device, DeviceDataSources, ToolConnection } from '../types/device.types';
-import { getVulnerabilitiesEmptyReason } from './vulnerabilities-empty-state';
+import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from './vulnerabilities-empty-state';
 
 function fleetConn(vulnerabilitiesUpdatedAt: string | null | undefined): ToolConnection {
   return {
@@ -79,5 +79,43 @@ describe('getVulnerabilitiesEmptyReason', () => {
       toolConnections: [fleetConn('2026-09-01T16:00:00Z')],
     });
     expect(getVulnerabilitiesEmptyReason(noSources)).toBe('clean');
+  });
+});
+
+describe('isVulnerabilityScanPending', () => {
+  it('is pending when the inventory is newer than the last matching run, or matching never ran', () => {
+    const staleRun = device({
+      fleet: 'ok',
+      software_updated_at: '2026-09-01T15:06:01Z',
+      toolConnections: [fleetConn('2026-09-01T14:31:24Z')],
+    });
+    expect(isVulnerabilityScanPending(staleRun)).toBe(true);
+
+    const neverRan = device({
+      fleet: 'ok',
+      software_updated_at: '2026-09-01T15:06:01Z',
+      toolConnections: [fleetConn(null)],
+    });
+    expect(isVulnerabilityScanPending(neverRan)).toBe(true);
+  });
+
+  it('is not pending once the run covers the inventory', () => {
+    const covered = device({
+      fleet: 'ok',
+      software_updated_at: '2026-09-01T15:06:01Z',
+      toolConnections: [fleetConn('2026-09-01T16:00:00Z')],
+    });
+    expect(isVulnerabilityScanPending(covered)).toBe(false);
+  });
+
+  it('is not pending in earlier pipeline stages (nothing to match against yet)', () => {
+    expect(isVulnerabilityScanPending(device({ fleet: 'error' }))).toBe(false);
+    expect(isVulnerabilityScanPending(device({ fleet: 'skipped-disconnected' }))).toBe(false);
+    expect(isVulnerabilityScanPending(device({ fleet: 'skipped-pending' }))).toBe(false);
+    // Inventory never scanned (missing or Fleet sentinel) → collecting, not syncing.
+    expect(isVulnerabilityScanPending(device({ fleet: 'ok' }))).toBe(false);
+    expect(isVulnerabilityScanPending(device({ fleet: 'ok', software_updated_at: '0001-01-01T00:00:00Z' }))).toBe(
+      false,
+    );
   });
 });

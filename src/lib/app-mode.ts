@@ -3,7 +3,7 @@
  * Controls whether the app runs in auth-only mode or full application mode
  */
 
-import { isAppShell } from './platform';
+import { isAppShell, isMobileShell } from './platform';
 import { routes } from './routes';
 import { runtimeEnv } from './runtime-config';
 
@@ -51,6 +51,25 @@ export function isSaasSharedMode(): boolean {
  */
 export function isSharedAuthUi(): boolean {
   return isSaasSharedMode() || (isSaasTenantMode() && isAppShell());
+}
+
+/**
+ * Whether mobile sign-in is login-only: no Sign Up tab, no organization setup, and an identity with
+ * no account gets the administrator-invitation notice. App Review rejected in-app organization
+ * registration as an external purchase mechanism (3.1.1/3.1.3, 2026-09-11);
+ * `NEXT_PUBLIC_MOBILE_AUTH_UI=legacy` switches back.
+ *
+ * Not a shell check on its own: the pages the auth server opens inside the login sheet are served by
+ * the web deployment and recognise a mobile flow only by their URL (`readMobileAuthReturn`). In-app
+ * screens ask {@link isLoginOnlyMobileShell}.
+ */
+export function isMobileAuthLoginOnly(): boolean {
+  return runtimeEnv.mobileAuthUi() === 'login-only';
+}
+
+/** The Capacitor shell running the login-only auth screens. Phone-only: the desktop shell keeps sign-up. */
+export function isLoginOnlyMobileShell(): boolean {
+  return isMobileShell() && isMobileAuthLoginOnly();
 }
 
 /**

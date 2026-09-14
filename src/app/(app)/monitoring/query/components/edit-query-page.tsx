@@ -2,7 +2,6 @@
 'use no memo';
 
 import {
-  CardLoader,
   Input,
   Label,
   LoadError,
@@ -27,6 +26,7 @@ import { routes } from '@/lib/routes';
 import type { Device } from '../../../devices/types/device.types';
 import { getFleetHostId } from '../../../devices/utils/device-action-utils';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
+import { MonitoringEditSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
 import { useQueries } from '../../hooks/use-queries';
 import { usePolicyDevices } from '../../policy/hooks/use-policy-devices';
@@ -243,7 +243,7 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
   );
 
   if (isLoadingQuery && isExistingQuery) {
-    return <CardLoader items={4} />;
+    return <MonitoringEditSkeleton kind="query" onBack={handleBack} />;
   }
 
   if (queryError && isExistingQuery) {

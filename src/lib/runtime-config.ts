@@ -92,4 +92,12 @@ export const runtimeEnv = {
   mobileTenantId(): string {
     return getEnvVar('NEXT_PUBLIC_MOBILE_TENANT_ID') || '';
   },
+  /**
+   * Which auth screens the mobile shell shows. Anything but `legacy` is the login-only set — no Sign
+   * Up tab, no in-app organization setup — so a build that forgets the variable ships the screens
+   * App Review accepts. Baked into the mobile bundle by openframe-mobile's `inject-env.mjs`.
+   */
+  mobileAuthUi(): 'login-only' | 'legacy' {
+    return getEnvVar('NEXT_PUBLIC_MOBILE_AUTH_UI') === 'legacy' ? 'legacy' : 'login-only';
+  },
 };

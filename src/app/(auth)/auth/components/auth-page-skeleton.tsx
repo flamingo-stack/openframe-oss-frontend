@@ -1,9 +1,9 @@
 'use client';
 
-import { AuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { StandaloneAuthShell } from './standalone-auth-shell';
 
-export type AuthPageSkeletonVariant = 'signup' | 'login' | 'complete-account';
+export type AuthPageSkeletonVariant = 'signup' | 'login' | 'complete-account' | 'sso-join';
 
 interface AuthPageSkeletonProps {
   variant?: AuthPageSkeletonVariant;
@@ -116,10 +116,39 @@ function CompleteAccountFormSkeleton() {
   );
 }
 
+/**
+ * "One Last Step" (`/auth/sso-join`): the identity row, the consent block, back + submit. The row
+ * mirrors `SsoJoinForm`'s own surface so the card does not change shape when the identity lands.
+ */
+function SsoJoinFormSkeleton() {
+  return (
+    <>
+      <HeaderSkeleton />
+      {/* Identity row: avatar, name + organization, role tag */}
+      <div className="flex items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-m)]">
+        <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
+        <div className="flex flex-1 flex-col gap-[var(--spacing-system-xxs)]">
+          <Skeleton className="h-5 w-40 max-w-full md:h-6" />
+          <Skeleton className="h-4 w-56 max-w-full md:h-5" />
+        </div>
+        <Skeleton className="h-8 w-16 shrink-0 rounded-md" />
+      </div>
+      {/* Consent block, the height of a `CheckboxBlock` with no description */}
+      <Skeleton className="h-11 w-full rounded-md md:h-12" />
+      {/* Back + submit */}
+      <div className="flex items-center gap-[var(--spacing-system-l)]">
+        <ButtonSkeleton className="flex-1" />
+        <ButtonSkeleton className="flex-1" />
+      </div>
+    </>
+  );
+}
+
 const FORM_SKELETONS: Record<AuthPageSkeletonVariant, () => React.ReactNode> = {
   signup: SignupFormSkeleton,
   login: LoginFormSkeleton,
   'complete-account': CompleteAccountFormSkeleton,
+  'sso-join': SsoJoinFormSkeleton,
 };
 
 /**
@@ -145,13 +174,13 @@ export function AuthFormSkeleton({ variant = 'signup' }: { variant?: AuthPageSke
 
 /**
  * Loading placeholder for auth pages that bring their own shell (invite, and friends). Renders the
- * real AuthShell — branding and benefits are static — around {@link AuthFormSkeleton}, so there is
- * no layout shift on load.
+ * same shell the page will (`StandaloneAuthShell` — branding and benefits are static) around
+ * {@link AuthFormSkeleton}, so there is no layout shift on load.
  */
 export function AuthPageSkeleton({ variant = 'signup' }: AuthPageSkeletonProps) {
   return (
-    <AuthShell>
+    <StandaloneAuthShell>
       <AuthFormSkeleton variant={variant} />
-    </AuthShell>
+    </StandaloneAuthShell>
   );
 }

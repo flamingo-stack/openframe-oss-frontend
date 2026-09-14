@@ -24,7 +24,8 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { formatDate } from '@/lib/format-date';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
 import { deviceQueryKeys } from '../../utils/query-keys';
-import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty-state';
+import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../../utils/vulnerabilities-empty-state';
+import { DataSyncBanner } from '../data-sync-banner';
 import { VULNERABILITY_COLUMNS } from './device-tab-columns';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
@@ -308,6 +309,11 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
+      {/* Results are on screen but the last matching run predates the current
+          software inventory — e.g. a patched CVE may still show as active until
+          the hourly run catches up. */}
+      {isVulnerabilityScanPending(device) && <DataSyncBanner />}
+
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
