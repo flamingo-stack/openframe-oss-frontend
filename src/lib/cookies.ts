@@ -30,6 +30,11 @@ export function writeCookie(attributes: CookieAttributes): void {
   if (typeof document === 'undefined') return;
 
   const { name, value, domain, maxAgeSeconds, path = '/', sameSite = 'lax', secure } = attributes;
+
+  if (!/^[\w-]+$/.test(name)) {
+    throw new Error(`writeCookie: invalid cookie name "${name}"`);
+  }
+
   const parts = [
     `${name}=${encodeURIComponent(value)}`,
     `Path=${path}`,
