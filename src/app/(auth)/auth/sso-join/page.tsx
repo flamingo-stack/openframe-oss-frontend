@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { AuthFormSkeleton } from '@/app/(auth)/auth/components/auth-page-skeleton';
 import { SsoJoinCardLayout } from '@/app/(auth)/auth/components/sso-join-card-layout';
+import { isMobileAuthLoginOnly } from '@/lib/app-mode';
 import { authApiClient, type PendingSsoJoin } from '@/lib/auth-api-client';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 import { MOBILE_AUTH_ERROR, readMobileAuthReturn } from '@/lib/mobile-auth-return';
@@ -115,6 +116,8 @@ export default function SsoJoinPage() {
   // Either name can be missing (Apple, or a provider that only asserts an address); the form falls
   // back to the email when both are.
   const name = [pending.firstName, pending.lastName].filter(Boolean).join(' ');
+  // The sheet is served by the web deployment, so the URL, not the shell, marks the flow as mobile.
+  const mobileLoginOnly = mobileReturn !== null && isMobileAuthLoginOnly();
 
   return (
     <SsoJoinCardLayout>
@@ -122,6 +125,11 @@ export default function SsoJoinPage() {
         name={name}
         email={pending.email}
         organizationName={pending.tenantName}
+        // "Create Account" and "signing up" are what App Review told us to remove from the app, and the
+        // person is joining an organization that already exists. The label leaves the name out: the
+        // identity row above shows it, and a long one pushed the button past the card.
+        submitLabel={mobileLoginOnly ? 'Join Organization' : undefined}
+        termsSuffix={mobileLoginOnly ? ' by joining.' : undefined}
         roles={pending.roles ?? []}
         agreedToTerms={agreedToTerms}
         onAgreedToTermsChange={setAgreedToTerms}
