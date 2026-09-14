@@ -135,6 +135,13 @@ export function useAuth() {
       setDiscoveryAttempted(true);
       return data;
     } catch (error) {
+      // Same staleness guard as the success path above: a fast error for an abandoned
+      // address must not clobber the loading/attempted state a newer, still-in-flight
+      // discovery request is about to set for the currently-typed email.
+      if (latestDiscovery.current !== userEmail) {
+        return null;
+      }
+
       toast({
         title: 'Discovery Failed',
         description: error instanceof Error ? error.message : 'Unable to check for existing accounts',
