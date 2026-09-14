@@ -175,10 +175,11 @@ function routeFromWireFields(fields: Record<string, unknown>): string | null {
 }
 
 /**
- * Route for a raw NATS notification envelope (`type`/`attributes`/`category` at the top
+ * Route for a NATS notification envelope (`type`/`attributes`/`category` at the top
  * level), before it has been shaped into a store record — the desktop shell's OS-toast
- * click path (`notification:click` from the Rust notification plane) hands the wire
- * payload over as-is. Anything else on the envelope is ignored.
+ * click path (`notification:click` from the Rust notification plane) hands over the
+ * envelope narrowed to `type` + `attributes` (its `click_payload`). Anything else on
+ * the envelope is ignored.
  */
 export function resolveNatsNotificationRoute(payload: unknown): string | null {
   const envelope = (payload ?? {}) as { type?: unknown; attributes?: unknown; category?: unknown };
