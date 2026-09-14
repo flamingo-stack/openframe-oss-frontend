@@ -47,6 +47,8 @@ const POLL_MS = 5_000;
 export function useRemoteAccessApproval(
   deviceId: string,
   sessionKind: RemoteSessionKind,
+  /** Mock resolution hint - see CreateRemoteAccessRequestInput.organizationId. */
+  organizationId?: string,
 ): UseRemoteAccessApprovalResult {
   const [state, setState] = useState<RemoteAccessApprovalState>('idle');
   const [request, setRequest] = useState<RemoteAccessRequest | null>(null);
@@ -74,7 +76,7 @@ export function useRemoteAccessApproval(
       setState('requesting');
       (async () => {
         try {
-          const created = await remoteAccessApprovalService.create({ deviceId, sessionKind, reason });
+          const created = await remoteAccessApprovalService.create({ deviceId, sessionKind, reason, organizationId });
           if (attempt !== attemptRef.current) return;
           setRequest(created);
           if (isSettledRequestStatus(created.status)) {
@@ -89,7 +91,7 @@ export function useRemoteAccessApproval(
         }
       })();
     },
-    [deviceId, sessionKind, applySettled],
+    [deviceId, sessionKind, organizationId, applySettled],
   );
 
   // Decision delivery while awaiting: push subscription + polling fallback.

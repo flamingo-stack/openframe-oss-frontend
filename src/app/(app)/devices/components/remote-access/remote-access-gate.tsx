@@ -9,9 +9,10 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { CompactPageLoader, Label, Textarea } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Loader2 } from 'lucide-react';
-import { type ComponentType, type ReactNode, useEffect, useState } from 'react';
+import { type ComponentType, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
+import { useEffectiveDeviceRemoteAccessMode, useTenantRemoteAccessPolicy } from '../../hooks/use-remote-access-policy';
 import { mockRemoteAccessDecision } from '../../services/remote-access-approval-service';
 import type { RemoteSessionKind } from '../../types/remote-access';
 
@@ -19,6 +20,11 @@ interface RemoteAccessGateProps {
   deviceId: string;
   /** Hostname when known - used in the copy; falls back to "this device". */
   deviceName?: string;
+  /**
+   * Pass when known: the mock policy resolution needs it for the per-customer
+   * override to apply (the real API derives it server-side).
+   */
+  organizationId?: string;
   sessionKind: RemoteSessionKind;
   /** Leave the flow entirely (the pages' safe-back). */
   onBack: () => void;
@@ -53,10 +59,45 @@ function formatRemaining(expiresAt: string, nowMs: number): string {
  * the app's existing overlay/empty-state patterns; the designer pass can
  * restyle without touching the flow.
  */
-export function RemoteAccessGate({ deviceId, deviceName, sessionKind, onBack, children }: RemoteAccessGateProps) {
+export function RemoteAccessGate({
+  deviceId,
+  deviceName,
+  organizationId,
+  sessionKind,
+  onBack,
+  children,
+}: RemoteAccessGateProps) {
   const gate = useRemoteAccessApprovalGate();
-  const approval = useRemoteAccessApproval(deviceId, sessionKind);
+  const approval = useRemoteAccessApproval(deviceId, sessionKind, organizationId);
   const [reason, setReason] = useState('');
+
+  // Policy sync (CU-86akeqw8b): the effective mode decides the flow shape -
+  // DENY_ACCESS never requests, NOTIFY_ONLY / SILENT_ACCESS auto-approve on
+  // the service side - and `reasonRequired` decides whether the reason step
+  // exists at all.
+  const effectiveMode = useEffectiveDeviceRemoteAccessMode({ machineId: deviceId, id: deviceId, organizationId });
+  const tenantPolicy = useTenantRemoteAccessPolicy({ enabled: gate === 'on' });
+  const policyLoading = gate === 'on' && (effectiveMode === undefined || tenantPolicy.isLoading);
+  // Conservative until loaded: showing the reason step needlessly is harmless,
+  // silently skipping a required one is not.
+  const reasonRequired = tenantPolicy.data?.reasonRequired ?? true;
+  // Either the policy read says DENY up front, or a create raced a policy
+  // change and came back DENIED with the resolved mode recorded.
+  const policyDenied = effectiveMode === 'DENY_ACCESS' || approval.request?.resolvedMode === 'DENY_ACCESS';
+
+  // With no reason step there is nothing to type - fire the request as soon
+  // as the policy is known. Keyed off `state === 'idle'` rather than a
+  // one-shot flag: StrictMode's dev effect replay aborts the first in-flight
+  // create (the hook's attempt guard), and a flag would then block the retry
+  // forever. The idle->requesting transition is what prevents loops; the
+  // suppress ref covers the one idle that must NOT re-request - cancelling
+  // out of the flow (the awaiting screen navigates back right after).
+  const suppressAutoRef = useRef(false);
+  useEffect(() => {
+    if (gate !== 'on' || policyLoading || policyDenied || reasonRequired) return;
+    if (approval.state !== 'idle' || suppressAutoRef.current) return;
+    approval.requestAccess('');
+  }, [gate, policyLoading, policyDenied, reasonRequired, approval]);
 
   // One ticking clock for the awaiting countdown.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -74,8 +115,34 @@ export function RemoteAccessGate({ deviceId, deviceName, sessionKind, onBack, ch
   const { label, Icon } = SESSION_KIND_META[sessionKind];
   const target = deviceName || 'this device';
 
+  const handleRetry = () => {
+    suppressAutoRef.current = false;
+    approval.reset();
+  };
+
   let body: ReactNode;
-  if (approval.state === 'idle' || approval.state === 'requesting') {
+  if (policyLoading) {
+    body = <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />;
+  } else if (policyDenied) {
+    // Designer decision: DENY_ACCESS disables the entry points in place; this
+    // screen only exists for direct URLs, which never passed through a menu.
+    body = (
+      <NoData
+        icon={<ScanXmarkIcon />}
+        title="Remote access disabled"
+        description="The remote access policy for this device does not allow remote connections."
+        button={
+          <Button type="button" variant="outline" onClick={onBack}>
+            Back to Device Details
+          </Button>
+        }
+      />
+    );
+  } else if ((approval.state === 'idle' || approval.state === 'requesting') && !reasonRequired) {
+    // Auto-request in flight (NOTIFY/SILENT settle instantly; APPROVAL_REQUIRED
+    // proceeds to the awaiting screen without a reason step).
+    body = <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />;
+  } else if (approval.state === 'idle' || approval.state === 'requesting') {
     body = (
       <>
         <div className="rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-sf)]">
@@ -106,6 +173,8 @@ export function RemoteAccessGate({ deviceId, deviceName, sessionKind, onBack, ch
             variant="accent"
             fullWidth
             loading={approval.state === 'requesting'}
+            // The step only renders when the policy requires a reason.
+            disabled={reason.trim() === ''}
             onClick={() => approval.requestAccess(reason.trim())}
           >
             Request Access
@@ -129,7 +198,20 @@ export function RemoteAccessGate({ deviceId, deviceName, sessionKind, onBack, ch
             <p className="text-ods-text-muted text-h6">Expires in {formatRemaining(request.expiresAt, nowMs)}</p>
           )}
         </div>
-        <Button type="button" variant="outline" fullWidth onClick={approval.cancel}>
+        <Button
+          type="button"
+          variant="outline"
+          fullWidth
+          onClick={() => {
+            approval.cancel();
+            // Without a reason step there is no screen behind the cancel -
+            // leave the flow instead of auto-requesting again.
+            if (!reasonRequired) {
+              suppressAutoRef.current = true;
+              onBack();
+            }
+          }}
+        >
           Cancel Request
         </Button>
         {process.env.NODE_ENV === 'development' && request && (
@@ -206,7 +288,7 @@ export function RemoteAccessGate({ deviceId, deviceName, sessionKind, onBack, ch
             <Button type="button" variant="outline" onClick={onBack}>
               Back to Device Details
             </Button>
-            <Button type="button" variant="accent" onClick={approval.reset}>
+            <Button type="button" variant="accent" onClick={handleRetry}>
               Retry
             </Button>
           </div>

@@ -92,7 +92,13 @@ export default function FileManagerPage() {
     // for a device the file manager could actually reach. The container opens
     // the MeshCentral connection on mount, so the gate keeps it UNMOUNTED until
     // the end user approves.
-    <RemoteAccessGate deviceId={deviceId} deviceName={hostname} sessionKind="files" onBack={handleBack}>
+    <RemoteAccessGate
+      deviceId={deviceId}
+      deviceName={hostname}
+      organizationId={deviceDetails?.organizationId}
+      sessionKind="files"
+      onBack={handleBack}
+    >
       <FileManagerContainer
         deviceId={deviceId}
         meshcentralAgentId={meshcentralAgentId}

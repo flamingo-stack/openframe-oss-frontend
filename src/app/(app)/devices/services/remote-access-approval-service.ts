@@ -3,6 +3,7 @@ import type {
   RemoteAccessRequest,
   RemoteAccessRequestStatus,
 } from '../types/remote-access';
+import { remoteAccessPolicyService } from './remote-access-policy-service';
 
 /**
  * Remote-access approval backend surface (CU-86ajx03db). The approval API
@@ -74,29 +75,39 @@ class MockRemoteAccessApprovalService implements IRemoteAccessApprovalService {
       if (open && !isSettledRequestStatus(open.request.status)) return { ...open.request };
     }
 
+    // Per the CU-86ajx02gz contract, request creation resolves the policy mode
+    // first: APPROVAL_REQUIRED publishes to the machine and waits; NOTIFY_ONLY
+    // and SILENT_ACCESS auto-approve immediately (the machine gets session
+    // events, not an approval prompt); DENY_ACCESS returns DENIED outright.
+    const resolvedMode = await remoteAccessPolicyService.resolveDeviceMode(input.deviceId, input.organizationId);
+
     const now = Date.now();
     const request: RemoteAccessRequest = {
       requestId: `req-${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       deviceId: input.deviceId,
       sessionKind: input.sessionKind,
-      status: 'PENDING',
+      status: resolvedMode === 'DENY_ACCESS' ? 'DENIED' : resolvedMode === 'APPROVAL_REQUIRED' ? 'PENDING' : 'APPROVED',
       reason: input.reason,
+      resolvedMode,
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + MOCK_TIMEOUT_MS).toISOString(),
     };
     const entry: MockRequestEntry = { request, timers: [], listeners: new Set() };
     this.requests.set(request.requestId, entry);
-    this.openByDevice.set(input.deviceId, request.requestId);
 
-    entry.timers.push(
-      setTimeout(() => {
-        if (entry.request.status === 'PENDING') {
-          entry.request = { ...entry.request, status: 'DELIVERED' };
-          this.notify(entry);
-        }
-      }, MOCK_DELIVERY_MS),
-      setTimeout(() => this.settle(request.requestId, 'TIMED_OUT'), MOCK_TIMEOUT_MS),
-    );
+    // Only an attended request stays open (waits for the user's decision).
+    if (request.status === 'PENDING') {
+      this.openByDevice.set(input.deviceId, request.requestId);
+      entry.timers.push(
+        setTimeout(() => {
+          if (entry.request.status === 'PENDING') {
+            entry.request = { ...entry.request, status: 'DELIVERED' };
+            this.notify(entry);
+          }
+        }, MOCK_DELIVERY_MS),
+        setTimeout(() => this.settle(request.requestId, 'TIMED_OUT'), MOCK_TIMEOUT_MS),
+      );
+    }
 
     return { ...request };
   }

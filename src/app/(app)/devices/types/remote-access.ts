@@ -27,6 +27,12 @@ export interface RemoteAccessRequest {
   status: RemoteAccessRequestStatus;
   /** Why the technician is connecting - shown to the end user in the prompt. */
   reason?: string;
+  /**
+   * The policy mode the server resolved at creation (recorded for audit per
+   * the CU-86ajx02gz contract). DENY_ACCESS arrives already DENIED; NOTIFY_ONLY
+   * and SILENT_ACCESS arrive already APPROVED.
+   */
+  resolvedMode?: RemoteAccessMode;
   /** ISO timestamps, server clock (device clocks skew - countdowns use these). */
   createdAt: string;
   expiresAt: string;
@@ -36,6 +42,12 @@ export interface CreateRemoteAccessRequestInput {
   deviceId: string;
   sessionKind: RemoteSessionKind;
   reason?: string;
+  /**
+   * Mock-only resolution hint: the real API derives the device's organization
+   * server-side; the in-memory mock has no device registry, so callers that
+   * know the organization pass it for the org-level override to apply.
+   */
+  organizationId?: string;
 }
 
 // --------------------------------------------------------------------------

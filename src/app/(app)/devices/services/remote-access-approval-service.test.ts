@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteAccessRequest } from '../types/remote-access';
 import { mockRemoteAccessDecision, remoteAccessApprovalService } from './remote-access-approval-service';
+import { remoteAccessPolicyService } from './remote-access-policy-service';
 
 // The mock is a module singleton, so each test works on its own deviceId to
 // stay independent of requests other tests left behind.
 let deviceSeq = 0;
-const nextDeviceId = () => `dev-${++deviceSeq}`;
+const nextDeviceId = () => `dev-approval-${++deviceSeq}`;
 
 async function createRequest(deviceId: string): Promise<RemoteAccessRequest> {
   const promise = remoteAccessApprovalService.create({ deviceId, sessionKind: 'desktop', reason: 'test' });
-  await vi.advanceTimersByTimeAsync(400);
+  // Covers the create latency plus the policy resolution it performs.
+  await vi.advanceTimersByTimeAsync(700);
   return promise;
 }
 
@@ -85,5 +87,32 @@ describe('MockRemoteAccessApprovalService', () => {
     // The timeout sweep must not fire on a settled request.
     await vi.advanceTimersByTimeAsync(61_000);
     expect(seen).toEqual(['APPROVED']);
+  });
+
+  it('auto-approves immediately under a NOTIFY_ONLY policy', async () => {
+    const deviceId = nextDeviceId();
+    const overridePromise = remoteAccessPolicyService.setDeviceMode(deviceId, 'NOTIFY_ONLY');
+    await vi.advanceTimersByTimeAsync(300);
+    await overridePromise;
+
+    const request = await createRequest(deviceId);
+    expect(request.status).toBe('APPROVED');
+    expect(request.resolvedMode).toBe('NOTIFY_ONLY');
+
+    // No open request lingers - a follow-up create resolves fresh.
+    const second = await createRequest(deviceId);
+    expect(second.requestId).not.toBe(request.requestId);
+    expect(second.status).toBe('APPROVED');
+  });
+
+  it('returns DENIED outright under a DENY_ACCESS policy', async () => {
+    const deviceId = nextDeviceId();
+    const overridePromise = remoteAccessPolicyService.setDeviceMode(deviceId, 'DENY_ACCESS');
+    await vi.advanceTimersByTimeAsync(300);
+    await overridePromise;
+
+    const request = await createRequest(deviceId);
+    expect(request.status).toBe('DENIED');
+    expect(request.resolvedMode).toBe('DENY_ACCESS');
   });
 });
