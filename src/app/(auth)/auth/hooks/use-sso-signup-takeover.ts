@@ -49,6 +49,10 @@ export function useSsoSignupTakeover(): SsoSignupTakeover {
     (error: unknown) => {
       const isNoAccount =
         error instanceof AppleRegistrationRequiredError || error instanceof SsoRegistrationRequiredError;
+      // A plain call, not `useLoginOnlyMobileShell()`: that hook's `false` exists only for the
+      // prerendered render pass. Both errors come solely from `nativeLogin`, which `loginWithSso`
+      // reaches only after `isAppShell()` has detected and memoized the shell for the document, so
+      // this reads the same cached answer that routed the login natively.
       if (isNoAccount && isLoginOnlyMobileShell()) {
         router.push(routes.auth.noAccount);
       } else if (error instanceof AppleRegistrationRequiredError) {
