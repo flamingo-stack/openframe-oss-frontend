@@ -32,15 +32,17 @@ interface EditDisplayNameModalProps {
   onSaved?: () => void;
 }
 
-/** Select sentinel for "no per-device override - inherit customer/tenant". */
-const DEFAULT_MODE_VALUE = 'DEFAULT';
-
 /**
  * "Edit Device" modal: sets or clears a device's user-defined name (the BE
  * `nickname`, labeled "Display Name" in the UI per the design) and - with the
  * remote-access-approval gate on - the per-device Remote Access Permission
  * override (CU-86akeqw8b). Clearing the name reverts the title to the
  * agent-reported displayName/hostname.
+ *
+ * The permission select shows the device's EFFECTIVE mode (override, else the
+ * inherited customer/tenant default) and offers exactly the 4 modes - no
+ * separate "Default" entry, per the designer's decision. Saving always writes
+ * an explicit per-device override; there is no UI path back to inheritance.
  */
 export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditDisplayNameModalProps) {
   const { toast } = useToast();
@@ -58,9 +60,9 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
   const tenantPolicy = useTenantRemoteAccessPolicy({ enabled: isOpen && showRemoteAccess });
   const { mutateAsync: setDeviceMode, isPending: isSavingMode } = useSetDeviceRemoteAccessMode();
 
-  // The select shows the loaded override until the user picks something, so a
+  // The select shows the loaded mode until the user picks something, so a
   // background refetch can't overwrite an in-progress choice.
-  const [pickedMode, setPickedMode] = useState<RemoteAccessMode | typeof DEFAULT_MODE_VALUE | null>(null);
+  const [pickedMode, setPickedMode] = useState<RemoteAccessMode | null>(null);
 
   // Seeded when the modal opens, during render rather than in an effect: an effect
   // paints the field with the previous value once before correcting it. Keyed off
@@ -75,11 +77,17 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
     }
   }
 
-  const savedModeValue: RemoteAccessMode | typeof DEFAULT_MODE_VALUE = deviceMode.data ?? DEFAULT_MODE_VALUE;
+  // Effective mode: device override -> org override -> tenant default.
+  const savedModeValue: RemoteAccessMode | undefined =
+    deviceMode.data ?? organizationMode.data ?? tenantPolicy.data?.mode ?? undefined;
   const selectedModeValue = pickedMode ?? savedModeValue;
-  const modeChanged = showRemoteAccess && !deviceMode.isLoading && selectedModeValue !== savedModeValue;
-  // What the device inherits while no override is set: org override -> tenant default.
-  const inheritedMode: RemoteAccessMode | undefined = organizationMode.data ?? tenantPolicy.data?.mode ?? undefined;
+  const modeLoading = deviceMode.isLoading || organizationMode.isLoading || tenantPolicy.isLoading;
+  const modeChanged =
+    showRemoteAccess &&
+    !modeLoading &&
+    savedModeValue !== undefined &&
+    selectedModeValue !== undefined &&
+    selectedModeValue !== savedModeValue;
 
   const isSaving = isSavingNickname || isSavingMode;
   const trimmed = name.trim();
@@ -90,12 +98,9 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
   const handleSubmit = async () => {
     if (!device || !canSubmit) return;
 
-    if (modeChanged) {
+    if (modeChanged && selectedModeValue) {
       try {
-        await setDeviceMode({
-          deviceId,
-          mode: selectedModeValue === DEFAULT_MODE_VALUE ? null : selectedModeValue,
-        });
+        await setDeviceMode({ deviceId, mode: selectedModeValue });
       } catch (err) {
         toast({
           title: 'Save failed',
@@ -167,30 +172,18 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <Label className="text-ods-text-primary text-h4">Remote Access Permission</Label>
           <Select
-            value={selectedModeValue}
-            onValueChange={value => setPickedMode(value as RemoteAccessMode | typeof DEFAULT_MODE_VALUE)}
-            disabled={isSaving || deviceMode.isLoading}
+            value={selectedModeValue ?? ''}
+            onValueChange={value => setPickedMode(value as RemoteAccessMode)}
+            disabled={isSaving || modeLoading}
           >
             <SelectTrigger>
               {/* Children override Radix's default item mirror: the closed
                   trigger shows only the label, without the description line. */}
               <SelectValue placeholder="Select a permission">
-                {selectedModeValue === DEFAULT_MODE_VALUE
-                  ? inheritedMode
-                    ? `Default (${REMOTE_ACCESS_MODE_META[inheritedMode].label})`
-                    : 'Default'
-                  : REMOTE_ACCESS_MODE_META[selectedModeValue].label}
+                {selectedModeValue ? REMOTE_ACCESS_MODE_META[selectedModeValue].label : ''}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {/* Not in the 4-option mockup: without it a set override could never
-                  be cleared back to inheritance. Flagged to the designer. */}
-              <SelectItem value={DEFAULT_MODE_VALUE}>
-                <span className="flex flex-col text-left">
-                  <span>{inheritedMode ? `Default (${REMOTE_ACCESS_MODE_META[inheritedMode].label})` : 'Default'}</span>
-                  <span className="text-ods-text-secondary text-h6">Inherited from customer or global settings.</span>
-                </span>
-              </SelectItem>
               {REMOTE_ACCESS_MODES.map(mode => (
                 <SelectItem key={mode} value={mode}>
                   <span className="flex flex-col text-left">

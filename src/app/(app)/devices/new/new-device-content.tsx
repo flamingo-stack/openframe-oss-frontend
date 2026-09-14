@@ -34,6 +34,8 @@ import { AntivirusWarning } from '../components/antivirus-warning';
 import { DoctorModeWarning } from '../components/doctor-mode-warning';
 import { useDeviceOrganizations } from '../hooks/use-device-organizations';
 import { useInstallCommand } from '../hooks/use-install-command';
+import { useRemoteAccessApprovalGate } from '../hooks/use-remote-access-approval-gate';
+import { REMOTE_ACCESS_MODE_META, REMOTE_ACCESS_MODES, type RemoteAccessMode } from '../types/remote-access';
 import {
   type InstallMethod,
   installMethodLabel,
@@ -46,6 +48,7 @@ const newDeviceSchema = z.object({
   organizationId: z.string().min(1, 'Customer is required'),
   platform: z.custom<OSPlatformId>(),
   installMethod: z.custom<InstallMethod>(),
+  remoteAccessMode: z.enum(REMOTE_ACCESS_MODES),
 });
 
 type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
@@ -53,6 +56,8 @@ type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
 export function NewDeviceContent() {
   const handleBack = useSafeBack(routes.devices.list);
   const { toast } = useToast();
+  // Remote access policy (CU-86akeqw8b) ships dark with the approval flag.
+  const showRemoteAccess = useRemoteAccessApprovalGate() === 'on';
 
   // Customer context passed by "Add Device" launched from a customer's section
   // (e.g. `/devices/new?organizationId=<id>`), used to pre-select the dropdown.
@@ -65,7 +70,12 @@ export function NewDeviceContent() {
 
   const form = useForm<NewDeviceFormValues>({
     resolver: zodResolver(newDeviceSchema),
-    defaultValues: { organizationId: '', platform: DEFAULT_OS_PLATFORM, installMethod: 'script' },
+    defaultValues: {
+      organizationId: '',
+      platform: DEFAULT_OS_PLATFORM,
+      installMethod: 'script',
+      remoteAccessMode: 'APPROVAL_REQUIRED',
+    },
   });
 
   const organizationId = useWatch({ control: form.control, name: 'organizationId' });
@@ -214,6 +224,34 @@ export function NewDeviceContent() {
               />
             )}
           />
+          {showRemoteAccess && (
+            <Controller
+              name="remoteAccessMode"
+              control={form.control}
+              render={({ field }) => (
+                // UI only for now (mockup 378-8628): wiring the choice into the
+                // install/register command is deferred with the --unattended
+                // registration-flag tasks (CU-86akergdw / CU-86akergep).
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger label="Remote Access Permission" labelVariant="large">
+                    <SelectValue>{REMOTE_ACCESS_MODE_META[field.value as RemoteAccessMode].label}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REMOTE_ACCESS_MODES.map(mode => (
+                      <SelectItem key={mode} value={mode}>
+                        <span className="flex flex-col text-left">
+                          <span>{REMOTE_ACCESS_MODE_META[mode].label}</span>
+                          <span className="text-ods-text-secondary text-h6">
+                            {REMOTE_ACCESS_MODE_META[mode].description}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          )}
           <Controller
             name="platform"
             control={form.control}

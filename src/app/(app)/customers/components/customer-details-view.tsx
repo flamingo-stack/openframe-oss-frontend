@@ -34,6 +34,7 @@ import { ArchiveCustomerModal } from './archive-customer-modal';
 import { CustomerDetailsSkeleton } from './customer-details-skeleton';
 import {
   CUSTOM_AI_ASSISTANT_TAB_ID,
+  CUSTOMER_DEVICE_GUARDRAILS_TAB_ID,
   CUSTOMER_GUARDRAILS_TAB_ID,
   getCustomerTabComponent,
   getCustomerTabs,
@@ -49,6 +50,7 @@ interface CustomerDetailsViewProps {
 const DETAIL_TO_EDIT_TAB: Partial<Record<CustomerDetailTab, CustomerEditTab>> = {
   [CUSTOM_AI_ASSISTANT_TAB_ID]: 'ai-configuration',
   [CUSTOMER_GUARDRAILS_TAB_ID]: 'guardrails',
+  [CUSTOMER_DEVICE_GUARDRAILS_TAB_ID]: 'device-guardrails',
 };
 
 export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {

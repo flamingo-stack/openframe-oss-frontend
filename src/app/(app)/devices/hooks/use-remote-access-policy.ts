@@ -44,6 +44,19 @@ export function useOrganizationRemoteAccessMode(organizationId: string, options:
   });
 }
 
+/** Silent mutation - the caller owns toast feedback. `null` clears the override. */
+export function useSetOrganizationRemoteAccessMode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ organizationId, mode }: { organizationId: string; mode: RemoteAccessMode | null }) =>
+      remoteAccessPolicyService.setOrganizationMode(organizationId, mode),
+    onSuccess: () => {
+      // The org mode feeds every device-effective resolution under it.
+      void queryClient.invalidateQueries({ queryKey: remoteAccessPolicyKeys.all });
+    },
+  });
+}
+
 /** Per-device override (`null` = inherits organization/tenant). */
 export function useDeviceRemoteAccessMode(deviceId: string, options: { enabled?: boolean } = {}) {
   return useQuery({

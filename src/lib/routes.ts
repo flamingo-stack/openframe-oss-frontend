@@ -35,7 +35,7 @@ export const TAB_IDS = {
     'customer-ai-guardrails',
     'customer-device-guardrails',
   ],
-  customerEdit: ['details', 'ai-configuration', 'guardrails'],
+  customerEdit: ['details', 'ai-configuration', 'guardrails', 'device-guardrails'],
   deviceDetails: [
     'overview',
     'vulnerabilities',
