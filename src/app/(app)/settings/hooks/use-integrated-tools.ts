@@ -1,10 +1,14 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 
 // GraphQL query based on provided payload
+// NOTE: credentials (username/password/apiKey) are intentionally NOT requested here.
+// If the UI needs to indicate that credentials exist, the server should expose a
+// redacted/masked representation via a dedicated field instead of returning secrets.
 const GET_INTEGRATED_TOOLS_QUERY = `
   query GetIntegratedTools($filter: ToolFilterInput, $search: String) {
     integratedTools(filter: $filter, search: $search) {
@@ -23,15 +27,6 @@ const GET_INTEGRATED_TOOLS_QUERY = `
         category
         platformCategory
         enabled
-        credentials {
-          username
-          password
-          apiKey {
-            key
-            type
-            keyName
-          }
-        }
         layer
         layerOrder
         layerColor
@@ -75,45 +70,60 @@ type IntegratedToolsResponse = {
   integratedTools: { tools: IntegratedTool[] };
 };
 
-export function useIntegratedTools() {
+async function fetchIntegratedToolsRequest(
+  filter: Record<string, unknown>,
+  search: string,
+): Promise<IntegratedTool[]> {
+  const response = await apiClient.post<GraphQlResponse<IntegratedToolsResponse>>('/api/graphql', {
+    query: GET_INTEGRATED_TOOLS_QUERY,
+    variables: { filter, search },
+  });
+
+  if (!response.ok) {
+    throw new Error(response.error || `Request failed with status ${response.status}`);
+  }
+
+  const graphql = response.data;
+  if (graphql?.errors && graphql.errors.length) {
+    throw new Error(graphql.errors[0].message);
+  }
+
+  return graphql?.data?.integratedTools?.tools ?? [];
+}
+
+export function useIntegratedTools(
+  filter: Record<string, unknown> = { enabled: true, category: null },
+  search: string = '',
+) {
   const { toast } = useToast();
-  const [tools, setTools] = useState<IntegratedTool[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchIntegratedTools = useCallback(
-    async (filter: Record<string, unknown> = { enabled: true, category: null }, search: string = '') => {
-      setIsLoading(true);
-      setError(null);
+  const {
+    data: tools = [],
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useQuery<IntegratedTool[], Error>({
+    queryKey: ['integrated-tools', filter, search],
+    queryFn: async () => {
       try {
-        const response = await apiClient.post<GraphQlResponse<IntegratedToolsResponse>>('/api/graphql', {
-          query: GET_INTEGRATED_TOOLS_QUERY,
-          variables: { filter, search },
-        });
-
-        if (!response.ok) {
-          throw new Error(response.error || `Request failed with status ${response.status}`);
-        }
-
-        const graphql = response.data;
-        if (graphql?.errors && graphql.errors.length) {
-          throw new Error(graphql.errors[0].message);
-        }
-
-        const result = graphql?.data?.integratedTools?.tools ?? [];
-        setTools(result);
-        return result;
+        return await fetchIntegratedToolsRequest(filter, search);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch integrated tools';
-        setError(message);
         toast({ title: 'Error fetching tools', description: message, variant: 'destructive' });
         throw err;
-      } finally {
-        setIsLoading(false);
       }
     },
-    [toast],
-  );
+  });
+
+  const fetchIntegratedTools = useCallback(async () => {
+    const result = await refetch();
+    if (result.error) {
+      throw result.error;
+    }
+    return result.data ?? [];
+  }, [refetch]);
+
+  const error = queryError ? queryError.message : null;
 
   return { tools, isLoading, error, fetchIntegratedTools };
 }
