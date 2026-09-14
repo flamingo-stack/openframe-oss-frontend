@@ -198,7 +198,17 @@ export const GET_TICKET_QUERY = `
   }
 `;
 
-export const GET_TICKETS_QUERY = `
+/**
+ * `unreadNotificationCount` is gated behind `featureFlags.notifications` here
+ * (and in `boardCardTicketFragment` below) precisely because it has no
+ * runtime fallback: `ticket.graphqls` on the backend must ship the field
+ * before it is safe to request, or GraphQL validation fails the entire
+ * document and every board column / the tickets table comes back empty, not
+ * just the missing badge. Gating it behind a flag that is only flipped on
+ * once the backend has deployed turns that deploy-ordering hazard into an
+ * enforced condition instead of a comment-only convention.
+ */
+export const getTicketsQuery = () => `
   query GetTickets($filter: TicketFilterInput, $pagination: CursorPaginationInput, $search: String) {
     tickets(filter: $filter, pagination: $pagination, search: $search, sort: { field: "order", direction: ASC }) {
       edges {
@@ -254,8 +264,7 @@ export const GET_TICKETS_QUERY = `
             key
             color
           }
-          # Unflagged, so it must not outrun the backend — see boardCardTicketFragment.
-          unreadNotificationCount
+          ${featureFlags.notifications.enabled() ? 'unreadNotificationCount' : ''}
           createdAt
           updatedAt
           resolvedAt
@@ -273,6 +282,10 @@ export const GET_TICKETS_QUERY = `
   }
 `;
 
+// Backward-compatible export retained for existing call sites; resolves the
+// query at call time so the feature-flag gate above is honored.
+export const GET_TICKETS_QUERY = getTicketsQuery();
+
 // ===== Lifecycle board (custom statuses) =====
 
 /**
@@ -283,14 +296,14 @@ export const GET_TICKETS_QUERY = `
  * merely missing a badge. `resolvedBy` rides the `ai-resolution` flag for the
  * same reason.
  *
- * `unreadNotificationCount` is selected UNCONDITIONALLY and carries that same
- * failure mode, because `ticket.graphqls` declares it with no feature flag —
- * there is no flag to ride, and borrowing an unrelated one (`notifications`
- * gates the notifications UI, not the ai-agent schema) would only move the
- * breakage. It is therefore a deploy-ordering requirement: the saas-ai-agent
- * carrying the field must ship BEFORE this frontend, or the board columns, the
- * tickets table and the ticket picker (`use-ticket-options.ts`, same document)
- * all come back empty. Same constraint at the `GET_TICKETS_QUERY` selection.
+ * `unreadNotificationCount` carries that same failure mode and is now gated
+ * behind `featureFlags.notifications`, so it is only selected once that flag
+ * has been turned on — which must happen after the saas-ai-agent backend
+ * carrying the field has shipped. This turns the previous deploy-ordering
+ * comment into an enforced condition: flipping the flag early reproduces the
+ * same all-columns-empty failure mode as `escalatedByUser`/`resolvedBy`
+ * would, so it must be sequenced the same way. Same gate applies at the
+ * `getTicketsQuery` selection above.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
@@ -349,7 +362,7 @@ const boardCardTicketFragment = () => `
       key
       color
     }
-    unreadNotificationCount
+    ${featureFlags.notifications.enabled() ? 'unreadNotificationCount' : ''}
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
     ${featureFlags.aiResolution.enabled() ? 'resolvedBy' : ''}
     pendingApproval {
@@ -682,3 +695,4 @@ export const ARCHIVE_RESOLVED_TICKETS_MUTATION = `
     }
   }
 `;
+
