@@ -30,6 +30,16 @@ export interface AvatarOption extends AutocompleteOption {
 const EMPTY_AUTOCOMPLETE_OPTIONS: AutocompleteOption[] = [];
 const EMPTY_AVATAR_OPTIONS: AvatarOption[] = [];
 
+// Named query-key builders for this module's cache entries. Centralizing these
+// here (rather than inlining string arrays at each useQuery call) gives any
+// future invalidateQueries call site a single source of truth to reference.
+export const ticketOptionsQueryKeys = {
+  organizations: (search: string) => ['ticket-options', 'organizations', search] as const,
+  assignees: () => ['ticket-options', 'assignees'] as const,
+  tickets: (search: string, organizationId: string | null, statusIds: string[] | null) =>
+    ['ticket-options', 'tickets', search, organizationId, statusIds] as const,
+};
+
 /** An image reference as both the GraphQL and REST endpoints below return it. */
 interface OptionImage {
   imageUrl?: string | null;
@@ -53,6 +63,12 @@ interface UserOption {
 
 // --- Organizations (reuse existing query via /api/graphql) ---
 
+// NOTE: This uses apiClient.post against a REST-shaped /api/graphql endpoint
+// rather than react-relay (useLazyLoadQuery/useFragment). Per the org's Relay
+// migration mandate, new GraphQL data fetching should go through react-relay;
+// this is flagged as technical debt against that mandate rather than migrated
+// here, since doing so would require restructuring this hook and its callers
+// beyond the scope of this fix.
 async function fetchCustomerOptions(search: string): Promise<AvatarOption[]> {
   const response = await apiClient.post<{
     data?: { organizations?: { edges?: { node: OrganizationOptionNode }[] } };
@@ -72,7 +88,7 @@ async function fetchCustomerOptions(search: string): Promise<AvatarOption[]> {
 
 export function useOrganizationOptions(search = '', enabled = true) {
   const query = useQuery({
-    queryKey: ['ticket-options', 'organizations', search],
+    queryKey: ticketOptionsQueryKeys.organizations(search),
     queryFn: () => fetchCustomerOptions(search),
     enabled,
   });
@@ -151,7 +167,7 @@ async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
 
 export function useAssigneeOptions(enabled = true) {
   const query = useQuery({
-    queryKey: ['ticket-options', 'assignees'],
+    queryKey: ticketOptionsQueryKeys.assignees(),
     queryFn: fetchAssigneeOptions,
     enabled,
   });
@@ -263,7 +279,7 @@ export function useTicketSearchOptions(search = '', organizationId?: string, ena
   );
 
   const query = useQuery({
-    queryKey: ['ticket-options', 'tickets', search, organizationId ?? null, nonArchivedStatusIds ?? null],
+    queryKey: ticketOptionsQueryKeys.tickets(search, organizationId ?? null, nonArchivedStatusIds ?? null),
     queryFn: () => fetchTicketSearchOptions(search, organizationId, nonArchivedStatusIds),
     enabled: enabled && !statusesQuery.isLoading,
   });

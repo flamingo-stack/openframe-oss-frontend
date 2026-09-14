@@ -16,8 +16,15 @@ export interface OptimisticMoveSnapshot {
   detail?: { key: QueryKey; data: Dialog | null | undefined };
 }
 
+const boardColumnsKeyPrefix = dialogsQueryKeys.boardColumns();
+
 function isBoardQueryKey(key: QueryKey): boolean {
-  return Array.isArray(key) && key.length >= 4 && key[0] === 'dialogs' && key[1] === 'boardColumn';
+  return (
+    Array.isArray(key) &&
+    key.length >= 4 &&
+    key[0] === boardColumnsKeyPrefix[0] &&
+    key[1] === boardColumnsKeyPrefix[1]
+  );
 }
 
 /**

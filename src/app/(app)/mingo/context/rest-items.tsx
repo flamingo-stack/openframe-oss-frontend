@@ -18,6 +18,7 @@ import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE, useClientPaging } from './items-shared';
+import { mingoContextKeys } from './query-keys';
 
 // ───────────────────────────── Ticket ───────────────────────────────────────
 
@@ -68,7 +69,7 @@ async function fetchTicketsPage(
 
 export function TicketItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
   const q = useSuspenseInfiniteQuery({
-    queryKey: ['mingo-context', 'tickets', query],
+    queryKey: mingoContextKeys.tickets(query),
     queryFn: ({ pageParam }) => fetchTicketsPage(query, pageParam),
     initialPageParam: null as string | null,
     getNextPageParam: last => last.nextCursor,
@@ -104,7 +105,7 @@ async function fetchPolicies(query: string): Promise<ChatContextItem[]> {
 
 export function PolicyItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
   const { data } = useSuspenseQuery({
-    queryKey: ['mingo-context', 'policies', query],
+    queryKey: mingoContextKeys.policies(query),
     queryFn: () => fetchPolicies(query),
     staleTime: 30 * 1000,
   });
@@ -138,7 +139,7 @@ async function fetchQueriesPage(query: string, page: number): Promise<{ items: C
 
 export function QueryItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
   const q = useSuspenseInfiniteQuery({
-    queryKey: ['mingo-context', 'queries', query],
+    queryKey: mingoContextKeys.queries(query),
     queryFn: ({ pageParam }) => fetchQueriesPage(query, pageParam),
     initialPageParam: 0,
     getNextPageParam: (last, all) => (last.hasMore ? all.length : undefined),
