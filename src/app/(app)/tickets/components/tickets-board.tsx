@@ -89,6 +89,14 @@ function applyHeldMove(columns: BoardColumnDef[], move: BoardChange): BoardColum
       // take-over into a status other than the dropped lane also lands here.
       tickets.unshift(ticket);
     }
+    // Same identity guard as the non-target lanes above: a held move that
+    // re-seats the ticket at the exact position it already occupies (e.g. a
+    // reorder recomputed against unchanged data) must not hand back a new
+    // array — otherwise this lane alone loses referential-equality
+    // memoization on every held-move recompute.
+    if (tickets.length === column.tickets.length && tickets.every((t, i) => t === column.tickets[i])) {
+      return column;
+    }
     return { ...column, tickets };
   });
 }
