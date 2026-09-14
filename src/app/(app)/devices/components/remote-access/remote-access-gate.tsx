@@ -1,9 +1,10 @@
 'use client';
 
-import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import {
   ComputerMouseIcon,
   FolderIcon,
+  ScanXmarkIcon,
   TerminalIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { CompactPageLoader, Label, Textarea } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -167,40 +168,50 @@ export function RemoteAccessGate({ deviceId, deviceName, sessionKind, onBack, ch
         )}
       </>
     );
-  } else {
-    const copy =
-      approval.state === 'denied'
-        ? {
-            title: 'Access declined',
-            description: `The user declined the ${label.toLowerCase()} request. You can ask again or go back.`,
-          }
-        : approval.state === 'timed_out'
-          ? {
-              title: 'No response',
-              description: `Nobody answered the request on ${target} before it expired.`,
-            }
-          : {
-              title: 'Request failed',
-              description: approval.error ?? 'Something went wrong while requesting access.',
-            };
+  } else if (approval.state === 'denied') {
+    // "Access declined" mockup (1036-31838): a single way out, no retry - the
+    // technician asks again by starting over from the device page.
     body = (
-      <>
-        <div className="rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-sf)]">
-          <Icon className="h-6 w-6 text-ods-text-secondary" />
-        </div>
-        <div className="flex flex-col items-center gap-[var(--spacing-system-xxs)] text-center">
-          <h2 className="text-ods-text-primary text-h3">{copy.title}</h2>
-          <p className="text-ods-text-secondary text-h6">{copy.description}</p>
-        </div>
-        <div className="flex w-full items-stretch gap-[var(--spacing-system-mf)]">
-          <Button type="button" variant="outline" fullWidth onClick={onBack}>
-            Back
+      <NoData
+        icon={<ScanXmarkIcon />}
+        title="Remote access declined"
+        description="The user declined your remote access request."
+        button={
+          <Button type="button" variant="outline" onClick={onBack}>
+            Back to Device Details
           </Button>
-          <Button type="button" variant="accent" fullWidth onClick={approval.reset}>
-            Try Again
-          </Button>
-        </div>
-      </>
+        }
+      />
+    );
+  } else {
+    // timed_out / error: no dedicated mockups - same placeholder pattern as
+    // the declined and connection-failed screens, with a Retry.
+    const copy =
+      approval.state === 'timed_out'
+        ? {
+            title: 'No response',
+            description: `Nobody answered the request on ${target} before it expired.`,
+          }
+        : {
+            title: 'Request failed',
+            description: approval.error ?? 'Something went wrong while requesting access.',
+          };
+    body = (
+      <NoData
+        icon={<ScanXmarkIcon />}
+        title={copy.title}
+        description={copy.description}
+        button={
+          <div className="flex items-stretch gap-[var(--spacing-system-mf)]">
+            <Button type="button" variant="outline" onClick={onBack}>
+              Back to Device Details
+            </Button>
+            <Button type="button" variant="accent" onClick={approval.reset}>
+              Retry
+            </Button>
+          </div>
+        }
+      />
     );
   }
 
@@ -209,8 +220,12 @@ export function RemoteAccessGate({ deviceId, deviceName, sessionKind, onBack, ch
       className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: onBack }}
     >
-      <div className="flex min-h-0 flex-1 items-center justify-center">
-        <div className="flex w-full max-w-[420px] flex-col items-center gap-[var(--spacing-system-mf)]">{body}</div>
+      {/* Black canvas panel like the session surface itself - the state
+          mockups draw every flow state inside it. */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto rounded-lg bg-black">
+        <div className="flex w-full max-w-[420px] flex-col items-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-l)]">
+          {body}
+        </div>
       </div>
     </PageLayout>
   );

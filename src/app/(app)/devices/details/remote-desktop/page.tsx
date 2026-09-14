@@ -4,6 +4,7 @@ import {
   ActionsMenuDropdown,
   type ActionsMenuGroup,
   Button,
+  NoData,
   PageLayout,
   Skeleton,
   TruncateText,
@@ -12,9 +13,11 @@ import {
   Collapse02Icon,
   Expand02Icon,
   MonitorIcon,
+  MonitorOffIcon,
+  ScanXmarkIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLocalStorage, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -61,6 +64,11 @@ export default function RemoteDesktopPage() {
   const router = useRouter();
   const deviceId = useSearchParams().get('id') ?? '';
   const isMobileShell = useIsMobileShell();
+  // Mobile web (below the 800px md breakpoint) gets a dead-end message per the
+  // mockup - by viewport size, per the product decision. `undefined` (first
+  // client render) falls through to the normal flow; the gate below only fires
+  // a request on user action, so the one-frame difference cannot start one.
+  const isMobileViewport = useMediaQuery('(max-width: 799px)');
   const handleBack = useSafeBack(routes.devices.details(deviceId));
 
   useEffect(() => {
@@ -69,6 +77,18 @@ export default function RemoteDesktopPage() {
   }, [isMobileShell, deviceId, router]);
 
   if (isMobileShell) return null;
+  if (isMobileViewport) {
+    return (
+      <PageLayout
+        className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        backButton={{ label: 'Back', onClick: handleBack }}
+      >
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <NoData icon={<MonitorOffIcon />} description="Remote desktop is not supported on mobile devices." />
+        </div>
+      </PageLayout>
+    );
+  }
   return (
     // The session component below opens the MeshCentral tunnel from its own
     // effects, so the approval gate keeps it UNMOUNTED until the end user
@@ -175,6 +195,23 @@ function RemoteDesktopSession() {
     'connecting',
   );
   const [retryNonce, setRetryNonce] = useState(0);
+  // "The user ended the remote session" (mockup 1036-33339). Distinguishing a
+  // clean client-side end from a connection drop needs the session lifecycle
+  // events from the BE (CU-86ajx02qj) - until then only the dev lever below
+  // can set it, so the state ships dark with the UI ready.
+  const [sessionEnded, setSessionEnded] = useState(false);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return undefined;
+    // Dev only - simulate the end user ending the session:
+    // window.dispatchEvent(new Event('openframe:dev-remote-session-ended'))
+    const onEnded = () => {
+      tunnelRef.current?.stop();
+      setSessionEnded(true);
+    };
+    window.addEventListener('openframe:dev-remote-session-ended', onEnded);
+    return () => window.removeEventListener('openframe:dev-remote-session-ended', onEnded);
+  }, []);
 
   useEffect(() => {
     currentDisplayRef.current = currentDisplay;
@@ -655,31 +692,64 @@ function RemoteDesktopSession() {
           ))}
         </div>
       )}
-      {!firstFrameReceived && state >= 1 && connectionStatus !== 'failed' && (
+      {!firstFrameReceived && state >= 1 && connectionStatus !== 'failed' && !sessionEnded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)]">
-          <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
+          {/* Three-dot pulse per the "Connecting" mockup (1036-31098). */}
+          <span className="flex items-center gap-[var(--spacing-system-xxs)]">
+            {[0, 1, 2].map(i => (
+              <span
+                key={i}
+                className="size-1 animate-pulse rounded-full bg-ods-text-secondary"
+                style={{ animationDelay: `${i * 250}ms` }}
+              />
+            ))}
+          </span>
           <span className="text-ods-text-secondary text-h6">
-            {state === 3 ? 'Waiting for desktop stream...' : 'Connecting to desktop...'}
+            {state === 3 ? 'Waiting for desktop stream' : 'Connecting to desktop'}
           </span>
         </div>
       )}
-      {connectionStatus === 'reconnecting' && (
+      {connectionStatus === 'reconnecting' && !sessionEnded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
           <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
           <span className="text-ods-text-primary text-h4">Connection lost</span>
           <span className="text-ods-text-secondary text-h6">Attempting to reconnect...</span>
         </div>
       )}
-      {connectionStatus === 'failed' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
-          <span className="text-ods-text-primary text-h4">Connection lost</span>
-          <span className="text-ods-text-secondary text-h6">Unable to restore the remote desktop connection.</span>
-          <div className="mt-[var(--spacing-system-xsf)] flex items-center gap-[var(--spacing-system-sf)]">
-            <Button variant="outline" onClick={handleBack}>
-              Back
-            </Button>
-            <Button onClick={() => setRetryNonce(n => n + 1)}>Retry</Button>
-          </div>
+      {connectionStatus === 'failed' && !sessionEnded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-ods-overlay">
+          {/* "Connection failed" mockup (1036-32959). */}
+          <NoData
+            icon={<ScanXmarkIcon />}
+            title="Connection failed"
+            description="Couldn't establish a remote session. Check the device status and try again."
+            button={
+              <div className="flex items-stretch gap-[var(--spacing-system-mf)]">
+                <Button variant="outline" onClick={handleBack}>
+                  Back to Device Details
+                </Button>
+                <Button variant="accent" onClick={() => setRetryNonce(n => n + 1)}>
+                  Retry
+                </Button>
+              </div>
+            }
+          />
+        </div>
+      )}
+      {sessionEnded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black">
+          {/* "Session ended" mockup (1036-33339); solid black - the last frame
+              must not stay visible once the user has ended the session. */}
+          <NoData
+            icon={<MonitorOffIcon />}
+            title="Session ended"
+            description="The user ended the remote session"
+            button={
+              <Button variant="outline" onClick={handleBack}>
+                Back to Device Details
+              </Button>
+            }
+          />
         </div>
       )}
     </div>
