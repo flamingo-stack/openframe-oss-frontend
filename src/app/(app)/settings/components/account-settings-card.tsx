@@ -39,7 +39,7 @@ export function AccountSettingsCard({ onEditProfile, onVerifyEmail }: AccountSet
   };
 
   return (
-    <div className="border border-ods-border rounded-md overflow-hidden">
+    <div className="overflow-hidden rounded-md border border-ods-border">
       {/* MSP organization row keeps a transparent background so the page surface
           (ods-bg) shows through, matching the design. */}
       <div className="border-b border-ods-border">

@@ -99,14 +99,14 @@ export function useUpdateClientView(
         throw new Error(response.data.errors.map(e => e.message).join(', '));
       }
 
-      const result = response.data.data?.updateClientView;
-      const userErrors = result?.userErrors ?? [];
+      const payload = response.data.data?.updateClientView;
+      const userErrors = payload?.userErrors ?? [];
       if (userErrors.length > 0) {
         throw new Error(userErrors.map(e => e.message).join(', '));
       }
 
       // Return the saved view so the caller can attach the avatar to its id.
-      return result?.view ? toClientView(result.view) : null;
+      return payload?.view ? toClientView(payload.view) : null;
     },
     onSuccess: () => {
       // The customer screen attaches the avatar after this resolves, then

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { openframeConfig } from './platform-configs/openframe.config';
 import { runtimeEnv } from './runtime-config';
 
@@ -127,8 +127,8 @@ export interface AppConfig {
     headerBorder?: string;
     headerClassName?: string;
     getHeaderActions: (params: {
-      user: any;
-      router: any;
+      user: { id?: string; email?: string } | null | undefined;
+      router: { push: (href: string) => void };
       pathname?: string;
       onSignUp?: () => void;
       onToggleAdminSidebar?: () => void;

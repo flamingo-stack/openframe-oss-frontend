@@ -1,51 +1,68 @@
 'use client';
 
 import { AllowedDomainsInput, Button, CheckboxWithDescription, Label } from '@flamingo-stack/openframe-frontend-core';
-import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input, ModalV2Title, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  CheckIcon,
+  Copy02Icon,
+  EyeIcon,
+  EyeOffIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  Input,
+  ModalV2Title,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  TruncateText,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { validateEmailDomain } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Eye, EyeOff } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import type React from 'react';
+import { useMemo, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { getProviderIcon } from '../utils/get-provider-icon';
+import type { AvailableProvider } from '../hooks/use-sso-config';
 
 interface SsoConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** `create` shows the provider dropdown and starts from a blank form. Default `edit`. */
+  mode?: 'create' | 'edit';
+  /** Providers without a stored configuration — the dropdown options in `create` mode. */
+  providerOptions?: AvailableProvider[];
   providerKey: string;
   providerDisplayName: string;
-  isEnabled?: boolean;
   initialClientId?: string | null;
   initialClientSecret?: string | null;
   initialMsTenantId?: string | null;
   initialAutoProvisionUsers?: boolean;
   initialAllowedDomains?: string[];
   onSubmit?: (data: {
+    provider: string;
     clientId: string;
     clientSecret: string;
     msTenantId?: string | null;
     autoProvisionUsers?: boolean;
     allowedDomains?: string[];
   }) => Promise<void>;
-  onDisable?: () => Promise<void>;
 }
 
 export function SsoConfigModal({
   isOpen,
   onClose,
+  mode = 'edit',
+  providerOptions,
   providerKey,
   providerDisplayName,
-  isEnabled,
   initialClientId,
   initialClientSecret,
   initialMsTenantId,
   initialAutoProvisionUsers,
   initialAllowedDomains,
   onSubmit,
-  onDisable,
 }: SsoConfigModalProps) {
   const { copy: copyToClipboard, copied } = useCopyToClipboard({
     successDescription: 'Redirect URL copied to clipboard',
@@ -60,18 +77,31 @@ export function SsoConfigModal({
   const [domainError, setDomainError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState('');
   const { toast } = useToast();
 
-  const isMicrosoft = providerKey.toLowerCase() === 'microsoft';
+  const isCreate = mode === 'create';
+  const effectiveProviderKey = isCreate ? selectedProvider : providerKey;
+  const effectiveDisplayName = isCreate
+    ? (providerOptions?.find(option => option.provider === selectedProvider)?.displayName ?? '')
+    : providerDisplayName;
+
+  const isMicrosoft = effectiveProviderKey.toLowerCase() === 'microsoft';
 
   const redirectUrl = useMemo(() => {
     const sharedHost = runtimeEnv.sharedHostUrl() || (typeof window !== 'undefined' ? window.location.origin : '');
-    return `${sharedHost}/sas/login/oauth2/code/${providerKey.toLowerCase()}`;
-  }, [providerKey]);
+    return `${sharedHost}/sas/login/oauth2/code/${effectiveProviderKey.toLowerCase()}`;
+  }, [effectiveProviderKey]);
 
   const handleCopyRedirectUrl = () => copyToClipboard(redirectUrl);
 
-  useEffect(() => {
+  // Seeded on the open transition, during render rather than in an effect: an
+  // effect paints the previous provider's values once before correcting them, and
+  // keying off the transition alone stops a background config refresh from
+  // discarding half-entered credentials while the modal is up.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setClientId(initialClientId || '');
       setClientSecret(initialClientSecret || '');
@@ -82,16 +112,23 @@ export function SsoConfigModal({
       setDomainError(null);
       setShowSecret(false);
     }
-  }, [
-    isOpen,
-    initialClientId,
-    initialClientSecret,
-    initialMsTenantId,
-    initialAutoProvisionUsers,
-    initialAllowedDomains,
-  ]);
+  }
+
+  // Create mode: preselect the first free provider. Idempotent under
+  // `providerOptions` identity churn — an in-options selection is kept. Done
+  // during render so the picker never shows an empty selection for a frame.
+  const [lastProviderOptions, setLastProviderOptions] = useState(providerOptions);
+  if (providerOptions !== lastProviderOptions || isOpen !== wasOpen) {
+    setLastProviderOptions(providerOptions);
+    if (isOpen && isCreate) {
+      setSelectedProvider(prev =>
+        providerOptions?.some(option => option.provider === prev) ? prev : (providerOptions?.[0]?.provider ?? ''),
+      );
+    }
+  }
 
   const canSubmit = useMemo(() => {
+    if (isCreate && !effectiveProviderKey) return false;
     const hasBasicFields = clientId.trim().length > 0 && clientSecret.trim().length > 0;
     if (isMicrosoft && isSingleTenant) {
       if (!hasBasicFields || msTenantId.trim().length === 0) return false;
@@ -102,19 +139,31 @@ export function SsoConfigModal({
       return false;
     }
     return true;
-  }, [clientId, clientSecret, isMicrosoft, isSingleTenant, msTenantId, autoProvisionUsers, allowedDomains]);
+  }, [
+    isCreate,
+    effectiveProviderKey,
+    clientId,
+    clientSecret,
+    isMicrosoft,
+    isSingleTenant,
+    msTenantId,
+    autoProvisionUsers,
+    allowedDomains,
+  ]);
 
   const handleSubmit = async () => {
     if (!canSubmit || !onSubmit) return;
     setIsSubmitting(true);
     try {
       const data: {
+        provider: string;
         clientId: string;
         clientSecret: string;
         msTenantId?: string | null;
         autoProvisionUsers?: boolean;
         allowedDomains?: string[];
       } = {
+        provider: effectiveProviderKey,
         clientId: clientId.trim(),
         clientSecret: clientSecret.trim(),
       };
@@ -126,7 +175,7 @@ export function SsoConfigModal({
       await onSubmit(data);
       toast({
         title: 'SSO Enabled',
-        description: `${providerDisplayName} configuration saved and enabled`,
+        description: `${effectiveDisplayName || effectiveProviderKey} configuration saved and enabled`,
         variant: 'success',
       });
       onClose();
@@ -141,64 +190,26 @@ export function SsoConfigModal({
     }
   };
 
-  const handleDisable = async () => {
-    if (!onDisable) return;
-    setIsSubmitting(true);
-    try {
-      await onDisable();
-      toast({
-        title: 'SSO Disabled',
-        description: `${providerDisplayName} has been disabled`,
-        variant: 'success',
-      });
-      onClose();
-    } catch (err) {
-      toast({
-        title: 'Action failed',
-        description: err instanceof Error ? err.message : 'Failed to disable SSO',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <SimpleModal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-5xl w-full"
-      header={
-        <>
-          <div className="flex items-center gap-3">
-            {getProviderIcon(providerKey)}
-            <ModalV2Title>Edit SSO Configuration</ModalV2Title>
-          </div>
-          <p className="text-ods-text-secondary text-h6 mt-1">Configure OAuth credentials for {providerDisplayName}</p>
-        </>
-      }
+      className="w-full max-w-[600px]"
+      header={<ModalV2Title>{isCreate ? 'New SSO Configuration' : 'Edit SSO Configuration'}</ModalV2Title>}
       footer={
-        <div className="flex w-full justify-between">
-          {isEnabled && onDisable ? (
-            <Button
-              onClick={handleDisable}
-              variant="outline"
-              className="border-ods-error text-ods-error"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Disabling...' : 'Disable'}
-            </Button>
-          ) : (
-            <div />
-          )}
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Save & Enable'}
-            </Button>
-          </div>
+        <div className="flex w-full gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting} className="flex-1">
+            Cancel
+          </Button>
+          <Button
+            variant="accent"
+            onClick={handleSubmit}
+            disabled={!canSubmit || isSubmitting}
+            loading={isSubmitting}
+            className="flex-1"
+          >
+            {isCreate ? 'Save Configuration' : 'Update Configuration'}
+          </Button>
         </div>
       }
       // Load-bearing, not styling: contentClassName is what opts the body into
@@ -206,34 +217,56 @@ export function SsoConfigModal({
       // children are direct flex items of a panel that has no overflow of its
       // own, so on a phone the form spilled past the max-height and took the
       // footer off-screen — Save was unreachable.
-      contentClassName="grid grid-cols-1 lg:grid-cols-2 gap-8"
+      contentClassName="flex flex-col gap-6"
     >
-      {/* Left Column: SSO Configuration */}
-      <div className="space-y-6">
-        {/* Redirect URL Section */}
-        <div className="bg-ods-card border border-ods-border rounded-lg p-4 space-y-3">
-          <Label>Authorized redirect URL for your SSO provider settings:</Label>
-          <div className="bg-ods-bg border border-ods-border rounded-lg p-3 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <TruncateText className="text-code">{redirectUrl}</TruncateText>
-            </div>
-            <Button
-              variant="transparent"
-              size="small-legacy"
-              leftIcon={
-                copied ? <CheckIcon className="h-4 w-4 text-ods-success" /> : <Copy02Icon className="h-4 w-4" />
-              }
-              onClick={handleCopyRedirectUrl}
-            />
+      {/* Redirect URL Section — measured from the mockups: mobile box 12 / row 40 / icon 16 / gaps 4, desktop box 16 / row 56 / icon 24 / gaps 8; the copy control is a bare icon with no padding of its own */}
+      <div className="space-y-1 rounded-lg border border-ods-border bg-ods-card p-3 md:space-y-2 md:p-4">
+        <Label variant="large">Authorized redirect URL for your SSO provider settings:</Label>
+        <div className="flex h-10 items-center gap-3 rounded-lg border border-ods-border bg-ods-bg px-3 md:h-14 md:px-4">
+          <div className="min-w-0 flex-1">
+            <TruncateText className="text-code">{redirectUrl}</TruncateText>
           </div>
-          <p className="text-h6 text-ods-text-secondary">
-            The callback URL must match exactly. Authentication will fail if not properly configured in your SSO
-            provider.
-          </p>
+          <button
+            type="button"
+            aria-label="Copy redirect URL"
+            onClick={handleCopyRedirectUrl}
+            className="flex shrink-0 items-center"
+          >
+            {copied ? (
+              <CheckIcon className="h-4 w-4 text-ods-success md:h-6 md:w-6" />
+            ) : (
+              <Copy02Icon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />
+            )}
+          </button>
         </div>
+        <p className="text-ods-text-primary text-h4">
+          The callback URL must match exactly. Authentication will fail if not properly configured in your SSO provider.
+        </p>
+      </div>
 
+      {/* Provider picker — selectable while creating, informational on edit */}
+      <div className="space-y-2">
+        <Label variant="large">OAuth Provider</Label>
+        <Select value={effectiveProviderKey} onValueChange={setSelectedProvider} disabled={!isCreate || isSubmitting}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select a provider" />
+          </SelectTrigger>
+          <SelectContent>
+            {(isCreate ? (providerOptions ?? []) : [{ provider: providerKey, displayName: providerDisplayName }])
+              .filter(option => option.provider)
+              .map(option => (
+                <SelectItem key={option.provider} value={option.provider}>
+                  {option.displayName}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Credentials — side by side on desktop (design 1-38427), stacked on mobile */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>OAuth Client ID *</Label>
+          <Label variant="large">OAuth Client ID</Label>
           <Input
             placeholder="Enter OAuth Client ID"
             value={clientId}
@@ -243,88 +276,86 @@ export function SsoConfigModal({
         </div>
 
         <div className="space-y-2">
-          <Label>Client Secret *</Label>
-          <div className="relative">
-            <Input
-              type={showSecret ? 'text' : 'password'}
-              placeholder="Enter OAuth Client Secret"
-              value={clientSecret}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setClientSecret(e.target.value)}
-              className="bg-ods-card pr-10"
-            />
-            <Button
-              variant="transparent"
-              size="small-legacy"
-              leftIcon={showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              onClick={() => setShowSecret(!showSecret)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-20"
-            />
-          </div>
-        </div>
-
-        {/* Microsoft-specific: Single Tenant Configuration */}
-        {isMicrosoft && (
-          <div className="space-y-4">
-            <CheckboxWithDescription
-              id="single-tenant"
-              checked={isSingleTenant}
-              onCheckedChange={checked => {
-                setIsSingleTenant(checked);
-                if (!checked) {
-                  setMsTenantId('');
-                }
-              }}
-              title="Single Tenant"
-              description="Use single-tenant authentication for this provider"
-            />
-
-            {isSingleTenant && (
-              <div className="space-y-2">
-                <Label>Tenant ID *</Label>
-                <Input
-                  placeholder="Enter Tenant ID"
-                  value={msTenantId}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMsTenantId(e.target.value)}
-                  className="bg-ods-card"
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Right Column: Domain Allowlist */}
-      <div className="space-y-4 lg:border-l lg:border-ods-border lg:pl-8">
-        <h3 className="text-h3 text-ods-text-primary">Domain Allowlist</h3>
-
-        <CheckboxWithDescription
-          id="auto-provision-users"
-          checked={autoProvisionUsers}
-          onCheckedChange={setAutoProvisionUsers}
-          title="Auto-provision accounts from domain"
-          description="Automatically create user accounts when signing in via this SSO provider."
-        />
-
-        {autoProvisionUsers && (
-          <AllowedDomainsInput
-            value={allowedDomains}
-            onChange={setAllowedDomains}
-            onValidate={domain => {
-              const validation = validateEmailDomain(domain);
-              return {
-                valid: validation.valid,
-                error: validation.error,
-                cleanedDomain: validation.cleanedDomain,
-              };
-            }}
-            label="Allowed Domains"
-            placeholder="openframe.com"
-            disabled={isSubmitting}
-            error={domainError}
-            helperText="Users with email addresses from these domains can log in via SSO without registration."
+          <Label variant="large">Client Secret</Label>
+          <Input
+            type={showSecret ? 'text' : 'password'}
+            placeholder="Enter Client Secret"
+            value={clientSecret}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setClientSecret(e.target.value)}
+            className="bg-ods-card"
+            endAdornment={
+              <button
+                type="button"
+                aria-label={showSecret ? 'Hide client secret' : 'Show client secret'}
+                onClick={() => setShowSecret(!showSecret)}
+                className="flex items-center"
+              >
+                {showSecret ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            }
           />
-        )}
+        </div>
       </div>
+
+      {/* Microsoft-specific: Single Tenant Configuration */}
+      {isMicrosoft && (
+        <div className="space-y-4">
+          <CheckboxWithDescription
+            id="single-tenant"
+            checked={isSingleTenant}
+            onCheckedChange={checked => {
+              setIsSingleTenant(checked);
+              if (!checked) {
+                setMsTenantId('');
+              }
+            }}
+            title="Single Tenant"
+            description="Use single-tenant authentication for this provider"
+            className="items-center [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4"
+          />
+
+          {isSingleTenant && (
+            <div className="space-y-2">
+              <Label variant="large">Tenant ID</Label>
+              <Input
+                placeholder="Enter Tenant ID"
+                value={msTenantId}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMsTenantId(e.target.value)}
+                className="bg-ods-card"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      <CheckboxWithDescription
+        id="auto-provision-users"
+        checked={autoProvisionUsers}
+        onCheckedChange={setAutoProvisionUsers}
+        title="Allow All Users from Domain"
+        description="Automatically grant access to all users with email addresses from your organization's domain."
+        className="items-center [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4"
+      />
+
+      {autoProvisionUsers && (
+        <AllowedDomainsInput
+          value={allowedDomains}
+          onChange={setAllowedDomains}
+          onValidate={domain => {
+            const validation = validateEmailDomain(domain);
+            return {
+              valid: validation.valid,
+              error: validation.error,
+              cleanedDomain: validation.cleanedDomain,
+            };
+          }}
+          label="Allowed Domains"
+          placeholder="openframe.com"
+          disabled={isSubmitting}
+          error={domainError}
+          className="[&>button>span]:text-h4 [&_label]:text-h4"
+        />
+      )}
     </SimpleModal>
   );
 }

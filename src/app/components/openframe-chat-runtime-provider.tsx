@@ -51,9 +51,9 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { installSlashCommandVisibilityFilter } from '@/app/components/chat-slash-command-visibility';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
-import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
-
+import { refreshAccessToken } from '@/lib/token-refresh-manager';
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
  * Center pages (single source of truth in `help-center-content-href.ts`): every
@@ -65,8 +65,7 @@ import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token
  * case-study / …) still opens OUT to its RAG-authoritative `externalUrl` on
  * the content hub.
  */
-
-import { refreshAccessToken } from '@/lib/token-refresh-manager';
+import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between
@@ -151,9 +150,13 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
 // earlier `setEmbedProxyAuth`-based approach persisted the openframe JWT under
 // `<appType>.chat.proxy-auth.v1`. That copy is frozen at login, so
 // `applyProxyAuth` kept attaching a stale/expired Bearer to `/content/*`.
+//
+// `installSlashCommandVisibilityFilter()`: stopgap that trims the server-owned
+// command catalog, here for the same reason as the adapter.
 if (typeof window !== 'undefined') {
   clearEmbedProxyAuth();
   setEmbedAuthAdapter(CHAT_AUTH_ADAPTER);
+  installSlashCommandVisibilityFilter();
 }
 
 export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode }) {
@@ -174,8 +177,14 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       // query — so the drawer stayed over the page it had just navigated, which
       // below md is the entire viewport. A no-op when the drawer is closed, i.e.
       // for the Help Center / knowledge-base surfaces sharing this runtime.
-      const navigated = () => {
-        useMingoLauncherStore.getState().close();
+      // `closeForNavigation` where the URL move is still PENDING (a `router.push`
+      // transition): the sync must not strip the param off the pre-navigation
+      // location. The doc-swap and hash branches move nothing / move history
+      // synchronously, so a plain `close` is right there.
+      const navigated = (pendingUrlMove = false) => {
+        const launcher = useMingoLauncherStore.getState();
+        if (pendingUrlMove) launcher.closeForNavigation();
+        else launcher.close();
         return true;
       };
 
@@ -185,8 +194,9 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       //    + synthetic `hashchange` so FAQ auto-expand / scroll-to-hash still fire).
       if (!isCrossOriginUrl(href)) {
         const target = stripSameOriginToPath(href);
-        if (!navigateSamePageHash(target)) router.push(target);
-        return navigated();
+        if (navigateSamePageHash(target)) return navigated();
+        router.push(target);
+        return navigated(true);
       }
       // 3. Cross-origin → let the lib open it (new tab).
       return false;

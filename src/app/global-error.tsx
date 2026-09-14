@@ -35,8 +35,8 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
 
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen antialiased font-body" data-app-type="openframe">
-        <div className="min-h-screen bg-ods-bg flex flex-col items-center justify-between p-10">
+      <body className="min-h-screen font-body antialiased" data-app-type="openframe">
+        <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
           <div className="flex items-center gap-2">
             <OpenFrameLogo
               className="h-10 w-auto"
@@ -46,12 +46,12 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
             <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
           </div>
 
-          <div className="flex flex-col items-center gap-10 max-w-[600px] text-center">
+          <div className="flex max-w-[600px] flex-col items-center gap-10 text-center">
             <div role="alert" className="flex flex-col gap-2">
-              <h1 ref={headingRef} tabIndex={-1} className="text-h2 text-ods-text-primary focus:outline-none">
+              <h1 ref={headingRef} tabIndex={-1} className="text-ods-text-primary text-h2 focus:outline-none">
                 Something Went Wrong
               </h1>
-              <p className="text-h4 text-ods-text-secondary">
+              <p className="text-ods-text-secondary text-h4">
                 An unexpected error occurred. Please try again or reload the app.
               </p>
             </div>
@@ -69,7 +69,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           <div className="flex items-center gap-2 p-4 text-ods-text-secondary">
             <span className="text-h6">Powered by</span>
             <FlamingoLogo className="h-5 w-5" fill="currentColor" />
-            <span className="text-code font-semibold">Flamingo</span>
+            <span className="font-semibold text-code">Flamingo</span>
           </div>
         </div>
       </body>

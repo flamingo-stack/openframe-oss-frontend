@@ -12,7 +12,8 @@ import {
   SelectValue,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import React, { useEffect, useMemo, useState } from 'react';
+import type React from 'react';
+import { useMemo, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 
 type InviteRow = { email: string; role: string };
@@ -33,12 +34,16 @@ export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersMo
   const canSubmit = useMemo(() => rows.some(r => emailRegex.test(r.email.trim())), [rows, emailRegex]);
   const roleOptions = useMemo(() => [{ value: 'ADMIN', label: 'Admin' }], []);
 
-  useEffect(() => {
+  // Cleared on the close transition, during render rather than in an effect: an
+  // effect leaves the old values on screen for a frame of the closing animation.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (!isOpen) {
       setRows([{ email: '', role: 'ADMIN' }]);
       setIsSubmitting(false);
     }
-  }, [isOpen]);
+  }
 
   const setRow = (idx: number, patch: Partial<InviteRow>) => {
     setRows(prev => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
@@ -91,7 +96,7 @@ export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersMo
         </>
       }
     >
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Enter the emails of the users you want to add to the system, we will send them invitations to register.
       </p>
 
@@ -102,7 +107,7 @@ export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersMo
         </div>
 
         {rows.map((row, idx) => (
-          <div key={idx} className="grid grid-cols-2 gap-2 items-center">
+          <div key={idx} className="grid grid-cols-2 items-center gap-2">
             <Input
               placeholder="Enter Email Here"
               value={row.email}

@@ -13,8 +13,7 @@
 
 import type { ContextItemsRenderArgs } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import type { ReactNode } from 'react';
-import { featureFlags } from '@/lib/feature-flags';
-import { LegacyScriptItems, UserItems } from './batch-items';
+import { UserItems } from './batch-items';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import type { ContextItemsProps } from './items-shared';
 import { DeviceItems, KnowledgeBaseItems, OrganizationItems, ScheduleItems, ScriptItems } from './relay-items';
@@ -28,9 +27,7 @@ const COMPONENTS: Record<string, (p: ContextItemsProps) => ReactNode> = {
   [CONTEXT_ENTITY_KIND.POLICY]: PolicyItems,
   [CONTEXT_ENTITY_KIND.QUERY]: QueryItems,
   [CONTEXT_ENTITY_KIND.USER]: UserItems,
-  // Schedules exist only in the native (v2) backend — TacticalRMM had no
-  // equivalent to fall back to — so this source is NOT flag-gated the way SCRIPT
-  // below is.
+  [CONTEXT_ENTITY_KIND.SCRIPT]: ScriptItems,
   [CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT]: ScheduleItems,
 };
 
@@ -41,17 +38,7 @@ export function renderMingoContextItems({
   onToggle,
   atLimit,
 }: ContextItemsRenderArgs): ReactNode {
-  // Only the manually-added SCRIPT dropdown source follows the `scripts-v2`
-  // flag: ON → native OpenFrame `scripts(...)` (Relay, ACTIVE only); OFF →
-  // legacy Tactical list. The mention chips + passive (open-view/history)
-  // context always resolve via the new scripts, regardless of the flag —
-  // evaluated at render time so a late-loading flag value is respected.
-  const Component =
-    type === CONTEXT_ENTITY_KIND.SCRIPT
-      ? featureFlags.scriptsV2.enabled()
-        ? ScriptItems
-        : LegacyScriptItems
-      : COMPONENTS[type];
+  const Component = COMPONENTS[type];
   if (!Component) return null;
   return <Component key={type} query={query} selectedKeys={selectedKeys} onToggle={onToggle} atLimit={atLimit} />;
 }

@@ -17,7 +17,6 @@ import {
   EntityImage,
   FilterModal,
   Input,
-  multiSelectFilterFn,
   type Row,
   Tag,
   TruncateText,
@@ -26,10 +25,13 @@ import {
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { multiSelectFilterFn } from '@/lib/table-filters';
 import { getDeviceStatusConfig } from '../../../devices/utils/device-status';
+import { QUERY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
 import { QuickQueryPanel } from '../../policy/components/quick-query-panel';
 import { useQueryDevicesTable } from '../hooks/use-query-devices-table';
 import type { QueryDeviceRow } from '../types/query-device-row';
@@ -68,8 +70,8 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
     const grouped = new Map<string, Map<string, { id: string; label: string }>>();
     for (const row of rows) {
       for (const tag of row.tags) {
-        if (!grouped.has(tag.key)) grouped.set(tag.key, new Map());
-        const values = grouped.get(tag.key)!;
+        const values = grouped.get(tag.key) ?? new Map<string, { id: string; label: string }>();
+        grouped.set(tag.key, values);
         if (!values.has(tag.value)) values.set(tag.value, { id: tag.value, label: tag.value });
       }
     }
@@ -129,20 +131,20 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
   const columns = useMemo<ColumnDef<QueryDeviceRow>[]>(
     () => [
       {
-        id: 'device',
+        id: QUERY_DEVICE_COLUMNS.device.id,
         accessorKey: 'displayName',
-        header: 'DEVICE',
+        header: QUERY_DEVICE_COLUMNS.device.header,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
           const r = row.original;
           return (
-            <div className="box-border content-stretch flex gap-4 h-20 items-center justify-start py-0 relative shrink-0 w-full">
-              <div className="flex h-8 w-8 items-center justify-center relative rounded-[6px] shrink-0 border border-ods-border">
+            <div className="relative box-border flex h-20 w-full shrink-0 content-stretch items-center justify-start gap-4 py-0">
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border">
                 {r.deviceType &&
                   getDeviceTypeIcon(r.deviceType.toLowerCase() as DeviceType, {
                     className: 'w-5 h-5 text-ods-text-secondary',
                   })}
               </div>
-              <div className="flex flex-col justify-center flex-1 min-w-0">
+              <div className="flex min-w-0 flex-1 flex-col justify-center">
                 <TruncateText>{r.displayName || r.hostname}</TruncateText>
                 {r.lastSeen && (
                   <TruncateText variant="h6" tone="secondary">
@@ -153,84 +155,84 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
             </div>
           );
         },
-        meta: { width: 'flex-1 md:w-1/3' },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.device),
       },
       {
-        id: 'organization',
+        id: QUERY_DEVICE_COLUMNS.organization.id,
         accessorKey: 'organization',
-        header: 'CUSTOMER',
+        header: QUERY_DEVICE_COLUMNS.organization.header,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
           const r = row.original;
           const fullImageUrl = getFullImageUrl(r.organizationImageUrl, r.organizationImageHash);
           return (
             <div className="flex items-center gap-3">
               <EntityImage src={fullImageUrl} alt={r.organization || 'Customer'} className="size-12 md:size-12" />
-              <div className="flex flex-col justify-center flex-1 min-w-0">
-                <span className="text-h4 text-ods-text-primary break-words">{r.organization || ''}</span>
+              <div className="flex min-w-0 flex-1 flex-col justify-center">
+                <span className="break-words text-ods-text-primary text-h4">{r.organization || ''}</span>
               </div>
             </div>
           );
         },
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-1/6', hideAt: 'lg' as const, filter: { options: customerOptions } },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.organization, { filter: { options: customerOptions } }),
       },
       {
-        id: 'os',
+        id: QUERY_DEVICE_COLUMNS.os.id,
         accessorKey: 'osType',
-        header: 'OS',
+        header: QUERY_DEVICE_COLUMNS.os.header,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => (
-          <div className="flex items-start gap-2 shrink-0">
+          <div className="flex shrink-0 items-start gap-2">
             <OSTypeBadge osType={row.original.osType} />
           </div>
         ),
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px] md:w-1/6', hideAt: 'md' as const, filter: { options: osOptions } },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.os, { filter: { options: osOptions } }),
       },
       {
-        id: 'status',
+        id: QUERY_DEVICE_COLUMNS.status.id,
         accessorKey: 'status',
-        header: 'STATUS',
+        header: QUERY_DEVICE_COLUMNS.status.header,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
           const config = getDeviceStatusConfig(row.original.status);
           return <Tag label={config.label} variant={config.variant} />;
         },
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[140px]', filter: { options: statusOptions } },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.status, { filter: { options: statusOptions } }),
       },
       {
-        id: 'open',
+        id: QUERY_DEVICE_COLUMNS.open.id,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) =>
           row.original.machineId ? (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={openInNewTab(routes.devices.details(row.original.machineId))}
                 variant="outline"
                 size="icon"
-                leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
                 aria-label="Open in new tab"
                 className="bg-ods-card"
               />
             </div>
           ) : null,
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.open),
       },
       {
-        id: 'quick-query',
+        id: QUERY_DEVICE_COLUMNS.quickQuery.id,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
           const isOpen = quickQueryIds.has(String(row.original.id));
           return (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={() => toggleQuickQuery(String(row.original.id))}
                 variant="outline"
                 disabled={!isOpen && !hasQuery}
                 leftIcon={
-                  isOpen ? <XmarkCircleIcon className="w-5 h-5" /> : <BracketCurlyEllipsisVrIcon className="w-5 h-5" />
+                  isOpen ? <XmarkCircleIcon className="h-5 w-5" /> : <BracketCurlyEllipsisVrIcon className="h-5 w-5" />
                 }
                 aria-label={isOpen ? 'Close quick query' : 'Open quick query'}
                 aria-expanded={isOpen}
-                className="bg-ods-card w-full"
+                className="w-full bg-ods-card"
               >
                 {/* Icon-only on mobile, per design. */}
                 <span className="hidden md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
@@ -239,10 +241,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
           );
         },
         enableSorting: false,
-        // Fixed column width (matching the header's empty cell) so the flex
-        // columns before it stretch identically in the header and the rows;
-        // the w-full button inside also keeps Quick Query / Close equal width.
-        meta: { width: 'w-12 md:w-[160px] shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.quickQuery),
       },
     ],
     [statusOptions, osOptions, customerOptions, quickQueryIds, toggleQuickQuery, hasQuery],
@@ -286,12 +285,12 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
       <div className="flex items-start gap-[var(--spacing-system-m)]">
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <Input
             placeholder="Search for Devices"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
           />
         </div>
         {isMdUp ? (

@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import {
   MonitorIcon,
@@ -57,7 +58,7 @@ export interface CustomerAppearanceHandle {
  * deleted immediately once the user confirms); off edits a per-customer override.
  */
 export const CustomerAiAssistantAppearance = forwardRef<CustomerAppearanceHandle, CustomerAiAssistantAppearanceProps>(
-  function CustomerAiAssistantAppearance({ organizationId }, ref) {
+  function CustomerAiAssistantAppearanceImpl({ organizationId }, ref) {
     const router = useRouter();
     const queryClient = useQueryClient();
     // Org-scoped override (null when the customer inherits the default).
@@ -138,7 +139,7 @@ export const CustomerAiAssistantAppearance = forwardRef<CustomerAppearanceHandle
 
     const header = (
       <div className="flex flex-col gap-[var(--spacing-system-m)] sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-h2 text-ods-text-primary">AI-Assistant Appearance</h2>
+        <h2 className="text-ods-text-primary text-h2">AI-Assistant Appearance</h2>
         <Button
           type="button"
           variant="outline"
@@ -217,7 +218,7 @@ export const CustomerAiAssistantAppearance = forwardRef<CustomerAppearanceHandle
                 />
 
                 <div className="flex flex-col gap-1">
-                  <p className="text-h3 text-ods-text-primary">Custom Accent Color</p>
+                  <p className="text-ods-text-primary text-h3">Custom Accent Color</p>
                   <Controller
                     name="accentColor"
                     control={form.control}
@@ -279,3 +280,4 @@ export const CustomerAiAssistantAppearance = forwardRef<CustomerAppearanceHandle
     );
   },
 );
+CustomerAiAssistantAppearance.displayName = 'CustomerAiAssistantAppearance';

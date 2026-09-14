@@ -24,16 +24,16 @@ export function ApiKeyDetailsModal({ isOpen, onClose, apiKey }: ApiKeyDetailsMod
       header={
         <>
           <ModalV2Title>API Key Details</ModalV2Title>
-          <p className="text-ods-text-secondary text-h6 mt-1">View API key information and usage statistics</p>
+          <p className="mt-1 text-ods-text-secondary text-h6">View API key information and usage statistics</p>
         </>
       }
       footer={<Button onClick={onClose}>Close</Button>}
     >
       {/* Name and Status */}
-      <div className="flex items-center justify-between pb-2 border-b border-ods-border">
+      <div className="flex items-center justify-between border-b border-ods-border pb-2">
         <div>
-          <div className="text-h3 font-semibold text-ods-text-primary">{apiKey.name}</div>
-          <div className="text-h6 text-ods-text-secondary mt-1">{apiKey.description || '—'}</div>
+          <div className="font-semibold text-ods-text-primary text-h3">{apiKey.name}</div>
+          <div className="mt-1 text-ods-text-secondary text-h6">{apiKey.description || '—'}</div>
         </div>
         <Tag label={apiKey.enabled ? 'ACTIVE' : 'INACTIVE'} variant={apiKey.enabled ? 'success' : 'grey'} />
       </div>
@@ -70,7 +70,7 @@ export function ApiKeyDetailsModal({ isOpen, onClose, apiKey }: ApiKeyDetailsMod
           <Input value={apiKey.failedRequests.toLocaleString()} disabled className="bg-ods-card" />
         </div>
 
-        <div className="space-y-2 col-span-2">
+        <div className="col-span-2 space-y-2">
           <Label>Last Used</Label>
           <Input value={fmt(apiKey.lastUsed)} disabled className="bg-ods-card" />
         </div>

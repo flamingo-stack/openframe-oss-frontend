@@ -107,7 +107,7 @@ export function ApiKeysTab() {
                   id: 'disable',
                   label: 'Disable',
                   // No color class — `danger` paints label and icon via currentColor.
-                  icon: <BannedIcon className="w-6 h-6" />,
+                  icon: <BannedIcon className="h-6 w-6" />,
                   danger: true,
                   onClick: () => {
                     setSelectedKey(apiKey);
@@ -137,7 +137,7 @@ export function ApiKeysTab() {
         accessorKey: 'name',
         header: 'Name',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
-          <div className="flex flex-col min-w-0">
+          <div className="flex min-w-0 flex-col">
             <TruncateText>{row.original.name}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {row.original.description || '—'}
@@ -176,7 +176,7 @@ export function ApiKeysTab() {
         accessorKey: 'createdAt',
         header: 'Created',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
-          <div className="flex flex-col min-w-0">
+          <div className="flex min-w-0 flex-col">
             <TruncateText>{formatDate(row.original.createdAt)}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {formatTime(row.original.createdAt)}
@@ -189,7 +189,7 @@ export function ApiKeysTab() {
         accessorKey: 'expiresAt',
         header: 'Expires',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
-          <div className="flex flex-col min-w-0">
+          <div className="flex min-w-0 flex-col">
             <TruncateText>{row.original.expiresAt ? formatDate(row.original.expiresAt) : '—'}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {row.original.expiresAt ? formatTime(row.original.expiresAt) : '—'}
@@ -201,7 +201,7 @@ export function ApiKeysTab() {
       {
         id: 'actions',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             {renderRowActions(row.original)}
           </div>
         ),
@@ -222,7 +222,7 @@ export function ApiKeysTab() {
   const actions: PageActionButton[] = [
     {
       label: 'API Documentation',
-      icon: <DocumentIcon className="w-5 h-5" />,
+      icon: <DocumentIcon className="h-5 w-5" />,
       variant: 'outline',
       onClick: () => window.open('/swagger-ui/index.html#/', '_blank', 'noopener,noreferrer'),
     },
@@ -238,7 +238,7 @@ export function ApiKeysTab() {
     <PageLayout
       title="API Keys"
       actions={actions}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] bg-ods-bg"
+      className="bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: handleBack }}
     >
       <DataTable table={table}>

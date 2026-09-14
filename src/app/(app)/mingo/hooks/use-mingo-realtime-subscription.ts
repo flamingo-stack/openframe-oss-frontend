@@ -48,7 +48,7 @@ export function useMingoRealtimeSubscription(
   const [connectionState, setConnectionState] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
 
   const onChunkReceivedRef = useRef(onChunkReceived);
-  const catchupRefs = useRef<Map<string, any>>(new Map());
+  const catchupRefs = useRef<Map<string, unknown>>(new Map());
 
   const { resetUnread } = useMingoMessagesStore();
 

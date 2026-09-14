@@ -200,7 +200,7 @@ export class FileOperations {
   }
 
   sanitizeName(name: string): string {
-    return name.replace(/[<>:"\/\\|?*\x00-\x1F]/g, '');
+    return name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '');
   }
 
   validatePath(path: string): boolean {

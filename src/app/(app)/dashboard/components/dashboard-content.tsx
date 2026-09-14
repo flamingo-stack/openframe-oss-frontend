@@ -12,7 +12,7 @@ import { TicketsOverviewSection } from './tickets-overview';
 
 /** Padded wrapper for the onboarding blocks that live OUTSIDE the PageLayout chrome.
  *  `empty:hidden` collapses the wrapper (padding included) when the inner component
- *  renders `null` (completed setup). */
+ *  renders `null` (dismissed walkthrough / completed setup). */
 const ONBOARDING_WRAPPER_CLASS = 'px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] empty:hidden';
 
 /**

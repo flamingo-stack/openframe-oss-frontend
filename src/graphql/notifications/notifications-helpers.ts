@@ -5,7 +5,18 @@ import type {
   notificationFields_notification$key as NotificationFieldsKey,
 } from '@/__generated__/notificationFields_notification.graphql';
 import type { NotificationSeverity } from '@/generated/schema-enums';
+import { NOTIFICATION_ATTR, parseAttributeToolCalls, readNotificationAttributes } from './notification-attributes';
 import { notificationFieldsFragment } from './notification-fields';
+
+export {
+  isApprovalNotificationType,
+  isApprovalResolved,
+  MINGO_APPROVAL_REQUEST_TYPE,
+  NOTIFICATION_ATTR,
+  parseAttributeToolCalls,
+  readNotificationAttributes,
+  TICKET_APPROVAL_REQUEST_TYPE,
+} from './notification-attributes';
 
 export const NOTIFICATIONS_CONNECTION_KEY = 'NotificationsList_notifications';
 const NOTIFICATION_EDGE_TYPENAME = 'NotificationEdge';
@@ -221,18 +232,45 @@ export function parseSeverity(
 }
 
 /**
- * Human label for a `NotificationContext.type` discriminator: SNAKE_CASE → Title Case
+ * Human label for a notification `type`: SNAKE_CASE → Title Case
  * (e.g. TICKET_STATUS_CHANGED → "Ticket Status Changed"). Data-driven so new backend
- * context types label themselves; the catch-all discriminators carry no meaning → undefined.
+ * types label themselves.
  */
-export function contextTypeLabel(contextType: string | null | undefined): string | undefined {
-  if (!contextType || contextType === 'UNKNOWN' || contextType === 'GENERIC') return undefined;
-  return contextType
+export function notificationTypeLabel(type: string | null | undefined): string | undefined {
+  if (!type) return undefined;
+  return type
     .toLowerCase()
     .split('_')
     .filter(Boolean)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+/**
+ * Defensive plain-text pass over notification title/description: strips common markdown
+ * and HTML artifacts so previews (drawer tiles, table rows, OS toasts) never show raw
+ * formatting. Canonical sanitization belongs on the BE at emission time (ClickUp 86ajn8hpg);
+ * this only guards records written before that fix and any stragglers.
+ */
+export function stripNotificationMarkup(text: string): string {
+  return (
+    text
+      .replace(/<[^>]+>/g, '') // HTML tags
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1') // images -> alt text
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links -> label
+      .replace(/(\*{1,3}|_{1,3}|~~)(\S(?:.*?\S)?)\1/g, '$2') // bold / italic / strikethrough
+      .replace(/`{1,3}([^`]*)`{1,3}/g, '$1') // inline / fenced code
+      .replace(/^[^\S\n]{0,3}#{1,6}[^\S\n]+/gm, '') // headings
+      .replace(/[^\S\n]#{2,6}[^\S\n]+/g, ' ') // stray mid-line heading markers ("text. ## Summary"); 2+ hashes so "#238" survives
+      .replace(/^[^\S\n]{0,3}>[^\S\n]?/gm, '') // blockquotes
+      .replace(/^[^\S\n]{0,3}(?:[-*+]|\d+\.)[^\S\n]+/gm, '') // list markers
+      // Collapse whitespace within lines only - newlines survive so the full-text
+      // hover/tooltip keeps its paragraph structure (clamped previews ignore them anyway).
+      .replace(/[^\S\n]+/g, ' ')
+      .replace(/ ?\n ?/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
 }
 
 const EPOCH_MS_THRESHOLD = 1e12;
@@ -261,48 +299,38 @@ export function readNotificationNode(ref: NotificationFieldsKey): NotificationFi
  * Flattens a notification row into the core lib's `Notification`. Takes the read
  * data rather than the fragment reference, so a caller that also needs the raw
  * fields (the section table's own columns) reads the node once.
+ *
+ * Reads the `type` + `attributes` contract only. A row carrying neither (nothing the
+ * backfill migration has swept) still maps: it keeps its title, body, severity and
+ * timestamp, and offers no type or entity metadata — a plain tile, no navigation.
  */
 export function mapNotificationNode(node: NotificationFieldsData): Notification {
   const severity = normalizeSeverity(node.severity);
-  // `context` is NULLABLE as of the backend's context -> type/attributes
-  // migration: rows written on the new path carry no typed context at all, so
-  // nothing below may assume one. A context-less row still maps — it just
-  // contributes no context metadata, and the fields that drive navigation
-  // simply stay absent.
-  const { context } = node;
+  const attributes = readNotificationAttributes(node.attributes);
+  const notificationType = node.type ?? undefined;
+
+  // Entity ids (`ticketId`, `dialogId`) drive navigation and auto-read uniformly across
+  // types (see resolveNotificationAction); they sit at fixed keys for every type, known or
+  // not, so the spread carries them into `meta` as-is.
   const meta: Record<string, unknown> = {
-    contextType: context?.type,
-    contextTypename: context?.__typename,
+    // Every attribute the backend sent, including keys this release has no code for.
+    ...attributes,
+    // The precise backend type — what the core lib's approval gate and the route mapping read.
+    notificationType,
   };
 
-  // Entity ids drive navigation/auto-read uniformly across context types (see
-  // resolveNotificationAction); every context that carries one selects it in the query fragment.
-  const ticketId = context?.ticketId ?? context?.approvalTicketId ?? undefined;
-  if (context?.dialogId) meta.dialogId = context.dialogId;
-  if (ticketId) meta.ticketId = ticketId;
-
-  if (context?.__typename === 'AdminApprovalRequestContext' && context.approvalRequestId) {
-    meta.approvalRequestId = context.approvalRequestId;
-    meta.approvalType = context.approvalType ?? null;
-    meta.resolution = context.resolution ?? null;
-    meta.resolvedByName = context.resolvedByName ?? null;
-    meta.toolCalls = (context.toolCalls ?? []).map(call => ({
-      toolExecutionRequestId: call.toolExecutionRequestId,
-      toolName: call.toolName,
-      toolTitle: call.toolTitle,
-      toolExplanation: call.toolExplanation,
-      toolType: call.toolType,
-      requiresApproval: call.requiresApproval,
-      approvalType: call.approvalType,
-      toolCallArguments: call.toolCallArguments,
-    }));
+  if (attributes[NOTIFICATION_ATTR.approvalRequestId]) {
+    // Must end up an ARRAY: the core lib's `getApprovalMeta` bails on anything else, which
+    // would silently downgrade the approval tile to a plain one. The spread above put the
+    // raw JSON string here, so this assignment is not optional.
+    meta.toolCalls = parseAttributeToolCalls(attributes[NOTIFICATION_ATTR.toolCalls]);
   }
 
   return {
     id: node.id,
-    type: contextTypeLabel(context?.type),
-    title: node.title,
-    description: node.description ?? undefined,
+    type: notificationTypeLabel(notificationType),
+    title: stripNotificationMarkup(node.title),
+    description: node.description == null ? undefined : stripNotificationMarkup(node.description),
     createdAt: parseCreatedAt(node.createdAt),
     read: node.read,
     severity,

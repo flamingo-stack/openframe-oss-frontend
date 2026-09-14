@@ -8,7 +8,6 @@ import { useEffect, useId, useState } from 'react';
 import { signOutToLogin } from '@/app/(auth)/auth/hooks/use-auth-session';
 import {
   BIOMETRIC_ERROR,
-  biometricErrorCode,
   biometryLabel,
   disableBiometricLogin,
   enableBiometricLogin,
@@ -16,6 +15,7 @@ import {
   isBiometricLoginEnabled,
   setBiometricLoginChoice,
 } from '@/lib/native-biometrics';
+import { nativeErrorCode } from '@/lib/native-shell';
 import { isMobileShell } from '@/lib/platform';
 
 /**
@@ -35,7 +35,7 @@ export function BiometricLoginCard() {
   const [isBusy, setIsBusy] = useState(false);
 
   useEffect(() => {
-    if (!isMobileShell()) return;
+    if (!isMobileShell()) return undefined;
     let active = true;
     void (async () => {
       const [{ available: avail, biometryType }, isEnabled] = await Promise.all([
@@ -73,7 +73,7 @@ export function BiometricLoginCard() {
       }
     } catch (error) {
       setEnabled(!next);
-      const code = biometricErrorCode(error);
+      const code = nativeErrorCode(error);
       // A user-canceled prompt is not an error worth a destructive toast.
       if (code === BIOMETRIC_ERROR.CANCELED) return;
       // Enrollment changed while enabled: the gated tokens are unrecoverable
@@ -94,12 +94,12 @@ export function BiometricLoginCard() {
   };
 
   return (
-    <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-m)] flex gap-[var(--spacing-system-s)] items-center">
-      <div className="flex-1 min-w-0">
-        <label htmlFor={switchId} className="text-h3 text-ods-text-primary">
+    <div className="flex items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
+      <div className="min-w-0 flex-1">
+        <label htmlFor={switchId} className="text-ods-text-primary text-h3">
           Biometric login
         </label>
-        <p className="text-h6 text-ods-text-secondary">Unlock OpenFrame on this device with {label}.</p>
+        <p className="text-ods-text-secondary text-h6">Unlock OpenFrame on this device with {label}.</p>
       </div>
       <Switch id={switchId} checked={enabled} onCheckedChange={handleToggle} disabled={isBusy} />
     </div>

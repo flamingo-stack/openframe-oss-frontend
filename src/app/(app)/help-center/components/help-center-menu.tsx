@@ -86,7 +86,7 @@ const ITEMS: Item[] = [
  */
 export function HelpCenterMenu() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-m)]">
+    <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
       {ITEMS.map(({ href, title, description, Icon }) => (
         <SettingMenuItem
           key={href}

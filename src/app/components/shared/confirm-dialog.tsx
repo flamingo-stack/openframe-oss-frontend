@@ -79,7 +79,7 @@ export function ConfirmDialog({
         <ModalV2Title>{title}</ModalV2Title>
       </ModalV2Header>
 
-      <p className="text-h4 text-ods-text-primary">{description}</p>
+      <p className="text-ods-text-primary text-h4">{description}</p>
       {extraContent}
 
       <ModalV2Footer>

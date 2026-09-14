@@ -86,9 +86,9 @@ export function InitialSetupCard() {
   // Latch: the completed view commits Initial Setup in the background the instant it
   // shows, which flips `tenant.completed` and would otherwise hide the card mid-view.
   // A real exit remounts against `completed: true` and the card is correctly gone.
-  const shownRef = useRef(false);
-  if (isLoaded && tenant && !tenant.completed) {
-    shownRef.current = true;
+  const [shown, setShown] = useState(false);
+  if (isLoaded && tenant && !tenant.completed && !shown) {
+    setShown(true);
   }
 
   // `!tenant` matters on its own: the store is marked loaded even on a failed fetch, and
@@ -96,7 +96,7 @@ export function InitialSetupCard() {
   if (!isLoaded || !tenant) {
     return null;
   }
-  if (tenant.completed && !shownRef.current) {
+  if (tenant.completed && !shown) {
     return null;
   }
 
@@ -193,8 +193,8 @@ function InitialSetupCardContent() {
   return (
     <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
       <div className="flex min-w-0 flex-col">
-        <h2 className="text-h2 text-ods-text-primary">Initial Setup</h2>
-        <p className="text-h6 text-ods-text-secondary">
+        <h2 className="text-ods-text-primary text-h2">Initial Setup</h2>
+        <p className="text-ods-text-secondary text-h6">
           {allDone ? 'All steps complete' : `${total} steps to complete · ${done}/${total} done`}
         </p>
       </div>
@@ -253,10 +253,10 @@ export function InitialSetupSkeleton() {
             `text-h6` line boxes so the header height matches the loaded card exactly.
             Decorative `div` wrappers (not `h2`/`p`) since `Skeleton` renders a `div`,
             which is invalid inside `<p>`/`<h2>`; the type utilities carry the height. */}
-        <div className="text-h2 text-ods-text-primary">
+        <div className="text-ods-text-primary text-h2">
           <Skeleton className="inline-block h-6 w-40 align-middle" />
         </div>
-        <div className="text-h6 text-ods-text-secondary">
+        <div className="text-ods-text-secondary text-h6">
           <Skeleton className="inline-block h-3 w-52 max-w-full align-middle" />
         </div>
       </div>

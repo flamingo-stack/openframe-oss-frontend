@@ -101,7 +101,7 @@ export function AiSettings() {
     } else if (isMingo) {
       adminAi.refetch();
     }
-  }, [isCustomer, isMingo, clientAi.refetch, clientView.refetch, adminAi.refetch]);
+  }, [isCustomer, isMingo, clientAi, clientView, adminAi]);
 
   const handleEdit = useCallback(() => setIsEditMode(true), []);
 

@@ -7,10 +7,14 @@ interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;
   skipAuth?: boolean;
   /**
-   * Issue the request without waiting for the session latch (see
-   * `session-ready.ts`). ONLY for the two calls that establish the session —
+   * Issue the request without waiting for either bootstrap latch — the session
+   * one (`session-ready.ts`) or the subscription one (`subscription-gate.ts`).
+   *
+   * ONLY for the two calls that establish those answers in the first place:
    * `/me` and the feature-flags query. Anything else would fetch before `/me`
-   * has answered, or during server rendering where there is no user at all.
+   * has answered, or during server rendering where there is no user at all —
+   * and the feature-flags query is what tells the subscription guard whether to
+   * ask at all, so gating it on the guard's answer would deadlock both.
    */
   skipSessionGate?: boolean;
   /**
@@ -45,7 +49,7 @@ interface ApiRequestOptions extends Omit<RequestInit, 'headers'> {
  */
 export const REQUEST_TIMEOUT_MS = 30_000;
 
-interface ApiResponse<T = any> {
+interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   status: number;
@@ -56,6 +60,7 @@ import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
 import { waitForSessionReady } from './session-ready';
+import { waitForSubscriptionGate } from './subscription-gate';
 import { refreshTokens } from './token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from './token-store';
 
@@ -105,7 +110,7 @@ class ApiClient {
   /**
    * Make an authenticated API request
    */
-  async request<T = any>(
+  async request<T = unknown>(
     path: string,
     options: ApiRequestOptions = {},
     isRetry: boolean = false,
@@ -122,6 +127,12 @@ class ApiClient {
     // whatever the first attempt decided (the latch is already open by then).
     if (!skipSessionGate && !isRetry) {
       await waitForSessionReady();
+      // ...and then for the subscription answer. Most of the app's GraphQL
+      // traffic still goes out through here rather than through Relay (customers,
+      // devices, logs, tickets, monitoring, dashboard), so gating only the Relay
+      // network layer left the larger half of the requests firing into a locked
+      // workspace. See `subscription-gate.ts`.
+      await waitForSubscriptionGate();
     }
 
     // Build headers
@@ -234,7 +245,7 @@ class ApiClient {
       // Extract error message from response body if available
       let errorMessage: string | undefined;
       if (!response.ok) {
-        const errorData = data as any;
+        const errorData = data as { message?: string; error?: string } | undefined;
         errorMessage = errorData?.message || errorData?.error || `Request failed with status ${response.status}`;
       }
 
@@ -270,11 +281,11 @@ class ApiClient {
   /**
    * Convenience methods for common HTTP methods
    */
-  async get<T = any>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async get<T = unknown>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, { ...options, method: 'GET' });
   }
 
-  async post<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async post<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'POST',
@@ -282,7 +293,7 @@ class ApiClient {
     });
   }
 
-  async put<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async put<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'PUT',
@@ -290,7 +301,7 @@ class ApiClient {
     });
   }
 
-  async patch<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async patch<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'PATCH',
@@ -298,18 +309,18 @@ class ApiClient {
     });
   }
 
-  async delete<T = any>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async delete<T = unknown>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
   /**
    * Special method for requests to external APIs (non-base URL)
    */
-  async external<T = any>(url: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
+  async external<T = unknown>(url: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
     return this.request<T>(url, options);
   }
 
-  me<T = any>() {
+  me<T = unknown>() {
     // Bootstrap call: this is what opens the session latch.
     return this.request<T>('/api/me', { skipSessionGate: true });
   }

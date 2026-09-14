@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * This app's read of `/content/api/walkthrough-video`, for the inline block in
- * the onboarding "Book a call" promo.
+ * The one place this app reads `/content/api/walkthrough-video`, shared by both
+ * surfaces that render the clip (the app-shell floating card, the inline block
+ * in the onboarding "Book a call" promo) through a single React Query key.
  *
  * Not the lib's `useWalkthroughVideo`: that hook uses a bare `fetch`, which
  * carries only a session cookie and so 401s against the gateway's role-gated
@@ -11,9 +12,17 @@
  */
 
 import type { WalkthroughVideoData } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { embedAuthedFetch } from '@flamingo-stack/openframe-frontend-core/utils';
+import { embedAuthedFetch, walkthroughDismissCookieName } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQuery } from '@tanstack/react-query';
 import { CONTENT_BASE, EP } from '@/app/(app)/help-center/endpoints';
+import { getCurrentPlatform } from '@/lib/app-config';
+
+/**
+ * Per-platform dismissal cookie. Dismissal is ONE decision across the app —
+ * closing the video in the promo must also stop the floating card offering it
+ * — so every mount passes this same key.
+ */
+export const WALKTHROUGH_DISMISS_STORAGE_KEY = walkthroughDismissCookieName(getCurrentPlatform());
 
 export interface WalkthroughVideoResult {
   /** The video, or `null` while loading AND when the platform has none. */

@@ -7,7 +7,7 @@ import { featureFlags } from '@/lib/feature-flags';
  * `TextData`/`ThinkingData`/`SystemData.text` are `String!`, and GraphQL refuses
  * to merge same-named fields with different nullability into one selection set
  * (`FieldsConflict` — the WHOLE query is rejected, not just that fragment).
- * Aliasing gives each body its own response name. Mirrors `ASK_INTRO_ALIAS`.
+ * Aliasing gives each body its own response name.
  *
  * Everything downstream — the core lib's history decoder included — reads
  * `text`, so `normalizeMessageDataAliases` maps them back at the single

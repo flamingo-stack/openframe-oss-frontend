@@ -1,7 +1,7 @@
 'use client';
 
-import { ScheduleCreateView } from '../../components/schedule/schedule-create-view';
+import { EditSchedulePage } from '../../schedule/components/edit-schedule-page';
 
 export default function NewSchedulePage() {
-  return <ScheduleCreateView />;
+  return <EditSchedulePage scheduleId={null} />;
 }

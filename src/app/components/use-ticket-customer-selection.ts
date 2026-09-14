@@ -39,7 +39,7 @@ function withSeed<T extends AutocompleteOption>(options: T[], seed: T | null): T
  * - Ticket selected → the customer is pinned to the ticket's organization and locked (even
  *   when the customer was picked first); clearing the ticket releases the derived customer.
  */
-export function useTicketCustomerSelection() {
+export function useTicketCustomerSelection({ enabled = true }: { enabled?: boolean } = {}) {
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerLocked, setCustomerLocked] = useState(false);
@@ -49,11 +49,16 @@ export function useTicketCustomerSelection() {
   const [ticketSeed, setTicketSeed] = useState<TicketSearchOption | null>(null);
   const [customerSeed, setCustomerSeed] = useState<AvatarOption | null>(null);
 
+  // `enabled` is what lets a host mount this hook unconditionally and still pay
+  // nothing for it — the time-tracker host is mounted on every page so that its
+  // provider never changes the tree shape (see `TimeTrackerHostProvider`), and
+  // with the feature off neither option list may fetch.
   const { options: ticketOptionsRaw, isLoading: ticketsLoading } = useTicketSearchOptions(
     ticketSearch,
     customerId ?? undefined,
+    enabled,
   );
-  const { options: customerOptionsRaw, isLoading: customersLoading } = useOrganizationOptions(customerSearch);
+  const { options: customerOptionsRaw, isLoading: customersLoading } = useOrganizationOptions(customerSearch, enabled);
 
   const ticketOptions = useMemo(() => withSeed(ticketOptionsRaw, ticketSeed), [ticketOptionsRaw, ticketSeed]);
   const customerOptions = useMemo(() => withSeed(customerOptionsRaw, customerSeed), [customerOptionsRaw, customerSeed]);

@@ -3,18 +3,19 @@
  */
 
 import { FileBinaryProtocol } from './file-binary-protocol';
-import { type DownloadTask, FileDownloader } from './file-downloader';
-import { type FileError, FileErrorHandler } from './file-error-handler';
+import { FileDownloader } from './file-downloader';
+import { FileErrorHandler } from './file-error-handler';
 import type {
   DirectoryListing,
   FileConnectionState,
   FileEntry,
   FileManagerOptions,
+  FileOperationRequest,
   FileOperationResponse,
-  FileTransferProgress,
+  RelayControlMessage,
 } from './file-manager-types';
 import { FileOperations } from './file-operations';
-import { FileUploader, type UploadTask } from './file-uploader';
+import { FileUploader } from './file-uploader';
 import type { MeshControlClient } from './meshcentral-control';
 import { MeshTunnel, type TunnelState } from './meshcentral-tunnel';
 
@@ -31,10 +32,22 @@ export class MeshCentralFileManager {
   private state: FileConnectionState = 'disconnected';
   private currentPath = '';
   private currentFiles: FileEntry[] = [];
-  private pendingRequests = new Map<string, { resolve: Function; reject: Function; timeout: any }>();
+  /**
+   * In-flight operations keyed by their request id. Each operation resolves to a
+   * different payload, so the registry erases it to `unknown` and the one `set`
+   * site below adapts its own resolver.
+   */
+  private pendingRequests = new Map<
+    string,
+    {
+      resolve: (value: unknown) => void;
+      reject: (reason: Error) => void;
+      timeout: ReturnType<typeof setTimeout> | null;
+    }
+  >();
   private loadingPath: string | null = null;
   private pendingSearchRequestId: string | null = null;
-  private searchDebounceTimer: any = null;
+  private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private searchResults: Map<string, FileEntry[]> = new Map();
   private cancelledSearchRequestIds: Set<string> = new Set();
   private isPreparingNewSearch: boolean = false;
@@ -163,7 +176,9 @@ export class MeshCentralFileManager {
           if (this.controlClient && !this.controlClient.isConnected()) {
             await this.controlClient.openSession();
           }
-        } catch {}
+        } catch {
+          // Best-effort: re-opening the control session here only saves the first file request a round trip. If it fails, the reconnect proceeds and the request re-opens the session itself.
+        }
       },
       onData: data => {
         if (typeof data === 'string') {
@@ -348,8 +363,12 @@ export class MeshCentralFileManager {
     }
   }
 
-  private handleFindFileMessage(message: any): void {
-    const { reqid, r } = message;
+  private handleFindFileMessage(message: FileOperationResponse): void {
+    const reqid = typeof message.reqid === 'string' ? message.reqid : undefined;
+    // `r` is the protocol's result slot for a find: a matching path while results
+    // stream in, and explicitly `null` on the last message to mark the end. Any
+    // other shape is not a result this handler knows how to record.
+    const r = message.r === null ? null : typeof message.r === 'string' ? message.r : undefined;
 
     if (!reqid) return;
 
@@ -368,7 +387,7 @@ export class MeshCentralFileManager {
       const wasCancelled = this.cancelledSearchRequestIds.has(reqid);
       const request = this.pendingRequests.get(reqid);
       if (request) {
-        clearTimeout(request.timeout);
+        if (request.timeout) clearTimeout(request.timeout);
         this.pendingRequests.delete(reqid);
         request.resolve(results);
       }
@@ -411,11 +430,11 @@ export class MeshCentralFileManager {
     }
   }
 
-  private handleDownloadMessage(message: any): void {
+  private handleDownloadMessage(message: FileOperationResponse): void {
     this.downloader.handleControlMessage(message);
   }
 
-  private handleDialogMessage(message: any): void {
+  private handleDialogMessage(message: FileOperationResponse): void {
     if (message?.msg) {
       console.log('[FileManager] Dialog message:', message.msg);
     }
@@ -433,7 +452,7 @@ export class MeshCentralFileManager {
     if (listing.reqid) {
       const request = this.pendingRequests.get(listing.reqid);
       if (request) {
-        clearTimeout(request.timeout);
+        if (request.timeout) clearTimeout(request.timeout);
         this.pendingRequests.delete(listing.reqid);
         request.resolve(this.currentFiles);
       }
@@ -442,7 +461,7 @@ export class MeshCentralFileManager {
       // This handles cases where the server doesn't echo back the reqid
       for (const [reqid, request] of this.pendingRequests.entries()) {
         // Assuming we only have one pending directory listing at a time
-        clearTimeout(request.timeout);
+        if (request.timeout) clearTimeout(request.timeout);
         this.pendingRequests.delete(reqid);
         request.resolve(this.currentFiles);
         break; // Only resolve the first one
@@ -453,7 +472,7 @@ export class MeshCentralFileManager {
   private handleOperationResponse(message: FileOperationResponse): void {
     const request = this.pendingRequests.get(message.reqid || '');
     if (request) {
-      clearTimeout(request.timeout);
+      if (request.timeout) clearTimeout(request.timeout);
       this.pendingRequests.delete(message.reqid || '');
 
       if (message.result === 'ok' || message.action) {
@@ -466,25 +485,26 @@ export class MeshCentralFileManager {
     }
   }
 
-  private handleErrorMessage(message: any): void {
+  private handleErrorMessage(message: FileOperationResponse): void {
     const error = this.errorHandler.parseError(message);
     if (error) {
       this.errorHandler.handleError(error);
     }
 
-    if (message.reqid) {
-      const request = this.pendingRequests.get(message.reqid);
+    const errorReqid = typeof message.reqid === 'string' ? message.reqid : undefined;
+    if (errorReqid) {
+      const request = this.pendingRequests.get(errorReqid);
       if (request) {
-        clearTimeout(request.timeout);
-        this.pendingRequests.delete(message.reqid);
+        if (request.timeout) clearTimeout(request.timeout);
+        this.pendingRequests.delete(errorReqid);
         request.reject(new Error(error?.message || 'Operation failed'));
       }
     }
   }
 
-  private async sendOperation<T = any>(request: any, timeoutMs = 8000): Promise<T> {
+  private async sendOperation<T>(request: FileOperationRequest, timeoutMs = 8000): Promise<T> {
     return new Promise((resolve, reject) => {
-      let timeout: any = null;
+      let timeout: ReturnType<typeof setTimeout> | null = null;
 
       if (timeoutMs > 0) {
         timeout = setTimeout(() => {
@@ -493,7 +513,7 @@ export class MeshCentralFileManager {
         }, timeoutMs);
       }
 
-      this.pendingRequests.set(request.reqid, { resolve, reject, timeout });
+      this.pendingRequests.set(request.reqid, { resolve: value => resolve(value as T), reject, timeout });
 
       const sent = this.sendJsonMessage(request);
       if (!sent) {
@@ -609,7 +629,7 @@ export class MeshCentralFileManager {
 
   async getFileContent(fileName: string): Promise<string> {
     const request = this.fileOps.createGetFileRequest(this.currentPath, fileName);
-    const response = await this.sendOperation<any>(request);
+    const response = await this.sendOperation<{ data?: string }>(request);
     return response.data ? atob(response.data) : '';
   }
 
@@ -669,7 +689,7 @@ export class MeshCentralFileManager {
 
             const pendingRequest = this.pendingRequests.get(cancelRequestId);
             if (pendingRequest) {
-              clearTimeout(pendingRequest.timeout);
+              if (pendingRequest.timeout) clearTimeout(pendingRequest.timeout);
               this.pendingRequests.delete(cancelRequestId);
               pendingRequest.reject(new Error('Cancelled for new search'));
             }
@@ -724,7 +744,7 @@ export class MeshCentralFileManager {
 
       const pendingRequest = this.pendingRequests.get(cancelRequestId);
       if (pendingRequest) {
-        clearTimeout(pendingRequest.timeout);
+        if (pendingRequest.timeout) clearTimeout(pendingRequest.timeout);
         this.pendingRequests.delete(cancelRequestId);
         pendingRequest.reject(new Error('Cancelled for new search'));
       }
@@ -794,7 +814,7 @@ export class MeshCentralFileManager {
 
     for (const [, request] of this.pendingRequests) {
       if (request.timeout) {
-        clearTimeout(request.timeout);
+        if (request.timeout) clearTimeout(request.timeout);
       }
       request.reject(new Error('Disconnected'));
     }
@@ -831,7 +851,7 @@ export class MeshCentralFileManager {
     await this.connect();
   }
 
-  private sendRelayControlMessage(message: Record<string, any>): void {
+  private sendRelayControlMessage(message: Record<string, unknown>): void {
     const payload = {
       ctrlChannel: 102938,
       ...message,
@@ -844,7 +864,7 @@ export class MeshCentralFileManager {
     }
   }
 
-  private handleCtrlChannelMessage(message: any): void {
+  private handleCtrlChannelMessage(message: RelayControlMessage): void {
     switch (message.type) {
       case 'ping':
         this.sendRelayControlMessage({ type: 'pong' });
@@ -870,7 +890,7 @@ export class MeshCentralFileManager {
     });
   }
 
-  private sendJsonMessage(payload: any): boolean {
+  private sendJsonMessage(payload: unknown): boolean {
     try {
       const data = JSON.stringify(payload);
       return this.sendData(data);
@@ -880,7 +900,7 @@ export class MeshCentralFileManager {
     }
   }
 
-  private async sendOperationWithoutResponse(request: any): Promise<void> {
+  private async sendOperationWithoutResponse(request: FileOperationRequest): Promise<void> {
     const sent = this.sendJsonMessage(request);
     if (!sent) {
       throw new Error('Failed to send request');

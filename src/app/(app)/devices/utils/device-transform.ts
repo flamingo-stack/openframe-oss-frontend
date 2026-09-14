@@ -81,7 +81,6 @@ function toToolConnections(connections: deviceFields_machine$data['toolConnectio
             status: tc.status,
             metadata: tc.metadata,
             connectedAt: tc.connectedAt ?? undefined,
-            lastSyncAt: tc.lastSyncAt ?? undefined,
             disconnectedAt: tc.disconnectedAt ?? undefined,
           },
         ]

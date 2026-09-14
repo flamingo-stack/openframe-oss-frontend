@@ -1,10 +1,8 @@
 'use client';
 
 import { AuthProvidersList } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { ArrowLeft, Building, Cloud, Lock, Mail, User } from 'lucide-react';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
-import { useDeployment } from '@/app/hooks/use-deployment';
 
 interface TenantInfo {
   tenantName: string;
@@ -34,9 +32,11 @@ interface AuthLoginSectionProps {
 export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading }: AuthLoginSectionProps) {
   const [loginMethod, setLoginMethod] = useState<'sso' | 'email'>('sso');
 
-  // Separate OpenFrame SSO from standard providers
-  const hasOpenFrameSso = availableProviders.includes('openframe-sso');
-  const standardProviders = availableProviders.filter(provider => provider !== 'openframe-sso');
+  // Separate the built-in OpenFrame login from standard providers.
+  // The backend reports it as 'openframe'; 'openframe-sso' is the legacy id.
+  const OPENFRAME_IDS = ['openframe', 'openframe-sso'];
+  const hasOpenFrameSso = availableProviders.some(provider => OPENFRAME_IDS.includes(provider));
+  const standardProviders = availableProviders.filter(provider => !OPENFRAME_IDS.includes(provider));
 
   const enabledProviders: SsoProvider[] = standardProviders.map(provider => ({
     provider: provider,
@@ -59,14 +59,14 @@ export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading 
   };
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="bg-ods-card border border-ods-border rounded-lg shadow-xl">
+    <div className="mx-auto w-full max-w-md">
+      <div className="rounded-lg border border-ods-border bg-ods-card shadow-xl">
         {/* Header Section */}
         <div className="p-8 pb-0">
           {/* Icon and Title */}
           <div className="mb-8">
-            <h1 className="text-h2 text-ods-text-primary mb-2">Already registered?</h1>
-            <p className="text-h6 text-ods-text-secondary">Enter you email to access your organization.</p>
+            <h1 className="mb-2 text-ods-text-primary text-h2">Already registered?</h1>
+            <p className="text-ods-text-secondary text-h6">Enter you email to access your organization.</p>
           </div>
         </div>
 
@@ -80,7 +80,7 @@ export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading 
                 {hasOpenFrameSso && (
                   <>
                     <Button
-                      onClick={() => handleSsoClick('openframe-sso')}
+                      onClick={() => handleSsoClick('openframe')}
                       disabled={isLoading}
                       loading={isLoading && loginMethod === 'sso'}
                       variant="accent"
@@ -103,7 +103,7 @@ export function AuthLoginSection({ availableProviders, onSso, onBack, isLoading 
                           <div className="w-full border-t border-ods-border"></div>
                         </div>
                         <div className="relative flex justify-center">
-                          <span className="text-h6 bg-ods-card px-3 text-ods-text-secondary">or continue with</span>
+                          <span className="bg-ods-card px-3 text-ods-text-secondary text-h6">or continue with</span>
                         </div>
                       </div>
                     )}

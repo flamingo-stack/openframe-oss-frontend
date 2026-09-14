@@ -1,9 +1,16 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { ScheduleAssignDevicesView } from '../../components/schedule/schedule-assign-devices-view';
+import { Suspense } from 'react';
+import { ScheduleDevicesSkeleton } from '../../schedule/components/schedule-devices-skeleton';
+import { ScheduleDevicesView } from '../../schedule/components/schedule-devices-view';
 
-export default function ScheduleAssignDevicesPage() {
+export default function ScheduleDevicesPage() {
   const id = useSearchParams().get('id') ?? '';
-  return <ScheduleAssignDevicesView scheduleId={id} />;
+
+  return (
+    <Suspense fallback={<ScheduleDevicesSkeleton scheduleId={id} />}>
+      <ScheduleDevicesView scheduleId={id} />
+    </Suspense>
+  );
 }

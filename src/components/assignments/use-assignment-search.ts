@@ -4,6 +4,8 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { ticketService } from '@/app/(app)/tickets/services';
+import { useTicketStatusesQuery } from '@/app/(app)/tickets/statuses/hooks/use-ticket-statuses-query';
+import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
 import { postGraphQl } from './graphql';
 import type { AssignmentTargetType } from './types';
 
@@ -59,9 +61,9 @@ const fetchDevices = async (search: string): Promise<AssignmentSearchOption[]> =
   }));
 };
 
-const fetchTickets = async (search: string): Promise<AssignmentSearchOption[]> => {
+const fetchTickets = async (search: string, statusIds: string[]): Promise<AssignmentSearchOption[]> => {
   const page = await ticketService.fetchDialogs({
-    statuses: ['ACTIVE', 'TECH_REQUIRED', 'ON_HOLD', 'RESOLVED'],
+    statusIds,
     search: search || undefined,
     limit: PAGE_SIZE,
   });
@@ -79,12 +81,13 @@ const fetchKnowledgeArticles = async (): Promise<AssignmentSearchOption[]> => {
   return data.knowledgeBaseArticleTree.map(node => ({ value: node.id, label: node.name }));
 };
 
+// TICKET is not in this map: its fetcher also needs the non-archived lifecycle
+// status ids, resolved from the shared status snapshot in useServerSearchOptions.
 const SERVER_SEARCH_FETCHERS: Partial<
   Record<AssignmentTargetType, (search: string) => Promise<AssignmentSearchOption[]>>
 > = {
   ORGANIZATION: fetchCustomers,
   DEVICE: fetchDevices,
-  TICKET: fetchTickets,
 };
 
 const EMPTY_OPTIONS: AssignmentSearchOption[] = [];
@@ -95,13 +98,28 @@ function useServerSearchOptions(
 ): { options: AssignmentSearchOption[]; isLoading: boolean } {
   const debouncedSearch = useDebounce(search, 300);
   const fetcher = SERVER_SEARCH_FETCHERS[targetType];
+  // The ticket search scopes to non-archived tickets by lifecycle status id
+  // (the API takes no status enum), so it waits for the status snapshot —
+  // cached and shared with the tickets pages.
+  const isTicket = targetType === 'TICKET';
+  const statusesQuery = useTicketStatusesQuery({ enabled: isTicket });
+  const nonArchivedStatusIds = useMemo(
+    () => statusesQuery.data?.snapshot.filter(s => s.kind !== TICKET_STATUS_KIND.ARCHIVED).map(s => s.id),
+    [statusesQuery.data],
+  );
   const query = useQuery({
-    queryKey: ['assignments', 'search', targetType, debouncedSearch],
-    queryFn: () => (fetcher ? fetcher(debouncedSearch) : Promise.resolve(EMPTY_OPTIONS)),
-    enabled: !!fetcher,
+    queryKey: ['assignments', 'search', targetType, debouncedSearch, isTicket ? nonArchivedStatusIds : undefined],
+    queryFn: () => {
+      if (isTicket) return fetchTickets(debouncedSearch, nonArchivedStatusIds ?? []);
+      return fetcher ? fetcher(debouncedSearch) : Promise.resolve(EMPTY_OPTIONS);
+    },
+    enabled: isTicket ? !!nonArchivedStatusIds?.length : !!fetcher,
     staleTime: 30_000,
   });
-  return { options: query.data ?? EMPTY_OPTIONS, isLoading: query.isLoading };
+  return {
+    options: query.data ?? EMPTY_OPTIONS,
+    isLoading: query.isLoading || (isTicket && statusesQuery.isLoading),
+  };
 }
 
 function useKnowledgeArticleOptions(search: string): { options: AssignmentSearchOption[]; isLoading: boolean } {

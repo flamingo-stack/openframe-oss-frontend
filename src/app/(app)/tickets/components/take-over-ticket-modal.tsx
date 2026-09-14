@@ -5,7 +5,7 @@ import {
   type TakeOverStatusOption,
   type TakeOverTicketSelection,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMemo, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { useAuthStore } from '@/stores';
 import { useTakeOverTicket } from '../hooks/use-take-over-ticket';
@@ -34,7 +34,12 @@ interface TakeOverTicketModalProps {
   /** Non-null opens the modal. */
   target: TakeOverTicketTarget | null;
   onClose: () => void;
-  onSuccess?: () => void;
+  /**
+   * Fires with the confirmed selection BEFORE `onClose`, so a host that held
+   * UI state for the pending take-over (the board's held drop) can convert it
+   * instead of discarding it when the close handler runs.
+   */
+  onSuccess?: (selection: TakeOverTicketSelection) => void;
 }
 
 /**
@@ -44,10 +49,14 @@ interface TakeOverTicketModalProps {
  * the actual take-over sequence via `useTakeOverTicket` on confirm.
  */
 export function TakeOverTicketModal({ target, onClose, onSuccess }: TakeOverTicketModalProps) {
-  // Keep rendering the last target while the close animation plays.
-  const lastTargetRef = useRef<TakeOverTicketTarget | null>(null);
-  if (target) lastTargetRef.current = target;
-  const shown = target ?? lastTargetRef.current;
+  // Keep rendering the last target while the close animation plays. State, not a
+  // ref: the value is READ during render, and a ref read in render is invisible
+  // to React — the modal would keep whatever it drew first. This is the
+  // adjusting-state-on-prop-change pattern (a set during render of this same
+  // component), which React re-runs before committing, so nothing is painted
+  // with the stale target.
+  const [shown, setShown] = useState<TakeOverTicketTarget | null>(target);
+  if (target && target !== shown) setShown(target);
   const ticket = shown?.ticket;
 
   const currentUserId = useAuthStore(state => state.user?.id);
@@ -88,8 +97,8 @@ export function TakeOverTicketModal({ target, onClose, onSuccess }: TakeOverTick
       { ticketId: ticket.id, toStatusId: statusId, assigneeId },
       {
         onSuccess: () => {
+          onSuccess?.({ statusId, assigneeId });
           onClose();
-          onSuccess?.();
         },
       },
     );

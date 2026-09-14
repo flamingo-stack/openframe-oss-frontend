@@ -12,7 +12,7 @@ interface ScriptRunningModalProps {
 
 /**
  * Post-run confirmation shown after a script is dispatched to a device
- * (scripts-v2). Mirrors Figma `1:65393` — "Scripts Running" + a pointer to the
+ * (Scripts). Mirrors Figma `1:65393` — "Scripts Running" + a pointer to the
  * device logs, with Close / Device Logs actions.
  */
 export function ScriptRunningModal({ isOpen, onClose, onViewDeviceLogs }: ScriptRunningModalProps) {
@@ -33,7 +33,7 @@ export function ScriptRunningModal({ isOpen, onClose, onViewDeviceLogs }: Script
         </>
       }
     >
-      <p className="text-h4 text-ods-text-primary">You can check the results in the device logs section.</p>
+      <p className="text-ods-text-primary text-h4">You can check the results in the device logs section.</p>
     </SimpleModal>
   );
 }

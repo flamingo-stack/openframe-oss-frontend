@@ -19,8 +19,8 @@ function InfoCell({ value, label, icon, href }: InfoCellProps) {
   const isEmpty = display === EMPTY_VALUE;
 
   const content = (
-    <div className="flex flex-col justify-center min-w-0 flex-1">
-      <div className="flex items-center gap-1 min-w-0">
+    <div className="flex min-w-0 flex-1 flex-col justify-center">
+      <div className="flex min-w-0 items-center gap-1">
         {icon}
         <div className="min-w-0 flex-1">
           <TruncateText>{display}</TruncateText>
@@ -38,14 +38,27 @@ function InfoCell({ value, label, icon, href }: InfoCellProps) {
         href={href}
         target="_blank"
         rel="noreferrer"
-        className="flex items-center min-w-0 flex-1 hover:opacity-80 transition-opacity"
+        className="flex min-w-0 flex-1 items-center transition-opacity hover:opacity-80"
       >
         {content}
       </a>
     );
   }
 
-  return <div className="flex items-center min-w-0 flex-1">{content}</div>;
+  return <div className="flex min-w-0 flex-1 items-center">{content}</div>;
+}
+
+function CustomerNotesCard({ notes }: { notes: string }) {
+  return (
+    <section className="flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] pb-[var(--spacing-system-s)] pt-[var(--spacing-system-l)]">
+      <h2 className="text-ods-text-primary text-h2">Notes</h2>
+      {notes.trim() ? (
+        <p className="whitespace-pre-wrap break-words text-ods-text-primary text-h4">{notes}</p>
+      ) : (
+        <p className="text-ods-text-secondary text-h4">No notes yet — add them from Edit Customer.</p>
+      )}
+    </section>
+  );
 }
 
 interface CustomerDetailsTabProps {
@@ -61,19 +74,22 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
     : undefined;
 
   return (
-    <div className="bg-ods-card border border-ods-border rounded-[6px] flex flex-col">
-      <div className="flex gap-4 px-4 h-20 items-center border-b border-ods-border">
-        <InfoCell
-          value={organization.website}
-          label="Website"
-          icon={<ExternalLinkIcon className="w-6 h-6 text-ods-text-secondary shrink-0" />}
-          href={websiteHref}
-        />
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
+        <div className="flex h-20 items-center gap-[var(--spacing-system-m)] border-b border-ods-border px-[var(--spacing-system-m)]">
+          <InfoCell
+            value={organization.website}
+            label="Website"
+            icon={<ExternalLinkIcon className="h-6 w-6 shrink-0 text-ods-text-secondary" />}
+            href={websiteHref}
+          />
+        </div>
+        <div className="flex flex-col px-[var(--spacing-system-m)] py-[var(--spacing-system-m)] md:h-20 md:flex-row md:items-center md:gap-[var(--spacing-system-m)] md:py-0">
+          <InfoCell value={organization.physicalAddress} label="Physical Address" />
+          <InfoCell value={organization.mailingAddress} label="Mailing Address" />
+        </div>
       </div>
-      <div className="flex flex-col md:flex-row md:gap-4 px-4 py-4 md:py-0 md:h-20 md:items-center">
-        <InfoCell value={organization.physicalAddress} label="Physical Address" />
-        <InfoCell value={organization.mailingAddress} label="Mailing Address" />
-      </div>
+      <CustomerNotesCard notes={organization.notes.join('\n')} />
     </div>
   );
 }

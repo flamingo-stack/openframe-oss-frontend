@@ -15,7 +15,13 @@ export interface BoardColumnUpdate {
 
 interface BoardColumnSubscriberProps {
   statusId: string;
-  params: { search?: string; organizationIds?: string[]; assigneeIds?: string[]; tagIds?: string[] };
+  params: {
+    search?: string;
+    organizationIds?: string[];
+    assigneeIds?: string[];
+    tagIds?: string[];
+    unreadOnly?: boolean;
+  };
   onUpdate: (statusId: string, update: BoardColumnUpdate) => void;
   registerLoadMore: (statusId: string, loadMore: () => void) => void;
 }
@@ -48,7 +54,7 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
  * which is exactly what applyOptimisticMove mutates. Renders nothing.
  */
 export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoadMore }: BoardColumnSubscriberProps) {
-  const { search, organizationIds, assigneeIds, tagIds } = params;
+  const { search, organizationIds, assigneeIds, tagIds, unreadOnly } = params;
 
   const query = useInfiniteQuery<
     TicketsPage,
@@ -57,7 +63,7 @@ export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoad
     ReturnType<typeof dialogsQueryKeys.boardColumn>,
     string | undefined
   >({
-    queryKey: dialogsQueryKeys.boardColumn(statusId, { search, organizationIds, assigneeIds, tagIds }),
+    queryKey: dialogsQueryKeys.boardColumn(statusId, { search, organizationIds, assigneeIds, tagIds, unreadOnly }),
     queryFn: ({ pageParam }) =>
       ticketService.fetchBoardColumnByStatusId({
         statusId,
@@ -65,6 +71,7 @@ export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoad
         organizationIds: organizationIds?.length ? organizationIds : undefined,
         assigneeIds: assigneeIds?.length ? assigneeIds : undefined,
         tagIds: tagIds?.length ? tagIds : undefined,
+        unreadOnly: unreadOnly || undefined,
         cursor: pageParam,
         limit: BOARD_PAGE_SIZE,
       }),

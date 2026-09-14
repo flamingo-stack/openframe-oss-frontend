@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import type { ReplacementOption } from '../hooks/use-ticket-statuses-form';
 
@@ -33,9 +33,15 @@ export function DeleteStatusDialog({
 }: DeleteStatusDialogProps) {
   const [replacementId, setReplacementId] = useState('');
 
-  useEffect(() => {
+  // Seeded when the modal opens, during render rather than in an effect: an effect
+  // paints the field with the previous value once before correcting it. Keyed off
+  // the open transition alone, so a background refresh of the source value can no
+  // longer overwrite what the user has typed while the modal is up.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) setReplacementId(options[0]?.id ?? '');
-  }, [isOpen, options]);
+  }
 
   const canConfirm = replacementId.length > 0 && !isPending;
 
@@ -63,7 +69,7 @@ export function DeleteStatusDialog({
         </>
       }
     >
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Tickets currently in &ldquo;{statusName}&rdquo; will be reassigned to the status you select below before it is
         deleted.
       </p>

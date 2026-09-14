@@ -73,7 +73,7 @@ const initialState = {
 
 export const useDevicesStore = create<DevicesState>()(
   devtools(
-    immer((set, get) => ({
+    immer(set => ({
       // State
       ...initialState,
 

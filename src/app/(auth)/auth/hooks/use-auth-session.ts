@@ -129,14 +129,14 @@ export function useAuthSession() {
       throw new Error(response.error || `Auth check failed with status ${response.status}`);
     },
     staleTime: 4 * 60 * 1000, // 4 minutes
-    refetchInterval: query => {
-      if (query.state.data?.authenticated) return runtimeEnv.authCheckIntervalMs();
+    refetchInterval: liveQuery => {
+      if (liveQuery.state.data?.authenticated) return runtimeEnv.authCheckIntervalMs();
       // Failed outright — keep asking, backing off per consecutive failure (see
       // AUTH_RECHECK_BASE_MS). Checked AFTER the signed-in branch so a live
       // session that hits one bad refetch keeps its normal cadence instead of
       // dropping to this one.
-      if (query.state.status === 'error') {
-        const failures = Math.max(query.state.errorUpdateCount, 1);
+      if (liveQuery.state.status === 'error') {
+        const failures = Math.max(liveQuery.state.errorUpdateCount, 1);
         return Math.min(AUTH_RECHECK_BASE_MS * 2 ** (failures - 1), AUTH_RECHECK_MAX_MS);
       }
       // Resolved as "no user": answered, nothing to poll for.
@@ -146,7 +146,7 @@ export function useAuthSession() {
     // immediately rather than waiting out the interval. Narrowed to the failed
     // case on purpose — the app-wide default is off, and re-asking `/me` on every
     // focus of an already-resolved session is what that default exists to avoid.
-    refetchOnWindowFocus: query => query.state.status === 'error',
+    refetchOnWindowFocus: liveQuery => liveQuery.state.status === 'error',
     retry: 2,
     retryDelay: 1000,
   });

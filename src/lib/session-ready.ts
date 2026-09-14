@@ -137,7 +137,7 @@ export function waitForSessionReady(): Promise<void> | undefined {
   // stream stays open until every boundary settles — so the HTTP response never
   // completed. The page's HTML was already flushed and interactive, which is why
   // this looked like a working page with a browser tab that spins forever, and it
-  // reproduced on every reload of any route with a Relay query (`/scripts-v2` hung
+  // reproduced on every reload of any route with a Relay query (`/scripts` hung
   // indefinitely; `/dashboard`, whose data is react-query and never suspends,
   // closed in ~100ms).
   //

@@ -1,9 +1,16 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import RunScriptView from '../../components/script/run-script-view';
+import { Suspense } from 'react';
+import { RunScriptSkeleton } from '../../script/components/run-script-skeleton';
+import RunScriptView from '../../script/components/run-script-view';
 
 export default function RunScriptPage() {
   const id = useSearchParams().get('id') ?? '';
-  return <RunScriptView scriptId={id} />;
+
+  return (
+    <Suspense fallback={<RunScriptSkeleton scriptId={id} />}>
+      <RunScriptView scriptId={id} />
+    </Suspense>
+  );
 }

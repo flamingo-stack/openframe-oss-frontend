@@ -18,9 +18,9 @@ export function useGridInfiniteScroll({
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!enabled || !hasNextPage || isFetchingNextPage) return;
+    if (!enabled || !hasNextPage || isFetchingNextPage) return undefined;
     const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    if (!sentinel) return undefined;
 
     const observer = new IntersectionObserver(
       entries => {

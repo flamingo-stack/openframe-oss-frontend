@@ -27,7 +27,7 @@ const PLATFORM_NOTE: Record<OSPlatformId, string> = {
 export function AdminPrivilegesWarning({ platform }: AdminPrivilegesWarningProps) {
   return (
     <WarningBlock title="Administrator privileges are required to install the OpenFrame agent.">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Run the command with the appropriate permissions for your platform:
       </p>
       <PathsDisplay
@@ -35,7 +35,7 @@ export function AdminPrivilegesWarning({ platform }: AdminPrivilegesWarningProps
         showCopyButtons={false}
         leadingIcon={<OSTypeIcon osType={platform} size="w-6 h-6" />}
       />
-      <p className="text-h4 text-ods-text-primary">{PLATFORM_NOTE[platform]}</p>
+      <p className="text-ods-text-primary text-h4">{PLATFORM_NOTE[platform]}</p>
     </WarningBlock>
   );
 }

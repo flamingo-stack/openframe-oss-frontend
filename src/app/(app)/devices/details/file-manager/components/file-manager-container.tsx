@@ -3,7 +3,8 @@
 import { Button, PageLayout, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { FileAction, FileItem } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import { FileManager, FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { useMeshFileManager } from '../../../hooks/use-mesh-file-manager';
@@ -277,13 +278,13 @@ export function FileManagerContainer({ deviceId, meshcentralAgentId, hostname, c
       title={'File Manager'}
       subtitle={hostname || `Device ${deviceId}`}
       className={className ? `${className} h-full` : 'h-full'}
-      contentClassName="flex flex-col min-h-0 overflow-hidden"
+      contentClassName="flex min-h-0 flex-col overflow-hidden"
       backButton={{
         label: 'Back',
         onClick: handleBackToDevice,
       }}
     >
-      <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col">
         {showFileManagerSkeleton ? (
           <FileManagerSkeleton />
         ) : (
@@ -316,7 +317,7 @@ export function FileManagerContainer({ deviceId, meshcentralAgentId, hostname, c
             onFileAction={handleFileAction}
             onFileClick={handleFileClick}
             onFolderOpen={handleFolderOpen}
-            className="flex-1 min-h-0"
+            className="min-h-0 flex-1"
           />
         )}
 
@@ -326,54 +327,54 @@ export function FileManagerContainer({ deviceId, meshcentralAgentId, hostname, c
 
       {/* Upload progress */}
       {uploadProgress && (
-        <div className="fixed bottom-4 right-4 bg-ods-card border border-ods-border rounded-lg p-4 shadow-lg w-80">
-          <div className="flex justify-between items-center mb-2">
-            <div className="text-h6 text-ods-text-primary">Uploading: {uploadProgress.file}</div>
+        <div className="fixed bottom-4 right-4 w-80 rounded-lg border border-ods-border bg-ods-card p-4 shadow-lg">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-ods-text-primary text-h6">Uploading: {uploadProgress.file}</div>
             <Button
               variant="transparent"
               size="small-legacy"
               onClick={cancelUpload}
-              className="h-6 w-6 p-0 text-ods-text-secondary hover:text-ods-text-primary hover:bg-ods-bg-hover"
+              className="h-6 w-6 p-0 text-ods-text-secondary hover:bg-ods-bg-hover hover:text-ods-text-primary"
             >
               x
             </Button>
           </div>
           <Progress value={uploadProgress.progress} className="h-2" indicatorClassName="bg-ods-accent" />
-          <div className="mt-1 text-h6 text-ods-text-secondary">{uploadProgress.progress}% complete</div>
+          <div className="mt-1 text-ods-text-secondary text-h6">{uploadProgress.progress}% complete</div>
         </div>
       )}
 
       {/* Download progress */}
       {downloadProgress && (
-        <div className="fixed bottom-4 right-4 bg-ods-card border border-ods-border rounded-lg p-4 shadow-lg w-80">
-          <div className="flex justify-between items-center mb-2">
-            <div className="text-h6 text-ods-text-primary">Downloading: {downloadProgress.file}</div>
+        <div className="fixed bottom-4 right-4 w-80 rounded-lg border border-ods-border bg-ods-card p-4 shadow-lg">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-ods-text-primary text-h6">Downloading: {downloadProgress.file}</div>
             <Button
               variant="transparent"
               size="small-legacy"
               onClick={cancelDownload}
-              className="h-6 w-6 p-0 text-ods-text-secondary hover:text-ods-text-primary hover:bg-ods-bg-hover"
+              className="h-6 w-6 p-0 text-ods-text-secondary hover:bg-ods-bg-hover hover:text-ods-text-primary"
             >
               x
             </Button>
           </div>
           <Progress value={downloadProgress.progress} className="h-2" indicatorClassName="bg-ods-accent" />
-          <div className="mt-1 text-h6 text-ods-text-secondary">{downloadProgress.progress}% complete</div>
+          <div className="mt-1 text-ods-text-secondary text-h6">{downloadProgress.progress}% complete</div>
         </div>
       )}
 
       {/* Clipboard status indicator */}
       {clipboard && (
-        <div className="fixed bottom-4 right-4 bg-ods-card border border-ods-border rounded-lg p-3 shadow-lg">
+        <div className="fixed bottom-4 right-4 rounded-lg border border-ods-border bg-ods-card p-3 shadow-lg">
           <div className="flex items-center gap-2">
-            <div className="text-h6 text-ods-text-primary">
+            <div className="text-ods-text-primary text-h6">
               {clipboard.fileIds.length} item(s) {clipboard.operation === 'copy' ? 'copied' : 'cut'}
             </div>
             <Button
               variant="transparent"
               size="small-legacy"
               onClick={clearClipboard}
-              className="h-5 w-5 p-0 text-ods-text-secondary hover:text-ods-text-primary hover:bg-ods-bg-hover"
+              className="h-5 w-5 p-0 text-ods-text-secondary hover:bg-ods-bg-hover hover:text-ods-text-primary"
             >
               x
             </Button>

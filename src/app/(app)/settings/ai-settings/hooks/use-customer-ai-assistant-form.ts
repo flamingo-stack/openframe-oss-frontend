@@ -1,8 +1,9 @@
 'use client';
+'use no memo';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type BaseSyntheticEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { getFullImageUrl } from '@/lib/image-url';
 import { deleteWithAuth, uploadWithAuth } from '@/lib/upload-with-auth';
@@ -107,7 +108,12 @@ export function useCustomerAiAssistantForm({ aiConfig, view, onSubmit }: UseCust
     }
   };
 
-  const handleSubmit = form.handleSubmit(values => onSubmit(toCustomerAiAssistantSubmit(values), commitAvatar));
+  // Built on submit, not during render: `form.handleSubmit` is opaque to the React
+  // Compiler, so calling it here would mean handing a closure over `commitAvatar`
+  // — which reads the pending-avatar refs — to a function that might, as far as
+  // the compiler can tell, run it while rendering.
+  const handleSubmit = (event?: BaseSyntheticEvent) =>
+    form.handleSubmit(values => onSubmit(toCustomerAiAssistantSubmit(values), commitAvatar))(event);
 
   return {
     form,

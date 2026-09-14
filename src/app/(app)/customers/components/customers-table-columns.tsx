@@ -38,9 +38,9 @@ export function CustomerNameCell({ org }: { org: UiCustomerEntry }) {
   const fullImageUrl = getFullImageUrl(org.imageUrl, org.imageHash);
 
   return (
-    <div className="flex items-center gap-4 min-w-0">
+    <div className="flex min-w-0 items-center gap-4">
       <EntityImage src={fullImageUrl} alt={org.name} className="size-12 md:size-12" />
-      <div className="flex flex-col justify-center min-w-0">
+      <div className="flex min-w-0 flex-col justify-center">
         <TruncateText>{org.name}</TruncateText>
         {org.email && (
           <TruncateText variant="h6" tone="secondary">
@@ -86,9 +86,9 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
         deviceCount === null ? '—' : `${deviceCount.toLocaleString()} ${deviceCount === 1 ? 'device' : 'devices'}`;
       const usersLabel = `${numberOfEmployees.toLocaleString()} ${numberOfEmployees === 1 ? 'user' : 'users'}`;
       return (
-        <div className="flex flex-col justify-center min-w-0">
-          <span className="text-h4 text-ods-text-primary truncate">{devicesLabel}</span>
-          <span className="text-h6 text-ods-text-secondary truncate">{usersLabel}</span>
+        <div className="flex min-w-0 flex-col justify-center">
+          <span className="truncate text-ods-text-primary text-h4">{devicesLabel}</span>
+          <span className="truncate text-ods-text-secondary text-h6">{usersLabel}</span>
         </div>
       );
     },
@@ -100,7 +100,7 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
     // range filter), the shared header the execution lists use too.
     header: dateFilter ? () => <DateColumnHeader label="Last Activity" filter={dateFilter} /> : 'Last Activity',
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => (
-      <div className="flex flex-col justify-center min-w-0">
+      <div className="flex min-w-0 flex-col justify-center">
         <TruncateText>{row.original.lastActivityDate}</TruncateText>
         <TruncateText variant="h6" tone="secondary">
           {row.original.lastActivityRelative}
@@ -113,12 +113,12 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
   {
     id: 'open',
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => (
-      <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+      <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
         <Button
           onClick={openInNewTab(routes.customers.details(row.original.organizationId))}
           variant="outline"
           size="icon"
-          leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+          leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
           aria-label="Open in new tab"
           className="bg-ods-card"
         />
@@ -142,7 +142,7 @@ export function CustomersSearchInput({ value, onChange }: CustomersSearchInputPr
       placeholder="Search for Customer"
       value={value}
       onChange={e => onChange(e.target.value)}
-      startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+      startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
     />
   );
 }

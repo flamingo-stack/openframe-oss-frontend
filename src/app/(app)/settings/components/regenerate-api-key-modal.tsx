@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 
 interface RegenerateApiKeyModalProps {
@@ -13,9 +13,13 @@ interface RegenerateApiKeyModalProps {
 export function RegenerateApiKeyModal({ isOpen, onClose, apiKeyName, onConfirm }: RegenerateApiKeyModalProps) {
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  // Cleared on the close transition, during render rather than in an effect: an
+  // effect leaves the old value on screen for a frame of the closing animation.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (!isOpen) setLoading(false);
-  }, [isOpen]);
+  }
 
   const handleConfirm = async () => {
     setLoading(true);
@@ -39,7 +43,7 @@ export function RegenerateApiKeyModal({ isOpen, onClose, apiKeyName, onConfirm }
       description={
         <>
           Are you sure you want to regenerate{' '}
-          <span className="text-ods-warning font-semibold">{apiKeyName || 'this API Key'}</span>? The current key will
+          <span className="font-semibold text-ods-warning">{apiKeyName || 'this API Key'}</span>? The current key will
           stop working immediately.
         </>
       }

@@ -27,7 +27,7 @@ export function useAiSettingsActions({
         {
           label: 'Edit Settings',
           variant: 'outline',
-          icon: <PenEditIcon className="w-5 h-5 text-ods-text-secondary" />,
+          icon: <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />,
           onClick: onEdit,
         },
       ];

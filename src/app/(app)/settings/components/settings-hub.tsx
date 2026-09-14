@@ -3,7 +3,7 @@
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import {
   ChartDonutIcon,
-  CreditCardIcon,
+  CompassIcon,
   Hierarchy02Icon,
   Logout01Icon,
   PasscodeIcon,
@@ -24,6 +24,7 @@ import { isOssTenantMode } from '@/lib/app-mode';
 import { authApiClient } from '@/lib/auth-api-client';
 import { isBillingHidden } from '@/lib/billing-visibility';
 import { handleApiError } from '@/lib/handle-api-error';
+import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { AccountSettingsCard } from './account-settings-card';
 import { BiometricLoginCard } from './biometric-login-card';
@@ -69,6 +70,12 @@ const SETTINGS_NAV_ITEMS = [
     title: 'SSO Configuration',
     description: 'Set up single sign-on providers and authentication',
   },
+  {
+    href: routes.settings.downloadApps,
+    icon: CompassIcon,
+    title: 'Download Apps',
+    description: 'Install OpenFrame on desktop, iOS, and Android',
+  },
 ] as const;
 
 /**
@@ -86,22 +93,38 @@ const USAGE_MENU_ITEM = {
 export function SettingsHub() {
   const { toast } = useToast();
   const billingHidden = isBillingHidden();
-  // Both tri-state, not booleans: Billing is the one conditional cell in the grid AND it
-  // is the first one, so treating "not answered yet" as "hide it" dropped a cell and
+  // Tri-state, not booleans: these are the conditional cells in the grid and Billing is
+  // the FIRST one, so treating "not answered yet" as "hide it" dropped a cell and
   // re-flowed every card after it the moment the answers landed.
   const billingsGate = useFeatureFlagGate('billings');
   // Billing & Usage is the workspace's money — owners and admins, nobody else.
   const billingAccessGate = useBillingAccessGate();
+  const downloadAppsGate = useFeatureFlagGate('download-apps');
 
-  // The app mode is a build constant, so this list — every card this build can ever show
-  // — is known on the first render. It is what the loading grid draws.
-  const defaultItems = SETTINGS_NAV_ITEMS.filter(
-    item => item.href !== routes.settings.architecture || isOssTenantMode(),
-  );
-  const gatesResolved = billingsGate !== 'loading' && billingAccessGate !== 'loading';
-  const visibleItems = defaultItems.filter(
-    item => item.href !== routes.settings.billingUsage || (billingsGate === 'on' && billingAccessGate === 'allowed'),
-  );
+  // The app mode and the shell are build constants, so this list — every card this build
+  // can ever show — is known on the first render. It is what the loading grid draws, which
+  // is why the shell check belongs here and not beside the flag below: a card filtered in
+  // `visibleItems` alone would hold a placeholder slot it never fills.
+  const defaultItems = SETTINGS_NAV_ITEMS.filter(item => {
+    if (item.href === routes.settings.architecture) {
+      return isOssTenantMode();
+    }
+    // Browser-only — a native build already IS the app the page hands out.
+    if (item.href === routes.settings.downloadApps) {
+      return !isAppShell();
+    }
+    return true;
+  });
+  const gatesResolved = billingsGate !== 'loading' && billingAccessGate !== 'loading' && downloadAppsGate !== 'loading';
+  const visibleItems = defaultItems.filter(item => {
+    if (item.href === routes.settings.billingUsage) {
+      return billingsGate === 'on' && billingAccessGate === 'allowed';
+    }
+    if (item.href === routes.settings.downloadApps) {
+      return downloadAppsGate === 'on';
+    }
+    return true;
+  });
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
   const user = useAuthStore(state => state.user);
   const updateUser = useAuthStore(state => state.updateUser);
@@ -118,12 +141,17 @@ export function SettingsHub() {
 
       setIsUpdating(true);
       try {
-        const res = await apiClient.put(`api/users/${encodeURIComponent(user.id)}`, data);
+        const res = await apiClient.put<{ firstName?: string; lastName?: string }>(
+          `api/users/${encodeURIComponent(user.id)}`,
+          data,
+        );
         if (!res.ok) {
           throw new Error(res.error || 'Failed to update profile');
         }
 
-        const updatedData = res.data;
+        // A 2xx with no body means the server accepted the change without echoing
+        // it back; keep the values that were just submitted.
+        const updatedData = res.data ?? data;
 
         updateUser({
           firstName: updatedData.firstName,
@@ -144,7 +172,9 @@ export function SettingsHub() {
         setIsUpdating(false);
       }
     },
-    [user?.id, updateUser, toast],
+    // `setIsEditModalOpen` is listed because the compiler infers it; a useState
+    // setter is stable, so it changes nothing at runtime.
+    [user, updateUser, toast, setIsEditModalOpen],
   );
 
   const handleResendVerification = async () => {
@@ -193,7 +223,7 @@ export function SettingsHub() {
       </div>
 
       {/* Navigation Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-m)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
         {gatesResolved
           ? visibleItems.map(item => {
               const {
@@ -214,7 +244,7 @@ export function SettingsHub() {
           : // Whole grid as placeholders until every gate has answered, rather than a
             // lone grey cell wedged between real cards. The count is the full default
             // set this build can show — the app mode is known synchronously, so only
-            // Billing's presence is actually in question.
+            // Billing's and Download Apps' presence is actually in question.
             defaultItems.map(item => <SettingMenuItemSkeleton key={item.href} />)}
       </div>
 

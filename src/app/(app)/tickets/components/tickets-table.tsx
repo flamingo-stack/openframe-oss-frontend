@@ -1,12 +1,10 @@
 'use client';
 
-import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnFiltersState,
   DataTable,
-  FilterModal,
   type OnChangeFn,
   PageError,
   PageLayout,
@@ -14,23 +12,40 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { useSelfFirstAssigneeOptions } from '../hooks/use-ticket-options';
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
 import { useTicketsQuery } from '../hooks/use-tickets-query';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { Dialog } from '../types/dialog.types';
-import { getTicketTableColumns, type StatusFilterOption, TicketTableBody } from './ticket-table-columns';
+import type { StatusOption } from './status-autocomplete';
+import { type StatusFilterOption, TicketTableBody } from './ticket-table-columns';
 import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
+import { TicketsFilterModal } from './tickets-filter-modal';
 
-// TODO(unread-from-entity): re-enable per-ticket unread highlighting once the backend exposes
-// unread counts on the ticket entity itself. Matching unread notifications to tickets by id is a
-// temporary workaround — disabled for now; flip this flag to restore it.
-const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
+// Per-row unread count comes from the ticket entity itself (`Ticket.unreadNotificationCount`).
+// Viewing a ticket's client chat marks its notifications read (`useMarkEntityNotificationsRead`),
+// clearing the badge in lockstep with the drawer and the sidebar nav count.
+const getUnreadCount = (ticket: Dialog) => ticket.unreadNotificationCount;
 
 interface TicketsTableProps {
   isArchived: boolean;
   statusFilters?: string[];
-  onStatusFilterChange?: (status: string[]) => void;
+  organizationIds?: string[];
+  assigneeIds?: string[];
+  /** Only tickets the caller has unread notifications about. */
+  unreadOnly?: boolean;
+  /**
+   * Applies status/assignee/customer/new-messages atomically in ONE call — the
+   * values are URL params, and two sequential writes would clobber each other.
+   * Fired by the column-header filters (md+) and the Filter Tickets modal alike.
+   */
+  onFiltersChange?: (filters: {
+    status: string[];
+    assigneeIds: string[];
+    organizationIds: string[];
+    unreadOnly: boolean;
+  }) => void;
   backButton?: { label?: string; onClick: () => void };
   selector?: ReactNode;
   search: string;
@@ -42,7 +57,10 @@ interface TicketsTableProps {
 export function TicketsTable({
   isArchived,
   statusFilters,
-  onStatusFilterChange,
+  organizationIds,
+  assigneeIds,
+  unreadOnly,
+  onFiltersChange,
   backButton,
   selector,
   search,
@@ -51,7 +69,7 @@ export function TicketsTable({
   onTagIdsChange,
 }: TicketsTableProps) {
   const debouncedSearch = useDebounce(search, 300);
-  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const {
@@ -65,7 +83,10 @@ export function TicketsTable({
     archived: isArchived,
     search: debouncedSearch,
     statusFilters,
+    organizationIds,
+    assigneeIds,
     tagIds,
+    unreadOnly,
   });
 
   const archiveFilter = useMemo(() => ({ tagIds }), [tagIds]);
@@ -74,22 +95,6 @@ export function TicketsTable({
     menuActions,
     dialog: ticketsActionsDialog,
   } = useTicketsActions({ isLoading, enabled: !isArchived, filter: archiveFilter });
-
-  // Tickets have no unread field of their own; the per-row count comes from notifications (a
-  // separate entity) matched by ticket id, mirroring how the Mingo sidebar derives per-dialog
-  // unread badges. Opening a ticket marks those read (EntityViewAutoReader), clearing the badge.
-  const notifications = useOptionalNotifications();
-  const unreadByTicketId = useMemo(() => {
-    const counts = new Map<string, number>();
-    if (!HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS) return counts;
-    for (const notification of notifications?.notifications ?? []) {
-      if (notification.read) continue;
-      const ticketId = notification.meta?.ticketId;
-      if (typeof ticketId === 'string') counts.set(ticketId, (counts.get(ticketId) ?? 0) + 1);
-    }
-    return counts;
-  }, [notifications?.notifications]);
-  const getUnreadCount = useCallback((ticket: Dialog) => unreadByTicketId.get(ticket.id), [unreadByTicketId]);
 
   // Status filter options (value = status id).
   const statusesQuery = useTicketStatusesQuery({ enabled: !isArchived });
@@ -100,31 +105,63 @@ export function TicketsTable({
       .map(s => ({ id: s.id, value: s.id, label: s.name }));
   }, [isArchived, statusesQuery.data]);
 
+  // The same statuses for the mobile modal's dropdown, with the color swatch.
+  const statusModalOptions = useMemo<StatusOption[]>(() => {
+    if (isArchived) return [];
+    return (statusesQuery.data?.snapshot ?? [])
+      .filter(s => s.kind !== 'ARCHIVED')
+      .map(s => ({ value: s.id, label: s.name, color: s.color }));
+  }, [isArchived, statusesQuery.data]);
+
+  // Assignee filter options (value = user id) for the ASSIGNEE column header —
+  // the same list the board's Assignee autocomplete shows, flattened.
+  const assigneeOptionsQuery = useSelfFirstAssigneeOptions(!isArchived);
+  const assigneeOptions = useMemo<StatusFilterOption[] | undefined>(() => {
+    if (isArchived) return undefined;
+    return assigneeOptionsQuery.options.map(option => ({
+      id: String(option.value),
+      value: String(option.value),
+      label: option.label,
+    }));
+  }, [isArchived, assigneeOptionsQuery.options]);
+
   const handleFetchNextPage = useCallback(() => fetchNextPage(), [fetchNextPage]);
 
-  const columnFilters = useMemo<ColumnFiltersState>(
-    () => (statusFilters && statusFilters.length > 0 ? [{ id: 'status', value: statusFilters }] : []),
-    [statusFilters],
-  );
+  const columnFilters = useMemo<ColumnFiltersState>(() => {
+    const filters: ColumnFiltersState = [];
+    if (statusFilters && statusFilters.length > 0) filters.push({ id: 'status', value: statusFilters });
+    if (assigneeIds && assigneeIds.length > 0) filters.push({ id: 'assignee', value: assigneeIds });
+    return filters;
+  }, [statusFilters, assigneeIds]);
 
   const onColumnFiltersChange = useCallback<OnChangeFn<ColumnFiltersState>>(
     updater => {
       if (isArchived) return;
       const next = typeof updater === 'function' ? updater(columnFilters) : updater;
-      const nextStatus = (next.find(f => f.id === 'status')?.value as string[] | undefined) ?? [];
-      onStatusFilterChange?.(nextStatus);
+      onFiltersChange?.({
+        status: (next.find(f => f.id === 'status')?.value as string[] | undefined) ?? [],
+        assigneeIds: (next.find(f => f.id === 'assignee')?.value as string[] | undefined) ?? [],
+        // The header has neither a customer nor a new-messages filter — carry the current values through.
+        organizationIds: organizationIds ?? [],
+        unreadOnly: unreadOnly ?? false,
+      });
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [columnFilters, isArchived, onStatusFilterChange],
+    [columnFilters, isArchived, onFiltersChange, organizationIds, unreadOnly],
   );
 
-  const handleMobileFilterChange = useCallback(
-    (filters: Record<string, string[]>) => {
+  const handleModalApply = useCallback(
+    (filters: { organizationIds: string[]; assigneeIds: string[]; unreadOnly: boolean; status?: string[] }) => {
       if (isArchived) return;
-      onStatusFilterChange?.(filters.status || []);
+      onFiltersChange?.({
+        status: filters.status ?? [],
+        assigneeIds: filters.assigneeIds,
+        organizationIds: filters.organizationIds,
+        unreadOnly: filters.unreadOnly,
+      });
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
-    [isArchived, onStatusFilterChange],
+    [isArchived, onFiltersChange],
   );
 
   const title = isArchived ? 'Archived Tickets' : 'Tickets';
@@ -132,22 +169,18 @@ export function TicketsTable({
     ? 'No archived tickets found. Try adjusting your search or filters.'
     : 'No tickets found. Try adjusting your search or filters.';
 
-  const filterGroups = useMemo(
-    () =>
-      getTicketTableColumns({ isArchived, statusOptions })
-        .filter(column => column.meta?.filter?.options)
-        .map(column => ({
-          id: String(column.id ?? (column as { accessorKey?: string }).accessorKey ?? ''),
-          title: typeof column.header === 'string' ? column.header : '',
-          options: column.meta?.filter?.options || [],
-        })),
-    [isArchived, statusOptions],
-  );
-
-  const hasMobileFilter = filterGroups.length > 0;
+  // The archive has no status/assignee/customer/new-messages filters at all.
+  const hasFilterModal = !isArchived;
 
   const showEmptyState =
-    !isLoading && !debouncedSearch && (statusFilters?.length ?? 0) === 0 && tagIds.length === 0 && tickets.length === 0;
+    !isLoading &&
+    !debouncedSearch &&
+    (statusFilters?.length ?? 0) === 0 &&
+    (organizationIds?.length ?? 0) === 0 &&
+    (assigneeIds?.length ?? 0) === 0 &&
+    tagIds.length === 0 &&
+    !unreadOnly &&
+    tickets.length === 0;
 
   const actions = useMemo(() => emphasizeNewTicketAction(baseActions, showEmptyState), [baseActions, showEmptyState]);
 
@@ -173,7 +206,7 @@ export function TicketsTable({
           {!showEmptyState && (
             <div
               ref={toolbarRef}
-              className="sticky top-0 z-20 flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg -mx-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]"
+              className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
             >
               <TicketTagFilter
                 search={search}
@@ -181,12 +214,14 @@ export function TicketsTable({
                 tagIds={tagIds}
                 onTagIdsChange={onTagIdsChange}
                 filterButton={
-                  hasMobileFilter ? (
+                  hasFilterModal ? (
+                    // Shown on every breakpoint, unlike the board's: the column
+                    // headers carry status/assignee on md+ but have no room for the
+                    // "New Messages Only" checkbox, so the modal is its desktop surface too.
                     <Button
                       variant="outline"
                       size="icon"
-                      className="md:hidden"
-                      onClick={() => setMobileFilterOpen(true)}
+                      onClick={() => setFilterModalOpen(true)}
                       aria-label="Open filters"
                       leftIcon={<Filter02Icon className="text-ods-text-primary" />}
                     />
@@ -196,13 +231,15 @@ export function TicketsTable({
             </div>
           )}
 
-          {hasMobileFilter && (
-            <FilterModal
-              isOpen={mobileFilterOpen}
-              onClose={() => setMobileFilterOpen(false)}
-              filterGroups={filterGroups}
-              onFilterChange={handleMobileFilterChange}
-              currentFilters={{ status: statusFilters || [] }}
+          {hasFilterModal && (
+            <TicketsFilterModal
+              isOpen={filterModalOpen}
+              onClose={() => setFilterModalOpen(false)}
+              organizationIds={organizationIds ?? []}
+              assigneeIds={assigneeIds ?? []}
+              unreadOnly={unreadOnly ?? false}
+              status={{ value: statusFilters ?? [], options: statusModalOptions }}
+              onApply={handleModalApply}
             />
           )}
 
@@ -217,6 +254,7 @@ export function TicketsTable({
               stickyHeaderOffset={stickyHeaderOffset}
               isArchived={isArchived}
               statusOptions={statusOptions}
+              assigneeOptions={assigneeOptions}
               columnFilters={isArchived ? undefined : columnFilters}
               onColumnFiltersChange={isArchived ? undefined : onColumnFiltersChange}
               getUnreadCount={getUnreadCount}

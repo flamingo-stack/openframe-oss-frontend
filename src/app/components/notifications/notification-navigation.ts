@@ -1,98 +1,135 @@
-import { ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE, type Notification } from '@flamingo-stack/openframe-frontend-core';
-import { featureFlags } from '@/lib/feature-flags';
-import { routes } from '@/lib/routes';
+import type { Notification } from '@flamingo-stack/openframe-frontend-core';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import {
+  isApprovalNotificationType,
+  NOTIFICATION_ATTR,
+  readNotificationAttributes,
+} from '@/graphql/notifications/notification-attributes';
+import { mingoDialogLink, routes } from '@/lib/routes';
 
-// Backend `NotificationContext.type` discriminators (the string `type` field; the same set the
-// concrete `__typename` subtypes carry in schema.graphql). NATS payloads carry only this string,
-// so it is the single source of truth for both routing and reconstructing store records live.
-export const ADMIN_AI_MESSAGE_CONTEXT_TYPE = 'ADMIN_AI_MESSAGE';
-export const ADMIN_AI_TICKET_MESSAGE_CONTEXT_TYPE = 'ADMIN_AI_TICKET_MESSAGE';
-export const CLIENT_AI_MESSAGE_CONTEXT_TYPE = 'CLIENT_AI_MESSAGE';
-export const TICKET_STATUS_CHANGED_CONTEXT_TYPE = 'TICKET_STATUS_CHANGED';
+// Backend notification `type` discriminators (`TenantNotificationType`). GraphQL rows and NATS
+// payloads carry the same string, so it is the single source of truth for routing.
+export const ADMIN_AI_MESSAGE_TYPE = 'ADMIN_AI_MESSAGE';
+export const ADMIN_AI_TICKET_MESSAGE_TYPE = 'ADMIN_AI_TICKET_MESSAGE';
+export const CLIENT_AI_MESSAGE_TYPE = 'CLIENT_AI_MESSAGE';
+export const TICKET_STATUS_CHANGED_TYPE = 'TICKET_STATUS_CHANGED';
 // A reopen transition REPLACES the generic status-change notification server-side —
 // without this mapping reopens would be invisible (no navigation, no auto-read).
-export const TICKET_REOPENED_CONTEXT_TYPE = 'TICKET_REOPENED';
-export const TICKET_ASSIGNED_CONTEXT_TYPE = 'TICKET_ASSIGNED';
-export const CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
-export const ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
+export const TICKET_REOPENED_TYPE = 'TICKET_REOPENED';
+export const TICKET_ASSIGNED_TYPE = 'TICKET_ASSIGNED';
+export const TICKET_ESCALATED_BY_USER_TYPE = 'TICKET_ESCALATED_BY_USER';
+export const CUSTOMER_MESSAGE_PUBLISHED_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
+export const ADMIN_MESSAGE_PUBLISHED_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
 
-/** Context `type` → GraphQL `__typename`, so the NATS live path can rebuild typed context records. */
-export const CONTEXT_TYPENAME_BY_TYPE: Record<string, string> = {
-  [ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE]: 'AdminApprovalRequestContext',
-  [ADMIN_AI_MESSAGE_CONTEXT_TYPE]: 'AdminAiMessageContext',
-  [ADMIN_AI_TICKET_MESSAGE_CONTEXT_TYPE]: 'AdminAiTicketMessageContext',
-  [CLIENT_AI_MESSAGE_CONTEXT_TYPE]: 'ClientAiMessageContext',
-  [TICKET_STATUS_CHANGED_CONTEXT_TYPE]: 'TicketStatusChangedContext',
-  [TICKET_REOPENED_CONTEXT_TYPE]: 'TicketReopenedContext',
-  [TICKET_ASSIGNED_CONTEXT_TYPE]: 'TicketAssignedContext',
-  [CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE]: 'CustomerMessagePublishedContext',
-  [ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE]: 'AdminMessagePublishedContext',
-};
-
-/** Context types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`. */
-const TICKET_CONTEXT_TYPES = new Set<string>([
-  ADMIN_AI_TICKET_MESSAGE_CONTEXT_TYPE,
-  TICKET_STATUS_CHANGED_CONTEXT_TYPE,
-  TICKET_REOPENED_CONTEXT_TYPE,
-  TICKET_ASSIGNED_CONTEXT_TYPE,
-  CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE,
-  ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE,
+/**
+ * Types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`.
+ * CLIENT_AI_MESSAGE belongs here only when its dialog is ticket-linked — a Fae chat can run
+ * without a ticket, and without one the notification resolves to no action.
+ */
+const TICKET_TYPES = new Set<string>([
+  ADMIN_AI_TICKET_MESSAGE_TYPE,
+  TICKET_STATUS_CHANGED_TYPE,
+  TICKET_REOPENED_TYPE,
+  TICKET_ASSIGNED_TYPE,
+  TICKET_ESCALATED_BY_USER_TYPE,
+  CUSTOMER_MESSAGE_PUBLISHED_TYPE,
+  ADMIN_MESSAGE_PUBLISHED_TYPE,
+  CLIENT_AI_MESSAGE_TYPE,
 ]);
 
 /**
- * Ticket contexts announcing a new message in the ticket's client chat; they land on the
+ * Ticket types announcing a new message in the ticket's client chat; they land on the
  * Chat tab instead of Details. Mingo ticket messages (`ADMIN_AI_TICKET_MESSAGE`) are
- * excluded — with `mingo-sidebar-context` on, that conversation lives in the sidebar
- * drawer, not the page's Client Chat tab.
+ * excluded — that conversation lives in the sidebar drawer, not the page's Client Chat
+ * tab.
  */
-const TICKET_CHAT_CONTEXT_TYPES = new Set<string>([
-  CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE,
-  ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE,
+const TICKET_CHAT_TYPES = new Set<string>([
+  CUSTOMER_MESSAGE_PUBLISHED_TYPE,
+  ADMIN_MESSAGE_PUBLISHED_TYPE,
+  CLIENT_AI_MESSAGE_TYPE,
 ]);
 
 /**
- * A notification's primary action. Either a plain `route` the host pushes onto
- * the router, or — for a Mingo dialog once the standalone `/mingo` page is
- * retired behind `mingo-sidebar` — a `mingoDialogId` the host opens in the
- * in-layout chat drawer (the drawer has no URL, so it can't be a route).
+ * A notification's primary action. Every action has a `route` — a URL the host can
+ * push, and the only thing a transport that runs OUTSIDE React (a push tap, an OS
+ * toast) can act on.
+ *
+ * A Mingo dialog additionally carries `mingoDialogId`, because in-app it should
+ * open the in-layout drawer rather than navigate. That is a preference, not a
+ * substitute: `mingoDrawerDialogId` decides at CLICK time whether the drawer is
+ * actually there, and the route is the fallback when it isn't.
  */
-export type NotificationAction = { label: string; route: string } | { label: string; mingoDialogId: string };
+export type NotificationAction = { label: string; route: string; mingoDialogId?: string };
 
 // routes.* builders URL-encode values via URLSearchParams — no manual encodeURIComponent.
-const mingoDialogRoute = (dialogId: string) => routes.mingo({ dialogId });
+const mingoDialogRoute = (dialogId: string) => mingoDialogLink(dialogId);
 const ticketRoute = (ticketId: string, tab?: 'chat') => routes.tickets.dialog(ticketId, { tab });
 
 /**
- * Action for a Mingo dialog. With `mingo-sidebar` ON the `/mingo` page is gone
- * (it redirects to the dashboard), so the dialog opens in the in-layout drawer
- * via `mingoDialogId`; the consumer drives the shared Mingo store. Legacy (flag
- * OFF) still routes to the page. Tickets are unaffected — they always route.
+ * Action for a Mingo dialog: the canonical route ALWAYS, plus the drawer id.
+ *
+ * The route is the fallback for when there is no drawer to open into (subscription
+ * lock, shell unmounted); `mingoDrawerDialogId` below decides between the two when
+ * the user actually acts, rather than here, where nothing can answer yet.
  */
-const mingoDialogAction = (dialogId: string): NotificationAction =>
-  featureFlags.mingoSidebar.enabled()
-    ? { label: 'Open Chat', mingoDialogId: dialogId }
-    : { label: 'Open Chat', route: mingoDialogRoute(dialogId) };
+const mingoDialogAction = (dialogId: string): NotificationAction => ({
+  label: 'Open Chat',
+  route: mingoDialogRoute(dialogId),
+  mingoDialogId: dialogId,
+});
+
+/**
+ * The dialog to open in the in-layout drawer for this action, or `null` to follow
+ * `action.route` instead.
+ *
+ * Decided when the user acts, rather than in the mapping above, which runs before the
+ * shell can answer. Asks `MingoLauncherStore.canOpen` — see that field for why the
+ * feature flag alone is the wrong question.
+ *
+ * A render-phase caller must SUBSCRIBE to `canOpen` and pass it down; this reads the
+ * store without one, so a value read during render never updates.
+ */
+export function mingoDrawerDialogId(action: NotificationAction): string | null {
+  if (!action.mingoDialogId) return null;
+  return useMingoLauncherStore.getState().canOpen ? action.mingoDialogId : null;
+}
+
+const nonEmptyString = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
+
+/** Backend `NotificationCategory` for Mingo — the signal that an unknown type's dialog is an admin one. */
+const MINGO_CATEGORY = 'MINGO';
 
 function resolveAction(
-  contextType: string | null,
+  type: string | null,
   ticketId: string | null,
   dialogId: string | null,
+  category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
-  if (contextType === ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE) {
+  if (isApprovalNotificationType(type)) {
     if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
     if (dialogId) return mingoDialogAction(dialogId);
     return null;
   }
 
-  if (contextType && TICKET_CONTEXT_TYPES.has(contextType) && ticketId) {
-    const tab = TICKET_CHAT_CONTEXT_TYPES.has(contextType) ? 'chat' : undefined;
+  if (type && TICKET_TYPES.has(type) && ticketId) {
+    const tab = TICKET_CHAT_TYPES.has(type) ? 'chat' : undefined;
     return { label: 'Ticket Details', route: ticketRoute(ticketId, tab) };
   }
 
-  if (contextType === ADMIN_AI_MESSAGE_CONTEXT_TYPE && dialogId) {
+  if (type === ADMIN_AI_MESSAGE_TYPE && dialogId) {
     return mingoDialogAction(dialogId);
   }
+
+  // Unknown type. The contract requires new types to reach users without a client release —
+  // "an unfamiliar string still routes by ids, never drops the message silently" — so route
+  // by the entity ids rather than giving up.
+  //
+  // A ticket id is unambiguous. A bare dialog id is NOT: CLIENT_AI_MESSAGE carries a CLIENT
+  // chat's dialogId, and the Mingo drawer resolves admin dialogs only, so following one
+  // blindly would land on an empty chat. The category is what tells the two apart.
+  if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
+  if (dialogId && category === MINGO_CATEGORY) return mingoDialogAction(dialogId);
 
   return null;
 }
@@ -104,35 +141,78 @@ function resolveAction(
 export function resolveNotificationAction(notification: Notification): NotificationAction | null {
   const meta = notification.meta ?? {};
   return resolveAction(
-    typeof meta.contextType === 'string' ? meta.contextType : null,
-    typeof meta.ticketId === 'string' ? meta.ticketId : null,
-    typeof meta.dialogId === 'string' ? meta.dialogId : null,
+    nonEmptyString(meta.notificationType),
+    nonEmptyString(meta.ticketId),
+    nonEmptyString(meta.dialogId),
+    nonEmptyString(notification.category),
+  );
+}
+
+function actionRoute(action: NotificationAction | null): string | null {
+  return action?.route ?? null;
+}
+
+/**
+ * Route for a bag of wire fields, whatever transport carried them. Both shells hand over
+ * untyped payloads, so every field is narrowed rather than trusted.
+ * The returned route is always BUILT by a `routes.*` builder from those narrowed ids, never
+ * echoed from the payload, so a forged push cannot name its own destination. That is what
+ * replaced the old `startsWith('/')` check on a server-supplied route string.
+ */
+function routeFromWireFields(fields: Record<string, unknown>): string | null {
+  // `attributes` is the contract's home for the ids; the flat keys are where an FCM push
+  // puts them (see resolvePushNotificationRoute). Read the map first and fall back to the
+  // flat keys.
+  const attributes = readNotificationAttributes(fields.attributes);
+  return actionRoute(
+    resolveAction(
+      nonEmptyString(fields.type),
+      attributes[NOTIFICATION_ATTR.ticketId] ?? nonEmptyString(fields.ticketId),
+      attributes[NOTIFICATION_ATTR.dialogId] ?? nonEmptyString(fields.dialogId),
+      nonEmptyString(fields.category),
+    ),
   );
 }
 
 /**
- * Route for a raw NATS notification envelope (`context.type/ticketId/dialogId`), before it has
- * been shaped into a store record — the native shell's OS-toast click path (`notification:click`
- * from the Rust notification plane) hands the wire payload over as-is. Drawer-only actions
- * (mingoDialogId) have no URL and resolve to null — callers fall back.
+ * Route for a NATS notification envelope (`type`/`attributes`/`category` at the top
+ * level), before it has been shaped into a store record — the desktop shell's OS-toast
+ * click path (`notification:click` from the Rust notification plane) hands over the
+ * envelope narrowed to `type` + `attributes` (its `click_payload`). Anything else on
+ * the envelope is ignored.
  */
 export function resolveNatsNotificationRoute(payload: unknown): string | null {
-  const context = (payload as { context?: Record<string, unknown> } | null | undefined)?.context ?? {};
-  const str = (value: unknown) => (typeof value === 'string' && value ? value : null);
-  const action = resolveAction(str(context.type), str(context.ticketId), str(context.dialogId));
-  return action && 'route' in action ? action.route : null;
-}
-
-/** Convenience for callers that only need a router route (drawer actions yield null). */
-export function resolveNotificationRoute(notification: Notification): string | null {
-  const action = resolveNotificationAction(notification);
-  return action && 'route' in action ? action.route : null;
+  const envelope = (payload ?? {}) as { type?: unknown; attributes?: unknown; category?: unknown };
+  return routeFromWireFields({
+    type: envelope.type,
+    attributes: envelope.attributes,
+    category: envelope.category,
+  });
 }
 
 /**
- * True when the notification carries the id of a dialog currently on screen. The drawer
- * changes no URL, so this is the drawer analogue of `notificationTargetsLocation` — the
- * caller supplies the active-view set from `@/lib/active-dialog-views`. Matches by
+ * Route for a push notification's FCM `data` payload — a FLAT string map, not the nested NATS
+ * envelope, and the mobile shell's tap path.
+ *
+ * Reads the top-level keys only: the backend (`FcmPushSender.buildData`) writes `type` plus
+ * the `PushActionable` ids (`ticketId`/`dialogId`) as flat keys, and drops any larger blob
+ * whole when the payload would exceed FCM's size budget — so the flat ids are the guaranteed
+ * half of the payload and the only half worth routing on.
+ */
+export function resolvePushNotificationRoute(data: unknown): string | null {
+  return routeFromWireFields((data ?? {}) as Record<string, unknown>);
+}
+
+/** Convenience for callers that only need a router route. */
+export function resolveNotificationRoute(notification: Notification): string | null {
+  return actionRoute(resolveNotificationAction(notification));
+}
+
+/**
+ * True when the notification carries the id of a dialog currently on screen. The drawer's
+ * resting URL is one `notificationTargetsLocation` can never match (see it below), so this
+ * is its drawer analogue — the caller supplies the active-view set from
+ * `@/lib/active-dialog-views`. Matches by
  * `meta.dialogId` rather than the navigation action so ticket-linked Mingo messages
  * (whose action is the ticket route) still auto-read while their dialog is being watched.
  */
@@ -146,6 +226,11 @@ export function notificationTargetsDialog(notification: Notification, activeDial
  * pathname matches and every query param it carries is present with the same value. Drives
  * auto-marking a notification read once the user opens its entity, uniformly for every entity
  * type the route mapping covers (mingo dialog, ticket, …).
+ *
+ * A Mingo dialog never matches here: the drawer floats over whatever route is showing, so its
+ * resting URL is `?mingoDialog=` on an arbitrary path rather than a route this can compare
+ * against. The drawer's auto-read runs through `notificationTargetsDialog` instead, off the set
+ * of dialogs actually on screen.
  */
 export function notificationTargetsLocation(
   notification: Notification,

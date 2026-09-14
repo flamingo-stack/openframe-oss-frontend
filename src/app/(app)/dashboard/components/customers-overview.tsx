@@ -44,25 +44,25 @@ export function CustomersOverviewSection() {
       const fullImageUrl = getFullImageUrl(org.imageUrl, org.imageHash);
 
       return (
-        <div key={org.id} className="grid grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-mf)] items-stretch">
+        <div key={org.id} className="grid grid-cols-2 items-stretch gap-[var(--spacing-system-mf)] lg:grid-cols-4">
           {/* Customer column — full row on mobile/tablet, half row on desktop.
               The `[&>div:first-child>span]` override enlarges the card's icon
               slot content so the customer logo fills the tile (Figma). */}
           <DashboardInfoCard
             className="col-span-2 [&>div:first-child>span]:size-full"
             icon={
-              <EntityImage src={fullImageUrl} alt={org.name} className="size-full md:size-full rounded-none border-0" />
+              <EntityImage src={fullImageUrl} alt={org.name} className="size-full rounded-none border-0 md:size-full" />
             }
             titleSlot={
               <div className="flex min-w-0 items-baseline gap-[var(--spacing-system-xs)]">
                 <div className="min-w-0">
                   <TruncateText variant="h3">{org.name}</TruncateText>
                 </div>
-                <span className="shrink-0 text-h4 text-ods-text-secondary">({org.total.toLocaleString()} devices)</span>
+                <span className="shrink-0 text-ods-text-secondary text-h4">({org.total.toLocaleString()} devices)</span>
               </div>
             }
             value={org.websiteUrl || 'Organization'}
-            valueClassName="text-h6 md:text-h6 text-ods-text-secondary"
+            valueClassName="text-ods-text-secondary text-h6 md:text-h6"
             href={routes.customers.details(org.organizationId)}
           />
 

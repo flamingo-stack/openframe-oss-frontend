@@ -48,7 +48,7 @@ export function GuardrailsTemplatePicker({
                 e.stopPropagation();
                 onCreateCustomPolicyFrom(option.id);
               }}
-              className="hidden md:inline-flex !text-h3 text-ods-text-primary bg-ods-card border-ods-border hover:bg-ods-bg-hover gap-[var(--spacing-system-xsf)] !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] h-auto [&_svg]:!size-6"
+              className="hidden h-auto gap-[var(--spacing-system-xsf)] border-ods-border bg-ods-card !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-primary !text-h3 hover:bg-ods-bg-hover md:inline-flex [&_svg]:!size-6"
               leftIcon={<Filter03HrIcon className="text-ods-text-secondary" />}
               disabled={disabled}
             >

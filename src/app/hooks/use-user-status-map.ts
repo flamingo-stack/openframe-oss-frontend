@@ -33,7 +33,7 @@ function statusMapFor(data: UsersPage | undefined): Map<string, UserStatus> {
 /**
  * Client-side id → status map over `GET /api/users`, for surfaces whose own
  * payload carries no user status. Since the backend added `User.status` to
- * the GraphQL schema, the scripts-v2 / worktime / KB surfaces read it from
+ * the GraphQL schema, the scripts / worktime / KB surfaces read it from
  * their own payloads — the ONLY remaining consumer is the tickets domain:
  * `/chat/graphql` (saas-ai-agent) denormalizes the assignee to an id + name
  * snapshot with no status.

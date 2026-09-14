@@ -24,7 +24,7 @@ export function TicketsOverviewSection() {
         />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-mf)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-mf)] md:grid-cols-2 lg:grid-cols-4">
         <DashboardInfoCard
           titleSlot={<TicketStatusTag status="AI_ASSISTANCE" />}
           value={tickets.aiAssistance ?? '—'}
@@ -42,7 +42,7 @@ export function TicketsOverviewSection() {
         />
         <DashboardInfoCard
           titleSlot={
-            <span className="text-h5 uppercase text-ods-text-secondary flex items-center h-8">Other Statuses</span>
+            <span className="flex h-8 items-center uppercase text-ods-text-secondary text-h5">Other Statuses</span>
           }
           value={tickets.otherStatuses ?? '—'}
           href={routes.tickets.list}

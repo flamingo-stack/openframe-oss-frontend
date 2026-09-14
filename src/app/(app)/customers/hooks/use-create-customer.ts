@@ -38,9 +38,19 @@ export interface CreateCustomerRequest {
   contractEndDate?: string;
 }
 
+/**
+ * What the create endpoint returns of the new organization. Both id shapes are
+ * declared because the caller reads whichever is present — see the fallback in
+ * `new-customer-page`.
+ */
+interface CreatedOrganization {
+  organizationId?: string;
+  id?: string;
+}
+
 export function useCreateCustomer() {
   const createOrganization = useCallback(async (request: CreateCustomerRequest) => {
-    const resp = await apiClient.post('/api/organizations', request);
+    const resp = await apiClient.post<CreatedOrganization>('/api/organizations', request);
     if (!resp.ok) {
       throw new Error(resp.error || `Request failed with status ${resp.status}`);
     }

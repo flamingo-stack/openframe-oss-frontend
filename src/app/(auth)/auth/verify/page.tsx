@@ -16,13 +16,22 @@ export default function VerifyEmailPage() {
       return;
     }
 
+    // `/sas/*` is a backend endpoint, never a Next page — this leaves the app on
+    // purpose. Built through `new URL` rather than by concatenation so the
+    // destination is provably absolute: with no shared host configured (the OSS
+    // tenant, where the gateway serves `/sas/*` from this same origin) the base
+    // falls back to the current origin, which is exactly what assigning the bare
+    // path used to resolve to.
     const base = runtimeEnv.sharedHostUrl();
-    const verifyUrl = `${base}/sas/email/verify?token=${encodeURIComponent(token)}`;
-    window.location.href = verifyUrl;
+    const verifyUrl = new URL(
+      `sas/email/verify?token=${encodeURIComponent(token)}`,
+      `${(base || window.location.origin).replace(/\/*$/, '')}/`,
+    );
+    window.location.href = verifyUrl.toString();
   }, [token, router]);
 
   return (
-    <div className="min-h-screen bg-ods-bg flex flex-col items-center justify-between p-10">
+    <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
       <div className="flex items-center gap-2">
         <OpenFrameLogo
           className="h-10 w-auto"
@@ -32,10 +41,10 @@ export default function VerifyEmailPage() {
         <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
       </div>
 
-      <div className="flex items-center justify-center gap-[6px] size-6">
-        <span className="rounded-full bg-ods-text-primary animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
-        <span className="rounded-full bg-ods-text-primary animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.27s_infinite]" />
-        <span className="rounded-full bg-ods-text-primary animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.54s_infinite]" />
+      <div className="flex size-6 items-center justify-center gap-[6px]">
+        <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_infinite] rounded-full bg-ods-text-primary" />
+        <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.27s_infinite] rounded-full bg-ods-text-primary" />
+        <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.54s_infinite] rounded-full bg-ods-text-primary" />
         <style>{`
           @keyframes dotTravel {
             0%, 100% { width: 2px; height: 2px; opacity: 0.4; }
@@ -48,11 +57,11 @@ export default function VerifyEmailPage() {
         href="https://flamingo.run"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2 p-4 text-ods-text-secondary rounded-md bg-transparent hover:bg-ods-bg-hover transition-colors"
+        className="flex items-center gap-2 rounded-md bg-transparent p-4 text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
       >
         <span className="text-h6">Powered by</span>
         <FlamingoLogo className="h-5 w-5" fill="currentColor" />
-        <span className="text-code font-semibold">Flamingo</span>
+        <span className="font-semibold text-code">Flamingo</span>
       </a>
     </div>
   );

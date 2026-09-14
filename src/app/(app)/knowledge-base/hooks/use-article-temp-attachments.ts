@@ -198,15 +198,13 @@ export function useArticleTempAttachments() {
         const existingIds = new Set(prev.map(f => f.id));
         const newEntries = attachments
           .filter(a => !existingIds.has(a.id))
-          .map(
-            (a): TempFileEntry => ({
-              id: a.id,
-              fileName: a.fileName,
-              fileSize: a.fileSize ?? 0,
-              contentType: a.contentType ?? 'application/octet-stream',
-              status: 'existing',
-            }),
-          );
+          .map((a): TempFileEntry => ({
+            id: a.id,
+            fileName: a.fileName,
+            fileSize: a.fileSize ?? 0,
+            contentType: a.contentType ?? 'application/octet-stream',
+            status: 'existing',
+          }));
         return newEntries.length ? [...prev, ...newEntries] : prev;
       });
     },

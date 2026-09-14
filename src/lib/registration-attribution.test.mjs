@@ -111,12 +111,12 @@ test('a partner link straight to the signup page captures and sends its referral
   assert.equal(A.collectRegistrationAttribution().ref, 'partner-456');
 });
 
-test('the referral also rides the SSO start URL', () => {
+test('the referral also rides the SSO continue URL', () => {
   cookies.push('of_ref=partner-123');
   const params = new URLSearchParams();
   A.appendAttributionQueryParams(params, A.collectRegistrationAttribution());
 
-  assert.equal(params.get('attribution.ref'), 'partner-123');
+  assert.equal(params.get('ref'), 'partner-123');
 });
 
 test('no signals present yields only the always-minted event id', () => {
@@ -125,7 +125,7 @@ test('no signals present yields only the always-minted event id', () => {
   assert.equal(typeof got.eventId, 'string');
 });
 
-// The SSO start URL must carry the same attribution set as the password-flow body — a field
+// The SSO continue URL must carry the same attribution set as the password-flow body — a field
 // collected but silently dropped from the query string is exactly the kind of gap behind the
 // low fbp coverage on one flow (see Meta CAPI follow-up task 86ajt9vye, F1/F2).
 test('SSO query params carry every collected field, matching the password body', () => {
@@ -135,21 +135,21 @@ test('SSO query params carry every collected field, matching the password body',
   A.captureAttributionFromUrl();
 
   const collected = A.collectRegistrationAttribution();
-  const params = new URLSearchParams({ tenantName: 'org', provider: 'google' });
+  const params = new URLSearchParams({ tenantName: 'org', tenantDomain: 'org.openframe.example' });
   A.appendAttributionQueryParams(params, collected);
 
-  // 3 cookies + 9 URL params + eventId = 13 fields, every one present as attribution.<field>.
-  const attributionKeys = [...params.keys()].filter(k => k.startsWith('attribution.'));
-  assert.equal(attributionKeys.length, 13);
+  // 3 cookies + 9 URL params + eventId = 13 fields, every one present as a bare key alongside the
+  // two tenant params the endpoint takes as @RequestParam.
+  assert.equal([...params.keys()].length, 13 + 2);
   for (const [field, value] of Object.entries(collected)) {
-    assert.equal(params.get(`attribution.${field}`), value, `attribution.${field} must ride the SSO start URL`);
+    assert.equal(params.get(field), value, `${field} must ride the SSO continue URL`);
   }
 });
 
 test('SSO query serialization skips blank values instead of sending empty strings', () => {
   const params = new URLSearchParams();
   A.appendAttributionQueryParams(params, { fbp: 'fb.1.170.999', fbc: '', utmSource: '   ' });
-  assert.deepEqual([...params.keys()], ['attribution.fbp']);
+  assert.deepEqual([...params.keys()], ['fbp']);
 });
 
 // The password-flow body runs explicit attribution through the same normalization, so a

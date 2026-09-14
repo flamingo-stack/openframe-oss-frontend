@@ -12,15 +12,16 @@ import {
 } from '@flamingo-stack/openframe-frontend-core';
 import { ModalV2Title } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import React, { useEffect, useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
-import { MeshDesktop } from '@/lib/meshcentral/meshcentral-desktop';
-import { MeshTunnel } from '@/lib/meshcentral/meshcentral-tunnel';
+import type { MeshDesktop } from '@/lib/meshcentral/meshcentral-desktop';
+import type { MeshTunnel } from '@/lib/meshcentral/meshcentral-tunnel';
 import {
   FRAME_RATE_OPTIONS,
   QUALITY_OPTIONS,
   RemoteDesktopSettings,
-  RemoteSettingsConfig,
+  type RemoteSettingsConfig,
   SCALING_OPTIONS,
 } from '@/lib/meshcentral/remote-settings';
 
@@ -46,9 +47,13 @@ export function RemoteSettingsModal({
   const { toast } = useToast();
   const [settings, setSettings] = useState<RemoteSettingsConfig>(currentSettings);
 
-  useEffect(() => {
+  // Adopt a new settings object from the parent during render: an effect would
+  // render the stale set once first, and this panel is a live control surface.
+  const [lastSettings, setLastSettings] = useState(currentSettings);
+  if (currentSettings !== lastSettings) {
+    setLastSettings(currentSettings);
     setSettings(currentSettings);
-  }, [currentSettings]);
+  }
 
   const handleSaveSettings = () => {
     if (!tunnelRef.current || connectionState !== 3) {
@@ -103,7 +108,7 @@ export function RemoteSettingsModal({
       header={
         <>
           <ModalV2Title>Remote Control Settings</ModalV2Title>
-          <p className="text-ods-text-secondary text-h6 mt-1">Configure quality, scaling, and keyboard preferences</p>
+          <p className="mt-1 text-ods-text-secondary text-h6">Configure quality, scaling, and keyboard preferences</p>
         </>
       }
       contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
@@ -167,7 +172,7 @@ export function RemoteSettingsModal({
           <Label htmlFor="framerate">Frame Rate</Label>
           <Select
             value={settings.frameRate}
-            onValueChange={(value: any) => setSettings({ ...settings, frameRate: value })}
+            onValueChange={value => setSettings({ ...settings, frameRate: value as RemoteSettingsConfig['frameRate'] })}
           >
             <SelectTrigger id="framerate" className="bg-ods-card">
               <SelectValue />
@@ -183,7 +188,7 @@ export function RemoteSettingsModal({
         </div>
 
         {/* Checkbox Options */}
-        <div className="flex items-center space-x-3 p-4 bg-ods-card border border-ods-border rounded-lg">
+        <div className="flex items-center space-x-3 rounded-lg border border-ods-border bg-ods-card p-4">
           <Checkbox
             id="invert-scroll"
             checked={settings.invertScrollDirection}
@@ -193,12 +198,12 @@ export function RemoteSettingsModal({
             <Label htmlFor="invert-scroll" className="cursor-pointer">
               Invert Scroll Direction
             </Label>
-            <p className="text-h6 text-ods-text-secondary">Reverse mouse wheel scroll direction</p>
+            <p className="text-ods-text-secondary text-h6">Reverse mouse wheel scroll direction</p>
           </div>
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-center space-x-3 p-4 bg-ods-card border border-ods-border rounded-lg">
+          <div className="flex items-center space-x-3 rounded-lg border border-ods-border bg-ods-card p-4">
             <Checkbox
               id="swap-mouse"
               checked={settings.swapMouseButtons}
@@ -208,11 +213,11 @@ export function RemoteSettingsModal({
               <Label htmlFor="swap-mouse" className="cursor-pointer">
                 Swap Mouse Buttons
               </Label>
-              <p className="text-h6 text-ods-text-secondary">Reverse left and right mouse button functions</p>
+              <p className="text-ods-text-secondary text-h6">Reverse left and right mouse button functions</p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3 p-4 bg-ods-card border border-ods-border rounded-lg">
+          <div className="flex items-center space-x-3 rounded-lg border border-ods-border bg-ods-card p-4">
             <Checkbox
               id="keyboard-map"
               checked={settings.useRemoteKeyboardMap}
@@ -222,7 +227,7 @@ export function RemoteSettingsModal({
               <Label htmlFor="keyboard-map" className="cursor-pointer">
                 Use Remote Keyboard Map
               </Label>
-              <p className="text-h6 text-ods-text-secondary">Use the remote device's keyboard layout</p>
+              <p className="text-ods-text-secondary text-h6">Use the remote device's keyboard layout</p>
             </div>
           </div>
         </div>

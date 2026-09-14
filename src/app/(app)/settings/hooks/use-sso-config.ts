@@ -67,5 +67,18 @@ export function useSsoConfig() {
     }
   }, []);
 
-  return { fetchAvailableProviders, fetchProviderConfig, updateProviderConfig, toggleProviderEnabled };
+  const deleteProviderConfig = useCallback(async (provider: string): Promise<void> => {
+    const res = await apiClient.delete<void>(`api/sso/${encodeURIComponent(provider)}`);
+    if (!res.ok) {
+      throw new Error(res.error || `Failed to delete provider configuration (${res.status})`);
+    }
+  }, []);
+
+  return {
+    fetchAvailableProviders,
+    fetchProviderConfig,
+    updateProviderConfig,
+    toggleProviderEnabled,
+    deleteProviderConfig,
+  };
 }

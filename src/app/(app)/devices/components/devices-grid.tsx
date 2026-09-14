@@ -37,12 +37,12 @@ export function DevicesGrid({
       {isLoading && devices.length === 0 ? (
         <DeviceCardSkeletonGrid count={12} />
       ) : devices.length === 0 ? (
-        <div className="flex items-center justify-center h-64 bg-ods-card border border-ods-border rounded-[6px]">
+        <div className="flex h-64 items-center justify-center rounded-[6px] border border-ods-border bg-ods-card">
           <p className="text-ods-text-secondary">{emptyMessage}</p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {devices.map(device => {
               const statusConfig = getDeviceStatusConfig(device.status);
               return (

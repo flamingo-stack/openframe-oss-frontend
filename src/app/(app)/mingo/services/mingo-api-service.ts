@@ -1,6 +1,6 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from '@tanstack/react-query';
-import { type ApiResponse, apiClient } from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client';
 
 export interface CreateDialogResponse {
   id: string;

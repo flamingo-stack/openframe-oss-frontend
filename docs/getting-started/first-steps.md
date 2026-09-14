@@ -73,11 +73,11 @@ Before making any code changes, run the TypeScript type checker and linter to un
 # Type checking (no files emitted, just checks)
 npm run type-check
 
-# ESLint for TypeScript/TSX files
+# ESLint — the fast pass
 npm run lint
 
-# Biome linter (formatting + lint rules)
-npm run lint:biome
+# Prettier — formatting check
+npm run format
 ```
 
 If you see errors, do not worry — review the error output and check if there are any known issues in the OpenMSP Slack community. A clean type check and lint is a good baseline before you start contributing.

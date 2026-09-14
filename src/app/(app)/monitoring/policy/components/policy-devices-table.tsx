@@ -19,9 +19,11 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { POLICY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
 import { usePolicyDevicesTable } from '../hooks/use-policy-devices-table';
 import type { PolicyDeviceRow } from '../types/policy-device-row';
 import { QuickQueryPanel } from './quick-query-panel';
@@ -55,60 +57,60 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
   const columns = useMemo<ColumnDef<PolicyDeviceRow>[]>(
     () => [
       {
-        id: 'device',
+        id: POLICY_DEVICE_COLUMNS.device.id,
         accessorKey: 'displayName',
-        header: 'DEVICE',
+        header: POLICY_DEVICE_COLUMNS.device.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const r = row.original;
           return (
-            <div className="box-border content-stretch flex gap-4 h-20 items-center justify-start py-0 relative shrink-0 w-full">
-              <div className="flex h-8 w-8 items-center justify-center relative rounded-[6px] shrink-0 border border-ods-border">
+            <div className="relative box-border flex h-20 w-full shrink-0 content-stretch items-center justify-start gap-4 py-0">
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border">
                 {r.deviceType &&
                   getDeviceTypeIcon(r.deviceType.toLowerCase() as DeviceType, {
                     className: 'w-5 h-5 text-ods-text-secondary',
                   })}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <TruncateText>{r.displayName || r.hostname}</TruncateText>
               </div>
             </div>
           );
         },
-        meta: { width: 'flex-1 md:w-1/3' },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.device),
       },
       {
-        id: 'organization',
+        id: POLICY_DEVICE_COLUMNS.organization.id,
         accessorKey: 'organization',
-        header: 'CUSTOMER',
+        header: POLICY_DEVICE_COLUMNS.organization.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const r = row.original;
           const fullImageUrl = getFullImageUrl(r.organizationImageUrl, r.organizationImageHash);
           return (
             <div className="flex items-center gap-3">
               <EntityImage src={fullImageUrl} alt={r.organization || 'Customer'} className="size-12 md:size-12" />
-              <div className="flex flex-col justify-center flex-1 min-w-0">
-                <span className="text-h4 text-ods-text-primary break-words">{r.organization || ''}</span>
+              <div className="flex min-w-0 flex-1 flex-col justify-center">
+                <span className="break-words text-ods-text-primary text-h4">{r.organization || ''}</span>
               </div>
             </div>
           );
         },
-        meta: { width: 'w-1/6', hideAt: 'lg' as const },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.organization),
       },
       {
-        id: 'os',
+        id: POLICY_DEVICE_COLUMNS.os.id,
         accessorKey: 'osType',
-        header: 'OS',
+        header: POLICY_DEVICE_COLUMNS.os.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
-          <div className="flex items-start gap-2 shrink-0">
+          <div className="flex shrink-0 items-start gap-2">
             <OSTypeBadge osType={row.original.osType} />
           </div>
         ),
-        meta: { width: 'w-[120px] md:w-1/6', hideAt: 'md' as const },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.os),
       },
       {
-        id: 'compliance',
+        id: POLICY_DEVICE_COLUMNS.compliance.id,
         accessorKey: 'complianceStatus',
-        header: 'STATUS',
+        header: POLICY_DEVICE_COLUMNS.compliance.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const r = row.original;
           if (r.complianceStatus === 'pending') return <Tag label="Pending" variant="warning" />;
@@ -119,42 +121,42 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
             />
           );
         },
-        meta: { width: 'w-[140px]' },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.compliance),
       },
       {
-        id: 'open',
+        id: POLICY_DEVICE_COLUMNS.open.id,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) =>
           row.original.machineId ? (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={openInNewTab(routes.devices.details(row.original.machineId))}
                 variant="outline"
                 size="icon"
-                leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
                 aria-label="Open in new tab"
                 className="bg-ods-card"
               />
             </div>
           ) : null,
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.open),
       },
       {
-        id: 'quick-query',
+        id: POLICY_DEVICE_COLUMNS.quickQuery.id,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const isOpen = quickQueryIds.has(String(row.original.id));
           return (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={() => toggleQuickQuery(String(row.original.id))}
                 variant="outline"
                 disabled={!isOpen && !hasQuery}
                 leftIcon={
-                  isOpen ? <XmarkCircleIcon className="w-5 h-5" /> : <BracketCurlyEllipsisVrIcon className="w-5 h-5" />
+                  isOpen ? <XmarkCircleIcon className="h-5 w-5" /> : <BracketCurlyEllipsisVrIcon className="h-5 w-5" />
                 }
                 aria-label={isOpen ? 'Close quick query' : 'Open quick query'}
                 aria-expanded={isOpen}
-                className="bg-ods-card w-full"
+                className="w-full bg-ods-card"
               >
                 {/* Icon-only on mobile, per design. */}
                 <span className="hidden md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
@@ -166,7 +168,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
         // Fixed column width (matching the header's empty cell) so the flex
         // columns before it stretch identically in the header and the rows;
         // the w-full button inside also keeps Quick Query / Close equal width.
-        meta: { width: 'w-12 md:w-[160px] shrink-0 flex-none', align: 'right' },
+        meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.quickQuery),
       },
     ],
     [quickQueryIds, toggleQuickQuery, hasQuery],

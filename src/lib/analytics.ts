@@ -6,8 +6,6 @@ import { apiClient } from '@/lib/api-client';
  * Fire-and-forget analytics for high-signal activation events. Tracking must
  * never block, delay, or break the UX — `trackDashboardActivity` returns
  * immediately and swallows every error.
- *
- * See `docs/dashboard-activity-events.md` for the full event catalog.
  */
 
 /** Always this value for every tracked dashboard activity event. */

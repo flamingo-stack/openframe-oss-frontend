@@ -21,7 +21,7 @@ export function SettingsPageSkeleton() {
         <Skeleton className="h-40 w-full rounded-md" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--spacing-system-m)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
         {MENU_CARD_KEYS.map(key => (
           <Skeleton key={key} className="h-[88px] w-full rounded-md" />
         ))}

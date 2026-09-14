@@ -3,12 +3,11 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 /**
  * Column layout for the ticket tables.
  *
- * Data-only on purpose (see `table-column-layout.ts`). Three renderers read it:
+ * Data-only on purpose (see `table-column-layout.ts`). Two renderers read it:
  * `getTicketTableColumns` (the live table on `/tickets` and, minus SOURCE, the
- * device Tickets tab), `TicketsPageSkeleton`, and `DeviceDetailsSkeleton`. The
- * skeletons can't import the live builder — it carries the cells, the avatar and
- * the status tag — which is why they used to re-declare these widths and had
- * drifted (a missing `filterable` on STATUS, and on the device tab a missing
+ * device Tickets tab) and `DeviceDetailsSkeleton`. The skeleton can't import
+ * the live builder — it carries the cells, the avatar and the status tag —
+ * which is why it used to re-declare these widths and had drifted (a missing
  * `hideAt` on ASSIGNEE plus a missing `align` on the trailing button).
  *
  * SOURCE, ASSIGNEE and STATUS carry no width in the fleet-wide table: they share

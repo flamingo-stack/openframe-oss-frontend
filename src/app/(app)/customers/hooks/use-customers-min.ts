@@ -12,6 +12,15 @@ export interface OrganizationMin {
   imageUrl?: string;
 }
 
+/** The organization node the min query selects, before it is flattened above. */
+interface OrganizationMinNode {
+  id: string;
+  organizationId: string;
+  name: string;
+  isDefault: boolean;
+  image?: { imageUrl?: string } | null;
+}
+
 export function useCustomersMin(limit: number = 10) {
   const [items, setItems] = useState<OrganizationMin[]>([]);
   const [isLoading, setLoading] = useState(false);
@@ -22,7 +31,9 @@ export function useCustomersMin(limit: number = 10) {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.post<any>('/api/graphql', {
+        const response = await apiClient.post<{
+          data?: { organizations?: { edges?: { node: OrganizationMinNode }[] } };
+        }>('/api/graphql', {
           query: GET_ORGANIZATIONS_MIN_QUERY,
           variables: { search, first: limit },
         });
@@ -31,9 +42,9 @@ export function useCustomersMin(limit: number = 10) {
           throw new Error(response.error || `Request failed with status ${response.status}`);
         }
 
-        const payload = (response.data as any)?.data?.organizations;
+        const payload = response.data?.data?.organizations;
         const list = Array.isArray(payload?.edges) ? payload.edges : [];
-        const mapped: OrganizationMin[] = list.map(({ node }: any) => ({
+        const mapped: OrganizationMin[] = list.map(({ node }) => ({
           id: node.id,
           organizationId: node.organizationId,
           name: node.name,

@@ -117,10 +117,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             server cannot read localStorage, so this is the only channel by which the
             preference reaches the first frame — and the only thing that keeps the
             width out of the markup, where it was a hydration mismatch. */}
-        {/* biome-ignore lint/style/useNamingConvention: React's dangerouslySetInnerHTML requires the __html key */}
+        {/* React's dangerouslySetInnerHTML requires the __html key */}
         <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript }} />
       </head>
-      <body suppressHydrationWarning className="min-h-screen antialiased font-body" data-app-type="openframe">
+      <body suppressHydrationWarning className="min-h-screen font-body antialiased" data-app-type="openframe">
         <GoogleTagManager />
         <RegistrationAttributionCapture />
         <EmbedShimRegistration />

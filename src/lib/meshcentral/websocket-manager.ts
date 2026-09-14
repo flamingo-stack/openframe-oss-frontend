@@ -236,7 +236,9 @@ export class WebSocketManager {
 
       try {
         await this.options.onBeforeReconnect?.();
-      } catch {}
+      } catch {
+        // The hook is an opportunity to refresh credentials before dialling, not a precondition. A reconnect that stops because the hook threw is a session that never comes back.
+      }
 
       // Re-check after async hook — connection might have recovered
       if (this.isDisposed || this.socket?.readyState === WebSocket.OPEN) {

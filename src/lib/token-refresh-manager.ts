@@ -22,6 +22,7 @@ import { isAppShell } from './platform';
 import { runtimeEnv } from './runtime-config';
 import {
   ACCESS_TOKEN_KEY,
+  adoptNativeTokens,
   getAccessTokenSync,
   getRefreshToken,
   getTokenEpoch,
@@ -214,12 +215,15 @@ async function attemptRefresh(): Promise<RefreshOutcome | 'retriable'> {
     return 'transient';
   }
 
-  let data: any;
+  // Whichever casing the auth service used for this deployment.
+  let data: { access_token?: string; accessToken?: string; refresh_token?: string; refreshToken?: string } | undefined;
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
     try {
       data = await res.json();
-    } catch {}
+    } catch {
+      // A response that claims JSON but does not parse leaves `data` undefined, which the caller below already treats as "no body".
+    }
   }
 
   if (bearerMode) {
@@ -255,9 +259,14 @@ async function executeRefresh(): Promise<RefreshOutcome> {
   const plugin = nativeAuthPlugin();
   if (plugin?.refreshTokens) {
     try {
-      const tokens = await plugin.refreshTokens();
+      // The bearer this side holds is the one the gateway refused. A shell whose
+      // stored token already differs rotated on its own meanwhile and answers
+      // from that, instead of spending another refresh token on a stale report.
+      const tokens = await plugin.refreshTokens({ rejectedAccessToken: getAccessTokenSync() ?? undefined });
       if (tokens?.accessToken) {
-        await setTokens(tokens);
+        // The shell already stored the pair — mirror it, never write it back
+        // (see adoptNativeTokens).
+        adoptNativeTokens(tokens);
         return 'refreshed';
       }
       clearStoredTokens();

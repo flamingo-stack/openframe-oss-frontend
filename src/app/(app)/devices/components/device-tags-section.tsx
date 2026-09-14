@@ -23,7 +23,7 @@ export function DeviceTagsSection({ device }: DeviceTagsSectionProps) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-s)]">
       <p className="text-ods-text-secondary text-h5">Device Tags</p>
-      <div className="flex gap-2 items-center flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         {tagValues.map(tag => (
           // `badge` is the DS tag-badge skin (ods-card + border, mono uppercase); the string
           // label gives a native `title` tooltip on hover, so no extra Tooltip plumbing needed.

@@ -74,6 +74,24 @@ function setFullscreenElement(el: Element | null, key: 'fullscreenElement' | 'we
   Object.defineProperty(document, key, { value: el, configurable: true, writable: true });
 }
 
+/**
+ * Wait for a publish to land.
+ *
+ * `applyNativeSafeAreas` is fired and forgotten (`void applyNativeSafeAreas()`), so a
+ * test cannot await it — but with `getSafeAreaInsets` mocked to resolve immediately the
+ * whole chain is MICROTASKS. One macrotask hop therefore guarantees it has run, with no
+ * dependence on wall-clock time.
+ *
+ * This replaced `vi.waitFor`, whose 1s default made the file flaky: under parallel
+ * workers a starved thread could miss that window entirely and time out before the
+ * suppression landed (measured ~4 failures in 10 full-suite runs, 0 in 6 runs of the
+ * file alone and 0 with --no-file-parallelism). Polling on real timers is the wrong
+ * tool for a deterministic microtask chain.
+ */
+function flushPublish(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
 beforeEach(() => {
   document.documentElement.removeAttribute('style');
   setFullscreenElement(null, 'fullscreenElement');
@@ -138,7 +156,8 @@ describe('initNativeChrome', () => {
     getSafeAreaInsets.mockResolvedValue(REAL);
     document.dispatchEvent(new Event('fullscreenchange'));
 
-    await vi.waitFor(() => expect(topVar()).toBe('62px'));
+    await flushPublish();
+    expect(topVar()).toBe('62px');
   });
 });
 
@@ -155,12 +174,14 @@ describe('bottom inset while the Android keyboard is up', () => {
     expect(bottomVar()).toBe('34px');
 
     listeners.keyboardWillShow({ keyboardHeight: 300 });
-    await vi.waitFor(() => expect(bottomVar()).toBe('0px'));
+    await flushPublish();
+    expect(bottomVar()).toBe('0px');
     // Only the bottom edge moves — the status bar is still above the WebView.
     expect(topVar()).toBe('62px');
 
     listeners.keyboardWillHide({ keyboardHeight: 0 });
-    await vi.waitFor(() => expect(bottomVar()).toBe('34px'));
+    await flushPublish();
+    expect(bottomVar()).toBe('34px');
   });
 
   it('survives the resize the keyboard itself fires', async () => {
@@ -169,7 +190,8 @@ describe('bottom inset while the Android keyboard is up', () => {
     initKeyboardInset();
 
     listeners.keyboardWillShow({ keyboardHeight: 300 });
-    await vi.waitFor(() => expect(bottomVar()).toBe('0px'));
+    await flushPublish();
+    expect(bottomVar()).toBe('0px');
 
     // The WebView resizing IS the keyboard opening on Android, and
     // initNativeChrome republishes every inset on resize — immediately and again
@@ -186,7 +208,7 @@ describe('bottom inset while the Android keyboard is up', () => {
     initKeyboardInset();
 
     listeners.keyboardWillShow({ keyboardHeight: 0 });
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await flushPublish();
     expect(bottomVar()).toBe('34px');
   });
 
@@ -196,7 +218,8 @@ describe('bottom inset while the Android keyboard is up', () => {
     initKeyboardInset();
 
     listeners.keyboardWillShow({ keyboardHeight: 300 });
-    await vi.waitFor(() => expect(bottomVar()).toBe('0px'));
+    await flushPublish();
+    expect(bottomVar()).toBe('0px');
 
     expect(document.documentElement.style.getPropertyValue('--of-keyboard-inset')).toBe('');
   });

@@ -1,13 +1,10 @@
 'use client';
 
-import {
-  AuthShell,
-  BackToLoginLink,
-  PasswordResetForm,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { BackToLoginLink, PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import { authApiClient } from '@/lib/auth-api-client';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -52,7 +49,7 @@ export default function PasswordResetPage() {
       });
 
       if (!response.ok) {
-        const error = response.data as any;
+        const error = response.data as { code?: string; message?: string } | undefined;
         throw new Error(error?.message || response.error || 'Failed to reset password');
       }
 
@@ -81,7 +78,7 @@ export default function PasswordResetPage() {
   };
 
   return (
-    <AuthShell footer={<BackToLoginLink onClick={handleBack} />}>
+    <StandaloneAuthShell footer={<BackToLoginLink onClick={handleBack} />}>
       <PasswordResetForm
         password={password}
         confirmPassword={confirmPassword}
@@ -97,6 +94,6 @@ export default function PasswordResetPage() {
           confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
         }}
       />
-    </AuthShell>
+    </StandaloneAuthShell>
   );
 }

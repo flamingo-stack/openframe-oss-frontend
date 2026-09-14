@@ -51,7 +51,7 @@ const SKELETON_MENU_ACTIONS: ActionsMenuGroup[] = [
       {
         id: 'run-script',
         label: 'Run Script',
-        icon: <BracketCurlyIcon className="w-6 h-6 text-ods-text-secondary" />,
+        icon: <BracketCurlyIcon className="h-6 w-6 text-ods-text-secondary" />,
         onClick: noop,
         disabled: true,
       },
@@ -100,7 +100,7 @@ const SKELETON_ACTIONS: PageActionButton[] = [
       // Deliberately a placeholder, not an arrow or a chevron: which one this
       // becomes is the OS answer we don't have yet. The cell it reserves is what
       // matters.
-      icon: <Skeleton className="h-4 w-4 md:h-6 md:w-6 rounded" />,
+      icon: <Skeleton className="h-4 w-4 rounded md:h-6 md:w-6" />,
       'aria-label': 'Remote Shell',
       onClick: noop,
       disabled: true,
@@ -126,14 +126,14 @@ function TextSkeleton({ typography, width, className }: { typography: string; wi
       <span className="invisible" aria-hidden>
         &nbsp;
       </span>
-      <Skeleton className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[0.85em] rounded-[6px]" />
+      <Skeleton className="absolute left-0 right-0 top-1/2 h-[0.85em] -translate-y-1/2 rounded-[6px]" />
     </span>
   );
 }
 
 /** Matches the real `Tag` box exactly: `h-8 rounded-md` pill (only the label is skeletoned). */
 function TagSkeleton({ width = 'w-20' }: { width?: string }) {
-  return <Skeleton className={cn('h-8 rounded-md shrink-0', width)} />;
+  return <Skeleton className={cn('h-8 shrink-0 rounded-md', width)} />;
 }
 
 /** Section heading — matches `h3.text-h5.text-ods-text-secondary.mb-4` (line-box accurate). */
@@ -166,29 +166,29 @@ function InfoCardSkeleton({
   return (
     <div
       className={cn(
-        'bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-m)] flex flex-col gap-[var(--spacing-system-l)] w-full',
+        'flex w-full flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]',
         className,
       )}
     >
       {(showTitle || showSubtitle) && (
-        <div className="flex flex-col items-start w-full">
+        <div className="flex w-full flex-col items-start">
           {showTitle && (
-            <div className="h-6 flex items-center">
+            <div className="flex h-6 items-center">
               <Skeleton className="h-5 w-32" />
             </div>
           )}
           {showSubtitle && (
-            <div className="h-6 flex items-center">
+            <div className="flex h-6 items-center">
               <Skeleton className="h-5 w-40" />
             </div>
           )}
         </div>
       )}
-      <div className="flex flex-col gap-[var(--spacing-system-xs)] w-full">
+      <div className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
         {Array.from({ length: itemCount }).map((_, i) => (
-          <div key={i} className="flex h-6 gap-[var(--spacing-system-xs)] items-center w-full">
+          <div key={i} className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
             <Skeleton className="h-5 w-24 shrink-0" />
-            <div className="flex-1 h-px bg-ods-border" />
+            <div className="h-px flex-1 bg-ods-border" />
             <Skeleton className="h-5 w-20 shrink-0" />
           </div>
         ))}
@@ -207,7 +207,7 @@ function SearchInputSkeleton({ placeholder }: { placeholder: string }) {
     <Input
       placeholder={placeholder}
       className="w-full"
-      startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+      startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
     />
   );
 }
@@ -256,12 +256,12 @@ function InfoCellSkeleton({
   iconClass?: string;
 }) {
   return (
-    <div className="flex flex-col justify-center min-w-0 flex-1">
-      <div className="flex items-center gap-[var(--spacing-system-xxs)] min-w-0">
+    <div className="flex min-w-0 flex-1 flex-col justify-center">
+      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
         {iconClass && <Skeleton className={cn(iconClass, 'shrink-0 rounded-[6px]')} />}
         <TextSkeleton typography="text-h4" width={valueWidth} />
       </div>
-      <span className="text-ods-text-secondary text-h6 truncate mt-1">{label}</span>
+      <span className="mt-1 truncate text-ods-text-secondary text-h6">{label}</span>
     </div>
   );
 }
@@ -269,11 +269,11 @@ function InfoCellSkeleton({
 /** Mirrors the Customer cell: a 40px avatar beside the [value, "Customer ID (Site)"] column. */
 function CustomerCellSkeleton() {
   return (
-    <div className="flex items-center gap-[var(--spacing-system-xs)] flex-1 min-w-0">
+    <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
       <Skeleton className="size-10 shrink-0 rounded-md" />
-      <div className="flex flex-col justify-center min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
         <TextSkeleton typography="text-h4" width="w-28" />
-        <span className="text-ods-text-secondary text-h6 truncate mt-1">Customer ID (Site)</span>
+        <span className="mt-1 truncate text-ods-text-secondary text-h6">Customer ID (Site)</span>
       </div>
     </div>
   );
@@ -297,9 +297,9 @@ function DeviceInfoSectionSkeleton() {
   const customer = <CustomerCellSkeleton />;
 
   return (
-    <div className="bg-ods-card border border-ods-border rounded-md flex flex-col">
+    <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
       {/* ===== Mobile + Tablet (< lg) ===== */}
-      <div className="lg:hidden flex flex-col">
+      <div className="flex flex-col lg:hidden">
         <div className={rowClass}>
           {hostname}
           {device}
@@ -309,18 +309,18 @@ function DeviceInfoSectionSkeleton() {
           {serial}
         </div>
         {/* Mobile (< md): customer as a full-width row */}
-        <div className="md:hidden flex items-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-m)] min-h-14 border-b border-ods-border">
+        <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
           {customer}
         </div>
         {/* Tablet (md to lg): customer in one row */}
-        <div className="hidden md:flex md:items-center md:gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-20 border-b border-ods-border">
-          <div className="flex items-center gap-[var(--spacing-system-xs)] flex-1 min-w-0">{customer}</div>
+        <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] md:flex md:items-center md:gap-[var(--spacing-system-m)]">
+          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customer}</div>
         </div>
         <div className={rowClass}>
           {registered}
           {updated}
         </div>
-        <div className="flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 md:min-h-20">
+        <div className="flex min-h-14 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] md:min-h-20">
           {uuid}
         </div>
       </div>
@@ -331,9 +331,9 @@ function DeviceInfoSectionSkeleton() {
           {hostname}
           {device}
           {type}
-          <div className="flex items-center gap-[var(--spacing-system-xs)] flex-1 min-w-0">{customer}</div>
+          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customer}</div>
         </div>
-        <div className="flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-20">
+        <div className="flex min-h-20 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)]">
           {uuid}
           {serial}
           {registered}
@@ -359,8 +359,8 @@ function HardwareBlockSkeleton({
   showProgress?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xxs)] h-full [&>*:last-child]:flex-1">
-      <div className="h-5 flex items-center">
+    <div className="flex h-full flex-col gap-[var(--spacing-system-xxs)] [&>*:last-child]:flex-1">
+      <div className="flex h-5 items-center">
         <Skeleton className="h-4 w-20" />
       </div>
       <InfoCardSkeleton
@@ -400,14 +400,14 @@ function OsTabSkeleton() {
       {/* OPERATING SYSTEM — single card (title + subtitle + items) in a 3-col grid */}
       <div>
         <SectionHeadingSkeleton width="w-32" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <InfoCardSkeleton itemCount={5} showSubtitle />
         </div>
       </div>
       {/* BOOT & TIME — single card with items */}
       <div>
         <SectionHeadingSkeleton width="w-24" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <InfoCardSkeleton itemCount={5} />
         </div>
       </div>
@@ -421,7 +421,7 @@ function NetworkTabSkeleton() {
       {/* Full-width Public IP card */}
       <InfoCardSkeleton itemCount={1} />
       {/* Local IPv4 / IPv6 addresses — 2-col grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <InfoCardSkeleton itemCount={4} />
         <InfoCardSkeleton itemCount={4} />
       </div>
@@ -436,7 +436,7 @@ function SecurityTabSkeleton() {
       <div>
         <SectionHeadingSkeleton width="w-40" />
         <SectionHeadingSkeleton width="w-40" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <InfoCardSkeleton itemCount={2} />
           <InfoCardSkeleton itemCount={4} />
           <InfoCardSkeleton itemCount={2} />
@@ -446,7 +446,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-32" />
         <SectionHeadingSkeleton width="w-32" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <InfoCardSkeleton itemCount={4} />
         </div>
       </div>
@@ -454,7 +454,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-36" />
         <SectionHeadingSkeleton width="w-36" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <InfoCardSkeleton itemCount={2} />
           <InfoCardSkeleton itemCount={2} />
           <InfoCardSkeleton itemCount={2} />
@@ -464,7 +464,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-40" />
         <SectionHeadingSkeleton width="w-40" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <InfoCardSkeleton itemCount={3} />
         </div>
       </div>
@@ -472,7 +472,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-44" />
         <SectionHeadingSkeleton width="w-44" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <InfoCardSkeleton itemCount={4} />
           <InfoCardSkeleton itemCount={2} />
         </div>
@@ -481,7 +481,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-52" />
         <SectionHeadingSkeleton width="w-52" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <InfoCardSkeleton itemCount={3} />
         </div>
       </div>
@@ -496,35 +496,35 @@ function AgentsTabSkeleton() {
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       {/* Matches the real "Agent Versions" heading (`h3.text-h5`). */}
       <TextSkeleton typography="text-h5" width="w-32" />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[var(--spacing-system-l)] items-stretch">
+      <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] md:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="relative flex flex-col">
-            <div className="absolute top-4 left-4 z-10">
+            <div className="absolute left-4 top-4 z-10">
               <Skeleton className="h-6 w-24 rounded-[6px]" />
             </div>
-            <div className="absolute top-4 right-4 z-10">
+            <div className="absolute right-4 top-4 z-10">
               <Skeleton className="h-4 w-4 rounded-full" />
             </div>
-            <div className="bg-ods-card border border-ods-border rounded-[6px] p-4 pt-16 flex flex-col flex-1">
+            <div className="flex flex-1 flex-col rounded-[6px] border border-ods-border bg-ods-card p-4 pt-16">
               <div className="flex flex-col gap-2">
-                <div className="flex gap-2 items-center w-full">
+                <div className="flex w-full items-center gap-2">
                   <Skeleton className="h-5 w-14 shrink-0" />
-                  <div className="flex-1 h-px bg-ods-border" />
+                  <div className="h-px flex-1 bg-ods-border" />
                   <Skeleton className="h-5 w-20 shrink-0" />
                 </div>
-                <div className="flex gap-2 items-center w-full">
+                <div className="flex w-full items-center gap-2">
                   <Skeleton className="h-5 w-20 shrink-0" />
-                  <div className="flex-1 h-px bg-ods-border" />
+                  <div className="h-px flex-1 bg-ods-border" />
                   <Skeleton className="h-5 w-32 shrink-0" />
                 </div>
-                <div className="flex gap-2 items-center w-full">
+                <div className="flex w-full items-center gap-2">
                   <Skeleton className="h-5 w-8 shrink-0" />
-                  <div className="flex-1 h-px bg-ods-border" />
+                  <div className="h-px flex-1 bg-ods-border" />
                   <Skeleton className="h-5 w-40 shrink-0" />
                 </div>
-                <div className="flex gap-2 items-center w-full">
+                <div className="flex w-full items-center gap-2">
                   <Skeleton className="h-5 w-16 shrink-0" />
-                  <div className="flex-1 h-px bg-ods-border" />
+                  <div className="h-px flex-1 bg-ods-border" />
                   <Skeleton className="h-5 w-14 shrink-0" />
                 </div>
               </div>
@@ -591,7 +591,7 @@ function OverviewTabSkeleton() {
       <DeviceInfoSectionSkeleton />
       <div className="flex flex-col gap-2">
         <Skeleton className="h-4 w-24" />
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-wrap gap-2">
           <Skeleton className="h-8 w-40 rounded-[6px]" />
           <Skeleton className="h-8 w-36 rounded-[6px]" />
           <Skeleton className="h-8 w-44 rounded-[6px]" />

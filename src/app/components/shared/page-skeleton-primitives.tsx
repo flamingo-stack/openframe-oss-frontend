@@ -81,21 +81,21 @@ export function InfoCardSkeleton({
 }: InfoCardSkeletonProps) {
   return (
     <div className={cn(INFO_CARD_CLASS, className)}>
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-[var(--spacing-system-xxs)]">
-          {titleSlot ?? <p className="text-h5 text-ods-text-secondary truncate">{title}</p>}
+          {titleSlot ?? <p className="truncate text-ods-text-secondary text-h5">{title}</p>}
         </div>
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
-          <p className={cn('text-h3 md:text-h2 text-ods-text-primary truncate', valueClassName)}>
+          <p className={cn('truncate text-ods-text-primary text-h3 md:text-h2', valueClassName)}>
             <InlineSkeleton className="h-4 w-8 md:h-6" />
           </p>
           {showSubValue && (
-            <p className="text-h6 text-ods-text-secondary">
+            <p className="text-ods-text-secondary text-h6">
               <InlineSkeleton className="h-3 w-16" />
             </p>
           )}
           {showPercentage && (
-            <p className="text-h4 text-ods-text-secondary">
+            <p className="text-ods-text-secondary text-h4">
               <InlineSkeleton className="h-3 w-14" />
             </p>
           )}
@@ -173,16 +173,16 @@ export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
 
 /**
  * Tab bar placeholder for the pages whose `TabNavigation` sits ABOVE the page
- * header (customers, monitoring, scripts-v2, notifications). Mirrors
+ * header (customers, monitoring, scripts, notifications). Mirrors
  * `TabNavigation`'s h-14 bar with icon + label cells; `widths` sets each cell's
  * width so the bar matches the real labels.
  */
 export function TabBarSkeleton({ widths, className }: { widths: readonly string[]; className?: string }) {
   return (
-    <div className={cn('relative w-full h-14 border-b border-ods-border', className)}>
-      <div className="flex gap-1 items-center h-full overflow-hidden">
+    <div className={cn('relative h-14 w-full border-b border-ods-border', className)}>
+      <div className="flex h-full items-center gap-1 overflow-hidden">
         {widths.map((width, index) => (
-          <div key={index} className={cn('flex gap-2 items-center justify-center p-4 shrink-0 h-14', width)}>
+          <div key={index} className={cn('flex h-14 shrink-0 items-center justify-center gap-2 p-4', width)}>
             <Skeleton className="h-6 w-6 shrink-0" />
             <Skeleton className="h-5 flex-1" />
           </div>
@@ -215,7 +215,7 @@ export interface ListPageSkeletonProps {
  */
 export function ListPageSkeleton({ title, actions, tabWidths, columns, rows }: ListPageSkeletonProps) {
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex w-full flex-col">
       {tabWidths && (
         <div className="px-[var(--spacing-system-l)]">
           <TabBarSkeleton widths={tabWidths} />

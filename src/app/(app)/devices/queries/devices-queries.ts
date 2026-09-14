@@ -116,8 +116,8 @@ export const GET_DEVICE_QUERY = `
         status
         metadata
         connectedAt
-        lastSyncAt
         disconnectedAt
+        vulnerabilitiesUpdatedAt
       }
       installedAgents {
         id

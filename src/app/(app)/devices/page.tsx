@@ -6,13 +6,13 @@ import {
   MonitorIcon,
   TerminalIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { DevicesPanel, EmptyState, useOnboardingGuideButton } from '@/app/components/shared';
+import { DevicesPanel, EmptyState, onboardingGuideButton } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
 import { useHasOrganizations } from './hooks/use-has-organizations';
 
 export default function Devices() {
   const { hasOrganizations, isLoading } = useHasOrganizations();
-  const guideButton = useOnboardingGuideButton('devices');
+  const guideButton = onboardingGuideButton('devices');
 
   return (
     <DevicesPanel

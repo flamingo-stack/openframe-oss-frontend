@@ -168,7 +168,7 @@ export function Policies() {
     >
       {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {isLoading ? (
           // `h-16 md:h-[104px]` is `DashboardInfoCard`'s own height — a plain h-20
           // placeholder is taller on mobile and much shorter on desktop, so the
@@ -227,7 +227,7 @@ export function Policies() {
           {/* Sticky Search Bar */}
           <div
             ref={toolbarRef}
-            className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+            className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
           >
             <Input
               placeholder="Search for Policies"

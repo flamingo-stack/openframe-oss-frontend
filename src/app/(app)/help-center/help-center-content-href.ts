@@ -29,6 +29,7 @@
  */
 
 import {
+  buildTicketOpenHref,
   type ComposeContentUrl,
   DEFAULT_CONTENT_SUFFIXES,
   DEV_SECTION_PARAM_KEYS,
@@ -78,11 +79,16 @@ function toDetailRoute(href: string): string {
 }
 
 /** In-app href for a HubSpot-ticket card → the Help Center tickets list with the
- *  ticket pre-opened. `?ticket=<external_id>` is the deep-link param `HelpCenterList`
- *  reads to auto-open that ticket's drawer (the same id the hub URL used). Shared
- *  by every `hubspot_ticket*` override. */
+ *  ticket pre-opened. Built by the lib's `buildTicketOpenHref`, the SSOT every
+ *  ticket deep link goes through: besides `?ticket=` (the param `HelpCenterList`
+ *  derives its drawer state from) it emits `&search=` and `#ticket-`, and the
+ *  search half is load-bearing — without it a ticket that sorts onto page 2+ is
+ *  not in the loaded list and the drawer silently fails to open. Only the base
+ *  differs from the hub's: OUR tickets surface is `/help-center/tickets`, not
+ *  `/tickets` (which in this app is the unrelated ticket board). Shared by every
+ *  `hubspot_ticket*` override. */
 const helpCenterTicketHref = (id: string): { href: string; targetPlatform: string | null } => ({
-  href: `${HELP_CENTER_BASE}/tickets?ticket=${encodeURIComponent(id)}`,
+  href: buildTicketOpenHref(`${HELP_CENTER_BASE}/tickets`, id),
   targetPlatform: null,
 });
 
@@ -190,8 +196,13 @@ function toHubOriginHref(href: string): string {
  */
 export const composeOpenframeInAppContentUrl: ComposeContentUrl = input => {
   const resolved = composeOpenframeContentUrl(input);
+  // Spread, never rebuild: `hostOverride` rides along on the fields we are NOT
+  // deciding here, and it is what makes a fetch-mode chat card prefer this
+  // answer over the destination the content hub minted for its own surface
+  // (`pickFetchedCardHref`). Rebuilding the object dropped it silently — the
+  // whole `overrides` map below went dead for `hubspot_ticket*` / `faq` cards.
   if (isInAppHelpCenterHref(resolved.href)) {
-    return { href: resolved.href, targetPlatform: null };
+    return { ...resolved, targetPlatform: null };
   }
-  return { href: toHubOriginHref(resolved.href), targetPlatform: null };
+  return { ...resolved, href: toHubOriginHref(resolved.href), targetPlatform: null };
 };

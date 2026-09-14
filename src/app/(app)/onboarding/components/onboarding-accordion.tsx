@@ -139,10 +139,10 @@ export function OnboardingAccordionItem({
             What marks it locked is the trailing hint and the missing chevron,
             which is exactly how the design draws it. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <p className="text-h3 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h3">
             {loading ? <InlineTextSkeleton className="h-4 w-40 md:h-5" /> : title}
           </p>
-          <p className="text-h6 text-ods-text-secondary">
+          <p className="text-ods-text-secondary text-h6">
             {loading ? <InlineTextSkeleton className="h-3 w-64 max-w-full" /> : description}
           </p>
         </div>
@@ -153,12 +153,12 @@ export function OnboardingAccordionItem({
           <Skeleton className="h-11 w-11 shrink-0 rounded-md md:h-12 md:w-12" />
         ) : isDisabled ? (
           requirementHint ? (
-            <p className="shrink-0 whitespace-nowrap text-right text-h6 text-ods-text-secondary">{requirementHint}</p>
+            <p className="shrink-0 whitespace-nowrap text-right text-ods-text-secondary text-h6">{requirementHint}</p>
           ) : null
         ) : (
           <div className="flex shrink-0 items-center gap-[var(--spacing-system-s)]">
             {isCompleted ? (
-              <span className="flex h-8 items-center justify-center rounded-md bg-ods-success-secondary px-[var(--spacing-system-xsf)] text-h5 text-ods-success">
+              <span className="flex h-8 items-center justify-center rounded-md bg-ods-success-secondary px-[var(--spacing-system-xsf)] text-ods-success text-h5">
                 Complete
               </span>
             ) : null}
@@ -218,7 +218,7 @@ export interface OnboardingAccordionGroupProps {
 export function OnboardingAccordionGroup({ label, children, className }: OnboardingAccordionGroupProps) {
   return (
     <div className={cn('flex w-full flex-col gap-[var(--spacing-system-xxs)]', className)}>
-      {label ? <p className="text-h5 text-ods-text-secondary">{label}</p> : null}
+      {label ? <p className="text-ods-text-secondary text-h5">{label}</p> : null}
       <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
         {children}
       </div>

@@ -170,7 +170,7 @@ export class MeshDesktop implements DesktopInputHandlers {
     };
     const onWheel = (e: WheelEvent) => {
       if (this.viewOnly) return;
-      const { x, y } = this.getRemoteXy(e as any as MouseEvent);
+      const { x, y } = this.getRemoteXy(e);
       const sign = e.deltaY === 0 ? 0 : e.deltaY > 0 ? 1 : -1;
       let delta = sign * 120; // standard wheel notches
       if (e.deltaMode === 0) {
@@ -459,10 +459,12 @@ export class MeshDesktop implements DesktopInputHandlers {
     if (!this.sender) return;
     try {
       this.sender(bytes);
-    } catch {}
+    } catch {
+      // Input frames are fire-and-forget: the socket can go down between a keystroke and this send, and the reconnect replays nothing. Throwing here would take down the mouse/keyboard handler that called it.
+    }
   }
 
-  private getRemoteXy(e: MouseEvent): { x: number; y: number } {
+  private getRemoteXy(e: { clientX: number; clientY: number }): { x: number; y: number } {
     if (!this.canvas || this.remoteWidth === 0 || this.remoteHeight === 0) {
       return { x: 0, y: 0 };
     }
@@ -796,8 +798,9 @@ export class MeshDesktop implements DesktopInputHandlers {
 
   private kickDecoders() {
     if (this.stopped) return;
-    while (this.activeDecodes < this.maxConcurrentDecodes && this.tileQueue.length > 0) {
-      const task = this.tileQueue.shift()!;
+    while (this.activeDecodes < this.maxConcurrentDecodes) {
+      const task = this.tileQueue.shift();
+      if (!task) break;
       this.activeDecodes++;
       this.decodeTile(task).finally(() => {
         this.activeDecodes--;
@@ -841,31 +844,42 @@ export class MeshDesktop implements DesktopInputHandlers {
     this.drawScheduled = true;
     requestAnimationFrame(() => {
       this.drawScheduled = false;
-      if (this.stopped || !this.ctx) {
+      const ctx = this.ctx;
+      if (this.stopped || !ctx) {
         for (const it of this.drawQueue) {
           if (it.url) URL.revokeObjectURL(it.url);
         }
         this.drawQueue = [];
         return;
       }
-      while (this.drawQueue.length > 0) {
-        const it = this.drawQueue.shift()!;
+      // `ctx` is read once above: the field is nullable and cleared on teardown,
+      // and re-reading it per frame is what made the assertion look necessary.
+      for (;;) {
+        const it = this.drawQueue.shift();
+        if (!it) break;
         try {
-          this.ctx!.drawImage(it.bitmap as any, it.x, it.y);
+          ctx.drawImage(it.bitmap, it.x, it.y);
           if (!this.firstFrameDrawn) {
             this.firstFrameDrawn = true;
             this.onFirstFrameCallback?.();
           }
-        } catch {}
-        if ('close' in it.bitmap && typeof (it.bitmap as any).close === 'function') {
+        } catch {
+          // A frame that fails to draw (a bitmap the GPU rejected, a canvas detached mid-teardown) is one lost frame in a video stream — the next one repaints over it.
+        }
+        // Only ImageBitmap has `close`; an HTMLImageElement is collected normally.
+        if (it.bitmap instanceof ImageBitmap) {
           try {
-            (it.bitmap as any).close();
-          } catch {}
+            it.bitmap.close();
+          } catch {
+            // Releasing a bitmap is a hint to the GC; a browser that refuses it just collects later.
+          }
         }
         if (it.url) {
           try {
             URL.revokeObjectURL(it.url);
-          } catch {}
+          } catch {
+            // Same for the object URL: failing to revoke leaks one blob until the tab closes, which is not worth interrupting the draw loop for.
+          }
         }
       }
     });

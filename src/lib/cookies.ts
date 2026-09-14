@@ -41,5 +41,7 @@ export function writeCookie(attributes: CookieAttributes): void {
 
   try {
     document.cookie = parts.join('; ');
-  } catch {}
+  } catch {
+    // Cookie writes throw when the document is sandboxed or the jar is full; callers treat a cookie as best-effort state, never as the source of truth.
+  }
 }

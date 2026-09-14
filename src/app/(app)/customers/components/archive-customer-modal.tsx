@@ -29,15 +29,15 @@ export function ArchiveCustomerModal({
   if (!canArchive) {
     return (
       <AlertDialog open={open} onOpenChange={onOpenChange}>
-        <AlertDialogContent className="bg-ods-card border border-ods-border p-10 max-w-[600px] gap-6">
+        <AlertDialogContent className="max-w-[600px] gap-6 border border-ods-border bg-ods-card p-10">
           <AlertDialogHeader className="gap-0">
-            <AlertDialogTitle className="text-h2 text-ods-text-primary">Archive Unavailable</AlertDialogTitle>
+            <AlertDialogTitle className="text-ods-text-primary text-h2">Archive Unavailable</AlertDialogTitle>
           </AlertDialogHeader>
-          <AlertDialogDescription className="text-h4 text-ods-text-primary">
+          <AlertDialogDescription className="text-ods-text-primary text-h4">
             This customer still has active devices. To archive it, you'll need to delete or archive all devices first.
           </AlertDialogDescription>
           <AlertDialogFooter className="gap-4">
-            <AlertDialogCancel className="flex-1 bg-ods-card border border-ods-border text-ods-text-primary text-h3 px-4 py-3 rounded-[6px] hover:bg-ods-bg-surface">
+            <AlertDialogCancel className="flex-1 rounded-[6px] border border-ods-border bg-ods-card px-4 py-3 text-ods-text-primary text-h3 hover:bg-ods-bg-surface">
               Close
             </AlertDialogCancel>
           </AlertDialogFooter>

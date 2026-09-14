@@ -7,7 +7,7 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 // Build target selector. `export` produces a static SPA bundle for the native
 // shells (Capacitor mobile / Tauri desktop); anything else keeps the SSR
 // `standalone` server build used by the web deployment. Gating on env lets ONE
-// codebase serve browser + desktop + mobile — see docs/static-export-migration.md.
+// codebase serve browser + desktop + mobile.
 // Build-time only (not NEXT_PUBLIC_): never shipped to the client bundle.
 const isStaticExport = process.env.OPENFRAME_BUILD_TARGET === 'export';
 
@@ -32,6 +32,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Auto-memoizes components and hooks (client bundles only). Needs
+  // `babel-plugin-react-compiler` — the compiler is still a Babel plugin; only the
+  // file filter is SWC. Defaults: `infer` mode, `panicThreshold: 'none'` (a function
+  // it cannot compile is skipped, never a build failure).
+  reactCompiler: true,
   compiler: {
     relay: {
       src: './src',
@@ -68,7 +73,7 @@ const nextConfig = {
       }),
 };
 
-export default phase => {
+const configForPhase = phase => {
   // Cap Turbopack's native memory in the dev server only ('phase-development-server' ===
   // PHASE_DEVELOPMENT_SERVER); the prod `next build` (also Turbopack) stays uncapped so
   // CI/Docker can use available RAM.
@@ -78,3 +83,5 @@ export default phase => {
       : nextConfig;
   return withBundleAnalyzer({ enabled: process.env.ANALYZE === 'true' })(config);
 };
+
+export default configForPhase;

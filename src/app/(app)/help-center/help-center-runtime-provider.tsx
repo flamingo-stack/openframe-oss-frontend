@@ -4,12 +4,11 @@
  * HelpCenterRuntimeProvider — a NESTED `ChatRuntime` override for the
  * `/help-center` subtree.
  *
- * The app-wide `OpenframeChatRuntimeProvider` runs in `navigation.mode: 'embed'`
- * and sends every content card OUT to flamingo.run, because the app hosts none
- * of that content in-app. Help Center DOES host two of those surfaces in-app
- * (onboarding-guide + product-release detail routes), so for this subtree only
- * we flip to `mode: 'host'` (in-app soft-nav via the registered Next-router
- * embed-shims) and supply a `composeContentUrl` that:
+ * The app-wide `OpenframeChatRuntimeProvider` is already `mode: 'host'`, so this
+ * override now carries only the content-href seam; the mode is restated for the
+ * subtree's own sake. Help Center hosts two content surfaces in-app
+ * (onboarding-guide + product-release detail routes), so it supplies a
+ * `composeContentUrl` that:
  *   - returns relative `/help-center/...` hrefs for the types we host, and
  *   - deep-links roadmap/delivery items into their list route (`?search=<id>`),
  *   - falls back to the flamingo content hub for everything else.
@@ -45,7 +44,11 @@ export function HelpCenterRuntimeProvider({ children }: { children: ReactNode })
   const runtime = useMemo<ChatRuntime>(
     () => ({
       ...(parent as ChatRuntime),
-      navigation: { mode: 'host' },
+      // SPREAD, not replaced: `navigation` is four optional callbacks, so a bare
+      // `{ mode: 'host' }` type-checks while silently dropping the parent's
+      // `navigate` / `decideNewTab` / `openExternal` — which is how this subtree
+      // lost the app-shell's external opener and the `targetPlatform: null` forcing.
+      navigation: { ...(parent as ChatRuntime).navigation, mode: 'host' },
       // `mode: 'host'` → relative `/help-center/...` hrefs soft-nav in-app. The
       // type→route map is shared with the app-wide chat runtime (the single
       // source of truth in `help-center-content-href.ts`) so a card lands in the

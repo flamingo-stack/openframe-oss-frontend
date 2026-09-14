@@ -3,8 +3,9 @@
 import { Button, Input, Label, ModalV2Title, Textarea } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import type { ApiKeyRecord } from '../hooks/use-api-keys';
 
 interface CreateApiKeyModalProps {
   isOpen: boolean;
@@ -14,7 +15,7 @@ interface CreateApiKeyModalProps {
     name: string;
     description?: string;
     expiresAt?: string | null;
-  }) => Promise<{ apiKey: any; fullKey: string }>;
+  }) => Promise<{ apiKey: ApiKeyRecord; fullKey: string }>;
   // Edit mode
   mode?: 'create' | 'edit';
   initial?: {
@@ -24,7 +25,10 @@ interface CreateApiKeyModalProps {
     expiresAt?: string | null;
   };
   onUpdated?: (updated: { id: string }) => Promise<void> | void;
-  update?: (id: string, data: { name: string; description?: string; expiresAt?: string | null }) => Promise<any>;
+  update?: (
+    id: string,
+    data: { name: string; description?: string; expiresAt?: string | null },
+  ) => Promise<ApiKeyRecord>;
 }
 
 export function CreateApiKeyModal({
@@ -43,7 +47,11 @@ export function CreateApiKeyModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
+  // Seeded/cleared on the open transition, during render rather than in an effect:
+  // an effect paints the previous values once before correcting them.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (!isOpen) {
       setName('');
       setDescription('');
@@ -54,7 +62,7 @@ export function CreateApiKeyModal({
       setDescription(initial.description || '');
       setExpiresAt(initial.expiresAt ? new Date(initial.expiresAt).toISOString().slice(0, 16) : '');
     }
-  }, [isOpen, initial, mode]);
+  }
 
   const canSubmit = useMemo(() => name.trim().length > 0, [name]);
 
@@ -108,7 +116,7 @@ export function CreateApiKeyModal({
       header={
         <>
           <ModalV2Title>{mode === 'edit' ? 'Edit API Key' : 'Create API Key'}</ModalV2Title>
-          <p className="text-ods-text-secondary text-h6 mt-1">
+          <p className="mt-1 text-ods-text-secondary text-h6">
             {mode === 'edit' ? 'Update API key details' : 'Create a new API key for authentication'}
           </p>
         </>

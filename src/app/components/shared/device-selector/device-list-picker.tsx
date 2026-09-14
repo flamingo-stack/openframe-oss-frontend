@@ -6,8 +6,8 @@ import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useDeviceList } from '@/app/(app)/devices/hooks/use-device-list';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
 import { DeviceSelector } from './device-selector';
-import type { DeviceSelectorProps } from './device-selector.types';
 import { DeviceSelectorSkeleton } from './device-selector-skeleton';
+import type { DeviceSelectorProps } from './device-selector.types';
 
 export type DeviceListPickerProps = Omit<
   DeviceSelectorProps,

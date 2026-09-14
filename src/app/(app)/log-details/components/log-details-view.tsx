@@ -74,13 +74,13 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
   // Error state
   if (error || !logDetails) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] flex-col items-center justify-center">
         <div className="text-center">
-          <h2 className="text-h2 text-ods-text-primary mb-2">Log Not Found</h2>
-          <p className="text-ods-text-secondary mb-4">{error || `Could not find log with ID: ${logId}`}</p>
+          <h2 className="mb-2 text-ods-text-primary text-h2">Log Not Found</h2>
+          <p className="mb-4 text-ods-text-secondary">{error || `Could not find log with ID: ${logId}`}</p>
           <Button
             onClick={handleBackToLogs}
-            className="bg-ods-card border border-ods-border hover:bg-ods-bg-hover text-ods-text-primary px-4 py-3 rounded-[6px] text-h6 font-bold"
+            className="rounded-[6px] border border-ods-border bg-ods-card px-4 py-3 font-bold text-ods-text-primary text-h6 hover:bg-ods-bg-hover"
             leftIcon={<ChevronLeft className="h-4 w-4" />}
           >
             Back
@@ -102,26 +102,26 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
           label: 'Copy Log Details',
           onClick: handleCopyLogDetails,
           variant: 'outline' as const,
-          icon: copied ? <CheckIcon className="w-6 h-6 text-ods-success" /> : <Copy02Icon className="w-6 h-6" />,
+          icon: copied ? <CheckIcon className="h-6 w-6 text-ods-success" /> : <Copy02Icon className="h-6 w-6" />,
         },
       ]}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <div className="flex flex-col gap-6 w-full">
+      <div className="flex w-full flex-col gap-6">
         {/* Status and Timestamp */}
-        <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-start md:items-center">
+        <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:gap-4">
           <Tag label={logDetails.severity} variant={getSeverityVariant(logDetails.severity)} />
-          <span className="text-h4 text-ods-text-primary">{formatDateTime(logDetails.timestamp)}</span>
+          <span className="text-ods-text-primary text-h4">{formatDateTime(logDetails.timestamp)}</span>
         </div>
 
         {/* Log Summary Card */}
-        <div className="bg-ods-card border border-ods-border rounded-[8px] w-full">
-          <div className="flex flex-col gap-4 items-start p-4 md:p-6">
-            <div className="flex flex-col gap-2 w-full">
-              <div className="text-h4 text-ods-text-primary break-words">
+        <div className="w-full rounded-[8px] border border-ods-border bg-ods-card">
+          <div className="flex flex-col items-start gap-4 p-4 md:p-6">
+            <div className="flex w-full flex-col gap-2">
+              <div className="break-words text-ods-text-primary text-h4">
                 {logDetails.message || 'No message available'}
               </div>
-              <div className="flex items-center gap-2 text-h6 text-ods-text-secondary">
+              <div className="flex items-center gap-2 text-ods-text-secondary text-h6">
                 <ToolBadge toolType={normalizeToolTypeWithFallback(logDetails.toolType)} />
                 <span>•</span>
                 <span>{logDetails.eventType}</span>
@@ -131,9 +131,7 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
         </div>
 
         {/* Device Info Section */}
-        {logDetails.deviceId && (
-          <DeviceInfoSection deviceId={logDetails.deviceId} userId={logDetails.userId} device={logDetails.device} />
-        )}
+        {logDetails.deviceId && <DeviceInfoSection deviceId={logDetails.deviceId} device={logDetails.device} />}
 
         {/* Full Information Section */}
         <FullInformationSection logDetails={logDetails} />

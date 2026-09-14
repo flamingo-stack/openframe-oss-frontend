@@ -5,14 +5,20 @@ import { graphql } from 'react-relay';
  * (unread only) and the full `/notifications` section.
  *
  * The two documents differ only in their arguments; the node selection is the
- * same, and it was written out twice before, which meant a new context type had
- * to be added in both places or the drawer would silently render a row the
- * section could navigate from. Spreading one fragment makes that structural, and
+ * same, and it was written out twice before, which meant a new field had to be
+ * added in both places or the drawer would silently render a row the section
+ * could navigate from. Spreading one fragment makes that structural, and
  * `mapNotificationNode` reads a generated type instead of a hand-written mirror
  * of what the two documents happened to select.
  *
- * `context` is a union: Relay flattens the inline fragments into one object
- * keyed by `__typename`, which is exactly what the mapper switches on.
+ * The notification's facts arrive as `type` + `attributes` — the spec-catalog
+ * contract, a flat `string -> string` map. Entity ids live under fixed keys
+ * regardless of the type, so a type this release has never heard of still
+ * navigates and auto-reads. The typed `context` union the backend used to write
+ * is deliberately NOT selected: it is retired, and a live push that omitted it
+ * had to be written into the store as an explicit `null` link, which Relay
+ * rejects — one failed updater then poisoned every later store commit until a
+ * reload.
  *
  * `@inline` because the consumer is `mapNotificationNode`, a plain function
  * feeding the core lib's notification components — not a component of its own.
@@ -26,53 +32,7 @@ export const notificationFieldsFragment = graphql`
     createdAt
     read
     category
-    context {
-      __typename
-      type
-      ... on AdminAiMessageContext {
-        dialogId
-      }
-      ... on AdminAiTicketMessageContext {
-        ticketId
-        dialogId
-      }
-      ... on TicketStatusChangedContext {
-        ticketId
-      }
-      # dialogId is deliberately NOT selected: the wire declares it nullable while
-      # the message contexts declare dialogId: ID!, and same-named fields of
-      # different nullability cannot merge into one selection set. Navigation
-      # needs only ticketId.
-      ... on TicketReopenedContext {
-        ticketId
-      }
-      ... on TicketAssignedContext {
-        ticketId
-      }
-      ... on CustomerMessagePublishedContext {
-        ticketId
-      }
-      ... on AdminMessagePublishedContext {
-        ticketId
-      }
-      ... on AdminApprovalRequestContext {
-        approvalRequestId
-        dialogId
-        approvalTicketId: ticketId
-        approvalType
-        resolution
-        resolvedByName
-        toolCalls {
-          toolExecutionRequestId
-          toolName
-          toolTitle
-          toolExplanation
-          toolType
-          requiresApproval
-          approvalType
-          toolCallArguments
-        }
-      }
-    }
+    type
+    attributes
   }
 `;
