@@ -24,6 +24,11 @@ export function OverviewTab({ device }: OverviewTabProps) {
   // Use machineId as the primary device identifier for filtering logs.
   const deviceId = device?.machineId || device?.id;
 
+  // Track the raw search-params string (not just the `refresh` value) so that
+  // re-running the same action twice — which can produce an identical
+  // `refresh` value — still re-triggers this effect and refreshes the logs.
+  const searchParamsString = searchParams?.toString();
+
   // Trigger a logs refresh when the `refresh` param changes (e.g. after running a script).
   useEffect(() => {
     if (refreshParam && logsTableRef.current) {
@@ -33,7 +38,7 @@ export function OverviewTab({ device }: OverviewTabProps) {
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [refreshParam]);
+  }, [refreshParam, searchParamsString]);
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">

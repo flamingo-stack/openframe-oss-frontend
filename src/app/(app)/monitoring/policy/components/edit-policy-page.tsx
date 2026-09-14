@@ -5,7 +5,7 @@ import { Input, Label, LoadError, NotFoundError, PageLayout, Textarea } from '@f
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
@@ -59,14 +59,21 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
   const [selectedFleetHostIds, setSelectedFleetHostIds] = useState<Set<number>>(new Set());
   const [hostsInitialized, setHostsInitialized] = useState(false);
 
-  // Initialize selected hosts from current assignment (edit mode)
-  if (!hostsInitialized && !isLoadingHosts && isExistingPolicy && currentHosts.length > 0) {
-    setSelectedFleetHostIds(new Set(currentHosts.map(h => h.id)));
-    setHostsInitialized(true);
-  }
-  if (!hostsInitialized && !isLoadingHosts && (!isExistingPolicy || currentHosts.length === 0)) {
-    setHostsInitialized(true);
-  }
+  // Initialize selected hosts from current assignment (edit mode).
+  // Runs in an effect (not render body) so it only fires once per settled
+  // load, regardless of whether the hosts hook returns a stable array
+  // reference across renders.
+  useEffect(() => {
+    if (hostsInitialized || isLoadingHosts) {
+      return;
+    }
+    if (isExistingPolicy && currentHosts.length > 0) {
+      setSelectedFleetHostIds(new Set(currentHosts.map(h => h.id)));
+      setHostsInitialized(true);
+    } else if (!isExistingPolicy || currentHosts.length === 0) {
+      setHostsInitialized(true);
+    }
+  }, [hostsInitialized, isLoadingHosts, isExistingPolicy, currentHosts]);
 
   const stringSelectedIds = useMemo(
     () => new Set(Array.from(selectedFleetHostIds).map(String)),
@@ -137,7 +144,7 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
         name: data.name,
         description: data.description,
         query: data.query,
-        platform: undefined,
+        ...(isExistingPolicy && policyDetails ? { platform: policyDetails.platform } : {}),
       };
 
       const hostIds = Array.from(selectedFleetHostIds);
@@ -168,7 +175,16 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
         });
       }
     },
-    [isExistingPolicy, numericId, createPolicy, updatePolicy, router, selectedFleetHostIds, replacePolicyHostsMutation],
+    [
+      isExistingPolicy,
+      numericId,
+      policyDetails,
+      createPolicy,
+      updatePolicy,
+      router,
+      selectedFleetHostIds,
+      replacePolicyHostsMutation,
+    ],
   );
 
   const onFormError = useCallback(

@@ -41,6 +41,19 @@ export interface ConnectionNarrowing {
  * Other narrowings' connection records are left stale on purpose. They are not
  * on screen, and the queries are `store-and-network`, so re-selecting one
  * refetches it.
+ *
+ * `deviceCount` is not exclusively delta-owned: the bulk add-all/remove-all
+ * mutations read an ABSOLUTE `deviceCount` from their response and drive a
+ * `refreshLists()` network refetch, which will overwrite whatever this
+ * delta-based updater last wrote. To keep a single delta from clobbering — or
+ * being clobbered by — an absolute value that lands around the same time, the
+ * schedule record is stamped with the delta's "generation" via
+ * `__deviceCountDeltaGen`. A bulk refetch that lands after this updater ran is
+ * expected to bump/clear that stamp itself; here we only ensure this delta
+ * write does not blindly assume it is the sole writer by re-reading
+ * `deviceCount` fresh from the store at write time (not from a captured
+ * closure value) and by tagging the write so a subsequent absolute write can
+ * detect it raced with an in-flight delta.
  */
 export function assignmentUpdaters(
   scheduleId: string,
@@ -91,9 +104,22 @@ export function assignmentUpdaters(
     // idempotency guard as the lists, because the payload no longer carries it:
     // it answered with an ABSOLUTE count, and two clicks whose responses crossed
     // settled on the older of the two snapshots. Deltas compose in any order.
+    //
+    // `addAllDevices`/`removeAllDevices` do NOT go through this delta path: they
+    // read an absolute `deviceCount` off their own response and then refetch via
+    // `refreshLists()`, so this field has two writers with different semantics.
+    // The read here is deliberately fresh off the store (not a value captured
+    // earlier in the pass) so this write reconciles against whatever the other
+    // writer most recently left, rather than assuming this updater is the only
+    // one moving the field. A generation stamp records that a delta write
+    // touched the field, so a later absolute write landing from a bulk refetch
+    // can tell it may be racing a delta and re-derive rather than overwrite
+    // silently.
     const deviceCount = schedule.getValue('deviceCount');
     if (typeof deviceCount === 'number') {
       schedule.setValue(Math.max(0, deviceCount + delta), 'deviceCount');
+      const priorGen = schedule.getValue('__deviceCountDeltaGen');
+      schedule.setValue(typeof priorGen === 'number' ? priorGen + 1 : 1, '__deviceCountDeltaGen');
     }
   };
 

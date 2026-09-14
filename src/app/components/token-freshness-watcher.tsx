@@ -31,6 +31,16 @@ export function TokenFreshnessWatcher() {
     const app = appPlugin();
     let removeAppListener: (() => void) | undefined;
     if (app) {
+      const reportRegistrationFailure = (error: unknown) => {
+        // This is the only mechanism relied on for background-token-refresh on
+        // the mobile shell (visibilitychange is unreliable there), so a silent
+        // failure here means stale tokens never refresh on resume. Surface it
+        // as a distinguishable, monitored error rather than a routine log line.
+        console.error(
+          '[Token Freshness] CRITICAL: appStateChange registration failed — native resume-based token refresh is disabled for this session:',
+          error,
+        );
+      };
       try {
         // The injected plugin proxy returns a bare handle, not the Promise its
         // type suggests (see native-back.ts) — absorb both shapes.
@@ -41,9 +51,9 @@ export function TokenFreshnessWatcher() {
           .then(handle => {
             removeAppListener = () => handle.remove();
           })
-          .catch(error => console.error('[Token Freshness] appStateChange registration failed:', error));
+          .catch(reportRegistrationFailure);
       } catch (error) {
-        console.error('[Token Freshness] appStateChange registration threw:', error);
+        reportRegistrationFailure(error);
       }
     }
 

@@ -246,10 +246,6 @@ export class FileDownloader {
 
     try {
       const blob = new Blob(task.chunks as BlobPart[]);
-
-      const reader = new FileReader();
-      reader.readAsArrayBuffer(blob.slice(0, 10));
-
       return blob;
     } catch (_error) {
       return null;

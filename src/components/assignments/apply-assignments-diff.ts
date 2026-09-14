@@ -32,7 +32,7 @@ interface ApplyAssignmentsDiffInput {
 
 async function applyAssignmentsDiff({ itemId, itemType, prev, next }: ApplyAssignmentsDiffInput): Promise<void> {
   const normalizedItemId = ensureGlobalId(itemType, itemId);
-  const tasks: Promise<unknown>[] = [];
+  const tasks: { targetType: (typeof ASSIGNMENT_TARGET_TYPES)[number]; action: 'assign' | 'unassign'; promise: Promise<unknown> }[] = [];
 
   for (const targetType of ASSIGNMENT_TARGET_TYPES) {
     const prevIds = new Set((prev[targetType] ?? []).map(ref => ref.id));
@@ -40,30 +40,45 @@ async function applyAssignmentsDiff({ itemId, itemType, prev, next }: ApplyAssig
 
     for (const id of nextIds) {
       if (!prevIds.has(id)) {
-        tasks.push(
-          postGraphQl(ASSIGN_ITEM_MUTATION, {
+        tasks.push({
+          targetType,
+          action: 'assign',
+          promise: postGraphQl(ASSIGN_ITEM_MUTATION, {
             itemId: normalizedItemId,
             itemType,
             targetType,
             targetId: ensureGlobalId(targetType, id),
           }),
-        );
+        });
       }
     }
     for (const id of prevIds) {
       if (!nextIds.has(id)) {
-        tasks.push(
-          postGraphQl(UNASSIGN_ITEM_MUTATION, {
+        tasks.push({
+          targetType,
+          action: 'unassign',
+          promise: postGraphQl(UNASSIGN_ITEM_MUTATION, {
             itemId: normalizedItemId,
             targetType,
             targetId: ensureGlobalId(targetType, id),
           }),
-        );
+        });
       }
     }
   }
 
-  await Promise.all(tasks);
+  const results = await Promise.allSettled(tasks.map(task => task.promise));
+  const failures = results
+    .map((result, index) => ({ result, task: tasks[index] }))
+    .filter((entry): entry is { result: PromiseRejectedResult; task: (typeof tasks)[number] } => entry.result.status === 'rejected');
+
+  if (failures.length > 0) {
+    const failedTargetTypes = Array.from(new Set(failures.map(failure => failure.task.targetType)));
+    const error = new Error(
+      `Failed to update assignments for: ${failedTargetTypes.join(', ')} (${failures.length} of ${tasks.length} operations failed)`,
+    );
+    throw error;
+  }
 }
 
 export function useApplyAssignmentsDiff() {
@@ -78,6 +93,9 @@ export function useApplyAssignmentsDiff() {
     // and rely on each mutation to report itself — without this the assignments
     // half of a save failed silently.
     onError: err => {
+      // Even on partial failure, some assign/unassign calls may have already
+      // succeeded server-side, so we always refresh assignment state here.
+      queryClient.invalidateQueries({ queryKey: ['assignments', 'assigned-items'] });
       toast({
         title: 'Error',
         description: err instanceof Error ? err.message : 'Failed to update assignments',

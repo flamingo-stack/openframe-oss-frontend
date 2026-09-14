@@ -125,8 +125,11 @@ export function LogDrawer({
             {/* Info Card — vertical fields: Value on top, Label below */}
             {infoFields && infoFields.length > 0 && (
               <div className="flex flex-col gap-3 rounded-[6px] border border-ods-border bg-ods-card p-4">
-                {infoFields.map(field => (
-                  <div key={typeof field.label === 'string' ? field.label : ''} className="flex flex-col gap-0.5">
+                {infoFields.map((field, index) => (
+                  <div
+                    key={`${index}-${typeof field.label === 'string' ? field.label : ''}`}
+                    className="flex flex-col gap-0.5"
+                  >
                     {typeof field.value === 'string' ? (
                       <TruncateText>{field.value || '—'}</TruncateText>
                     ) : (

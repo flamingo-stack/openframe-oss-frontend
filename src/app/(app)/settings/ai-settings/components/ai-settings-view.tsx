@@ -145,10 +145,14 @@ export function AiSettings() {
             updateClientAiConfig(payload.ai),
             updateClientView(payload.view),
           ]);
-          const failure = [aiResult, viewResult].find(result => result.status === 'rejected');
-          if (failure) {
-            const reason = (failure as PromiseRejectedResult).reason;
-            throw reason instanceof Error ? reason : new Error(String(reason));
+          const failures = [aiResult, viewResult].filter(
+            (result): result is PromiseRejectedResult => result.status === 'rejected',
+          );
+          if (failures.length > 0) {
+            const message = failures
+              .map(failure => (failure.reason instanceof Error ? failure.reason.message : String(failure.reason)))
+              .join('; ');
+            throw new Error(message);
           }
           const savedView = viewResult.status === 'fulfilled' ? viewResult.value : null;
           syncAiConfiguration(payload.ai, clientAiConfig);
@@ -272,3 +276,4 @@ export function AiSettings() {
     </AiSettingsLayout>
   );
 }
+

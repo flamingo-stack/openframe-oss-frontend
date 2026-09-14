@@ -157,16 +157,25 @@ export const useAuthStore = create<AuthState>()(
           const { user, isLoadingProfile } = get();
           if (!user?.id || isLoadingProfile) return null;
 
+          const requestedUserId = user.id;
+
           set(state => {
             state.isLoadingProfile = true;
           });
 
           try {
-            const fullProfile = await fetchUserProfile(user.id);
+            const fullProfile = await fetchUserProfile(requestedUserId);
+
+            // Guard against a stale write: if a different user has logged in
+            // (or the user was cleared) while this fetch was in flight, this
+            // response no longer applies to the current session.
+            if (get().user?.id !== requestedUserId) {
+              return null;
+            }
 
             if (fullProfile) {
               set(state => {
-                if (state.user) {
+                if (state.user && state.user.id === requestedUserId) {
                   const { image, ...rest } = fullProfile;
                   Object.assign(state.user, rest);
                   if (
@@ -187,9 +196,11 @@ export const useAuthStore = create<AuthState>()(
             return fullProfile;
           } catch (error) {
             console.error('[AuthStore] Failed to fetch user profile:', error);
-            set(state => {
-              state.isLoadingProfile = false;
-            });
+            if (get().user?.id === requestedUserId) {
+              set(state => {
+                state.isLoadingProfile = false;
+              });
+            }
             return null;
           }
         },

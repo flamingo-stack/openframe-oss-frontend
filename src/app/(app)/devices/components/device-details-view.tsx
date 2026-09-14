@@ -80,15 +80,17 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   }, []);
 
   // Handle action params from URL (e.g., from table dropdown navigation). Opening
-  // the modal is derived state and happens during render — an effect draws the
-  // page once without it, so arriving from the table shows a flash of the plain
-  // detail view. Clearing the param stays in the effect: it is a navigation.
+  // the modal is driven from an effect (rather than during render) so the two
+  // setState calls only ever run once per request, are safe under Strict Mode's
+  // double-invocation, and never fire after the component has started unmounting.
   const runScriptRequested = searchParams.get('action') === 'runScript' && !isLoading;
   const [handledRunScript, setHandledRunScript] = useState(false);
-  if (runScriptRequested && !handledRunScript) {
-    setHandledRunScript(true);
-    setIsScriptsModalOpen(true);
-  }
+  useEffect(() => {
+    if (runScriptRequested && !handledRunScript) {
+      setHandledRunScript(true);
+      setIsScriptsModalOpen(true);
+    }
+  }, [runScriptRequested, handledRunScript]);
 
   useEffect(() => {
     if (!runScriptRequested) return;

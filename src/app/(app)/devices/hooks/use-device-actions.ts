@@ -38,7 +38,12 @@ export function useDeviceActions(options?: UseDeviceActionsOptions) {
         });
 
         if (!response.ok) {
-          throw new Error(response.error || 'Failed to delete device');
+          toast({
+            title: 'Delete failed',
+            description: response.error || 'Failed to delete device',
+            variant: 'destructive',
+          });
+          return false;
         }
 
         toast({

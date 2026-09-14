@@ -143,7 +143,12 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         });
         return;
       }
-      const url = `${origin}${mingoDialogLink(dialog.id)}`;
+      // Guard against a double (or missing) slash at the join regardless of whether
+      // `mingoDialogLink` returns a path with a leading slash — the two are not
+      // guaranteed to agree, and a malformed URL here would silently break the
+      // shareable link.
+      const path = mingoDialogLink(dialog.id);
+      const url = `${origin}/${path.replace(/^\/+/, '')}`;
       try {
         await navigator.clipboard.writeText(url);
         toast({ title: 'Link copied', description: 'Anyone with access to this workspace can open it.' });

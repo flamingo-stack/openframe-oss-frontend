@@ -57,7 +57,10 @@ export function buildInstallCommand(options: InstallCommandOptions): string {
     return `Set-Location ~; Remove-Item -Path 'openframe-client.zip','openframe-client.exe' -Force -ErrorAction SilentlyContinue; Invoke-WebRequest -Uri '${windowsBinaryUrl}' -OutFile 'openframe-client.zip'; Expand-Archive -Path 'openframe-client.zip' -DestinationPath '.' -Force; & '.\\openframe-client.exe' ${argString}`;
   }
 
-  // macOS / darwin
+  // platform !== 'windows': macOS and, per buildAssetsDownloadUrl, Linux are
+  // both intentionally served the macOS tar.gz bundle since only two asset
+  // bundles are published. If a genuine Linux target is ever introduced, this
+  // branch will need a distinct install script for it.
   const macBinaryUrl = buildAssetsDownloadUrl(downloadBaseUrl, platform);
   return `cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -fL -o openframe-client_macos.tar.gz '${macBinaryUrl}' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client ${baseArgs}${extras}`;
 }
@@ -146,7 +149,8 @@ export function buildUninstallCommand(options: UninstallCommandOptions): string 
     return `Set-Location ~; Remove-Item -Path 'openframe-client.zip','openframe-client.exe' -Force -ErrorAction SilentlyContinue; Invoke-WebRequest -Uri '${windowsBinaryUrl}' -OutFile 'openframe-client.zip'; Expand-Archive -Path 'openframe-client.zip' -DestinationPath '.' -Force; Start-Process -FilePath '.\\openframe-client.exe' -ArgumentList 'uninstall' -Verb RunAs -Wait`;
   }
 
-  // macOS / darwin
+  // platform !== 'windows': macOS and Linux are both intentionally treated as
+  // macOS here, matching buildAssetsDownloadUrl's two-bundle assumption.
   const macBinaryUrl = buildAssetsDownloadUrl(downloadBaseUrl, platform);
   return `cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -fL -o openframe-client_macos.tar.gz '${macBinaryUrl}' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client uninstall`;
 }

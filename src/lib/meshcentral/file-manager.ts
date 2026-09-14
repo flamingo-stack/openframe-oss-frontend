@@ -43,6 +43,7 @@ export class MeshCentralFileManager {
       resolve: (value: unknown) => void;
       reject: (reason: Error) => void;
       timeout: ReturnType<typeof setTimeout> | null;
+      type?: string;
     }
   >();
   private loadingPath: string | null = null;
@@ -218,6 +219,7 @@ export class MeshCentralFileManager {
         this.optionsSent = false;
         this.initialDirectoryRequested = false;
         this.loadingPath = null;
+        this.rejectAllPendingRequests(new Error('Tunnel disconnected'));
         this.setState('disconnected');
         break;
       case 1:
@@ -242,6 +244,14 @@ export class MeshCentralFileManager {
       default:
         break;
     }
+  }
+
+  private rejectAllPendingRequests(error: Error): void {
+    for (const [, request] of this.pendingRequests) {
+      if (request.timeout) clearTimeout(request.timeout);
+      request.reject(error);
+    }
+    this.pendingRequests.clear();
   }
 
   private setState(newState: FileConnectionState): void {
@@ -326,6 +336,12 @@ export class MeshCentralFileManager {
       }
 
       if (data.startsWith('{') && !data.endsWith('}')) {
+        console.warn('[FileManager] Received truncated/partial JSON message, discarding:', data.slice(0, 100));
+        this.errorHandler.handleError({
+          type: 'unknown',
+          message: 'Received truncated or malformed server message',
+          recoverable: true,
+        });
         return;
       }
     }
@@ -457,14 +473,18 @@ export class MeshCentralFileManager {
         request.resolve(this.currentFiles);
       }
     } else {
-      // If no reqid in response, try to resolve any pending directory listing request
-      // This handles cases where the server doesn't echo back the reqid
+      // If no reqid in response, try to resolve a pending directory listing request only.
+      // Other pending operation types (uploads, searches, etc.) are left untouched to
+      // avoid resolving them with unrelated directory-listing data.
+      console.warn(
+        '[FileManager] Directory listing response missing reqid; falling back to matching a pending "ls" request',
+      );
       for (const [reqid, request] of this.pendingRequests.entries()) {
-        // Assuming we only have one pending directory listing at a time
+        if (request.type !== 'ls') continue;
         if (request.timeout) clearTimeout(request.timeout);
         this.pendingRequests.delete(reqid);
         request.resolve(this.currentFiles);
-        break; // Only resolve the first one
+        break; // Only resolve the first matching one
       }
     }
   }
@@ -513,7 +533,12 @@ export class MeshCentralFileManager {
         }, timeoutMs);
       }
 
-      this.pendingRequests.set(request.reqid, { resolve: value => resolve(value as T), reject, timeout });
+      this.pendingRequests.set(request.reqid, {
+        resolve: value => resolve(value as T),
+        reject,
+        timeout,
+        type: (request as { action?: string }).action,
+      });
 
       const sent = this.sendJsonMessage(request);
       if (!sent) {

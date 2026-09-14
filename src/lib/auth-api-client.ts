@@ -18,16 +18,19 @@ import { runtimeEnv } from './runtime-config';
 import { refreshTokens } from './token-refresh-manager';
 import { getAccessTokenSync, getRefreshToken, getTokenEpoch, isBearerAuthMode } from './token-store';
 
+function suffixFromHostname(hostname: string): string {
+  const parts = hostname.split('.');
+  if (parts.length >= 2) {
+    return parts.slice(-2).join('.');
+  }
+  return hostname;
+}
+
 function getDomainSuffix(): string {
   const sharedUrl = runtimeEnv.sharedHostUrl();
   if (!sharedUrl) {
     if (typeof window !== 'undefined' && window.location?.hostname) {
-      const hostname = window.location.hostname;
-      const parts = hostname.split('.');
-      if (parts.length >= 2) {
-        return parts.slice(-2).join('.');
-      }
-      return hostname;
+      return suffixFromHostname(window.location.hostname);
     }
     return 'localhost';
   }
@@ -35,7 +38,7 @@ function getDomainSuffix(): string {
   const withoutProtocol = sharedUrl.replace(/^https?:\/\//, '');
   const domain = withoutProtocol.split('/')[0].split(':')[0];
 
-  return domain || 'localhost';
+  return domain ? suffixFromHostname(domain) : 'localhost';
 }
 
 export const SAAS_DOMAIN_SUFFIX = getDomainSuffix();

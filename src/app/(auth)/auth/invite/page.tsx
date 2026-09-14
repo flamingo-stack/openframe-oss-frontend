@@ -99,13 +99,13 @@ export default function InvitePage() {
     }
   };
 
-  const handleSso = (provider: AuthSsoProvider) => {
+  const handleSso = async (provider: AuthSsoProvider) => {
     if (!invitationId || provider === 'openframe') return;
 
     setIsSubmitting(true);
     try {
       // Redirects the browser; acceptInvitationSso passes the provider through in the URL.
-      void authApiClient.acceptInvitationSso({
+      await authApiClient.acceptInvitationSso({
         invitationId,
         provider,
         switchTenant: true,
