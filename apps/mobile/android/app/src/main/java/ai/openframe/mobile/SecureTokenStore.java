@@ -15,6 +15,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.MGF1ParameterSpec;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -28,11 +29,11 @@ import javax.crypto.spec.SecretKeySpec;
  * counterpart to the iOS Keychain block in NativeAuthPlugin.swift.
  *
  * Both the access token and the refresh token are stored as ONE combined item
- * (a small JSON object {"accessToken":..,"refreshToken":..}, absent fields
- * omitted). A single ciphertext + single wrapped content key means a gated read
- * performs exactly ONE BiometricPrompt / CryptoObject unwrap for the whole pair
- * — the frontend always writes the full current pair, so there is no need to
- * merge with existing stored values (which would require a gated read on write).
+ * (the JSON blob {@link TokenPair#encode} spells). A single ciphertext + single
+ * wrapped content key means a gated read performs exactly ONE BiometricPrompt /
+ * CryptoObject unwrap for the whole pair — the frontend always writes the full
+ * current pair, so there is no need to merge with existing stored values (which
+ * would require a gated read on write).
  *
  * Two storage modes share one on-disk SharedPreferences file (only one is
  * populated at a time):
@@ -85,9 +86,12 @@ final class SecureTokenStore {
     // isBiometricLoginEnabled() and getTokens() (both MUST NOT prompt).
     private static final String BIO_ENABLED_MARKER = "biometricLoginEnabled";
 
-    // JSON field names inside the combined plaintext blob.
-    private static final String JSON_ACCESS = "accessToken";
-    private static final String JSON_REFRESH = "refreshToken";
+    // The login-learned tenant origin and the shared auth host the web view
+    // pushes (TokenLifecycle). Plain strings in this same prefs file, which
+    // data_extraction_rules.xml already keeps out of backup and device
+    // transfer — a second file would have to be added to both lists.
+    static final String TENANT_HOST = "tenantHost";
+    static final String SHARED_HOST = "sharedHost";
 
     private static final String AES_TRANSFORMATION =
         KeyProperties.KEY_ALGORITHM_AES + "/" + KeyProperties.BLOCK_MODE_GCM + "/" + KeyProperties.ENCRYPTION_PADDING_NONE;
@@ -119,38 +123,6 @@ final class SecureTokenStore {
         this.prefs = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
-    // ─── Combined-blob JSON codec ─────────────────────────────────────────────
-
-    /** Encodes the pair into the combined JSON plaintext, omitting absent fields. */
-    static String encodePair(String accessToken, String refreshToken) {
-        org.json.JSONObject json = new org.json.JSONObject();
-        try {
-            if (accessToken != null) {
-                json.put(JSON_ACCESS, accessToken);
-            }
-            if (refreshToken != null) {
-                json.put(JSON_REFRESH, refreshToken);
-            }
-        } catch (org.json.JSONException e) {
-            throw new RuntimeException("Token blob encode failed", e);
-        }
-        return json.toString();
-    }
-
-    /** Reads a field out of a combined JSON plaintext; null if absent/blank. */
-    static String pairField(String json, String field) {
-        if (json == null) {
-            return null;
-        }
-        try {
-            org.json.JSONObject obj = new org.json.JSONObject(json);
-            String v = obj.optString(field, null);
-            return (v == null || v.isEmpty()) ? null : v;
-        } catch (org.json.JSONException e) {
-            return null;
-        }
-    }
-
     // ─── Ungated (biometric off) — silent read/write ─────────────────────────
 
     /** @param value null clears the entry (mirrors iOS skipping an absent key). */
@@ -173,6 +145,14 @@ final class SecureTokenStore {
         }
     }
 
+    /**
+     * The stored value, or null when there is none. A blob that can never be
+     * read again — corrupt, or under a key that was invalidated — is dropped so
+     * it reads as absent from then on. Anything else the Keystore throws (a
+     * daemon that is briefly unreachable, a busy KeyMint) is NOT absence: the
+     * caller gets {@link Unavailable} and the item stays, because "absent" is
+     * what ends a session, and a session must never end on a transient error.
+     */
     synchronized String read(String account) {
         String encoded = prefs.getString(account, null);
         String encodedIv = prefs.getString(account + IV_SUFFIX, null);
@@ -185,10 +165,18 @@ final class SecureTokenStore {
             Cipher cipher = Cipher.getInstance(AES_TRANSFORMATION);
             cipher.init(Cipher.DECRYPT_MODE, masterKey(), new GCMParameterSpec(GCM_TAG_BITS, iv));
             return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            // Key rotated/invalidated or corrupt entry — treat as no token, drop the stale blob.
+        } catch (AEADBadTagException | IllegalArgumentException | KeyPermanentlyInvalidatedException e) {
             delete(account);
             return null;
+        } catch (Exception e) {
+            throw new Unavailable(account, e);
+        }
+    }
+
+    /** The store could not be read right now; the item is untouched and a later read may succeed. */
+    static final class Unavailable extends RuntimeException {
+        Unavailable(String account, Throwable cause) {
+            super("the stored item " + account + " cannot be read right now", cause);
         }
     }
 
@@ -243,9 +231,14 @@ final class SecureTokenStore {
             .apply();
     }
 
-    boolean hasGated(String account) {
-        return prefs.getString(account + GATED_CT_SUFFIX, null) != null
-            && prefs.getString(account + GATED_KEY_SUFFIX, null) != null;
+    // ─── Hosts (plain, not secret) ───────────────────────────────────────────
+
+    String getPlain(String key) {
+        return prefs.getString(key, null);
+    }
+
+    void putPlain(String key, String value) {
+        prefs.edit().putString(key, value).apply();
     }
 
     // ─── Biometric-enabled marker (never prompts) ────────────────────────────

@@ -30,6 +30,7 @@ Strategy: `~/flamingo/openframe-desktop/docs/mobile-app-plan.md` + `native-apps-
 | `NEXT_PUBLIC_TENANT_HOST_URL` | optional single-tenant pin; without it the shell learns the tenant host at login (discovery `domain` + callback origin) |
 | `NEXT_PUBLIC_MOBILE_APP_SCHEME` | OAuth callback scheme baked into the bundle |
 | `NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER` | dev-ticket observer toggle |
+| `NEXT_PUBLIC_MOBILE_AUTH_UI` | `login-only` (default: no Sign Up tab, no in-app org setup, no-account notice — App Review 3.1.1/3.1.3) or `legacy` (the tabbed sign-up flow) |
 | `FRONTEND_DIR` | frontend checkout override (default `~/flamingo/openframe-frontend`) |
 
 `www/` and `ios/App/App/public/` are git-ignored artifacts — a fresh clone must stage a
@@ -49,16 +50,18 @@ exists.**
   web view — see the fullscreen gotcha below; `env()` insets read 0 only for the first
   ~100ms after load, measured on iOS 26.5 — not permanently), and
   `isBiometricAvailable` / `isBiometricLoginEnabled` /
-  `enableBiometricLogin` / `disableBiometricLogin`, and — **iOS only so far** —
-  `refreshTokens` (shell-owned refresh, see below) + `setTenantHost` (the login-learned
-  origin, https only). The Android plugin lacks those two, so the frontend's
-  presence-check keeps the WebView as Android's refresher. The callback scheme is
-  registered in **Info.plist `CFBundleURLTypes`** (iOS) and **`strings.xml` + the manifest
-  intent-filter** (Android).
-- **`TokenLifecycle.swift`** (iOS) — the in-memory token pair, the single-flight refresher
-  against `/oauth/refresh`, the foreground poll, and the `tokenUpdate` plugin event that
-  mirrors every change into the WebView. `TokenStore.swift` underneath is the dumb
-  Keychain accessor (plus the biometric marker); policy stays in the plugin.
+  `enableBiometricLogin` / `disableBiometricLogin`, `refreshTokens` (shell-owned refresh,
+  see below) and `setTenantHost` (the login-learned origin + the shared auth host, https
+  only) — both platforms. The callback scheme is registered in **Info.plist
+  `CFBundleURLTypes`** (iOS) and **`strings.xml` + the manifest intent-filter** (Android).
+- **`TokenLifecycle.swift`** (iOS) / **`TokenLifecycle.java`** (Android) — the in-memory
+  token pair, the single-flight refresher against `/oauth/refresh`, the foreground poll,
+  and the `tokenUpdate` plugin event that mirrors every change into the WebView.
+  `TokenStore.swift` / `SecureTokenStore.java` underneath are the dumb accessors (plus the
+  biometric marker); policy stays in the lifecycle. On Android it is a process singleton
+  (`TokenLifecycle.get(context)`) with its own single-thread "store queue", reached from
+  `OpenFrameApplication` — the Capacitor bridge exists only while `MainActivity` does, and
+  the notification path runs with no Activity at all.
 - **`NativeFilesPlugin`** — `ios/App/App/NativeFilesPlugin.swift`, mirrored on Android by
   `android/app/src/main/java/ai/openframe/mobile/NativeFilesPlugin.java` (same jsName +
   method surface). Backs frontend `src/lib/native-files.ts`. Methods: `downloadFile`
@@ -75,6 +78,11 @@ exists.**
 - **`AppDelegate.swift`** — stock + the three APNs forwarding methods
   `@capacitor-firebase/messaging` requires (NotificationCenter posts; Firebase
   auto-configures in the plugin's `load()`).
+- **`OpenFrameApplication.java`** — the Android process-level init point (manifest
+  `android:name`): installs the lifecycle's foreground observer and creates the
+  notification channels. **`OpenFrameMessagingService.java`**, **`PushNotifications.java`**,
+  **`NotificationActionReceiver.java`**, **`NotificationActionWorker.java`** — the Android
+  interactive-notification path, see below.
 
 ### Token storage & biometrics
 
@@ -99,9 +107,9 @@ key), so a gated read shows **one** prompt and writes stay silent.
   `token-store.ts` in `openframe-frontend`.
 - Detail: vault `Authentication/Mobile Auth - Token Storage, Biometrics, Passkeys`.
 
-### Token refresh (shell-owned, iOS)
+### Token refresh (shell-owned, both platforms)
 
-The iOS plugin implements `refreshTokens`, and **its presence is the switch**: frontend
+Both plugins implement `refreshTokens`, and **its presence is the switch**: frontend
 `token-refresh-manager.ts` delegates every refresh to it and stops POSTing `/oauth/refresh`
 itself, and `refreshIfStale()` (the resume refresh) becomes a no-op. Refresh tokens rotate
 with no grace window, so there must be exactly one refresher — the shell, which also keeps
@@ -159,8 +167,20 @@ step `[TokenLifecycle]`.
 - **The WebView never writes a rotation back.** Frontend `adoptNativeTokens` mirrors the
   shell's pair (event or delegation result) into the JS cache only; a `setTokens` write-back
   could land on top of a later shell rotation and restore a spent refresh token.
-- Android keeps the WebView refresher until `NativeAuthPlugin.java` grows the same two
-  methods; the frontend gate is per-plugin, so nothing there changes until then.
+- **Android (`TokenLifecycle.java`, since 1.0.1)** mirrors all of the above, with three
+  runtime differences. The refresh base is `BuildConfig.OPENFRAME_SHARED_HOST_URL`
+  (Gradle property `-PofSharedHostUrl`, which the Android lanes pass from
+  `NEXT_PUBLIC_SHARED_HOST_URL` — required even with `SKIP_WEB=1`), else the pushed
+  `sharedOrigin`; hosts live as plain strings in the same backup-excluded
+  `ai.openframe.mobile.auth` prefs file. There is no `DEVICE_LOCKED`: the Keystore master
+  key has no `setUnlockedDeviceRequired`, the prefs file is credential-encrypted storage,
+  and the app is not Direct-Boot aware, so a process only runs after the first unlock. And
+  the transport is **OkHttp with `CookieJar.NO_COOKIES`, not `HttpURLConnection`** —
+  Capacitor's `CapacitorCookies.load()` installs a process-wide `java.net.CookieHandler`
+  bridged to the WebView's jar, `HttpURLConnection` consults it, and the BFF prefers a
+  `refresh_token` COOKIE over the `Refresh-Token` header (`fromHeader = !hasText(cookie)`),
+  so a stale jar would have turned a valid header refresh into a 401. Logs:
+  `adb logcat -s OpenFrameAuth OpenFrameNotifications`.
 
 ### Push (all FCM)
 
@@ -180,16 +200,39 @@ block in `capacitor.config.ts` avoids a package-identity collision).
 - **Before push delivers**, three manual steps: iOS plist in the App target's **Copy Bundle
   Resources**, APNs `.p8` uploaded to Firebase, Push capability on the App ID.
 
-### Interactive notifications (iOS): Approve / Reject / Reply
+### Interactive notifications: Approve / Reject / Reply
 
-`ios/App/App/NotificationActions.swift` completes two actions natively, no WebView:
-Approve/Reject on an approval push, inline Reply on a Mingo message. The server names
-the category (`aps.category` = `APPROVAL_REQUEST` | `MINGO_REPLY`, `ApplePushCategories.java`)
-and flattens the ids into top-level payload keys (`approvalRequestId`, `dialogId`, `type`);
-the shell registers the button sets under those identifiers and POSTs to the **tenant**
+`ios/App/App/NotificationActions.swift` and the Android quartet (`OpenFrameMessagingService`,
+`PushNotifications`, `NotificationActionReceiver`, `NotificationActionWorker`) complete two
+actions natively, no WebView: Approve/Reject on an approval push, inline Reply on a Mingo
+message. The server names the category (`aps.category` on iOS, the `pushCategory` data key
+on Android = `APPROVAL_REQUEST` | `MINGO_REPLY`, `ApplePushCategories.java`) and flattens the
+ids into top-level payload keys (`approvalRequestId`, `dialogId`, `type`); the shell
+registers or renders the button sets under those identifiers and POSTs to the **tenant**
 host: `/chat/api/v1/approval-requests/{id}/approve` `{"approve": bool}` and
-`/chat/api/v1/messages` `{dialogId, content, chatType: "ADMIN_AI_CHAT"}`. Android gets no
-buttons: the backend sends Android a `notification`-block message the system tray renders.
+`/chat/api/v1/messages` `{dialogId, content, chatType: "ADMIN_AI_CHAT"}`.
+
+**Android renders the notification itself.** The backend's `PushFormatterRegistry` picks
+the payload per device: a `PushDevice` whose `appVersion` (sent by the frontend from
+`App.getInfo().version` at registration) is ≥ `AndroidDataOnlyPushFormatter.SINCE`
+(**1.0.0**) gets a DATA-ONLY message — no `notification` block, `title`/`body`/`groupKey`/
+`pushCategory` as data keys, HIGH priority — which the FCM SDK never renders; a device
+reporting no version, or an older one, keeps the `notification`-block message the tray
+renders. So the 1.0 store build (no version reported) keeps working, and **any Android
+build that reports a version must carry `OpenFrameMessagingService`** or its pushes go
+dark. `OpenFrameMessagingService` extends the Firebase plugin's service (so JS keeps
+`notificationReceived`/`onNewToken`) and the plugin's own manifest entry is `tools:node=
+"remove"`d — firebase-messaging binds the first `MESSAGING_EVENT` match for the process
+lifetime. `PushNotifications` posts under `tag = notificationId, id = 0` (the FCM SDK's own
+identity for the baseline arm, so one cancel retracts both), with a content intent carrying
+`google.message_id` + every data key as String extras — exactly what the plugin's
+`handleOnNewIntent` keys on, so the JS tap → deep link is unchanged. Buttons land in
+`NotificationActionReceiver`, which swaps them for a spinner and enqueues expedited
+`WorkManager` work (a receiver's ~10s cannot cover a refresh with retries plus the POST);
+the worker replaces the notification in place with the outcome (Android does not dismiss
+on action), keeping the buttons on retryable failures and echoing a failed reply's text via
+`setRemoteInputHistory`. While the store is biometric-gated and the process holds no pair,
+every button opens the app instead (decided per notification at build time).
 
 - **The shell owns `UNUserNotificationCenter`'s delegate** (`ios.handleApplicationNotifications:
   false` in `capacitor.config.ts`, so Capacitor's router never claims it). Installed in
@@ -224,6 +267,14 @@ buttons: the backend sends Android a `notification`-block message the system tra
   "No longer available"; a real id from a live approval resolves. `simctl push` reaches the
   UN delegate, so the whole action path is simulator-testable; the gated cold-start branch
   is device-only.
+- **Android has no `simctl push`.** Send the data-only shape through the FCM HTTP v1 API
+  (`dev/fcm-data-only.json` is the payload; needs a service-account token for the flavor's
+  Firebase project) — the Firebase console's "test message" is a `notification`-block
+  message and never reaches the service. A force-stopped app is in the stopped state and
+  receives nothing of either kind. Check the merged manifest for exactly one app-level
+  `MESSAGING_EVENT` service (`app/build/intermediates/merged_manifests/**/AndroidManifest.xml`;
+  firebase's own `-500`-priority base entry is expected). Reply's `RemoteInput` needs
+  testing on API 31+ specifically — an immutable PendingIntent drops the text silently.
 
 ### Native chrome + navigation
 
@@ -295,10 +346,10 @@ build configurations.
 
 - iOS identity is driven by the **`OPENFRAME_DISPLAY_NAME` / `OPENFRAME_URL_SCHEME` build
   settings** that Info.plist references — the prod configs must define them too.
-- **`OPENFRAME_SHARED_HOST_URL`** (→ Info.plist `OpenFrameSharedHostURL`) is the native
-  refresher's gateway. Empty in every committed config; the iOS lanes pass it on the
-  `xcodebuild archive` line from `NEXT_PUBLIC_SHARED_HOST_URL`, which is therefore required
-  even with `SKIP_WEB=1`.
+- **`OPENFRAME_SHARED_HOST_URL`** (→ Info.plist `OpenFrameSharedHostURL`; Android:
+  `BuildConfig.OPENFRAME_SHARED_HOST_URL` from `-PofSharedHostUrl`) is the native refresher's
+  gateway. Empty in every committed config; the lanes pass it from
+  `NEXT_PUBLIC_SHARED_HOST_URL`, which is therefore required even with `SKIP_WEB=1`.
 - A **"Select Firebase config" build phase** swaps in
   `App/GoogleServices/{stage,dev}/GoogleService-Info.plist`, keyed off the `*-stage`/`*-dev`
   config-name suffix.
@@ -484,7 +535,8 @@ swapped.
 - **The plugin adds `ACCESS_NETWORK_STATE` to the Android manifest** by merge (its own
   `AndroidManifest.xml`), so the permission appears in the built APK/AAB without showing up
   in `android/app/src/main/AndroidManifest.xml`. Expect a Play listing diff on the next
-  upload.
+  upload. Likewise `androidx.work` (the notification actions) merges `RECEIVE_BOOT_COMPLETED`,
+  `WAKE_LOCK` and `FOREGROUND_SERVICE`.
 - **Live-reload `server.url` must be removed before any shippable build.** The release lanes
   hard-fail if one is present.
 - **SSO consent prompt name = `CFBundleName`**, not `CFBundleDisplayName`. The

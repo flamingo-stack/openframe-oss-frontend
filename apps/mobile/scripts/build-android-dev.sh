@@ -36,8 +36,9 @@ if [ ! -f "$GOOGLE_SERVICES" ]; then
   exit 1
 fi
 
+# Required even with SKIP_WEB=1: the native refresher bakes it into BuildConfig.
+: "${NEXT_PUBLIC_SHARED_HOST_URL:?set NEXT_PUBLIC_SHARED_HOST_URL to the dev shared auth host}"
 if [ "${SKIP_WEB:-0}" != "1" ]; then
-  : "${NEXT_PUBLIC_SHARED_HOST_URL:?set NEXT_PUBLIC_SHARED_HOST_URL to the dev shared auth host}"
   export NEXT_PUBLIC_APP_MODE="${NEXT_PUBLIC_APP_MODE:-saas-tenant}"
   # Dev is the one lane that opts into the dev-ticket observer (default is off).
   export NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER="${NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER:-true}"
@@ -74,7 +75,8 @@ else
 fi
 
 echo "▸ Building ${VARIANT_TASK}…"
-( cd "$HERE/android" && JAVA_HOME="$JBR" ./gradlew "$VARIANT_TASK" )
+( cd "$HERE/android" && JAVA_HOME="$JBR" ./gradlew "$VARIANT_TASK" \
+    -PofSharedHostUrl="$NEXT_PUBLIC_SHARED_HOST_URL" )
 
 if [ ! -f "$APK" ]; then
   echo "✗ expected APK not found: $APK" >&2

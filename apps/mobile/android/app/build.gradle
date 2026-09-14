@@ -12,6 +12,12 @@ android {
         //   ./gradlew bundleProdRelease -PofVersionCode=7 -PofVersionName=1.0.1
         versionCode ((findProperty('ofVersionCode') ?: 1) as Integer)
         versionName (findProperty('ofVersionName') ?: "1.0.1")
+        // The shared auth host the native refresher POSTs /oauth/refresh to — the
+        // Android twin of the iOS Info.plist OpenFrameSharedHostURL. The release
+        // lanes pass it from NEXT_PUBLIC_SHARED_HOST_URL, so bundle and binary
+        // cannot drift; a plain Studio build leaves it empty and the shell uses
+        // the shared host the web view pushes at login and hydration.
+        buildConfigField "String", "OPENFRAME_SHARED_HOST_URL", "\"${findProperty('ofSharedHostUrl') ?: ''}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -37,6 +43,9 @@ android {
                 keyPassword ofKeyPassword
             }
         }
+    }
+    buildFeatures {
+        buildConfig true
     }
     buildTypes {
         release {
@@ -77,6 +86,20 @@ dependencies {
     implementation "androidx.browser:browser:$androidxBrowserVersion"
     // BiometricPrompt + BiometricManager — biometric-gated token storage (NativeAuthPlugin).
     implementation "androidx.biometric:biometric:$androidxBiometricVersion"
+    // Foreground/background for the native token refresher's poll (TokenLifecycle).
+    implementation "androidx.lifecycle:lifecycle-process:$androidxLifecycleProcessVersion"
+    // Notification actions run as expedited work: a receiver's ten seconds do not
+    // cover a token refresh plus the request (NotificationActionWorker).
+    implementation "androidx.work:work-runtime:$androidxWorkVersion"
+    // The native refresher's and the notification actions' HTTP client. Not
+    // HttpURLConnection: Capacitor installs a process-wide CookieHandler bridged to
+    // the WebView's jar (CapacitorCookies.load), and HttpURLConnection consults
+    // it — the gateway would then read the jar's refresh cookie over the
+    // Refresh-Token header. OkHttp with CookieJar.NO_COOKIES carries nothing ambient.
+    implementation "com.squareup.okhttp3:okhttp:$okhttpVersion"
+    // The plugin's FirebaseMessagingService is subclassed here (OpenFrameMessagingService);
+    // the plugin declares this as `implementation`, so it is not on the app's classpath otherwise.
+    implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

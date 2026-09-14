@@ -29,8 +29,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 JBR="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 AAB="$HERE/android/app/build/outputs/bundle/prodRelease/app-prod-release.aab"
 
+# Required even with SKIP_WEB=1: the native refresher bakes it into BuildConfig.
+: "${NEXT_PUBLIC_SHARED_HOST_URL:?set NEXT_PUBLIC_SHARED_HOST_URL to the prod shared auth host}"
 if [ "${SKIP_WEB:-0}" != "1" ]; then
-  : "${NEXT_PUBLIC_SHARED_HOST_URL:?set NEXT_PUBLIC_SHARED_HOST_URL to the prod shared auth host}"
   export NEXT_PUBLIC_APP_MODE="${NEXT_PUBLIC_APP_MODE:-saas-tenant}"
   # On Android the baked scheme MUST match the intent-filter scheme
   # (@string/custom_url_scheme), which prod leaves at the shared default.
@@ -75,6 +76,7 @@ fi
 
 echo "▸ Building bundleProdRelease…"
 ( cd "$HERE/android" && JAVA_HOME="$JBR" ./gradlew bundleProdRelease \
+    -PofSharedHostUrl="$NEXT_PUBLIC_SHARED_HOST_URL" \
     ${VERSION_CODE:+-PofVersionCode=$VERSION_CODE} \
     ${VERSION_NAME:+-PofVersionName=$VERSION_NAME} )
 

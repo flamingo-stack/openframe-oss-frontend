@@ -20,14 +20,17 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 import javax.crypto.Cipher;
+
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 /**
  * Android port of the iOS NativeAuthPlugin (ios/App/App/NativeAuthPlugin.swift).
@@ -39,30 +42,54 @@ import javax.crypto.Cipher;
  *   third-party IdPs like Google refuse). The gateway 302s the devTicket to the
  *   custom scheme com.openframe.app://auth; the deep-link intent-filter on
  *   MainActivity (launchMode=singleTask) routes it back to onNewIntent, which the
- *   Capacitor bridge forwards to handleOnNewIntent here. The desktop Tauri shell
- *   ends its login on the same scheme, cancelling the navigation to it in its own
- *   window (mirrors iOS).
+ *   Capacitor bridge forwards to handleOnNewIntent here.
  * - exchangeTicket: dev-ticket -> tokens over native HTTP, reading the
  *   Access-Token / Refresh-Token RESPONSE headers (no CORS, mirrors iOS).
- * - get/set/clearTokens: Android-Keystore-backed secure storage (SecureTokenStore),
- *   device-bound with no cloud backup (mirrors iOS Keychain WhenUnlockedThisDeviceOnly).
+ * - get/set/clearTokens, refreshTokens, setTenantHost, the tokenUpdate event: the
+ *   bridge onto {@link TokenLifecycle}, which owns the in-memory pair, the
+ *   single-flight refresh and the hosts. This plugin only drives what needs an
+ *   Activity — the biometric prompts — and hands the result to the lifecycle.
  * - getSafeAreaInsets: real insets from WindowInsets (the WebView reports
  *   env(safe-area-inset-*) as 0 in the shell, same as iOS WKWebView).
- *
- * Prototype dev-ticket path — no PKCE yet (backend-gated). Replicates the iOS
- * plugin's current behavior; no new auth logic.
  */
 @CapacitorPlugin(name = "NativeAuth")
 public class NativeAuthPlugin extends Plugin {
 
     private static final String CALLBACK_SCHEME = "com.openframe.app";
     private static final String CALLBACK_HOST = "auth";
+    private static final long EXCHANGE_TIMEOUT_MS = 15_000;
+    /** The one endpoint exchangeTicket exists to call; the host varies per deployment, the path does not. */
+    private static final String EXCHANGE_PATH = "/oauth/dev-exchange";
+    private static final String INVALID_URL = "Missing or invalid 'url'";
+    /** No ambient credentials on the exchange either: see TokenLifecycle.credentialFreeClient. */
+    private static final OkHttpClient exchangeClient = TokenLifecycle.credentialFreeClient(EXCHANGE_TIMEOUT_MS);
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
 
     // The single in-flight login call, resolved when the deep link returns or
     // rejected if another login re-enters (mirrors iOS's ALREADY_PRESENTING guard).
     private PluginCall pendingLoginCall;
+
+    private TokenLifecycle lifecycle;
+
+    @Override
+    public void load() {
+        lifecycle = TokenLifecycle.get(getContext());
+        lifecycle.attach(this);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        super.handleOnDestroy();
+        // The web view goes with the Activity; a rotation after this must not
+        // try to reach it through a dead plugin.
+        lifecycle.detach(this);
+    }
+
+    /** The lifecycle's channel to the web view: the full stored set after every change. */
+    void emitTokenUpdate(JSObject tokens) {
+        notifyListeners("tokenUpdate", tokens, false);
+    }
 
     // ─── Safe-area insets ────────────────────────────────────────────────────
 
@@ -97,7 +124,7 @@ public class NativeAuthPlugin extends Plugin {
     public void start(PluginCall call) {
         String urlString = call.getString("url");
         if (urlString == null || urlString.isEmpty()) {
-            call.reject("Missing or invalid 'url'");
+            call.reject(INVALID_URL);
             return;
         }
         Uri url = Uri.parse(urlString);
@@ -174,83 +201,160 @@ public class NativeAuthPlugin extends Plugin {
     public void exchangeTicket(PluginCall call) {
         String urlString = call.getString("url");
         if (urlString == null || urlString.isEmpty()) {
-            call.reject("Missing or invalid 'url'");
+            call.reject(INVALID_URL);
             return;
         }
+        // The same guard as the iOS twin: https, and the PATH pinned — the bridge
+        // hands the response's token headers to page script, so it must not be
+        // a "fetch any URL" primitive. Vetted on the parse the request is built
+        // from (a guard on another parser's reading of the string enforces
+        // nothing), and collapsed before comparing: a configured host with a
+        // trailing slash yields `//oauth/...`.
+        HttpUrl url = HttpUrl.parse(urlString);
+        if (url == null) {
+            call.reject(INVALID_URL);
+            return;
+        }
+        if (!url.isHttps() || !EXCHANGE_PATH.equals(url.encodedPath().replaceAll("/+", "/"))) {
+            call.reject("Refusing to exchange a ticket at that URL", "URL_NOT_ALLOWED");
+            return;
+        }
+        Request request = new Request.Builder().url(url).header("Accept", "application/json").get().build();
         io.execute(() -> {
-            HttpURLConnection conn = null;
-            try {
-                URL url = new URL(urlString);
-                conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setInstanceFollowRedirects(true);
-                int status = conn.getResponseCode();
-                if (status < 200 || status >= 300) {
-                    call.reject("Ticket exchange failed with status " + status);
+            try (Response response = exchangeClient.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                    call.reject("Ticket exchange failed with status " + response.code());
                     return;
                 }
-                JSObject result = new JSObject();
-                String accessToken = conn.getHeaderField("Access-Token");
-                if (accessToken != null) {
-                    result.put("accessToken", accessToken);
-                }
-                String refreshToken = conn.getHeaderField("Refresh-Token");
-                if (refreshToken != null) {
-                    result.put("refreshToken", refreshToken);
-                }
-                call.resolve(result);
+                call.resolve(TokenPair.fromHeaders(response).toJS());
             } catch (IOException e) {
                 call.reject("Ticket exchange failed: " + e.getMessage());
-            } finally {
-                if (conn != null) {
-                    conn.disconnect();
-                }
             }
         });
     }
 
-    // ─── Keystore-backed token storage ───────────────────────────────────────
-
-    private SecureTokenStore store;
-
-    // Synchronized so the lazy init can't race: the returned instance is also
-    // the MONITOR for the compound setTokens/enable/disable swaps, and two
-    // threads observing different instances would defeat that mutual exclusion.
-    private synchronized SecureTokenStore store() {
-        if (store == null) {
-            store = new SecureTokenStore(getContext());
-        }
-        return store;
-    }
+    // ─── Tokens (through the lifecycle) ──────────────────────────────────────
 
     @PluginMethod
     public void getTokens(PluginCall call) {
-        if (!store().isBiometricEnabled()) {
-            // Ungated path — silent single-blob read, no prompt.
-            String blob = store().read(SecureTokenStore.COMBINED);
-            call.resolve(pairResult(blob));
+        if (!lifecycle.store().isBiometricEnabled()) {
+            try {
+                call.resolve(lifecycle.readSilently().toJS());
+            } catch (SecureTokenStore.Unavailable e) {
+                // The frontend treats DEVICE_LOCKED as a retryable lock and leaves
+                // the store alone; the lifecycle pushes the pair once a later
+                // read succeeds. Resolving empty here would read as signed out.
+                call.reject("The stored tokens cannot be read right now", TokenLifecycle.Code.DEVICE_LOCKED);
+            }
+            return;
+        }
+        // The pair the process holds answers first: re-hydration (a post-login
+        // navigation, an unlock retry) must never prompt again — the store is
+        // read through the prompt exactly once per process, below.
+        TokenPair cached = lifecycle.cachedPair();
+        if (cached != null) {
+            call.resolve(cached.toJS());
             return;
         }
         // Gated path — ONE BiometricPrompt unlocks the private key that unwraps
         // the single content key, then the combined blob is parsed into both
-        // tokens. Prompt on the UI thread with the bridge Activity.
-        authenticateAndReadGated(call);
+        // tokens. The epoch is taken before the sheet goes up so a session that
+        // ends while it is up is not brought back by the blob read through it.
+        long epoch = lifecycle.custodyEpoch();
+        final Cipher unwrapCipher;
+        try {
+            unwrapCipher = lifecycle.store().gatedUnwrapCipher();
+        } catch (KeyPermanentlyInvalidatedException e) {
+            call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
+            return;
+        } catch (Exception e) {
+            call.reject("Could not prepare biometric read: " + e.getMessage(), "BIOMETRIC_UNAVAILABLE");
+            return;
+        }
+        promptBiometric(call, unwrapCipher, "Unlock OpenFrame", "Authenticate to access your account", null, authenticated -> {
+            try {
+                String blob = lifecycle.store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
+                call.resolve(lifecycle.adopt(TokenPair.decode(blob), epoch).toJS());
+            } catch (KeyPermanentlyInvalidatedException e) {
+                // No state reset here: the frontend reacts with forceLogout →
+                // clearTokens, which drops custody.
+                call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
+            } catch (Exception e) {
+                call.reject("Gated token read failed: " + e.getMessage(), "BIOMETRIC_CANCELED");
+            }
+        });
     }
 
-    // Builds the {accessToken?, refreshToken?} JS result from a combined JSON blob.
-    private JSObject pairResult(String blob) {
-        JSObject result = new JSObject();
-        String accessToken = SecureTokenStore.pairField(blob, "accessToken");
-        if (accessToken != null) {
-            result.put("accessToken", accessToken);
+    @PluginMethod
+    public void setTokens(PluginCall call) {
+        // A login result. The lifecycle merges it over what it holds, writes the
+        // full pair as ONE item (gated per the marker; no gated read-modify-write,
+        // so the write stays silent), and treats it as a custody change so a
+        // rotation still in flight for the previous pair cannot land on top.
+        TokenPair incoming = new TokenPair(call.getString(TokenPair.ACCESS_KEY), call.getString(TokenPair.REFRESH_KEY));
+        if (lifecycle.storeLogin(incoming)) {
+            call.resolve();
+        } else {
+            call.reject("Secure token write failed");
         }
-        String refreshToken = SecureTokenStore.pairField(blob, "refreshToken");
-        if (refreshToken != null) {
-            result.put("refreshToken", refreshToken);
-        }
-        return result;
     }
+
+    @PluginMethod
+    public void clearTokens(PluginCall call) {
+        lifecycle.endSession();
+        call.resolve();
+    }
+
+    /**
+     * Shell-owned refresh — its presence is what makes the web view stop
+     * refreshing on its own. Resolves the stored pair after the attempt, an
+     * EMPTY object only when the session is over (the web view answers that by
+     * clearing its tokens and turning biometric login off), and REJECTS on
+     * everything that keeps the session: unreached, unknown, held, gated,
+     * no host, replaced. See TokenLifecycle.Code.
+     */
+    @PluginMethod
+    public void refreshTokens(PluginCall call) {
+        String rejected = call.getString("rejectedAccessToken");
+        lifecycle.refresh(rejected, result -> {
+            switch (result.kind) {
+                case TOKENS:
+                    call.resolve(result.pair.toJS());
+                    break;
+                case SESSION_OVER:
+                    call.resolve(new JSObject());
+                    break;
+                case FAILED:
+                default:
+                    call.reject(result.message, result.code);
+                    break;
+            }
+        });
+    }
+
+    /**
+     * The hosts the web view knows: {@code origin}, the tenant gateway learned at
+     * login (where a notification action's chat calls go), and {@code sharedOrigin},
+     * the shared auth host the web view refreshes against — the refresher's
+     * base when the build carries none. Never the other way round: see
+     * TokenLifecycle.setSharedHost for why the tenant host must not refresh.
+     */
+    @PluginMethod
+    public void setTenantHost(PluginCall call) {
+        String origin = call.getString("origin");
+        if (origin == null || !lifecycle.setTenantHost(origin)) {
+            call.reject("Refusing a tenant host that is not an https origin", "URL_NOT_ALLOWED");
+            return;
+        }
+        String shared = call.getString("sharedOrigin");
+        if (shared != null && !shared.isEmpty() && !lifecycle.setSharedHost(shared)) {
+            call.reject("Refusing a shared host that is not an https origin", "URL_NOT_ALLOWED");
+            return;
+        }
+        call.resolve();
+    }
+
+    // ─── Biometric gating ────────────────────────────────────────────────────
 
     // One shared executor for every BiometricPrompt's callbacks — a per-prompt
     // newSingleThreadExecutor() leaks its never-shut-down thread.
@@ -320,84 +424,6 @@ public class NativeAuthPlugin extends Plugin {
         });
     }
 
-    // A single BiometricPrompt authenticates the RSA-decrypt Cipher; after
-    // success the ONE gated content key unwraps under it and the combined blob
-    // is parsed into both tokens.
-    private void authenticateAndReadGated(PluginCall call) {
-        final Cipher unwrapCipher;
-        try {
-            unwrapCipher = store().gatedUnwrapCipher();
-        } catch (KeyPermanentlyInvalidatedException e) {
-            call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
-            return;
-        } catch (Exception e) {
-            call.reject("Could not prepare biometric read: " + e.getMessage(), "BIOMETRIC_UNAVAILABLE");
-            return;
-        }
-
-        promptBiometric(call, unwrapCipher, "Unlock OpenFrame", "Authenticate to access your account", null, authenticated -> {
-            try {
-                String blob = store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
-                call.resolve(pairResult(blob));
-            } catch (KeyPermanentlyInvalidatedException e) {
-                // No state reset here: the frontend reacts with forceLogout →
-                // clearTokens, which wipes both copies and the marker.
-                call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
-            } catch (Exception e) {
-                call.reject("Gated token read failed: " + e.getMessage(), "BIOMETRIC_CANCELED");
-            }
-        });
-    }
-
-    @PluginMethod
-    public void setTokens(PluginCall call) {
-        // The frontend token-store always sends the full current pair, so the
-        // combined blob is written whole — no read-modify-write, no gated read on
-        // write. Absent fields are omitted from the blob.
-        String accessToken = call.getData().has("accessToken") ? call.getString("accessToken") : null;
-        String refreshToken = call.getData().has("refreshToken") ? call.getString("refreshToken") : null;
-        try {
-            // The marker check + write must be one unit: enable's success
-            // callback flips the marker and swaps copies under the same lock,
-            // so a rotation landing mid-enable can't write into the mode that
-            // was just retired (store methods are individually synchronized;
-            // this compound isn't without the explicit block).
-            synchronized (store()) {
-                if (accessToken == null && refreshToken == null) {
-                    // Nothing to store — clear the combined item in the active mode.
-                    if (store().isBiometricEnabled()) {
-                        store().deleteGated(SecureTokenStore.COMBINED);
-                    } else {
-                        store().delete(SecureTokenStore.COMBINED);
-                    }
-                } else {
-                    String blob = SecureTokenStore.encodePair(accessToken, refreshToken);
-                    if (store().isBiometricEnabled()) {
-                        store().writeGated(SecureTokenStore.COMBINED, blob);
-                    } else {
-                        store().write(SecureTokenStore.COMBINED, blob);
-                    }
-                }
-            }
-            // Drop any leftover legacy two-item entries from older installs.
-            store().deleteLegacy();
-            call.resolve();
-        } catch (Exception e) {
-            call.reject("Secure token write failed: " + e.getMessage());
-        }
-    }
-
-    @PluginMethod
-    public void clearTokens(PluginCall call) {
-        store().delete(SecureTokenStore.COMBINED);
-        store().deleteGated(SecureTokenStore.COMBINED);
-        store().deleteLegacy();
-        store().setBiometricEnabled(false);
-        call.resolve();
-    }
-
-    // ─── Biometric gating ────────────────────────────────────────────────────
-
     @PluginMethod
     public void isBiometricAvailable(PluginCall call) {
         int status = BiometricManager.from(getContext())
@@ -415,7 +441,7 @@ public class NativeAuthPlugin extends Plugin {
     @PluginMethod
     public void isBiometricLoginEnabled(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("enabled", store().isBiometricEnabled());
+        result.put("enabled", lifecycle.store().isBiometricEnabled());
         call.resolve(result);
     }
 
@@ -427,26 +453,32 @@ public class NativeAuthPlugin extends Plugin {
             call.reject("Biometric authentication is not available", "BIOMETRIC_UNAVAILABLE");
             return;
         }
-        final String blob = store().read(SecureTokenStore.COMBINED);
-        if (blob == null) {
+        if (lifecycle.store().isBiometricEnabled()) {
+            call.resolve();
+            return;
+        }
+        // The pair the process holds (primed silently — the marker is off), not a
+        // re-read of the blob: a write still pending means the blob is behind.
+        TokenPair pair = lifecycle.readSilently();
+        if (pair.isEmpty()) {
             call.reject("No tokens to protect", "NO_TOKENS");
             return;
         }
-        // Write the gated copy (silent — public-key wrap), then make the user's
+        // Stage a gated copy (silent — public-key wrap), then make the user's
         // opt-in prompt VERIFY it: the single BiometricPrompt both confirms the
         // user right when they enable and exercises the full wrap→unwrap round
         // trip, so a crypto/provider mismatch fails here — not at the next cold
         // start after the ungated copy is already gone.
         // Not enabled on any failure: drop the gated copy, keep the ungated one.
-        Runnable dropGated = () -> store().deleteGated(SecureTokenStore.COMBINED);
+        Runnable dropGated = () -> lifecycle.store().deleteGated(SecureTokenStore.COMBINED);
         final Cipher unwrapCipher;
         try {
             // Fresh enable = fresh keypair bound to the current enrollment; an
             // invalidated leftover keypair still wraps silently but can never
             // decrypt again (see SecureTokenStore.resetBiometricKey).
-            store().resetBiometricKey();
-            store().writeGated(SecureTokenStore.COMBINED, blob);
-            unwrapCipher = store().gatedUnwrapCipher();
+            lifecycle.store().resetBiometricKey();
+            lifecycle.store().writeGated(SecureTokenStore.COMBINED, pair.encode());
+            unwrapCipher = lifecycle.store().gatedUnwrapCipher();
         } catch (Exception e) {
             dropGated.run();
             call.reject("Could not enable biometric login: " + e.getMessage(), "BIOMETRIC_UNAVAILABLE");
@@ -455,31 +487,28 @@ public class NativeAuthPlugin extends Plugin {
 
         promptBiometric(call, unwrapCipher, "Enable biometric login", "Confirm it's you", dropGated, authenticated -> {
             try {
-                String verified = store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
+                String verified = lifecycle.store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
                 if (verified == null) {
                     throw new IllegalStateException("gated blob missing after write");
                 }
-                // The pair may have rotated (or been cleared) while the prompt
-                // was up — re-wrap the latest blob (silent) so gating never
-                // winds the session back, and never gate a session that ended
-                // mid-prompt. The whole read→re-wrap→marker→delete swap holds
-                // the store lock so a concurrent setTokens rotation lands
-                // either fully before (fresh read sees it) or fully after
-                // (marker on → it writes gated).
-                synchronized (store()) {
-                    String fresh = store().read(SecureTokenStore.COMBINED);
-                    if (fresh == null) {
+                // The pair the process holds AFTER the prompt, gated on the store
+                // queue, then the marker: a rotation may have landed while the
+                // sheet was up, and gating the pre-prompt copy would wind the
+                // session back; a session that ended mid-prompt is not gated at all.
+                switch (lifecycle.gate()) {
+                    case GATED:
+                        call.resolve();
+                        break;
+                    case NOTHING_HELD:
                         dropGated.run();
                         call.reject("No tokens to protect", "NO_TOKENS");
-                        return;
-                    }
-                    if (!fresh.equals(blob)) {
-                        store().writeGated(SecureTokenStore.COMBINED, fresh);
-                    }
-                    store().setBiometricEnabled(true);
-                    store().delete(SecureTokenStore.COMBINED);
+                        break;
+                    case WRITE_FAILED:
+                    default:
+                        dropGated.run();
+                        call.reject("Could not enable biometric login: the pair could not be re-stored", "BIOMETRIC_UNAVAILABLE");
+                        break;
                 }
-                call.resolve();
             } catch (Exception e) {
                 dropGated.run();
                 call.reject("Could not enable biometric login: " + e.getMessage(), "BIOMETRIC_UNAVAILABLE");
@@ -489,21 +518,20 @@ public class NativeAuthPlugin extends Plugin {
 
     @PluginMethod
     public void disableBiometricLogin(PluginCall call) {
-        if (!store().isBiometricEnabled()) {
+        if (!lifecycle.store().isBiometricEnabled()) {
             call.resolve();
             return;
         }
-        // Reading gated tokens prompts; then re-store ungated and clear the marker.
+        long epoch = lifecycle.custodyEpoch();
         final Cipher unwrapCipher;
         try {
-            unwrapCipher = store().gatedUnwrapCipher();
+            unwrapCipher = lifecycle.store().gatedUnwrapCipher();
         } catch (KeyPermanentlyInvalidatedException e) {
             // Enrollment change killed the key — the tokens are unrecoverable
             // either way, so return to a clean ungated state instead of leaving
             // the marker pointing at an undecryptable blob; the frontend reacts
             // to INVALIDATED with a forced re-login.
-            store().deleteGated(SecureTokenStore.COMBINED);
-            store().setBiometricEnabled(false);
+            lifecycle.endSession();
             call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
             return;
         } catch (Exception e) {
@@ -513,22 +541,17 @@ public class NativeAuthPlugin extends Plugin {
 
         promptBiometric(call, unwrapCipher, "Disable biometric login", "Authenticate to continue", null, authenticated -> {
             try {
-                // Same lock as enable's swap, and the gated read is INSIDE it:
-                // a rotation landing after the read but before the marker flip
-                // would write gated and then be destroyed by deleteGated,
-                // winding the session back to the pre-rotation blob.
-                synchronized (store()) {
-                    String blob = store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
-                    if (blob != null) {
-                        store().write(SecureTokenStore.COMBINED, blob);
-                    }
-                    store().setBiometricEnabled(false);
-                    store().deleteGated(SecureTokenStore.COMBINED);
+                // The prompt was the consent; the pair the process holds NOW is
+                // what gets re-stored, the blob read through it only a fallback
+                // under an unchanged epoch (see TokenLifecycle.ungate).
+                String blob = lifecycle.store().finishGatedRead(SecureTokenStore.COMBINED, authenticated);
+                if (lifecycle.ungate(TokenPair.decode(blob), epoch)) {
+                    call.resolve();
+                } else {
+                    call.reject("Could not disable biometric login: the pair could not be re-stored", "BIOMETRIC_UNAVAILABLE");
                 }
-                call.resolve();
             } catch (KeyPermanentlyInvalidatedException e) {
-                store().deleteGated(SecureTokenStore.COMBINED);
-                store().setBiometricEnabled(false);
+                lifecycle.endSession();
                 call.reject("Biometric enrollment changed", "BIOMETRIC_INVALIDATED");
             } catch (Exception e) {
                 call.reject("Could not disable biometric login: " + e.getMessage(), "BIOMETRIC_CANCELED");

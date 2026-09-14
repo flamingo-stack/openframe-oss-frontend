@@ -29,6 +29,10 @@ const env = {
   // com.openframe.app, stage .stage, dev .dev. Per-env schemes keep
   // side-by-side installs from fighting over one scheme.
   NEXT_PUBLIC_MOBILE_APP_SCHEME: process.env.NEXT_PUBLIC_MOBILE_APP_SCHEME || 'com.openframe.app',
+  // Auth screens: `login-only` (no Sign Up tab, no in-app organization setup —
+  // App Review rejected both under 3.1.1/3.1.3 on 2026-09-11) or `legacy` to
+  // bring them back. The frontend also treats a missing value as login-only.
+  NEXT_PUBLIC_MOBILE_AUTH_UI: process.env.NEXT_PUBLIC_MOBILE_AUTH_UI || 'login-only',
 };
 
 if (!env.NEXT_PUBLIC_SHARED_HOST_URL) {

@@ -9,10 +9,22 @@
 	<false/>
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
-	<!-- No required-reason APIs in first-party code (Keychain + LocalAuthentication
-	     only) — nothing to declare here. -->
+	<!-- First-party required-reason API use: TokenLifecycle.swift keeps the
+	     login-learned tenant/shared host URLs in UserDefaults (CA92.1 = the app's
+	     own container, nothing read from other apps). Keychain and
+	     LocalAuthentication need no declaration. Omitting a used category is
+	     ITMS-91053 at upload. -->
 	<key>NSPrivacyAccessedAPITypes</key>
-	<array/>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array>
 		<dict>

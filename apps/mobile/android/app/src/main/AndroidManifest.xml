@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
+        android:name=".OpenFrameApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
@@ -32,6 +34,27 @@
                 <data android:scheme="@string/custom_url_scheme" android:host="auth" />
             </intent-filter>
         </activity>
+
+        <!-- FCM delivery is ours (OpenFrameMessagingService): the data-only pushes
+             the backend sends a capable Android app are rendered here, with the
+             Approve / Reject / Reply buttons. The Firebase plugin's own service is
+             REMOVED, not merely shadowed — firebase-messaging binds the first
+             MESSAGING_EVENT match and caches it for the process lifetime. -->
+        <service
+            android:name=".OpenFrameMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <service
+            android:name="io.capawesome.capacitorjs.plugins.firebase.messaging.MessagingService"
+            tools:node="remove" />
+
+        <!-- The tray buttons' target; hands the work to NotificationActionWorker. -->
+        <receiver
+            android:name=".NotificationActionReceiver"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
