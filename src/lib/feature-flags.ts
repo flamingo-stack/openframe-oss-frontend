@@ -23,6 +23,15 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   'test-clock',
   'download-apps',
+  // MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+  // connect flow, the remote access policy UI and the session recordings
+  // surfaces. Off = the legacy auto-start tunnel behavior, no policy UI.
+  'remote-access-approval',
+  // TEMPORARY - remove together with the remote access backend (approval API
+  // CU-86ajx02gz, recordings storage CU-86akc3c5q). Shows the QA tooling that
+  // drives the mock services: the simulate-decision strip on the awaiting
+  // screen and the recording player's local .mcrec loader. On for dev / qa.
+  'remote-access-mock-tools',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
@@ -155,6 +164,18 @@ export const featureFlags = {
   testClock: {
     enabled(): boolean {
       return getFlagValue('test-clock', () => false);
+    },
+  },
+  /**
+   * MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+   * connect flow, the policy UI and the session recordings surfaces. Off = the
+   * legacy auto-start tunnel behavior. Route gating goes through
+   * `useRemoteAccessApprovalGate` (tri-state); this accessor is for imperative
+   * reads.
+   */
+  remoteAccessApproval: {
+    enabled(): boolean {
+      return getFlagValue('remote-access-approval', () => false);
     },
   },
 } as const;

@@ -17,6 +17,8 @@ import type { Device } from '../types/device.types';
 import { type DeviceActionAvailability, getDeviceActionAvailability } from '../utils/device-action-utils';
 import { buildDeviceMenuItems } from '../utils/device-menu-items';
 import { useDeviceConfirmationDialogs } from './use-device-confirmation-dialogs';
+import { useRemoteAccessApprovalGate } from './use-remote-access-approval-gate';
+import { useEffectiveDeviceRemoteAccessMode } from './use-remote-access-policy';
 
 const DEFAULT_ICON_SIZE = 'w-6 h-6';
 
@@ -77,7 +79,18 @@ export function useDeviceActionsMenu(
     onRebooted: onActionComplete,
   });
 
-  const actionAvailability = device ? getDeviceActionAvailability(device) : null;
+  const baseAvailability = device ? getDeviceActionAvailability(device) : null;
+
+  // Remote access policy (CU-86akeqw8b): DENY_ACCESS disables the remote
+  // session entry points in place - per the design decision, no separate
+  // screen. `undefined` (flag off / still resolving) leaves legacy behavior.
+  const remoteAccessGate = useRemoteAccessApprovalGate();
+  const effectiveRemoteAccessMode = useEffectiveDeviceRemoteAccessMode(device);
+  const remoteAccessDenied = effectiveRemoteAccessMode === 'DENY_ACCESS';
+  const actionAvailability =
+    baseAvailability && remoteAccessDenied
+      ? { ...baseAvailability, remoteShellEnabled: false, remoteControlEnabled: false, manageFilesEnabled: false }
+      : baseAvailability;
 
   const isWindows = device
     ? normalizeOSType(device.platform || device.osType || device.operating_system) === 'WINDOWS'
@@ -114,7 +127,10 @@ export function useDeviceActionsMenu(
   const editDisplayName: ActionsMenuItem | null = actionAvailability?.editDisplayNameEnabled
     ? {
         id: 'edit-display-name',
-        label: 'Edit Display Name',
+        // With the policy gate on the modal also edits the remote access
+        // permission, so the item is named after the whole modal ("Edit
+        // Device" per the design); the legacy name stays while the flag is off.
+        label: remoteAccessGate === 'on' ? 'Edit Device' : 'Edit Display Name',
         icon: <PenEditIcon className={`${iconSize} text-ods-text-secondary`} />,
         onClick: () => setShowEditDisplayName(true),
       }

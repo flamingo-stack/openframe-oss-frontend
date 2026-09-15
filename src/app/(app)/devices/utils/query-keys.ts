@@ -29,6 +29,12 @@ export const deviceQueryKeys = {
 
   detail: (machineId: string) => [...deviceQueryKeys.all, 'detail', machineId] as const,
 
+  /** Session recordings of one device (the Remote Sessions tab). */
+  sessionRecordings: (deviceId: string) => [...deviceQueryKeys.all, 'session-recordings', deviceId] as const,
+  /** One recording's detail (the player page). */
+  sessionRecording: (recordingId: string) =>
+    [...deviceQueryKeys.all, 'session-recordings', 'detail', recordingId] as const,
+
   counts: () => [...deviceQueryKeys.all, 'counts'] as const,
   countsBy: (filter: DeviceFilterInput) => [...deviceQueryKeys.counts(), filter] as const,
   /** Dashboard status breakdown (total / online / offline / pending / archived). */

@@ -7,6 +7,7 @@ import type { Terminal } from '@xterm/xterm';
 import { TerminalSquare } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -20,6 +21,20 @@ const WINDOWS_POWERSHELL_CMD =
   'powershell -NoLogo -NoProfile 2>nul || "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoLogo -NoProfile 2>nul || "%SystemRoot%\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe" -NoLogo -NoProfile 2>nul || "%ProgramFiles%\\PowerShell\\7\\pwsh.exe" -NoLogo -NoProfile 2>nul || "%ProgramFiles(x86)%\\PowerShell\\7\\pwsh.exe" -NoLogo -NoProfile 2>nul';
 
 export default function RemoteShellPage() {
+  const deviceId = useSearchParams().get('id') ?? '';
+  const handleBack = useSafeBack(routes.devices.details(deviceId));
+
+  return (
+    // The session component below opens the MeshCentral tunnel from its own
+    // effects, so the approval gate keeps it UNMOUNTED until the end user
+    // approves - not merely hidden.
+    <RemoteAccessGate deviceId={deviceId} sessionKind="shell" onBack={handleBack}>
+      <RemoteShellSession />
+    </RemoteAccessGate>
+  );
+}
+
+function RemoteShellSession() {
   const searchParams = useSearchParams();
   const deviceId = searchParams.get('id') ?? '';
   const { toast } = useToast();

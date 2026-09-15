@@ -12,7 +12,7 @@ import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useAuthStore } from '@/stores';
 import { API_ENDPOINTS } from '../constants';
-import { GET_TICKET_TAGS_QUERY, GET_TICKETS_QUERY } from '../queries/ticket-queries';
+import { GET_TICKET_TAGS_QUERY, GET_TICKETS_QUERY, TICKETS_DEFAULT_SORT } from '../queries/ticket-queries';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
@@ -236,6 +236,7 @@ async function fetchTicketSearchOptions(
         search: search || undefined,
         filter: Object.keys(filter).length ? filter : undefined,
         pagination: { limit: 50 },
+        sort: TICKETS_DEFAULT_SORT,
       },
     },
   );

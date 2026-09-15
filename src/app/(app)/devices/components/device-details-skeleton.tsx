@@ -32,8 +32,13 @@ import {
   skeletonColumnDefs,
   type TableSkeletonColumn,
 } from '@/app/components/shared';
-import { SOFTWARE_TAB_COLUMNS, USERS_TAB_COLUMNS, VULNERABILITIES_TAB_COLUMNS } from './tabs/device-tab-columns';
-import { DEVICE_TABS } from './tabs/device-tabs';
+import {
+  REMOTE_SESSIONS_TAB_COLUMNS,
+  SOFTWARE_TAB_COLUMNS,
+  USERS_TAB_COLUMNS,
+  VULNERABILITIES_TAB_COLUMNS,
+} from './tabs/device-tab-columns';
+import { useDeviceTabs } from './tabs/device-tabs';
 
 const noop = () => {};
 
@@ -633,6 +638,8 @@ function getTabSkeleton(activeTab: string) {
       return <QueriesTabSkeleton />;
     case 'tickets':
       return <TicketsTabSkeleton />;
+    case 'remote-sessions':
+      return <TableTabSkeleton columns={REMOTE_SESSIONS_TAB_COLUMNS} placeholder="Search for Remote Session" />;
     default:
       return <OverviewTabSkeleton />;
   }
@@ -652,6 +659,8 @@ interface DeviceDetailsSkeletonProps {
  * bar (static, with the active tab highlighted) and the active tab's body skeleton are children.
  */
 export function DeviceDetailsSkeleton({ activeTab = 'overview' }: DeviceDetailsSkeletonProps) {
+  // The gated tab set, so the loading tab bar matches the loaded one exactly.
+  const deviceTabs = useDeviceTabs();
   return (
     <PageLayout
       loading
@@ -669,7 +678,7 @@ export function DeviceDetailsSkeleton({ activeTab = 'overview' }: DeviceDetailsS
       {/* Reuse the REAL `TabNavigation` (not a copy) so the tab bar is pixel-identical to
           the loaded page and can't drift. `pointer-events-none` keeps it non-interactive
           while loading; `onTabChange` is a required no-op in controlled mode. */}
-      <TabNavigation tabs={DEVICE_TABS} activeTab={activeTab} onTabChange={noop} className="pointer-events-none">
+      <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={noop} className="pointer-events-none">
         {() => getTabSkeleton(activeTab)}
       </TabNavigation>
     </PageLayout>
