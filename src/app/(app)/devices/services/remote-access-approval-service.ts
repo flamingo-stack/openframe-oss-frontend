@@ -160,18 +160,22 @@ class MockRemoteAccessApprovalService implements IRemoteAccessApprovalService {
 export const remoteAccessApprovalService: IRemoteAccessApprovalService = new MockRemoteAccessApprovalService();
 
 /**
- * True while the singleton above is the in-memory mock. The awaiting screen
- * shows its simulate-decision controls on this, not on NODE_ENV, so QA can
- * drive the flow on a production build; flip to false (or drop) together with
- * the swap to the real service (CU-86ajx02gz).
+ * True while the singleton above is the in-memory mock. Derived from the
+ * instance, not hand-maintained: the awaiting screen shows its
+ * simulate-decision controls on this (not on NODE_ENV, so QA can drive the
+ * flow on a production build), and the moment the real service replaces the
+ * singleton (CU-86ajx02gz) this turns false with no separate edit to forget.
  */
-export const REMOTE_ACCESS_APPROVAL_MOCK_ACTIVE = true;
+export const REMOTE_ACCESS_APPROVAL_MOCK_ACTIVE =
+  remoteAccessApprovalService instanceof MockRemoteAccessApprovalService;
 
 /**
  * The mock's decision lever, exported ONLY for the simulation controls on the
  * awaiting screen. The real service has no such method - the decision comes
- * from the end user's machine.
+ * from the end user's machine - so this is a no-op once the mock is gone.
  */
 export const mockRemoteAccessDecision = (requestId: string, status: 'APPROVED' | 'DENIED' | 'TIMED_OUT'): void => {
-  (remoteAccessApprovalService as MockRemoteAccessApprovalService).settle(requestId, status);
+  if (remoteAccessApprovalService instanceof MockRemoteAccessApprovalService) {
+    remoteAccessApprovalService.settle(requestId, status);
+  }
 };

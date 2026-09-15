@@ -8,7 +8,11 @@ import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
 import { useSessionRecording } from '../../hooks/use-session-recordings';
-import { RecordingUnavailableError, sessionRecordingsService } from '../../services/session-recordings-service';
+import {
+  RecordingUnavailableError,
+  SESSION_RECORDINGS_MOCK_ACTIVE,
+  sessionRecordingsService,
+} from '../../services/session-recordings-service';
 import { DevLocalFileLoader } from './dev-local-file-loader';
 import { PlayerControls } from './player-controls';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
@@ -36,8 +40,9 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const searchParams = useSearchParams();
   // The local-file loader is not part of the design - it exists purely to test
   // the engine before the storage backend ships, so it hides behind an
-  // explicit `?dev=1` on top of being dev-build-only.
-  const showDevLoader = process.env.NODE_ENV === 'development' && searchParams.get('dev') === '1';
+  // explicit `?dev=1` and only while the recordings service is the mock (on
+  // any build, so QA can feed a sample .mcrec too).
+  const showDevLoader = SESSION_RECORDINGS_MOCK_ACTIVE && searchParams.get('dev') === '1';
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [unavailable, setUnavailable] = useState(false);

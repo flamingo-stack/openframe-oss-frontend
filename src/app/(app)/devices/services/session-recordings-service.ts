@@ -210,3 +210,12 @@ class MockSessionRecordingsService implements ISessionRecordingsService {
 }
 
 export const sessionRecordingsService: ISessionRecordingsService = new MockSessionRecordingsService();
+
+/**
+ * True while the singleton above is the in-memory mock. Derived from the
+ * instance, not hand-maintained: the recording page shows its local-file
+ * loader on this (not on NODE_ENV, so QA can feed a sample .mcrec to the
+ * player on a production build), and it turns false the moment the storage
+ * service (CU-86akc3c5q) replaces the singleton.
+ */
+export const SESSION_RECORDINGS_MOCK_ACTIVE = sessionRecordingsService instanceof MockSessionRecordingsService;
