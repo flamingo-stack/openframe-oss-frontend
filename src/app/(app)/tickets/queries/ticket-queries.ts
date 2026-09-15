@@ -121,6 +121,7 @@ export const GET_TICKET_QUERY = `
             id
             machineId
             hostname
+            nickname
             organizationId
           }
         }
@@ -222,6 +223,7 @@ export const GET_TICKETS_QUERY = `
                 id
                 machineId
                 hostname
+                nickname
                 organizationId
               }
             }
@@ -321,6 +323,7 @@ const boardCardTicketFragment = () => `
           id
           machineId
           hostname
+          nickname
           organizationId
         }
       }
