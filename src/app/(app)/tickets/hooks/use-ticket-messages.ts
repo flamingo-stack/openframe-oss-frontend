@@ -4,16 +4,19 @@ import type { ChatType } from '../constants';
 import { ticketService } from '../services';
 import type { MessagePage } from '../services/ticket-service.types';
 
+const ticketDialogMessagesQueryKey = (dialogId: string | null, chatType: ChatType) =>
+  ['ticket-dialog-messages', dialogId, chatType] as const;
+
 export function useTicketMessages(dialogId: string | null, chatType: ChatType) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!dialogId) return;
-    queryClient.invalidateQueries({ queryKey: ['ticket-dialog-messages', dialogId, chatType] });
+    queryClient.invalidateQueries({ queryKey: ticketDialogMessagesQueryKey(dialogId, chatType) });
   }, [dialogId, chatType, queryClient]);
 
   const messagesQuery = useInfiniteQuery({
-    queryKey: ['ticket-dialog-messages', dialogId, chatType],
+    queryKey: ticketDialogMessagesQueryKey(dialogId, chatType),
     queryFn: async ({ pageParam }: { pageParam: string | undefined }): Promise<MessagePage> => {
       if (!dialogId) {
         return { messages: [], pageInfo: { hasNextPage: false, hasPreviousPage: false } };
