@@ -23,11 +23,9 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   'test-clock',
   'download-apps',
-  // MeshCentral session recordings: the "Remote Sessions" device tab and the
-  // recording player page (CU-86akc3ce5). Off until the storage backend ships.
-  'session-recordings',
-  // Attended remote access: the approval-gated connect flow (CU-86ajx03db).
-  // Off = the legacy auto-start tunnel behavior.
+  // MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+  // connect flow, the remote access policy UI and the session recordings
+  // surfaces. Off = the legacy auto-start tunnel behavior, no policy UI.
   'remote-access-approval',
 ] as const;
 
@@ -164,20 +162,9 @@ export const featureFlags = {
     },
   },
   /**
-   * MeshCentral session recordings (CU-86akc3ce5): the "Remote Sessions" device
-   * tab and the recording player page. Off until the storage backend registers
-   * the flag. Route/tab gating goes through `useSessionRecordingsGate` (the
-   * tri-state read this snapshot cannot express); this accessor is for
-   * imperative reads.
-   */
-  sessionRecordings: {
-    enabled(): boolean {
-      return getFlagValue('session-recordings', () => false);
-    },
-  },
-  /**
-   * Attended remote access (CU-86ajx03db): the approval-gated connect flow.
-   * Off = the legacy auto-start tunnel behavior. Route gating goes through
+   * MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+   * connect flow, the policy UI and the session recordings surfaces. Off = the
+   * legacy auto-start tunnel behavior. Route gating goes through
    * `useRemoteAccessApprovalGate` (tri-state); this accessor is for imperative
    * reads.
    */
