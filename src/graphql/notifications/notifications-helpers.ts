@@ -1,5 +1,5 @@
 import type { Notification, NotificationVariant } from '@flamingo-stack/openframe-frontend-core';
-import { ConnectionHandler, type RecordSourceSelectorProxy, readInlineData } from 'relay-runtime';
+import { ConnectionHandler, type RecordProxy, type RecordSourceSelectorProxy, readInlineData } from 'relay-runtime';
 import type {
   notificationFields_notification$data as NotificationFieldsData,
   notificationFields_notification$key as NotificationFieldsKey,
@@ -76,6 +76,18 @@ export function clearUnreadCounts(store: RecordSourceSelectorProxy): void {
   for (const bucket of buckets) bucket?.setValue(0, 'count');
 }
 
+/** True when the connection already holds an edge for the node. */
+export function connectionHasNode(conn: RecordProxy, nodeId: string): boolean {
+  const edges = conn.getLinkedRecords('edges') ?? [];
+  return edges.some(edge => edge?.getLinkedRecord('node')?.getDataID() === nodeId);
+}
+
+/**
+ * Every updater below is idempotent: it may run for the same notification twice — the user's
+ * own mutation, then the READ / DELETED event the backend publishes for it, in either order
+ * and around the optimistic revert in between. A second pass finds nothing left to flip,
+ * remove or count, and inserts no duplicate edge.
+ */
 export function makeMarkReadUpdater(
   id: string,
   pairs: NotificationConnectionPair[],
@@ -103,6 +115,9 @@ export function makeMarkReadUpdater(
       const readConn = ConnectionHandler.getConnection(root, NOTIFICATIONS_CONNECTION_KEY, pair.read);
       if (readConn && !seen.has(readConn.getDataID())) {
         seen.add(readConn.getDataID());
+        // `insertEdgeBefore` does not dedupe, and the edge id is derived from the node's,
+        // so a second insert would list the same row twice in history.
+        if (connectionHasNode(readConn, id)) continue;
         const edge = ConnectionHandler.createEdge(store, readConn, node, NOTIFICATION_EDGE_TYPENAME);
         ConnectionHandler.insertEdgeBefore(readConn, edge);
       }
@@ -183,6 +198,10 @@ export function makeDeleteNotificationUpdater(id: string, pairs: NotificationCon
     const category = node?.getValue('category');
     const root = store.getRoot();
     const seen = new Set<string>();
+    // The record outlives its edges (nothing deletes it from the store), so `read === false`
+    // alone would decrement again on the second pass. The bucket mirrors the unread
+    // connection: it moves only when an unread edge actually goes.
+    let removedUnreadEdge = false;
     for (const pair of pairs) {
       for (const filters of [pair.unread, pair.read]) {
         const conn = ConnectionHandler.getConnection(root, NOTIFICATIONS_CONNECTION_KEY, filters);
@@ -190,10 +209,34 @@ export function makeDeleteNotificationUpdater(id: string, pairs: NotificationCon
         const connId = conn.getDataID();
         if (seen.has(connId)) continue;
         seen.add(connId);
+        if (!connectionHasNode(conn, id)) continue;
         ConnectionHandler.deleteNode(conn, id);
+        if (filters === pair.unread) removedUnreadEdge = true;
       }
     }
-    if (wasUnread) adjustUnreadCount(store, category, -1);
+    if (wasUnread && removedUnreadEdge) adjustUnreadCount(store, category, -1);
+  };
+}
+
+export type NotificationReadStateEvent = 'READ' | 'DELETED';
+
+/**
+ * Apply a READ / DELETED live event: the recipient's read-state changed elsewhere (another
+ * tab, another device, or this tab's own mutation echoing back), and the event carries the
+ * ids only — the cards are already in the store, so each is flipped or dropped in place.
+ * An id the store never loaded is skipped, which is why the caller still refetches the
+ * counts afterwards.
+ */
+export function makeReadStateUpdater(
+  eventType: NotificationReadStateEvent,
+  ids: readonly string[],
+  pairs: NotificationConnectionPair[],
+) {
+  return (store: RecordSourceSelectorProxy) => {
+    for (const id of ids) {
+      const apply = eventType === 'READ' ? makeMarkReadUpdater(id, pairs) : makeDeleteNotificationUpdater(id, pairs);
+      apply(store);
+    }
   };
 }
 
