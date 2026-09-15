@@ -19,6 +19,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
  * (24-char ObjectId → new, numeric → this Tactical resolver) so BOTH resolve.
  */
 import { type ReactNode, Suspense } from 'react';
+import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { routes } from '@/lib/routes';
@@ -69,7 +70,9 @@ async function resolveTicket(id: string): Promise<Resolved> {
     variables: { id },
   });
   const t = res.ok ? res.data?.data?.ticket : undefined;
-  const label = t?.title || (t?.ticketNumber != null ? `#${t.ticketNumber}` : id);
+  // `<number>: <title>` like the action modals; a miss degrades to the id so the
+  // caller's `fallbackLabel` wins in `RestInner`.
+  const label = formatTicketRef(t ?? {}, id);
   return { label, href: routes.tickets.dialog(encodeURIComponent(id)) };
 }
 

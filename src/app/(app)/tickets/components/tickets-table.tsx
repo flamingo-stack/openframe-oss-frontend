@@ -5,6 +5,7 @@ import {
   Button,
   type ColumnFiltersState,
   DataTable,
+  type DataTableSortState,
   type OnChangeFn,
   PageError,
   PageLayout,
@@ -15,10 +16,13 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useSelfFirstAssigneeOptions } from '../hooks/use-ticket-options';
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
 import { useTicketsQuery } from '../hooks/use-tickets-query';
+import type { TicketListSort } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { Dialog } from '../types/dialog.types';
+import { toggleTicketListSort } from '../utils/ticket-list-sort';
 import type { StatusOption } from './status-autocomplete';
 import { type StatusFilterOption, TicketTableBody } from './ticket-table-columns';
+import { TICKET_COLUMNS } from './ticket-table-layout';
 import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
@@ -45,6 +49,8 @@ interface TicketsTableProps {
     assigneeIds: string[];
     organizationIds: string[];
     unreadOnly: boolean;
+    /** Only from the Filter Tickets modal, whose Sort section is applied with the filters. */
+    sort?: TicketListSort;
   }) => void;
   backButton?: { label?: string; onClick: () => void };
   selector?: ReactNode;
@@ -52,6 +58,13 @@ interface TicketsTableProps {
   onSearchChange: (value: string) => void;
   tagIds: string[];
   onTagIdsChange: (ids: string[]) => void;
+  /**
+   * Sort by ticket number, newest first by default. The owner keeps it in the
+   * URL; the table only flips the direction on a TICKET-header click (md+) or
+   * hands the modal's choice back through `onFiltersChange` (mobile).
+   */
+  sort: TicketListSort;
+  onSortChange: (sort: TicketListSort) => void;
 }
 
 export function TicketsTable({
@@ -67,6 +80,8 @@ export function TicketsTable({
   onSearchChange,
   tagIds,
   onTagIdsChange,
+  sort,
+  onSortChange,
 }: TicketsTableProps) {
   const debouncedSearch = useDebounce(search, 300);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -87,7 +102,16 @@ export function TicketsTable({
     assigneeIds,
     tagIds,
     unreadOnly,
+    sort,
   });
+
+  // The header only draws the arrow; the sort state itself lives with the URL owner.
+  const sortState: DataTableSortState = { id: TICKET_COLUMNS.title.id, desc: sort.direction === 'DESC' };
+  const handleSortChange = (columnId: string) => {
+    if (columnId !== TICKET_COLUMNS.title.id) return;
+    onSortChange(toggleTicketListSort(sort));
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+  };
 
   const archiveFilter = useMemo(() => ({ tagIds }), [tagIds]);
   const {
@@ -151,13 +175,20 @@ export function TicketsTable({
   );
 
   const handleModalApply = useCallback(
-    (filters: { organizationIds: string[]; assigneeIds: string[]; unreadOnly: boolean; status?: string[] }) => {
+    (filters: {
+      organizationIds: string[];
+      assigneeIds: string[];
+      unreadOnly: boolean;
+      status?: string[];
+      sort?: TicketListSort;
+    }) => {
       if (isArchived) return;
       onFiltersChange?.({
         status: filters.status ?? [],
         assigneeIds: filters.assigneeIds,
         organizationIds: filters.organizationIds,
         unreadOnly: filters.unreadOnly,
+        sort: filters.sort,
       });
       document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
     },
@@ -239,6 +270,7 @@ export function TicketsTable({
               assigneeIds={assigneeIds ?? []}
               unreadOnly={unreadOnly ?? false}
               status={{ value: statusFilters ?? [], options: statusModalOptions }}
+              sort={{ value: sort }}
               onApply={handleModalApply}
             />
           )}
@@ -258,6 +290,8 @@ export function TicketsTable({
               columnFilters={isArchived ? undefined : columnFilters}
               onColumnFiltersChange={isArchived ? undefined : onColumnFiltersChange}
               getUnreadCount={getUnreadCount}
+              sort={sortState}
+              onSortChange={handleSortChange}
               footerSlot={
                 <DataTable.InfiniteFooter
                   hasNextPage={hasNextPage}
