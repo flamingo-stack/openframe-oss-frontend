@@ -131,13 +131,16 @@ export function LoggingStep({
         enableSorting: false,
         meta: { width: 'w-[240px]', hideAt: 'md' },
         cell: ({ row }: { row: Row<LogRow> }) => {
+          // Same "null" literal handling as the logs page Source cell (system events carry it in both fields).
           const deviceName = row.original.device.name === 'null' ? 'System' : row.original.device.name;
+          const organization =
+            row.original.device.organization === 'null' ? undefined : row.original.device.organization;
           return (
             <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
               {deviceName && <TruncateText>{deviceName}</TruncateText>}
-              {row.original.device.organization && (
+              {organization && (
                 <TruncateText variant="h6" tone="secondary">
-                  {row.original.device.organization}
+                  {organization}
                 </TruncateText>
               )}
             </div>

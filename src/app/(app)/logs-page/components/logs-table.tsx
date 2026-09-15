@@ -436,8 +436,11 @@ function LogsTableContent({
         accessorKey: 'source',
         header: 'SOURCE',
         cell: ({ row }: { row: Row<UiLogEntry> }) => {
+          // System events (Fleet audit) arrive with the literal string "null" in hostname and
+          // organization — not null — so both are mapped here rather than at the source.
           const deviceName = row.original.device.name === 'null' ? 'System' : row.original.device.name;
-          const organization = row.original.device.organization;
+          const organization =
+            row.original.device.organization === 'null' ? undefined : row.original.device.organization;
           return (
             <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
               {deviceName && <TruncateText>{deviceName}</TruncateText>}
