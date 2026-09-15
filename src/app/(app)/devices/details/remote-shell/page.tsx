@@ -65,7 +65,7 @@ function RemoteShellSession() {
   const meshcentralState = getToolConnectionState(meshcentralConnection);
   const meshcentralAgentId = meshcentralState === 'live' ? meshcentralConnection?.agentToolId : undefined;
 
-  const deviceName = useMemo(() => getDeviceName(deviceDetails), [deviceDetails]);
+  const deviceName = getDeviceName(deviceDetails);
 
   const organizationName = useMemo(() => {
     return deviceDetails?.organization;

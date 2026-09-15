@@ -148,10 +148,7 @@ function RemoteDesktopSession() {
     return getToolConnectionState(connection) === 'live' ? connection?.agentToolId : undefined;
   }, [legacyDeviceData, deviceDetails]);
 
-  const deviceName = useMemo(
-    () => getDeviceName(deviceDetails) || legacyDeviceData?.hostname,
-    [legacyDeviceData, deviceDetails],
-  );
+  const deviceName = getDeviceName(deviceDetails) || legacyDeviceData?.hostname;
 
   const organizationName = useMemo(() => {
     if (legacyDeviceData?.organization) {

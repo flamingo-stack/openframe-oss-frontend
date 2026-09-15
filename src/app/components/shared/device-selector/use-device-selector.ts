@@ -14,11 +14,10 @@ export function useDeviceSelector({ devices, selectedIds, getDeviceKey }: UseDev
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('available');
 
   const filteredDevices = useMemo(() => {
-    if (!searchTerm) return devices;
-    const lowerSearch = searchTerm.toLowerCase();
+    const needle = searchTerm.trim().toLowerCase();
+    if (!needle) return devices;
     return devices.filter(
-      d =>
-        matchesDeviceName(d, searchTerm) || (d.osType || d.operating_system || '').toLowerCase().includes(lowerSearch),
+      d => matchesDeviceName(d, needle) || (d.osType || d.operating_system || '').toLowerCase().includes(needle),
     );
   }, [devices, searchTerm]);
 
