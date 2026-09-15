@@ -1,6 +1,11 @@
 'use client';
 
 import type { QueryResultRow } from '@flamingo-stack/openframe-frontend-core';
+
+// Mirrors the core lib's TestRunStopReason; switch to the lib export once the
+// FE is bumped to a release that ships it (until then the lib's
+// useTestRunState ignores the field and keeps the legacy status mapping).
+type TestRunStopReason = 'completed' | 'timeout' | 'canceled' | 'error';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -91,7 +96,10 @@ function parseSockJsFrame(raw: string): {
 export interface UseLiveCampaignReturn {
   /** Resolves true once the campaign is created and streaming starts; false on validation/setup failure. */
   startCampaign: (sql: string, hostIds: number[]) => Promise<boolean>;
+  /** User-initiated cancel (the Cancel Test button); internal finishes carry their own reason. */
   stopCampaign: () => void;
+  /** Why the last run ended; null while idle/running. Feeds the lib's Status tag. */
+  stopReason: TestRunStopReason | null;
   isRunning: boolean;
   startedAt: Date | null;
   results: QueryResultRow[];
@@ -206,6 +214,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
   const [hostsFailed, setHostsFailed] = useState(0);
   const [connectionState, setConnectionState] = useState<SockJsConnectionState>('disconnected');
   const [campaignStatus, setCampaignStatus] = useState<'' | 'pending' | 'finished'>('');
+  const [stopReason, setStopReason] = useState<TestRunStopReason | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const previousDataRef = useRef<string | null>(null);
@@ -237,14 +246,29 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
     };
   }, [cleanup]);
 
+  /**
+   * Terminal transition. Every path that ends a run goes through here with
+   * its own reason — only 'completed' (the server's `status: finished`
+   * message) may render as SUCCESS; a timeout, user cancel, or dropped
+   * connection must not (results never arrived, e.g. when osquery's result
+   * publish is blocked upstream).
+   */
+  const finishCampaign = useCallback(
+    (reason: TestRunStopReason) => {
+      cleanup();
+      if (isMountedRef.current) {
+        setIsRunning(false);
+        setCampaignStatus('finished');
+        setStopReason(reason);
+        setConnectionState('disconnected');
+      }
+    },
+    [cleanup],
+  );
+
   const stopCampaign = useCallback(() => {
-    cleanup();
-    if (isMountedRef.current) {
-      setIsRunning(false);
-      setCampaignStatus('finished');
-      setConnectionState('disconnected');
-    }
-  }, [cleanup]);
+    finishCampaign('canceled');
+  }, [finishCampaign]);
 
   const handleCampaignMessage = useCallback(
     (msg: CampaignMessage) => {
@@ -270,7 +294,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
               description: `Stopped after ${CAMPAIGN_LIMIT.toLocaleString()} results`,
               variant: 'destructive',
             });
-            stopCampaign();
+            finishCampaign('completed');
             return;
           }
 
@@ -309,7 +333,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         case 'status': {
           setCampaignStatus(msg.data.status ?? '');
           if (msg.data.status === 'finished') {
-            stopCampaign();
+            finishCampaign('completed');
           }
           break;
         }
@@ -325,7 +349,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         }
       }
     },
-    [stopCampaign, toast],
+    [finishCampaign, toast],
   );
 
   const startCampaign = useCallback(
@@ -349,6 +373,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
       setHostsResponded(0);
       setHostsFailed(0);
       setCampaignStatus('');
+      setStopReason(null);
       setConnectionState('disconnected');
       setStartedAt(null);
 
@@ -395,7 +420,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
               description: 'Live query stopped after 5 minutes',
               variant: 'destructive',
             });
-            stopCampaign();
+            finishCampaign('timeout');
           }
         }, CAMPAIGN_TIMEOUT_MS);
 
@@ -445,30 +470,31 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         };
 
         socket.onclose = () => {
-          // Connection closed — stop the campaign if it hasn't finished naturally
+          // Connection dropped before the server reported 'finished' (a
+          // natural finish cleans up first, clearing campaignIdRef) — the
+          // run's outcome is unknown, so it is an error, not a success.
           if (isMountedRef.current && campaignIdRef.current === campaignId) {
-            stopCampaign();
+            finishCampaign('error');
           }
         };
 
         return true;
       } catch (error) {
-        cleanup();
+        finishCampaign('error');
         if (isMountedRef.current) {
-          setIsRunning(false);
-          setCampaignStatus('finished');
           const message = error instanceof Error ? error.message : 'Failed to start campaign';
           toast({ title: 'Test Failed', description: message, variant: 'destructive' });
         }
         return false;
       }
     },
-    [cleanup, fleetApiToken, handleCampaignMessage, stopCampaign, toast],
+    [cleanup, fleetApiToken, handleCampaignMessage, finishCampaign, toast],
   );
 
   return {
     startCampaign,
     stopCampaign,
+    stopReason,
     isRunning,
     startedAt,
     results,
