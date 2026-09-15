@@ -25,7 +25,7 @@ import { getDeviceStatusConfig } from '../utils/device-status';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { DeviceDetailsSkeleton } from './device-details-skeleton';
 import { RunScriptModal } from './run-script/run-script-modal';
-import { DEVICE_TABS } from './tabs/device-tabs';
+import { useDeviceTabs } from './tabs/device-tabs';
 
 // Icon size for the "…" dropdown items only. The same registry feeds the header
 // buttons, but there this class never applies: every button variant styles its glyphs
@@ -39,10 +39,6 @@ interface DeviceDetailsViewProps {
   deviceId: string;
 }
 
-// Derive the valid-tab set from DEVICE_TABS (the single source of truth) so disabled
-// tabs (e.g. the commented-out `queries`) are excluded automatically. Otherwise a URL
-// like `?tab=queries` would pass validation but render a blank panel (no component).
-const DEVICE_TAB_IDS = DEVICE_TABS.map(tab => tab.id);
 const DEFAULT_DEVICE_TAB = 'overview';
 
 export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
@@ -50,8 +46,15 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Derive the valid-tab set from the visible tabs (the single source of truth) so
+  // disabled tabs (e.g. the commented-out `queries`) and flag-gated tabs the tenant
+  // doesn't have are excluded automatically. Otherwise a URL like `?tab=queries`
+  // would pass validation but render a blank panel (no component).
+  const deviceTabs = useDeviceTabs();
+  const deviceTabIds = deviceTabs.map(tab => tab.id);
+
   const requestedTab = searchParams.get('tab') ?? DEFAULT_DEVICE_TAB;
-  const activeTab = (DEVICE_TAB_IDS as readonly string[]).includes(requestedTab) ? requestedTab : DEFAULT_DEVICE_TAB;
+  const activeTab = (deviceTabIds as readonly string[]).includes(requestedTab) ? requestedTab : DEFAULT_DEVICE_TAB;
 
   // Controlled mode for TabNavigation: URL is the single source of truth.
   // Avoids a flicker bug in `urlSync` mode where the internal sync effect
@@ -203,11 +206,11 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
       )}
 
       {/* Tab Navigation */}
-      <TabNavigation tabs={DEVICE_TABS} activeTab={activeTab} onTabChange={handleTabChange}>
+      <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange}>
         {tabId => (
           <TabContent
             activeTab={tabId}
-            TabComponent={getTabComponent(DEVICE_TABS, tabId) ?? null}
+            TabComponent={getTabComponent(deviceTabs, tabId) ?? null}
             componentProps={{ device: normalizedDevice }}
           />
         )}

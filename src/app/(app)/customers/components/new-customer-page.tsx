@@ -3,6 +3,7 @@
 import {
   ChatsIcon,
   FileContentIcon,
+  MonitorShieldIcon,
   ShieldCheckIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -18,6 +19,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -36,6 +38,10 @@ import {
   CustomerAiConfiguration,
   type CustomerAiConfigurationHandle,
 } from './customer-ai-configuration/customer-ai-configuration';
+import {
+  type CustomerDeviceGuardrailsHandle,
+  CustomerDeviceGuardrailsSettings,
+} from './customer-device-guardrails-settings';
 import { type CustomerGuardrailsHandle, CustomerGuardrailsSettings } from './customer-guardrails-settings';
 
 interface NewCustomerPageProps {
@@ -98,7 +104,7 @@ const contactToDto = (c: { name: string; title: string; phone: string; email: st
   email: c.email,
 });
 
-const [DETAILS_TAB, AI_CONFIGURATION_TAB, GUARDRAILS_TAB] = TAB_IDS.customerEdit;
+const [DETAILS_TAB, AI_CONFIGURATION_TAB, GUARDRAILS_TAB, DEVICE_GUARDRAILS_TAB] = TAB_IDS.customerEdit;
 
 export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const router = useRouter();
@@ -132,6 +138,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const aiConfigurationRef = useRef<CustomerAiConfigurationHandle>(null);
   const appearanceRef = useRef<CustomerAppearanceHandle>(null);
   const guardrailsRef = useRef<CustomerGuardrailsHandle>(null);
+  const deviceGuardrailsRef = useRef<CustomerDeviceGuardrailsHandle>(null);
 
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
   const showImageUploader = isSaasTenant;
@@ -151,7 +158,11 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const guardrailsEnabled = useFeatureFlag('customer-guardrails');
   const showAiConfig = !!organizationId && isSaasTenant && (isFullAiConfig || customizationEnabled);
   const showGuardrails = !!organizationId && isSaasTenant && guardrailsEnabled;
-  const showTabs = showAiConfig || showGuardrails;
+  // Remote access policy (CU-86akeqw8b): not saas-gated - MeshCentral runs in
+  // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
+  const remoteAccessGate = useRemoteAccessApprovalGate();
+  const showDeviceGuardrails = !!organizationId && remoteAccessGate === 'on';
+  const showTabs = showAiConfig || showGuardrails || showDeviceGuardrails;
 
   const editTabs = useMemo<TabItem[]>(
     () => [
@@ -166,8 +177,11 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
           ]
         : []),
       ...(showGuardrails ? [{ id: GUARDRAILS_TAB, label: 'Customer AI Guardrails', icon: ShieldCheckIcon }] : []),
+      ...(showDeviceGuardrails
+        ? [{ id: DEVICE_GUARDRAILS_TAB, label: 'Customer Device Guardrails', icon: MonitorShieldIcon }]
+        : []),
     ],
-    [showAiConfig, isFullAiConfig, showGuardrails],
+    [showAiConfig, isFullAiConfig, showGuardrails, showDeviceGuardrails],
   );
 
   // Tab rides the URL (controlled mode, mirroring customer-details-view) so
@@ -402,6 +416,19 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
         }
       }
 
+      // Persist the per-customer remote access permission (edit mode only).
+      if (organizationId && deviceGuardrailsRef.current) {
+        try {
+          await deviceGuardrailsRef.current.commit();
+        } catch (e) {
+          toast({
+            title: 'Customer saved, device guardrails not updated',
+            description: e instanceof Error ? e.message : 'Failed to save customer device guardrails',
+            variant: 'warning',
+          });
+        }
+      }
+
       await invalidateOrganizationImageQueries();
 
       toast({
@@ -542,6 +569,11 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
               {showGuardrails && (
                 <div className={activeId === GUARDRAILS_TAB ? undefined : 'hidden'}>
                   <CustomerGuardrailsSettings ref={guardrailsRef} organizationId={organizationId} />
+                </div>
+              )}
+              {showDeviceGuardrails && (
+                <div className={activeId === DEVICE_GUARDRAILS_TAB ? undefined : 'hidden'}>
+                  <CustomerDeviceGuardrailsSettings ref={deviceGuardrailsRef} organizationId={organizationId} />
                 </div>
               )}
             </div>
