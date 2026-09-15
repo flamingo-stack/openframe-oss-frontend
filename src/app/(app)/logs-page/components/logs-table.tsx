@@ -61,6 +61,7 @@ import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { LogFilterInput } from '../types/log.types';
+import { logSourceLabels } from '../utils/log-source-labels';
 import { LogCopyButton, type LogCopyTarget } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
 import { LogsTableSkeleton } from './logs-table-skeleton';
@@ -436,11 +437,7 @@ function LogsTableContent({
         accessorKey: 'source',
         header: 'SOURCE',
         cell: ({ row }: { row: Row<UiLogEntry> }) => {
-          // System events (Fleet audit) arrive with the literal string "null" in hostname and
-          // organization — not null — so both are mapped here rather than at the source.
-          const deviceName = row.original.device.name === 'null' ? 'System' : row.original.device.name;
-          const organization =
-            row.original.device.organization === 'null' ? undefined : row.original.device.organization;
+          const { deviceName, organization } = logSourceLabels(row.original.device);
           return (
             <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
               {deviceName && <TruncateText>{deviceName}</TruncateText>}

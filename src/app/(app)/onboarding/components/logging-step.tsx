@@ -19,6 +19,7 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { getDeviceName } from '../../devices/utils/device-name';
 import { useLogs } from '../../logs-page/hooks/use-logs';
 import type { LogEntry } from '../../logs-page/types/log.types';
+import { logSourceLabels } from '../../logs-page/utils/log-source-labels';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 
 interface LogRow {
@@ -131,10 +132,7 @@ export function LoggingStep({
         enableSorting: false,
         meta: { width: 'w-[240px]', hideAt: 'md' },
         cell: ({ row }: { row: Row<LogRow> }) => {
-          // Same "null" literal handling as the logs page Source cell (system events carry it in both fields).
-          const deviceName = row.original.device.name === 'null' ? 'System' : row.original.device.name;
-          const organization =
-            row.original.device.organization === 'null' ? undefined : row.original.device.organization;
+          const { deviceName, organization } = logSourceLabels(row.original.device);
           return (
             <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
               {deviceName && <TruncateText>{deviceName}</TruncateText>}
