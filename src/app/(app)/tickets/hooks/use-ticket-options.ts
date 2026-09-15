@@ -30,6 +30,15 @@ export interface AvatarOption extends AutocompleteOption {
 const EMPTY_AUTOCOMPLETE_OPTIONS: AutocompleteOption[] = [];
 const EMPTY_AVATAR_OPTIONS: AvatarOption[] = [];
 
+// Cache key builders for this hook's queries, so any surface that needs to
+// invalidate these caches imports the exact same shape.
+export const ticketOptionsQueryKeys = {
+  organizations: (search: string) => ['ticket-options', 'organizations', search] as const,
+  assignees: () => ['ticket-options', 'assignees'] as const,
+  tickets: (search: string, organizationId?: string, nonArchivedStatusIds?: string[]) =>
+    ['ticket-options', 'tickets', search, organizationId ?? null, nonArchivedStatusIds ?? null] as const,
+};
+
 /** An image reference as both the GraphQL and REST endpoints below return it. */
 interface OptionImage {
   imageUrl?: string | null;
@@ -72,7 +81,7 @@ async function fetchCustomerOptions(search: string): Promise<AvatarOption[]> {
 
 export function useOrganizationOptions(search = '', enabled = true) {
   const query = useQuery({
-    queryKey: ['ticket-options', 'organizations', search],
+    queryKey: ticketOptionsQueryKeys.organizations(search),
     queryFn: () => fetchCustomerOptions(search),
     enabled,
   });
@@ -151,7 +160,7 @@ async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
 
 export function useAssigneeOptions(enabled = true) {
   const query = useQuery({
-    queryKey: ['ticket-options', 'assignees'],
+    queryKey: ticketOptionsQueryKeys.assignees(),
     queryFn: fetchAssigneeOptions,
     enabled,
   });
@@ -264,7 +273,7 @@ export function useTicketSearchOptions(search = '', organizationId?: string, ena
   );
 
   const query = useQuery({
-    queryKey: ['ticket-options', 'tickets', search, organizationId ?? null, nonArchivedStatusIds ?? null],
+    queryKey: ticketOptionsQueryKeys.tickets(search, organizationId, nonArchivedStatusIds),
     queryFn: () => fetchTicketSearchOptions(search, organizationId, nonArchivedStatusIds),
     enabled: enabled && !statusesQuery.isLoading,
   });
