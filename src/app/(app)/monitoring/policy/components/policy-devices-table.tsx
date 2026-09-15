@@ -58,7 +58,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
     () => [
       {
         id: POLICY_DEVICE_COLUMNS.device.id,
-        accessorKey: 'displayName',
+        accessorKey: 'name',
         header: POLICY_DEVICE_COLUMNS.device.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const r = row.original;
@@ -71,7 +71,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
                   })}
               </div>
               <div className="min-w-0 flex-1">
-                <TruncateText>{r.displayName || r.hostname}</TruncateText>
+                <TruncateText>{r.name}</TruncateText>
               </div>
             </div>
           );

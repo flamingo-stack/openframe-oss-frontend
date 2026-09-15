@@ -10,7 +10,7 @@
  * tracking until the data resolves.
  *
  * @example
- *   useTrackOpenView(device ? { type: 'DEVICE', id: device.id, label: device.hostname } : null);
+ *   useTrackOpenView(device ? { type: 'DEVICE', id: device.id, label: getDeviceName(device) || device.id } : null);
  */
 
 import { useEffect } from 'react';

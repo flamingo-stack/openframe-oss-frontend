@@ -24,6 +24,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
@@ -147,12 +148,7 @@ function RemoteDesktopSession() {
     return getToolConnectionState(connection) === 'live' ? connection?.agentToolId : undefined;
   }, [legacyDeviceData, deviceDetails]);
 
-  const hostname = useMemo(() => {
-    if (legacyDeviceData?.hostname) {
-      return legacyDeviceData.hostname;
-    }
-    return deviceDetails?.hostname || deviceDetails?.displayName;
-  }, [legacyDeviceData, deviceDetails]);
+  const deviceName = getDeviceName(deviceDetails) || legacyDeviceData?.hostname;
 
   const organizationName = useMemo(() => {
     if (legacyDeviceData?.organization) {
@@ -165,7 +161,7 @@ function RemoteDesktopSession() {
 
   // Keep this device as the Mingo "open view" while on the remote-desktop surface
   // (the parent detail page unmounted on navigation, clearing its own openView).
-  useTrackOpenView(hostname ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: hostname } : null);
+  useTrackOpenView(deviceName ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName } : null);
 
   // Remote desktop state
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -619,7 +615,7 @@ function RemoteDesktopSession() {
         <MonitorIcon className="h-4 w-4 text-ods-text-primary" />
       </div>
       <div className="flex min-w-0 flex-col">
-        <TruncateText>{hostname || `Device ${deviceId}`}</TruncateText>
+        <TruncateText>{deviceName || `Device ${deviceId}`}</TruncateText>
         <TruncateText
           variant="h6"
           tone="secondary"
@@ -768,7 +764,7 @@ function RemoteDesktopSession() {
       <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}>
         {isFullscreen ? (
           <FullscreenToolbar
-            deviceName={hostname || `Device ${deviceId}`}
+            deviceName={deviceName || `Device ${deviceId}`}
             displayMenuGroups={displayMenuGroups}
             currentDisplayLabel={`Display ${currentDisplay === 0 ? 'All' : currentDisplay}`}
             actionsMenuGroups={actionsMenuGroups}

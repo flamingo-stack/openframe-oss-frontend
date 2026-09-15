@@ -78,6 +78,7 @@ import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
+import { getTicketDeviceName } from '../utils/ticket-device-name';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
 import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
@@ -299,10 +300,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [router, pathname, searchParams],
   );
 
-  const clientDisplayName =
-    dialog?.deviceHostname ||
-    (dialog?.owner && isClientOwner(dialog.owner) ? dialog.owner.machine?.hostname : undefined) ||
-    undefined;
+  const clientDisplayName = (dialog && getTicketDeviceName(dialog)) || undefined;
 
   const processClientChunk = useSideChunkProcessor('client', {
     ticketId,
@@ -648,12 +646,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       id: 'device',
       label: 'Device',
       value: {
-        text:
-          dialog.deviceHostname ||
-          (isClientOwner(dialog.owner)
-            ? dialog.owner.machine?.hostname || dialog.owner.machine?.displayName
-            : undefined) ||
-          '—',
+        text: getTicketDeviceName(dialog) || '—',
         href: machineId ? routes.devices.details(machineId) : undefined,
       },
     },

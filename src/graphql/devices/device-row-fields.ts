@@ -20,8 +20,13 @@ export const deviceRowFieldsFragment = graphql`
   fragment deviceRowFields_machine on Machine @inline {
     id
     machineId
+    # The DEVICE column's name. getDeviceName resolves it as
+    # nickname -> displayName -> hostname, so all three sit on the narrowest
+    # step: every list draws that name, including the ones that can afford
+    # nothing above this step.
     hostname
     displayName
+    nickname
     # type picks the DEVICE column's row icon; lastSeen is the line under the
     # status tag.
     osType

@@ -35,7 +35,7 @@ interface TicketNode {
   owner: {
     type: 'CLIENT' | 'ADMIN';
     machineId?: string;
-    machine?: { id: string; machineId: string; hostname: string; organizationId?: string };
+    machine?: { id: string; machineId: string; hostname: string; nickname?: string | null; organizationId?: string };
     userId?: string;
     user?: { id: string; firstName: string; lastName: string };
   };

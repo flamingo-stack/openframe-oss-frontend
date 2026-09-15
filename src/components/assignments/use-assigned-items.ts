@@ -47,6 +47,7 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               machineId
               hostname
               displayName
+              nickname
               machineStatus: status
               lastSeen
               machineType: type
@@ -130,6 +131,7 @@ function toMachineRowFields(target: AssignedTargetNode): DeviceRowFields {
     machineId: t.machineId as string,
     hostname: t.hostname as string | null,
     displayName: t.displayName as string | null,
+    nickname: t.nickname as string | null,
     osType: t.osType as DeviceRowFields['osType'],
     status: t.status as DeviceRowFields['status'],
     lastSeen: t.lastSeen ?? null,

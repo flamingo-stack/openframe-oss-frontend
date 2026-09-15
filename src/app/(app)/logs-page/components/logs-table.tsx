@@ -42,6 +42,7 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { logsTableRelay_query$key as LogsFragmentKey } from '@/__generated__/logsTableRelay_query.graphql';
 import type { logsTableRelayPaginationQuery as LogsPaginationQueryType } from '@/__generated__/logsTableRelayPaginationQuery.graphql';
 import type { logsTableRelayQuery as LogsQueryType } from '@/__generated__/logsTableRelayQuery.graphql';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import {
   DateColumnHeader,
   EMBEDDED_PAGE_OFFSET,
@@ -60,6 +61,7 @@ import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { LogFilterInput } from '../types/log.types';
+import { logSourceLabels } from '../utils/log-source-labels';
 import { LogCopyButton, type LogCopyTarget } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
 import { LogsTableSkeleton } from './logs-table-skeleton';
@@ -113,6 +115,7 @@ const logsTableRelayFragment = graphql`
           severity
           deviceId
           hostname
+          nickname
           organizationId
           organizationName
           summary
@@ -279,7 +282,7 @@ function LogsTableContent({
                 id: node.deviceId || '',
                 machineId: node.deviceId || '',
                 hostname: node.hostname || node.deviceId || '',
-                displayName: node.hostname || '',
+                nickname: node.nickname ?? undefined,
                 organizationId: node.organizationId,
                 organization: node.organizationName || node.organizationId || '',
               }
@@ -350,7 +353,7 @@ function LogsTableContent({
         toolType: normalizeToolTypeWithFallback(log.toolType),
       },
       device: {
-        name: log.device?.hostname || log.hostname || log.deviceId || '-',
+        name: getDeviceName(log.device) || log.hostname || log.deviceId || '-',
         organization: log.device?.organization || log.organizationName || '-',
       },
       description: {
@@ -434,8 +437,7 @@ function LogsTableContent({
         accessorKey: 'source',
         header: 'SOURCE',
         cell: ({ row }: { row: Row<UiLogEntry> }) => {
-          const deviceName = row.original.device.name === 'null' ? 'System' : row.original.device.name;
-          const organization = row.original.device.organization;
+          const { deviceName, organization } = logSourceLabels(row.original.device);
           return (
             <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
               {deviceName && <TruncateText>{deviceName}</TruncateText>}
