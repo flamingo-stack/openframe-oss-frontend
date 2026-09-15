@@ -4,6 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
 import { graphql, useMutation } from 'react-relay';
 import type { useResumeSubscriptionMutation as UseResumeSubscriptionMutationType } from '@/__generated__/useResumeSubscriptionMutation.graphql';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 
 // Clears a scheduled cancellation (status PENDING_CANCELLATION) in Stripe so the
 // subscription renews again. Only valid while still inside the paid period — a
@@ -48,7 +49,7 @@ export function useResumeSubscription() {
         onError: err => {
           toast({
             title: 'Renew Failed',
-            description: err instanceof Error ? err.message : 'Failed to renew subscription',
+            description: getRelayErrorMessage(err, 'Failed to renew subscription'),
             variant: 'destructive',
           });
         },

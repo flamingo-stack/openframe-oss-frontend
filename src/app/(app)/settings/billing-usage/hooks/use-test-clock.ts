@@ -5,7 +5,7 @@ import { useCallback } from 'react';
 import { commitLocalUpdate, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import type { useTestClockAdvanceMutation as UseTestClockAdvanceMutationType } from '@/__generated__/useTestClockAdvanceMutation.graphql';
 import type { useTestClockResetMutation as UseTestClockResetMutationType } from '@/__generated__/useTestClockResetMutation.graphql';
-import { extractGraphqlErrorMessage } from './extract-graphql-error-message';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 
 /**
  * Stripe test-clock mutations (dev/stage only — gated by the `test-clock` feature flag).
@@ -57,7 +57,7 @@ export function useAdvanceTestClock() {
         onError: err => {
           toast({
             title: 'Advance Failed',
-            description: extractGraphqlErrorMessage(err, 'Failed to advance the test clock'),
+            description: getRelayErrorMessage(err, 'Failed to advance the test clock'),
             variant: 'destructive',
           });
         },
@@ -96,7 +96,7 @@ export function useResetTestClock() {
         onError: err => {
           toast({
             title: 'Reset Failed',
-            description: extractGraphqlErrorMessage(err, 'Failed to reset the test clock'),
+            description: getRelayErrorMessage(err, 'Failed to reset the test clock'),
             variant: 'destructive',
           });
         },

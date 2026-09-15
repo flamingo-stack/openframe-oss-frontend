@@ -8,6 +8,7 @@ import type {
   UpdateSubscriptionInput,
   useUpdateSubscriptionMutation as UseUpdateSubscriptionMutationType,
 } from '@/__generated__/useUpdateSubscriptionMutation.graphql';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 export type { PackageUpdateInput, UpdateSubscriptionInput };
 
 const updateSubscriptionMutation = graphql`
@@ -81,7 +82,7 @@ export function useUpdateSubscription() {
         onError: err => {
           toast({
             title: 'Update Failed',
-            description: err instanceof Error ? err.message : 'Failed to update subscription',
+            description: getRelayErrorMessage(err, 'Failed to update subscription'),
             variant: 'destructive',
           });
         },

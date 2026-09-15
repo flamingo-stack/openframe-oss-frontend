@@ -45,7 +45,11 @@ interface SubscriptionSubmitButtonProps {
  * The ACTION still splits on the subscription state:
  * - no active paid subscription → `createCheckoutSession`, which redirects to
  *   Stripe. No diff gating: there is nothing to compare against. The AI top-up
- *   rides along on the same input and lands on the same invoice.
+ *   rides along on the same input and lands on the same invoice. Disabled only
+ *   while there is nothing to buy yet — the picker has not reported (catalog
+ *   still loading), or the catalog has no device product — because a button
+ *   that looks live and does nothing on click is a dead end with no spinner,
+ *   toast or redirect to say so.
  * - active paid subscription → `updateSubscription`, a mutation that applies the
  *   plan change in place and does NOT redirect to a payment page (an upgrade may
  *   raise an invoice afterwards). Disabled when the selection equals the current
@@ -86,28 +90,29 @@ export function SubscriptionSubmitButton({
   };
 
   if (needsCheckout) {
+    const handleCheckout = () => {
+      // Checkout has no diff to gate on, but an out-of-range quantity is still
+      // one: it would be sent as a plan nobody can be billed for. The same
+      // goes for a top-up with no figure behind it.
+      if (hasInvalidCustom) {
+        rejectInvalidAmount();
+        return;
+      }
+      const topUpProblem = validateTopUp?.() ?? null;
+      if (topUpProblem != null) {
+        rejectInvalidTopUp(topUpProblem);
+        return;
+      }
+      createCheckout.mutate({ products: checkoutProducts, tokenAmountUsd: tokenAmountUsd ?? undefined });
+    };
+
     return (
       <Button
         variant="accent"
         className={className}
-        onClick={() => {
-          // Checkout has no diff to gate on, but an out-of-range quantity is still
-          // one: it would be sent as a plan nobody can be billed for. The same
-          // goes for a top-up with no figure behind it.
-          if (hasInvalidCustom) {
-            rejectInvalidAmount();
-            return;
-          }
-          const topUpProblem = validateTopUp?.() ?? null;
-          if (topUpProblem != null) {
-            rejectInvalidTopUp(topUpProblem);
-            return;
-          }
-          if (!checkoutProducts.length) return;
-          createCheckout.mutate({ products: checkoutProducts, tokenAmountUsd: tokenAmountUsd ?? undefined });
-        }}
+        onClick={handleCheckout}
         loading={isPending}
-        disabled={isPending}
+        disabled={isPending || checkoutProducts.length === 0}
       >
         {SUBMIT_LABEL}
       </Button>
