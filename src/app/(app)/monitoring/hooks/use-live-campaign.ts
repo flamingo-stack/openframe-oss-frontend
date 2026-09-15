@@ -1,11 +1,6 @@
 'use client';
 
-import type { QueryResultRow } from '@flamingo-stack/openframe-frontend-core';
-
-// Mirrors the core lib's TestRunStopReason; switch to the lib export once the
-// FE is bumped to a release that ships it (until then the lib's
-// useTestRunState ignores the field and keeps the legacy status mapping).
-type TestRunStopReason = 'completed' | 'timeout' | 'canceled' | 'error';
+import type { QueryResultRow, TestRunStopReason } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
