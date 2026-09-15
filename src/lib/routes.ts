@@ -33,8 +33,9 @@ export const TAB_IDS = {
     'details',
     'custom-ai-assistant',
     'customer-ai-guardrails',
+    'customer-device-guardrails',
   ],
-  customerEdit: ['details', 'ai-configuration', 'guardrails'],
+  customerEdit: ['details', 'ai-configuration', 'guardrails', 'device-guardrails'],
   deviceDetails: [
     'overview',
     'vulnerabilities',
@@ -48,6 +49,7 @@ export const TAB_IDS = {
     'network',
     'users',
     'software',
+    'remote-sessions',
   ],
   scriptDetails: ['details', 'executions'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
@@ -55,7 +57,7 @@ export const TAB_IDS = {
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
   queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
-  aiSettings: ['mingo', 'customer', 'guardrails'],
+  aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
 } as const;
 
@@ -203,6 +205,11 @@ export const routes = {
      */
     ssoContinue: '/auth/sso-continue',
     /**
+     * Terminal notice for an SSO identity with no account in a login-only mobile build, where the web
+     * would continue into `ssoContinue`. Nothing about the identity travels here.
+     */
+    noAccount: '/auth/no-account',
+    /**
      * "One Last Step": where the auth server parks an SSO flow that is about to CREATE a user - a new
      * member accepting an invitation, or a first login through a shared domain
      * (`openframe.sso.join-confirm-url`). The page confirms the identity + organization from the SAS
@@ -228,6 +235,7 @@ export const routes = {
     remoteShell: (id: string | number) => withQuery('/devices/details/remote-shell', { id }),
     remoteDesktop: (id: string | number) => withQuery('/devices/details/remote-desktop', { id }),
     fileManager: (id: string | number) => withQuery('/devices/details/file-manager', { id }),
+    remoteSessionRecording: (id: string | number) => withQuery('/devices/details/remote-session', { id }),
   },
 
   scripts: {

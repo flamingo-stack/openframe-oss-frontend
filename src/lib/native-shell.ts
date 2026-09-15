@@ -452,10 +452,9 @@ export function onNativeTokenUpdate(callback: (tokens: NativeTokens) => void): v
 /**
  * Subscribe to OS-notification clicks forwarded by the desktop shell's Rust
  * notification plane. Resolve a route from the payload with
- * resolveNatsNotificationRoute, which reads the envelope's `type`/`attributes`
- * when the shell forwards them and its legacy `context` otherwise. Desktop-only
- * transport; mobile deep-links notification taps through FCM instead
- * (native-push.ts).
+ * resolveNatsNotificationRoute, which reads the envelope's `type`/`attributes`.
+ * Desktop-only transport; mobile deep-links notification taps through FCM
+ * instead (native-push.ts).
  *
  * Resolves `true` only once a listener is actually live. Callers must not open
  * the shell's click gate (takeNativeStartupNotificationClick) otherwise: the
