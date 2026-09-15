@@ -205,6 +205,11 @@ export const routes = {
      */
     ssoContinue: '/auth/sso-continue',
     /**
+     * Terminal notice for an SSO identity with no account in a login-only mobile build, where the web
+     * would continue into `ssoContinue`. Nothing about the identity travels here.
+     */
+    noAccount: '/auth/no-account',
+    /**
      * "One Last Step": where the auth server parks an SSO flow that is about to CREATE a user - a new
      * member accepting an invitation, or a first login through a shared domain
      * (`openframe.sso.join-confirm-url`). The page confirms the identity + organization from the SAS

@@ -1,29 +1,24 @@
 import {
-  ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE,
   type ApprovalToolCallMeta,
+  isApprovalNotificationType,
+  MINGO_APPROVAL_REQUEST_TYPE,
+  TICKET_APPROVAL_REQUEST_TYPE,
 } from '@flamingo-stack/openframe-frontend-core';
 
 /**
  * The notification contract as plain data: the flat `type` + `attributes` pair the backend
- * spec catalog emits, and the legacy discriminators it replaces.
+ * spec catalog emits.
  *
  * Deliberately free of Relay. `notifications-helpers` owns the fragment and evaluates a
  * `graphql` tag at module scope, which anything importing it inherits — including the route
  * mapping, which runs on transports (a cold-start push tap) that have no Relay in play.
  */
-/**
- * Spec-catalog approval types. The backend splits the single legacy approval by ticket
- * linkage, but keeps `context.type` at `ADMIN_APPROVAL_REQUEST` on both — so only the
- * top-level `type` tells them apart.
- */
-export const TICKET_APPROVAL_REQUEST_TYPE = 'TICKET_APPROVAL_REQUEST';
-export const MINGO_APPROVAL_REQUEST_TYPE = 'MINGO_APPROVAL_REQUEST';
 
-const APPROVAL_TYPES: ReadonlySet<string> = new Set([
-  ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE,
-  TICKET_APPROVAL_REQUEST_TYPE,
-  MINGO_APPROVAL_REQUEST_TYPE,
-]);
+/**
+ * The approval types and the gate on them live in the core lib, because its approval tile
+ * is what reads them; re-exported so the app has one import for the contract.
+ */
+export { isApprovalNotificationType, MINGO_APPROVAL_REQUEST_TYPE, TICKET_APPROVAL_REQUEST_TYPE };
 
 /**
  * Attribute keys this app reads out of the flat `attributes` map. Every other key the
@@ -56,32 +51,12 @@ export function readNotificationAttributes(value: unknown): Record<string, strin
   return attributes;
 }
 
-/** True for either spec approval type and for the legacy context discriminator. */
-export function isApprovalNotificationType(type: string | null | undefined): boolean {
-  return !!type && APPROVAL_TYPES.has(type);
-}
-
-/**
- * Fold the approval split back onto the legacy discriminator for `meta.contextType`.
- * The core lib gates its approval tile on that exact string and is shared across six
- * projects, so the normalization happens here rather than there. The precise type stays
- * available on `meta.notificationType`.
- */
-export function toLegacyContextType(type: string | null | undefined): string | undefined {
-  if (!type) return undefined;
-  return isApprovalNotificationType(type) ? ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE : type;
-}
-
 /**
  * Backend `ApprovalResolution` values that mean the request is settled. PENDING is
- * deliberately NOT one of them.
- *
- * This matters because the two contracts disagree about what an unresolved approval looks
- * like: the legacy context left `resolution` null until the request was settled, while the
- * attribute map carries the key from the start (`PENDING` on a freshly emitted request). A
- * truthiness check was correct for the first and would, on the second, retire every approval
- * to the read list the moment any UPDATED push touched it — the card would vanish from the
- * drawer still awaiting a decision.
+ * deliberately NOT one of them: the attribute map carries the key from the start
+ * (`PENDING` on a freshly emitted request), so a truthiness check would retire every
+ * approval to the read list the moment any UPDATED push touched it — the card would
+ * vanish from the drawer still awaiting a decision.
  */
 const TERMINAL_APPROVAL_RESOLUTIONS: ReadonlySet<string> = new Set(['APPROVED', 'REJECTED', 'CANCELLED']);
 
@@ -106,11 +81,6 @@ function normalizeToolCall(raw: unknown): ApprovalToolCallMeta {
   };
 }
 
-/** Normalize tool calls arriving as objects — the legacy typed context and the legacy NATS payload. */
-export function normalizeToolCalls(raw: unknown): ApprovalToolCallMeta[] {
-  return Array.isArray(raw) ? raw.map(normalizeToolCall) : [];
-}
-
 /**
  * `attributes.toolCalls` is a JSON-encoded array inside a string (every attribute value is
  * a string). Malformed input yields an empty list rather than throwing: a broken tool list
@@ -119,7 +89,8 @@ export function normalizeToolCalls(raw: unknown): ApprovalToolCallMeta[] {
 export function parseAttributeToolCalls(raw: string | undefined): ApprovalToolCallMeta[] {
   if (!raw) return [];
   try {
-    return normalizeToolCalls(JSON.parse(raw));
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(normalizeToolCall) : [];
   } catch {
     return [];
   }

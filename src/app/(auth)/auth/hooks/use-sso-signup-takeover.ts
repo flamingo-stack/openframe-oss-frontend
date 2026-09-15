@@ -1,6 +1,8 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { isLoginOnlyMobileShell } from '@/lib/app-mode';
 import {
   AppleRegistrationRequiredError,
   type PendingSsoSignup,
@@ -14,7 +16,8 @@ export interface SsoSignupTakeover {
   /**
    * Pass any error thrown out of `loginWithSso`. A no-account answer — from either the native Apple
    * sheet or a browser flow — is captured and takes over the screen; every other error is left
-   * alone, `loginWithSso` having already surfaced it.
+   * alone, `loginWithSso` having already surfaced it. In a login-only mobile build the answer goes
+   * to the no-account notice instead, and `pending` stays null.
    */
   capture: (error: unknown) => void;
   /** Leaves the auth screen after tokens are stored. */
@@ -33,17 +36,33 @@ export interface SsoSignupTakeover {
  *
  * Memory-only: Apple's authorization code is single-use and the ticket names a live server-side
  * identity, so neither may reach a route, storage, or a log.
+ *
+ * A login-only mobile build never holds the identity at all. App Review rejected in-app organization
+ * registration (3.1.1/3.1.3), so there is nothing to finish: the credential or ticket is dropped on
+ * capture — both expire on their own — and the person lands on the no-account notice.
  */
 export function useSsoSignupTakeover(): SsoSignupTakeover {
+  const router = useRouter();
   const [pending, setPending] = useState<PendingSsoSignup | null>(null);
 
-  const capture = useCallback((error: unknown) => {
-    if (error instanceof AppleRegistrationRequiredError) {
-      setPending({ kind: 'apple', credential: error.credential });
-    } else if (error instanceof SsoRegistrationRequiredError) {
-      setPending({ kind: 'ticket', ticket: error.signupTicket });
-    }
-  }, []);
+  const capture = useCallback(
+    (error: unknown) => {
+      const isNoAccount =
+        error instanceof AppleRegistrationRequiredError || error instanceof SsoRegistrationRequiredError;
+      // A plain call, not `useLoginOnlyMobileShell()`: that hook's `false` exists only for the
+      // prerendered render pass. Both errors come solely from `nativeLogin`, which `loginWithSso`
+      // reaches only after `isAppShell()` has detected and memoized the shell for the document, so
+      // this reads the same cached answer that routed the login natively.
+      if (isNoAccount && isLoginOnlyMobileShell()) {
+        router.push(routes.auth.noAccount);
+      } else if (error instanceof AppleRegistrationRequiredError) {
+        setPending({ kind: 'apple', credential: error.credential });
+      } else if (error instanceof SsoRegistrationRequiredError) {
+        setPending({ kind: 'ticket', ticket: error.signupTicket });
+      }
+    },
+    [router],
+  );
 
   const onRegistered = useCallback(() => {
     // Same landing as a completed native login — the shell has already stored the tokens.

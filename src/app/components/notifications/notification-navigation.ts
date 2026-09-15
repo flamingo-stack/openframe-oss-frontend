@@ -1,4 +1,4 @@
-import { ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE, type Notification } from '@flamingo-stack/openframe-frontend-core';
+import type { Notification } from '@flamingo-stack/openframe-frontend-core';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import {
   isApprovalNotificationType,
@@ -7,65 +7,46 @@ import {
 } from '@/graphql/notifications/notification-attributes';
 import { mingoDialogLink, routes } from '@/lib/routes';
 
-// Backend `NotificationContext.type` discriminators (the string `type` field; the same set the
-// concrete `__typename` subtypes carry in schema.graphql). NATS payloads carry only this string,
-// so it is the single source of truth for both routing and reconstructing store records live.
-export const ADMIN_AI_MESSAGE_CONTEXT_TYPE = 'ADMIN_AI_MESSAGE';
-export const ADMIN_AI_TICKET_MESSAGE_CONTEXT_TYPE = 'ADMIN_AI_TICKET_MESSAGE';
-export const CLIENT_AI_MESSAGE_CONTEXT_TYPE = 'CLIENT_AI_MESSAGE';
-export const TICKET_STATUS_CHANGED_CONTEXT_TYPE = 'TICKET_STATUS_CHANGED';
+// Backend notification `type` discriminators (`TenantNotificationType`). GraphQL rows and NATS
+// payloads carry the same string, so it is the single source of truth for routing.
+export const ADMIN_AI_MESSAGE_TYPE = 'ADMIN_AI_MESSAGE';
+export const ADMIN_AI_TICKET_MESSAGE_TYPE = 'ADMIN_AI_TICKET_MESSAGE';
+export const CLIENT_AI_MESSAGE_TYPE = 'CLIENT_AI_MESSAGE';
+export const TICKET_STATUS_CHANGED_TYPE = 'TICKET_STATUS_CHANGED';
 // A reopen transition REPLACES the generic status-change notification server-side —
 // without this mapping reopens would be invisible (no navigation, no auto-read).
-export const TICKET_REOPENED_CONTEXT_TYPE = 'TICKET_REOPENED';
-export const TICKET_ASSIGNED_CONTEXT_TYPE = 'TICKET_ASSIGNED';
-export const TICKET_ESCALATED_BY_USER_CONTEXT_TYPE = 'TICKET_ESCALATED_BY_USER';
-export const CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
-export const ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
+export const TICKET_REOPENED_TYPE = 'TICKET_REOPENED';
+export const TICKET_ASSIGNED_TYPE = 'TICKET_ASSIGNED';
+export const TICKET_ESCALATED_BY_USER_TYPE = 'TICKET_ESCALATED_BY_USER';
+export const CUSTOMER_MESSAGE_PUBLISHED_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
+export const ADMIN_MESSAGE_PUBLISHED_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
 
 /**
- * Context `type` → GraphQL `__typename`, so the NATS live path can rebuild typed context records.
- * LEGACY ONLY: a spec-shaped push carries `attributes` and needs no typed context record.
+ * Types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`.
+ * CLIENT_AI_MESSAGE belongs here only when its dialog is ticket-linked — a Fae chat can run
+ * without a ticket, and without one the notification resolves to no action.
  */
-export const CONTEXT_TYPENAME_BY_TYPE: Record<string, string> = {
-  [ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE]: 'AdminApprovalRequestContext',
-  [ADMIN_AI_MESSAGE_CONTEXT_TYPE]: 'AdminAiMessageContext',
-  [ADMIN_AI_TICKET_MESSAGE_CONTEXT_TYPE]: 'AdminAiTicketMessageContext',
-  [CLIENT_AI_MESSAGE_CONTEXT_TYPE]: 'ClientAiMessageContext',
-  [TICKET_STATUS_CHANGED_CONTEXT_TYPE]: 'TicketStatusChangedContext',
-  [TICKET_REOPENED_CONTEXT_TYPE]: 'TicketReopenedContext',
-  [TICKET_ASSIGNED_CONTEXT_TYPE]: 'TicketAssignedContext',
-  [TICKET_ESCALATED_BY_USER_CONTEXT_TYPE]: 'TicketEscalatedByUserContext',
-  [CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE]: 'CustomerMessagePublishedContext',
-  [ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE]: 'AdminMessagePublishedContext',
-};
-
-/**
- * Context types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`.
- * CLIENT_AI_MESSAGE belongs here only when its dialog is ticket-linked — `ticketId` is
- * nullable on that context (a Fae chat can run without a ticket), and without one the
- * notification resolves to no action, same as before the field existed.
- */
-const TICKET_CONTEXT_TYPES = new Set<string>([
-  ADMIN_AI_TICKET_MESSAGE_CONTEXT_TYPE,
-  TICKET_STATUS_CHANGED_CONTEXT_TYPE,
-  TICKET_REOPENED_CONTEXT_TYPE,
-  TICKET_ASSIGNED_CONTEXT_TYPE,
-  TICKET_ESCALATED_BY_USER_CONTEXT_TYPE,
-  CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE,
-  ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE,
-  CLIENT_AI_MESSAGE_CONTEXT_TYPE,
+const TICKET_TYPES = new Set<string>([
+  ADMIN_AI_TICKET_MESSAGE_TYPE,
+  TICKET_STATUS_CHANGED_TYPE,
+  TICKET_REOPENED_TYPE,
+  TICKET_ASSIGNED_TYPE,
+  TICKET_ESCALATED_BY_USER_TYPE,
+  CUSTOMER_MESSAGE_PUBLISHED_TYPE,
+  ADMIN_MESSAGE_PUBLISHED_TYPE,
+  CLIENT_AI_MESSAGE_TYPE,
 ]);
 
 /**
- * Ticket contexts announcing a new message in the ticket's client chat; they land on the
+ * Ticket types announcing a new message in the ticket's client chat; they land on the
  * Chat tab instead of Details. Mingo ticket messages (`ADMIN_AI_TICKET_MESSAGE`) are
  * excluded — that conversation lives in the sidebar drawer, not the page's Client Chat
  * tab.
  */
-const TICKET_CHAT_CONTEXT_TYPES = new Set<string>([
-  CUSTOMER_MESSAGE_PUBLISHED_CONTEXT_TYPE,
-  ADMIN_MESSAGE_PUBLISHED_CONTEXT_TYPE,
-  CLIENT_AI_MESSAGE_CONTEXT_TYPE,
+const TICKET_CHAT_TYPES = new Set<string>([
+  CUSTOMER_MESSAGE_PUBLISHED_TYPE,
+  ADMIN_MESSAGE_PUBLISHED_TYPE,
+  CLIENT_AI_MESSAGE_TYPE,
 ]);
 
 /**
@@ -125,19 +106,18 @@ function resolveAction(
   category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
-  // Covers the legacy discriminator and both spec types the catalog split it into.
   if (isApprovalNotificationType(type)) {
     if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
     if (dialogId) return mingoDialogAction(dialogId);
     return null;
   }
 
-  if (type && TICKET_CONTEXT_TYPES.has(type) && ticketId) {
-    const tab = TICKET_CHAT_CONTEXT_TYPES.has(type) ? 'chat' : undefined;
+  if (type && TICKET_TYPES.has(type) && ticketId) {
+    const tab = TICKET_CHAT_TYPES.has(type) ? 'chat' : undefined;
     return { label: 'Ticket Details', route: ticketRoute(ticketId, tab) };
   }
 
-  if (type === ADMIN_AI_MESSAGE_CONTEXT_TYPE && dialogId) {
+  if (type === ADMIN_AI_MESSAGE_TYPE && dialogId) {
     return mingoDialogAction(dialogId);
   }
 
@@ -160,10 +140,8 @@ function resolveAction(
  */
 export function resolveNotificationAction(notification: Notification): NotificationAction | null {
   const meta = notification.meta ?? {};
-  // `notificationType` is the precise spec type; `contextType` is the legacy discriminator
-  // (and the approval split folded onto it). Either identifies a route the same way.
   return resolveAction(
-    nonEmptyString(meta.notificationType) ?? nonEmptyString(meta.contextType),
+    nonEmptyString(meta.notificationType),
     nonEmptyString(meta.ticketId),
     nonEmptyString(meta.dialogId),
     nonEmptyString(notification.category),
@@ -182,15 +160,9 @@ function actionRoute(action: NotificationAction | null): string | null {
  * replaced the old `startsWith('/')` check on a server-supplied route string.
  */
 function routeFromWireFields(fields: Record<string, unknown>): string | null {
-  // `attributes` is the spec contract's home for the ids; the flat keys are where the legacy
-  // shape puts them. Both transports may carry either, so read the spec one first and fall back.
-  //
-  // NOT the row mapper's rule: `mapNotificationNode` reads ONE shape, chosen by the
-  // `notifications-legacy-path` flag, and never falls back. This path deliberately keeps the
-  // fallback — it runs on cold-start taps (a desktop OS-toast click, an FCM tap) where no
-  // flags are loaded yet, so keying on one would silently drop the route of every push
-  // carrying the other. A push carries one shape anyway; the backend's own kill-switch
-  // decides which, and routing on whichever arrived costs nothing here.
+  // `attributes` is the contract's home for the ids; the flat keys are where an FCM push
+  // puts them (see resolvePushNotificationRoute). Read the map first and fall back to the
+  // flat keys.
   const attributes = readNotificationAttributes(fields.attributes);
   return actionRoute(
     resolveAction(
@@ -203,26 +175,18 @@ function routeFromWireFields(fields: Record<string, unknown>): string | null {
 }
 
 /**
- * Route for a raw NATS notification envelope (`context.type/ticketId/dialogId`), before it has
- * been shaped into a store record — the desktop shell's OS-toast click path
- * (`notification:click` from the Rust notification plane) hands the wire payload over as-is.
+ * Route for a NATS notification envelope (`type`/`attributes`/`category` at the top
+ * level), before it has been shaped into a store record — the desktop shell's OS-toast
+ * click path (`notification:click` from the Rust notification plane) hands over the
+ * envelope narrowed to `type` + `attributes` (its `click_payload`). Anything else on
+ * the envelope is ignored.
  */
 export function resolveNatsNotificationRoute(payload: unknown): string | null {
-  const envelope = (payload ?? {}) as {
-    type?: unknown;
-    attributes?: unknown;
-    category?: unknown;
-    context?: Record<string, unknown>;
-  };
-  const context = envelope.context ?? {};
-  // `type`/`attributes`/`category` sit at the TOP of the spec envelope, while the legacy ids
-  // live inside `context` — flatten both into one bag for the shared resolver.
+  const envelope = (payload ?? {}) as { type?: unknown; attributes?: unknown; category?: unknown };
   return routeFromWireFields({
-    type: envelope.type ?? context.type,
+    type: envelope.type,
     attributes: envelope.attributes,
-    ticketId: context.ticketId,
-    dialogId: context.dialogId,
-    category: envelope.category ?? context.category,
+    category: envelope.category,
   });
 }
 
@@ -230,11 +194,10 @@ export function resolveNatsNotificationRoute(payload: unknown): string | null {
  * Route for a push notification's FCM `data` payload — a FLAT string map, not the nested NATS
  * envelope, and the mobile shell's tap path.
  *
- * Reads the top-level keys only, never the serialized `context`: the backend
- * (`FcmPushSender.buildData`) DROPS that blob whole when the payload would exceed FCM's size
- * budget, and writes `type` plus the `PushActionable` ids (`ticketId`/`dialogId`) as flat keys
- * for exactly that reason. Every notification context implements `PushActionable`, so the flat
- * ids are the guaranteed half of the payload and the only half worth routing on.
+ * Reads the top-level keys only: the backend (`FcmPushSender.buildData`) writes `type` plus
+ * the `PushActionable` ids (`ticketId`/`dialogId`) as flat keys, and drops any larger blob
+ * whole when the payload would exceed FCM's size budget — so the flat ids are the guaranteed
+ * half of the payload and the only half worth routing on.
  */
 export function resolvePushNotificationRoute(data: unknown): string | null {
   return routeFromWireFields((data ?? {}) as Record<string, unknown>);
