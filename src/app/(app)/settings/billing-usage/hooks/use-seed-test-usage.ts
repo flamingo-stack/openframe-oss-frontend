@@ -5,7 +5,7 @@ import { useCallback } from 'react';
 import { commitLocalUpdate, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import type { useSeedTestUsageMutation as UseSeedTestUsageMutationType } from '@/__generated__/useSeedTestUsageMutation.graphql';
 import type { BillingMetricType } from '@/generated/schema-enums';
-import { extractGraphqlErrorMessage } from './extract-graphql-error-message';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 
 /**
  * Seeds synthetic billing usage (dev/stage only — the mutation is absent from the prod
@@ -58,7 +58,7 @@ export function useSeedTestUsage() {
         onError: err => {
           toast({
             title: 'Seeding Failed',
-            description: extractGraphqlErrorMessage(err, 'Failed to seed test usage'),
+            description: getRelayErrorMessage(err, 'Failed to seed test usage'),
             variant: 'destructive',
           });
         },

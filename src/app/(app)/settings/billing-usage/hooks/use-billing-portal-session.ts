@@ -4,6 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
 import { graphql, useMutation } from 'react-relay';
 import type { useBillingPortalSessionMutation as UseBillingPortalSessionMutationType } from '@/__generated__/useBillingPortalSessionMutation.graphql';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openDeferredTab } from '../lib/stripe-window';
 
 // Stripe hosts the portal, so the destination cannot be a link: the session is
@@ -50,7 +51,7 @@ export function useBillingPortalSession() {
         tab.cancel();
         toast({
           title: 'Customer Portal Unavailable',
-          description: err instanceof Error ? err.message : 'Failed to open the customer portal',
+          description: getRelayErrorMessage(err, 'Failed to open the customer portal'),
           variant: 'destructive',
         });
       },

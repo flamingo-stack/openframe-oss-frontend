@@ -4,6 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
 import { commitLocalUpdate, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import type { useCancelSubscriptionMutation as UseCancelSubscriptionMutationType } from '@/__generated__/useCancelSubscriptionMutation.graphql';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 
 const cancelSubscriptionMutation = graphql`
   mutation useCancelSubscriptionMutation($input: CancelSubscriptionInput) {
@@ -39,7 +40,7 @@ export function useCancelSubscription() {
         onError: err => {
           toast({
             title: 'Cancel Failed',
-            description: err instanceof Error ? err.message : 'Failed to cancel subscription',
+            description: getRelayErrorMessage(err, 'Failed to cancel subscription'),
             variant: 'destructive',
           });
         },

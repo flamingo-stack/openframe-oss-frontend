@@ -1,10 +1,13 @@
 import type { billingUsageContentQuery$data } from '@/__generated__/billingUsageContentQuery.graphql';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { BillingPeriod, OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
-import { aiSpendTone } from '@/lib/ai-spend-tone';
+import { aiBalanceTone, aiFreeTokensExhausted } from '@/lib/ai-balance-tone';
 import type { UsageStatTone } from '../components/usage-stat-card';
 import { freeTokensForPlan } from '../lib/ai-free-tokens';
 import { aiTokenPrice as tokenPriceFromUnit } from '../lib/ai-token-price';
+
+/** The one sentence the page owes about AI right now, if any. */
+export type AiAlert = 'trial-exhausted' | 'low' | 'empty' | null;
 
 type SubscriptionData = billingUsageContentQuery$data['subscription'];
 type BillingPlanData = billingUsageContentQuery$data['billingPlan'];
@@ -101,52 +104,54 @@ export function useBillingSummary(subscription: SubscriptionData, billingPlan: B
   const deviceOverLimit = !deviceIsPayg && deviceAllocation > 0 && deviceOverage > 0;
 
   /**
-   * AI is consumption against two figures the backend serves itself: the free
-   * grant for the period, and the ceiling the customer put on what may be billed
-   * beyond it. Nothing here is derived from an AI package — there is none to buy.
+   * AI runs on two figures the backend serves itself: the period's free grant,
+   * and the prepaid balance it draws from once the grant is spent. Nothing here
+   * is derived from an AI package or a spending cap — there is neither.
    *
-   * The cap is stored in USD, and the cards count tokens, so the metered rate
-   * converts between them. Without a rate the paid counter simply has no
-   * denominator; it never invents one.
-   */
-  /**
-   * The tenant's own metered rate, per token.
-   *
-   * Two records for one figure, on purpose: the price is the SUBSCRIPTION's (a
-   * negotiated rate is what this tenant is actually billed), while `unitSize` —
-   * the block that price is quoted per — exists only on the catalog product.
-   * Either half missing leaves the rate unknown, and no AI price is printed.
+   * The metered rate is still read, for one purpose: pricing the top-up tiles
+   * (what $20 buys). Two records for one figure, on purpose: the price is the
+   * SUBSCRIPTION's (a negotiated rate is what this tenant is actually billed),
+   * while `unitSize` — the block that price is quoted per — exists only on the
+   * catalog product. Either half missing leaves the rate unknown, and no token
+   * count is printed under an amount.
    */
   const aiCatalogProduct = billingPlan?.products.find(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? null;
   const aiTokenPrice = tokenPriceFromUnit(aiProduct?.payAsYouGoOption?.price, aiCatalogProduct?.unitSize);
+  // GraphQL `Long` arrives as a string or a number depending on its size.
   const aiTokensFree = Number(subscription?.usage?.aiTokensFree ?? 0);
   const aiTokensFreeUsed = Number(subscription?.usage?.aiTokensFreeUsed ?? 0);
-  const aiTokensPaid = Number(subscription?.usage?.aiTokensOverage ?? 0);
-  const aiSpendUsd = subscription?.usage?.aiSpendUsd ?? 0;
-  const aiCapUsd = subscription?.aiSpendCapUsd ?? null;
+  const purchasedTokens = Number(subscription?.usage?.purchasedTokensRemaining ?? 0);
+  const purchasedTokensUsd = subscription?.usage?.purchasedTokensRemainingUsd ?? 0;
+  const freeExhausted = aiFreeTokensExhausted({ freeTokens: aiTokensFree, freeUsed: aiTokensFreeUsed });
 
   /**
-   * Shared with the app-wide limit bar, so the two cannot disagree about when
-   * AI is close to stopping (see `lib/ai-spend-tone.ts`). A cap of 0 is a real
-   * cap — nothing beyond the free tokens — so every check there is against
-   * `null`, never falsy.
+   * Shared with the app-wide balance bar, so the two cannot disagree about when
+   * AI is close to stopping (see `lib/ai-balance-tone.ts`).
+   *
+   * A trial has no balance: it runs on its grant alone, and spending that is
+   * the one thing the trial's own card warns about — the paid card stays quiet,
+   * and the fix is activation, not a top-up.
    */
-  const aiCapped = aiCapUsd != null;
-  const aiTone = aiSpendTone(aiSpendUsd, aiCapUsd);
+  const balanceTone = isTrial
+    ? 'default'
+    : aiBalanceTone({ freeTokens: aiTokensFree, freeUsed: aiTokensFreeUsed, purchasedRemaining: purchasedTokens });
+  const trialExhausted = isTrial && freeExhausted;
+
+  let alert: AiAlert = null;
+  if (trialExhausted) alert = 'trial-exhausted';
+  else if (balanceTone === 'error') alert = 'empty';
+  else if (balanceTone === 'warning') alert = 'low';
 
   const ai = {
     tokenPrice: aiTokenPrice,
     free: aiTokensFree,
     freeUsed: aiTokensFreeUsed,
-    /** Tokens spent past the free grant — the ones that get billed. */
-    paid: aiTokensPaid,
-    spendUsd: aiSpendUsd,
-    capUsd: aiCapUsd,
-    /** The cap told back in tokens, which is the unit the counter is in. */
-    capTokens: aiCapped && aiTokenPrice ? Math.round(aiCapUsd / aiTokenPrice) : null,
-    capReached: aiTone === 'error',
-    capNear: aiTone === 'warning',
-    tone: aiTone as UsageStatTone,
+    /** Prepaid tokens still in the bank, and what they are worth. */
+    paid: purchasedTokens,
+    paidUsd: purchasedTokensUsd,
+    freeTone: (trialExhausted ? 'warning' : 'default') as UsageStatTone,
+    paidTone: balanceTone as UsageStatTone,
+    alert,
   };
 
   /**

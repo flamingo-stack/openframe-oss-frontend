@@ -6,8 +6,9 @@ import type { ReactNode } from 'react';
 /**
  * How the counter is doing against whatever bounds it.
  *
- * - `warning` — heading for the limit: devices past the package, AI spend
- *   approaching its cap. It costs more, or it is about to stop.
+ * - `warning` — heading for the limit: devices past the package, an AI balance
+ *   running low, a trial that has spent its grant. It costs more, or it is
+ *   about to stop.
  * - `error` — the limit is reached and something has actually stopped.
  */
 export type UsageStatTone = 'default' | 'warning' | 'error';
@@ -24,6 +25,8 @@ interface UsageStatCardProps {
    * out what it costs.
    */
   tone?: UsageStatTone;
+  /** Pinned to the card's top-right corner, outside the text flow (e.g. a help popover). */
+  trailing?: ReactNode;
 }
 
 const TONE_CARD: Record<UsageStatTone, string> = {
@@ -53,7 +56,7 @@ const TONE_VALUE: Record<UsageStatTone, string> = {
  * no ring, which it has no variant for. So the composition lives here, in the
  * page that needs it, on the same ODS tokens the card is built from.
  */
-export function UsageStatCard({ title, value, caption, tone = 'default' }: UsageStatCardProps) {
+export function UsageStatCard({ title, value, caption, tone = 'default', trailing }: UsageStatCardProps) {
   return (
     // The state travels to the value/caption slots as an attribute rather than a
     // prop: both are nodes built by the caller, so the card cannot pass anything
@@ -62,7 +65,7 @@ export function UsageStatCard({ title, value, caption, tone = 'default' }: Usage
     <div
       data-tone={tone}
       className={cn(
-        'group/stat flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xsf)]',
+        'group/stat relative flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xsf)]',
         'rounded-md border p-[var(--spacing-system-mf)]',
         TONE_CARD[tone],
       )}
@@ -72,6 +75,13 @@ export function UsageStatCard({ title, value, caption, tone = 'default' }: Usage
         <p className={cn('truncate text-h2', TONE_VALUE[tone])}>{value}</p>
       </div>
       <p className={cn('truncate text-h6', TONE_TEXT[tone])}>{caption}</p>
+      {trailing && (
+        <div
+          className={cn('absolute right-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)]', TONE_TEXT[tone])}
+        >
+          {trailing}
+        </div>
+      )}
     </div>
   );
 }
@@ -92,9 +102,9 @@ export function StatSuffix({ children }: { children: ReactNode }) {
 
 /**
  * The part of a caption that carries the information, inside a line that is
- * otherwise a label ("Trial Period ends **12/15/26**", "**$14.00** on next
- * invoice"). Lifted to the primary text colour — the caption's own grey is the
- * label's, not the value's.
+ * otherwise a label ("Trial Period ends **12/15/26**", "**$50.00** balance").
+ * Lifted to the primary text colour — the caption's own grey is the label's,
+ * not the value's.
  */
 export function StatEmphasis({ children }: { children: ReactNode }) {
   return (

@@ -2,8 +2,6 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useUpdateAiSpendCap } from '../../hooks/use-update-ai-spend-cap';
-import { openDeferredTab } from '../../lib/stripe-window';
 import { type ProductCheckoutInput, useCreateCheckoutSession } from '../hooks/use-create-checkout-session';
 import { type PackageUpdateInput, useUpdateSubscription } from '../hooks/use-update-subscription';
 
@@ -17,15 +15,20 @@ interface SubscriptionSubmitButtonProps {
   packageUpdates: PackageUpdateInput[];
   /** Desired end-state for the checkout flow. */
   checkoutProducts: ProductCheckoutInput[];
-  /** True when a Custom Amount has an empty/invalid quantity (update flow only). */
+  /** True when a Custom Amount has an empty/invalid quantity. */
   hasInvalidCustom: boolean;
   /**
-   * The AI spending cap to store, when the user changed it: a USD figure, or
-   * `null` to remove the cap entirely. `undefined` means it was left alone and
-   * no cap mutation is issued — the distinction matters because `null` is itself
-   * a value the schema accepts (see `useUpdateAiSpendCap`).
+   * The AI top-up to charge on the checkout, in whole dollars
+   * (`CheckoutInput.tokenAmountUsd`). Checkout flow only — an existing
+   * subscription tops up from the billing page instead. `null` sends none,
+   * which the backend accepts only when it is configured not to require one.
    */
-  aiSpendCapUsd?: number | null;
+  tokenAmountUsd?: number | null;
+  /**
+   * The top-up's own check (`AiTopUp.validate`): reveals the problem under the
+   * fields and returns it, or `null` when the amount can go. Checkout flow only.
+   */
+  validateTopUp?: () => string | null;
   /**
    * The update landed. Only the update flow can call this — the checkout flow
    * leaves for Stripe and never comes back to this component.
@@ -41,33 +44,38 @@ interface SubscriptionSubmitButtonProps {
  *
  * The ACTION still splits on the subscription state:
  * - no active paid subscription → `createCheckoutSession`, which redirects to
- *   Stripe. No diff gating: there is nothing to compare against.
+ *   Stripe. No diff gating: there is nothing to compare against. The AI top-up
+ *   rides along on the same input and lands on the same invoice. Disabled only
+ *   while there is nothing to buy yet — the picker has not reported (catalog
+ *   still loading), or the catalog has no device product — because a button
+ *   that looks live and does nothing on click is a dead end with no spinner,
+ *   toast or redirect to say so.
  * - active paid subscription → `updateSubscription`, a mutation that applies the
  *   plan change in place and does NOT redirect to a payment page (an upgrade may
  *   raise an invoice afterwards). Disabled when the selection equals the current
  *   plan, validated on click.
  *
- * The AI spending cap rides along, because it is part of the same form: it is
- * stored FIRST, and only a stored cap lets the payment proceed. Checkout leaves
- * the app for Stripe, so there is no "afterwards" to save it in — and a payment
- * that went through while the limit beside it silently did not is the one
- * outcome worth refusing.
+ * A bad amount — a device count under the floor, a top-up under its minimum —
+ * never disables the button. It is pressed, and the press says what is wrong:
+ * in the form, next to the field, and in a toast for a form scrolled out of
+ * view. A locked button would leave the user to guess which of the two cards
+ * is refusing.
  */
 export function SubscriptionSubmitButton({
   needsCheckout,
   packageUpdates,
   checkoutProducts,
   hasInvalidCustom,
-  aiSpendCapUsd,
+  tokenAmountUsd = null,
+  validateTopUp,
   onUpdated,
   className,
 }: SubscriptionSubmitButtonProps) {
   const updateSubscription = useUpdateSubscription();
   const createCheckout = useCreateCheckoutSession();
-  const updateAiSpendCap = useUpdateAiSpendCap();
   const { toast } = useToast();
 
-  const isPending = updateSubscription.isPending || createCheckout.isPending || updateAiSpendCap.isPending;
+  const isPending = updateSubscription.isPending || createCheckout.isPending;
 
   const rejectInvalidAmount = () => {
     toast({
@@ -77,40 +85,34 @@ export function SubscriptionSubmitButton({
     });
   };
 
-  /** Runs `action` behind the cap, when there is a cap change to store. */
-  const withAiSpendCap = (action: () => void, onRefused?: () => void) => {
-    if (aiSpendCapUsd === undefined) {
-      action();
-      return;
-    }
-    updateAiSpendCap.mutate(aiSpendCapUsd, { onSuccess: action, onError: onRefused });
+  const rejectInvalidTopUp = (problem: string) => {
+    toast({ title: 'Check the AI top-up', description: problem, variant: 'destructive' });
   };
 
   if (needsCheckout) {
+    const handleCheckout = () => {
+      // Checkout has no diff to gate on, but an out-of-range quantity is still
+      // one: it would be sent as a plan nobody can be billed for. The same
+      // goes for a top-up with no figure behind it.
+      if (hasInvalidCustom) {
+        rejectInvalidAmount();
+        return;
+      }
+      const topUpProblem = validateTopUp?.() ?? null;
+      if (topUpProblem != null) {
+        rejectInvalidTopUp(topUpProblem);
+        return;
+      }
+      createCheckout.mutate({ products: checkoutProducts, tokenAmountUsd: tokenAmountUsd ?? undefined });
+    };
+
     return (
       <Button
         variant="accent"
         className={className}
-        onClick={() => {
-          // Checkout has no diff to gate on, but an out-of-range quantity is still
-          // one: it would be sent as a plan nobody can be billed for.
-          if (hasInvalidCustom) {
-            rejectInvalidAmount();
-            return;
-          }
-          if (!checkoutProducts.length) return;
-          // Opened from the click itself, and carried through both mutations:
-          // Stripe's URL only exists once the second answers, and a tab opened
-          // then has lost the user gesture that lets it through (see
-          // `openDeferredTab`). It is closed again if either step fails.
-          const tab = openDeferredTab();
-          withAiSpendCap(
-            () => createCheckout.mutate({ products: checkoutProducts }, { target: tab }),
-            () => tab.cancel(),
-          );
-        }}
+        onClick={handleCheckout}
         loading={isPending}
-        disabled={isPending}
+        disabled={isPending || checkoutProducts.length === 0}
       >
         {SUBMIT_LABEL}
       </Button>
@@ -123,7 +125,7 @@ export function SubscriptionSubmitButton({
       return;
     }
     if (!packageUpdates.length) return;
-    withAiSpendCap(() => updateSubscription.mutate({ packageUpdates }, { onSuccess: onUpdated }));
+    updateSubscription.mutate({ packageUpdates }, { onSuccess: onUpdated });
   };
 
   return (
