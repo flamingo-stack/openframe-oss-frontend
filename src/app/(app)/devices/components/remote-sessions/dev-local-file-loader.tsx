@@ -3,6 +3,7 @@
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRef } from 'react';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getErrorMessage } from '@/lib/handle-api-error';
 
 interface DevLocalFileLoaderProps {
@@ -19,6 +20,12 @@ interface DevLocalFileLoaderProps {
 export function DevLocalFileLoader({ onLoad }: DevLocalFileLoaderProps) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Defense in depth: the caller gates on the same flag, but the component
+  // refuses to render without it so a missed caller-side check cannot expose
+  // the loader.
+  const mockToolsEnabled = useFeatureFlag('remote-access-mock-tools');
+
+  if (!mockToolsEnabled) return null;
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
