@@ -13,7 +13,10 @@ import { type ComponentType, type ReactNode, useEffect, useRef, useState } from 
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
 import { useEffectiveDeviceRemoteAccessMode, useTenantRemoteAccessPolicy } from '../../hooks/use-remote-access-policy';
-import { mockRemoteAccessDecision } from '../../services/remote-access-approval-service';
+import {
+  mockRemoteAccessDecision,
+  REMOTE_ACCESS_APPROVAL_MOCK_ACTIVE,
+} from '../../services/remote-access-approval-service';
 import type { RemoteSessionKind } from '../../types/remote-access';
 
 interface RemoteAccessGateProps {
@@ -214,9 +217,9 @@ export function RemoteAccessGate({
         >
           Cancel Request
         </Button>
-        {process.env.NODE_ENV === 'development' && request && (
+        {REMOTE_ACCESS_APPROVAL_MOCK_ACTIVE && request && (
           <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)] rounded-md border border-dashed border-ods-border p-[var(--spacing-system-sf)]">
-            <span className="text-ods-text-muted text-h6">Dev only - simulate the end user's decision</span>
+            <span className="text-ods-text-muted text-h6">Mock service - simulate the end user's decision</span>
             <div className="flex items-stretch gap-[var(--spacing-system-xsf)]">
               <Button
                 type="button"
