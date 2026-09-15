@@ -10,15 +10,15 @@ interface DevLocalFileLoaderProps {
 }
 
 /**
- * Development-only affordance: open a local `.mcrec` sample straight into the
+ * Mock-tooling affordance: open a local `.mcrec` sample straight into the
  * player, so the engine is testable end-to-end before the storage backend
- * (CU-86akc3c5q) exists. Renders nothing in production builds.
+ * (CU-86akc3c5q) exists. Visibility is decided by the caller (the temporary
+ * `remote-access-mock-tools` flag plus `?dev=1`), not by the build type, so
+ * QA can use it on a production build.
  */
 export function DevLocalFileLoader({ onLoad }: DevLocalFileLoaderProps) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  if (process.env.NODE_ENV !== 'development') return null;
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
@@ -44,7 +44,7 @@ export function DevLocalFileLoader({ onLoad }: DevLocalFileLoaderProps) {
         }}
       />
       <Button variant="outline" size="small" onClick={() => inputRef.current?.click()}>
-        Open local .mcrec (dev)
+        Open local .mcrec (mock)
       </Button>
     </>
   );
