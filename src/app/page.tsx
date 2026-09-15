@@ -18,10 +18,11 @@ export default function Home() {
     const target = () => `${getDefaultRedirectPath(isAuthenticated)}${window.location.search}${window.location.hash}`;
     router.replace(target());
 
-    // The GTM PostHog tag strips `#distinct_id` with `history.replaceState({}, …)`.
-    // Landing mid-transition, that empty state wipes the router's tree and the
-    // navigation above is dropped: a blank page stuck on `/`. Fall back to a hard
-    // navigation if we are still here.
+    // The GTM PostHog tag used to strip `#distinct_id` with `history.replaceState({}, …)`;
+    // landing mid-transition, that empty state wiped the router's tree and the
+    // navigation above was dropped: a blank page stuck on `/`. The tag now passes
+    // `history.state` through (container fix, 2026-09-15). This hard fallback stays as
+    // insurance against the next tag that rewrites the URL.
     const fallback = window.setTimeout(() => {
       if (window.location.pathname === '/') window.location.replace(target());
     }, 1500);
