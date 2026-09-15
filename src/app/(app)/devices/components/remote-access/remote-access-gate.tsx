@@ -10,6 +10,7 @@ import {
 import { CompactPageLoader, Label, Textarea } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Loader2 } from 'lucide-react';
 import { type ComponentType, type ReactNode, useEffect, useRef, useState } from 'react';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
 import { useEffectiveDeviceRemoteAccessMode, useTenantRemoteAccessPolicy } from '../../hooks/use-remote-access-policy';
@@ -69,6 +70,8 @@ export function RemoteAccessGate({
 }: RemoteAccessGateProps) {
   const gate = useRemoteAccessApprovalGate();
   const approval = useRemoteAccessApproval(deviceId, sessionKind, organizationId);
+  // Temporary QA tooling for the mock service; appearing late is fine here.
+  const showMockTools = useFeatureFlag('remote-access-mock-tools');
   const [reason, setReason] = useState('');
 
   // Policy sync (CU-86akeqw8b): the effective mode decides the flow shape -
@@ -214,9 +217,9 @@ export function RemoteAccessGate({
         >
           Cancel Request
         </Button>
-        {process.env.NODE_ENV === 'development' && request && (
+        {showMockTools && request && (
           <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)] rounded-md border border-dashed border-ods-border p-[var(--spacing-system-sf)]">
-            <span className="text-ods-text-muted text-h6">Dev only - simulate the end user's decision</span>
+            <span className="text-ods-text-muted text-h6">Mock service - simulate the end user's decision</span>
             <div className="flex items-stretch gap-[var(--spacing-system-xsf)]">
               <Button
                 type="button"
