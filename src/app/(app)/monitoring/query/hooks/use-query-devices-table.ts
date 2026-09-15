@@ -61,7 +61,7 @@ export function useQueryDevicesTable(queryId: number | null) {
       return {
         id: String(host.id),
         hostname: device?.hostname || host.hostname || `Host ${host.id}`,
-        displayName: getDeviceName(device) || host.hostname || `Host ${host.id}`,
+        name: getDeviceName(device) || host.hostname || `Host ${host.id}`,
         deviceType: device?.type,
         organization: device?.organization,
         organizationImageUrl: device?.organizationImageUrl,
@@ -75,7 +75,7 @@ export function useQueryDevicesTable(queryId: number | null) {
       };
     });
 
-    result.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    result.sort((a, b) => a.name.localeCompare(b.name));
     return result;
   }, [hostsQuery.data, devices]);
 

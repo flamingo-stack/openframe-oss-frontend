@@ -1,14 +1,31 @@
 /**
+ * The name fields a device source hands to `getDeviceName`.
+ *
+ * `nickname` is a required key on purpose. The two agent-reported names were
+ * selected by every device operation long before the user-defined one existed,
+ * so the field an operation forgets is `nickname` — and with an optional key
+ * that operation would compile and quietly render the hostname. That is the
+ * silent-fallback trap the fragment ladder in `src/graphql/devices/` was built
+ * to close, so the sink closes it too: a source may say its nickname is null or
+ * undefined, but it has to say so.
+ */
+export interface DeviceNameSource {
+  nickname: string | null | undefined;
+  displayName?: string | null;
+  hostname?: string | null;
+}
+
+/**
  * Single source of truth for a device's display name.
  *
  * The name comes from GraphQL only: the user-defined `nickname` when set,
- * then `displayName`, then `hostname`. No other fallbacks (description,
- * machineId, deviceId, Fleet display_name, …) — those diverge across screens
- * and must not be used.
+ * then `displayName`, then `hostname`. Nothing else stands in for a registry
+ * device's name (description, machineId, deviceId, Fleet display_name, …) —
+ * those diverge across screens. A caller that renders something which is not
+ * a registry device (a Fleet host with no device record, a log row whose device
+ * is gone) appends its own identifier after the empty string it gets back.
  */
-export function getDeviceName(
-  device?: { nickname?: string | null; displayName?: string | null; hostname?: string | null } | null,
-): string {
+export function getDeviceName(device?: DeviceNameSource | null): string {
   return device?.nickname || device?.displayName || device?.hostname || '';
 }
 
@@ -25,10 +42,7 @@ export function getDeviceName(
  *
  * Case-insensitive substring, like the server. Blank search matches everything.
  */
-export function matchesDeviceName(
-  device?: { nickname?: string | null; displayName?: string | null; hostname?: string | null } | null,
-  search = '',
-): boolean {
+export function matchesDeviceName(device?: DeviceNameSource | null, search = ''): boolean {
   const needle = search.trim().toLowerCase();
   if (!needle) return true;
   return (

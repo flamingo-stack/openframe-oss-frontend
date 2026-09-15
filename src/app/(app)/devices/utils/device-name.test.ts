@@ -10,12 +10,14 @@ describe('getDeviceName', () => {
     expect(getDeviceName({ nickname: null, displayName: 'Marketing Laptop', hostname: 'Mac' })).toBe(
       'Marketing Laptop',
     );
-    expect(getDeviceName({ displayName: 'Marketing Laptop', hostname: 'Mac' })).toBe('Marketing Laptop');
+    expect(getDeviceName({ nickname: undefined, displayName: 'Marketing Laptop', hostname: 'Mac' })).toBe(
+      'Marketing Laptop',
+    );
   });
 
   it('falls back to hostname when neither user-defined nor agent display name is set', () => {
     expect(getDeviceName({ nickname: null, displayName: null, hostname: 'Mac' })).toBe('Mac');
-    expect(getDeviceName({ hostname: 'Mac' })).toBe('Mac');
+    expect(getDeviceName({ nickname: undefined, hostname: 'Mac' })).toBe('Mac');
   });
 
   // The backend returns an absent nickname as null, but Pinot's schema default
@@ -30,13 +32,23 @@ describe('getDeviceName', () => {
   // LogEvent/LogDetails, so the caller passes a two-field object.
   it('resolves an object that omits displayName entirely', () => {
     expect(getDeviceName({ nickname: 'Scrappy', hostname: 'Mac' })).toBe('Scrappy');
-    expect(getDeviceName({ hostname: 'Mac' })).toBe('Mac');
+    expect(getDeviceName({ nickname: undefined, hostname: 'Mac' })).toBe('Mac');
   });
 
   it('returns an empty string when the device carries no name at all', () => {
-    expect(getDeviceName({})).toBe('');
+    expect(getDeviceName({ nickname: undefined })).toBe('');
     expect(getDeviceName({ nickname: null, displayName: null, hostname: null })).toBe('');
     expect(getDeviceName({ nickname: '', displayName: '', hostname: '' })).toBe('');
+  });
+
+  // The contract itself: a source that stays silent about its nickname does not
+  // compile, so a query that forgot to select the field is caught by tsc rather
+  // than by someone noticing a hostname where a nickname should be.
+  it('rejects a source that omits the nickname key at the type level', () => {
+    // @ts-expect-error nickname is a required key of DeviceNameSource
+    expect(getDeviceName({ displayName: 'Marketing Laptop', hostname: 'Mac' })).toBe('Marketing Laptop');
+    // @ts-expect-error nickname is a required key of DeviceNameSource
+    expect(matchesDeviceName({ hostname: 'Mac' }, 'mac')).toBe(true);
   });
 
   // Callers render before the device resolves, so a missing device must not
@@ -90,6 +102,6 @@ describe('matchesDeviceName', () => {
   it('never matches a non-blank term against a missing device', () => {
     expect(matchesDeviceName(null, 'x')).toBe(false);
     expect(matchesDeviceName(undefined, 'x')).toBe(false);
-    expect(matchesDeviceName({}, 'x')).toBe(false);
+    expect(matchesDeviceName({ nickname: undefined }, 'x')).toBe(false);
   });
 });

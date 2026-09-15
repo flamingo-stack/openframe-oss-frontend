@@ -1,3 +1,4 @@
+import type { executionFields_execution$data } from '@/__generated__/executionFields_execution.graphql';
 // Value import: the generated module exports each enum as both a `const` and a
 // `type` under the same name, so these stand in for hardcoded literals.
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
@@ -73,24 +74,25 @@ export function privilegeLevelLabel(level: PrivilegeLevel | string | null | unde
   return presentationFor(PRIVILEGE_LEVEL_LABELS, level) ?? (level ? String(level) : '—');
 }
 
-interface MachineLike {
-  machineId?: string | null;
-  hostname?: string | null;
-  displayName?: string | null;
-  nickname?: string | null;
-  organization?: { name?: string | null } | null;
-}
+/**
+ * The machine an execution ran on, as every execution operation selects it — the
+ * `executionFields_execution` fragment and the detail query pick the same fields.
+ * Typed off the generated shape rather than a hand-written all-optional
+ * interface so an operation that drops a name field fails to compile instead of
+ * rendering the next fallback.
+ */
+export type ExecutionMachine = NonNullable<executionFields_execution$data['machine']>;
 
 /**
  * Best display name for a machine — the shared device name, then `machineId` as
  * a last resort so a row that has no name at all still identifies its machine.
  */
-export function machineLabel(machine: MachineLike | null | undefined): string {
+export function machineLabel(machine: ExecutionMachine | null | undefined): string {
   return getDeviceName(machine) || machine?.machineId || '—';
 }
 
 /** Organization name for a machine, or empty string. */
-export function organizationLabel(machine: MachineLike | null | undefined): string {
+export function organizationLabel(machine: ExecutionMachine | null | undefined): string {
   return machine?.organization?.name ?? '';
 }
 

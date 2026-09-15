@@ -57,7 +57,7 @@ export function usePolicyDevicesTable(
       result.push({
         id: String(fleetId),
         hostname: device?.hostname || host?.hostname || `Host ${fleetId}`,
-        displayName: getDeviceName(device) || host?.display_name || host?.hostname || `Host ${fleetId}`,
+        name: getDeviceName(device) || host?.display_name || host?.hostname || `Host ${fleetId}`,
         deviceType: device?.type,
         organization: device?.organization,
         organizationImageUrl: device?.organizationImageUrl,
@@ -74,7 +74,7 @@ export function usePolicyDevicesTable(
       if (a.complianceStatus !== b.complianceStatus) {
         return statusOrder[a.complianceStatus] - statusOrder[b.complianceStatus];
       }
-      return a.displayName.localeCompare(b.displayName);
+      return a.name.localeCompare(b.name);
     });
 
     return result;
