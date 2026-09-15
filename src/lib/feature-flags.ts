@@ -10,7 +10,6 @@ export const FEATURE_FLAG_NAMES = [
   'billings',
   'help-center',
   'notifications',
-  'notifications-legacy-path',
   'debug-nats-chunks',
   'mingo-ai-chat-settings',
   'customer-ai-assistant-settings',
@@ -24,6 +23,10 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   'test-clock',
   'download-apps',
+  // MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+  // connect flow, the remote access policy UI and the session recordings
+  // surfaces. Off = the legacy auto-start tunnel behavior, no policy UI.
+  'remote-access-approval',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
@@ -96,35 +99,6 @@ export const featureFlags = {
       return getFlagValue('notifications', () => false);
     },
   },
-  /**
-   * Rollback lever for the notification `type` + `attributes` migration: it selects which
-   * of the two contracts the row mapper reads. OFF (the default, and the normal state) →
-   * the spec pair `type` + `attributes`; ON → the legacy typed `context`.
-   *
-   * The selection is EXCLUSIVE, in both directions: the shape the lever does not name is
-   * not read at all, so a row carrying only that shape maps with no type and no entity ids
-   * instead of answering from the other contract. A rollback is therefore a clean swap of
-   * contracts, never a per-row mixture — at the cost that rows the backfill migration has
-   * not swept yet lose their navigation while the lever is OFF. `mapNotificationNode` in
-   * `graphql/notifications/notifications-helpers.ts` is where that is implemented, and
-   * `notifications-contract.test.ts` pins it.
-   *
-   * Mirrors the backend's `notifications.legacy-path` kill-switch by name, but is a
-   * separate switch for a separate job — that one decides what gets WRITTEN, this one
-   * what we READ. It exists so a rollback needs no frontend release; the flag is read
-   * even before it is declared server-side, where it simply resolves to OFF.
-   *
-   * NOT covered by this lever: the transport routing path (`notification-navigation.ts`
-   * `routeFromWireFields`, and the NATS payload helpers in `notifications-data-provider`),
-   * which reads whichever shape a push happens to carry. Those run on cold-start taps
-   * where no flags are loaded, and a push carries one shape anyway — the backend's own
-   * kill-switch decides which.
-   */
-  notificationsLegacyPath: {
-    enabled(): boolean {
-      return getFlagValue('notifications-legacy-path', () => false);
-    },
-  },
   debugNatsChunks: {
     enabled(): boolean {
       // Local override FIRST — see `isDebugChunkLogForced`: a server value of
@@ -185,6 +159,18 @@ export const featureFlags = {
   testClock: {
     enabled(): boolean {
       return getFlagValue('test-clock', () => false);
+    },
+  },
+  /**
+   * MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+   * connect flow, the policy UI and the session recordings surfaces. Off = the
+   * legacy auto-start tunnel behavior. Route gating goes through
+   * `useRemoteAccessApprovalGate` (tri-state); this accessor is for imperative
+   * reads.
+   */
+  remoteAccessApproval: {
+    enabled(): boolean {
+      return getFlagValue('remote-access-approval', () => false);
     },
   },
 } as const;

@@ -13,7 +13,7 @@ import { useSubscriptionOpen } from './subscription-lock/subscription-guard';
  * permission, obtains the FCM registration token, and deep-links notification
  * taps through the client router. Renders nothing; no-ops outside the native shell.
  *
- * The route comes from the payload's context type + entity ids, resolved by the
+ * The route comes from the payload's `type` + entity ids, resolved by the
  * same table the in-app drawer uses — the push payload carries no route, so the
  * backend stays ignorant of the frontend's URL structure (which it could not
  * know anyway: detail pages are query params on prerendered paths, and a Mingo
