@@ -18,7 +18,11 @@ import { featureFlags } from '@/lib/feature-flags';
 import type { ApprovalStatus } from '../../tickets/constants';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, MESSAGE_TYPE } from '../../tickets/constants';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
-import { GET_MINGO_DIALOG_QUERY, getMingoDialogMessagesQuery } from '../queries/dialogs-queries';
+import {
+  GET_MINGO_DIALOG_QUERY,
+  getMingoDialogMessagesQuery,
+  normalizeAskMessageData,
+} from '../queries/dialogs-queries';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage, MessagesResponse } from '../types';
@@ -232,7 +236,16 @@ export function useMingoDialogSelection() {
 
       const { edges, pageInfo } = response.data.data.messages;
       const allMessages = edges.map(edge => edge.node);
-      const adminMessages = allMessages.filter(msg => msg.chatType === CHAT_TYPE.ADMIN);
+      // The ONE parse point, so the ask-intro alias is undone before any reader
+      // sees a row (see `ASK_INTRO_ALIAS`). `normalizeAskMessageData` returns its
+      // input by reference when there is nothing to rename, so a page without ASK
+      // rows is not copied.
+      const adminMessages = allMessages
+        .filter(msg => msg.chatType === CHAT_TYPE.ADMIN)
+        .map(msg => {
+          const messageData = normalizeAskMessageData(msg.messageData);
+          return messageData === msg.messageData ? msg : { ...msg, messageData };
+        });
 
       return { messages: adminMessages, pageInfo };
     },
