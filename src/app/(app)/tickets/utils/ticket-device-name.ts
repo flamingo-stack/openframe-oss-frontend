@@ -1,11 +1,15 @@
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import type { ClientDialogOwner, Dialog, DialogOwner } from '../types/dialog.types';
 
-/** A CLIENT-owned ticket carries the machine it was reported from; ADMIN-owned ones carry a user. */
+/**
+ * A CLIENT-owned ticket carries the machine it was reported from; ADMIN-owned ones
+ * carry a user. Narrowed on the discriminant the chat schema sends for both owner
+ * kinds (`type`), not on which fields happen to be present.
+ */
 export function isClientDialogOwner(
   owner: ClientDialogOwner | DialogOwner | null | undefined,
 ): owner is ClientDialogOwner {
-  return owner != null && typeof owner === 'object' && 'machineId' in owner;
+  return owner?.type === 'CLIENT';
 }
 
 /**
