@@ -198,9 +198,16 @@ export const GET_TICKET_QUERY = `
   }
 `;
 
+/**
+ * The board position order. `GET_TICKETS_QUERY` takes its sort as a REQUIRED
+ * variable so no caller can forget it; every caller but the tickets table
+ * (which sorts by number, `FetchTicketsParams.sort`) passes this.
+ */
+export const TICKETS_DEFAULT_SORT = { field: 'order', direction: 'ASC' } as const;
+
 export const GET_TICKETS_QUERY = `
-  query GetTickets($filter: TicketFilterInput, $pagination: CursorPaginationInput, $search: String) {
-    tickets(filter: $filter, pagination: $pagination, search: $search, sort: { field: "order", direction: ASC }) {
+  query GetTickets($filter: TicketFilterInput, $pagination: CursorPaginationInput, $search: String, $sort: SortInput!) {
+    tickets(filter: $filter, pagination: $pagination, search: $search, sort: $sort) {
       edges {
         cursor
         node {
