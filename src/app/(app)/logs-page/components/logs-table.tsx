@@ -705,7 +705,7 @@ function LogsTableContent({
                   label: 'Source',
                   value: <ToolBadge toolType={normalizeToolTypeWithFallback(selectedLog.source.toolType)} />,
                 },
-                { label: 'Device', value: selectedLog.device.name },
+                { label: 'Device', value: logSourceLabels(selectedLog.device).deviceName },
               ]
             : []
         }
