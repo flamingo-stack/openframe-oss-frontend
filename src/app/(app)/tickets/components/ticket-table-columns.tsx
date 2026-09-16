@@ -4,6 +4,7 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   DataTable,
+  type DataTableSortState,
   DeviceCardCompact,
   type OnChangeFn,
   type Row,
@@ -13,16 +14,17 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo } from 'react';
 import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
-import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { ClientDialogOwner, Dialog } from '../types/dialog.types';
+import { formatTicketRowMeta } from '../utils/ticket-row-meta';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { UnassignedTicketCell } from './table-assignee-cell';
 import { TICKET_COLUMNS } from './ticket-table-layout';
@@ -58,16 +60,16 @@ interface TicketTableColumnsOptions {
    * treatment (red user-x avatar + red name).
    */
   isUserDeleted?: (id?: string | null) => boolean;
-}
-
-function formatTimestamp(timestamp: string): string {
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return timestamp;
-  return formatDateTime(date);
+  /**
+   * Renders the sort arrow on the TICKET header. Only a consumer that also
+   * hands `DataTable.Header` an `onSortChange` (the /tickets list) sets it;
+   * the device and customer tabs render these columns without one.
+   */
+  sortable?: boolean;
 }
 
 export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): ColumnDef<Dialog>[] {
-  const { isArchived = false, statusOptions, assigneeOptions, isUserDeleted } = options;
+  const { isArchived = false, statusOptions, assigneeOptions, isUserDeleted, sortable = false } = options;
 
   const titleColumn: ColumnDef<Dialog> = {
     accessorKey: 'title',
@@ -77,13 +79,21 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
       return (
         <div className="flex min-w-0 flex-col justify-center">
           <TruncateText>{ticket.title || 'Untitled Ticket'}</TruncateText>
-          <TruncateText variant="h6" tone="secondary">
-            {formatTimestamp(ticket.createdAt)}
-          </TruncateText>
+          {/* The sub-line only carries a relative time, so the full timestamp
+              rides on hover exactly as on the board card. A native title, not
+              TruncateText's tooltip: that one fires only when the text overflows. */}
+          <div className="min-w-0" title={ticket.createdAt ? formatTicketFullTimestamp(ticket.createdAt) : undefined}>
+            <TruncateText variant="h6" tone="secondary">
+              {formatTicketRowMeta(ticket)}
+            </TruncateText>
+          </div>
         </div>
       );
     },
-    meta: liveColumnMeta(TICKET_COLUMNS.title),
+    // The flag is spliced into the layout entry rather than passed as `extra`:
+    // `liveColumnMeta` lets the layout win on the shared fields, so an `extra`
+    // `sortable` would be overwritten by the layout's (absent) one.
+    meta: liveColumnMeta(sortable ? { ...TICKET_COLUMNS.title, sortable: true } : TICKET_COLUMNS.title),
   };
 
   const sourceColumn: ColumnDef<Dialog> = {
@@ -218,6 +228,13 @@ interface TicketTableBodyProps {
   statusOptions?: StatusFilterOption[];
   assigneeOptions?: StatusFilterOption[];
   getUnreadCount?: (ticket: Dialog) => number | undefined;
+  /**
+   * Server-side sort indicator for the TICKET header. The header only renders
+   * the direction; the consumer owns the click cycle and the query. Passing
+   * `onSortChange` is what makes the header sortable at all.
+   */
+  sort?: DataTableSortState | null;
+  onSortChange?: (columnId: string) => void;
 }
 
 export function TicketTableBody({
@@ -234,14 +251,17 @@ export function TicketTableBody({
   statusOptions,
   assigneeOptions,
   getUnreadCount,
+  sort,
+  onSortChange,
 }: TicketTableBodyProps) {
   const { isUserDeleted } = useUserStatusMap();
+  const sortable = !!onSortChange;
 
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {
-    const base = getTicketTableColumns({ isArchived, statusOptions, assigneeOptions, isUserDeleted });
+    const base = getTicketTableColumns({ isArchived, statusOptions, assigneeOptions, isUserDeleted, sortable });
     const openColumn = getTicketOpenColumn(getUnreadCount);
     return actionsColumn ? [...base, actionsColumn, openColumn] : [...base, openColumn];
-  }, [isArchived, actionsColumn, statusOptions, assigneeOptions, getUnreadCount, isUserDeleted]);
+  }, [isArchived, actionsColumn, statusOptions, assigneeOptions, getUnreadCount, isUserDeleted, sortable]);
 
   const table = useDataTable<Dialog>({
     data: tickets,
@@ -258,6 +278,8 @@ export function TicketTableBody({
         stickyHeader={!!stickyHeaderOffset}
         stickyHeaderOffset={stickyHeaderOffset}
         rightSlot={<DataTable.RowCount />}
+        sort={sort ?? null}
+        onSortChange={onSortChange}
       />
       <DataTable.Body
         loading={isLoading}

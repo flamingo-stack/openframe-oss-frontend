@@ -18,6 +18,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useClientView } from '@/app/(app)/settings/ai-settings/hooks/use-client-view';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -33,6 +34,7 @@ import { ArchiveCustomerModal } from './archive-customer-modal';
 import { CustomerDetailsSkeleton } from './customer-details-skeleton';
 import {
   CUSTOM_AI_ASSISTANT_TAB_ID,
+  CUSTOMER_DEVICE_GUARDRAILS_TAB_ID,
   CUSTOMER_GUARDRAILS_TAB_ID,
   getCustomerTabComponent,
   getCustomerTabs,
@@ -48,6 +50,7 @@ interface CustomerDetailsViewProps {
 const DETAIL_TO_EDIT_TAB: Partial<Record<CustomerDetailTab, CustomerEditTab>> = {
   [CUSTOM_AI_ASSISTANT_TAB_ID]: 'ai-configuration',
   [CUSTOMER_GUARDRAILS_TAB_ID]: 'guardrails',
+  [CUSTOMER_DEVICE_GUARDRAILS_TAB_ID]: 'device-guardrails',
 };
 
 export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
@@ -89,9 +92,12 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   // Effective per-org guardrails via /chat/graphql (saas-ai-agent), so
   // saas-tenant only; own release flag, independent of the appearance feature.
   const showGuardrails = useFeatureFlag('customer-guardrails') && isSaasTenant;
+  // Remote access policy (CU-86akeqw8b): not saas-gated - MeshCentral runs in
+  // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
+  const showDeviceGuardrails = useRemoteAccessApprovalGate() === 'on';
   const tabs = useMemo(
-    () => getCustomerTabs({ showCustomAiAssistant, showGuardrails }),
-    [showCustomAiAssistant, showGuardrails],
+    () => getCustomerTabs({ showCustomAiAssistant, showGuardrails, showDeviceGuardrails }),
+    [showCustomAiAssistant, showGuardrails, showDeviceGuardrails],
   );
   const activeTab = (tabs.some(tab => tab.id === requestedTab) ? requestedTab : 'devices') as CustomerDetailTab;
 

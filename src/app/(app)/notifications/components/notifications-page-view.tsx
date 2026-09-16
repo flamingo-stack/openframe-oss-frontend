@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useQueryLoader } from 'react-relay';
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { registerLiveConnectionPairs } from '@/graphql/notifications/live-connection-pairs';
 import {
   notificationsConnectionFilters,
   UNFILTERED_NOTIFICATION_PAIR,
@@ -88,6 +89,10 @@ export function NotificationsPageView() {
     ],
     [debouncedSearch],
   );
+
+  // A live READ / DELETED event reaches the drawer's unfiltered pair by name; this page's
+  // search-keyed pair it has to be told about, or a card read elsewhere stays in the table.
+  useEffect(() => registerLiveConnectionPairs(filterPairs), [filterPairs]);
 
   const onMarkAllReadCompleted = useCallback(() => {
     toast({ title: 'All notifications marked as read', variant: 'success' });

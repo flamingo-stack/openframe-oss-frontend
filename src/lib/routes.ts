@@ -33,8 +33,9 @@ export const TAB_IDS = {
     'details',
     'custom-ai-assistant',
     'customer-ai-guardrails',
+    'customer-device-guardrails',
   ],
-  customerEdit: ['details', 'ai-configuration', 'guardrails'],
+  customerEdit: ['details', 'ai-configuration', 'guardrails', 'device-guardrails'],
   deviceDetails: [
     'overview',
     'vulnerabilities',
@@ -48,6 +49,7 @@ export const TAB_IDS = {
     'network',
     'users',
     'software',
+    'remote-sessions',
   ],
   scriptDetails: ['details', 'executions'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
@@ -55,7 +57,7 @@ export const TAB_IDS = {
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
   queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
-  aiSettings: ['mingo', 'customer', 'guardrails'],
+  aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
 } as const;
 
@@ -241,6 +243,7 @@ export const routes = {
     remoteShell: (id: string | number) => withQuery('/devices/details/remote-shell', { id }),
     remoteDesktop: (id: string | number) => withQuery('/devices/details/remote-desktop', { id }),
     fileManager: (id: string | number) => withQuery('/devices/details/file-manager', { id }),
+    remoteSessionRecording: (id: string | number) => withQuery('/devices/details/remote-session', { id }),
   },
 
   scripts: {
