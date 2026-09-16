@@ -190,6 +190,31 @@ export interface ComboKeyEvent {
   extended: boolean;
 }
 
+// Ctrl+Alt+Del must go out as the agent's secure-attention command
+// (MNG_CTRLALTDEL), never as three key presses - Windows ignores an injected
+// Ctrl+Alt+Del. Matched as a token set so the modifier order does not matter:
+// the shortcut manager stores the default as 'alt+ctrl+del' and builds custom
+// combos in shift/alt/ctrl/win order, so an exact 'ctrl+alt+del' compare
+// never fires.
+const SECURE_ATTENTION_TOKENS = new Set(['ctrl', 'alt', 'del']);
+
+export function isSecureAttentionCombo(combo: string): boolean {
+  const tokens = combo
+    .toLowerCase()
+    .split('+')
+    .map(t => t.trim())
+    .map(t => (t === 'delete' ? 'del' : t))
+    .filter(Boolean);
+  // Exactly the three tokens, each once: the length check rejects repeats
+  // ('ctrl+alt+del+del'), the set check rejects a repeat standing in for a
+  // missing token ('ctrl+ctrl+del').
+  return (
+    tokens.length === SECURE_ATTENTION_TOKENS.size &&
+    new Set(tokens).size === SECURE_ATTENTION_TOKENS.size &&
+    tokens.every(t => SECURE_ATTENTION_TOKENS.has(t))
+  );
+}
+
 // 'ctrl+shift+esc' → presses in order, releases in reverse order.
 export function comboToSequence(combo: string): ComboKeyEvent[] | null {
   const tokens = combo

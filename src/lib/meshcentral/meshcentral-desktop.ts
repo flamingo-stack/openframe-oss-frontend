@@ -5,6 +5,7 @@ import {
   IS_MAC_BROWSER,
   isAltGraphPressed,
   isExtendedKey,
+  isSecureAttentionCombo,
   keyboardEventToVk,
 } from './meshcentral-keys';
 
@@ -804,7 +805,7 @@ export class MeshDesktop implements DesktopInputHandlers {
   }
 
   sendKeyCombo(combo: string) {
-    if (combo.toLowerCase() === 'ctrl+alt+del') {
+    if (isSecureAttentionCombo(combo)) {
       this.sendCtrlAltDel();
       return;
     }
