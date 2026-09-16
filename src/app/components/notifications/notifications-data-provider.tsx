@@ -36,7 +36,7 @@ import {
   usePaginationFragment,
   useRelayEnvironment,
 } from 'react-relay';
-import type { RecordProxy, RecordSourceSelectorProxy } from 'relay-runtime';
+import type { IEnvironment, RecordProxy, RecordSourceSelectorProxy } from 'relay-runtime';
 import type { cancelPendingPushMutation as CancelPendingPushMutationType } from '@/__generated__/cancelPendingPushMutation.graphql';
 import type { markNotificationReadMutation as MarkReadMutationType } from '@/__generated__/markNotificationReadMutation.graphql';
 import type { notificationsDrawerRelay_query$key as NotificationsDrawerFragmentKey } from '@/__generated__/notificationsDrawerRelay_query.graphql';
@@ -46,6 +46,7 @@ import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import type { NotificationSeverity } from '@/generated/schema-enums';
 import { cancelPendingPushMutation } from '@/graphql/notifications/cancel-pending-push-mutation';
+import { getLiveConnectionPairs } from '@/graphql/notifications/live-connection-pairs';
 import { markNotificationReadMutation } from '@/graphql/notifications/mark-notification-read-mutation';
 import {
   DRAWER_PAGE_SIZE,
@@ -55,10 +56,13 @@ import {
 } from '@/graphql/notifications/notifications-drawer-relay';
 import {
   adjustUnreadCount,
+  connectionHasNode,
   isApprovalResolved,
   makeMarkReadUpdater,
+  makeReadStateUpdater,
   mapNotificationNode,
   NOTIFICATION_ATTR,
+  type NotificationReadStateEvent,
   NOTIFICATIONS_CONNECTION_KEY,
   parseCreatedAt,
   parseSeverity,
@@ -160,11 +164,30 @@ function prependNotificationEdge(
   node: RecordProxy,
   relayId: string,
 ): boolean {
-  const edges = conn.getLinkedRecords('edges') ?? [];
-  if (edges.some(edge => edge?.getLinkedRecord('node')?.getDataID() === relayId)) return false;
+  if (connectionHasNode(conn, relayId)) return false;
   const edge = ConnectionHandler.createEdge(store, conn, node, 'NotificationEdge');
   ConnectionHandler.insertEdgeBefore(conn, edge);
   return true;
+}
+
+/**
+ * READ / DELETED: the recipient's read-state changed in another tab, on another device, or
+ * in this tab (its own mutation echoes back — the updaters are idempotent for that). Ids
+ * only, so nothing is rendered from the event: the cards already in the store are flipped
+ * or dropped in place, in whichever lists are mounted.
+ *
+ * An id the store never loaded (a card outside the paged window, a bulk mark-all) adjusts
+ * no bucket locally, so the counts are refetched after every event either way.
+ */
+function applyReadStateEvent(
+  environment: IEnvironment,
+  eventType: NotificationReadStateEvent,
+  notificationIds: readonly string[] | undefined,
+): void {
+  const ids = (notificationIds ?? []).filter(id => typeof id === 'string' && id.length > 0).map(notificationGlobalId);
+  if (ids.length === 0) return;
+  commitLocalUpdate(environment, makeReadStateUpdater(eventType, ids, getLiveConnectionPairs()));
+  refreshUnreadCounts(environment);
 }
 
 interface NatsNotificationPayload {
@@ -178,7 +201,12 @@ interface NatsNotificationPayload {
   category?: string;
   // CREATED is the initial push; UPDATED supersedes an earlier push with the same id
   // (e.g. an approval request whose status changed). Absent → treat as CREATED.
-  eventType?: 'CREATED' | 'UPDATED';
+  // READ / DELETED carry no card and no top-level id — only `notificationIds` — and say
+  // the recipient's read-state changed elsewhere.
+  eventType?: 'CREATED' | 'UPDATED' | NotificationReadStateEvent;
+  // READ / DELETED only: every notification the transition touched. A bulk action
+  // (mark all read, delete all read) arrives as ONE event carrying every id.
+  notificationIds?: string[];
   // The notification's facts: the backend type string and the flat attribute map (entity
   // ids at fixed keys, approval fields, whatever else the catalog declares for the type).
   type?: string;
@@ -626,6 +654,10 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
   useNatsJsonSubscription<NatsNotificationPayload>(
     subject,
     useCallback(payload => {
+      if (payload.eventType === 'READ' || payload.eventType === 'DELETED') {
+        applyReadStateEvent(environmentRef.current, payload.eventType, payload.notificationIds);
+        return;
+      }
       const rawId = payload.notificationId ?? payload.id;
       if (!rawId) return;
       const relayId = notificationGlobalId(rawId);
@@ -664,7 +696,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
           // createdAt, read state and connection membership untouched; the reactive tile reads
           // the refreshed fields.
           if (isApprovalResolved(resolution) && node.getValue('read') === false) {
-            makeMarkReadUpdater(relayId, [UNFILTERED_NOTIFICATION_PAIR])(store);
+            makeMarkReadUpdater(relayId, getLiveConnectionPairs())(store);
             resolutionAutoRead = true;
           }
           return;
@@ -683,7 +715,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
         if (suppress) {
           // Never enters the unread connection, so no popup and no drawer entry; lands
           // directly in the read connection. It was never counted, so skip the decrement.
-          makeMarkReadUpdater(relayId, [UNFILTERED_NOTIFICATION_PAIR], { adjustCount: false })(store);
+          makeMarkReadUpdater(relayId, getLiveConnectionPairs(), { adjustCount: false })(store);
           return;
         }
 
