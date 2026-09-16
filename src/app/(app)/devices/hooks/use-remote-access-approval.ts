@@ -17,7 +17,8 @@ export interface UseRemoteAccessApprovalResult {
   state: RemoteAccessApprovalState;
   request: RemoteAccessRequest | null;
   error: string | null;
-  requestAccess: (reason: string) => void;
+  /** `reason` is optional (decision 2026-09-16) - passed through when known, e.g. from a ticket. */
+  requestAccess: (reason?: string) => void;
   /** Revoke the open request (technician cancel) and go back to the reason step. */
   cancel: () => void;
   /** From denied/timed_out/error back to the reason step. */
@@ -70,7 +71,7 @@ export function useRemoteAccessApproval(
   }, []);
 
   const requestAccess = useCallback(
-    (reason: string) => {
+    (reason?: string) => {
       const attempt = ++attemptRef.current;
       setError(null);
       setState('requesting');
