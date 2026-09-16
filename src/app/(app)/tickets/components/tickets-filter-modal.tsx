@@ -14,7 +14,9 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import type { TicketActivityFilter } from '../types/dialog.types';
 import type { TicketListSort } from '../services/ticket-service.types';
+import { ActivityFilter } from './activity-filter';
 import { DEFAULT_TICKET_LIST_SORT } from '../utils/ticket-list-sort';
 import { AssigneeFilter } from './assignee-filter';
 import { OrganizationFilter } from './organization-filter';
@@ -26,6 +28,8 @@ interface TicketsFilterModalProps {
   organizationIds: string[];
   assigneeIds: string[];
   unreadOnly: boolean;
+  /** Renders the Activity section (board view only — the table has no activity filter). */
+  activity?: TicketActivityFilter[];
   /**
    * Renders the third, Status section (the table view — its status filter
    * lives in the column header on md+ and has no mobile surface otherwise).
@@ -42,6 +46,7 @@ interface TicketsFilterModalProps {
     organizationIds: string[];
     assigneeIds: string[];
     unreadOnly: boolean;
+    activity?: TicketActivityFilter[];
     status?: string[];
     sort?: TicketListSort;
   }) => void;
@@ -64,6 +69,7 @@ export function TicketsFilterModal({
   organizationIds,
   assigneeIds,
   unreadOnly,
+  activity,
   status,
   sort,
   onApply,
@@ -71,6 +77,7 @@ export function TicketsFilterModal({
   const [localOrganizationIds, setLocalOrganizationIds] = useState(organizationIds);
   const [localAssigneeIds, setLocalAssigneeIds] = useState(assigneeIds);
   const [localUnreadOnly, setLocalUnreadOnly] = useState(unreadOnly);
+  const [localActivity, setLocalActivity] = useState<TicketActivityFilter[]>(activity ?? []);
   const [localStatus, setLocalStatus] = useState<string[]>(status?.value ?? []);
   const [localSort, setLocalSort] = useState<TicketListSort>(sort?.value ?? DEFAULT_TICKET_LIST_SORT);
 
@@ -85,6 +92,7 @@ export function TicketsFilterModal({
       setLocalOrganizationIds(organizationIds);
       setLocalAssigneeIds(assigneeIds);
       setLocalUnreadOnly(unreadOnly);
+      setLocalActivity(activity ?? []);
       setLocalStatus(status?.value ?? []);
       setLocalSort(sort?.value ?? DEFAULT_TICKET_LIST_SORT);
     }
@@ -95,6 +103,7 @@ export function TicketsFilterModal({
       organizationIds: [],
       assigneeIds: [],
       unreadOnly: false,
+      ...(activity && { activity: [] }),
       ...(status && { status: [] }),
       ...(sort && { sort: DEFAULT_TICKET_LIST_SORT }),
     });
@@ -106,6 +115,7 @@ export function TicketsFilterModal({
       organizationIds: localOrganizationIds,
       assigneeIds: localAssigneeIds,
       unreadOnly: localUnreadOnly,
+      ...(activity && { activity: localActivity }),
       ...(status && { status: localStatus }),
       ...(sort && { sort: localSort }),
     });
@@ -137,6 +147,13 @@ export function TicketsFilterModal({
         <Label>Assignee</Label>
         <AssigneeFilter value={localAssigneeIds} onChange={setLocalAssigneeIds} />
       </div>
+
+      {activity && (
+        <div className="space-y-2">
+          <Label>Activity</Label>
+          <ActivityFilter value={localActivity} onChange={setLocalActivity} />
+        </div>
+      )}
 
       <CheckboxBlock checked={localUnreadOnly} onCheckedChange={setLocalUnreadOnly} label="New Messages Only" />
 
