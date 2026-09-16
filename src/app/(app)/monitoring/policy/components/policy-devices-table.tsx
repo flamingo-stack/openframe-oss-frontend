@@ -191,7 +191,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
   const renderSubRow = useCallback(
     (row: PolicyDeviceRow) => {
       if (!quickQueryIds.has(String(row.id))) return null;
-      return <QuickQueryPanel fleetHostId={row.fleetHostId} initialQuery={policyQuery ?? ''} />;
+      return <QuickQueryPanel fleetHostId={row.fleetHostId} deviceName={row.name} initialQuery={policyQuery ?? ''} />;
     },
     [quickQueryIds, policyQuery],
   );

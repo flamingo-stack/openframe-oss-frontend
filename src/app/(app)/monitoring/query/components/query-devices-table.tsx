@@ -265,7 +265,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
   const renderSubRow = useCallback(
     (row: QueryDeviceRow) => {
       if (!quickQueryIds.has(String(row.id))) return null;
-      return <QuickQueryPanel fleetHostId={row.fleetHostId} initialQuery={query ?? ''} />;
+      return <QuickQueryPanel fleetHostId={row.fleetHostId} deviceName={row.name} initialQuery={query ?? ''} />;
     },
     [quickQueryIds, query],
   );
