@@ -20,6 +20,7 @@ import { useTicketStatusesQuery } from '../../statuses/hooks/use-ticket-statuses
 import type { CreateTicketFormData } from '../../types/create-ticket.types';
 import type { Ticket } from '../../types/ticket.types';
 import { resolveCurrentStatus } from '../../utils/resolve-current-status';
+import { getTicketDeviceName } from '../../utils/ticket-device-name';
 import { TICKET_STATUS_KIND } from '../../utils/ticket-statistics';
 import { avatarStartAdornment, renderAvatarOption } from '../avatar-autocomplete';
 import { renderStatusOption, type StatusOption, statusStartAdornment } from '../status-autocomplete';
@@ -89,7 +90,7 @@ export function TicketFormFields({
     [ticket],
   );
   const ticketDevice = useMemo<AutocompleteOption | null>(
-    () => (ticket?.deviceId ? { value: ticket.deviceId, label: ticket.deviceHostname || ticket.deviceId } : null),
+    () => (ticket?.deviceId ? { value: ticket.deviceId, label: getTicketDeviceName(ticket) || ticket.deviceId } : null),
     [ticket],
   );
   const ticketAssignee = useMemo<AvatarOption | null>(

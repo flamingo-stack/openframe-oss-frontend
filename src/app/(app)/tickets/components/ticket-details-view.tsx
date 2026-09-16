@@ -58,6 +58,7 @@ import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
+import { getDeviceName } from '../../devices/utils/device-name';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE, DIALOG_STATUS } from '../constants';
@@ -174,6 +175,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     return ownerMachineId || dialog.deviceId;
   }, [dialog, isClientOwner]);
   const { deviceDetails, isLoading: isDeviceLoading } = useDeviceDetails(machineId);
+  // The device this ticket is attached to, named like every other screen: the registry
+  // record once it has loaded; until then — or when deviceId is a Mongo ObjectId that
+  // resolves to nothing (see above) — the name the ticket itself carries. An ADMIN-owned
+  // ticket has no owner.machine, so without the registry it would only ever show hostname.
+  const ticketDeviceName = getDeviceName(deviceDetails) || (dialog ? getTicketDeviceName(dialog) : '');
   const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
 
   const { client, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
@@ -300,7 +306,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [router, pathname, searchParams],
   );
 
-  const clientDisplayName = (dialog && getTicketDeviceName(dialog)) || undefined;
+  const clientDisplayName = ticketDeviceName || undefined;
 
   const processClientChunk = useSideChunkProcessor('client', {
     ticketId,
@@ -646,7 +652,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       id: 'device',
       label: 'Device',
       value: {
-        text: getTicketDeviceName(dialog) || '—',
+        text: ticketDeviceName || '—',
         href: machineId ? routes.devices.details(machineId) : undefined,
       },
     },
