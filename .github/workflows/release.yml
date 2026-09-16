@@ -5,7 +5,7 @@ name: Openframe Release
 # =============================================================================
 
 permissions:
-  contents: read
+  contents: write  # release tags
   packages: write
 
 on:
@@ -118,3 +118,13 @@ jobs:
                   -f ./Dockerfile)
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" .
+
+      # The desktop shell builds its static export from the commit behind an
+      # image tag, so every released image gets a git tag of the same name.
+      - name: Tag released commit
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.NEW_VERSION }}
+        run: |
+          git tag "$VERSION"
+          git push origin "refs/tags/$VERSION"
