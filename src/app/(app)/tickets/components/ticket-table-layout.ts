@@ -16,8 +16,19 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  * one — and keeps the field required, so a new column can't forget to state it.
  */
 
+/**
+ * `sortable` is deliberately NOT declared on TITLE here. Only the /tickets list
+ * wires a server sort (`TicketsTable`); the device and customer tabs render the
+ * same columns without a handler, and an arrow there would be inert. The live
+ * builder adds the flag per consumer (`getTicketTableColumns({ sortable })`).
+ * The skeletons reading this layout (the device tab's `DEVICE_TICKET_COLUMNS`,
+ * the customer tab's header labels) belong to tabs that never sort, so their
+ * loading and loaded headers still agree.
+ */
 const TICKET_COLUMNS = {
-  title: { id: 'title', header: 'TITLE', width: 'w-[60%] md:flex-1 min-w-0' },
+  // Header reads TICKET (Figma tickets 8002-256659): the cell carries the title
+  // and, under it, the ticket number with the relative creation time.
+  title: { id: 'title', header: 'TICKET', width: 'w-[60%] md:flex-1 min-w-0' },
   source: { id: 'source', header: 'SOURCE', width: '', hideAt: 'md' },
   assignee: { id: 'assignee', header: 'ASSIGNEE', width: '', hideAt: 'lg' },
   status: { id: 'status', header: 'STATUS', width: '' },

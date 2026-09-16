@@ -25,7 +25,6 @@ import {
 import { collectScriptCustomParams } from '../utils/schedule-script-params';
 import {
   applyTimeSlot,
-  isDeviceLocalTime,
   isEventTrigger,
   isRetryOnReconnect,
   resolveDurationSeconds,
@@ -87,21 +86,14 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         !isEventDriven && data.scheduledDate && data.scheduledTime
           ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime), data.timeReference)
           : null;
-      // A device-local schedule cannot queue a run for an offline device — the
-      // API rejects RETRY_ON_RECONNECT beside it, and its runner retries within
-      // its own catch-up window anyway — so the collapsed offline block is
-      // written back as SKIP whatever it still holds.
+      // Nothing is forced for a device-local schedule — neither `offlineBehavior`
+      // nor `repeat`. The API may still refuse either beside DEVICE_LOCAL, but
+      // both sets of controls are offered, so what the user set is what gets
+      // sent and the refusal surfaces as the error toast.
       //
-      // Its `repeat` is NOT forced here. The API refuses that one too today
-      // ("does not support repeat yet"), but the controls are offered, so what
-      // the user set is what gets sent: silently dropping a cadence the form
-      // shows would save a schedule that runs once and looks like it repeats.
-      // The refusal surfaces as the error toast, and this line needs no edit
-      // when the backend lifts it.
-      const deviceLocal = isDeviceLocalTime(data.timeReference);
       // The window is written only when the behavior that uses it is in force,
-      // which neither an event-driven nor a device-local schedule has.
-      const retriesOnReconnect = !isEventDriven && !deviceLocal && isRetryOnReconnect(data.offlineBehavior);
+      // which an event-driven schedule never has.
+      const retriesOnReconnect = !isEventDriven && isRetryOnReconnect(data.offlineBehavior);
       const input = {
         name: data.name,
         // PUT semantics on update: null clears the stored description.
@@ -139,12 +131,10 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
             ? resolveDurationSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
             : null,
         // "If device is offline at scheduled time" — meaningless without such a
-        // moment, so the two readings that have none are written back as the
-        // SKIP default rather than carrying whatever the collapsed block holds.
-        // An event-driven schedule fires ON the reconnect; a device-local one is
-        // refused the setting by the API and retries within its catch-up window
-        // by itself.
-        offlineBehavior: isEventDriven || deviceLocal ? ScheduleOfflineBehavior.SKIP : data.offlineBehavior,
+        // moment, and an event-driven schedule fires ON the reconnect, so it is
+        // written back as the SKIP default instead of what the collapsed block
+        // holds.
+        offlineBehavior: isEventDriven ? ScheduleOfflineBehavior.SKIP : data.offlineBehavior,
         // Only ever set alongside RETRY_ON_RECONNECT — the schema says the field
         // is "set only when offlineBehavior is RETRY_ON_RECONNECT; null/ignored
         // for SKIP", and PUT semantics make sending a stale window on a schedule

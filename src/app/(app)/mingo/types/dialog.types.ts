@@ -1,3 +1,5 @@
+import type { GraphQlResponse } from '../../tickets/utils/graphql';
+
 // GraphQL response types
 export interface DialogTokenUsage {
   chatType: string;
@@ -69,11 +71,10 @@ export interface DialogsResponse {
   };
 }
 
-export interface DialogResponse {
-  data: {
-    dialog: DialogNode;
-  };
-}
+/** The `dialog(id:)` envelope. `dialog` is `null` when the id resolves to
+ *  nothing this user can open — the `mingo-dialog` queryFn tells that apart
+ *  from a failure. */
+export type DialogResponse = GraphQlResponse<{ dialog: DialogNode | null }>;
 
 // Hook options
 export interface UseMingoDialogsOptions {

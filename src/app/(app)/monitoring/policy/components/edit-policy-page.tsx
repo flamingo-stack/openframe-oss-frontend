@@ -1,15 +1,7 @@
 'use client';
 'use no memo';
 
-import {
-  CardLoader,
-  Input,
-  Label,
-  LoadError,
-  NotFoundError,
-  PageLayout,
-  Textarea,
-} from '@flamingo-stack/openframe-frontend-core';
+import { Input, Label, LoadError, NotFoundError, PageLayout, Textarea } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -22,6 +14,7 @@ import { routes } from '@/lib/routes';
 import type { Device } from '../../../devices/types/device.types';
 import { getFleetHostId } from '../../../devices/utils/device-action-utils';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
+import { MonitoringEditSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
 import { usePolicyDetails } from '../hooks/use-policy-details';
@@ -203,7 +196,7 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
   );
 
   if (isLoadingPolicy && isExistingPolicy) {
-    return <CardLoader items={4} />;
+    return <MonitoringEditSkeleton kind="policy" onBack={handleBack} />;
   }
 
   if (policyError && isExistingPolicy) {

@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { routeTitle } from '@/lib/route-title';
 import { RedditClickIdCapture } from './components/reddit-click-id-capture';
 
@@ -13,7 +14,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <>
       <RedditClickIdCapture />
-      {children}
+      <Suspense fallback={null}>{children}</Suspense>
     </>
   );
 }

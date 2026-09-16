@@ -13,6 +13,19 @@ export interface MessagePage {
   pageInfo: CursorPageInfo;
 }
 
+/**
+ * Server sort of the tickets LIST: by ticket number, newest first by default,
+ * flipped from the TICKET column header (Figma tickets 8002-256659) or the
+ * filter modal. Callers that pass no sort (board columns, pickers, the device
+ * and customer tabs) get the board position (`order`) from the service.
+ */
+export type TicketListSortField = 'ticketNumber';
+
+export interface TicketListSort {
+  field: TicketListSortField;
+  direction: 'ASC' | 'DESC';
+}
+
 export interface FetchTicketsParams {
   // Lifecycle status ids; callers resolve them from the status snapshot before
   // firing (there is no enum fallback — an empty list sends no status filter).
@@ -24,6 +37,8 @@ export interface FetchTicketsParams {
   // Sent as `TicketFilterInput.hasUnreadNotifications: true`; the backend
   // treats false and null alike (no filter), so only `true` is ever sent.
   unreadOnly?: boolean;
+  /** List sort; null/undefined keeps the board position order. */
+  sort?: TicketListSort | null;
   cursor?: string;
   limit: number;
 }

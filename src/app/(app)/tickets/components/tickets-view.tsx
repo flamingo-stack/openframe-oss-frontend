@@ -6,7 +6,9 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import type { TicketActivityFilter } from '../types/dialog.types';
+import type { TicketListSort } from '../services/ticket-service.types';
 import { resolveTicketsViewMode, type TicketsViewMode } from '../utils/resolve-view-mode';
+import { parseTicketListSort, ticketListSortToParams } from '../utils/ticket-list-sort';
 import { TicketsBoard } from './tickets-board';
 import { CurrentTickets } from './tickets-table';
 
@@ -40,6 +42,9 @@ export function TicketsView() {
     // No default: an absent param stays distinguishable from an explicit
     // `viewMode=table`, so clearing the param returns to the board default.
     viewMode: { type: 'string', default: '' },
+    // Table-only sort by ticket number (the TICKET header / the filter modal's
+    // Sort section): absent = newest first, `asc` = oldest first. Inert on the board.
+    sortDir: { type: 'string', default: '' },
   });
 
   const viewMode = resolveTicketsViewMode(params.viewMode);
@@ -53,6 +58,8 @@ export function TicketsView() {
   const handleOrganizationIdsChange = useCallback((ids: string[]) => setParam('organizationIds', ids), [setParam]);
   const handleAssigneeIdsChange = useCallback((ids: string[]) => setParam('assigneeIds', ids), [setParam]);
   const handleTagIdsChange = useCallback((ids: string[]) => setParam('tagIds', ids), [setParam]);
+  const sort = parseTicketListSort(params.sortDir);
+  const handleSortChange = (next: TicketListSort) => setParams(ticketListSortToParams(next));
   const handleUnreadOnlyChange = useCallback((value: boolean) => setParam('unread', value || null), [setParam]);
   const handleActivityChange = useCallback(
     (values: TicketActivityFilter[]) => setParam('activity', values),
@@ -73,17 +80,20 @@ export function TicketsView() {
     [setParams],
   );
   // The table's variant also carries the status filter (its mobile modal and
-  // the column-header filters both go through this one atomic write).
+  // the column-header filters both go through this one atomic write), and the
+  // modal's Sort section rides along so it never needs a second URL write.
   const handleTableFiltersChange = useCallback(
     ({
       unreadOnly,
+      sort: nextSort,
       ...filters
     }: {
       status: string[];
       assigneeIds: string[];
       organizationIds: string[];
       unreadOnly: boolean;
-    }) => setParams({ ...filters, unread: unreadOnly || null }),
+      sort?: TicketListSort;
+    }) => setParams({ ...filters, unread: unreadOnly || null, ...(nextSort && ticketListSortToParams(nextSort)) }),
     [setParams],
   );
 
@@ -136,6 +146,8 @@ export function TicketsView() {
       onTagIdsChange={handleTagIdsChange}
       search={search}
       onSearchChange={setSearch}
+      sort={sort}
+      onSortChange={handleSortChange}
     />
   );
 }

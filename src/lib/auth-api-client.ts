@@ -6,6 +6,7 @@
 
 import { isSaasSharedMode } from './app-mode';
 import { forceLogout } from './force-logout';
+import type { MobileAuthError } from './mobile-auth-return';
 import { isAppShell } from './platform';
 import {
   appendAttributionQueryParams,
@@ -59,6 +60,13 @@ export interface PendingSsoIdentity {
   firstName: string | null;
   lastName: string | null;
   provider: string;
+}
+
+/** What the "One Last Step" page confirms: the asserted identity plus where it is about to be joined. */
+export interface PendingSsoJoin extends PendingSsoIdentity {
+  tenantName: string;
+  /** Role names as the server grants them (`ADMIN`); empty for a plain member. */
+  roles: string[];
 }
 
 class AuthApiClient {
@@ -125,11 +133,6 @@ class AuthApiClient {
 
     await forceLogout({ reason: 'Auth API Client - Token refresh failed' });
     return null;
-  }
-
-  /** No `tenantId` — the BFF resolves it from the refresh token. See `token-refresh-manager.ts`. */
-  refresh<T = unknown>() {
-    return requestRefresh<T>('/oauth/refresh', { method: 'POST' });
   }
 
   devExchange(ticket: string): Promise<Response> {
@@ -199,15 +202,57 @@ class AuthApiClient {
    * Session-cookie authenticated: no bearer token, and no 401 retry — an expired session here is a
    * 409 with a message for the user, not a credential that can be rotated.
    */
-  async pendingSsoIdentity(): Promise<AuthApiResponse<PendingSsoIdentity>> {
-    const url = buildAuthUrl('/sas/oauth/login/sso/pending');
+  pendingSsoIdentity(): Promise<AuthApiResponse<PendingSsoIdentity>> {
+    return this.sessionGet<PendingSsoIdentity>('/sas/oauth/login/sso/pending');
+  }
+
+  /**
+   * What the "One Last Step" page confirms before an SSO flow creates a user: the asserted identity
+   * plus the organization and roles it is about to be joined with. Which flow (invitation accept or
+   * shared-domain first login) is the server's business - the flow cookie its callback kept says so.
+   * Same session-cookie contract as `pendingSsoIdentity`; a 409 means that cookie or the session expired.
+   */
+  pendingSsoJoin(): Promise<AuthApiResponse<PendingSsoJoin>> {
+    return this.sessionGet<PendingSsoJoin>('/sas/oauth/join/pending');
+  }
+
+  /**
+   * Finishes the join after the Terms consent. Returns the URL rather than navigating: the response
+   * is a 302 into `/oauth/continue` that sets the auth cookies, so the caller must perform a TOP-LEVEL
+   * navigation - a fetch would follow the redirect without ever committing them. `agreeTerms` is the
+   * server's precondition for creating the user, which is why it is baked in rather than a parameter.
+   */
+  completeSsoJoinUrl(): string {
+    return buildAuthUrl('/sas/oauth/join/complete?agreeTerms=true');
+  }
+
+  /**
+   * Where a mobile flow leaves the join page WITHOUT creating the user (Back to Login, an expired
+   * session). Goes through the BFF rather than to the app URI: `/oauth/join-return` validates
+   * `redirectTo` against the redirect allow-list and 302s to the app, or to the web login when it is
+   * not allow-listed - the open redirect a page-side navigation to `redirectTo` would reopen. Like
+   * `completeSsoJoinUrl`, a URL for a TOP-LEVEL navigation. `reason` rides along for the BFF to
+   * forward as the callback's `error`, so the app can tell a deliberate Back from a broken flow.
+   */
+  ssoJoinReturnUrl(redirectTo: string, reason: MobileAuthError): string {
+    const params = new URLSearchParams({ redirectTo, reason });
+    return buildAuthUrl(`/oauth/join-return?${params.toString()}`);
+  }
+
+  /**
+   * A session-cookie GET against the auth server, for the pages that continue an SSO flow from the
+   * identity parked in the SAS session. No bearer token and no 401 retry: an expired session here is
+   * a 409 with a message for the user, not a credential that can be rotated.
+   */
+  private async sessionGet<T>(path: string): Promise<AuthApiResponse<T>> {
+    const url = buildAuthUrl(path);
     try {
       const res = await fetch(url, {
         method: 'GET',
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
-      let data: (PendingSsoIdentity & { message?: string }) | undefined;
+      let data: (T & { message?: string }) | undefined;
       if ((res.headers.get('content-type') || '').includes('application/json')) {
         try {
           data = await res.json();
@@ -424,64 +469,6 @@ class AuthApiClient {
 }
 
 const authApiClient = new AuthApiClient();
-
-async function requestRefresh<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
-  const url = buildAuthUrl(path);
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-    ...(init.headers as Record<string, string> | undefined),
-  };
-
-  if (isBearerAuthMode()) {
-    const refreshToken = await getRefreshToken();
-    if (refreshToken) {
-      headers['Refresh-Token'] = refreshToken;
-    }
-  }
-
-  try {
-    // `headers` LAST: `init.headers` is already merged into it above, so
-    // spreading `init` over it would only drop the `Refresh-Token` added here.
-    const res = await fetch(url, {
-      credentials: 'include',
-      ...init,
-      headers,
-    });
-
-    let data: T | undefined;
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      try {
-        data = await res.json();
-      } catch {
-        // Same as above: `data` stays undefined and the status carries the result.
-      }
-    }
-
-    if (isBearerAuthMode() && res.ok) {
-      const accessToken = res.headers.get('Access-Token') || res.headers.get('access-token');
-      const refreshToken = res.headers.get('Refresh-Token') || res.headers.get('refresh-token');
-
-      if (accessToken || refreshToken) {
-        data = {
-          ...data,
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        } as T;
-      }
-    }
-
-    return {
-      data,
-      error: res.ok ? undefined : `Request failed with status ${res.status}`,
-      status: res.status,
-      ok: res.ok,
-    };
-  } catch (e) {
-    return { ok: false, status: 0, error: e instanceof Error ? e.message : 'Network error' };
-  }
-}
 
 async function request<T = unknown>(path: string, init: RequestInit = {}): Promise<AuthApiResponse<T>> {
   const url = buildAuthUrl(path);

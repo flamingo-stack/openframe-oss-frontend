@@ -33,8 +33,9 @@ export const TAB_IDS = {
     'details',
     'custom-ai-assistant',
     'customer-ai-guardrails',
+    'customer-device-guardrails',
   ],
-  customerEdit: ['details', 'ai-configuration', 'guardrails'],
+  customerEdit: ['details', 'ai-configuration', 'guardrails', 'device-guardrails'],
   deviceDetails: [
     'overview',
     'vulnerabilities',
@@ -48,12 +49,15 @@ export const TAB_IDS = {
     'network',
     'users',
     'software',
+    'remote-sessions',
   ],
   scriptDetails: ['details', 'executions'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
   monitoring: ['policies', 'queries'],
+  /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
+  queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
-  aiSettings: ['mingo', 'customer', 'guardrails'],
+  aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
 } as const;
 
@@ -64,6 +68,7 @@ export type DeviceDetailTab = (typeof TAB_IDS.deviceDetails)[number];
 export type ScriptDetailTab = (typeof TAB_IDS.scriptDetails)[number];
 export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
 export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
+export type QueryDetailTab = (typeof TAB_IDS.queryDetails)[number];
 export type SettingsTab = (typeof TAB_IDS.settings)[number];
 export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
 export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
@@ -199,6 +204,18 @@ export const routes = {
      * SAS session and collects only what SSO cannot supply: organization name and domain.
      */
     ssoContinue: '/auth/sso-continue',
+    /**
+     * Terminal notice for an SSO identity with no account in a login-only mobile build, where the web
+     * would continue into `ssoContinue`. Nothing about the identity travels here.
+     */
+    noAccount: '/auth/no-account',
+    /**
+     * "One Last Step": where the auth server parks an SSO flow that is about to CREATE a user - a new
+     * member accepting an invitation, or a first login through a shared domain
+     * (`openframe.sso.join-confirm-url`). The page confirms the identity + organization from the SAS
+     * session and takes the Terms consent; nothing travels in the URL.
+     */
+    ssoJoin: '/auth/sso-join',
   },
 
   customers: {
@@ -218,6 +235,7 @@ export const routes = {
     remoteShell: (id: string | number) => withQuery('/devices/details/remote-shell', { id }),
     remoteDesktop: (id: string | number) => withQuery('/devices/details/remote-desktop', { id }),
     fileManager: (id: string | number) => withQuery('/devices/details/file-manager', { id }),
+    remoteSessionRecording: (id: string | number) => withQuery('/devices/details/remote-session', { id }),
   },
 
   scripts: {
@@ -245,7 +263,7 @@ export const routes = {
 
   monitoring: {
     root: (o?: { tab?: MonitoringTab }) => withQuery('/monitoring', { tab: o?.tab }),
-    query: (id: string | number) => withQuery('/monitoring/query', { id }),
+    query: (id: string | number, o?: { tab?: QueryDetailTab }) => withQuery('/monitoring/query', { id, tab: o?.tab }),
     queryNew: '/monitoring/query/new',
     queryEdit: (id: string | number) => withQuery('/monitoring/query/edit', { id }),
     policy: (id: string | number) => withQuery('/monitoring/policy', { id }),

@@ -9,6 +9,7 @@ import {
   GET_TICKETS_QUERY,
   getBoardColumnTicketsQuery,
   REORDER_TICKET_MUTATION,
+  TICKETS_DEFAULT_SORT,
   TRANSITION_TICKET_MUTATION,
 } from '../queries/ticket-queries';
 import type { Dialog, DialogOwnerEnum, DialogStatus, Message, TicketActivityState } from '../types/dialog.types';
@@ -226,6 +227,7 @@ export class TicketService implements TicketServiceInterface {
         filter,
         pagination: paginationVars,
         search: params.search || undefined,
+        sort: params.sort ?? TICKETS_DEFAULT_SORT,
       },
     });
 

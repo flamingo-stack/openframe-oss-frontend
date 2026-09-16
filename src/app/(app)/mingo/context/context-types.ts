@@ -9,10 +9,11 @@
  *
  * `CONTEXT_ENTITY_KIND` mirrors the backend `ContextItemType` enum
  * (`com.openframe.data.document.chat.ContextItemType`) — DEVICE / SCRIPT /
- * TICKET / ORGANIZATION / USER / KB_ARTICLE / POLICY / QUERY / SCHEDULED_SCRIPT.
- * All nine are resolved server-side (the ai-agent ships a `*ContextResolver` for
- * each, incl. `PolicyContextResolver` + `ScheduledQueryContextResolver` +
- * `ScheduledScriptContextResolver`).
+ * TICKET / ORGANIZATION / USER / KB_ARTICLE / KB_FOLDER / POLICY / QUERY /
+ * SCHEDULED_SCRIPT. All ten are resolved server-side (the ai-agent ships a
+ * `*ContextResolver` for each, incl. `PolicyContextResolver` +
+ * `ScheduledQueryContextResolver` + `ScheduledScriptContextResolver`). KB_FOLDER
+ * is mention-only: the agent emits `@kbFolder:id`, the picker doesn't offer it.
  *
  * `CONTEXT_ENTITY_MARKER` maps each kind to that enum's `marker()` — the SHORT
  * token the backend uses for inline `@marker:id` mentions (note `KB_ARTICLE` →
@@ -37,6 +38,7 @@ export const CONTEXT_ENTITY_KIND = {
   ORGANIZATION: 'ORGANIZATION',
   USER: 'USER',
   KB_ARTICLE: 'KB_ARTICLE',
+  KB_FOLDER: 'KB_FOLDER',
   POLICY: 'POLICY',
   QUERY: 'QUERY',
   SCHEDULED_SCRIPT: 'SCHEDULED_SCRIPT',
@@ -50,11 +52,11 @@ export const CONTEXT_ENTITY_KINDS = Object.values(CONTEXT_ENTITY_KIND) as Contex
 /**
  * Backend mention markers — each kind's `ContextItemType.marker()`. This is the
  * single mapper that reduces every `@`-mention to the backend's short form
- * (`@device:…`, `@kb:…`, `@policy:…`). Two entries are not a plain lowercase of
- * the kind: `KB_ARTICLE → 'kb'` and `SCHEDULED_SCRIPT → 'scheduledScript'` (the
- * only camelCase marker — the backend's `MentionParser` matches the token
- * verbatim, so the case MUST be preserved end to end). Fed to the lib via the
- * picker so the committed inline token matches that parser.
+ * (`@device:…`, `@kb:…`, `@policy:…`). Three entries are not a plain lowercase
+ * of the kind: `KB_ARTICLE → 'kb'`, and the camelCase `KB_FOLDER → 'kbFolder'`
+ * and `SCHEDULED_SCRIPT → 'scheduledScript'` (the backend's `MentionParser`
+ * matches the token verbatim, so the case MUST be preserved end to end). Fed to
+ * the lib via the picker so the committed inline token matches that parser.
  */
 export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
   DEVICE: 'device',
@@ -63,6 +65,7 @@ export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
   ORGANIZATION: 'organization',
   USER: 'user',
   KB_ARTICLE: 'kb',
+  KB_FOLDER: 'kbFolder',
   POLICY: 'policy',
   QUERY: 'query',
   SCHEDULED_SCRIPT: 'scheduledScript',
@@ -87,6 +90,7 @@ export const CONTEXT_RELAY_TYPENAME: Partial<Record<ContextEntityKind, string>> 
   DEVICE: 'Machine',
   ORGANIZATION: 'Organization',
   KB_ARTICLE: 'KnowledgeBaseItem',
+  KB_FOLDER: 'KnowledgeBaseItem',
   SCRIPT: 'Script',
   SCHEDULED_SCRIPT: 'ScriptSchedule',
 };

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { entityTagPickerQuery as EntityTagPickerQueryType } from '@/__generated__/entityTagPickerQuery.graphql';
 import type { TagEntityType } from '@/generated/schema-enums';
+import { OPTIMISTIC_TAG_ID_PREFIX } from './optimistic-tag-id';
 import { TagDeleteConfirmDialog } from './tag-delete-confirm-dialog';
 import { useCreateTagMutation, useDeleteTagMutation } from './use-tag-mutations';
 
@@ -175,7 +176,7 @@ export function EntityTagPicker({
       // `onChange`, so multiple tags created in a single change don't clobber each
       // other. Each create then swaps its own temp id for the real id against the
       // latest selection (via the ref), leaving concurrent additions intact.
-      const pending = newKeys.map(key => ({ key, tempId: `_optimistic_${crypto.randomUUID()}` }));
+      const pending = newKeys.map(key => ({ key, tempId: `${OPTIMISTIC_TAG_ID_PREFIX}${crypto.randomUUID()}` }));
       setOptimisticTags(prev => [...prev, ...pending]);
       onChange([...existingIds, ...pending.map(p => p.tempId)]);
 

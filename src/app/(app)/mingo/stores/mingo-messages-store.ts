@@ -292,7 +292,7 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       },
 
       updateApprovalStatusInMessages: (dialogId, requestId, status, resolvedByName?) => {
-        mutateMingoDialog(dialogId, r => r.updateApprovalStatus(requestId, status, resolvedByName));
+        mirror.updateApprovalStatus(dialogId, requestId, status, resolvedByName);
       },
 
       getMessages: (dialogId: string) => {

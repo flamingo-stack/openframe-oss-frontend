@@ -264,6 +264,14 @@ export interface ReducerMirror<K extends string> {
    * why splitting those steps across call sites is what broke before.
    */
   hydrate: (key: K, messages: readonly ChatMessage[], options?: HydrateOptions) => void;
+  /**
+   * Flip an approval's status on `key`'s thread — the user's decision on the
+   * request the tail is waiting on. ALSO cancels an adopt-once that `hydrate`
+   * armed: the backend answers the decision by STARTING a turn, so that
+   * `turn-start` is genuine, and `apply` (which disarms on any other event —
+   * see the rationale there) has no guarantee one lands first.
+   */
+  updateApprovalStatus: (key: K, requestId: string, status: ChatApprovalStatus, resolvedByName?: string | null) => void;
   /** Run reducer commands (non-wire mutations), then sync. Force-flushes deltas. */
   mutate: <T>(key: K, fn: (reducer: ChatStreamReducer) => T) => T;
   /** Read-modify-write on the app-shape thread, delegated to the reducer. */
@@ -632,20 +640,40 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     else awaitingAdopt.delete(key);
   }
 
+  /** Clears both halves of adopt-once. Runs inside the caller's `mutate`, and
+   *  writes the reducer even when the set no longer holds the key: the seq
+   *  gate can drop a `turn-start` after `apply` has seen it, so the set alone
+   *  cannot say whether the reducer's flag is still armed. */
+  function disarmAdopt(key: K, reducer: ChatStreamReducer): void {
+    awaitingAdopt.delete(key);
+    reducer.armAdoptTrailingAssistant(false);
+  }
+
+  function updateApprovalStatus(
+    key: K,
+    requestId: string,
+    status: ChatApprovalStatus,
+    resolvedByName?: string | null,
+  ): void {
+    mutate(key, reducer => {
+      disarmAdopt(key, reducer);
+      reducer.updateApprovalStatus(requestId, status, resolvedByName);
+    });
+  }
+
   function apply(key: K, event: ChatStreamEvent): void {
     // Adopt-once has a ONE-EVENT life (see `HydrateOptions.expectingReplay`).
     // The flag exists for a REPLAYED `turn-start`; anything else arriving first
     // means no replay is re-streaming this turn, and a flag left armed would
     // hand adoption to the next genuine turn — which would then overwrite a
-    // completed bubble instead of opening its own. A `turn-start` needs no
-    // action here: the reducer consumes and clears the flag itself.
-    if (awaitingAdopt.has(key)) {
-      awaitingAdopt.delete(key);
-      if (event.type !== 'turn-start') {
-        mutate(key, reducer => {
-          reducer.armAdoptTrailingAssistant(false);
-        });
-      }
+    // completed bubble instead of opening its own. A `turn-start` is left to
+    // the reducer, which consumes the flag; the key stays until the next event
+    // of another kind clears both halves — see `disarmAdopt` for why the set
+    // alone cannot say the flag is spent (a no-op sync when it is).
+    if (awaitingAdopt.has(key) && event.type !== 'turn-start') {
+      mutate(key, reducer => {
+        disarmAdopt(key, reducer);
+      });
     }
     // ORDER IS LOAD-BEARING: a pending batch must land BEFORE
     // `getReducer(key)`. The dialog store evicts least-recently-used
@@ -839,6 +867,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
   return {
     store,
     hydrate,
+    updateApprovalStatus,
     setActiveKeys,
     mutate,
     mutateThread,

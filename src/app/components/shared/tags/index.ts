@@ -1,4 +1,5 @@
 export { EntityTagPicker, EntityTagPickerFallback, entityTagPickerQuery } from './entity-tag-picker';
+export { isOptimisticTagId, OPTIMISTIC_TAG_ID_PREFIX } from './optimistic-tag-id';
 export { TagDeleteConfirmDialog } from './tag-delete-confirm-dialog';
 export { isValidTag, TAG_MAX_LENGTH, TAG_REGEX, TagRow, validateTagKey, validateTagValues } from './tag-row';
 export { TagValueAutocomplete } from './tag-value-autocomplete';

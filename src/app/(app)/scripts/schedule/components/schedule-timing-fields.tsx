@@ -207,25 +207,18 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
    * it — and asked of the GRID, not of the option list, so a stored slot that
    * has merely gone by is left alone.
    *
-   * Nothing else is reset. Recurrence survives the switch: the pair "every day,
-   * on each device's own clock" is a setting the user meant, not a leftover, and
-   * the API refusing it today is a message on Save rather than a reason to
-   * silently uncheck a box.
-   *
-   * The offline block is the exception, and it resets itself: it collapses for
-   * DEVICE_LOCAL and submit writes SKIP for it regardless of what the collapsed
-   * controls hold.
+   * Nothing else is reset. Recurrence and the offline rule survive the switch:
+   * "every day, on each device's own clock" is a setting the user meant, not a
+   * leftover, and the API refusing it today is a message on Save rather than a
+   * reason to silently undo a choice.
    */
   const handleTimeReferenceChange = useCallback(
     (onChange: (next: ScheduleTimeReference) => void, next: ScheduleTimeReference) => {
       onChange(next);
-      // The window-shorter-than-cadence rule is graded only while the offline
-      // block applies, and this switch decides whether it does.
-      recheckReconnectWindow();
       const time = getValues('scheduledTime');
       if (time && !isSlotOnGrid(time, next)) setValue('scheduledTime', '');
     },
-    [getValues, setValue, recheckReconnectWindow],
+    [getValues, setValue],
   );
 
   // Shown IMMEDIATELY, unlike every other rule on this form, which waits for

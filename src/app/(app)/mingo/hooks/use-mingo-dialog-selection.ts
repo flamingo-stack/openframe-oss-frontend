@@ -17,6 +17,7 @@ import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
 import { featureFlags } from '@/lib/feature-flags';
 import type { ApprovalStatus } from '../../tickets/constants';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, MESSAGE_TYPE } from '../../tickets/constants';
+import { extractGraphQlData } from '../../tickets/utils/graphql';
 import { GET_MINGO_DIALOG_QUERY, getMingoDialogMessagesQuery } from '../queries/dialogs-queries';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
@@ -180,18 +181,17 @@ export function useMingoDialogSelection() {
         variables: { id: activeDialogId },
       });
 
-      if (!response.ok) {
-        throw new Error(response.error || 'Failed to fetch dialog');
-      }
-      // HTTP 200 with `dialog: null` and no `errors` is the backend's ANSWER, not a
-      // failure: this id names nothing this user can open. Separated from the
-      // transport failure above because the two want opposite handling — this one
-      // must not be retried (see `retry`) and is safe to act on.
-      if (!response.data?.data?.dialog) {
-        throw new Error(MINGO_DIALOG_NOT_FOUND);
-      }
-
-      return response.data.data.dialog;
+      // A dialog beside a failed sub-resolver is still the dialog. Only a null
+      // asks `extractGraphQlData` to rule out every failure shape — each of
+      // those throws, is retried (see `retry`) and keeps the selection — before
+      // the null counts as the backend's answer: this id names nothing this
+      // user can open, settled and safe to act on. Before this split any null
+      // read as "deleted": a flaky sub-resolver dropped the open conversation
+      // and stripped its id from the URL.
+      const dialog = response.data?.data?.dialog;
+      if (dialog) return dialog;
+      extractGraphQlData(response);
+      throw new Error(MINGO_DIALOG_NOT_FOUND);
     },
     enabled: !!activeDialogId,
     // A missing dialog is settled; retrying it only delays the message by the length

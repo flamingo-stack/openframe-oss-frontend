@@ -171,6 +171,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     dialogData,
     hasNextPage: hasMoreMessages,
     fetchNextPage: fetchNextMessagePage,
+    isFetchingNextPage: isFetchingNextMessagePage,
     initialOptStartSeq,
     isMessagesFetched,
     dialogError,
@@ -525,7 +526,14 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       isDialogsLoading: isLoadingDialogs || isFetchingNextDialogPage,
       dialogsError: false,
       reloadDialogs,
-      isMessagesLoading: isLoadingMessages || isLoadingDialog,
+      // OR-ed with next-page fetches, like `isDialogsLoading` above, because
+      // the lib's message list takes this as its `isFetchingNextPage` — the
+      // re-entrancy guard on the load-older sentinel AND the dependency that
+      // re-creates its observer once a page lands. Without it a second
+      // intersection mid-fetch re-issued `fetchNextPage` (which cancels the one
+      // in flight), and a page landing with the sentinel still in view never
+      // re-armed — older history looked gone.
+      isMessagesLoading: isLoadingMessages || isLoadingDialog || isFetchingNextMessagePage,
       hasMoreDialogs: hasMoreDialogs ?? false,
       loadMoreDialogs,
       dialogScope,
@@ -561,6 +569,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       reloadDialogs,
       isLoadingMessages,
       isLoadingDialog,
+      isFetchingNextMessagePage,
       hasMoreDialogs,
       loadMoreDialogs,
       dialogScope,
