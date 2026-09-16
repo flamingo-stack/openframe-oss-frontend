@@ -883,7 +883,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         isInitialOptStartSeqReady={isInitialOptStartSeqReady}
         onReconnected={handleNatsReconnected}
       />
-      <TicketNotificationsAutoReader ticketId={ticketId} clientChatOnScreen={clientChatOnScreen} />
+      <TicketNotificationsAutoReader
+        ticketId={ticketId}
+        dialogId={messageDialogId}
+        clientChatOnScreen={clientChatOnScreen}
+      />
       <PageLayout
         title={dialog.title || 'Untitled Dialog'}
         backButton={{ label: 'Back', onClick: handleBackToTickets }}
