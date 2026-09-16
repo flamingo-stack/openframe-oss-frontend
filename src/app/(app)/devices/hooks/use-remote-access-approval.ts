@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isSettledRequestStatus, remoteAccessApprovalService } from '../services/remote-access-approval-service';
-import type { RemoteAccessRequest, RemoteSessionKind } from '../types/remote-access';
+import type { RemoteAccessRequest } from '../types/remote-access';
 
 /**
  * The technician-side view of one approval attempt:
@@ -45,9 +45,12 @@ function stateForSettled(request: RemoteAccessRequest): RemoteAccessApprovalStat
 /** Poll interval for the decision fallback (the push channel is the fast path). */
 const POLL_MS = 5_000;
 
+/**
+ * The approval flow covers remote screen sessions only (decision 2026-09-16),
+ * so the wire `sessionKind` is a constant rather than a parameter.
+ */
 export function useRemoteAccessApproval(
   deviceId: string,
-  sessionKind: RemoteSessionKind,
   /** Mock resolution hint - see CreateRemoteAccessRequestInput.organizationId. */
   organizationId?: string,
 ): UseRemoteAccessApprovalResult {
@@ -77,7 +80,12 @@ export function useRemoteAccessApproval(
       setState('requesting');
       (async () => {
         try {
-          const created = await remoteAccessApprovalService.create({ deviceId, sessionKind, reason, organizationId });
+          const created = await remoteAccessApprovalService.create({
+            deviceId,
+            sessionKind: 'desktop',
+            reason,
+            organizationId,
+          });
           if (attempt !== attemptRef.current) return;
           setRequest(created);
           if (isSettledRequestStatus(created.status)) {
@@ -92,7 +100,7 @@ export function useRemoteAccessApproval(
         }
       })();
     },
-    [deviceId, sessionKind, organizationId, applySettled],
+    [deviceId, organizationId, applySettled],
   );
 
   // Decision delivery while awaiting: push subscription + polling fallback.

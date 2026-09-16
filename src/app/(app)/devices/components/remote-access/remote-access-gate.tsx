@@ -66,7 +66,7 @@ export function RemoteAccessGate({
   children,
 }: RemoteAccessGateProps) {
   const gate = useRemoteAccessApprovalGate();
-  const approval = useRemoteAccessApproval(deviceId, 'desktop', organizationId);
+  const approval = useRemoteAccessApproval(deviceId, organizationId);
   // Temporary QA tooling for the mock service; appearing late is fine here.
   const showMockTools = useRemoteAccessMockTools();
 
