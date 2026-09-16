@@ -205,9 +205,14 @@ export function isSecureAttentionCombo(combo: string): boolean {
     .map(t => t.trim())
     .map(t => (t === 'delete' ? 'del' : t))
     .filter(Boolean);
-  // Exactly the three tokens, each once - a repeated token must not pass as
-  // the same-size set.
-  return tokens.length === SECURE_ATTENTION_TOKENS.size && tokens.every(t => SECURE_ATTENTION_TOKENS.has(t));
+  // Exactly the three tokens, each once: the length check rejects repeats
+  // ('ctrl+alt+del+del'), the set check rejects a repeat standing in for a
+  // missing token ('ctrl+ctrl+del').
+  return (
+    tokens.length === SECURE_ATTENTION_TOKENS.size &&
+    new Set(tokens).size === SECURE_ATTENTION_TOKENS.size &&
+    tokens.every(t => SECURE_ATTENTION_TOKENS.has(t))
+  );
 }
 
 // 'ctrl+shift+esc' → presses in order, releases in reverse order.
