@@ -9,9 +9,12 @@ describe('isSecureAttentionCombo', () => {
     },
   );
 
-  it.each(['ctrl+del', 'ctrl+alt+d', 'ctrl+alt+shift+del', 'alt+ctrl+del+del+x', 'win+m', ''])('rejects %s', combo => {
-    expect(isSecureAttentionCombo(combo)).toBe(false);
-  });
+  it.each(['ctrl+del', 'ctrl+alt+d', 'ctrl+alt+shift+del', 'ctrl+alt+del+del', 'ctrl+ctrl+del', 'win+m', ''])(
+    'rejects %s',
+    combo => {
+      expect(isSecureAttentionCombo(combo)).toBe(false);
+    },
+  );
 });
 
 describe('comboToSequence', () => {

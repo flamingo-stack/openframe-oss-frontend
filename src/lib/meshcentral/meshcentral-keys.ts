@@ -199,15 +199,15 @@ export interface ComboKeyEvent {
 const SECURE_ATTENTION_TOKENS = new Set(['ctrl', 'alt', 'del']);
 
 export function isSecureAttentionCombo(combo: string): boolean {
-  const tokens = new Set(
-    combo
-      .toLowerCase()
-      .split('+')
-      .map(t => t.trim())
-      .map(t => (t === 'delete' ? 'del' : t))
-      .filter(Boolean),
-  );
-  return tokens.size === SECURE_ATTENTION_TOKENS.size && [...SECURE_ATTENTION_TOKENS].every(t => tokens.has(t));
+  const tokens = combo
+    .toLowerCase()
+    .split('+')
+    .map(t => t.trim())
+    .map(t => (t === 'delete' ? 'del' : t))
+    .filter(Boolean);
+  // Exactly the three tokens, each once - a repeated token must not pass as
+  // the same-size set.
+  return tokens.length === SECURE_ATTENTION_TOKENS.size && tokens.every(t => SECURE_ATTENTION_TOKENS.has(t));
 }
 
 // 'ctrl+shift+esc' → presses in order, releases in reverse order.
