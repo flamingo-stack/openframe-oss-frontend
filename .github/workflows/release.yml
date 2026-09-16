@@ -5,7 +5,7 @@ name: Openframe Release
 # =============================================================================
 
 permissions:
-  contents: write  # release tags
+  contents: read
   packages: write
 
 on:
@@ -32,9 +32,14 @@ jobs:
   build_image:
     name: 'Build Frontend'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.NEW_VERSION }}
     steps:
+      # Nothing here pushes; the release tag is created by the API in the tag job.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Get Previous Version
         id: previous
@@ -119,12 +124,20 @@ jobs:
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" .
 
-      # The desktop shell builds its static export from the commit behind an
-      # image tag, so every released image gets a git tag of the same name.
-      - name: Tag released commit
-        if: github.event_name == 'workflow_dispatch'
+  # The desktop shell builds its static export from the commit behind an image
+  # tag, so every released image gets a git tag of the same name. A lightweight
+  # ref via the API: the only job holding a write token, no checkout, no
+  # credential on disk, and it runs only after the image is actually pushed.
+  tag:
+    name: 'Tag Released Commit'
+    needs: [build_image]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create tag ${{ needs.build_image.outputs.version }}
         env:
-          VERSION: ${{ steps.version.outputs.NEW_VERSION }}
-        run: |
-          git tag "$VERSION"
-          git push origin "refs/tags/$VERSION"
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build_image.outputs.version }}
+        run: gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$VERSION" -f "sha=$GITHUB_SHA"
