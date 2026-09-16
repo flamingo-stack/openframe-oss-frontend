@@ -1,4 +1,9 @@
-import { graphql } from 'react-relay';
+import { fetchQuery, graphql } from 'react-relay';
+import type { IEnvironment } from 'relay-runtime';
+import type { notificationsDrawerRelayQuery as NotificationsDrawerRelayQueryType } from '@/__generated__/notificationsDrawerRelayQuery.graphql';
+
+/** First page size — keep in sync with the fragment's `first` default below. */
+export const DRAWER_PAGE_SIZE = 30;
 
 export const notificationsDrawerRelayQuery = graphql`
   query notificationsDrawerRelayQuery($first: Int!, $after: String) {
@@ -27,3 +32,26 @@ export const notificationsDrawerRelayFragment = graphql`
     }
   }
 `;
+
+const DRAWER_REFETCH_MIN_INTERVAL_MS = 3_000;
+let drawerRefetchAt = 0;
+
+/**
+ * Re-fetch the drawer's first page into the Relay store (a cursor-less fetch
+ * replaces the connection's edges). Closes live-push gaps: a push that arrived
+ * before the connection existed, or anything published while NATS was down.
+ * Throttled so a burst costs one request; failures keep the previous rows.
+ */
+export function refetchNotificationsDrawer(environment: IEnvironment): void {
+  const now = Date.now();
+  if (now - drawerRefetchAt < DRAWER_REFETCH_MIN_INTERVAL_MS) return;
+  drawerRefetchAt = now;
+  fetchQuery<NotificationsDrawerRelayQueryType>(
+    environment,
+    notificationsDrawerRelayQuery,
+    { first: DRAWER_PAGE_SIZE, after: null },
+    { fetchPolicy: 'network-only' },
+  ).subscribe({
+    error: () => {},
+  });
+}
