@@ -3,6 +3,7 @@
 import { type UseQueryResult, useQueries } from '@tanstack/react-query';
 import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app/(app)/customers/hooks/use-customers';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { KnowledgeBaseRow } from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
 import type { Dialog, DialogStatus } from '@/app/(app)/tickets/types/dialog.types';
@@ -186,14 +187,20 @@ async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetTy
   for (const { node } of data.assignedItems.edges) {
     const target = node.target;
     if (!target) continue;
-    refs.push({ id: target.id, label: node.displayName });
+    // The server stamps `displayName` at assign time and, for a device, stamps its hostname —
+    // while the Machine fields selected above carry the nickname. Name the chip like every
+    // other screen does; the server label stays the fallback and the label for other targets.
+    let label = node.displayName;
     switch (target.__typename) {
       case 'Organization':
         customers.push(mapOrganizationNode(unaliasFields(target) as unknown as OrganizationNode));
         break;
-      case 'Machine':
-        devices.push(rowFieldsToDevice(toMachineRowFields(target)));
+      case 'Machine': {
+        const row = toMachineRowFields(target);
+        devices.push(rowFieldsToDevice(row));
+        label = getDeviceName(row) || node.displayName;
         break;
+      }
       case 'KnowledgeBaseItem':
         articles.push(unaliasFields(target) as unknown as KnowledgeBaseRow);
         break;
@@ -201,6 +208,7 @@ async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetTy
         tickets.push(toDialog(target));
         break;
     }
+    refs.push({ id: target.id, label });
   }
 
   switch (targetType) {
