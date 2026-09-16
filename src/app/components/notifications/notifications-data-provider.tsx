@@ -611,8 +611,9 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
   });
 
   // Plain core NATS has no replay: anything published while the socket was down
-  // never reaches this tab. On reconnect, re-pull the first page and the counts
-  // to close the gap (interim until notifications ride a JetStream stream).
+  // never reaches this tab. On reconnect, re-pull the first page and the counts.
+  // This IS the recovery mechanism, by decision: the DB is the source of truth
+  // and NATS is a lossy live hint — no JetStream replay for notifications.
   const reconnectionCount = useOptionalNats()?.reconnectionCount ?? 0;
   const lastReconnectRef = useRef(reconnectionCount);
   useEffect(() => {

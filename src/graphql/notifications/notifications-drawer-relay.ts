@@ -34,7 +34,8 @@ export const notificationsDrawerRelayFragment = graphql`
 `;
 
 const DRAWER_REFETCH_MIN_INTERVAL_MS = 3_000;
-let drawerRefetchAt = 0;
+// Keyed by environment so one session's throttle can never suppress another's.
+const drawerRefetchAt = new WeakMap<IEnvironment, number>();
 
 /**
  * Re-fetch the drawer's first page into the Relay store (a cursor-less fetch
@@ -44,14 +45,18 @@ let drawerRefetchAt = 0;
  */
 export function refetchNotificationsDrawer(environment: IEnvironment): void {
   const now = Date.now();
-  if (now - drawerRefetchAt < DRAWER_REFETCH_MIN_INTERVAL_MS) return;
-  drawerRefetchAt = now;
+  if (now - (drawerRefetchAt.get(environment) ?? 0) < DRAWER_REFETCH_MIN_INTERVAL_MS) return;
+  drawerRefetchAt.set(environment, now);
   fetchQuery<NotificationsDrawerRelayQueryType>(
     environment,
     notificationsDrawerRelayQuery,
     { first: DRAWER_PAGE_SIZE, after: null },
     { fetchPolicy: 'network-only' },
   ).subscribe({
-    error: () => {},
+    // Keep the previous rows, but leave a trail: this refetch exists to close
+    // delivery gaps, and a silent failure here is invisible data loss.
+    error: (error: unknown) => {
+      console.warn('[Notifications] drawer refetch failed:', error);
+    },
   });
 }
