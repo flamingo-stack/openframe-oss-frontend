@@ -67,11 +67,13 @@ export const runtimeEnv = {
   appType(): string {
     return getEnvVar('NEXT_PUBLIC_APP_TYPE') || 'openframe-dashboard';
   },
+  /**
+   * This install's configured address, or '' when none is set. No default here: the
+   * fallback (registry URL in production, localhost in development) is the lib's
+   * `getDeploymentUrl` rule, applied by `getAppUrl` in `./utils`.
+   */
   appUrl(): string {
-    return getEnvVar('NEXT_PUBLIC_APP_URL') || 'https://openframe.dev';
-  },
-  devUrl(): string {
-    return getEnvVar('NEXT_PUBLIC_DEV_URL') || 'http://localhost:4000';
+    return getEnvVar('NEXT_PUBLIC_APP_URL') || '';
   },
   enableDevTicketObserver(): boolean {
     return (getEnvVar('NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER') || 'false') === 'true';

@@ -7,7 +7,7 @@ import {
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import type { AppConfig } from '../app-config';
-import { getBaseUrl } from '../utils';
+import { getAppUrl } from '../utils';
 
 export const openframeConfig: AppConfig = {
   name: 'OpenFrame',
@@ -15,10 +15,10 @@ export const openframeConfig: AppConfig = {
   description:
     'Distributed platform creating a unified layer for data, APIs, automation, and AI. Simplifies IT and security operations.',
   get url() {
-    return getBaseUrl();
+    return getAppUrl();
   },
   get logo() {
-    return `${getBaseUrl()}/assets/openframe/apple-touch-icon.png`;
+    return `${getAppUrl()}/assets/openframe/apple-touch-icon.png`;
   },
   slogan: 'Open Source Application Framework',
   platform: 'openframe',
@@ -35,10 +35,10 @@ export const openframeConfig: AppConfig = {
       'Distributed platform creating a unified layer for data, APIs, automation, and AI. Simplifies IT and security operations.',
     keywords: ['open source', 'framework', 'IT operations', 'automation', 'security', 'MSP tools'],
     get ogImage() {
-      return `${getBaseUrl()}/assets/openframe/og-image.png`;
+      return `${getAppUrl()}/assets/openframe/og-image.png`;
     },
     get twitterImage() {
-      return `${getBaseUrl()}/assets/openframe/twitter-image.png`;
+      return `${getAppUrl()}/assets/openframe/twitter-image.png`;
     },
   },
   layout: {
