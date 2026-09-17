@@ -1,4 +1,5 @@
 import {
+  AlertTriangleIcon,
   BookBookmarkIcon,
   BracketCurlyIcon,
   ChartDonutIcon,
@@ -58,6 +59,7 @@ export interface OnboardingNavState {
 export interface NavigationFlags {
   timeTracker: boolean;
   helpCenter: boolean;
+  insights: boolean;
 }
 
 export const getNavigationItems = (
@@ -94,6 +96,20 @@ export const getNavigationItems = (
       path: routes.dashboard,
       isActive: pathname.startsWith('/dashboard'),
     },
+    // Right under Dashboard (Figma): the working set of open findings is the
+    // first thing a technician looks at. saas-tenant only — the insights API
+    // lives in saas-api.
+    ...(isSaasTenantMode() && flags.insights
+      ? [
+          {
+            id: 'incidents',
+            label: 'Incidents',
+            icon: <AlertTriangleIcon size={24} />,
+            path: routes.incidents.list,
+            isActive: pathname.startsWith('/incidents'),
+          } satisfies NavigationSidebarItem,
+        ]
+      : []),
     {
       id: 'organizations',
       label: 'Customers',

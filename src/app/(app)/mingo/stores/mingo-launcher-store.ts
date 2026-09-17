@@ -1,15 +1,22 @@
+import type { ChatPrefillDraft } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+
+/** What `draftToMingo` puts in the composer — relayed verbatim to the panel's `prefillDraft`. */
+export type MingoDraft = ChatPrefillDraft;
 
 /**
  * Owns the Mingo drawer's open state (lifted out of `AppShell` so any page can
  * open it) plus two one-shot requests, both drained by the embedder
  * (`OpenframeEmbeddableChatEntry`) on the next render after the drawer opens:
  *   - `sendToMingo(prompt)` — queue a prompt, sent via `sendInNewDialog`.
+ *   - `draftToMingo(draft)` — queue a DRAFT: a fresh chat with the composer
+ *     prefilled (text + attached context chips) and nothing sent — the user
+ *     decides. Relayed to the panel's `prefillDraft` handle.
  *   - `startNewChat()` — land on a fresh chat with nothing sent; relayed to the
  *     panel's imperative handle, since which view it shows is its own state.
  *
- * Each action clears the other's pending value, so a queued prompt can't fire
+ * Each action clears the others' pending values, so a queued prompt can't fire
  * into a chat the user opened for something else.
  */
 interface MingoLauncherStore {
@@ -26,6 +33,8 @@ interface MingoLauncherStore {
   canOpen: boolean;
   /** One-shot prompt to auto-send on the next drawer open; null once consumed. */
   pendingPrompt: string | null;
+  /** One-shot composer prefill for the next drawer open; null once consumed. */
+  pendingDraft: MingoDraft | null;
   /** One-shot "open on a fresh chat" request; false once consumed. */
   pendingNewChat: boolean;
   /**
@@ -51,6 +60,10 @@ interface MingoLauncherStore {
   sendToMingo: (prompt: string) => void;
   /** Read and clear the pending prompt in one step (safe against double-consume). */
   consumePendingPrompt: () => string | null;
+  /** Open the drawer on a fresh chat with the composer prefilled — nothing is sent. */
+  draftToMingo: (draft: MingoDraft) => void;
+  /** Read and clear the pending draft in one step (safe against double-consume). */
+  consumePendingDraft: () => MingoDraft | null;
   /** Open the drawer ON a new chat — clears the open conversation and, in the
    *  narrow panel, lands on the composer instead of the "Current Chats" list. */
   startNewChat: () => void;
@@ -64,6 +77,7 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
       isOpen: false,
       canOpen: false,
       pendingPrompt: null,
+      pendingDraft: null,
       pendingNewChat: false,
       closedForNavigation: false,
 
@@ -80,10 +94,29 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
 
       sendToMingo: prompt =>
         set(
-          { isOpen: true, pendingPrompt: prompt, pendingNewChat: false, closedForNavigation: false },
+          {
+            isOpen: true,
+            pendingPrompt: prompt,
+            pendingDraft: null,
+            pendingNewChat: false,
+            closedForNavigation: false,
+          },
           false,
           'sendToMingo',
         ),
+
+      draftToMingo: draft =>
+        set(
+          { isOpen: true, pendingDraft: draft, pendingPrompt: null, pendingNewChat: false, closedForNavigation: false },
+          false,
+          'draftToMingo',
+        ),
+
+      consumePendingDraft: () => {
+        const { pendingDraft } = get();
+        if (pendingDraft !== null) set({ pendingDraft: null }, false, 'consumePendingDraft');
+        return pendingDraft;
+      },
 
       consumePendingPrompt: () => {
         const { pendingPrompt } = get();
@@ -93,7 +126,7 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
 
       startNewChat: () =>
         set(
-          { isOpen: true, pendingNewChat: true, pendingPrompt: null, closedForNavigation: false },
+          { isOpen: true, pendingNewChat: true, pendingPrompt: null, pendingDraft: null, closedForNavigation: false },
           false,
           'startNewChat',
         ),

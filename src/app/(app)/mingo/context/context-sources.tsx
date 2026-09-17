@@ -10,6 +10,7 @@
 
 import type { ChatContextEntityType } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
+  AlertTriangleIcon,
   BracketCurlyEllipsisVrIcon,
   BracketCurlyIcon,
   FolderShieldIcon,
@@ -82,5 +83,11 @@ export const MINGO_CONTEXT_ENTITY_TYPES: ChatContextEntityType[] = [
     label: 'Query',
     marker: CONTEXT_ENTITY_MARKER.QUERY,
     icon: <BracketCurlyEllipsisVrIcon size={24} />,
+  },
+  {
+    type: CONTEXT_ENTITY_KIND.INSIGHT,
+    label: 'Incident',
+    marker: CONTEXT_ENTITY_MARKER.INSIGHT,
+    icon: <AlertTriangleIcon size={24} />,
   },
 ];
