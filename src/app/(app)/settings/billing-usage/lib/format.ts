@@ -26,3 +26,8 @@ export function formatDateOrDash(iso: string | null | undefined): string {
     return iso;
   }
 }
+
+/** Whole-dollar amounts, the way the top-up tiles state them: 20 → "$20". */
+export function formatWholeCurrency(value: number): string {
+  return value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}

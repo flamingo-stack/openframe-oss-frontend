@@ -8,7 +8,8 @@ import type {
   ProductCheckoutInput,
   useCreateCheckoutSessionMutation as UseCreateCheckoutSessionMutationType,
 } from '@/__generated__/useCreateCheckoutSessionMutation.graphql';
-import { type DeferredTab, openDeferredTab } from '../../lib/stripe-window';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { openDeferredTab } from '../../lib/stripe-window';
 
 export type { CheckoutInput, ProductCheckoutInput };
 
@@ -20,26 +21,22 @@ const createCheckoutSessionMutation = graphql`
   }
 `;
 
-interface CreateCheckoutSessionOptions {
-  /**
-   * A tab the caller already opened, for Stripe to be shown in.
-   *
-   * Passed in rather than opened here because this mutation does not always run
-   * from the click that started it — the paywall stores the AI spending cap
-   * first and calls this from its callback, by which point the user gesture is
-   * gone and any tab opened would be a blocked popup. Omit it when `mutate` IS
-   * called straight from a handler and one is opened here instead.
-   */
-  target?: DeferredTab;
-}
-
+/**
+ * Starts a Stripe Checkout for the whole target plan — devices, the AI product,
+ * and the first AI top-up (`tokenAmountUsd`), which is charged on the checkout's
+ * own invoice.
+ *
+ * The Stripe tab is opened from the click, before the mutation answers: a tab
+ * opened once the URL is in has lost the user gesture that lets it through the
+ * popup blocker (see `openDeferredTab`). It is closed again if checkout fails.
+ */
 export function useCreateCheckoutSession() {
   const { toast } = useToast();
   const [commit, isInFlight] = useMutation<UseCreateCheckoutSessionMutationType>(createCheckoutSessionMutation);
 
   const mutate = useCallback(
-    (input: CheckoutInput, options?: CreateCheckoutSessionOptions) => {
-      const tab = options?.target ?? openDeferredTab();
+    (input: CheckoutInput) => {
+      const tab = openDeferredTab();
 
       commit({
         variables: { input },
@@ -65,7 +62,7 @@ export function useCreateCheckoutSession() {
           tab.cancel();
           toast({
             title: 'Checkout Failed',
-            description: err instanceof Error ? err.message : 'Failed to start checkout',
+            description: getRelayErrorMessage(err, 'Failed to start checkout'),
             variant: 'destructive',
           });
         },

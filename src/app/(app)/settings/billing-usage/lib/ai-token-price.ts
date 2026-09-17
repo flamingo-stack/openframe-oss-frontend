@@ -18,3 +18,17 @@ export function aiTokenPrice(unitPrice: number | null | undefined, unitSize: unk
   if (!Number.isFinite(size) || size <= 0) return null;
   return unitPrice / size;
 }
+
+/**
+ * How many tokens `amountUsd` buys at `tokenPrice` ($ per token, from
+ * {@link aiTokenPrice}); `null` when either is unknown.
+ *
+ * An estimate for the tiles ("$20 → 2M tokens"), priced at the entry rate: the
+ * catalog can state price bands, and the backend quotes the exact quantity at
+ * purchase, so the figure here is not what is charged — the invoice is.
+ */
+export function tokensForUsd(amountUsd: number, tokenPrice: number | null): number | null {
+  if (tokenPrice == null || tokenPrice <= 0) return null;
+  if (!Number.isFinite(amountUsd) || amountUsd <= 0) return null;
+  return Math.floor(amountUsd / tokenPrice);
+}

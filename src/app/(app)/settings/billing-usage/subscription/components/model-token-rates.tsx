@@ -6,11 +6,21 @@ import {
   AnthropicLogoIcon,
   GeminiLogoIcon,
   OpenaiLogoGreyIcon,
+  QuestionCircleIcon,
+  Refresh02VrIcon,
+  XmarkCircleIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  Skeleton,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ComponentType, Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { modelTokenRatesQuery as ModelTokenRatesQueryType } from '@/__generated__/modelTokenRatesQuery.graphql';
+import type { AutoTopUpStatus } from '../../lib/auto-top-up';
 
 const PROVIDER_ICON: Record<string, ComponentType<{ className?: string }>> = {
   ANTHROPIC: AnthropicLogoIcon,
@@ -38,9 +48,42 @@ function formatRate(value: number): string {
   return `1:${Math.round(1 / value)}`;
 }
 
+interface ModelTokenRatesProps {
+  /**
+   * Whether the balance these rates draw on refills itself — the panel's first
+   * line on the billing page, where the balance is a standing figure. Left out
+   * on the paywall, where there is no balance yet to have that state.
+   */
+  autoTopUp?: AutoTopUpStatus;
+}
+
 /**
- * Two self-contained boundaries, because this is a TOOLTIP: nothing it does may
- * reach the page it is opened from.
+ * The question-mark button that opens the rates, for every card that counts in
+ * tokens: the paywall's AI Token Balance card and the billing page's Paid AI
+ * Tokens counter. One trigger, so the two cannot open two different panels.
+ */
+export function ModelTokenRatesPopover({ autoTopUp, className }: ModelTokenRatesProps & { className?: string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Per-model token rates"
+          className={cn('shrink-0 text-ods-text-secondary transition-colors hover:text-ods-text-primary', className)}
+        >
+          <QuestionCircleIcon className="size-6" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={8} className="border-0 bg-transparent p-0 shadow-none">
+        <ModelTokenRates autoTopUp={autoTopUp} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * The panel's frame, and inside it two self-contained boundaries, because this
+ * is a TOOLTIP: nothing it does may reach the page it is opened from.
  *
  * Suspense — the rates query is fetched lazily on open, so it must not suspend
  * the page-level boundary (that would flash the full-page skeleton). It falls
@@ -58,20 +101,46 @@ function formatRate(value: number): string {
  * rates are a reference, and not knowing them changes nothing about the plan the
  * user is here to choose.
  */
-export function ModelTokenRates() {
+export function ModelTokenRates({ autoTopUp }: ModelTokenRatesProps) {
   return (
-    <ErrorBoundary fallback={<ModelTokenRatesUnavailable />}>
-      <Suspense fallback={<ModelTokenRatesSkeleton />}>
-        <ModelTokenRatesContent />
-      </Suspense>
-    </ErrorBoundary>
+    // The frame is outside both boundaries so the auto top-up line — a fact
+    // about the subscription, not about the rates — stays put while the rates
+    // load, or fail to.
+    <div className="flex max-h-[min(60vh,420px)] min-w-[260px] flex-col overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
+      {autoTopUp && <AutoTopUpLine status={autoTopUp} />}
+      <ErrorBoundary fallback={<ModelTokenRatesUnavailable />}>
+        <Suspense fallback={<ModelTokenRatesSkeleton />}>
+          <ModelTokenRatesContent />
+        </Suspense>
+      </ErrorBoundary>
+    </div>
+  );
+}
+
+/**
+ * On or off, in the mockup's two treatments: the refresh mark in the success
+ * colour when the balance refills itself, a crossed circle in the secondary
+ * grey when it does not.
+ */
+function AutoTopUpLine({ status }: { status: AutoTopUpStatus }) {
+  const Icon = status.enabled ? Refresh02VrIcon : XmarkCircleIcon;
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 items-center gap-[var(--spacing-system-xsf)] border-b border-ods-border px-[var(--spacing-system-sf)] py-[var(--spacing-system-xsf)] text-h4',
+        status.enabled ? 'text-ods-success' : 'text-ods-text-secondary',
+      )}
+    >
+      <Icon className="size-6 shrink-0" />
+      <span className="flex-1">{status.enabled ? 'Auto Top Up Enabled' : 'Auto Top Up Disabled'}</span>
+    </div>
   );
 }
 
 /** Same panel, same chrome — only the rows are replaced by why they are missing. */
 function ModelTokenRatesUnavailable() {
   return (
-    <div className="flex min-w-[260px] max-w-[320px] flex-col items-center gap-[var(--spacing-system-xs)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)] text-center">
+    <div className="flex max-w-[320px] flex-col items-center gap-[var(--spacing-system-xs)] p-[var(--spacing-system-mf)] text-center">
       <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-ods-bg text-ods-text-secondary">
         <AlertTriangleIcon className="size-5" />
       </div>
@@ -88,7 +157,7 @@ function ModelTokenRatesContent() {
     modelTokenRatesQuery,
     {},
     {
-      // Opened from the plan picker, which the lock screen shows — so it has to
+      // Opened from the paywall, which the lock screen shows — so it has to
       // load on a locked workspace too (see `subscription-gate.ts`).
       fetchPolicy: 'store-and-network',
       networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
@@ -99,7 +168,7 @@ function ModelTokenRatesContent() {
   if (rates.length === 0) return null;
 
   return (
-    <div className="flex max-h-[min(60vh,420px)] min-w-[260px] flex-col overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
+    <>
       <div className="flex shrink-0 items-center gap-2 border-b border-ods-border px-3 py-2 uppercase tracking-[-0.02em] text-ods-text-secondary text-h5">
         <span className="flex-1">Model</span>
         <span>OpenFrame Token</span>
@@ -125,13 +194,13 @@ function ModelTokenRatesContent() {
           );
         })}
       </div>
-    </div>
+    </>
   );
 }
 
 function ModelTokenRatesSkeleton() {
   return (
-    <div className="flex min-w-[260px] flex-col overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
+    <>
       <div className="flex items-center gap-2 border-b border-ods-border px-3 py-2">
         <Skeleton className="h-4 w-12" />
         <div className="flex-1" />
@@ -145,6 +214,6 @@ function ModelTokenRatesSkeleton() {
           <Skeleton className="h-4 w-12" />
         </div>
       ))}
-    </div>
+    </>
   );
 }

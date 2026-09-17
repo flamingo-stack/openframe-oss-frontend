@@ -32,13 +32,13 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { writeCachedOnboardingTopBar } from '@/lib/onboarding-top-bar-cache';
 import { isAppShell } from '@/lib/platform';
-import { routes } from '@/lib/routes';
+import { MANAGE_AI_BALANCE_ACTION, routes } from '@/lib/routes';
 import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
 import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
-import { AiSpendLimitBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
+import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { InitialSetupBar } from './initial-setup-bar';
@@ -300,10 +300,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   /**
    * Payments have to be showable at all for this to be worth saying: the native
    * builds hide every payment surface (App Store Guideline 3.1.1, see
-   * `billing-visibility.ts`), and the page this bar sends you to has no limit
-   * control on them.
+   * `billing-visibility.ts`), and the page these bars send you to has no
+   * top-up on them.
    */
-  const showAiSpendBar = billingsEnabled && !isBillingHidden() && sessionReady && !isLocked;
+  const showBillingBars = billingsEnabled && !isBillingHidden() && sessionReady && !isLocked;
 
   // The Mingo sidebar (header launcher + in-layout chat drawer) is the only chat
   // surface there is. It is meaningful only inside the full, unlocked app shell
@@ -472,27 +472,27 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // session's bar over the paywall, CTA and all. Answered first, so no later
     // branch has to remember the lock.
     topBar = undefined;
-  } else if (showAiSpendBar && billingBars.ai.tone !== 'default') {
+  } else if (showBillingBars && billingBars.ai.tone !== 'default') {
     // Ahead of the onboarding bars, and the only thing that outranks them:
     // finishing a setup tour can wait, agents about to stop answering cannot,
     // and this state is invisible from every page but Billing & Usage. Not
     // cached like the onboarding decision below — replaying a red bar on a cold
-    // start would announce a limit the tenant may have already raised.
+    // start would announce an empty balance the tenant may have already topped
+    // up. The CTA lands with the top-up dialog already open.
     topBar = (
-      <AiSpendLimitBar
+      <AiBalanceBar
         tone={billingBars.ai.tone}
-        percent={billingBars.ai.percent}
-        onExpand={() => router.push(routes.settings.billingUsage)}
+        onManage={() => router.push(routes.settings.billingUsage({ action: MANAGE_AI_BALANCE_ACTION }))}
       />
     );
-  } else if (showAiSpendBar && billingBars.trial && !trialDismissed) {
+  } else if (showBillingBars && billingBars.trial && !trialDismissed) {
     // Below the AI bars and above onboarding: a trial past its halfway point is
     // a deadline, not a failure — but it still outranks a setup tour, because
     // missing it locks the workspace and the tour can be finished afterwards.
     topBar = (
       <TrialEndingBar
         daysLeft={billingBars.trial.daysLeft}
-        onActivate={() => router.push(routes.settings.billingUsage)}
+        onActivate={() => router.push(routes.settings.billingUsage())}
         onDismiss={() => {
           if (!trialToken) return;
           dismissTrialBar(trialToken);
@@ -773,7 +773,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       {/* Reports what the billing banners above need. Suspends, so it sits in
           its own boundary and renders nothing either way — a shell that waited
           on it would hold the whole app for a banner. */}
-      {showAiSpendBar && (
+      {showBillingBars && (
         <Suspense fallback={null}>
           <BillingBarsHydrator onResolved={setBillingBars} />
         </Suspense>
