@@ -224,9 +224,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const { aiModel } = useAiModelStatus();
 
   // Same react-query entry `<EmbeddableChat>`'s onboarding-card list reads
-  // (keyed on `commandsUrl` alone), so this adds no request of its own. What the
-  // catalog contains is decided upstream by `chat-slash-command-visibility.ts`:
-  // the full server-owned set under Guide Mode V3, the four V2 commands without it.
+  // (keyed on `commandsUrl` alone), so this adds no request of its own.
   const commandsUrl = useChatRuntime()?.endpoints.commandsUrl ?? '';
   const { commands: slashCommands } = useSlashCommandRegistry(commandsUrl, { enabled: Boolean(commandsUrl) });
 
