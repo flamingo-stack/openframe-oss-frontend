@@ -298,8 +298,8 @@ export const routes = {
 
   tickets: {
     list: '/tickets',
-    /** `edit` opens an existing ticket; the rest prefill a NEW one (`TicketPrefill` — ignored together with `edit`). */
-    new: (o?: TicketPrefill & { edit?: string }) => withQuery('/tickets/new', o),
+    /** `edit` opens an existing ticket; a `TicketPrefill` starts a NEW one — one or the other, never both. */
+    new: (o?: { edit: string } | TicketPrefill) => withQuery('/tickets/new', o),
     dialog: (id: string | number, o?: { tab?: 'chat' }) => withQuery('/tickets/dialog', { id, tab: o?.tab }),
     archive: '/tickets/archive',
     statuses: '/tickets/statuses',

@@ -160,7 +160,9 @@ function IncidentsTableContent({
   // once — hundreds of identical failing requests a second against a backend
   // that just said no. One toast, then the footer goes quiet. Recorded against
   // the variables it failed for: this component stays mounted across filter,
-  // search and retry changes, and a new list gets its own footer.
+  // search and retry changes, and a new list gets its own footer. Compared by
+  // identity on purpose — `backendFilters` is memoized upstream and only
+  // changes with the URL params, so a re-render cannot revive the footer.
   const [failedPage, setFailedPage] = useState<{ filter: InsightFilter; search: string; retryKey: number } | null>(
     null,
   );
