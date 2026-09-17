@@ -22,6 +22,20 @@ import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeR
  *   return visit days later, without attributing signups to clicks from another quarter.
  *   Known limitation: Safari ITP caps script-writable storage at ~7 days; accepted as-is.
  *
+ * - **The HubSpot visitor token** is a cookie too (`hubspotutk`), but the token the contact
+ *   should get is the *marketing site's*: the visitor's sessions and the ad click live on
+ *   flamingo.run, under the token HubSpot's cross-domain linker writes into `__hstc` on the
+ *   link to `/auth`. HubSpot merges that token into the local cookie only when a browser
+ *   fingerprint it computes asynchronously is already there at tracker start-up — which it is
+ *   not, so a returning visitor keeps the local token and the handoff is dropped (the GTM
+ *   container seeds it for a first visit only). The incoming token is therefore captured into
+ *   localStorage as well and preferred over the local cookie at submit: the outcome HubSpot's
+ *   own merge produces when it wins. Last touch, unlike the ad parameters — `__hstc` names the
+ *   visitor, not a click, and HubSpot itself replaces the local identity with every incoming
+ *   one it accepts. The trust rule is the container's (a well-formed `__hstc` next to a
+ *   `__hsfp`); neither verifies the fingerprint, so a forwarded handoff link would attribute
+ *   its registrant to the sender's visitor — accepted, as it already is for first visits.
+ *
  * - **The partner referral** (`?ref=`) is different still. It is clicked on the marketing site
  *   (`openframe.ai`) and redeemed on the signup app (`auth.openframe.ai`) — localStorage is
  *   origin-scoped, so it cannot make that hop. It gets its own 90-day cookie on the shared
@@ -36,8 +50,9 @@ export interface RegistrationAttribution {
   fbclid?: string;
   /** `_fbp` cookie value — the Meta browser id, sent to Meta as `fbp`. */
   fbp?: string;
-  /** HubSpot visitor cookie (`hubspotutk`). The backend puts it in the registration form
-   * submission, which is what gives the contact its real traffic source. */
+  /** HubSpot visitor token (utk): the marketing site's when the visitor came from there, else
+   * the local `hubspotutk` cookie (see the header). The backend puts it in the registration
+   * form submission, which is what gives the contact its real traffic source. */
   hutk?: string;
   /** Google click id. */
   gclid?: string;
@@ -71,6 +86,20 @@ const URL_PARAM_TO_FIELD: Record<string, keyof RegistrationAttribution> = {
   utm_content: 'utmContent',
   utm_term: 'utmTerm',
 };
+
+/**
+ * What HubSpot's cross-domain linker appends to a link between the portal's domains: the
+ * visitor's `__hstc` cookie value, a session marker (`__hssc`) and the sender's browser
+ * fingerprint (`__hsfp`).
+ */
+const HUBSPOT_HSTC_PARAM = '__hstc';
+const HUBSPOT_HSFP_PARAM = '__hsfp';
+
+/** localStorage entry (`of_attr_hutk`) for the visitor token a handoff carried. */
+const HUBSPOT_UTK_STORAGE_PARAM = 'hutk';
+
+/** A HubSpot visitor token: 32 hex characters, the `hubspotutk` cookie value. */
+const HUBSPOT_UTK_PATTERN = /^[0-9a-f]{32}$/i;
 
 const STORAGE_PREFIX = 'of_attr_';
 
@@ -138,11 +167,34 @@ function writeStored(param: string, value: string): void {
 }
 
 /**
+ * The visitor token inside a `__hstc` value —
+ * `<domain hash>.<utk>.<first visit>.<previous visit>.<this visit>.<visit count>` — which is
+ * the same string HubSpot keeps in the `hubspotutk` cookie. `undefined` for anything that does
+ * not carry a well-formed token in that slot, so a hand-edited parameter never reaches the
+ * form submission.
+ */
+export function hubspotUtkFromHstc(hstc: string | null | undefined): string | undefined {
+  const utk = hstc?.trim().split('.')[1];
+  return utk && HUBSPOT_UTK_PATTERN.test(utk) ? utk : undefined;
+}
+
+/**
+ * The visitor token on the current URL when it is a HubSpot cross-domain handoff. Same
+ * acceptance rule as the GTM container's first-visit seed — a well-formed `__hstc` next to a
+ * `__hsfp` — so both paths agree on which URLs count.
+ */
+function readHubspotHandoffUtk(): string | undefined {
+  const utk = hubspotUtkFromHstc(readUrlParam(HUBSPOT_HSTC_PARAM));
+  return utk && readUrlParam(HUBSPOT_HSFP_PARAM) ? utk : undefined;
+}
+
+/**
  * Read every known attribution parameter out of the current URL and persist it for up to
  * 90 days. Safe to call on every page load: an existing unexpired value is never overwritten,
  * so the *first* touch wins — that is the ad click that brought the visitor, not whatever
  * internal navigation they made afterwards. An expired entry reads as absent, so the next
- * visit that carries the parameter starts a fresh 90-day window.
+ * visit that carries the parameter starts a fresh 90-day window. The HubSpot handoff is the
+ * one last-touch entry (see the header).
  */
 export function captureAttributionFromUrl(): void {
   if (!isBrowser()) return;
@@ -153,6 +205,12 @@ export function captureAttributionFromUrl(): void {
       writeStored(param, value);
     }
   }
+
+  // Last touch: the latest handoff is the identity HubSpot would be on. Usually idempotent — the
+  // marketing site's token is stable for a browser, so a repeat handoff rewrites the same value
+  // and only refreshes its 90 days.
+  const handoffUtk = readHubspotHandoffUtk();
+  if (handoffUtk) writeStored(HUBSPOT_UTK_STORAGE_PARAM, handoffUtk);
 
   // `?ref=` is deliberately NOT part of that loop: it is cookie-backed, cross-subdomain and
   // last-touch, none of which localStorage first-touch capture can express. Usually a no-op —
@@ -233,7 +291,11 @@ export function collectRegistrationAttribution(): RegistrationAttribution | unde
   const raw: RegistrationAttribution = {
     fbc: readCookie('_fbc'),
     fbp: readCookie('_fbp'),
-    hutk: readCookie('hubspotutk'),
+    // The marketing site's token first, the local cookie only for a visitor who never came
+    // through the handoff (see the header). The live URL sits between them for the same reason
+    // as the ad parameters below: a handoff straight to the signup page, submitted before the
+    // capture effect ran.
+    hutk: readStored(HUBSPOT_UTK_STORAGE_PARAM) ?? readHubspotHandoffUtk() ?? readCookie('hubspotutk'),
     eventId,
     // Cookie first — it is the one signal that can predate this visit entirely. The live URL is
     // the fallback for a partner link pointing straight at the signup page, submitted before the

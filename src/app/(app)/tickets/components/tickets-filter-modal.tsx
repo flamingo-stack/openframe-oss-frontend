@@ -1,9 +1,21 @@
 'use client';
 
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Autocomplete, Button, CheckboxBlock, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Autocomplete,
+  Button,
+  CheckboxBlock,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import type { TicketListSort } from '../services/ticket-service.types';
+import { DEFAULT_TICKET_LIST_SORT } from '../utils/ticket-list-sort';
 import { AssigneeFilter } from './assignee-filter';
 import { OrganizationFilter } from './organization-filter';
 import { renderStatusOption, type StatusOption } from './status-autocomplete';
@@ -20,14 +32,25 @@ interface TicketsFilterModalProps {
    * The board omits it: there the columns themselves are the statuses.
    */
   status?: { value: string[]; options: StatusOption[] };
+  /**
+   * Renders the Sort section (the table view): the TICKET column's newest /
+   * oldest first, which below `md` has no header to be toggled from.
+   */
+  sort?: { value: TicketListSort };
   /** Applies every filter in one call — sequential URL writes would clobber each other. */
   onApply: (filters: {
     organizationIds: string[];
     assigneeIds: string[];
     unreadOnly: boolean;
     status?: string[];
+    sort?: TicketListSort;
   }) => void;
 }
+
+const SORT_OPTIONS: ReadonlyArray<{ value: TicketListSort['direction']; label: string }> = [
+  { value: 'DESC', label: 'Newest First' },
+  { value: 'ASC', label: 'Oldest First' },
+];
 
 /**
  * Modal hosting the customer/assignee/new-messages (and, for the table view,
@@ -42,12 +65,14 @@ export function TicketsFilterModal({
   assigneeIds,
   unreadOnly,
   status,
+  sort,
   onApply,
 }: TicketsFilterModalProps) {
   const [localOrganizationIds, setLocalOrganizationIds] = useState(organizationIds);
   const [localAssigneeIds, setLocalAssigneeIds] = useState(assigneeIds);
   const [localUnreadOnly, setLocalUnreadOnly] = useState(unreadOnly);
   const [localStatus, setLocalStatus] = useState<string[]>(status?.value ?? []);
+  const [localSort, setLocalSort] = useState<TicketListSort>(sort?.value ?? DEFAULT_TICKET_LIST_SORT);
 
   // Seeded on the open transition, during render rather than in an effect: an
   // effect paints the previous values once before correcting them, and keying off
@@ -61,11 +86,18 @@ export function TicketsFilterModal({
       setLocalAssigneeIds(assigneeIds);
       setLocalUnreadOnly(unreadOnly);
       setLocalStatus(status?.value ?? []);
+      setLocalSort(sort?.value ?? DEFAULT_TICKET_LIST_SORT);
     }
   }
 
   const handleReset = () => {
-    onApply({ organizationIds: [], assigneeIds: [], unreadOnly: false, ...(status && { status: [] }) });
+    onApply({
+      organizationIds: [],
+      assigneeIds: [],
+      unreadOnly: false,
+      ...(status && { status: [] }),
+      ...(sort && { sort: DEFAULT_TICKET_LIST_SORT }),
+    });
     onClose();
   };
 
@@ -75,6 +107,7 @@ export function TicketsFilterModal({
       assigneeIds: localAssigneeIds,
       unreadOnly: localUnreadOnly,
       ...(status && { status: localStatus }),
+      ...(sort && { sort: localSort }),
     });
     onClose();
   };
@@ -119,6 +152,27 @@ export function TicketsFilterModal({
             startAdornment={<Filter02Icon className="size-6 text-ods-text-secondary" />}
             renderOption={renderStatusOption}
           />
+        </div>
+      )}
+
+      {sort && (
+        <div className="space-y-2">
+          <Label>Sort by Ticket Number</Label>
+          <Select
+            value={localSort.direction}
+            onValueChange={value => setLocalSort({ ...localSort, direction: value as TicketListSort['direction'] })}
+          >
+            <SelectTrigger className="w-full bg-ods-card" aria-label="Sort by ticket number">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
     </SimpleModal>

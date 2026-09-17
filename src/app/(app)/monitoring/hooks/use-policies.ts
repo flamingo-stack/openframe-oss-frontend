@@ -52,14 +52,6 @@ async function fetchPolicies(params?: ListPoliciesParams): Promise<Policy[]> {
   return (res.data as { policies: Policy[] })?.policies || [];
 }
 
-async function _fetchPolicy(id: number): Promise<Policy> {
-  const res = await fleetApiClient.getPolicy(id);
-  if (!res.ok || !res.data) {
-    throw new Error(res.error || `Failed to load policy (${res.status})`);
-  }
-  return res.data.policy;
-}
-
 async function createPolicyApi(data: CreatePolicyData): Promise<Policy> {
   const res = await fleetApiClient.createPolicy(data);
   if (!res.ok || !res.data) {

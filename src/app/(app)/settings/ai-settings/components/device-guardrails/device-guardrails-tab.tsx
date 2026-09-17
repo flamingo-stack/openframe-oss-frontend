@@ -2,7 +2,6 @@
 'use no memo';
 
 import {
-  CheckboxBlock,
   Input,
   LoadError,
   Select,
@@ -45,7 +44,6 @@ const deviceGuardrailsSchema = z.object({
   deliveryTimeoutSeconds: timeoutField(1, 60),
   noClientFallback: z.enum(REMOTE_ACCESS_FALLBACKS),
   noAnswerFallback: z.enum(REMOTE_ACCESS_FALLBACKS),
-  reasonRequired: z.boolean(),
 });
 
 type DeviceGuardrailsFormValues = z.infer<typeof deviceGuardrailsSchema>;
@@ -114,7 +112,6 @@ function DeviceGuardrailsView({ policy }: { policy: TenantRemoteAccessPolicy }) 
           value={REMOTE_ACCESS_FALLBACK_META[policy.noAnswerFallback].label}
           label="If The User Does Not Answer"
         />
-        <InfoCell value={policy.reasonRequired ? 'Yes' : 'No'} label="Reason Required on Connect" />
       </div>
     </div>
   );
@@ -191,20 +188,6 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
           <FallbackSelect name="noAnswerFallback" label="If The User Does Not Answer" control={form.control} />
         </div>
       </div>
-
-      <Controller
-        name="reasonRequired"
-        control={form.control}
-        render={({ field }) => (
-          <CheckboxBlock
-            id="remote-access-reason-required"
-            label="Require a reason on connect"
-            description="Technicians must say why they are connecting; the reason is shown to the end user."
-            checked={field.value}
-            onCheckedChange={checked => field.onChange(Boolean(checked))}
-          />
-        )}
-      />
     </form>
   );
 }

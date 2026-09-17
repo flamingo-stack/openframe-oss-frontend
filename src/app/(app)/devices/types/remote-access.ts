@@ -8,7 +8,10 @@
 // satisfy; field names may still shift with the final API.
 
 /** Which MeshCentral surface the technician is trying to open. */
-export type RemoteSessionKind = 'desktop' | 'shell' | 'files';
+// The approval flow covers remote screen (MeshCentral desktop) sessions only
+// (decision 2026-09-16): remote shell and file manager are out of the epic's
+// scope and keep their legacy auto-start. The wire value is always 'desktop'.
+export type RemoteSessionKind = 'desktop';
 
 export type RemoteAccessRequestStatus =
   | 'PENDING'
@@ -105,6 +108,4 @@ export interface TenantRemoteAccessPolicy {
   deliveryTimeoutSeconds: number;
   noClientFallback: RemoteAccessFallback;
   noAnswerFallback: RemoteAccessFallback;
-  /** Whether the technician must give a reason on connect. */
-  reasonRequired: boolean;
 }

@@ -160,10 +160,12 @@ class MockRemoteAccessApprovalService implements IRemoteAccessApprovalService {
 export const remoteAccessApprovalService: IRemoteAccessApprovalService = new MockRemoteAccessApprovalService();
 
 /**
- * The mock's decision lever, exported ONLY for the dev-build simulation
- * controls on the awaiting screen. The real service has no such method - the
- * decision comes from the end user's machine.
+ * The mock's decision lever, exported ONLY for the simulation controls on the
+ * awaiting screen. The real service has no such method - the decision comes
+ * from the end user's machine - so this is a no-op once the mock is gone.
  */
 export const mockRemoteAccessDecision = (requestId: string, status: 'APPROVED' | 'DENIED' | 'TIMED_OUT'): void => {
-  (remoteAccessApprovalService as MockRemoteAccessApprovalService).settle(requestId, status);
+  if (remoteAccessApprovalService instanceof MockRemoteAccessApprovalService) {
+    remoteAccessApprovalService.settle(requestId, status);
+  }
 };

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
+import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import { useSessionRecording } from '../../hooks/use-session-recordings';
 import { RecordingUnavailableError, sessionRecordingsService } from '../../services/session-recordings-service';
 import { DevLocalFileLoader } from './dev-local-file-loader';
@@ -35,9 +36,10 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const player = useRecordingPlayer();
   const searchParams = useSearchParams();
   // The local-file loader is not part of the design - it exists purely to test
-  // the engine before the storage backend ships, so it hides behind an
-  // explicit `?dev=1` on top of being dev-build-only.
-  const showDevLoader = process.env.NODE_ENV === 'development' && searchParams.get('dev') === '1';
+  // the engine before the storage backend ships, so it hides behind the
+  // temporary 'remote-access-mock-tools' flag plus an explicit `?dev=1`.
+  const showMockTools = useRemoteAccessMockTools();
+  const showDevLoader = showMockTools && searchParams.get('dev') === '1';
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [unavailable, setUnavailable] = useState(false);

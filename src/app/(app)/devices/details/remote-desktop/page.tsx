@@ -98,7 +98,7 @@ export default function RemoteDesktopPage() {
     // The session component below opens the MeshCentral tunnel from its own
     // effects, so the approval gate keeps it UNMOUNTED until the end user
     // approves - not merely hidden.
-    <RemoteAccessGate deviceId={deviceId} sessionKind="desktop" onBack={handleBack}>
+    <RemoteAccessGate deviceId={deviceId} onBack={handleBack}>
       <RemoteDesktopSession />
     </RemoteAccessGate>
   );

@@ -80,6 +80,7 @@ import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
 import { getTicketDeviceName } from '../utils/ticket-device-name';
+import { formatTicketRef } from '../utils/ticket-ref';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
 import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
@@ -162,7 +163,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // chat's context. `dialog.id` is the raw db id the backend TICKET resolver /
   // `@ticket:id` marker expects (TICKET is REST-resolved — no global-id round-trip).
   useTrackOpenView(
-    dialog ? { type: CONTEXT_ENTITY_KIND.TICKET, id: dialog.id, label: dialog.title || dialog.id } : null,
+    dialog ? { type: CONTEXT_ENTITY_KIND.TICKET, id: dialog.id, label: formatTicketRef(dialog, dialog.id) } : null,
   );
 
   // Device referenced by the ticket. Same hook & availability utility used by
@@ -637,6 +638,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     undefined;
 
   const infoRows: InfoSectionRow[] = [
+    // First row per Figma tickets 8001-100805: the bare sequential number, no
+    // `#`, no trailing icon - the reference technicians and clients quote.
+    {
+      id: 'ticket-number',
+      label: 'Ticket Number',
+      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : '—' },
+    },
     {
       id: 'customer',
       label: 'Customer',
