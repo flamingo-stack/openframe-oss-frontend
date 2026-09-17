@@ -1,21 +1,15 @@
 'use client';
 
 import { Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import {
-  ComputerMouseIcon,
-  FolderIcon,
-  ScanXmarkIcon,
-  TerminalIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { CompactPageLoader, Label, Textarea } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Loader2 } from 'lucide-react';
-import { type ComponentType, type ReactNode, useEffect, useRef, useState } from 'react';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
-import { useEffectiveDeviceRemoteAccessMode, useTenantRemoteAccessPolicy } from '../../hooks/use-remote-access-policy';
+import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
+import { useEffectiveDeviceRemoteAccessMode } from '../../hooks/use-remote-access-policy';
 import { mockRemoteAccessDecision } from '../../services/remote-access-approval-service';
-import type { RemoteSessionKind } from '../../types/remote-access';
 
 interface RemoteAccessGateProps {
   deviceId: string;
@@ -26,18 +20,16 @@ interface RemoteAccessGateProps {
    * override to apply (the real API derives it server-side).
    */
   organizationId?: string;
-  sessionKind: RemoteSessionKind;
+  /**
+   * Optional context for the request (decision 2026-09-16: a reason is never
+   * required) - e.g. prefilled when the technician connects from a ticket.
+   */
+  reason?: string;
   /** Leave the flow entirely (the pages' safe-back). */
   onBack: () => void;
   /** The actual session surface - mounted ONLY once the request is approved. */
   children: ReactNode;
 }
-
-const SESSION_KIND_META: Record<RemoteSessionKind, { label: string; Icon: ComponentType<{ className?: string }> }> = {
-  desktop: { label: 'Remote Control', Icon: ComputerMouseIcon },
-  shell: { label: 'Remote Shell', Icon: TerminalIcon },
-  files: { label: 'File Manager', Icon: FolderIcon },
-};
 
 /** mm:ss until `expiresAt`, floored at zero. */
 function formatRemaining(expiresAt: string, nowMs: number): string {
@@ -48,10 +40,15 @@ function formatRemaining(expiresAt: string, nowMs: number): string {
 }
 
 /**
- * Approval gate for every MeshCentral surface (CU-86ajx03db): the session
- * component in `children` mounts only after the end user approves, so no
- * tunnel effect can fire early. Until then this renders the flow's own page -
- * reason step, awaiting (with countdown + cancel), denied / timed out / error.
+ * Approval gate for the remote screen (MeshCentral desktop) page
+ * (CU-86ajx03db): the session component in `children` mounts only after the
+ * end user approves, so no tunnel effect can fire early. Until then this
+ * renders the flow's own page - awaiting (with countdown + cancel), denied /
+ * timed out / error. The request fires as soon as the policy is known: there
+ * is no reason step (decision 2026-09-16, a reason is never required).
+ *
+ * Remote shell and file manager are outside the epic's scope and are not
+ * gated - the wire `sessionKind` is always 'desktop'.
  *
  * With the `remote-access-approval` flag off it renders children directly -
  * the legacy auto-start behavior, byte for byte.
@@ -64,43 +61,37 @@ export function RemoteAccessGate({
   deviceId,
   deviceName,
   organizationId,
-  sessionKind,
+  reason,
   onBack,
   children,
 }: RemoteAccessGateProps) {
   const gate = useRemoteAccessApprovalGate();
-  const approval = useRemoteAccessApproval(deviceId, sessionKind, organizationId);
+  const approval = useRemoteAccessApproval(deviceId, organizationId);
   // Temporary QA tooling for the mock service; appearing late is fine here.
-  const showMockTools = useFeatureFlag('remote-access-mock-tools');
-  const [reason, setReason] = useState('');
+  const showMockTools = useRemoteAccessMockTools();
 
   // Policy sync (CU-86akeqw8b): the effective mode decides the flow shape -
   // DENY_ACCESS never requests, NOTIFY_ONLY / SILENT_ACCESS auto-approve on
-  // the service side - and `reasonRequired` decides whether the reason step
-  // exists at all.
+  // the service side.
   const effectiveMode = useEffectiveDeviceRemoteAccessMode({ machineId: deviceId, id: deviceId, organizationId });
-  const tenantPolicy = useTenantRemoteAccessPolicy({ enabled: gate === 'on' });
-  const policyLoading = gate === 'on' && (effectiveMode === undefined || tenantPolicy.isLoading);
-  // Conservative until loaded: showing the reason step needlessly is harmless,
-  // silently skipping a required one is not.
-  const reasonRequired = tenantPolicy.data?.reasonRequired ?? true;
+  const policyLoading = gate === 'on' && effectiveMode === undefined;
   // Either the policy read says DENY up front, or a create raced a policy
   // change and came back DENIED with the resolved mode recorded.
   const policyDenied = effectiveMode === 'DENY_ACCESS' || approval.request?.resolvedMode === 'DENY_ACCESS';
 
-  // With no reason step there is nothing to type - fire the request as soon
-  // as the policy is known. Keyed off `state === 'idle'` rather than a
-  // one-shot flag: StrictMode's dev effect replay aborts the first in-flight
-  // create (the hook's attempt guard), and a flag would then block the retry
-  // forever. The idle->requesting transition is what prevents loops; the
-  // suppress ref covers the one idle that must NOT re-request - cancelling
-  // out of the flow (the awaiting screen navigates back right after).
+  // Nothing to type - fire the request as soon as the policy is known. Keyed
+  // off `state === 'idle'` rather than a one-shot flag: StrictMode's dev
+  // effect replay aborts the first in-flight create (the hook's attempt
+  // guard), and a flag would then block the retry forever. The
+  // idle->requesting transition is what prevents loops; the suppress ref
+  // covers the one idle that must NOT re-request - cancelling out of the flow
+  // (the awaiting screen navigates back right after).
   const suppressAutoRef = useRef(false);
   useEffect(() => {
-    if (gate !== 'on' || policyLoading || policyDenied || reasonRequired) return;
+    if (gate !== 'on' || policyLoading || policyDenied) return;
     if (approval.state !== 'idle' || suppressAutoRef.current) return;
-    approval.requestAccess('');
-  }, [gate, policyLoading, policyDenied, reasonRequired, approval]);
+    approval.requestAccess(reason);
+  }, [gate, policyLoading, policyDenied, reason, approval]);
 
   // One ticking clock for the awaiting countdown.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -115,7 +106,6 @@ export function RemoteAccessGate({
   if (gate === 'loading') return <CompactPageLoader />;
   if (approval.state === 'approved') return <>{children}</>;
 
-  const { label, Icon } = SESSION_KIND_META[sessionKind];
   const target = deviceName || 'this device';
 
   const handleRetry = () => {
@@ -141,50 +131,10 @@ export function RemoteAccessGate({
         }
       />
     );
-  } else if ((approval.state === 'idle' || approval.state === 'requesting') && !reasonRequired) {
-    // Auto-request in flight (NOTIFY/SILENT settle instantly; APPROVAL_REQUIRED
-    // proceeds to the awaiting screen without a reason step).
-    body = <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />;
   } else if (approval.state === 'idle' || approval.state === 'requesting') {
-    body = (
-      <>
-        <div className="rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-sf)]">
-          <Icon className="h-6 w-6 text-ods-text-primary" />
-        </div>
-        <div className="flex flex-col items-center gap-[var(--spacing-system-xxs)] text-center">
-          <h2 className="text-ods-text-primary text-h3">Request Remote Access</h2>
-          <p className="text-ods-text-secondary text-h6">
-            {label} needs the user's permission - they will see who is connecting and can allow or decline.
-          </p>
-        </div>
-        <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)]">
-          <Label htmlFor="remote-access-reason">Reason</Label>
-          <Textarea
-            id="remote-access-reason"
-            value={reason}
-            onChange={e => setReason(e.target.value)}
-            placeholder="Why are you connecting? The user will see this."
-            rows={3}
-          />
-        </div>
-        <div className="flex w-full items-stretch gap-[var(--spacing-system-mf)]">
-          <Button type="button" variant="outline" fullWidth onClick={onBack}>
-            Back
-          </Button>
-          <Button
-            type="button"
-            variant="accent"
-            fullWidth
-            loading={approval.state === 'requesting'}
-            // The step only renders when the policy requires a reason.
-            disabled={reason.trim() === ''}
-            onClick={() => approval.requestAccess(reason.trim())}
-          >
-            Request Access
-          </Button>
-        </div>
-      </>
-    );
+    // Auto-request in flight (NOTIFY/SILENT settle instantly; APPROVAL_REQUIRED
+    // proceeds to the awaiting screen).
+    body = <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />;
   } else if (approval.state === 'awaiting') {
     const request = approval.request;
     body = (
@@ -207,12 +157,10 @@ export function RemoteAccessGate({
           fullWidth
           onClick={() => {
             approval.cancel();
-            // Without a reason step there is no screen behind the cancel -
-            // leave the flow instead of auto-requesting again.
-            if (!reasonRequired) {
-              suppressAutoRef.current = true;
-              onBack();
-            }
+            // There is no screen behind the cancel - leave the flow instead
+            // of auto-requesting again.
+            suppressAutoRef.current = true;
+            onBack();
           }}
         >
           Cancel Request

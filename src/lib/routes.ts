@@ -85,6 +85,31 @@ export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
 export type HelpCenterLegalDoc = 'privacy' | 'terms';
 
 // --------------------------------------------------------------------------
+// Ticket prefill keys (shared with the ticket form and its page)
+// --------------------------------------------------------------------------
+
+/**
+ * What another page can hand the NEW-ticket form to start from, as `/tickets/new`
+ * query params ("Create Ticket" on an incident). One list: the builder's options,
+ * the form's `TicketPrefill` and the page's reader all derive from it, so a key
+ * cannot be added to one and silently dropped by another. Ids are the raw ones
+ * the form's pickers use (`Organization.organizationId`, `Machine.machineId`,
+ * `User.id`); the names label those picks before the option lists have loaded.
+ */
+export const TICKET_PREFILL_KEYS = [
+  'title',
+  'description',
+  'organizationId',
+  'organizationName',
+  'deviceId',
+  'deviceName',
+  'assigneeId',
+  'assigneeName',
+] as const;
+
+export type TicketPrefill = Partial<Record<(typeof TICKET_PREFILL_KEYS)[number], string>>;
+
+// --------------------------------------------------------------------------
 // Query-string helper
 // --------------------------------------------------------------------------
 
@@ -281,7 +306,8 @@ export const routes = {
 
   tickets: {
     list: '/tickets',
-    new: (o?: { edit?: string }) => withQuery('/tickets/new', { edit: o?.edit }),
+    /** `edit` opens an existing ticket; a `TicketPrefill` starts a NEW one — one or the other, never both. */
+    new: (o?: { edit: string } | TicketPrefill) => withQuery('/tickets/new', o),
     dialog: (id: string | number, o?: { tab?: 'chat' }) => withQuery('/tickets/dialog', { id, tab: o?.tab }),
     archive: '/tickets/archive',
     statuses: '/tickets/statuses',
@@ -290,6 +316,13 @@ export const routes = {
   logs: {
     page: '/logs-page',
     details: '/log-details',
+  },
+
+  // UI says "incident"; the API says "insight". `id` is `Insight.id`, the opaque
+  // handle the `insight(id:)` query takes.
+  incidents: {
+    list: '/incidents',
+    details: (id: string | number) => withQuery('/incidents/details', { id }),
   },
 
   knowledgeBase: {

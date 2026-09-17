@@ -4,10 +4,10 @@ import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
+import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import { useSessionRecording } from '../../hooks/use-session-recordings';
 import { RecordingUnavailableError, sessionRecordingsService } from '../../services/session-recordings-service';
 import { DevLocalFileLoader } from './dev-local-file-loader';
@@ -38,7 +38,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   // The local-file loader is not part of the design - it exists purely to test
   // the engine before the storage backend ships, so it hides behind the
   // temporary 'remote-access-mock-tools' flag plus an explicit `?dev=1`.
-  const showMockTools = useFeatureFlag('remote-access-mock-tools');
+  const showMockTools = useRemoteAccessMockTools();
   const showDevLoader = showMockTools && searchParams.get('dev') === '1';
 
   const [isFullscreen, setIsFullscreen] = useState(false);

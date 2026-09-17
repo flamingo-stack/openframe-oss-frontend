@@ -275,6 +275,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // `useFeatureFlagGate` instead (see the drawer's URL sync).
   const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const helpCenterEnabled = useFeatureFlag('help-center');
+  const insightsEnabled = useFeatureFlag('insights');
   const notificationsEnabled = useFeatureFlag('notifications');
   const billingsEnabled = useFeatureFlag('billings');
   /**
@@ -400,8 +401,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     () => ({
       timeTracker: timeTrackerEnabled,
       helpCenter: helpCenterEnabled,
+      insights: insightsEnabled,
     }),
-    [timeTrackerEnabled, helpCenterEnabled],
+    [timeTrackerEnabled, helpCenterEnabled, insightsEnabled],
   );
 
   const navigationItems = useMemo(

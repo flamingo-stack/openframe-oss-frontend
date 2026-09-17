@@ -27,7 +27,6 @@ export const DEFAULT_TENANT_REMOTE_ACCESS_POLICY: TenantRemoteAccessPolicy = {
   deliveryTimeoutSeconds: 5,
   noClientFallback: 'DENY',
   noAnswerFallback: 'DENY',
-  reasonRequired: true,
 };
 
 const MOCK_LATENCY_MS = 250;
