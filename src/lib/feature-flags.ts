@@ -32,6 +32,8 @@ export const FEATURE_FLAG_NAMES = [
   // drives the mock services: the simulate-decision strip on the awaiting
   // screen and the recording player's local .mcrec loader. On for dev / qa.
   'remote-access-mock-tools',
+  // The Incidents module (`/incidents`) over saas-api's `insights` API.
+  'insights',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

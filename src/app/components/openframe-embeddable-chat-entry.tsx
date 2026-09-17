@@ -201,6 +201,20 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     chatHandle.current?.startNewChat();
   }, [pendingNewChat, consumePendingNewChat]);
 
+  // Queued launcher draft (`draftToMingo` — e.g. "Fix with Mingo" on an incident):
+  // a fresh chat with the composer prefilled and nothing sent. Same one-shot
+  // drain as the prompt, but through the handle, since the composer's text is
+  // the panel's own state.
+  const pendingDraft = useMingoLauncherStore(s => s.pendingDraft);
+  const consumePendingDraft = useMingoLauncherStore(s => s.consumePendingDraft);
+
+  useEffect(() => {
+    if (!pendingDraft) return;
+    const draft = consumePendingDraft();
+    if (!draft) return;
+    chatHandle.current?.prefillDraft(draft);
+  }, [pendingDraft, consumePendingDraft]);
+
   // Entity-context picker config (the `+` "Assign Item" menu + `@` trigger).
   // Stable so the lib's composer doesn't re-derive its icon map each render.
   // `renderMingoContextItems` maps each entity type to its data component

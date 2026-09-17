@@ -11,8 +11,8 @@
  * stable identity falls out for free — the lib's per-message memo relies on
  * `renderMention` keeping reference equality across streaming chunks.
  *
- * Coverage = all ten markers the agent can emit. GraphQL types (device,
- * customer, kb article, kb folder, scheduled script) resolve via Relay; REST/ai-agent types (policy,
+ * Coverage = all eleven markers the agent can emit. GraphQL types (device,
+ * customer, kb article, kb folder, scheduled script, incident) resolve via Relay; REST/ai-agent types (policy,
  * query, user, ticket) via `RestMentionChip`. SCRIPT is dual-sourced — a NEW
  * script (24-char ObjectId) resolves via Relay, a LEGACY Tactical script (numeric
  * id) via REST — so both kinds of script id render regardless of the flag. Every
@@ -75,6 +75,8 @@ export function renderMingoMention({
       return (
         <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT} id={id} icon={icon} fallbackLabel={label} />
       );
+    case M.INSIGHT:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.INSIGHT} id={id} icon={icon} fallbackLabel={label} />;
     case M.SCRIPT:
       // Dual-sourced: a 24-char ObjectId is a NATIVE script (Relay `script(id:)`);
       // anything else (numeric) is a LEGACY Tactical id, still reachable in old
