@@ -4,7 +4,6 @@ import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import {
   ArrowRightUpIcon,
   Parcel02Icon,
-  PlusCircleIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -38,15 +37,6 @@ import { softwaresTableRelayFragment, softwaresTableRelayQuery } from '@/graphql
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_TABLE_COLUMNS } from './software-table-columns';
-
-const PAGE_ACTIONS: PageActionButton[] = [
-  {
-    label: 'Install Software',
-    variant: 'outline',
-    href: routes.software.install,
-    icon: <PlusCircleIcon size={24} className="text-ods-text-secondary" />,
-  },
-];
 
 const PAGE_SIZE = 20;
 
@@ -374,7 +364,7 @@ export interface SoftwareTableProps {
   scopeFilter?: SoftwareFilterInput | null;
   emptyTitle: string;
   emptyDescription: string;
-  /** Header actions. Defaults to Install Software. */
+  /** Header actions. None by default. */
   actions?: PageActionButton[];
 }
 
@@ -388,7 +378,7 @@ export function SoftwareTable({
   scopeFilter = null,
   emptyTitle,
   emptyDescription,
-  actions = PAGE_ACTIONS,
+  actions,
 }: SoftwareTableProps) {
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },

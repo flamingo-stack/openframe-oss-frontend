@@ -1,6 +1,6 @@
 'use client';
 
-import { Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PlusCircleIcon, Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { SoftwareFilterInput } from '@/__generated__/softwaresTableRelayQuery.graphql';
 import { ContentErrorBoundary } from '@/app/components/shared';
@@ -23,6 +23,12 @@ const UPDATE_ACTIONS: PageActionButton[] = [
     variant: 'outline',
     href: routes.software.update,
     icon: <Refresh02HrIcon size={24} className="text-ods-text-secondary" />,
+  },
+  {
+    label: 'Install Software',
+    variant: 'outline',
+    href: routes.software.install,
+    icon: <PlusCircleIcon size={24} className="text-ods-text-secondary" />,
   },
 ];
 
