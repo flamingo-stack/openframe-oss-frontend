@@ -1,31 +1,15 @@
-/**
- * Utility functions for the OpenFrame frontend
- */
-
-/**
- * Get the base URL for the application based on environment
- * In production, uses the deployment URL
- * In development, uses localhost:4000
- */
+import { getDeploymentUrl } from '@flamingo-stack/openframe-frontend-core/platform-domains';
 import { runtimeEnv } from './runtime-config';
 
-export function getBaseUrl(): string {
-  // In browser, use relative URLs
-  if (typeof window !== 'undefined') {
-    return '';
-  }
-
-  // For non-browser contexts, prefer configured URLs
-  const appUrl = runtimeEnv.appUrl();
-  const devUrl = runtimeEnv.devUrl();
-
-  return appUrl || devUrl || 'http://localhost:4000';
-}
-
 /**
- * Generate absolute URL for assets
+ * Where this OpenFrame app is reachable, no trailing slash.
+ *
+ * The rule lives once in openframe-frontend-core (`getDeploymentUrl`), shared with every
+ * other app: the page's origin in the browser; this install's runtime `NEXT_PUBLIC_APP_URL`
+ * (a self-hosted install's own address); a Vercel preview's own URL; the OpenFrame
+ * dashboard's registry URL in production; localhost in development. This app only
+ * supplies its platform and its configured URL.
  */
-export function getAssetUrl(path: string): string {
-  const baseUrl = getBaseUrl();
-  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+export function getAppUrl(): string {
+  return getDeploymentUrl({ platform: 'openframe-dashboard', configuredUrl: runtimeEnv.appUrl() });
 }
