@@ -43,7 +43,7 @@ const SETTINGS_NAV_ITEMS = [
   {
     href: routes.settings.aiSettings(),
     icon: ShieldCheckIcon,
-    title: 'AI Settings & Guardrails',
+    title: 'Guardrails & AI Settings',
     description: 'Configure AI assistant model and safety policies',
   },
   {

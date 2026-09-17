@@ -52,7 +52,7 @@ export function AiSettingsLayout({ children, actions, selector, mobileBottomActi
             <span className="text-h4">Back</span>
           </button>
           <h1 className="truncate text-ods-text-primary text-h2">
-            AI Settings<span className="hidden md:inline"> &amp; Guardrails</span>
+            <span className="hidden md:inline">Guardrails &amp; </span>AI Settings
           </h1>
         </div>
         {(hasActions || selector) && (

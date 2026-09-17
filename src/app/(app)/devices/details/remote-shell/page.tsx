@@ -20,6 +20,12 @@ const WINDOWS_POWERSHELL_CMD =
   'powershell -NoLogo -NoProfile 2>nul || "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoLogo -NoProfile 2>nul || "%SystemRoot%\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe" -NoLogo -NoProfile 2>nul || "%ProgramFiles%\\PowerShell\\7\\pwsh.exe" -NoLogo -NoProfile 2>nul || "%ProgramFiles(x86)%\\PowerShell\\7\\pwsh.exe" -NoLogo -NoProfile 2>nul';
 
 export default function RemoteShellPage() {
+  // No approval gate here: the approval flow covers remote screen sessions
+  // only (decision 2026-09-16); the shell keeps its legacy auto-start.
+  return <RemoteShellSession />;
+}
+
+function RemoteShellSession() {
   const searchParams = useSearchParams();
   const deviceId = searchParams.get('id') ?? '';
   const { toast } = useToast();

@@ -86,6 +86,8 @@ export default function FileManagerPage() {
 
   const hostname = deviceDetails?.hostname || deviceDetails?.displayName;
 
+  // No approval gate here: the approval flow covers remote screen sessions
+  // only (decision 2026-09-16); the file manager keeps its legacy auto-start.
   return (
     <FileManagerContainer
       deviceId={deviceId}

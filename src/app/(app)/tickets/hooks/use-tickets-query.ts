@@ -18,6 +18,7 @@ export function useTicketsQuery({
   assigneeIds,
   tagIds,
   unreadOnly,
+  sort,
   pageSize = TICKETS_PAGE_SIZE,
 }: DialogsQueryParams) {
   const { toast } = useToast();
@@ -51,6 +52,7 @@ export function useTicketsQuery({
       assigneeIds,
       tagIds,
       unreadOnly,
+      sort,
       pageSize,
     }),
     enabled: !waitingForStatusIds,
@@ -62,6 +64,7 @@ export function useTicketsQuery({
         assigneeIds: assigneeIds?.length ? assigneeIds : undefined,
         tagIds: tagIds?.length ? tagIds : undefined,
         unreadOnly: unreadOnly || undefined,
+        sort: sort ?? undefined,
         cursor: pageParam as string | undefined,
         limit: pageSize,
       });
@@ -101,6 +104,7 @@ export function useTicketsQuery({
         assigneeIds,
         tagIds,
         unreadOnly,
+        sort,
         pageSize,
       }),
     });
@@ -114,6 +118,7 @@ export function useTicketsQuery({
     assigneeIds,
     tagIds,
     unreadOnly,
+    sort,
     pageSize,
   ]);
 
