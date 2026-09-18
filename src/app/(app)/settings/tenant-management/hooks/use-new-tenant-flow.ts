@@ -26,7 +26,7 @@ export type NewTenantPhase = 'filling' | 'generating' | 'link';
  * returns the connection with its consent link), so from then on the page is
  * editing an existing connection: a second Generate after Edit Domain is an
  * update plus a fresh link, and Save only writes what changed since
- * (ASSUMPTIONS A5). The provider is locked once the record exists; the domain
+ * The provider is locked once the record exists; the domain
  * is locked whenever a link stands for it.
  */
 export function useNewTenantFlow() {

@@ -50,7 +50,7 @@ export function useTenantConnectionOptions() {
  * The customers the picker may offer: every page of
  * `directoryConnectionOrganizations` up to a cap. A search-less `Select` cannot
  * page on demand, so the pages are exhausted here; the cap is the point where the
- * design has to gain a search box (ASSUMPTIONS A10).
+ * design has to gain a search box.
  */
 export const TENANT_ORGANIZATIONS_PAGE_SIZE = 100;
 export const TENANT_ORGANIZATIONS_CAP = 500;

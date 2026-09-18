@@ -101,7 +101,7 @@ export function TenantDetailsView({ id }: TenantDetailsViewProps) {
 
   const isOwner = ownerGate === 'owner';
   // Reconnect and Edit change the tenant's grant and binding — owners only
-  // (ASSUMPTIONS A2); everyone else reads.
+  // everyone else reads.
   const actions: PageActionButton[] | undefined = isOwner
     ? [
         {

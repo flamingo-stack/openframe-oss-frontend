@@ -15,7 +15,7 @@ import { TenantFormFields } from './tenant-form-fields';
  * provider picker and the three fields, "Generate Connection Link" while the
  * form is being filled, the consent card in its place once a link stands, Save
  * in the title bar throughout — enabled only from the link phase on. Copy is
- * the frames' own, "Back to Integrations" included (ASSUMPTIONS A6).
+ * the frames' own, "Back to Integrations" included.
  */
 export function NewTenantView() {
   const handleBack = useSafeBack(routes.settings.tenantManagement);

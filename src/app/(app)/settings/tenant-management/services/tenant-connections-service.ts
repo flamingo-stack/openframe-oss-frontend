@@ -8,6 +8,12 @@
 // consent; a probe is the only thing that changes the access state). Swapping to
 // the real API is one new implementation of `ITenantConnectionsService` — the
 // hooks and every component import only the interface-typed singleton.
+//
+// Replacing the mock with the real API: pull the SDL (`npm run fetch-schema`),
+// `npm run generate-enums`, make `types/directory-enums.ts` re-export from
+// `@/generated/schema-enums`, implement `ITenantConnectionsService` over Relay
+// (or move the hooks to fragments) and delete `tenant-connections-fixtures.ts`
+// with the mock class below.
 
 import {
   DirectoryAccessState,

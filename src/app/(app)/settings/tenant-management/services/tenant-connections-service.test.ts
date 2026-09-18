@@ -109,7 +109,7 @@ describe('MockTenantConnectionsService', () => {
     expect((await settle(service.list())).map(r => r.id)).toContain(created.id);
   });
 
-  it('create mints a Microsoft link too — the mock stands in for the Figma flow, not the app-registration backend (ASSUMPTIONS A1)', async () => {
+  it('create mints a Microsoft link too — the mock stands in for the Figma flow', async () => {
     const created = await settle(service.create(newInput('contoso.com', DirectoryProvider.MICROSOFT_365)));
     expect(created.consentUrl).toContain('login.microsoftonline.com/contoso.com');
   });

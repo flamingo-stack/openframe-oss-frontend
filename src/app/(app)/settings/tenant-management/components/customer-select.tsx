@@ -18,7 +18,7 @@ import type { TenantOrganization } from '../types/tenant-connection';
 // what "no search" means (Figma comment #107) — over the customers a connection
 // may still be bound to. Phase 2 drops the customer ↔ connection binding from
 // these forms; this file and the zod fragment in `tenant-form.types.ts` are the
-// two things that go with it (ASSUMPTIONS A10).
+// two things that go with it.
 
 interface CustomerSelectProps {
   value: string;

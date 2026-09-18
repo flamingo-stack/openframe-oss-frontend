@@ -47,7 +47,7 @@ export const tenantFormSchema = z
 
 export type TenantFormData = z.infer<typeof tenantFormSchema>;
 
-/** Microsoft is the first radio in the design, so it is pre-selected (see ASSUMPTIONS A8). */
+/** Microsoft is the first radio in the design, so it is pre-selected. */
 export const TENANT_FORM_DEFAULT_VALUES: TenantFormData = {
   provider: DirectoryProvider.MICROSOFT_365,
   domain: '',

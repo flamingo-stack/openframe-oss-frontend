@@ -1,6 +1,6 @@
 'use client';
 
-// The Microsoft seam (ASSUMPTIONS A1). The Figma frames draw a Microsoft 365
+// The Microsoft seam. The Figma frames draw a Microsoft 365
 // consent LINK (`login.microsoftonline.com/{domain}/adminconsent?…`) and that is
 // what this renders. The provider API behind it moved to exactly that model on
 // 2026-09-11 (`startMicrosoft365Consent(tiers) → authorizationUrl`, no client

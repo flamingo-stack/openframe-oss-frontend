@@ -31,7 +31,7 @@ export interface StatusTag {
 
 // Colours read off the Figma list (node 1699-8249): red for the two states that
 // need the customer's admin, grey for read-only, outline for write-available,
-// green for write-enabled. NOT_AUTHORISED has no frame of its own (ASSUMPTIONS A7)
+// green for write-enabled. NOT_AUTHORISED has no frame of its own
 // and follows CONSENT_REVOKED — it is the other "the directory refused us" state.
 const ACCESS_STATE_PRESENTATION = {
   [DirectoryAccessState.DISCONNECTED]: { label: 'Disconnected', variant: 'error' },
@@ -90,7 +90,7 @@ export interface ProviderPresentation {
 // Copy is verbatim from the Figma frames for Microsoft. Google has no frame of
 // its own (the Phase 1 doc calls it "the only screen that cannot be drawn"), so
 // its consent copy mirrors Microsoft's with the Super Admin wording — a data gap
-// tracked in ASSUMPTIONS.md, one string each to replace.
+// one string each to replace when the copy is written.
 const PROVIDER_PRESENTATION = {
   [DirectoryProvider.MICROSOFT_365]: {
     label: 'Microsoft 365',
@@ -158,7 +158,7 @@ export function capabilityLabels(capabilities: readonly string[]): string[] {
 }
 
 /**
- * The instant "Last read" reports (ASSUMPTIONS A4): the directory sync, not the
+ * The instant "Last read" reports: the directory sync, not the
  * access probe — a probe proves the link, a sync is when the data was read.
  */
 export function lastReadAt(connection: Pick<TenantConnection, 'lastSyncAt'>): string | null {

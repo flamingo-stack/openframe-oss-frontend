@@ -45,7 +45,7 @@ describe('accessStateTag', () => {
     expect(accessStateTag('WRITE_ENABLED').variant).toBe('success');
   });
 
-  it('renders NOT_AUTHORISED as an error tag (ASSUMPTIONS A7 — no Figma frame)', () => {
+  it('renders NOT_AUTHORISED as an error tag (no Figma frame)', () => {
     expect(accessStateTag('NOT_AUTHORISED')).toEqual({ label: 'Not authorised', variant: 'error' });
   });
 
@@ -121,7 +121,7 @@ describe('time formatting', () => {
     vi.useRealTimers();
   });
 
-  it('reads "Last read" from the directory sync, not the probe (ASSUMPTIONS A4)', () => {
+  it('reads "Last read" from the directory sync, not the probe', () => {
     expect(lastReadAt({ lastSyncAt: '2026-09-17T09:00:00.000Z' })).toBe('2026-09-17T09:00:00.000Z');
     expect(lastReadAt({ lastSyncAt: null })).toBeNull();
   });

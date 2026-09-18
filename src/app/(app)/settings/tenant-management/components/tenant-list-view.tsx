@@ -44,7 +44,7 @@ export const CONNECT_TENANT_ACTION: PageActionButton = {
 };
 
 interface TenantListViewProps {
-  /** Narrow the list to one customer — the future Customer → Integrations tab (ASSUMPTIONS A11). */
+  /** Narrow the list to one customer — the future Customer → Integrations tab. */
   organizationId?: string;
   /** Rendered inside another page's tab: no back button, no Customers column, no header gap. */
   embedded?: boolean;
@@ -68,7 +68,7 @@ export function TenantListView({ organizationId, embedded = false }: TenantListV
   const { isLoading, isOffline, error, canClaimEmpty } = queryState(query);
   const connections = query.data;
 
-  // Only workspace owners connect tenants (ASSUMPTIONS A2): the action is absent
+  // Only workspace owners connect tenants: the action is absent
   // for everyone else, and a placeholder while the role is still unknown — never
   // absent-then-present.
   const actions = ownerGate === 'owner' ? [CONNECT_TENANT_ACTION] : undefined;
