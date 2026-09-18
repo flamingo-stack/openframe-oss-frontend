@@ -26,6 +26,7 @@ function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
     updatedAt: '2025-08-27T14:45:00Z',
     physicalAddress: '',
     mailingAddress: '',
+    contacts: [],
     primary: { ...BLANK_CONTACT },
     billing: { ...BLANK_CONTACT },
     technical: { ...BLANK_CONTACT },

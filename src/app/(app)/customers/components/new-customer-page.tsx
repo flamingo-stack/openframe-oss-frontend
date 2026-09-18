@@ -97,13 +97,6 @@ const stripPlaceholder = (value?: string | null): string => {
   return value;
 };
 
-const contactToDto = (c: { name: string; title: string; phone: string; email: string }) => ({
-  contactName: c.name,
-  title: c.title,
-  phone: c.phone,
-  email: c.email,
-});
-
 const [DETAILS_TAB, AI_CONFIGURATION_TAB, GUARDRAILS_TAB, DEVICE_GUARDRAILS_TAB] = TAB_IDS.customerEdit;
 
 export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
@@ -228,9 +221,10 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
       imageHash: organization.imageHash || undefined,
     });
 
-    const reconstructedContacts = [organization.primary, organization.billing, organization.technical]
-      .filter(c => c.name || c.title || c.phone || c.email)
-      .map(contactToDto);
+    // The whole list, not the three named slots: the update endpoint replaces
+    // `contactInformation` wholesale, so any contact left out here is deleted
+    // by the next Save. Rows with nothing in them are not worth keeping.
+    const reconstructedContacts = organization.contacts.filter(c => c.contactName || c.title || c.phone || c.email);
 
     setPreserved({
       category: stripPlaceholder(organization.industry) || undefined,
