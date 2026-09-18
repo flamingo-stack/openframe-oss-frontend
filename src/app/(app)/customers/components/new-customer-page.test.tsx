@@ -194,6 +194,31 @@ describe('NewCustomerPage (edit)', () => {
 });
 
 describe('NewCustomerPage (create)', () => {
+  it('starts with one contact row, adds another on Add Contact and removes it again', async () => {
+    render(null);
+    await settle();
+    const rows = () => container.querySelectorAll('input[placeholder="Jane Doe"]').length;
+    const button = (name: string) =>
+      [...container.querySelectorAll('button')].find(
+        b => b.textContent?.trim() === name || b.getAttribute('aria-label') === name,
+      );
+    expect(rows()).toBe(1);
+
+    await act(async () => {
+      button('Add Contact')?.click();
+      await sleep(10);
+    });
+    expect(rows()).toBe(2);
+
+    await act(async () => {
+      [...container.querySelectorAll('button')]
+        .filter(b => b.getAttribute('aria-label') === 'Remove contact')[1]
+        ?.click();
+      await sleep(10);
+    });
+    expect(rows()).toBe(1);
+  });
+
   it('lets the user type straight away and refuses an empty name with a toast', async () => {
     render(null);
     await settle();

@@ -7,7 +7,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { CUSTOMER_FORM_DEFAULT_VALUES } from '../types/customer-form.types';
+import {
+  CUSTOMER_FORM_CREATE_DEFAULTS,
+  CUSTOMER_FORM_DEFAULT_VALUES,
+  EMPTY_CONTACT_ROW,
+} from '../types/customer-form.types';
 import {
   DEFAULT_PRESERVED_FIELDS,
   formToWriteInput,
@@ -77,6 +81,11 @@ describe('recordToForm', () => {
 
     expect(form.contacts).toEqual([contact(1), contact(2), contact(3), contact(4)]);
   });
+
+  it('seeds one empty contact row when the record has none, like a new customer', () => {
+    expect(recordToForm(customer({ contacts: [] })).contacts).toEqual([EMPTY_CONTACT_ROW]);
+    expect(CUSTOMER_FORM_CREATE_DEFAULTS.contacts).toEqual([EMPTY_CONTACT_ROW]);
+  });
 });
 
 describe('formToWriteInput', () => {
@@ -116,6 +125,19 @@ describe('formToWriteInput', () => {
     expect(payload.contactInformation.mailingAddress.street1).toBe(' 1 Main St ');
     expect(payload.contactInformation.physicalAddress.street1).toBe(' 1 Main St ');
     expect(payload.notes).toBe('  keep  ');
+  });
+
+  it('drops the seeded empty row from a new customer and keeps the list an array', () => {
+    const payload = formToWriteInput({ ...CUSTOMER_FORM_CREATE_DEFAULTS, name: 'Acme' }, DEFAULT_PRESERVED_FIELDS);
+
+    expect(payload.contactInformation.contacts).toEqual([]);
+  });
+
+  it('promotes the next row when the first contact is removed — that row is what customer lists show', () => {
+    const form = recordToForm(customer({ contacts: [contact(1), contact(2)] }));
+    form.contacts.splice(0, 1);
+
+    expect(formToWriteInput(form, DEFAULT_PRESERVED_FIELDS).contactInformation.contacts[0]).toEqual(contact(2));
   });
 
   it('round-trips the contact list whole and in order, blank rows removed', () => {

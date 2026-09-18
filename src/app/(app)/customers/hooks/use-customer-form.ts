@@ -16,7 +16,12 @@ import type { CustomerAppearanceHandle } from '../components/ai-assistant-appear
 import type { CustomerAiConfigurationHandle } from '../components/customer-ai-configuration/customer-ai-configuration';
 import type { CustomerDeviceGuardrailsHandle } from '../components/customer-device-guardrails-settings';
 import type { CustomerGuardrailsHandle } from '../components/customer-guardrails-settings';
-import { CUSTOMER_FORM_DEFAULT_VALUES, type CustomerFormData, customerFormSchema } from '../types/customer-form.types';
+import {
+  CUSTOMER_FORM_CREATE_DEFAULTS,
+  CUSTOMER_FORM_DEFAULT_VALUES,
+  type CustomerFormData,
+  customerFormSchema,
+} from '../types/customer-form.types';
 import {
   DEFAULT_PRESERVED_FIELDS,
   formToWriteInput,
@@ -59,7 +64,7 @@ export function useCustomerForm({ organizationId, flushPendingLogo, onInvalid }:
 
   const form = useForm<CustomerFormData>({
     resolver: zodResolver(customerFormSchema),
-    defaultValues: CUSTOMER_FORM_DEFAULT_VALUES,
+    defaultValues: isEditMode ? CUSTOMER_FORM_DEFAULT_VALUES : CUSTOMER_FORM_CREATE_DEFAULTS,
     // `onChange` lets RHF own the validation lifecycle: errors surfaced by a
     // Save attempt clear themselves as soon as the field becomes valid.
     mode: 'onChange',

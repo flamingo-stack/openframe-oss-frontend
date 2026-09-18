@@ -1,5 +1,5 @@
 import type { ContactPersonDto, CreateCustomerRequest } from '../hooks/use-create-customer';
-import type { CustomerFormData } from '../types/customer-form.types';
+import { type CustomerFormData, EMPTY_CONTACT_ROW } from '../types/customer-form.types';
 import type { CustomerDetails } from './map-organization';
 
 /**
@@ -43,12 +43,14 @@ export const isBlankContact = (contact: ContactPersonDto): boolean =>
  * The record as the form shows it. The checkbox is inferred from the two
  * addresses (the flag the API holds is not mapped), and whenever it is on the
  * mailing line mirrors the physical one — the disabled Mailing input displays
- * the physical address, as it always has.
+ * the physical address, as it always has. A record without contacts seeds one
+ * empty row, like a new customer, so the inputs are there to type into.
  */
 export function recordToForm(organization: CustomerDetails): CustomerFormData {
   const physical = organization.physicalAddress || '';
   const mailing = organization.mailingAddress || '';
   const mailingSameAsPhysical = !mailing || mailing === physical;
+  const contacts = organization.contacts.filter(contact => !isBlankContact(contact));
 
   return {
     name: stripPlaceholder(organization.name),
@@ -57,7 +59,7 @@ export function recordToForm(organization: CustomerDetails): CustomerFormData {
     physicalAddress: physical,
     mailingAddress: mailingSameAsPhysical ? physical : mailing,
     mailingSameAsPhysical,
-    contacts: organization.contacts.filter(contact => !isBlankContact(contact)),
+    contacts: contacts.length > 0 ? contacts : [EMPTY_CONTACT_ROW],
   };
 }
 

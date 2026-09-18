@@ -12,6 +12,7 @@ import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '@/lib/routes';
+import { CONTACT_EMAIL_ERROR } from '../types/customer-form.types';
 import { useCustomerForm } from './use-customer-form';
 
 const spies = vi.hoisted(() => ({
@@ -210,6 +211,21 @@ describe('useCustomerForm in edit mode', () => {
     );
     expect(spies.safeBack).toHaveBeenCalledWith(expect.anything(), routes.customers.details('org-1'));
     expect(current().isSubmitting).toBe(false);
+  });
+
+  it('refuses a contact with a malformed email and names the rule in the toast', async () => {
+    render('org-1');
+    await settle();
+    act(() => {
+      current().form.setValue('contacts.1.email', 'john at company dot com');
+    });
+
+    await save();
+
+    expect(spies.put).not.toHaveBeenCalled();
+    expect(spies.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Cannot save yet', description: expect.stringContaining(CONTACT_EMAIL_ERROR) }),
+    );
   });
 
   it('reports a failed save and leaves the form as it was', async () => {

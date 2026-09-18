@@ -5,6 +5,7 @@ import { CheckboxBlock, Input, Textarea } from '@flamingo-stack/openframe-fronte
 import type { ReactNode } from 'react';
 import { Controller, type UseFormReturn, useWatch } from 'react-hook-form';
 import type { CustomerFormData } from '../types/customer-form.types';
+import { CustomerContactsFields } from './customer-contacts-fields';
 
 interface CustomerFormFieldsProps {
   form: UseFormReturn<CustomerFormData>;
@@ -153,6 +154,8 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
           />
         )}
       />
+
+      <CustomerContactsFields control={control} disabled={disabled} showErrors={showErrors} />
     </div>
   );
 }

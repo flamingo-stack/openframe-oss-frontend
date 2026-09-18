@@ -3,18 +3,51 @@ import { z } from 'zod';
 export const CUSTOMER_NAME_REQUIRED = 'Customer name is required';
 
 /**
- * One contact person on the record. The backend stores four free strings and
- * validates none of them; the rules here are the UI's own. Until the contact
- * rows are editable the list only round-trips, so the schema stays permissive.
+ * UI sanity caps for a contact row. The backend stores four free strings and
+ * validates none of them, so these numbers are the form's own: a person's name
+ * or job title never legitimately exceeds 100, 254 is the practical maximum for
+ * a full email address, and 32 leaves E.164 (15 digits) room for "+", spaces,
+ * brackets and an extension.
+ */
+export const CONTACT_NAME_MAX = 100;
+export const CONTACT_TITLE_MAX = 100;
+export const CONTACT_EMAIL_MAX = 254;
+export const CONTACT_PHONE_MAX = 32;
+
+export const CONTACT_EMAIL_ERROR = 'Enter a valid email address, e.g. name@company.com';
+
+/** The one place the four contact fields are named — the form and the Details card read it. */
+export const CONTACT_FIELD_LABELS = {
+  contactName: 'Contact Name',
+  title: 'Contact Title',
+  email: 'Email Address',
+  phone: 'Phone Number',
+} as const;
+
+const contactText = (max: number, label: string) =>
+  z.string().trim().max(max, `Keep the ${label} under ${max} characters`);
+
+const emailSchema = z.email();
+
+/**
+ * One contact person. Nothing is required — a row with only a phone number is
+ * a contact — and an empty email means "not provided"; only a non-empty one is
+ * format-checked. Phone stays free-form on purpose (international formats,
+ * extensions). Whitespace is trimmed on the way out.
  */
 export const contactRowSchema = z.object({
-  contactName: z.string(),
-  title: z.string(),
-  email: z.string(),
-  phone: z.string(),
+  contactName: contactText(CONTACT_NAME_MAX, 'contact name'),
+  title: contactText(CONTACT_TITLE_MAX, 'contact title'),
+  email: contactText(CONTACT_EMAIL_MAX, 'email').refine(
+    value => value === '' || emailSchema.safeParse(value).success,
+    CONTACT_EMAIL_ERROR,
+  ),
+  phone: contactText(CONTACT_PHONE_MAX, 'phone number'),
 });
 
 export type ContactRow = z.infer<typeof contactRowSchema>;
+
+export const EMPTY_CONTACT_ROW: ContactRow = { contactName: '', title: '', email: '', phone: '' };
 
 export const customerFormSchema = z.object({
   name: z.string().trim().min(1, CUSTOMER_NAME_REQUIRED),
@@ -37,4 +70,10 @@ export const CUSTOMER_FORM_DEFAULT_VALUES: CustomerFormData = {
   mailingAddress: '',
   mailingSameAsPhysical: true,
   contacts: [],
+};
+
+/** A new customer starts with one empty contact row so the inputs are visible up front; a blank row is dropped on submit. */
+export const CUSTOMER_FORM_CREATE_DEFAULTS: CustomerFormData = {
+  ...CUSTOMER_FORM_DEFAULT_VALUES,
+  contacts: [EMPTY_CONTACT_ROW],
 };
