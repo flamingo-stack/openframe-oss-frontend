@@ -1001,6 +1001,7 @@ type LogDetails implements Node {
   userId: String
   deviceId: String
   hostname: String
+  nickname: String
   organizationId: String
   organizationName: String
   message: String
@@ -1025,6 +1026,7 @@ type LogEvent implements Node {
   userId: String
   deviceId: String
   hostname: String
+  nickname: String
   organizationId: String
   organizationName: String
   summary: String

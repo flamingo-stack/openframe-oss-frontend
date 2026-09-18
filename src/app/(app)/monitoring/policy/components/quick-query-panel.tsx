@@ -8,6 +8,8 @@ import { useQueryTestRun } from '../../components/query-test-run';
 
 export interface QuickQueryPanelProps {
   fleetHostId: number;
+  /** The row's device name (SSOT-resolved by the table); Fleet's own host name is the fallback. */
+  deviceName?: string;
   /** Policy osquery SQL copied into the editable draft when the panel opens. */
   initialQuery: string;
 }
@@ -19,9 +21,10 @@ export interface QuickQueryPanelProps {
  * The panel owns its own live campaign, so its state lives and dies with the
  * row it is opened on.
  */
-export function QuickQueryPanel({ fleetHostId, initialQuery }: QuickQueryPanelProps) {
+export function QuickQueryPanel({ fleetHostId, deviceName, initialQuery }: QuickQueryPanelProps) {
   const [query, setQuery] = useState(initialQuery);
-  const test = useQueryTestRun();
+  const hostName = useCallback(({ fleetName }: { fleetName: string }) => deviceName || fleetName, [deviceName]);
+  const test = useQueryTestRun({ hostName });
 
   const canRun = Boolean(query.trim()) && !test.isActive;
 
