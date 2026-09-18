@@ -10,6 +10,7 @@ import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-appro
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import { useEffectiveDeviceRemoteAccessMode } from '../../hooks/use-remote-access-policy';
 import { mockRemoteAccessDecision } from '../../services/remote-access-approval-service';
+import { RemoteAccessSessionProvider } from './remote-access-session-context';
 
 interface RemoteAccessGateProps {
   deviceId: string;
@@ -72,12 +73,18 @@ export function RemoteAccessGate({
 
   // Policy sync (CU-86akeqw8b): the effective mode decides the flow shape -
   // DENY_ACCESS never requests, NOTIFY_ONLY / SILENT_ACCESS auto-approve on
-  // the service side.
-  const effectiveMode = useEffectiveDeviceRemoteAccessMode({ machineId: deviceId, id: deviceId, organizationId });
-  const policyLoading = gate === 'on' && effectiveMode === undefined;
-  // Either the policy read says DENY up front, or a create raced a policy
-  // change and came back DENIED with the resolved mode recorded.
-  const policyDenied = effectiveMode === 'DENY_ACCESS' || approval.request?.resolvedMode === 'DENY_ACCESS';
+  // the service side. The pre-read exists for the mock only: the real API
+  // resolves the policy inside create and answers DENIED with the mode
+  // recorded, so against it the response is the only source of truth.
+  const effectiveMode = useEffectiveDeviceRemoteAccessMode(
+    approval.isMock ? { machineId: deviceId, id: deviceId, organizationId } : null,
+  );
+  const policyLoading = gate === 'on' && approval.isMock && effectiveMode === undefined;
+  // Either the mock policy read says DENY up front, or create came back
+  // DENIED by policy (DENY_ACCESS recorded as the resolved mode).
+  const policyDenied =
+    (approval.isMock && effectiveMode === 'DENY_ACCESS') ||
+    (approval.request?.status === 'DENIED' && approval.request.mode === 'DENY_ACCESS');
 
   // Nothing to type - fire the request as soon as the policy is known. Keyed
   // off `state === 'idle'` rather than a one-shot flag: StrictMode's dev
@@ -104,7 +111,13 @@ export function RemoteAccessGate({
 
   if (gate === 'off') return <>{children}</>;
   if (gate === 'loading') return <CompactPageLoader />;
-  if (approval.state === 'approved') return <>{children}</>;
+  if (approval.state === 'approved') {
+    return (
+      <RemoteAccessSessionProvider requestId={approval.request?.requestId ?? null}>
+        {children}
+      </RemoteAccessSessionProvider>
+    );
+  }
 
   const target = deviceName || 'this device';
 
@@ -165,7 +178,7 @@ export function RemoteAccessGate({
         >
           Cancel Request
         </Button>
-        {showMockTools && request && (
+        {approval.isMock && showMockTools && request && (
           <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)] rounded-md border border-dashed border-ods-border p-[var(--spacing-system-sf)]">
             <span className="text-ods-text-muted text-h6">Mock service - simulate the end user's decision</span>
             <div className="flex items-stretch gap-[var(--spacing-system-xsf)]">
@@ -203,12 +216,20 @@ export function RemoteAccessGate({
     );
   } else if (approval.state === 'denied') {
     // "Access declined" mockup (1036-31838): a single way out, no retry - the
-    // technician asks again by starting over from the device page.
+    // technician asks again by starting over from the device page. The copy
+    // tells a user's Decline from the policy fallback (no client to ask, or no
+    // answer, with the fallback set to Deny) without a GET - decisionSource
+    // comes with the decision event / the request object.
+    const fallback = approval.request?.decisionSource === 'FALLBACK';
     body = (
       <NoData
         icon={<ScanXmarkIcon />}
         title="Remote access declined"
-        description="The user declined your remote access request."
+        description={
+          fallback
+            ? `Nobody on ${target} could answer the request, and the remote access policy denies access in that case.`
+            : 'The user declined your remote access request.'
+        }
         button={
           <Button type="button" variant="outline" onClick={onBack}>
             Back to Device Details
@@ -217,18 +238,32 @@ export function RemoteAccessGate({
       />
     );
   } else {
-    // timed_out / error: no dedicated mockups - same placeholder pattern as
-    // the declined and connection-failed screens, with a Retry.
+    // timed_out / busy / unreachable / error: no dedicated mockups - same
+    // placeholder pattern as the declined and connection-failed screens, with
+    // a Retry.
     const copy =
       approval.state === 'timed_out'
         ? {
             title: 'No response',
             description: `Nobody answered the request on ${target} before it expired.`,
           }
-        : {
-            title: 'Request failed',
-            description: approval.error ?? 'Something went wrong while requesting access.',
-          };
+        : approval.state === 'busy'
+          ? {
+              title: 'Device is busy',
+              description:
+                approval.errorCode === 'DEVICE_HAS_ACTIVE_SESSION'
+                  ? `Another technician has an active remote session on ${target}. Try again once it ends.`
+                  : `Another technician is waiting for approval on ${target}. Try again in a moment.`,
+            }
+          : approval.state === 'unreachable'
+            ? {
+                title: "Couldn't reach the device",
+                description: `The request could not be delivered to ${target}. Nothing was sent, so it is safe to retry.`,
+              }
+            : {
+                title: 'Request failed',
+                description: approval.error ?? 'Something went wrong while requesting access.',
+              };
     body = (
       <NoData
         icon={<ScanXmarkIcon />}
