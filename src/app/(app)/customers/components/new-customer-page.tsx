@@ -18,18 +18,17 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
-import { getFullImageUrl } from '@/lib/image-url';
 import { routes, TAB_IDS } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { deleteWithAuth, uploadWithAuth } from '@/lib/upload-with-auth';
-import { dashboardQueryKeys } from '../../dashboard/utils/query-keys';
 import { useCreateCustomer } from '../hooks/use-create-customer';
-import { customerDetailsQueryKeys, useCustomerDetails } from '../hooks/use-customer-details';
+import { useCustomerDetails } from '../hooks/use-customer-details';
+import { useCustomerLogo } from '../hooks/use-customer-logo';
 import { useUpdateCustomer } from '../hooks/use-update-customer';
+import { invalidateCustomerQueries } from '../utils/invalidate-customer-queries';
 import {
   CustomerAiAssistantAppearance,
   type CustomerAppearanceHandle,
@@ -55,8 +54,6 @@ interface FormState {
   physicalAddress: string;
   mailingAddress: string;
   mailingSameAsPhysical: boolean;
-  imageUrl?: string;
-  imageHash?: string;
 }
 
 interface PreservedFields {
@@ -113,6 +110,10 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   // the edit form renders blank and Save PATCHes those blanks over the real
   // customer — website, notes, addresses, contacts.
   const { organization, hasData: customerLoaded } = useCustomerDetails(organizationId);
+  const logo = useCustomerLogo({
+    organizationId,
+    stored: organization ? { imageUrl: organization.imageUrl, imageHash: organization.imageHash } : null,
+  });
 
   const handleBack = useSafeBack(organizationId ? routes.customers.details(organizationId) : routes.customers.list());
 
@@ -121,10 +122,6 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [didPrefill, setDidPrefill] = useState(false);
 
-  // For new orgs: file is held in memory until creation, then uploaded.
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | undefined>(undefined);
-  const previewUrlRef = useRef<string | undefined>(undefined);
   // Let "Save Customer" also persist the AI configuration / guardrails blocks.
   // Only one AI block is mounted at a time (the flag picks old vs new), so at
   // most one of these refs is set; both handle shapes are `{ validate, commit }`.
@@ -135,7 +132,6 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
 
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
   const showImageUploader = isSaasTenant;
-  const displayedImage = pendingPreviewUrl || getFullImageUrl(form.imageUrl, form.imageHash);
 
   // Per-customer AI blocks: SaaS-only (they rely on the openframe-saas-ai-agent
   // service, absent in self-hosted) and edit-mode only (they need an org id to
@@ -194,14 +190,6 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
 
   const set = (partial: Partial<FormState>) => setForm(prev => ({ ...prev, ...partial }));
 
-  // Revoke blob URLs on unmount
-  useEffect(
-    () => () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    },
-    [],
-  );
-
   // Prefill once, from the fetched organization, during render rather than in an
   // effect: an effect renders the blank form one more time after the data has
   // landed, which shows as a flash of empty fields on the edit route.
@@ -217,8 +205,6 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
       physicalAddress: physical,
       mailingAddress: mailing,
       mailingSameAsPhysical: sameAsPhysical,
-      imageUrl: organization.imageUrl || undefined,
-      imageHash: organization.imageHash || undefined,
     });
 
     // The whole list, not the three named slots: the update endpoint replaces
@@ -248,79 +234,6 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   if (form.mailingSameAsPhysical && form.mailingAddress !== form.physicalAddress) {
     setForm(prev => ({ ...prev, mailingAddress: prev.physicalAddress }));
   }
-
-  const replacePendingPreview = (file: File | null) => {
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    if (file) {
-      const next = URL.createObjectURL(file);
-      previewUrlRef.current = next;
-      setPendingPreviewUrl(next);
-    } else {
-      previewUrlRef.current = undefined;
-      setPendingPreviewUrl(undefined);
-    }
-    setPendingFile(file);
-  };
-
-  const invalidateOrganizationImageQueries = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['organizations'] }),
-      queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.all }),
-      ...(organizationId
-        ? [queryClient.invalidateQueries({ queryKey: customerDetailsQueryKeys.detail(organizationId) })]
-        : []),
-    ]);
-  };
-
-  const handleImageChange = async (file: File) => {
-    if (organizationId) {
-      try {
-        const uploadedUrl = await uploadWithAuth(`/api/organizations/${organizationId}/image`, file);
-        // The image path is stable across uploads, so bust the cache with the
-        // upload time — otherwise the uploader keeps showing the old bytes.
-        set({ imageUrl: uploadedUrl, imageHash: String(Date.now()) });
-        // The image persists immediately (independent of Save), so refresh the
-        // cached org lists that render this logo with its hash elsewhere.
-        await invalidateOrganizationImageQueries();
-        toast({
-          title: 'Upload successful',
-          description: 'Customer image has been updated',
-          variant: 'success',
-        });
-      } catch (err) {
-        toast({
-          title: 'Upload failed',
-          description: err instanceof Error ? err.message : 'Failed to upload image',
-          variant: 'destructive',
-        });
-      }
-    } else {
-      replacePendingPreview(file);
-    }
-  };
-
-  const handleImageRemove = async () => {
-    if (organizationId && form.imageUrl) {
-      try {
-        await deleteWithAuth(`/api/organizations/${organizationId}/image`);
-        set({ imageUrl: undefined, imageHash: undefined });
-        await invalidateOrganizationImageQueries();
-        toast({
-          title: 'Delete successful',
-          description: 'Customer image has been deleted',
-          variant: 'success',
-        });
-      } catch (err) {
-        toast({
-          title: 'Delete failed',
-          description: err instanceof Error ? err.message : 'Failed to delete image',
-          variant: 'destructive',
-        });
-      }
-    } else {
-      replacePendingPreview(null);
-    }
-  };
 
   const handleSave = async () => {
     if (!form.name.trim() || isSubmitting) return;
@@ -369,16 +282,8 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
       }
 
       // Deferred logo upload for newly-created orgs
-      if (!organizationId && createdOrganizationId && pendingFile) {
-        try {
-          await uploadWithAuth(`/api/organizations/${createdOrganizationId}/image`, pendingFile);
-        } catch {
-          toast({
-            title: 'Warning',
-            description: 'Customer was created but logo upload failed',
-            variant: 'warning',
-          });
-        }
+      if (!organizationId && createdOrganizationId) {
+        await logo.flushPendingUpload(createdOrganizationId);
       }
 
       // Persist the AI overrides/reset (edit mode only). The customer is already
@@ -423,7 +328,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
         }
       }
 
-      await invalidateOrganizationImageQueries();
+      await invalidateCustomerQueries(queryClient, organizationId);
 
       toast({
         title: organizationId ? 'Customer updated' : 'Customer created',
@@ -472,9 +377,9 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
         {showImageUploader && (
           <div className="w-full shrink-0 lg:w-[316px]">
             <ImageUploader
-              value={displayedImage}
-              onChange={handleImageChange}
-              onRemove={handleImageRemove}
+              value={logo.displayedImage}
+              onChange={logo.handleImageChange}
+              onRemove={logo.handleImageRemove}
               objectFit="contain"
               label="Customer Logo"
               description="(Click here or drag and drop)"
