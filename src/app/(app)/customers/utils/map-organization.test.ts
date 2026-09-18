@@ -55,19 +55,6 @@ describe('mapOrganization contacts', () => {
     expect(mapped.contacts).toEqual([{ contactName: 'Only a name', title: '', phone: '', email: '' }]);
   });
 
-  it('still fills the three positional slots from the first three contacts', () => {
-    const mapped = mapOrganization(node({ contactInformation: { contacts: [1, 2].map(contact) } }));
-
-    expect(mapped.primary).toEqual({
-      name: 'Contact 1',
-      title: 'Title 1',
-      email: 'contact1@acme.com',
-      phone: '+1-555-0001',
-    });
-    expect(mapped.billing.name).toBe('Contact 2');
-    expect(mapped.technical).toEqual({ name: '', title: '', email: '', phone: '' });
-  });
-
   it('renders the "-" placeholder for a missing name, industry and website', () => {
     const mapped = mapOrganization(node({ name: null, category: null, websiteUrl: null }));
 

@@ -13,8 +13,6 @@ class ResizeObserverStub {
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
 
-const BLANK_CONTACT = { name: '', title: '', email: '', phone: '' };
-
 function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
   return {
     id: 'org-1',
@@ -27,9 +25,6 @@ function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
     physicalAddress: '',
     mailingAddress: '',
     contacts: [],
-    primary: { ...BLANK_CONTACT },
-    billing: { ...BLANK_CONTACT },
-    technical: { ...BLANK_CONTACT },
     mrrUsd: null,
     contractStart: null,
     contractEnd: null,

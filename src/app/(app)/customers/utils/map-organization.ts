@@ -1,12 +1,5 @@
 import type { ContactPersonDto } from '../hooks/use-create-customer';
 
-export interface CustomerContactSlot {
-  name: string;
-  title: string;
-  email: string;
-  phone: string;
-}
-
 export interface CustomerDetails {
   id: string;
   organizationId: string;
@@ -24,9 +17,6 @@ export interface CustomerDetails {
    * contact the next Save deletes.
    */
   contacts: ContactPersonDto[];
-  primary: CustomerContactSlot;
-  billing: CustomerContactSlot;
-  technical: CustomerContactSlot;
   mrrUsd: number | null;
   contractStart: string | null;
   contractEnd: string | null;
@@ -88,15 +78,6 @@ function formatAddress(addr?: OrganizationAddressNode | null): string {
   return parts.filter(Boolean).join(', ');
 }
 
-function toContactSlot(contact: OrganizationContactNode | undefined): CustomerContactSlot {
-  return {
-    name: contact?.contactName || '',
-    title: contact?.title || '',
-    email: contact?.email || '',
-    phone: contact?.phone || '',
-  };
-}
-
 function toContactDto(contact: OrganizationContactNode): ContactPersonDto {
   return {
     contactName: contact.contactName || '',
@@ -123,9 +104,6 @@ export function mapOrganization(org: OrganizationNode): CustomerDetails {
     physicalAddress: formatAddress(org.contactInformation?.physicalAddress),
     mailingAddress: formatAddress(org.contactInformation?.mailingAddress),
     contacts: contacts.map(toContactDto),
-    primary: toContactSlot(contacts[0]),
-    billing: toContactSlot(contacts[1]),
-    technical: toContactSlot(contacts[2]),
     mrrUsd: typeof org.monthlyRevenue === 'number' ? org.monthlyRevenue : null,
     contractStart: org.contractStartDate || null,
     contractEnd: org.contractEndDate || null,

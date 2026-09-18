@@ -6,16 +6,15 @@ import { useEffect, useRef, useState } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
 import { deleteWithAuth, uploadWithAuth } from '@/lib/upload-with-auth';
 import { invalidateCustomerQueries } from '../utils/invalidate-customer-queries';
+import { useCustomerDetails } from './use-customer-details';
 
-export interface StoredCustomerLogo {
+interface StoredCustomerLogo {
   imageUrl?: string | null;
   imageHash?: string | null;
 }
 
 interface UseCustomerLogoOptions {
   organizationId: string | null;
-  /** The logo on the record (edit mode). `null` until the record arrives, and always on create. */
-  stored: StoredCustomerLogo | null;
 }
 
 const logoEndpoint = (organizationId: string) => `/api/organizations/${organizationId}/image`;
@@ -28,9 +27,14 @@ const logoEndpoint = (organizationId: string) => `/api/organizations/${organizat
  * catches up, so fresh bytes show at once and a deleted logo does not reappear
  * from the cache.
  */
-export function useCustomerLogo({ organizationId, stored }: UseCustomerLogoOptions) {
+export function useCustomerLogo({ organizationId }: UseCustomerLogoOptions) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // The record's own logo (edit mode); the same query the form hook observes.
+  const { organization } = useCustomerDetails(organizationId);
+  const stored: StoredCustomerLogo | null = organization
+    ? { imageUrl: organization.imageUrl, imageHash: organization.imageHash }
+    : null;
 
   const [override, setOverride] = useState<StoredCustomerLogo | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);

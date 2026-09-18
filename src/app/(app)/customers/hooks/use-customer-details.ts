@@ -6,7 +6,7 @@ import { queryState } from '@/lib/query-state';
 import { GET_ORGANIZATION_BY_ORGANIZATION_ID_QUERY } from '../queries/customers-queries';
 import { type CustomerDetails, mapOrganization, type OrganizationNode } from '../utils/map-organization';
 
-export type { CustomerContactSlot, CustomerDetails } from '../utils/map-organization';
+export type { CustomerDetails } from '../utils/map-organization';
 
 export const customerDetailsQueryKeys = {
   all: ['organization-detail'] as const,
