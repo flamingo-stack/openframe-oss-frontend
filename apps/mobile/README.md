@@ -1,138 +1,101 @@
-# openframe-mobile
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://shdrojejslhgnojzkzak.supabase.co/storage/v1/object/public/public/doc-orchestrator/logos/1771371901777-lc3cse-logo-openframe-full-dark-bg.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://shdrojejslhgnojzkzak.supabase.co/storage/v1/object/public/public/doc-orchestrator/logos/1771372526604-k3y1w-logo-openframe-full-light-bg.png">
+    <img alt="OpenFrame" src="https://shdrojejslhgnojzkzak.supabase.co/storage/v1/object/public/public/doc-orchestrator/logos/1771372526604-k3y1w-logo-openframe-full-light-bg.png" width="400">
+  </picture>
+</div>
 
-Native **iOS + Android** shell for OpenFrame, built with **Capacitor 8**. It wraps the
-**existing `openframe-frontend` static export** — there is **no UI code in this repo**.
-The same frontend bundle that runs on the web and desktop runs here; this project adds
-the native container plus the native glue the web build can't provide: system-browser
-OAuth, Keychain/Keystore token storage with biometric unlock, push, and native chrome.
+<p align="center">
+  <a href="LICENSE.md"><img alt="License" src="https://img.shields.io/badge/LICENSE-FLAMINGO%20AI%20Unified%20v1.0-%23FFC109?style=for-the-badge&labelColor=white"></a>
+</p>
 
-Strategy & rationale: `openframe-desktop/docs/mobile-app-plan.md` and
-`…/native-apps-strategy.md`. Frontend static-export work: the frontend repo's
-`docs/static-export-migration.md`.
+# OpenFrame SaaS Mobile
 
-## Layout
+`openframe-mobile` is the **native mobile shell** for the OpenFrame MSP platform, built with [Capacitor](https://capacitorjs.com/). It wraps the `openframe-frontend` static web export in a thin native host for iOS and Android, adding only what the web can't do on its own — push notifications, biometric-gated authentication, secure token storage, and native file pickers.
 
+There is **no UI source code in this repository**. All screens, routing, and application logic live in the `openframe-frontend` codebase; this repo consumes a *built static bundle* of that frontend and ships it inside a native app container.
+
+## Features
+
+- **Thin native shell** — the shared `openframe-frontend` UI is bundled as a static export (`www/`) and loaded inside a Capacitor `WKWebView` (iOS) / WebView (Android). No duplicated UI logic between web and mobile.
+- **Native authentication** — hand-rolled `NativeAuth` Capacitor plugin (Swift on iOS, Java on Android) drives OAuth login via Custom Tabs/`ASWebAuthenticationSession`, dev-ticket-to-token exchange, and biometric-gated token access bound at the OS layer (Keychain on iOS, Android Keystore on Android) rather than an insecure "boolean gate" pattern.
+- **Secure token storage & lifecycle** — `SecureTokenStore` encrypts the access/refresh token pair as a single combined blob using AES-256-GCM (Android Keystore) or Keychain (iOS), with an optional biometric-gated hybrid envelope mode. `TokenLifecycle` is a process singleton that manages single-flight token refresh, foreground/background polling, and propagates token state to the web view.
+- **Push notifications** — data-only FCM/APNs push payloads are rendered as native tray notifications with action buttons (approve/reject/reply), backed by `PushNotifications`, `OpenFrameMessagingService`, `NotificationActionReceiver`, and `NotificationActionWorker`. All push is brokered through Firebase/FCM.
+- **Native file I/O** — `NativeFiles` Capacitor plugin picks, uploads, and downloads files natively (via `HttpURLConnection`/`ContentResolver` on Android), working around WebView limitations where browser-native download/upload patterns silently fail.
+- **Multi-environment builds** — separate `prod`/`stage`/`dev` app identities on both platforms (distinct bundle IDs/application IDs, Firebase projects, and OAuth schemes) so multiple environments can be installed side by side on the same device.
+- **Runtime-configured bundle** — the static web bundle is tenant-agnostic; gateway host, app mode, and OAuth scheme are injected into `window.__ENV` at build time via `scripts/inject-env.mjs`, so the same bundle can target dev/stage/prod gateways without a rebuild of the frontend itself.
+
+## Technology Stack
+
+- **Capacitor 8** — native runtime bridge (`@capacitor/core`, `@capacitor/ios`, `@capacitor/android`)
+- **Swift** (iOS) — `AppDelegate`, `NativeAuthPlugin`, `TokenLifecycle`, `SecureTokenStore`, notification handling
+- **Java** (Android) — `MainActivity`, `NativeAuthPlugin`, `NativeFilesPlugin`, `TokenLifecycle`, `SecureTokenStore`, `PushNotifications`, `OpenFrameMessagingService`
+- **Swift Package Manager** — resolves the Capacitor native runtime on iOS (no CocoaPods)
+- **Gradle** with product flavors (`prod`/`stage`/`dev`) — Android multi-environment builds
+- **@capacitor-firebase/messaging** — push notification transport (FCM brokers APNs on iOS)
+- **TypeScript / Node.js** — build glue scripts (`scripts/build-web.sh`, `scripts/inject-env.mjs`, `scripts/make-placeholder-web.mjs`)
+- **openframe-frontend** (external, Next.js) — the actual UI, built as a static export and staged into `www/`
+
+## Architecture
+
+```mermaid
+flowchart TD
+    FE["openframe-frontend (Next.js static export)"] -->|"npm run build:web"| WWW["www/ staged bundle"]
+    WWW -->|"inject window.__ENV"| WWW
+    WWW -->|"npx cap sync"| IOSPUB["ios/App/App/public/"]
+    WWW -->|"npx cap sync"| ANDPUB["android/app/src/main/assets/public/"]
+    IOSPUB --> IOSAPP["OpenFrame.app / .ipa (iOS)"]
+    ANDPUB --> ANDAPP["APK / AAB (Android)"]
+    IOSAPP -->|"NativeAuth, NativeFiles, Push"| GATEWAY["OpenFrame Gateway (BFF)"]
+    ANDAPP -->|"NativeAuth, NativeFiles, Push"| GATEWAY
 ```
-capacitor.config.ts     # appId / appName / webDir / plugin config (+ optional dev server.url)
-www/                     # the staged web bundle (git-ignored build artifact)
-ios/                     # Xcode project (Swift Package Manager, no CocoaPods)
-android/                 # Gradle project (prod/stage/dev product flavors)
-assets/                  # icon + splash vector sources for @capacitor/assets
-dev/push-sample.apns     # sample payload for `npm run push:demo`
-scripts/
-  make-placeholder-web.mjs   # writes a dev stub into www/ (no frontend build needed)
-  build-web.sh               # build openframe-frontend export → www/ + inject env + sync
-  inject-env.mjs             # prepend window.__ENV so the bundle resolves its tenant host
-  build-ios-{stage,dev}.sh       # archive + export a TestFlight .ipa
-  build-android-{stage,dev}.sh   # assemble the flavor APK + Firebase App Distribution
-docs/project-structure.md      # how it all fits: bundling, Capacitor code, what's generated
-docs/using-native-apis.md      # calling native APIs from TS (worked push example)
-docs/run-on-iphone.md          # run a dev build on a physical iPhone / simulator
-docs/release-ios-stage.md      # stage TestFlight lane + one-time ASC/APNs setup
-docs/release-android-stage.md  # stage App Distribution lane + one-time setup
-```
 
-How the frontend is bundled, where the Capacitor code lives, and exactly what each
-platform build generates: **[docs/project-structure.md](docs/project-structure.md)**.
+## Quick Start
 
-## Quickstart
+### Prerequisites
+
+- Node.js 18+
+- For iOS: full Xcode (from the Mac App Store — Command Line Tools alone are not enough), an Apple ID added to Xcode
+- For Android: Android Studio / JDK
+- No CocoaPods required — Capacitor 8 resolves iOS native dependencies via Swift Package Manager
+
+### iOS Simulator (fastest path, no device or Apple account needed)
 
 ```bash
 npm install
-npm run web:placeholder      # or: npm run build:web   (real frontend export)
+npm run web:placeholder        # or: npm run build:web   (real frontend export)
 npx cap sync ios
-npx cap open ios             # → Xcode: set signing Team, pick your iPhone, Run
+npx cap run ios                # choose an iPhone simulator from the list
 ```
 
-Android (builds with Android Studio's bundled JBR — no system Java needed):
+### On a physical iPhone
 
 ```bash
-cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
-  ./gradlew assembleDevDebug          # or open android/ in Android Studio
+npm install
+npm run web:placeholder        # dev stub — proves the device pipeline
+# — or — the real openframe-frontend export:
+# FRONTEND_DIR=~/flamingo/openframe-frontend \
+# NEXT_PUBLIC_TENANT_HOST_URL=https://<your-tenant> \
+#   npm run build:web
+
+npx cap sync ios
+npx cap open ios
 ```
 
-Full device guide incl. signing, Developer Mode, and a live-reload loop:
-**[docs/run-on-iphone.md](docs/run-on-iphone.md)**.
+Then in Xcode: select the **App** target → **Signing & Capabilities**, enable automatic signing, select your Team, plug in the iPhone, trust the computer, and press **Run**.
 
-## How the bundle gets here
+> `ios/` is already committed to this repo (scaffolded once via `cap add ios`); you do not need to re-run `cap add ios` — just `cap sync` after each web build.
 
-`www/` is a build artifact, not source. A fresh clone must stage a bundle before either
-platform will build. Either use the dev stub (`npm run web:placeholder`) or build the
-real export:
+### Android
 
-```bash
-NEXT_PUBLIC_SHARED_HOST_URL=https://<auth-host> \
-NEXT_PUBLIC_APP_MODE=saas-tenant \
-  npm run build:web
-```
+Android support is added via `npx cap add android`, using a parallel Gradle project with `prod`/`stage`/`dev` build flavors. Building requires Android Studio/JDK; see the release documentation linked below for flavor-specific build commands.
 
-One binary serves all tenants: the shell discovers the tenant at login (email →
-`/sas/tenant/discover` on the shared host) and learns/persists the tenant host from
-the OAuth callback. To pin a single tenant instead (dev/self-hosted), add
-`NEXT_PUBLIC_TENANT_HOST_URL=https://<tenant>`. Frontend checkout defaults to
-`~/flamingo/openframe-frontend`; override with `FRONTEND_DIR`.
+## Documentation
 
-`build:web` runs `OPENFRAME_BUILD_TARGET=export npm run build` in the frontend, copies
-its `dist/` into `www/`, injects `window.__ENV`, and runs `cap sync`. **Env vars are
-baked at build time** — re-run the build when any of them change.
+📚 See the [Documentation](./docs/README.md) for comprehensive guides, including project structure, native API integration patterns, running on a physical device, and release processes for iOS and Android.
 
-## Environments
-
-Three app identities install side by side, so a tester can hold prod, stage, and dev at
-once:
-
-| | prod | stage | dev |
-|---|---|---|---|
-| bundle id / applicationId | `ai.openframe.mobile` | `…​.stage` | `…​.dev` |
-| launcher name | OpenFrame | OF Stage | OF Dev |
-| iOS | `App` scheme, Debug/Release | `App Stage`, `Debug-stage`/`Release-stage` | `App Dev`, `Debug-dev`/`Release-dev` |
-| Android | `prodDebug`/`prodRelease` | `stageDebug`/… | `devDebug`/… |
-
-Release lanes build the matching web bundle, then ship:
-
-```bash
-NEXT_PUBLIC_SHARED_HOST_URL=https://<stage auth host> BUILD_NUMBER=<n> \
-  scripts/build-ios-stage.sh          # → build/stage/*.ipa for TestFlight
-
-NEXT_PUBLIC_SHARED_HOST_URL=https://<stage auth host> RELEASE_NOTES="what changed" \
-  scripts/build-android-stage.sh      # → Firebase App Distribution (qa group)
-```
-
-`WEB_ONLY=1` stops after staging the bundle (then run from Xcode/Android Studio);
-`SKIP_WEB=1` reuses the staged bundle; `SKIP_DISTRIBUTE=1` builds the APK without
-uploading. Details and one-time setup: **[docs/release-ios-stage.md](docs/release-ios-stage.md)**,
-**[docs/release-android-stage.md](docs/release-android-stage.md)**.
-
-## Firebase config (required, not in the repo)
-
-Every `google-services.json` / `GoogleService-Info.plist` is **git-ignored** and supplied
-out-of-band — see `android/app/src/README.md`. A missing file fails the build (the iOS
-"Select Firebase config" phase and Gradle's `processGoogleServices` both hard-error).
-
-```
-android/app/src/{prod,stage,dev}/google-services.json
-ios/App/App/GoogleService-Info.plist              # prod
-ios/App/App/GoogleServices/{stage,dev}/GoogleService-Info.plist
-```
-
-Push additionally needs the APNs `.p8` uploaded to each Firebase iOS app and the Push
-capability on the App ID.
-
-## Notes
-
-- **Capacitor 8 → Swift Package Manager.** No CocoaPods. Open `ios/App/App.xcodeproj`
-  directly; Xcode resolves the Capacitor packages.
-- **Push notifications are wired**: all-FCM via `@capacitor-firebase/messaging` (FCM
-  brokers APNs) + `aps-environment` entitlement + remote-notification background mode.
-  Foreground banners are suppressed on both platforms; the JS side lives in the frontend
-  (`src/lib/native-push.ts`, post-login). Device builds need a **paid** Apple team
-  (free provisioning rejects the push entitlement); simulator builds are unaffected.
-- **Auth + biometrics are custom native code**, not plugins — `NativeAuthPlugin`
-  (Swift/Java) does system-browser login, dev-ticket exchange, and one-item
-  Keychain/Keystore token storage with an optional biometric gate. See CLAUDE.md.
-- **Generated files** — `capacitor.config.json`, `config.xml`, `CapApp-SPM/Package.swift`
-  are produced by `cap sync`; edit `capacitor.config.ts` instead.
-- A live-reload `server.url` in `capacitor.config.ts` must be removed before any
-  shippable build — the release lanes hard-fail if one is present.
-- Other native plugins (camera, barcode scanning) are intentionally not installed yet —
-  see mobile-app-plan.md §6.
+---
+<div align="center">
+  Built with 💛 by the <a href="https://www.flamingo.run/about"><b>Flamingo</b></a> team
+</div>
