@@ -12,7 +12,7 @@ import {
   TICKETS_DEFAULT_SORT,
   TRANSITION_TICKET_MUTATION,
 } from '../queries/ticket-queries';
-import type { Dialog, DialogOwnerEnum, DialogStatus, Message } from '../types/dialog.types';
+import type { Dialog, DialogOwnerEnum, DialogStatus, Message, TicketActivityState } from '../types/dialog.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import type {
@@ -50,6 +50,8 @@ interface TicketNode {
   assigneeImage?: { imageUrl: string; hash?: string };
   tags?: Array<{ id: string; key: string; color?: string }>;
   unreadNotificationCount?: number;
+  lastActivityAt?: string;
+  activityState?: TicketActivityState;
   escalatedByUser?: boolean | null;
   resolvedBy?: string | null;
   pendingApproval?: {
@@ -175,6 +177,8 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     assigneeImageHash: ticket.assigneeImage?.hash,
     tags: ticket.tags,
     unreadNotificationCount: ticket.unreadNotificationCount,
+    lastActivityAt: ticket.lastActivityAt ?? null,
+    activityState: ticket.activityState,
     escalatedByUser: ticket.escalatedByUser,
     pendingApproval: ticket.pendingApproval ?? undefined,
     attachments: ticket.attachments,
@@ -254,6 +258,7 @@ export class TicketService implements TicketServiceInterface {
         assigneeIds: params.assigneeIds?.length ? params.assigneeIds : undefined,
         tagIds: params.tagIds?.length ? params.tagIds : undefined,
         hasUnreadNotifications: params.unreadOnly || undefined,
+        activity: params.activity?.length ? params.activity : undefined,
       },
     });
 
