@@ -2,7 +2,6 @@
 'use no memo';
 
 import {
-  Input,
   LoadError,
   Select,
   SelectContent,
@@ -13,37 +12,27 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { type Control, Controller, useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
   useTenantRemoteAccessPolicy,
   useUpdateTenantRemoteAccessPolicy,
 } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import {
-  REMOTE_ACCESS_FALLBACK_META,
-  REMOTE_ACCESS_FALLBACKS,
   REMOTE_ACCESS_MODE_META,
   REMOTE_ACCESS_MODES,
-  type RemoteAccessFallback,
   type TenantRemoteAccessPolicy,
 } from '@/app/(app)/devices/types/remote-access';
 import { InfoCell } from '@/app/components/shared/info-cell';
 
 export const DEVICE_GUARDRAILS_FORM_ID = 'ai-settings-device-guardrails-form';
 
-const timeoutField = (min: number, max: number) =>
-  z
-    .number('Enter a number of seconds')
-    .int('Whole seconds only')
-    .min(min, `At least ${min}s`)
-    .max(max, `At most ${max}s`);
-
+// TEMPORARY (decision 2026-09-18): the approval timeout, delivery timeout and
+// the two fallback settings are hidden from this tab. The policy model keeps
+// them (TenantRemoteAccessPolicy / CU-86akeqw6h) and Save carries the stored
+// values through untouched, so bringing the fields back is a UI-only change.
 const deviceGuardrailsSchema = z.object({
   mode: z.enum(REMOTE_ACCESS_MODES),
-  approvalTimeoutSeconds: timeoutField(10, 600),
-  deliveryTimeoutSeconds: timeoutField(1, 60),
-  noClientFallback: z.enum(REMOTE_ACCESS_FALLBACKS),
-  noAnswerFallback: z.enum(REMOTE_ACCESS_FALLBACKS),
 });
 
 type DeviceGuardrailsFormValues = z.infer<typeof deviceGuardrailsSchema>;
@@ -57,23 +46,18 @@ interface DeviceGuardrailsTabProps {
 
 /**
  * "Device Guardrails" tab on AI Settings (CU-86akeqw8b): the tenant-default
- * remote access permission plus the approval timeout/fallback settings from
- * the policy model on CU-86akeqw6h. Edit mode + Save are owned by the shared
- * AiSettingsLayout actions; Save submits this form via DEVICE_GUARDRAILS_FORM_ID.
+ * remote access permission from the policy model on CU-86akeqw6h. Edit mode +
+ * Save are owned by the shared AiSettingsLayout actions; Save submits this
+ * form via DEVICE_GUARDRAILS_FORM_ID.
  *
- * The mode card follows the access-level designs; the timeout/fallback form
- * has no mockups by design decision - it reuses the guardrails panel layout.
+ * The mode card follows the access-level designs. The timeout/fallback
+ * settings of the same policy are temporarily hidden (see the schema note).
  */
 export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTabProps) {
   const { data: policy, isLoading, error, refetch } = useTenantRemoteAccessPolicy();
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <Skeleton className="h-20 w-full rounded-md" />
-        <Skeleton className="h-40 w-full rounded-md" />
-      </div>
-    );
+    return <Skeleton className="h-20 w-full rounded-md" />;
   }
 
   if (error || !policy) {
@@ -94,25 +78,10 @@ export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTab
 
 function DeviceGuardrailsView({ policy }: { policy: TenantRemoteAccessPolicy }) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      {/* Same "table-cell" card as the customer tab: 60px/12px padding on
-          mobile, 80px/16px from md (`--spacing-system-m` is that 12->16 step). */}
-      <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] md:min-h-20">
-        <InfoCell value={REMOTE_ACCESS_MODE_META[policy.mode].label} label="Default Remote Access Permission" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)] md:grid-cols-2">
-        <InfoCell value={`${policy.approvalTimeoutSeconds} seconds`} label="Approval Timeout" />
-        <InfoCell value={`${policy.deliveryTimeoutSeconds} seconds`} label="Delivery Timeout" />
-        <InfoCell
-          value={REMOTE_ACCESS_FALLBACK_META[policy.noClientFallback].label}
-          label="If No Client Is Connected"
-        />
-        <InfoCell
-          value={REMOTE_ACCESS_FALLBACK_META[policy.noAnswerFallback].label}
-          label="If The User Does Not Answer"
-        />
-      </div>
+    /* Same "table-cell" card as the customer tab: 60px/12px padding on
+       mobile, 80px/16px from md (`--spacing-system-m` is that 12->16 step). */
+    <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] md:min-h-20">
+      <InfoCell value={REMOTE_ACCESS_MODE_META[policy.mode].label} label="Default Remote Access Permission" />
     </div>
   );
 }
@@ -123,12 +92,13 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
 
   const form = useForm<DeviceGuardrailsFormValues>({
     resolver: zodResolver(deviceGuardrailsSchema),
-    defaultValues: policy,
+    defaultValues: { mode: policy.mode },
   });
 
   const handleSubmit = form.handleSubmit(async values => {
     try {
-      await updatePolicy(values);
+      // The hidden timeout/fallback fields are sent back as stored.
+      await updatePolicy({ ...policy, ...values });
       toast({ title: 'Saved', description: 'Remote access settings updated', variant: 'success' });
       onSaved();
     } catch (err) {
@@ -141,11 +111,7 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
   });
 
   return (
-    <form
-      id={DEVICE_GUARDRAILS_FORM_ID}
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-[var(--spacing-system-l)]"
-    >
+    <form id={DEVICE_GUARDRAILS_FORM_ID} onSubmit={handleSubmit}>
       <Controller
         name="mode"
         control={form.control}
@@ -170,82 +136,6 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
           </Select>
         )}
       />
-
-      <div className="flex flex-col gap-[var(--spacing-system-s)] md:flex-row md:gap-[var(--spacing-system-l)]">
-        <div className="min-w-0 flex-1">
-          <TimeoutInput name="approvalTimeoutSeconds" label="Approval Timeout (seconds)" control={form.control} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <TimeoutInput name="deliveryTimeoutSeconds" label="Delivery Timeout (seconds)" control={form.control} />
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-[var(--spacing-system-s)] md:flex-row md:gap-[var(--spacing-system-l)]">
-        <div className="min-w-0 flex-1">
-          <FallbackSelect name="noClientFallback" label="If No Client Is Connected" control={form.control} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <FallbackSelect name="noAnswerFallback" label="If The User Does Not Answer" control={form.control} />
-        </div>
-      </div>
     </form>
-  );
-}
-
-function TimeoutInput({
-  name,
-  label,
-  control,
-}: {
-  name: 'approvalTimeoutSeconds' | 'deliveryTimeoutSeconds';
-  label: string;
-  control: Control<DeviceGuardrailsFormValues>;
-}) {
-  return (
-    <Controller
-      name={name}
-      control={control}
-      render={({ field, fieldState }) => (
-        <Input
-          type="number"
-          label={label}
-          value={Number.isNaN(field.value) ? '' : field.value}
-          // An empty field must fail validation as "missing", not coerce to 0.
-          onChange={e => field.onChange(e.target.value === '' ? Number.NaN : Number(e.target.value))}
-          error={fieldState.error?.message}
-        />
-      )}
-    />
-  );
-}
-
-function FallbackSelect({
-  name,
-  label,
-  control,
-}: {
-  name: 'noClientFallback' | 'noAnswerFallback';
-  label: string;
-  control: Control<DeviceGuardrailsFormValues>;
-}) {
-  return (
-    <Controller
-      name={name}
-      control={control}
-      render={({ field, fieldState }) => (
-        <Select value={field.value} onValueChange={value => field.onChange(value as RemoteAccessFallback)}>
-          <SelectTrigger label={label} error={fieldState.error?.message}>
-            <SelectValue placeholder="Select a fallback" />
-          </SelectTrigger>
-          <SelectContent>
-            {REMOTE_ACCESS_FALLBACKS.map(fallback => (
-              <SelectItem key={fallback} value={fallback}>
-                {REMOTE_ACCESS_FALLBACK_META[fallback].label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-    />
   );
 }
