@@ -34,7 +34,7 @@ export type RemoteAccessRequestStatus =
 export type RemoteAccessDecisionSource = 'USER' | 'POLICY' | 'FALLBACK' | 'TECHNICIAN' | 'TIMEOUT';
 
 export interface RemoteAccessRequest {
-  /** A plain 26-char ULID; the first token of the MeshCentral relay id (see buildRemoteAccessRelayId). */
+  /** A plain 26-char ULID; the first token of the MeshCentral relay id (see buildRemoteAccessRelayIdPrefix). */
   requestId: string;
   /** The OpenFrame machine id - what the device pages carry as `?id=` and what the backend resolves. */
   deviceId: string;
