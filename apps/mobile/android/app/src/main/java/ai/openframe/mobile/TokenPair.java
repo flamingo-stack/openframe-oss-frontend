@@ -1,3 +1,4 @@
+// Token storage types for the mobile shell.
 package ai.openframe.mobile;
 
 import com.getcapacitor.JSObject;
