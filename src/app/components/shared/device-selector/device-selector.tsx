@@ -27,6 +27,7 @@ import { getDeviceFilterColumns } from '@/app/(app)/devices/components/devices-t
 import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
 import { useTagFilterModal } from '@/app/(app)/devices/hooks/use-tag-filter-modal';
 import type { Device, DeviceFilters } from '@/app/(app)/devices/types/device.types';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { DevicesFilterToolbar } from '@/app/components/shared';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
@@ -453,7 +454,7 @@ export function DeviceSelector({
                 )}
               </div>
               <div className="flex min-w-0 flex-col">
-                <TruncateText>{device.displayName || device.hostname}</TruncateText>
+                <TruncateText>{getDeviceName(device)}</TruncateText>
                 <TruncateText variant="h6" tone="secondary">
                   {`Last Online: ${lastSeen ? formatRelativeTime(lastSeen) : 'unknown'}`}
                 </TruncateText>

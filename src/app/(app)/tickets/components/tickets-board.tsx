@@ -36,6 +36,7 @@ import {
 import type { Dialog } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
+import { getTicketDeviceName } from '../utils/ticket-device-name';
 import { AssigneeFilter } from './assignee-filter';
 import { BoardAssigneePicker } from './board-assignee-picker';
 import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-subscriber';
@@ -160,12 +161,15 @@ function toBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTick
 }
 
 function dialogToBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted): BoardTicket {
+  const deviceName = getTicketDeviceName(dialog);
   return {
     id: dialog.id,
     title: dialog.title,
     ticketNumber: dialog.ticketNumber !== undefined ? String(dialog.ticketNumber) : '',
     status: dialog.statusName ?? dialog.status,
-    deviceHostnames: dialog.deviceHostname ? [dialog.deviceHostname] : undefined,
+    // The lib prop is named deviceHostnames, but it is the card's device line — name the
+    // device like the table and the details page do (nickname first), not by its hostname.
+    deviceHostnames: deviceName ? [deviceName] : undefined,
     organizationName: dialog.organizationName,
     assignees: dialog.assignedTo
       ? [

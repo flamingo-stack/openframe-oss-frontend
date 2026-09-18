@@ -8,6 +8,7 @@ import { TerminalSquare } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
@@ -55,9 +56,7 @@ function RemoteShellSession() {
   const meshcentralState = getToolConnectionState(meshcentralConnection);
   const meshcentralAgentId = meshcentralState === 'live' ? meshcentralConnection?.agentToolId : undefined;
 
-  const hostname = useMemo(() => {
-    return deviceDetails?.hostname || deviceDetails?.displayName;
-  }, [deviceDetails]);
+  const deviceName = getDeviceName(deviceDetails);
 
   const organizationName = useMemo(() => {
     return deviceDetails?.organization;
@@ -66,7 +65,7 @@ function RemoteShellSession() {
   // Keep this device as the Mingo "open view" while on the remote-shell surface
   // (the parent detail page unmounted on navigation, clearing its own openView).
   useTrackOpenView(
-    deviceDetails ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: hostname || deviceId } : null,
+    deviceDetails ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName || deviceId } : null,
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -331,7 +330,7 @@ function RemoteShellSession() {
             <TerminalSquare className="h-4 w-4 text-ods-text-primary" />
           </div>
           <div className="flex min-w-0 flex-col">
-            <TruncateText>{hostname || `Device ${deviceId}`}</TruncateText>
+            <TruncateText>{deviceName || `Device ${deviceId}`}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {`${shellLabel}${organizationName ? ` \u2022 ${organizationName}` : ''}`}
             </TruncateText>

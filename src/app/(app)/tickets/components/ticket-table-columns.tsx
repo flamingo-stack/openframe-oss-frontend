@@ -23,7 +23,8 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import type { ClientDialogOwner, Dialog } from '../types/dialog.types';
+import type { Dialog } from '../types/dialog.types';
+import { getTicketDeviceName } from '../utils/ticket-device-name';
 import { formatTicketRowMeta } from '../utils/ticket-row-meta';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { UnassignedTicketCell } from './table-assignee-cell';
@@ -101,11 +102,9 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
     header: TICKET_COLUMNS.source.header,
     cell: ({ row }: { row: Row<Dialog> }) => {
       const ticket = row.original;
-      const isClientOwner = 'machine' in (ticket.owner || {});
-      const clientOwner = isClientOwner ? (ticket.owner as ClientDialogOwner) : null;
-      const deviceName = ticket.deviceHostname || clientOwner?.machine?.hostname || clientOwner?.machine?.displayName;
-
-      return <DeviceCardCompact deviceName={deviceName || '—'} organization={ticket.organizationName} />;
+      return (
+        <DeviceCardCompact deviceName={getTicketDeviceName(ticket) || '—'} organization={ticket.organizationName} />
+      );
     },
     enableSorting: false,
     meta: liveColumnMeta(TICKET_COLUMNS.source),
