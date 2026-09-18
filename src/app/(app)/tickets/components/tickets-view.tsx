@@ -5,8 +5,8 @@ import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
 import { useSearchParam } from '@/app/hooks/use-search-param';
-import type { TicketActivityFilter } from '../types/dialog.types';
 import type { TicketListSort } from '../services/ticket-service.types';
+import type { TicketActivityFilter } from '../types/dialog.types';
 import { resolveTicketsViewMode, type TicketsViewMode } from '../utils/resolve-view-mode';
 import { parseTicketListSort, ticketListSortToParams } from '../utils/ticket-list-sort';
 import { TicketsBoard } from './tickets-board';

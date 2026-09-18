@@ -14,10 +14,10 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
-import type { TicketActivityFilter } from '../types/dialog.types';
 import type { TicketListSort } from '../services/ticket-service.types';
-import { ActivityFilter } from './activity-filter';
+import type { TicketActivityFilter } from '../types/dialog.types';
 import { DEFAULT_TICKET_LIST_SORT } from '../utils/ticket-list-sort';
+import { ActivityFilter } from './activity-filter';
 import { AssigneeFilter } from './assignee-filter';
 import { OrganizationFilter } from './organization-filter';
 import { renderStatusOption, type StatusOption } from './status-autocomplete';
