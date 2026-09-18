@@ -5,6 +5,7 @@ import { ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/component
 import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Loader2 } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
@@ -67,6 +68,10 @@ export function RemoteAccessGate({
   children,
 }: RemoteAccessGateProps) {
   const gate = useRemoteAccessApprovalGate();
+  // The dev server forces the gate on before the flags answer; the request
+  // must still wait for them, because `remote-access-approval-api` decides
+  // which backend it is created on.
+  const flagsReady = useFeatureFlagsReady();
   const approval = useRemoteAccessApproval(deviceId, organizationId);
   // Temporary QA tooling for the mock service; appearing late is fine here.
   const showMockTools = useRemoteAccessMockTools();
@@ -79,7 +84,7 @@ export function RemoteAccessGate({
   const effectiveMode = useEffectiveDeviceRemoteAccessMode(
     approval.isMock ? { machineId: deviceId, id: deviceId, organizationId } : null,
   );
-  const policyLoading = gate === 'on' && approval.isMock && effectiveMode === undefined;
+  const policyLoading = gate === 'on' && (!flagsReady || (approval.isMock && effectiveMode === undefined));
   // Either the mock policy read says DENY up front, or create came back
   // DENIED by policy (DENY_ACCESS recorded as the resolved mode).
   const policyDenied =

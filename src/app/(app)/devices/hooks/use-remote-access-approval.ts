@@ -13,7 +13,10 @@ import {
   RemoteAccessCreateError,
   type RemoteAccessRequest,
 } from '../types/remote-access';
-import { useRemoteAccessApprovalService } from './use-remote-access-approval-service';
+import {
+  type RemoteAccessApprovalServiceSelection,
+  useRemoteAccessApprovalService,
+} from './use-remote-access-approval-service';
 
 /**
  * The technician-side view of one approval attempt:
@@ -90,7 +93,14 @@ export function useRemoteAccessApproval(
   /** Mock resolution hint - see CreateRemoteAccessRequestInput.organizationId. */
   organizationId?: string,
 ): UseRemoteAccessApprovalResult {
-  const { service, isMock } = useRemoteAccessApprovalService();
+  const selection = useRemoteAccessApprovalService();
+  // The backend an attempt was created on serves that attempt to the end: the
+  // flag answer can arrive (dev bypasses the gate before the flags load) or
+  // flip while a request is open, and a request must never be polled, revoked
+  // or listened for on the other backend.
+  const [active, setActive] = useState<RemoteAccessApprovalServiceSelection | null>(null);
+  const service = active?.service ?? selection.service;
+  const isMock = active?.isMock ?? selection.isMock;
   const userId = useAuthStore(s => s.user?.id);
   const [state, setState] = useState<RemoteAccessApprovalState>('idle');
   const [request, setRequest] = useState<RemoteAccessRequest | null>(null);
@@ -115,12 +125,14 @@ export function useRemoteAccessApproval(
   const requestAccess = useCallback(
     (reason?: string) => {
       const attempt = ++attemptRef.current;
+      const chosen = selection;
+      setActive(chosen);
       setError(null);
       setErrorCode(null);
       setState('requesting');
       (async () => {
         try {
-          const created = await service.create({
+          const created = await chosen.service.create({
             deviceId,
             sessionKind: 'desktop',
             reason,
@@ -146,7 +158,7 @@ export function useRemoteAccessApproval(
         }
       })();
     },
-    [service, deviceId, organizationId, applySettled],
+    [selection, deviceId, organizationId, applySettled],
   );
 
   // Decision delivery while awaiting: push subscription + polling fallback.
@@ -200,6 +212,10 @@ export function useRemoteAccessApproval(
         const event = parseRemoteAccessDecisionEvent(payload);
         const current = requestRef.current;
         if (!event || !current || event.requestId !== current.requestId) return;
+        if (process.env.NODE_ENV === 'development') {
+          // Dev-only trace: the one way to tell the push from the 2 s poll when checking a backend.
+          console.debug('[remote-access] decision push', event.status, event.decisionSource ?? '');
+        }
         if (isSettledRequestStatus(current.status)) return;
         const merged = applyRemoteAccessDecisionEvent(current, event);
         if (isSettledRequestStatus(merged.status)) applySettled(merged);
@@ -216,6 +232,7 @@ export function useRemoteAccessApproval(
     setRequest(null);
     setError(null);
     setErrorCode(null);
+    setActive(null);
     if (open && !isSettledRequestStatus(open.status)) {
       service.revoke(open.requestId).catch(() => {
         // Best-effort: an already-settled request rejects the revoke (409 on
@@ -230,6 +247,7 @@ export function useRemoteAccessApproval(
     setRequest(null);
     setError(null);
     setErrorCode(null);
+    setActive(null);
   }, []);
 
   return { state, request, error, errorCode, isMock, requestAccess, cancel, reset };
