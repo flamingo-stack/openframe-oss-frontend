@@ -8,13 +8,13 @@
  *
  *   - `isAppShell()`  — either shell. Shell-custodied tokens (Keychain /
  *     Keystore, bearer-only), no Next server behind the page origin so no
- *     `/content` rewrite, in-app auth pages, no external navigation, and the
- *     App Store / Play billing ban.
+ *     `/content` rewrite, in-app auth pages, and no external navigation.
  *   - `isMobileShell()` — the phone. FCM push, biometric login, status bar /
- *     splash / safe-area insets, and Android hardware back. NOT the
+ *     splash / safe-area insets, Android hardware back, and the App Store /
+ *     Play billing ban (`billing-visibility.ts`). NOT the
  *     custom-scheme OAuth callback: both shells complete login on it.
  *   - `isDesktopShell()` — Tauri. Shell-side token rotation and OS-notification
- *     click transports, both delivered as Tauri events.
+ *     click transports, both delivered as Tauri events; billing shown read-only.
  *
  * Reaching for `isAppShell()` when the feature is phone-only is the mistake this
  * split exists to prevent: it silently included every desktop install.

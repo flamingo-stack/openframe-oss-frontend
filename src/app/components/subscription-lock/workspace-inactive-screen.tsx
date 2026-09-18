@@ -3,7 +3,7 @@
 import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useCallback } from 'react';
+import { type ReactNode, useCallback } from 'react';
 import { LockScreenActions } from './lock-screen-actions';
 
 interface WorkspaceInactiveScreenProps {
@@ -11,14 +11,18 @@ interface WorkspaceInactiveScreenProps {
   title?: string;
   /** Overrides the default body copy. */
   description?: string;
+  /** The remedy, when this viewer has one from here — leads the action row. */
+  action?: ReactNode;
 }
 
 /**
  * Lock screen shown in place of the app when the workspace is inactive and the
  * viewer has no purchase flow to be sent to. Two callers, for two different
  * reasons (see `subscription-lock-content.tsx`):
- *   - the native app builds, where the payment UI is hidden for the whole build
+ *   - the mobile builds, where the payment UI is hidden for the whole build
  *     (`isBillingHidden()`, see `billing-visibility.ts`);
+ *   - the desktop build, where billing is read-only: same screen, plus an
+ *     `action` that opens the web app's billing page for those who may use it;
  *   - anyone whose role cannot open billing, on any build — renewing is for the
  *     workspace owner and admins (`use-billing-access-gate.ts`).
  *
@@ -43,7 +47,7 @@ interface WorkspaceInactiveScreenProps {
  * and "contact the owner or an admin about the subscription" is the actionable
  * message.
  */
-export function WorkspaceInactiveScreen({ title, description }: WorkspaceInactiveScreenProps = {}) {
+export function WorkspaceInactiveScreen({ title, description, action }: WorkspaceInactiveScreenProps = {}) {
   // The lock state comes from the subscription query resolved in the app shell;
   // a full reload is the simplest way to re-resolve it once an admin has
   // restored access elsewhere.
@@ -79,9 +83,12 @@ export function WorkspaceInactiveScreen({ title, description }: WorkspaceInactiv
         <LockScreenActions
           className="flex w-full flex-col items-stretch gap-[var(--spacing-system-m)] sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center"
           leading={
-            <Button variant="outline" leftIcon={<Refresh01RightIcon />} onClick={handleRecheck}>
-              Check Again
-            </Button>
+            <>
+              {action}
+              <Button variant="outline" leftIcon={<Refresh01RightIcon />} onClick={handleRecheck}>
+                Check Again
+              </Button>
+            </>
           }
         />
       </div>

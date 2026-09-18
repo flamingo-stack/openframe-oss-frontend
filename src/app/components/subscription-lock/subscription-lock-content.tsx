@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { isBillingHidden } from '@/lib/billing-visibility';
+import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
 // Lazy on purpose, not for weight: a static import would put the plan cards,
@@ -15,6 +15,13 @@ const SubscriptionPlanLockContent = dynamic(() => import('./subscription-plan-lo
   // show here, but it lives in the chunk being fetched — and a spinner in front
   // of it would only add a phase the user has to read. Holding the frame empty
   // for the fetch keeps the first thing they see the page itself.
+  loading: () => null,
+});
+
+// Lazy for the same reason: it names the subscription, and that vocabulary stays
+// out of the chunk the mobile builds share.
+const ReadOnlyLockContent = dynamic(() => import('./read-only-lock-content'), {
+  ssr: false,
   loading: () => null,
 });
 
@@ -41,6 +48,12 @@ const SubscriptionPlanLockContent = dynamic(() => import('./subscription-plan-lo
 export function SubscriptionLockContent() {
   if (isBillingHidden()) {
     return <WorkspaceInactiveScreen />;
+  }
+
+  // Desktop: billing is read-only, so the plan picker below is out — the remedy
+  // is the web app, and this screen's job is to send the right people there.
+  if (isBillingReadOnly()) {
+    return <ReadOnlyLockContent />;
   }
 
   return <SubscriptionPlanLockContent />;
