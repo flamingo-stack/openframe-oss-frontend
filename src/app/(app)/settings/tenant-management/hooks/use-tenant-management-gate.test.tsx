@@ -1,5 +1,6 @@
-// Pins the tri-state: the module must not read "not answered yet" as "off".
-// vitest runs with NODE_ENV=test, so the dev bypass is inactive here.
+// Pins the tri-state: the module must not read "not answered yet" as "off",
+// and an explicit server "off" wins over the dev fallback (which only stands in
+// for a name the server does not know). vitest runs with NODE_ENV=test.
 
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -49,5 +50,10 @@ describe('useTenantManagementGate', () => {
   it('is on when the server enabled it', () => {
     act(() => useFeatureFlagsStore.getState().setFlags([{ name: 'tenant-management', enabled: true }]));
     expect(latest).toBe('on');
+  });
+
+  it('is off when the server explicitly disabled it — the dev fallback only covers an unknown name', () => {
+    act(() => useFeatureFlagsStore.getState().setFlags([{ name: 'tenant-management', enabled: false }]));
+    expect(latest).toBe('off');
   });
 });

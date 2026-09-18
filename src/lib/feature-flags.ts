@@ -36,9 +36,9 @@ export const FEATURE_FLAG_NAMES = [
   'insights',
   // Tenant Management (CU-86akj8ajt): the Settings module that connects
   // Microsoft 365 / Google Workspace directories. The backend does not register
-  // the name yet (unknown names answer `false`), so the module stays dark on
-  // qa/prod until it does; the dev server bypasses the answer in
-  // `use-tenant-management-gate.ts` so the mock-backed UI can be exercised.
+  // the name yet, so the module stays dark on qa/prod until it does; the dev
+  // server treats the missing answer as "on" (`use-tenant-management-gate.ts`)
+  // so the mock-backed UI can be exercised, while an explicit "off" still wins.
   'tenant-management',
 ] as const;
 
