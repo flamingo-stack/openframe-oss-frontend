@@ -15,12 +15,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '@/lib/routes';
 import { NewCustomerPage } from './new-customer-page';
 
+type ApiResponse = { ok: boolean; data?: unknown; error?: string; status?: number };
+
 const spies = vi.hoisted(() => ({
-  replace: vi.fn(),
-  toast: vi.fn(),
-  safeBack: vi.fn(),
-  post: vi.fn(),
-  put: vi.fn(),
+  replace: vi.fn<(href: string) => void>(),
+  toast: vi.fn<(options: Record<string, unknown>) => void>(),
+  safeBack: vi.fn<(router: unknown, href: string) => void>(),
+  post: vi.fn<(url: string, body?: { query?: string }) => Promise<ApiResponse>>(),
+  put: vi.fn<(url: string, body: unknown) => Promise<ApiResponse>>(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -116,6 +118,7 @@ async function clickSave() {
 }
 
 const organizationRequests = () => spies.post.mock.calls.filter(([url]) => url === '/api/organizations');
+const lastToast = () => spies.toast.mock.calls.at(-1)?.[0];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -127,12 +130,14 @@ beforeEach(() => {
     addListener() {},
     removeListener() {},
   })) as unknown as typeof window.matchMedia;
-  spies.post.mockImplementation(async (_url: string, body: { query?: string }) =>
-    body?.query?.includes('organizationByOrganizationId')
-      ? { ok: true, data: { data: { organizationByOrganizationId: RECORD } } }
-      : { ok: true, data: { organizationId: 'new-1' } },
+  spies.post.mockImplementation((_url, body) =>
+    Promise.resolve(
+      body?.query?.includes('organizationByOrganizationId')
+        ? { ok: true, data: { data: { organizationByOrganizationId: RECORD } } }
+        : { ok: true, data: { organizationId: 'new-1' } },
+    ),
   );
-  spies.put.mockImplementation(async () => ({ ok: true, data: {} }));
+  spies.put.mockImplementation(() => Promise.resolve({ ok: true, data: {} }));
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -227,12 +232,8 @@ describe('NewCustomerPage (create)', () => {
 
     await clickSave();
 
-    expect(spies.toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Cannot save yet',
-        description: expect.stringContaining('Customer name is required'),
-      }),
-    );
+    expect(lastToast()).toMatchObject({ title: 'Cannot save yet' });
+    expect(String(lastToast()?.description)).toContain('Customer name is required');
     expect(container.querySelector('[data-invalid]')).not.toBeNull();
     expect(organizationRequests()).toHaveLength(0);
   });

@@ -94,10 +94,8 @@ export function useCustomerForm({ organizationId, flushPendingLogo, onInvalid }:
   const guardrailsRef = useRef<CustomerGuardrailsHandle>(null);
   const deviceGuardrailsRef = useRef<CustomerDeviceGuardrailsHandle>(null);
 
-  const onValid = useCallback(
+  const runSave = useCallback(
     async (data: CustomerFormData) => {
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
       // Everything is caught here: handleSubmit re-throws a rejection after
       // resetting isSubmitting, and handleSave does not await it.
       try {
@@ -189,8 +187,6 @@ export function useCustomerForm({ organizationId, flushPendingLogo, onInvalid }:
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to save customer';
         toast({ title: 'Save failed', description: msg, variant: 'destructive' });
-      } finally {
-        inFlightRef.current = false;
       }
     },
     [
@@ -205,8 +201,21 @@ export function useCustomerForm({ organizationId, flushPendingLogo, onInvalid }:
     ],
   );
 
+  // Claimed synchronously before the chain starts, released when it settles —
+  // a second click in the same tick finds the gate closed.
+  const onValid = useCallback(
+    (data: CustomerFormData) => {
+      if (inFlightRef.current) return Promise.resolve();
+      inFlightRef.current = true;
+      return runSave(data).finally(() => {
+        inFlightRef.current = false;
+      });
+    },
+    [runSave],
+  );
+
   const handleSave = useCallback(() => {
-    form.handleSubmit(onValid, errors => {
+    void form.handleSubmit(onValid, errors => {
       setShowErrors(true);
       const messages = collectFormErrorMessages(errors);
       toast({

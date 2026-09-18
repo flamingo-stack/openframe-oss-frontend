@@ -15,15 +15,17 @@ import { routes } from '@/lib/routes';
 import { CONTACT_EMAIL_ERROR } from '../types/customer-form.types';
 import { useCustomerForm } from './use-customer-form';
 
+type ApiResponse = { ok: boolean; data?: unknown; error?: string; status?: number };
+
 const spies = vi.hoisted(() => ({
-  replace: vi.fn(),
-  toast: vi.fn(),
-  scroll: vi.fn(),
-  safeBack: vi.fn(),
-  flush: vi.fn(async () => undefined),
-  onInvalid: vi.fn(),
-  post: vi.fn(),
-  put: vi.fn(),
+  replace: vi.fn<(href: string) => void>(),
+  toast: vi.fn<(options: Record<string, unknown>) => void>(),
+  scroll: vi.fn<() => void>(),
+  safeBack: vi.fn<(router: unknown, href: string) => void>(),
+  flush: vi.fn<(createdOrganizationId: string) => Promise<void>>(() => Promise.resolve()),
+  onInvalid: vi.fn<() => void>(),
+  post: vi.fn<(url: string, body?: { query?: string }) => Promise<ApiResponse>>(),
+  put: vi.fn<(url: string, body: unknown) => Promise<ApiResponse>>(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -119,17 +121,20 @@ async function save() {
 }
 
 const organizationRequests = () => spies.post.mock.calls.filter(([url]) => url === '/api/organizations');
+const lastToast = () => spies.toast.mock.calls.at(-1)?.[0];
 
 beforeEach(() => {
   vi.clearAllMocks();
   seen.commits = 0;
   seen.hook = null;
-  spies.post.mockImplementation(async (_url: string, body: { query?: string }) =>
-    body?.query?.includes('organizationByOrganizationId')
-      ? { ok: true, data: { data: { organizationByOrganizationId: record() } } }
-      : { ok: true, data: { organizationId: 'new-1' } },
+  spies.post.mockImplementation((_url, body) =>
+    Promise.resolve(
+      body?.query?.includes('organizationByOrganizationId')
+        ? { ok: true, data: { data: { organizationByOrganizationId: record() } } }
+        : { ok: true, data: { organizationId: 'new-1' } },
+    ),
   );
-  spies.put.mockImplementation(async () => ({ ok: true, data: {} }));
+  spies.put.mockImplementation(() => Promise.resolve({ ok: true, data: {} }));
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -169,10 +174,9 @@ describe('useCustomerForm in edit mode', () => {
       current().form.setValue('name', 'Edited', { shouldDirty: true });
     });
 
-    spies.post.mockImplementation(async () => ({
-      ok: true,
-      data: { data: { organizationByOrganizationId: record('Renamed on the server') } },
-    }));
+    spies.post.mockImplementation(() =>
+      Promise.resolve({ ok: true, data: { data: { organizationByOrganizationId: record('Renamed on the server') } } }),
+    );
     await act(async () => {
       await client.invalidateQueries();
     });
@@ -223,13 +227,12 @@ describe('useCustomerForm in edit mode', () => {
     await save();
 
     expect(spies.put).not.toHaveBeenCalled();
-    expect(spies.toast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'Cannot save yet', description: expect.stringContaining(CONTACT_EMAIL_ERROR) }),
-    );
+    expect(lastToast()).toMatchObject({ title: 'Cannot save yet' });
+    expect(String(lastToast()?.description)).toContain(CONTACT_EMAIL_ERROR);
   });
 
   it('reports a failed save and leaves the form as it was', async () => {
-    spies.put.mockImplementation(async () => ({ ok: false, error: 'Name already in use.', status: 409 }));
+    spies.put.mockImplementation(() => Promise.resolve({ ok: false, error: 'Name already in use.', status: 409 }));
     render('org-1');
     await settle();
     act(() => {
@@ -255,13 +258,8 @@ describe('useCustomerForm in create mode', () => {
 
     await save();
 
-    expect(spies.toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Cannot save yet',
-        description: expect.stringContaining('Customer name is required'),
-        variant: 'destructive',
-      }),
-    );
+    expect(lastToast()).toMatchObject({ title: 'Cannot save yet', variant: 'destructive' });
+    expect(String(lastToast()?.description)).toContain('Customer name is required');
     expect(spies.scroll).toHaveBeenCalledTimes(1);
     expect(spies.onInvalid).toHaveBeenCalledTimes(1);
     expect(organizationRequests()).toHaveLength(0);
