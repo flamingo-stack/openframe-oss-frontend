@@ -34,6 +34,12 @@ export const FEATURE_FLAG_NAMES = [
   'remote-access-mock-tools',
   // The Incidents module (`/incidents`) over saas-api's `insights` API.
   'insights',
+  // Tenant Management (CU-86akj8ajt): the Settings module that connects
+  // Microsoft 365 / Google Workspace directories. The backend does not register
+  // the name yet (unknown names answer `false`), so the module stays dark on
+  // qa/prod until it does; the dev server bypasses the answer in
+  // `use-tenant-management-gate.ts` so the mock-backed UI can be exercised.
+  'tenant-management',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
@@ -178,6 +184,16 @@ export const featureFlags = {
   remoteAccessApproval: {
     enabled(): boolean {
       return getFlagValue('remote-access-approval', () => false);
+    },
+  },
+  /**
+   * Tenant Management (CU-86akj8ajt). Route/hub gating goes through
+   * `useTenantManagementGate` (tri-state, dev bypass); this accessor is for
+   * imperative reads only.
+   */
+  tenantManagement: {
+    enabled(): boolean {
+      return getFlagValue('tenant-management', () => false);
     },
   },
 } as const;

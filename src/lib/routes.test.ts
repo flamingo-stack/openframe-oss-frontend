@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MINGO_DIALOG_PARAM, mingoDialogLink, withMingoDialog } from './routes';
+import { MINGO_DIALOG_PARAM, mingoDialogLink, routes, withMingoDialog } from './routes';
 
 /**
  * `withMingoDialog` writes the URL that `history.replaceState` puts in the address
@@ -50,5 +50,24 @@ describe('the canonical Mingo dialog deep link', () => {
     expect(mingoDialogLink('d-1')).toBe('/dashboard?mingoDialog=d-1');
     expect(mingoDialogLink('a b&c=1')).toBe('/dashboard?mingoDialog=a+b%26c%3D1');
     expect(MINGO_DIALOG_PARAM).toBe('mingoDialog');
+  });
+});
+
+describe('settings.tenant* (CU-86akj8ajt)', () => {
+  it('builds the list and the create page as fixed paths', () => {
+    expect(routes.settings.tenantManagement).toBe('/settings/tenant-management');
+    expect(routes.settings.tenantNew).toBe('/settings/tenant-management/new');
+  });
+
+  it('puts the connection id in `?id=` on the detail, edit and reconnect pages', () => {
+    // Static export forbids dynamic segments, see ROUTES.md.
+    expect(routes.settings.tenantDetails('tc-01')).toBe('/settings/tenant-management/details?id=tc-01');
+    expect(routes.settings.tenantEdit('tc-01')).toBe('/settings/tenant-management/edit?id=tc-01');
+    expect(routes.settings.tenantReconnect('tc-01')).toBe('/settings/tenant-management/reconnect?id=tc-01');
+  });
+
+  it('encodes the id and accepts a numeric one', () => {
+    expect(routes.settings.tenantDetails('a b&c=1')).toBe('/settings/tenant-management/details?id=a+b%26c%3D1');
+    expect(routes.settings.tenantDetails(7)).toBe('/settings/tenant-management/details?id=7');
   });
 });
