@@ -22,8 +22,9 @@ export interface DialogOwner {
 export interface Machine {
   id: string;
   machineId: string;
-  displayName?: string;
   hostname?: string;
+  /** User-defined device name (the registry `nickname`); `getTicketDeviceName` puts it first. */
+  nickname?: string | null;
   organizationId?: string;
 }
 

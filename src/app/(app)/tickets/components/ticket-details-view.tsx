@@ -40,7 +40,7 @@ import { useMutation } from 'react-relay';
 import type { startTimerMutation as StartTimerMutationType } from '@/__generated__/startTimerMutation.graphql';
 import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
-import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { NotesSection } from '@/app/components/shared';
 import type { AiModel } from '@/app/hooks/use-ai-model';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -58,6 +58,7 @@ import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
+import { getDeviceName } from '../../devices/utils/device-name';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE, DIALOG_STATUS } from '../constants';
@@ -78,6 +79,7 @@ import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
+import { getTicketDeviceName } from '../utils/ticket-device-name';
 import { formatTicketRef } from '../utils/ticket-ref';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
@@ -85,7 +87,6 @@ import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-tick
 import { TicketAttachmentsSection } from './ticket-attachments-section';
 import { TicketDetailsSkeleton } from './ticket-details-skeleton';
 import { TicketDialogSubscription } from './ticket-dialog-subscription';
-import { TicketNotesSection } from './ticket-notes-section';
 import { TicketNotificationsAutoReader } from './ticket-notifications-auto-reader';
 import { TicketTagsSection } from './ticket-tags-section';
 
@@ -174,6 +175,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     return ownerMachineId || dialog.deviceId;
   }, [dialog, isClientOwner]);
   const { deviceDetails, isLoading: isDeviceLoading } = useDeviceDetails(machineId);
+  // The device this ticket is attached to, named like every other screen: the registry
+  // record once it has loaded; until then — or when deviceId is a Mongo ObjectId that
+  // resolves to nothing (see above) — the name the ticket itself carries. An ADMIN-owned
+  // ticket has no owner.machine, so without the registry it would only ever show hostname.
+  const ticketDeviceName = getDeviceName(deviceDetails) || (dialog ? getTicketDeviceName(dialog) : '');
   const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
 
   const { client, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
@@ -197,14 +203,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const addNoteMutation = useAddTicketNote(ticketId);
   const updateNoteMutation = useUpdateTicketNote(ticketId);
   const deleteNoteMutation = useDeleteTicketNote(ticketId);
-  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
-
-  const handleConfirmDeleteNote = useCallback(() => {
-    if (!noteToDelete) return;
-    deleteNoteMutation.mutate(noteToDelete, {
-      onSuccess: () => setNoteToDelete(null),
-    });
-  }, [deleteNoteMutation, noteToDelete]);
 
   const assignTicketMutation = useAssignTicket();
   const assigneeOptions = useAssigneeOptions();
@@ -300,10 +298,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [router, pathname, searchParams],
   );
 
-  const clientDisplayName =
-    dialog?.deviceHostname ||
-    (dialog?.owner && isClientOwner(dialog.owner) ? dialog.owner.machine?.hostname : undefined) ||
-    undefined;
+  const clientDisplayName = ticketDeviceName || undefined;
 
   const processClientChunk = useSideChunkProcessor('client', {
     ticketId,
@@ -656,12 +651,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       id: 'device',
       label: 'Device',
       value: {
-        text:
-          dialog.deviceHostname ||
-          (isClientOwner(dialog.owner)
-            ? dialog.owner.machine?.hostname || dialog.owner.machine?.displayName
-            : undefined) ||
-          '—',
+        text: ticketDeviceName || '—',
         href: machineId ? routes.devices.details(machineId) : undefined,
       },
     },
@@ -864,12 +854,12 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       <InfoSection title="Ticket Details" rows={infoRows} />
       <TicketAttachmentsSection ticketId={dialog.id} attachments={dialog.attachments ?? []} />
       <TicketTagsSection ticketId={dialog.id} tags={dialog.tags ?? []} />
-      <TicketNotesSection
+      <NotesSection
         notes={uiNotes}
         isAddingNote={addNoteMutation.isPending}
         onAddNote={text => addNoteMutation.mutate({ content: text })}
         onEditNote={(id, text) => updateNoteMutation.mutate({ id, content: text })}
-        onDeleteNote={setNoteToDelete}
+        onDeleteNote={id => deleteNoteMutation.mutate(id)}
       />
     </>
   );
@@ -956,19 +946,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
       <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
 
-      <ConfirmDialog
-        open={noteToDelete !== null}
-        onOpenChange={open => {
-          if (!open) setNoteToDelete(null);
-        }}
-        title="Delete Note"
-        description="Are you sure you want to delete this note? This action cannot be undone."
-        confirmLabel="Delete Note"
-        pendingLabel="Deleting..."
-        variant="destructive"
-        isPending={deleteNoteMutation.isPending}
-        onConfirm={handleConfirmDeleteNote}
-      />
       <TakeOverTicketModal target={takeOverTarget} onClose={() => setTakeOverTarget(null)} />
     </>
   );

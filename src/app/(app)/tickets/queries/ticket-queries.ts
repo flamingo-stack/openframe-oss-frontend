@@ -121,6 +121,7 @@ export const GET_TICKET_QUERY = `
             id
             machineId
             hostname
+            nickname
             organizationId
           }
         }
@@ -229,6 +230,7 @@ export const GET_TICKETS_QUERY = `
                 id
                 machineId
                 hostname
+                nickname
                 organizationId
               }
             }
@@ -302,6 +304,11 @@ export const GET_TICKETS_QUERY = `
  * `lastActivityAt` / `activityState` (board activity indicators) are in the
  * same unconditional, no-flag position: the saas-ai-agent build exposing them
  * (openframe-saas-tenant#2938) must be deployed before this frontend.
+ *
+ * `machine.nickname` (every `ClientTicketOwner.machine` selection in this file)
+ * is the same case: `shared.graphqls` declares it unflagged, so the saas-ai-agent
+ * that added it (openframe-saas-tenant#3020) must be deployed before a frontend
+ * carrying this selection, or the same three surfaces come back empty.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
@@ -332,6 +339,7 @@ const boardCardTicketFragment = () => `
           id
           machineId
           hostname
+          nickname
           organizationId
         }
       }

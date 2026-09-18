@@ -8,6 +8,7 @@ import { Controller, type UseFormReturn, useWatch } from 'react-hook-form';
 import { AssignmentsField } from '@/components/assignments';
 import { getFullImageUrl } from '@/lib/image-url';
 import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
+import type { TicketPrefill } from '@/lib/routes';
 import type { useTempAttachments } from '../../hooks/use-temp-attachments';
 import {
   type AutocompleteOption,
@@ -20,6 +21,7 @@ import { useTicketStatusesQuery } from '../../statuses/hooks/use-ticket-statuses
 import type { CreateTicketFormData } from '../../types/create-ticket.types';
 import type { Ticket } from '../../types/ticket.types';
 import { resolveCurrentStatus } from '../../utils/resolve-current-status';
+import { getTicketDeviceName } from '../../utils/ticket-device-name';
 import { TICKET_STATUS_KIND } from '../../utils/ticket-statistics';
 import { avatarStartAdornment, renderAvatarOption } from '../avatar-autocomplete';
 import { renderStatusOption, type StatusOption, statusStartAdornment } from '../status-autocomplete';
@@ -48,6 +50,8 @@ interface TicketFormFieldsProps {
   isFaeForm?: boolean;
   isEditMode?: boolean;
   ticket?: Ticket;
+  /** Create-mode starting values — their customer/device get pinned into the pickers like the ticket's own. */
+  prefill?: TicketPrefill;
 }
 
 export function TicketFormFields({
@@ -56,6 +60,7 @@ export function TicketFormFields({
   isFaeForm = false,
   isEditMode = false,
   ticket,
+  prefill,
 }: TicketFormFieldsProps) {
   const { control, setValue } = form;
 
@@ -77,32 +82,37 @@ export function TicketFormFields({
   // search, pinned into the page each list fetched.
   const [pickedOrg, setPickedOrg] = useState<AvatarOption | null>(null);
   const [pickedDevice, setPickedDevice] = useState<AutocompleteOption | null>(null);
-  const ticketOrg = useMemo<AvatarOption | null>(
-    () =>
-      ticket?.organizationId
-        ? {
-            value: ticket.organizationId,
-            label: ticket.organizationName || ticket.organizationId,
-            imageUrl: getFullImageUrl(ticket.organizationImage?.imageUrl, ticket.organizationImage?.hash),
-          }
-        : null,
-    [ticket],
-  );
-  const ticketDevice = useMemo<AutocompleteOption | null>(
-    () => (ticket?.deviceId ? { value: ticket.deviceId, label: ticket.deviceHostname || ticket.deviceId } : null),
-    [ticket],
-  );
-  const ticketAssignee = useMemo<AvatarOption | null>(
-    () =>
-      ticket?.assignedTo
-        ? {
-            value: ticket.assignedTo,
-            label: ticket.assignedName || ticket.assignedTo,
-            imageUrl: getFullImageUrl(ticket.assigneeImage?.imageUrl, ticket.assigneeImage?.hash),
-          }
-        : null,
-    [ticket],
-  );
+  const ticketOrg = useMemo<AvatarOption | null>(() => {
+    if (ticket?.organizationId) {
+      return {
+        value: ticket.organizationId,
+        label: ticket.organizationName || ticket.organizationId,
+        imageUrl: getFullImageUrl(ticket.organizationImage?.imageUrl, ticket.organizationImage?.hash),
+      };
+    }
+    if (prefill?.organizationId) {
+      return { value: prefill.organizationId, label: prefill.organizationName || prefill.organizationId };
+    }
+    return null;
+  }, [ticket, prefill]);
+  const ticketDevice = useMemo<AutocompleteOption | null>(() => {
+    if (ticket?.deviceId) return { value: ticket.deviceId, label: getTicketDeviceName(ticket) || ticket.deviceId };
+    if (prefill?.deviceId) return { value: prefill.deviceId, label: prefill.deviceName || prefill.deviceId };
+    return null;
+  }, [ticket, prefill]);
+  const ticketAssignee = useMemo<AvatarOption | null>(() => {
+    if (ticket?.assignedTo) {
+      return {
+        value: ticket.assignedTo,
+        label: ticket.assignedName || ticket.assignedTo,
+        imageUrl: getFullImageUrl(ticket.assigneeImage?.imageUrl, ticket.assigneeImage?.hash),
+      };
+    }
+    if (prefill?.assigneeId) {
+      return { value: prefill.assigneeId, label: prefill.assigneeName || prefill.assigneeId };
+    }
+    return null;
+  }, [ticket, prefill]);
   const organizationOptionsList = useMemo(
     () => withOption(withOption(organizationOptions.options, pickedOrg), ticketOrg),
     [organizationOptions.options, pickedOrg, ticketOrg],

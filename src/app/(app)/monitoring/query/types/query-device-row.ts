@@ -11,7 +11,8 @@ export interface QueryDeviceTag {
 export interface QueryDeviceRow {
   id: string;
   hostname: string;
-  displayName: string;
+  /** The device name as every other screen renders it (`getDeviceName`), or the Fleet host name for a host with no device record. */
+  name: string;
   deviceType: string | undefined;
   organization: string | undefined;
   organizationImageUrl: string | null | undefined;

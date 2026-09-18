@@ -12,6 +12,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { DeviceListPicker } from '@/app/components/shared/device-selector';
 import type { Device } from '../../../devices/types/device.types';
+import { getDeviceName } from '../../../devices/utils/device-name';
 import { getDevicePrimaryId } from '../../shared/utils/device-helpers';
 import { testDeviceFilter } from '../../shared/utils/script-utils';
 
@@ -53,7 +54,7 @@ export function TestScriptModal({ isOpen, onClose, onDeviceSelected, supportedPl
 
     onDeviceSelected({
       machineId: selected.machineId,
-      deviceName: selected.displayName || selected.hostname,
+      deviceName: getDeviceName(selected),
     });
     setSelection([]);
     onClose();

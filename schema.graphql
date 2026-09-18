@@ -390,14 +390,6 @@ input CreateTimeEntryInput {
   durationSeconds: Long!
 }
 
-input CursorPaginationInput {
-  """Opaque cursor from a previous page's `pageInfo.endCursor`."""
-  cursor: String
-
-  """Defaults to 20; values above 100 are clamped, not rejected."""
-  limit: Int
-}
-
 """"""
 scalar Date
 
@@ -813,78 +805,6 @@ type Image {
   hash: String
 }
 
-type Insight {
-  """Detector fingerprint — stable across repeats of the same finding."""
-  id: ID!
-  organizationId: String!
-
-  """Resolved through the shared organizationDataLoader — batched, no N+1."""
-  organization: Organization
-
-  """One line, already rendered for display."""
-  title: String!
-
-  """What was detected."""
-  kind: InsightKind!
-
-  """
-  The category `kind` belongs to. Derived from the kind, never stored separately.
-  """
-  type: InsightType!
-  severity: InsightSeverity!
-  status: InsightStatus!
-  deviceIds: [String!]!
-
-  """When the detector decided, not when the underlying event happened."""
-  detectedAt: Instant!
-}
-
-type InsightConnection {
-  edges: [InsightEdge!]!
-  pageInfo: PageInfo!
-
-  """Total number of insights matching the filter, ignoring pagination."""
-  filteredCount: Int!
-}
-
-type InsightEdge {
-  node: Insight!
-  cursor: String!
-}
-
-input InsightFilter {
-  organizationId: String
-  type: InsightType
-  severity: InsightSeverity
-  status: InsightStatus
-}
-
-enum InsightKind {
-  UNSIGNED_BINARY
-}
-
-enum InsightSeverity {
-  CRITICAL
-  HIGH
-  MEDIUM
-  LOW
-  INFO
-}
-
-enum InsightStatus {
-  NEW
-  ACKNOWLEDGED
-  IN_PROGRESS
-  RESOLVED
-}
-
-enum InsightType {
-  SECURITY
-  RESOURCE
-  COMPLIANCE
-  AVAILABILITY
-}
-
 type InstalledAgent implements Node {
   id: ID!
   machineId: String!
@@ -1081,6 +1001,7 @@ type LogDetails implements Node {
   userId: String
   deviceId: String
   hostname: String
+  nickname: String
   organizationId: String
   organizationName: String
   message: String
@@ -1105,6 +1026,7 @@ type LogEvent implements Node {
   userId: String
   deviceId: String
   hostname: String
+  nickname: String
   organizationId: String
   organizationName: String
   summary: String
@@ -1191,6 +1113,35 @@ type Machine implements Node & AssignableTarget {
 }
 
 type Mutation {
+    "new | snoozed -> acknowledged. Clears any snooze."
+    acknowledgeInsight(input: InsightIdInput!): Insight!
+    "new | acknowledged -> snoozed until the given moment."
+    snoozeInsight(input: SnoozeInsightInput!): Insight!
+    "Any open status -> resolved."
+    resolveInsight(input: InsightIdInput!): Insight!
+    """
+    resolved -> archived. Files a dealt-with insight away, out of the working set. Only a resolved
+    insight can be archived — archiving is not a way to skip remediation.
+    """
+    archiveInsight(input: InsightIdInput!): Insight!
+    "resolved | archived -> new, for an insight closed too early or filed away by mistake."
+    reopenInsight(input: InsightIdInput!): Insight!
+
+    """
+    Hands the insight to one technician, replacing whoever held it. Independent of status — an
+    insight can change hands while snoozed. Errors if the user does not exist.
+    """
+    assignInsight(input: AssignInsightInput!): Insight!
+    "Drops the current assignee, putting the insight back in the unowned pile."
+    unassignInsight(input: InsightIdInput!): Insight!
+
+    "Adds a note to an insight. The caller becomes its author."
+    addInsightNote(input: AddInsightNoteInput!): InsightNote!
+    "Rewrites a note's text. Only its author may do this."
+    updateInsightNote(input: UpdateInsightNoteInput!): InsightNote!
+    "Removes a note. Only its author may do this. Returns the removed note's `InsightNote.id`."
+    deleteInsightNote(input: InsightNoteIdInput!): ID!
+
   """Mark one Initial Setup step done. Idempotent."""
   completeTenantOnboardingStep(step: TenantOnboardingStep!): TenantOnboardingProgress!
 
@@ -1923,21 +1874,30 @@ enum PushPlatform {
 }
 
 type Query {
+    """
+    Cursor-paginated insights for the calling tenant (newest first unless sorted otherwise).
+    Tenant scoping is applied by the datastore — the filter narrows within the tenant,
+    it can never widen beyond it.
+    """
+    insights(filter: InsightFilter, sort: InsightSortInput, search: String, first: Int, after: String): InsightConnection!
+    "A single insight by its opaque id, as returned by `Insight.id`. Errors when it does not exist."
+    insight(id: ID!): Insight!
+    """
+    Filter options built from the insights themselves: only values that actually occur, each with
+    its count. Every facet is narrowed by the filter except its own field, so the facet you are
+    already filtering on still offers its other values. Select only the facets you need — each one
+    is a separate aggregation.
+    """
+    insightFilters(filter: InsightFilter, search: String): InsightFilters!
+    """
+    Notes on one insight, newest first. Deliberately a root query rather than a field on Insight:
+    a list of insights must not be able to pull notes row by row.
+    """
+    insightNotes(insightId: ID!, first: Int, after: String): InsightNoteConnection!
+
   """ Relay Node interface queries"""
   node(id: ID!): Node
   nodes(ids: [ID!]!): [Node]!
-
-  """
-  Cursor-paginated insights for the calling tenant, newest first (Relay Connection Spec).
-  Tenant scoping is applied by the datastore — the filter narrows within the tenant,
-  it can never widen beyond it.
-  """
-  insights(filter: InsightFilter, pagination: CursorPaginationInput): InsightConnection!
-
-  """
-  A single insight by its detector fingerprint. Errors when it does not exist.
-  """
-  insight(id: ID!): Insight!
 
   """Tenant-wide Initial Setup progress (shared across admins)."""
   tenantOnboardingProgress: TenantOnboardingProgress!
@@ -3450,4 +3410,214 @@ scalar _FieldSet
 
 type _Service {
   sdl: String!
+}
+
+input AddInsightNoteInput {
+    insightId: ID!
+    content: String!
+}
+
+input UpdateInsightNoteInput {
+    id: ID!
+    content: String!
+}
+
+input InsightNoteIdInput {
+    id: ID!
+}
+
+"A technician's note on an insight. Plain text or markdown, editable by its author."
+type InsightNoteConnection {
+    edges: [InsightNoteEdge!]!
+    pageInfo: PageInfo!
+}
+
+type InsightNoteEdge {
+    node: InsightNote!
+    cursor: String!
+}
+
+type InsightNote {
+    "Opaque Relay global id."
+    id: ID!
+    "The `Insight.id` this note hangs off — pass it straight back to the `insight` query."
+    insightId: ID!
+    content: String!
+    "The user who wrote it. Kept alongside `author` so a client can tell its own notes apart."
+    authorId: String!
+    "Resolved through the shared userDataLoader — batched, no N+1."
+    author: User
+    createdAt: Instant!
+    updatedAt: Instant
+}
+
+input InsightIdInput {
+    id: ID!
+}
+
+input AssignInsightInput {
+    id: ID!
+    "Raw `User.id`, not an opaque handle — the same id the user picker returns."
+    assigneeId: String!
+}
+
+input SnoozeInsightInput {
+    id: ID!
+    "When the insight returns to the working set."
+    until: Instant!
+}
+
+type InsightConnection {
+    edges: [InsightEdge!]!
+    pageInfo: PageInfo!
+}
+
+type InsightEdge {
+    node: Insight!
+    cursor: String!
+}
+
+"Every field is multi-select; leaving one out means it does not narrow anything."
+input InsightFilter {
+    organizationIds: [String!]
+    machineIds: [String!]
+    types: [InsightType!]
+    severities: [InsightSeverity!]
+    statuses: [InsightStatus!]
+    "Raw `User.id` values. An insight has at most one assignee; this narrows to any of them."
+    assigneeIds: [String!]
+    "Inclusive lower bound on detectedAt."
+    detectedAtFrom: Instant
+    "Inclusive upper bound on detectedAt."
+    detectedAtTo: Instant
+}
+
+enum InsightSortField {
+    DETECTED_AT
+    "Ordered by the stored name, which is not the order of how severe it is."
+    SEVERITY
+    STATUS
+    KIND
+    TITLE
+    ORGANIZATION_ID
+    MACHINE_ID
+}
+
+input InsightSortInput {
+    field: InsightSortField!
+    direction: SortDirection!
+}
+
+type InsightFilters {
+    organizationIds: [InsightFilterOption!]!
+    types: [InsightFilterOption!]!
+    severities: [InsightFilterOption!]!
+    statuses: [InsightFilterOption!]!
+    "Only users who actually hold an insight under the current filter, labelled by name."
+    assigneeIds: [InsightFilterOption!]!
+    "Total insights matching the filter."
+    filteredCount: Int
+}
+
+type InsightFilterOption {
+    "The value to send back in InsightFilter."
+    value: String!
+    "Human-readable name for the option."
+    label: String!
+    "How many insights carry this value under the current filter."
+    count: Int!
+}
+
+type Insight {
+    """
+    Opaque Relay global id. Stable across repeats of the same finding, since it encodes the
+    detector fingerprint — but treat it as a handle, not as something to parse or build.
+    """
+    id: ID!
+    """
+    Same value as `Organization.organizationId` — NOT `Organization.id`, which is an opaque node
+    handle. Kept flat so a list can filter by organization without resolving the whole object.
+    """
+    organizationId: String!
+    "The full organization. Resolved through the shared organizationDataLoader — batched, no N+1."
+    organization: Organization
+    """
+    The machine this insight is about; a machine carries at most one open insight of a kind. Same
+    value as `Machine.machineId` — NOT `Machine.id`, which is an opaque node handle. Kept flat for
+    the same reason as `organizationId`: filtering a list should not cost a lookup per row.
+    """
+    machineId: String!
+    "The full machine. Resolved through the shared machineDataLoader — batched, no N+1."
+    machine: Machine
+    "One line, already rendered for display."
+    title: String!
+    "What the detecting query checks and why it matters. Authored with the query, not per insight."
+    description: String
+    "How often the detecting query runs, in seconds. Tells you how stale the finding can be."
+    interval: Int
+    "What was detected."
+    kind: InsightKind!
+    "The category `kind` belongs to. Derived from the kind, never stored separately."
+    type: InsightType!
+    severity: InsightSeverity!
+    status: InsightStatus!
+    """
+    The technician who owns the remediation, as a raw `User.id`. Null while nobody has picked it
+    up. Kept flat so a client can tell its own insights apart without resolving every assignee.
+    """
+    assigneeId: String
+    "The full user. Resolved through the shared userDataLoader — batched, no N+1."
+    assignee: User
+    "Set while status is SNOOZED; null otherwise."
+    snoozedUntil: Instant
+    """
+    The osquery rows this finding was made from, as reported by the latest run of the detecting
+    query. Each row's keys are that query's column names, so they vary by `kind` — render the rows
+    as a table rather than reading known fields. Null for insights recorded before evidence was
+    kept; empty is a report that returned nothing.
+    """
+    queryResult: [JSON!]
+    "When the detector decided, not when the underlying event happened."
+    detectedAt: Instant!
+}
+
+enum InsightType {
+    SECURITY
+    IT
+}
+
+enum InsightKind {
+    ANTIVIRUS_BAD
+    AUTOLOGON_ENABLED
+    BATTERY_WORN
+    DISK_NOT_ENCRYPTED
+    DISK_SPACE_LOW
+    FIREWALL_OFF
+    GATEKEEPER_OFF
+    MEMORY_PRESSURE
+    PATCHING_DISABLED
+    RDP_ENABLED
+    RECENT_CRASHES
+    REMOTE_LOGIN_ENABLED
+    SIP_OFF
+    SLOW_BOOT
+    STALE_UPTIME
+    UNSIGNED_BINARY
+}
+
+enum InsightSeverity {
+    CRITICAL
+    HIGH
+    MEDIUM
+    LOW
+    INFO
+}
+
+enum InsightStatus {
+    NEW
+    ACKNOWLEDGED
+    SNOOZED
+    RESOLVED
+    "Filed away after being resolved. Kept apart from RESOLVED so the working set stays clean."
+    ARCHIVED
 }

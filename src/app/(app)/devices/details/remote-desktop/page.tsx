@@ -22,8 +22,11 @@ import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
+import { useApprovedRemoteAccessRequestId } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
+import { buildRemoteAccessRelayIdPrefix } from '@/app/(app)/devices/types/remote-access';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
@@ -103,9 +106,20 @@ export default function RemoteDesktopPage() {
   );
 }
 
+/** MeshCentral relay protocol number for the desktop (KVM) stream. */
+const DESKTOP_PROTOCOL = 2;
+
 function RemoteDesktopSession() {
   const searchParams = useSearchParams();
   const deviceId = searchParams.get('id') ?? '';
+  // The approval this session runs under (null with the flag off): its id is
+  // the first token of every relay id, so the gateway gate can match the
+  // tunnel against the grant. Read once into a ref - the session is mounted
+  // only after approval and never re-approved while mounted.
+  const approvedRequestId = useApprovedRemoteAccessRequestId();
+  const relayIdPrefixRef = useRef(
+    approvedRequestId ? buildRemoteAccessRelayIdPrefix(approvedRequestId, DESKTOP_PROTOCOL) : undefined,
+  );
   const { toast } = useToast();
   const toastRef = useRef(toast);
   useEffect(() => {
@@ -147,12 +161,7 @@ function RemoteDesktopSession() {
     return getToolConnectionState(connection) === 'live' ? connection?.agentToolId : undefined;
   }, [legacyDeviceData, deviceDetails]);
 
-  const hostname = useMemo(() => {
-    if (legacyDeviceData?.hostname) {
-      return legacyDeviceData.hostname;
-    }
-    return deviceDetails?.hostname || deviceDetails?.displayName;
-  }, [legacyDeviceData, deviceDetails]);
+  const deviceName = getDeviceName(deviceDetails) || legacyDeviceData?.hostname;
 
   const organizationName = useMemo(() => {
     if (legacyDeviceData?.organization) {
@@ -165,7 +174,7 @@ function RemoteDesktopSession() {
 
   // Keep this device as the Mingo "open view" while on the remote-desktop surface
   // (the parent detail page unmounted on navigation, clearing its own openView).
-  useTrackOpenView(hostname ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: hostname } : null);
+  useTrackOpenView(deviceName ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName } : null);
 
   // Remote desktop state
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -302,7 +311,8 @@ function RemoteDesktopSession() {
         tunnel = new MeshTunnel({
           authCookie,
           nodeId: meshcentralAgentId,
-          protocol: 2,
+          protocol: DESKTOP_PROTOCOL,
+          relayIdPrefix: relayIdPrefixRef.current,
           getAuthCookie: () => controlRef.current?.getCachedAuthCookie() ?? null,
           onBeforeReconnect: async () => {
             try {
@@ -619,7 +629,7 @@ function RemoteDesktopSession() {
         <MonitorIcon className="h-4 w-4 text-ods-text-primary" />
       </div>
       <div className="flex min-w-0 flex-col">
-        <TruncateText>{hostname || `Device ${deviceId}`}</TruncateText>
+        <TruncateText>{deviceName || `Device ${deviceId}`}</TruncateText>
         <TruncateText
           variant="h6"
           tone="secondary"
@@ -768,7 +778,7 @@ function RemoteDesktopSession() {
       <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}>
         {isFullscreen ? (
           <FullscreenToolbar
-            deviceName={hostname || `Device ${deviceId}`}
+            deviceName={deviceName || `Device ${deviceId}`}
             displayMenuGroups={displayMenuGroups}
             currentDisplayLabel={`Display ${currentDisplay === 0 ? 'All' : currentDisplay}`}
             actionsMenuGroups={actionsMenuGroups}

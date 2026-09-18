@@ -3,6 +3,7 @@
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { ticketService } from '@/app/(app)/tickets/services';
 import { useTicketStatusesQuery } from '@/app/(app)/tickets/statuses/hooks/use-ticket-statuses-query';
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
@@ -33,7 +34,7 @@ const ORGANIZATIONS_SEARCH_QUERY = `#graphql
 // documents for the same reason.
 const DEVICES_SEARCH_QUERY = `#graphql
   query AssignmentsDevicesSearch($search: String, $first: Int) {
-    devices(search: $search, first: $first) { edges { node { id hostname displayName } } }
+    devices(search: $search, first: $first) { edges { node { id hostname displayName nickname } } }
   }
 `;
 
@@ -53,11 +54,16 @@ const fetchCustomers = async (search: string): Promise<AssignmentSearchOption[]>
 
 const fetchDevices = async (search: string): Promise<AssignmentSearchOption[]> => {
   const data = await postGraphQl<{
-    devices: ConnectionEdges<{ id: string; hostname: string | null; displayName: string | null }>;
+    devices: ConnectionEdges<{
+      id: string;
+      hostname: string | null;
+      displayName: string | null;
+      nickname: string | null;
+    }>;
   }>(DEVICES_SEARCH_QUERY, { search, first: PAGE_SIZE });
   return data.devices.edges.map(({ node }) => ({
     value: node.id,
-    label: node.displayName || node.hostname || node.id,
+    label: getDeviceName(node) || node.id,
   }));
 };
 
