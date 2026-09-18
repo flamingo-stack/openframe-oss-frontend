@@ -22,8 +22,10 @@ import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
+import { useApprovedRemoteAccessRequestId } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
+import { buildRemoteAccessRelayIdPrefix } from '@/app/(app)/devices/types/remote-access';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -104,9 +106,20 @@ export default function RemoteDesktopPage() {
   );
 }
 
+/** MeshCentral relay protocol number for the desktop (KVM) stream. */
+const DESKTOP_PROTOCOL = 2;
+
 function RemoteDesktopSession() {
   const searchParams = useSearchParams();
   const deviceId = searchParams.get('id') ?? '';
+  // The approval this session runs under (null with the flag off): its id is
+  // the first token of every relay id, so the gateway gate can match the
+  // tunnel against the grant. Read once into a ref - the session is mounted
+  // only after approval and never re-approved while mounted.
+  const approvedRequestId = useApprovedRemoteAccessRequestId();
+  const relayIdPrefixRef = useRef(
+    approvedRequestId ? buildRemoteAccessRelayIdPrefix(approvedRequestId, DESKTOP_PROTOCOL) : undefined,
+  );
   const { toast } = useToast();
   const toastRef = useRef(toast);
   useEffect(() => {
@@ -298,7 +311,8 @@ function RemoteDesktopSession() {
         tunnel = new MeshTunnel({
           authCookie,
           nodeId: meshcentralAgentId,
-          protocol: 2,
+          protocol: DESKTOP_PROTOCOL,
+          relayIdPrefix: relayIdPrefixRef.current,
           getAuthCookie: () => controlRef.current?.getCachedAuthCookie() ?? null,
           onBeforeReconnect: async () => {
             try {

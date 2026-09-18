@@ -4,7 +4,7 @@ import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/u
 import { useSearchParams } from 'next/navigation';
 import { useMemo } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { routes } from '@/lib/routes';
+import { routes, TICKET_PREFILL_KEYS, type TicketPrefill } from '@/lib/routes';
 import { useCreateTicketForm } from '../../hooks/use-create-ticket-form';
 import { TicketFormFields } from './ticket-form-fields';
 
@@ -12,9 +12,19 @@ export function CreateEditTicketPage() {
   const searchParams = useSearchParams();
   const ticketId = searchParams.get('edit');
 
+  // Create-mode starting values (see `routes.tickets.new`). Read once: the form
+  // seeds its defaults from this on mount and owns the values from then on.
+  const prefill = useMemo<TicketPrefill | undefined>(() => {
+    if (ticketId) return undefined;
+    const values: TicketPrefill = {};
+    for (const key of TICKET_PREFILL_KEYS) values[key] = searchParams.get(key) ?? undefined;
+    return Object.values(values).some(Boolean) ? values : undefined;
+  }, [ticketId, searchParams]);
+
   const { form, ticket, isEditMode, ticketLoaded, isSubmitting, handleSave, tempAttachments, isFaeForm } =
     useCreateTicketForm({
       ticketId,
+      prefill,
     });
 
   const backToTicket = useSafeBack(routes.tickets.dialog(ticketId ?? ''));
@@ -60,6 +70,7 @@ export function CreateEditTicketPage() {
       <TicketFormFields
         form={form}
         ticket={ticket}
+        prefill={prefill}
         tempAttachments={tempAttachments}
         isFaeForm={isFaeForm}
         isEditMode={isEditMode}

@@ -30,6 +30,7 @@ import { type ReactNode, Suspense } from 'react';
  *     route keys on the global id too).
  */
 import { graphql, useLazyLoadQuery } from 'react-relay';
+import type { relayMentionChipsInsightQuery } from '@/__generated__/relayMentionChipsInsightQuery.graphql';
 import type { relayMentionChipsKbQuery } from '@/__generated__/relayMentionChipsKbQuery.graphql';
 import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChipsNodeQuery.graphql';
 import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentionChipsScheduleQuery.graphql';
@@ -100,8 +101,19 @@ const SCHEDULE_QUERY = graphql`
   }
 `;
 
+/** incident — `insight(id:)` takes `Insight.id`, which is already the opaque id
+ *  the mention carries; the incidents route keys on the same id. Throws (not
+ *  null) on a missing id → the error boundary below turns it into a plain chip. */
+const INSIGHT_QUERY = graphql`
+  query relayMentionChipsInsightQuery($id: ID!) {
+    insight(id: $id) {
+      title
+    }
+  }
+`;
+
 /** Detail-page URL for a resolved entity. Device/org routes key on the RAW id;
- *  the kb + script + schedule routes key on the GLOBAL id (same id their queries
+ *  the kb + script + schedule + incident routes key on the GLOBAL id (same id their queries
  *  take). */
 function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): string | undefined {
   switch (kind) {
@@ -117,6 +129,8 @@ function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): stri
       return routes.scripts.details(globalId);
     case CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT:
       return routes.scripts.schedules.details(globalId);
+    case CONTEXT_ENTITY_KIND.INSIGHT:
+      return routes.incidents.details(globalId);
     default:
       return undefined;
   }
@@ -186,6 +200,17 @@ function ScheduleInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) 
   );
 }
 
+function InsightInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+  const data = useLazyLoadQuery<relayMentionChipsInsightQuery>(
+    INSIGHT_QUERY,
+    { id: globalId },
+    { fetchPolicy: 'store-or-network' },
+  );
+  return (
+    <MentionTag icon={icon} label={data.insight.title || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />
+  );
+}
+
 function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
   switch (kind) {
     case CONTEXT_ENTITY_KIND.KB_ARTICLE:
@@ -195,6 +220,8 @@ function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
       return ScriptInner;
     case CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT:
       return ScheduleInner;
+    case CONTEXT_ENTITY_KIND.INSIGHT:
+      return InsightInner;
     default:
       return NodeInner;
   }

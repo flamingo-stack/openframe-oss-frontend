@@ -32,6 +32,13 @@ export const FEATURE_FLAG_NAMES = [
   // drives the mock services: the simulate-decision strip on the awaiting
   // screen and the recording player's local .mcrec loader. On for dev / qa.
   'remote-access-mock-tools',
+  // TEMPORARY - remove once the approval API (CU-86ajx02gz) runs on every
+  // environment. On = the approval-gated connect flow talks to the real
+  // /api/v1/remote-access/** service (dev, where the backend is deployed);
+  // off = the in-memory mock that the QA tooling above drives.
+  'remote-access-approval-api',
+  // The Incidents module (`/incidents`) over saas-api's `insights` API.
+  'insights',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
