@@ -1,52 +1,18 @@
 'use client';
 
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import type { ReactNode } from 'react';
+import { StackedRowsPanel, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { CustomerDetails } from '../../hooks/use-customer-details';
+import { buildCustomerContactRows, buildCustomerInfoRows, buildNoContactsRow } from './customer-details-rows';
 
 const EMPTY_VALUE = '—';
 
-interface InfoCellProps {
-  value: string;
-  label: string;
-  icon?: ReactNode;
-  href?: string;
-}
+/** `mapOrganization` renders a missing value as '-'; the tab shows an em dash and no link for it. */
+const isEmpty = (value?: string | null): boolean => !value || value === '-';
+const display = (value?: string | null): string => (isEmpty(value) ? EMPTY_VALUE : (value as string));
 
-function InfoCell({ value, label, icon, href }: InfoCellProps) {
-  const display = value && value !== '-' ? value : EMPTY_VALUE;
-  const isEmpty = display === EMPTY_VALUE;
-
-  const content = (
-    <div className="flex min-w-0 flex-1 flex-col justify-center">
-      <div className="flex min-w-0 items-center gap-1">
-        {icon}
-        <div className="min-w-0 flex-1">
-          <TruncateText>{display}</TruncateText>
-        </div>
-      </div>
-      <TruncateText variant="h6" tone="secondary">
-        {label}
-      </TruncateText>
-    </div>
-  );
-
-  if (href && !isEmpty) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className="flex min-w-0 flex-1 items-center transition-opacity hover:opacity-80"
-      >
-        {content}
-      </a>
-    );
-  }
-
-  return <div className="flex min-w-0 flex-1 items-center">{content}</div>;
-}
+/** A cell value with the measured truncation tooltip — the app's rule for clipped text. */
+const cell = (value?: string | null) => <TruncateText>{display(value)}</TruncateText>;
 
 function CustomerNotesCard({ notes }: { notes: string }) {
   return (
@@ -66,29 +32,37 @@ interface CustomerDetailsTabProps {
 }
 
 export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
-  const hasWebsite = Boolean(organization.website && organization.website !== '-');
+  const hasWebsite = !isEmpty(organization.website);
   const websiteHref = hasWebsite
     ? organization.website.startsWith('http')
       ? organization.website
       : `https://${organization.website}`
     : undefined;
 
+  const infoRows = buildCustomerInfoRows({
+    website: cell(organization.website),
+    websiteHref,
+    websiteIcon: <ExternalLinkIcon className="h-6 w-6 shrink-0 text-ods-text-secondary" />,
+    physicalAddress: cell(organization.physicalAddress),
+    mailingAddress: cell(organization.mailingAddress),
+  });
+
+  const contactRows =
+    organization.contacts.length > 0
+      ? buildCustomerContactRows(
+          organization.contacts.map(contact => ({
+            contactName: cell(contact.contactName),
+            title: cell(contact.title),
+            email: cell(contact.email),
+            phone: cell(contact.phone),
+          })),
+        )
+      : [buildNoContactsRow()];
+
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
-        <div className="flex h-20 items-center gap-[var(--spacing-system-m)] border-b border-ods-border px-[var(--spacing-system-m)]">
-          <InfoCell
-            value={organization.website}
-            label="Website"
-            icon={<ExternalLinkIcon className="h-6 w-6 shrink-0 text-ods-text-secondary" />}
-            href={websiteHref}
-          />
-        </div>
-        <div className="flex flex-col px-[var(--spacing-system-m)] py-[var(--spacing-system-m)] md:h-20 md:flex-row md:items-center md:gap-[var(--spacing-system-m)] md:py-0">
-          <InfoCell value={organization.physicalAddress} label="Physical Address" />
-          <InfoCell value={organization.mailingAddress} label="Mailing Address" />
-        </div>
-      </div>
+      <StackedRowsPanel rows={infoRows} />
+      <StackedRowsPanel rows={contactRows} />
       <CustomerNotesCard notes={organization.notes.join('\n')} />
     </div>
   );
