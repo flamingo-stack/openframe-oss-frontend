@@ -17,6 +17,12 @@ import {
   type AssignmentTargetType,
 } from './types';
 
+// TODO(OPENFRAM-002-2): this raw GraphQL POST query predates the react-relay
+// migration mandate for new data-fetching code. It is left in place pending a
+// follow-up migration to useLazyLoadQuery/fragments, since the union-typed
+// response shape (Organization | Machine | KnowledgeBaseItem | Ticket) and the
+// manual field aliasing below need a corresponding Relay fragment per target
+// type to migrate safely.
 const ASSIGNED_ITEMS_QUERY = `#graphql
   query AssignmentsAssignedItems($itemId: ID!, $targetType: AssignmentTargetType!, $first: Int) {
     assignedItems(itemId: $itemId, targetType: $targetType, first: $first) {
@@ -246,6 +252,18 @@ export interface AssignedItemsResult {
   isReady: boolean;
 }
 
+// Canonical query-key builder for assigned-items queries, kept alongside this
+// hook (no centralized hooks/admin-query-keys.ts module exists in this repo to
+// import from) so any other surface invalidating this cache must reuse this
+// function rather than hand-writing an array literal that can drift.
+export function assignedItemsQueryKey(
+  itemType: AssignmentItemType,
+  normalizedItemId: string | null,
+  targetType: AssignmentTargetType,
+) {
+  return ['assignments', 'assigned-items', itemType, normalizedItemId, targetType] as const;
+}
+
 function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Error>[]): AssignedItemsResult {
   const value: AssignmentsValue = {};
   const out: AssignedItemsResult = { value, isLoading: false, isReady: true };
@@ -287,7 +305,7 @@ export function useAssignedItems({ itemId, itemType, enabled = true }: UseAssign
 
   return useQueries({
     queries: ASSIGNMENT_TARGET_TYPES.map(targetType => ({
-      queryKey: ['assignments', 'assigned-items', itemType, normalizedItemId, targetType],
+      queryKey: assignedItemsQueryKey(itemType, normalizedItemId, targetType),
       queryFn: () => fetchAssignedItems(normalizedItemId as string, targetType),
       enabled: isEnabled,
       staleTime: 30_000,
