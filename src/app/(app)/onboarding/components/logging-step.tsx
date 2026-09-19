@@ -14,6 +14,7 @@ import {
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { useLogs } from '../../logs-page/hooks/use-logs';
@@ -79,8 +80,8 @@ export function LoggingStep({
         status: { label: log.severity, variant: severityVariant(log.severity) },
         toolType: normalizeToolTypeWithFallback(log.toolType),
         device: {
-          name: log.device?.hostname || log.hostname || log.deviceId || '-',
-          organization: log.device?.organization || log.organizationName || '-',
+          name: log.device?.hostname || log.hostname || log.deviceId || EMPTY_VALUE,
+          organization: log.device?.organization || log.organizationName || EMPTY_VALUE,
         },
         summary: log.summary || 'No summary available',
         original: log,

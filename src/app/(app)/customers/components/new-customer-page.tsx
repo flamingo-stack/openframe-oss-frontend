@@ -92,11 +92,6 @@ const buildAddressDto = (raw: string) => ({
   country: '',
 });
 
-const stripPlaceholder = (value?: string | null): string => {
-  if (!value || value === '-') return '';
-  return value;
-};
-
 const contactToDto = (c: { name: string; title: string; phone: string; email: string }) => ({
   contactName: c.name,
   title: c.title,
@@ -218,8 +213,8 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
     const sameAsPhysical = !mailing || mailing === physical;
 
     setForm({
-      name: stripPlaceholder(organization.name),
-      website: stripPlaceholder(organization.website),
+      name: organization.name,
+      website: organization.website,
       notes: (organization.notes || []).join('\n'),
       physicalAddress: physical,
       mailingAddress: mailing,
@@ -233,7 +228,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
       .map(contactToDto);
 
     setPreserved({
-      category: stripPlaceholder(organization.industry) || undefined,
+      category: organization.industry || undefined,
       numberOfEmployees: organization.employees,
       monthlyRevenue: organization.mrrUsd,
       contractStartDate: organization.contractStart

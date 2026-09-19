@@ -232,7 +232,7 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
           </div>
 
           <div className="flex h-20 min-w-0 flex-col justify-center">
-            <TruncateText>{updatedAt ? formatDate(updatedAt) : '-'}</TruncateText>
+            <TruncateText>{formatDate(updatedAt)}</TruncateText>
             <p className="truncate text-heading-5 text-ods-text-secondary">Updated</p>
           </div>
 

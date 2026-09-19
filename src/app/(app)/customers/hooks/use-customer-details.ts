@@ -90,9 +90,9 @@ function mapOrganization(org: OrganizationNode): CustomerDetails {
   return {
     id: org.id,
     organizationId: org.organizationId,
-    name: org.name || '-',
-    industry: org.category || '-',
-    website: org.websiteUrl || '-',
+    name: org.name ?? '',
+    industry: org.category ?? '',
+    website: org.websiteUrl ?? '',
     employees: typeof org.numberOfEmployees === 'number' ? org.numberOfEmployees : null,
     updatedAt: org.updatedAt || org.createdAt || new Date().toISOString(),
     physicalAddress: formatAddress(org.contactInformation?.physicalAddress),

@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { InsightStatus } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
 import { formatInterval } from '../utils/format-interval';
@@ -103,7 +104,10 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
           <InfoCell value={labelOf(INCIDENT_TYPE_LABELS, incident.type)} label="Category" />
         </Cell>
         <Cell>
-          <InfoCell value={incident.interval === null ? '—' : formatInterval(incident.interval)} label="Interval" />
+          <InfoCell
+            value={incident.interval === null ? EMPTY_VALUE : formatInterval(incident.interval)}
+            label="Interval"
+          />
         </Cell>
         <Cell>
           <InfoCell value={<IncidentStatusTag status={incident.status} />} label="Status" />

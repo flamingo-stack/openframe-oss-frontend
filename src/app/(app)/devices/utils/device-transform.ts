@@ -5,6 +5,7 @@ import type {
   deviceRowFields_machine$key,
 } from '@/__generated__/deviceRowFields_machine.graphql';
 import type { deviceSelectorFields_machine$key } from '@/__generated__/deviceSelectorFields_machine.graphql';
+import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
 import { deviceFieldsFragment } from '@/graphql/devices/device-fields';
 import { deviceRowFieldsFragment } from '@/graphql/devices/device-row-fields';
 import { deviceSelectorFieldsFragment } from '@/graphql/devices/device-selector-fields';
@@ -148,7 +149,7 @@ export function machineSelectorToDevice(ref: deviceSelectorFields_machine$key): 
 
     // A customer can carry several contacts; the column shows one, so take the
     // first that actually has an address.
-    organizationEmail: machine.organization?.contactInformation?.contacts?.find(c => c?.email)?.email ?? undefined,
+    organizationEmail: customerContactEmail(machine.organization?.contactInformation?.contacts?.map(c => c?.email)),
   };
 }
 

@@ -34,6 +34,7 @@ import type { deleteTimeEntryMutation as DeleteTimeEntryMutationType } from '@/_
 import type { employeeWorkTimeRelay_query$key } from '@/__generated__/employeeWorkTimeRelay_query.graphql';
 import type { employeeWorkTimeRelayPaginationQuery } from '@/__generated__/employeeWorkTimeRelayPaginationQuery.graphql';
 import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } from '@/__generated__/employeeWorkTimeRelayQuery.graphql';
+import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
 import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -342,7 +343,8 @@ function WorkTimeTableData({
             userImageUrl: getFullImageUrl(edge.node.user?.image?.imageUrl, edge.node.user?.image?.hash),
             organizationId: org?.organizationId ?? null,
             organizationName: org?.name ?? null,
-            organizationEmail: org?.contactInformation?.contacts?.[0]?.email ?? null,
+            organizationEmail:
+              customerContactEmail(org?.contactInformation?.contacts?.map(contact => contact?.email)) ?? null,
             organizationImageUrl: getFullImageUrl(org?.image?.imageUrl, org?.image?.hash),
           };
         }),

@@ -2,6 +2,7 @@
 
 import { OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { ValueText } from '@/app/components/shared/value-text';
 import type { ScheduleTimeReference } from '@/generated/schema-enums';
 import { ScriptScheduleTrigger } from '@/generated/schema-enums';
 import { DEVICE_LOCAL_TIME_NOTE, isDeviceLocalTime } from '../utils/schedule-timing';
@@ -70,7 +71,7 @@ export function ScheduleInfoBarFromData({
             <span className="text-ods-text-secondary text-h6">Schedule Name</span>
           </div>
           <div className={CELL_CLASS}>
-            <TruncateText>{note || '—'}</TruncateText>
+            <ValueText value={note} />
             <span className="text-ods-text-secondary text-h6">Note</span>
           </div>
         </div>

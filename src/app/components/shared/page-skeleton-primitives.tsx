@@ -138,6 +138,11 @@ export function skeletonColumnDefs<T>(columns: readonly TableSkeletonColumn[]): 
 interface TableSkeletonProps {
   columns: readonly TableSkeletonColumn[];
   rows?: number;
+  /**
+   * Set when the live table pins its header under a sticky toolbar — the
+   * skeleton pins at the same offset, so the header does not jump on load.
+   */
+  stickyHeaderOffset?: string;
 }
 
 /**
@@ -151,7 +156,7 @@ interface TableSkeletonProps {
  * `table`/`children`/`className`, so the attribute needs its own element. It
  * wraps a single child, so the flex-item count of the parent is unchanged.
  */
-export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
+export function TableSkeleton({ columns, rows = 10, stickyHeaderOffset }: TableSkeletonProps) {
   const columnDefs = useMemo<ColumnDef<unknown>[]>(() => skeletonColumnDefs<unknown>(columns), [columns]);
 
   const table = useDataTable<unknown>({
@@ -164,7 +169,7 @@ export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
   return (
     <div aria-busy>
       <DataTable table={table}>
-        <DataTable.Header />
+        <DataTable.Header stickyHeader={stickyHeaderOffset !== undefined} stickyHeaderOffset={stickyHeaderOffset} />
         <DataTable.Body loading skeletonRows={rows} emptyMessage="" rowClassName="mb-1" />
       </DataTable>
     </div>

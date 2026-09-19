@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { isSaasTenantMode } from '@/lib/app-mode';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { queryState } from '@/lib/query-state';
 import { dashboardApiService } from '../services/dashboard-api-service';
 import { dashboardQueryKeys } from '../utils/query-keys';
@@ -99,7 +100,7 @@ export function useTicketsOverview() {
     total: query.data?.total ?? null,
     active: query.data?.active ?? null,
     resolved: query.data?.resolved ?? null,
-    avgResolveTime: query.data?.avgResolveTime ?? '—',
+    avgResolveTime: query.data?.avgResolveTime ?? EMPTY_VALUE,
     avgFaeRate: query.data?.avgFaeRate ?? null,
     activePercentage: query.data?.activePercentage ?? null,
     resolvedPercentage: query.data?.resolvedPercentage ?? null,

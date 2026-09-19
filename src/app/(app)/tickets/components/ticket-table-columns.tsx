@@ -19,6 +19,7 @@ import { type ReactNode, useMemo } from 'react';
 import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
@@ -105,7 +106,7 @@ export function getTicketTableColumns(options: TicketTableColumnsOptions = {}): 
       const clientOwner = isClientOwner ? (ticket.owner as ClientDialogOwner) : null;
       const deviceName = ticket.deviceHostname || clientOwner?.machine?.hostname || clientOwner?.machine?.displayName;
 
-      return <DeviceCardCompact deviceName={deviceName || '—'} organization={ticket.organizationName} />;
+      return <DeviceCardCompact deviceName={deviceName || EMPTY_VALUE} organization={ticket.organizationName} />;
     },
     enableSorting: false,
     meta: liveColumnMeta(TICKET_COLUMNS.source),

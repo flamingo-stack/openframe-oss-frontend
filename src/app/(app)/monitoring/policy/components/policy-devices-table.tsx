@@ -1,6 +1,5 @@
 'use client';
 
-import { type DeviceType, getDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core';
 import { OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -19,6 +18,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
+import { DeviceTypeTile } from '@/app/components/shared/device-type-tile';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -64,12 +64,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
           const r = row.original;
           return (
             <div className="relative box-border flex h-20 w-full shrink-0 content-stretch items-center justify-start gap-4 py-0">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border">
-                {r.deviceType &&
-                  getDeviceTypeIcon(r.deviceType.toLowerCase() as DeviceType, {
-                    className: 'w-5 h-5 text-ods-text-secondary',
-                  })}
-              </div>
+              <DeviceTypeTile type={r.deviceType} />
               <div className="min-w-0 flex-1">
                 <TruncateText>{r.displayName || r.hostname}</TruncateText>
               </div>

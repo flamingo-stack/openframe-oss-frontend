@@ -17,6 +17,8 @@ import { LockedScreen } from '@/app/components/shared/locked-screen';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { formatDate } from '@/lib/format-date';
+import { formatCompactCount, formatCount } from '@/lib/format-number';
 import { routes } from '@/lib/routes';
 import { TOKENS_PER_MILLION } from '../hooks/use-ai-spend-limit';
 import { useBillingPortalSession } from '../hooks/use-billing-portal-session';
@@ -24,7 +26,7 @@ import { useBillingSummary } from '../hooks/use-billing-summary';
 import { useCancelSubscription } from '../hooks/use-cancel-subscription';
 import { useCancellationImpact } from '../hooks/use-cancellation-impact';
 import { useResumeSubscription } from '../hooks/use-resume-subscription';
-import { formatCompactCount, formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
+import { formatCurrency } from '../lib/format';
 import { openExternalTab } from '../lib/stripe-window';
 import { AiTokensLimitModal } from './ai-tokens-limit-modal';
 import { BillingRow, SectionBlock, TestModeBanner } from './billing-section';
@@ -443,7 +445,7 @@ export function BillingUsageContent() {
                 : 'Your AI balance is running low. Mingo and Fae stop responding when it hits zero.'}
               {/* Only when the period has a known end — the reset date is that
                   date, not a separate fact this can guess at. */}
-              {billing.nextBillingDate && ` Free tokens reset on ${formatDateOrDash(billing.nextBillingDate)}.`}
+              {billing.nextBillingDate && ` Free tokens reset on ${formatDate(billing.nextBillingDate)}.`}
             </p>
           </div>
         </div>
@@ -481,7 +483,7 @@ export function BillingUsageContent() {
               <OverageStat value={formatCurrency(billing.estimatedOverage)} label="Overage Payment" />
             )}
             {billing.nextBillingDate && (
-              <OverageStat value={formatDateOrDash(billing.nextBillingDate)} label="Next Billing" />
+              <OverageStat value={formatDate(billing.nextBillingDate)} label="Next Billing" />
             )}
           </div>
         </div>
@@ -518,7 +520,7 @@ export function BillingUsageContent() {
               repeated. A trial has no `currentPeriodEnd`, so its row simply never
               appears beside "Trial ends on". */}
           {billing.nextBillingDate && (
-            <BillingRow label="Next Billing Date" value={formatDateOrDash(billing.nextBillingDate)} />
+            <BillingRow label="Next Billing Date" value={formatDate(billing.nextBillingDate)} />
           )}
           {billing.cancellationEffectiveAt && (
             <BillingRow label="Plan ends on" warning value={<WarningDate iso={billing.cancellationEffectiveAt} />} />
@@ -581,9 +583,7 @@ export function BillingUsageContent() {
                 }
               />
             )}
-            {billing.nextBillingDate && (
-              <BillingRow label="Next Billing" value={formatDateOrDash(billing.nextBillingDate)} />
-            )}
+            {billing.nextBillingDate && <BillingRow label="Next Billing" value={formatDate(billing.nextBillingDate)} />}
           </SectionBlock>
         )}
       </div>
@@ -699,7 +699,7 @@ function DeviceUsageCaption({ isTrial, trialEndsOn, prepaid, isAnnual }: DeviceU
     if (!trialEndsOn) return <>Included in trial</>;
     return (
       <>
-        Trial Period ends <StatEmphasis>{formatDateOrDash(trialEndsOn)}</StatEmphasis>
+        Trial Period ends <StatEmphasis>{formatDate(trialEndsOn)}</StatEmphasis>
       </>
     );
   }
@@ -754,7 +754,7 @@ function OverageStat({ value, label }: { value: string; label: string }) {
 function WarningDate({ iso }: { iso: string }) {
   return (
     <>
-      {formatDateOrDash(iso)}
+      {formatDate(iso)}
       <AlertTriangleIcon className="size-4 text-ods-warning" />
     </>
   );

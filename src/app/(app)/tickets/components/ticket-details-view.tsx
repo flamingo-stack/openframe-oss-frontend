@@ -50,6 +50,7 @@ import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation'
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -630,7 +631,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     {
       id: 'ticket-number',
       label: 'Ticket Number',
-      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : '—' },
+      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : EMPTY_VALUE },
     },
     {
       id: 'customer',
@@ -641,7 +642,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
             imageSrc: getFullImageUrl(dialog.organizationImageUrl, dialog.organizationImageHash),
             imageFallback: customerName,
           }
-        : { text: '—' },
+        : { text: EMPTY_VALUE },
     },
     {
       id: 'device',
@@ -652,7 +653,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           (isClientOwner(dialog.owner)
             ? dialog.owner.machine?.hostname || dialog.owner.machine?.displayName
             : undefined) ||
-          '—',
+          EMPTY_VALUE,
         href: machineId ? routes.devices.details(machineId) : undefined,
       },
     },
@@ -679,7 +680,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     {
       id: 'created',
       label: 'Created',
-      value: { text: dialog.createdAt ? formatDateTime(dialog.createdAt) : 'Unknown' },
+      value: { text: formatDateTime(dialog.createdAt) },
     },
     {
       id: 'status',
