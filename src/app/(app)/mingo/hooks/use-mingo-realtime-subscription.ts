@@ -18,6 +18,9 @@ import type { DialogNode } from '../types/dialog.types';
 const MINGO_JETSTREAM_TOPIC: NatsMessageType = 'admin-message';
 const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
 
+const mingoDialogQueryKey = (dialogId: string) => ['mingo-dialog', dialogId] as const;
+const mingoDialogMessagesQueryKey = (dialogId: string) => ['mingo-dialog-messages', dialogId] as const;
+
 interface UseMingoRealtimeSubscriptionOptions {
   onChunkReceived?: (dialogId: string, chunk: ChunkData, messageType: NatsMessageType) => void;
 }
@@ -243,7 +246,7 @@ export function DialogSubscription({
         if (chunk.streamSeq < lastAppliedStreamSeqRef.current) return;
         lastAppliedStreamSeqRef.current = chunk.streamSeq;
       }
-      queryClient.setQueryData<DialogNode | null | undefined>(['mingo-dialog', dialogId], prev =>
+      queryClient.setQueryData<DialogNode | null | undefined>(mingoDialogQueryKey(dialogId), prev =>
         prev ? { ...prev, streamState: next } : prev,
       );
     },
@@ -294,8 +297,8 @@ export function DialogSubscription({
   useEffect(() => {
     if (reconnectionCount <= lastHandledReconnectRef.current) return;
     lastHandledReconnectRef.current = reconnectionCount;
-    void queryClient.invalidateQueries({ queryKey: ['mingo-dialog-messages', dialogId] });
-    void queryClient.invalidateQueries({ queryKey: ['mingo-dialog', dialogId] });
+    void queryClient.invalidateQueries({ queryKey: mingoDialogMessagesQueryKey(dialogId) });
+    void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKey(dialogId) });
   }, [reconnectionCount, queryClient, dialogId]);
 
   return null;
