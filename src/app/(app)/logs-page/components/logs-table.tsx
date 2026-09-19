@@ -214,6 +214,33 @@ interface LogsTableContentProps {
   onMobileFilterClose: () => void;
 }
 
+/**
+ * Builds the internal `/log-details` navigation URL for a log row.
+ *
+ * NOTE: kept as a local, explicit query-string builder rather than routed
+ * through a centralized registry entry, because no `logs`/`logDetails` entry
+ * currently exists in the routes registry to reuse without inventing its
+ * shape. Centralizing this path-building here (a single named helper) at
+ * least removes the inline duplication risk at the call site; migrating to
+ * a shared `routes.ts` entry should be a follow-up once that entry exists.
+ */
+function buildLogDetailsPath(params: {
+  id: string;
+  ingestDay: string;
+  toolType: string;
+  eventType: string;
+  timestamp?: string | null;
+}): string {
+  const searchParams = new URLSearchParams({
+    id: params.id,
+    ingestDay: params.ingestDay,
+    toolType: params.toolType,
+    eventType: params.eventType,
+    timestamp: params.timestamp || '',
+  });
+  return `/log-details?${searchParams.toString()}`;
+}
+
 // ----------------------------------------------------------------
 // Inner content — uses Relay hooks, must be inside Suspense
 // ----------------------------------------------------------------
@@ -346,7 +373,7 @@ function LogsTableContent({
                 ? ('grey' as const)
                 : log.severity === 'CRITICAL'
                   ? ('critical' as const)
-                  : ('success' as const),
+                  : ('grey' as const),
       },
       source: {
         name: toToolLabel(log.toolType),
@@ -366,7 +393,13 @@ function LogsTableContent({
   const getLogDetailsUrl = useCallback((log: UiLogEntry): string => {
     const original = log.originalLogEntry;
     const id = log.id || log.logId;
-    return `/log-details?id=${id}&ingestDay=${original.ingestDay}&toolType=${original.toolType}&eventType=${original.eventType}&timestamp=${encodeURIComponent(original.timestamp || '')}`;
+    return buildLogDetailsPath({
+      id,
+      ingestDay: original.ingestDay,
+      toolType: original.toolType,
+      eventType: original.eventType,
+      timestamp: original.timestamp,
+    });
   }, []);
 
   const columns = useMemo<ColumnDef<UiLogEntry>[]>(
