@@ -1,19 +1,17 @@
 'use client';
 
-import { ContentErrorBoundary } from '@/app/components/shared';
-import { softwarePageErrorFallback } from '../components/software-page-error';
-import { SoftwareTabNavigation } from '../components/software-tabs';
-import { VulnerabilitiesTable } from '../components/vulnerabilities-table';
+import { SoftwarePageShell } from '../components/shared/software-page-shell';
+import { SOFTWARE_SECTIONS } from '../components/shared/software-sections';
+import { VulnerabilityListView } from '../components/vulnerability-list/vulnerability-list-view';
 
 export default function SoftwareVulnerabilitiesPage() {
   return (
-    <div className="flex w-full flex-col">
-      <SoftwareTabNavigation activeTab="vulnerabilities" />
-      <div className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-        <ContentErrorBoundary fallback={softwarePageErrorFallback('Vulnerabilities', "Couldn't load vulnerabilities.")}>
-          <VulnerabilitiesTable />
-        </ContentErrorBoundary>
-      </div>
-    </div>
+    <SoftwarePageShell
+      section="vulnerabilities"
+      title={SOFTWARE_SECTIONS.vulnerabilities.label}
+      errorMessage="Couldn't load vulnerabilities."
+    >
+      <VulnerabilityListView />
+    </SoftwarePageShell>
   );
 }

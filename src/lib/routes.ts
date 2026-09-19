@@ -295,22 +295,16 @@ export const routes = {
    */
   software: {
     list: '/software',
-    updates: '/software/updates',
+    /** Software Actions — install/update runs, dispatched and scheduled. */
+    actions: '/software/actions',
     vulnerabilities: '/software/vulnerabilities',
     install: '/software/install',
     update: '/software/update',
     /**
-     * Execution history of one catalog package's install or update runs. A
-     * package is identified by manager + name (+ the Brew sub-type, since a
-     * formula and a cask can share a name), so those ride as query params.
+     * Software Update Details — one install or update run, by its Software
+     * Action id (the run's executionId).
      */
-    executions: (o: { packageManager: string; packageName: string; action: string; brewPackageType?: string | null }) =>
-      withQuery('/software/executions', {
-        manager: o.packageManager,
-        package: o.packageName,
-        action: o.action,
-        type: o.brewPackageType,
-      }),
+    action: (id: string | number) => withQuery('/software/actions/action', { id }),
     /** A CVE id (`CVE-2024-38063`) rides as `id`, like every other detail page. */
     vulnerability: (cveId: string) => withQuery('/software/vulnerability', { id: cveId }),
     details: (id: string | number, o?: { tab?: SoftwareDetailTab }) =>

@@ -449,14 +449,27 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
  *   Normalizer warn about the conflicting `name`), after which
  *   `deduplicateFilterOptions` collapsed them to a single, possibly wrong,
  *   option.
+ * - `AffectedSoftware` — a CVE's view of a software title, and its `id` IS that
+ *   title's `Software.id` (the row links to the Software page by it). Merged,
+ *   the record carries one `devicesCount` for two different counts: the fleet's
+ *   installs of the title and the installs on an affected version.
+ * - `PackageSearchItem` / `PackageDetails` — the `id` is the catalog package
+ *   name, which Homebrew gives a formula and a cask alike (`docker`); merged,
+ *   the two results read as one package with one `packageType`.
  *
  * Returning `undefined` stores each list entry under a parent-scoped client id
  * (by field + index) instead, so colliding backend ids no longer merge. Safe
- * for both: neither is a `Node`, neither is fetched via `node(id:)`, and both
- * are only read inline through their parent. Everything else keeps the default
+ * for all of them: none is a `Node`, none is fetched via `node(id:)`, and each
+ * is only read inline through its parent. Everything else keeps the default
  * id-based normalization.
  */
-const UNNORMALIZED_TYPES = new Set(['SubscriptionOptionDetail', 'OrganizationFilterOption']);
+const UNNORMALIZED_TYPES = new Set([
+  'SubscriptionOptionDetail',
+  'OrganizationFilterOption',
+  'AffectedSoftware',
+  'PackageSearchItem',
+  'PackageDetails',
+]);
 
 function resolveDataId(value: { readonly id?: unknown }, typeName: string): string | undefined {
   if (UNNORMALIZED_TYPES.has(typeName)) return undefined;
