@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
+import { pluralize } from '@/lib/pluralize';
 import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -307,7 +308,7 @@ export function useLiveCampaign({ hostName }: UseLiveCampaignOptions = {}): UseL
           if (count.results + count.errors >= CAMPAIGN_LIMIT) {
             toast({
               title: 'Campaign limit reached',
-              description: `Stopped after ${CAMPAIGN_LIMIT.toLocaleString()} results`,
+              description: `Stopped after ${pluralize(CAMPAIGN_LIMIT, 'result')}`,
               variant: 'destructive',
             });
             finishCampaign('completed');

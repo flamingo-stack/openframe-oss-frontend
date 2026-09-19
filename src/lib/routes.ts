@@ -52,6 +52,7 @@ export const TAB_IDS = {
     'remote-sessions',
   ],
   scriptDetails: ['details', 'executions'],
+  softwareDetails: ['devices', 'vulnerabilities'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
   monitoring: ['policies', 'queries'],
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
@@ -66,6 +67,7 @@ export type CustomerDetailTab = (typeof TAB_IDS.customerDetails)[number];
 export type CustomerEditTab = (typeof TAB_IDS.customerEdit)[number];
 export type DeviceDetailTab = (typeof TAB_IDS.deviceDetails)[number];
 export type ScriptDetailTab = (typeof TAB_IDS.scriptDetails)[number];
+export type SoftwareDetailTab = (typeof TAB_IDS.softwareDetails)[number];
 export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
 export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
 export type QueryDetailTab = (typeof TAB_IDS.queryDetails)[number];
@@ -284,6 +286,29 @@ export const routes = {
     run: (id: string | number) => withQuery('/scripts/details/run', { id }),
     edit: (id: string | number) => withQuery('/scripts/edit', { id }),
     execution: (id: string | number) => withQuery('/scripts/executions', { id }),
+  },
+
+  /**
+   * Fleet software inventory. The three views are separate routes, not `?tab=`
+   * views of one page (like `/scripts` vs `/scripts/schedules`), so they have no
+   * `TAB_IDS` entry — `SoftwareTabNavigation` navigates between them.
+   */
+  software: {
+    list: '/software',
+    /** Software Actions — install/update runs, dispatched and scheduled. */
+    actions: '/software/actions',
+    vulnerabilities: '/software/vulnerabilities',
+    install: '/software/install',
+    update: '/software/update',
+    /**
+     * Software Update Details — one install or update run, by its Software
+     * Action id (the run's executionId).
+     */
+    action: (id: string | number) => withQuery('/software/actions/action', { id }),
+    /** A CVE id (`CVE-2024-38063`) rides as `id`, like every other detail page. */
+    vulnerability: (cveId: string) => withQuery('/software/vulnerability', { id: cveId }),
+    details: (id: string | number, o?: { tab?: SoftwareDetailTab }) =>
+      withQuery('/software/details', { id, tab: o?.tab }),
   },
 
   monitoring: {

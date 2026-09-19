@@ -7,8 +7,8 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { usageViewQuery as UsageViewQueryType } from '@/__generated__/usageViewQuery.graphql';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
+import { formatCount } from '@/lib/format-number';
 import { routes } from '@/lib/routes';
-import { formatCount } from '../lib/format';
 import { BillingRow, SectionBlock } from './billing-section';
 
 /**

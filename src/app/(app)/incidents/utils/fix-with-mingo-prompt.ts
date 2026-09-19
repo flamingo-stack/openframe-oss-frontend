@@ -1,3 +1,4 @@
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import type { MingoDraft } from '../../mingo/stores/mingo-launcher-store';
@@ -49,7 +50,7 @@ function incidentMingoPrompt(incident: IncidentRow | Incident): string {
     for (const row of rows.slice(0, MAX_EVIDENCE_ROWS)) {
       lines.push(
         `- ${Object.entries(row)
-          .map(([key, value]) => `${key}: ${value ?? '—'}`)
+          .map(([key, value]) => `${key}: ${value ?? EMPTY_VALUE}`)
           .join(', ')}`,
       );
     }

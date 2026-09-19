@@ -29,9 +29,9 @@ export const scriptExecutionDetailRelayQuery = graphql`
         machine {
           id
           machineId
+          nickname
           hostname
           displayName
-          nickname
           organization {
             id
             name

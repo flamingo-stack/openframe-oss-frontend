@@ -2,11 +2,8 @@
 
 import { SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { formatTime } from '@/lib/format-date';
 import type { RecordingChatMessage, RecordingEmployee } from '../../types/session-recording';
-
-function formatChatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-}
 
 interface SessionChatProps {
   messages: RecordingChatMessage[];
@@ -52,7 +49,7 @@ export function SessionChat({ messages, employee }: SessionChatProps) {
                 >
                   {message.author}
                 </span>
-                <span className="shrink-0 text-ods-text-secondary text-h6">{formatChatTime(message.sentAt)}</span>
+                <span className="shrink-0 text-ods-text-secondary text-h6">{formatTime(message.sentAt)}</span>
               </div>
               <p className="whitespace-pre-wrap text-ods-text-primary text-h4">{message.body}</p>
             </div>

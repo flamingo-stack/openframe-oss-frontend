@@ -8,16 +8,15 @@ import type React from 'react';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
-import { formatDate, formatTimeWithSeconds } from '@/lib/format-date';
+import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import type { Device } from '../types/device.types';
 import { getDeviceName } from '../utils/device-name';
 
 function formatDateWithTime(iso?: string): React.ReactNode {
-  if (!iso) return 'Unknown';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'Unknown';
+  const d = toValidDate(iso);
+  if (!d) return null;
   return (
     <>
       {formatDate(d)} <span className="text-ods-text-secondary">{formatTimeWithSeconds(d)}</span>
@@ -42,9 +41,9 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
     );
   }
 
-  const deviceLabel = [device.manufacturer, device.model].filter(Boolean).join(', ') || 'Unknown';
-  const serialNumber = device.serialNumber || device.serial_number || 'Unknown';
-  const uuid = device.osUuid || device.machineId || device.id || 'Unknown';
+  const deviceLabel = [device.manufacturer, device.model].filter(Boolean).join(', ');
+  const serialNumber = device.serialNumber || device.serial_number;
+  const uuid = device.osUuid || device.machineId || device.id;
   // TEMP: assigned-user block is hidden until the backend returns a user entity
   const assignedUser = { username: null, imageUrl: null };
   const assignedUserImageUrl = getFullImageUrl(assignedUser?.imageUrl);
@@ -59,7 +58,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   // The original device name — with a nickname in the page title, this cell is
   // where the hostname stays visible alongside the custom name.
   const hostnameCell = <InfoCell value={device.hostname || getDeviceName(device)} label="Hostname" />;
-  const typeCell = <InfoCell value={device.type || 'Unknown'} label="Type" icon={typeIcon} />;
+  const typeCell = <InfoCell value={device.type} label="Type" icon={typeIcon} />;
   const deviceCell = (
     <InfoCell
       value={deviceLabel}
@@ -97,10 +96,10 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
     </>
   );
 
-  const canCopyUuid = uuid !== 'Unknown';
+  const canCopyUuid = Boolean(uuid);
   const uuidCell = (
     <InfoCell
-      value={<span className="break-all">{uuid}</span>}
+      value={uuid ? <span className="break-all">{uuid}</span> : null}
       label="UUID"
       icon={
         <button

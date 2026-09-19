@@ -21,16 +21,16 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getDeviceFilterColumns } from '@/app/(app)/devices/components/devices-table-columns';
 import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
 import { useTagFilterModal } from '@/app/(app)/devices/hooks/use-tag-filter-modal';
 import type { Device, DeviceFilters } from '@/app/(app)/devices/types/device.types';
+import { formatLastOnline } from '@/app/(app)/devices/utils/device-last-online';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { DevicesFilterToolbar } from '@/app/components/shared';
-import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
+import { DeviceTypeTile } from '@/app/components/shared/device-type-tile';
 import { getFullImageUrl } from '@/lib/image-url';
 import { DeviceSelectionModeRadio } from './device-selection-mode-radio';
 import type { DeviceSelectorProps, SubTab } from './device-selector.types';
@@ -448,15 +448,11 @@ export function DeviceSelector({
           const lastSeen = device.last_seen || device.lastSeen;
           return (
             <div className="flex h-20 items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border">
-                {renderDeviceTypeIcon(device.type, 'w-4 h-4 text-ods-text-secondary') ?? (
-                  <MonitorIcon className="h-4 w-4 text-ods-text-secondary" />
-                )}
-              </div>
+              <DeviceTypeTile type={device.type} />
               <div className="flex min-w-0 flex-col">
                 <TruncateText>{getDeviceName(device)}</TruncateText>
                 <TruncateText variant="h6" tone="secondary">
-                  {`Last Online: ${lastSeen ? formatRelativeTime(lastSeen) : 'unknown'}`}
+                  {formatLastOnline(lastSeen)}
                 </TruncateText>
               </div>
             </div>

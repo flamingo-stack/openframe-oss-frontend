@@ -8,6 +8,7 @@ import {
   CompassIcon,
   IdCardIcon,
   MonitorIcon,
+  Parcel02Icon,
   QuestionCircleIcon,
   RadarIcon,
   Settings02Icon,
@@ -137,6 +138,13 @@ export const getNavigationItems = (
       icon: <RadarIcon size={24} />,
       path: routes.monitoring.root(),
       isActive: pathname.startsWith('/monitoring'),
+    },
+    {
+      id: 'software',
+      label: 'Software',
+      icon: <Parcel02Icon size={24} />,
+      path: routes.software.list,
+      isActive: pathname.startsWith('/software'),
     },
     {
       id: 'logs',
