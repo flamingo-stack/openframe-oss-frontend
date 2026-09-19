@@ -58,7 +58,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
     () => [
       {
         id: POLICY_DEVICE_COLUMNS.device.id,
-        accessorKey: 'displayName',
+        accessorKey: 'name',
         header: POLICY_DEVICE_COLUMNS.device.header,
         cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
           const r = row.original;
@@ -66,7 +66,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
             <div className="relative box-border flex h-20 w-full shrink-0 content-stretch items-center justify-start gap-4 py-0">
               <DeviceTypeTile type={r.deviceType} />
               <div className="min-w-0 flex-1">
-                <TruncateText>{r.displayName || r.hostname}</TruncateText>
+                <TruncateText>{r.name}</TruncateText>
               </div>
             </div>
           );
@@ -186,7 +186,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
   const renderSubRow = useCallback(
     (row: PolicyDeviceRow) => {
       if (!quickQueryIds.has(String(row.id))) return null;
-      return <QuickQueryPanel fleetHostId={row.fleetHostId} initialQuery={policyQuery ?? ''} />;
+      return <QuickQueryPanel fleetHostId={row.fleetHostId} deviceName={row.name} initialQuery={policyQuery ?? ''} />;
     },
     [quickQueryIds, policyQuery],
   );

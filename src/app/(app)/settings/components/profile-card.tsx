@@ -15,7 +15,7 @@ import {
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { RotateCcw } from 'lucide-react';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -203,14 +203,13 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
         </div>
       </div>
 
-      {/* Mounted only while open: the modal's query suspends, so this both defers the
-          fetch to the moment it is needed and gives it a boundary to suspend against.
-          Same shape as the notifications drawer hydrator. */}
+      {/* Mounted only while open, so the query fires on the click rather than with the
+          page. The modal carries its OWN Suspense boundary (skeleton body inside an
+          already-open panel) — do not add one here, it would swallow the whole modal
+          and put us back to nothing rendering until the round-trip finished. */}
       {isNotificationSettingsOpen && (
         <ErrorBoundary fallback={null}>
-          <Suspense fallback={null}>
-            <NotificationSettingsModal onClose={() => setIsNotificationSettingsOpen(false)} />
-          </Suspense>
+          <NotificationSettingsModal onClose={() => setIsNotificationSettingsOpen(false)} />
         </ErrorBoundary>
       )}
 

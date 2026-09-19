@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { matchesDeviceName } from '@/app/(app)/devices/utils/device-name';
 import type { SubTab } from './device-selector.types';
 
 interface UseDeviceSelectorParams {
@@ -13,12 +14,10 @@ export function useDeviceSelector({ devices, selectedIds, getDeviceKey }: UseDev
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('available');
 
   const filteredDevices = useMemo(() => {
-    if (!searchTerm) return devices;
-    const lowerSearch = searchTerm.toLowerCase();
+    const needle = searchTerm.trim().toLowerCase();
+    if (!needle) return devices;
     return devices.filter(
-      d =>
-        (d.displayName || d.hostname || '').toLowerCase().includes(lowerSearch) ||
-        (d.osType || d.operating_system || '').toLowerCase().includes(lowerSearch),
+      d => matchesDeviceName(d, needle) || (d.osType || d.operating_system || '').toLowerCase().includes(needle),
     );
   }, [devices, searchTerm]);
 

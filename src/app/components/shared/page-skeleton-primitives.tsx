@@ -5,6 +5,7 @@ import {
   DataTable,
   type PageActionButton,
   PageLayout,
+  type PageLayoutProps,
   Skeleton,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -205,6 +206,8 @@ export function SearchBarSkeleton() {
 export interface ListPageSkeletonProps {
   /** Real page title — static text, so it renders as-is instead of a bar. */
   title: string;
+  /** The page's Back link, when it has one — its row is part of the header height. */
+  backButton?: PageLayoutProps['backButton'];
   /** Real header buttons, rendered disabled so the header is pixel-identical. */
   actions?: PageActionButton[];
   /** Tab cell widths when the page renders a tab bar above its header. */
@@ -218,7 +221,7 @@ export interface ListPageSkeletonProps {
  * `PageLayout` header (title + disabled actions), a search toolbar and a table
  * in its loading state.
  */
-export function ListPageSkeleton({ title, actions, tabWidths, columns, rows }: ListPageSkeletonProps) {
+export function ListPageSkeleton({ title, backButton, actions, tabWidths, columns, rows }: ListPageSkeletonProps) {
   return (
     <div className="flex w-full flex-col">
       {tabWidths && (
@@ -228,6 +231,7 @@ export function ListPageSkeleton({ title, actions, tabWidths, columns, rows }: L
       )}
       <PageLayout
         title={title}
+        backButton={backButton}
         actions={actions}
         actionsVariant="icon-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"

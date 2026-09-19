@@ -87,7 +87,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
     return rows.filter(row => {
       const matchesSearch =
         term.length === 0 ||
-        row.displayName.toLowerCase().includes(term) ||
+        row.name.toLowerCase().includes(term) ||
         row.hostname.toLowerCase().includes(term) ||
         (row.organization?.toLowerCase().includes(term) ?? false);
       const matchesTags =
@@ -132,7 +132,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
     () => [
       {
         id: QUERY_DEVICE_COLUMNS.device.id,
-        accessorKey: 'displayName',
+        accessorKey: 'name',
         header: QUERY_DEVICE_COLUMNS.device.header,
         cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
           const r = row.original;
@@ -140,7 +140,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
             <div className="relative box-border flex h-20 w-full shrink-0 content-stretch items-center justify-start gap-4 py-0">
               <DeviceTypeTile type={r.deviceType} />
               <div className="flex min-w-0 flex-1 flex-col justify-center">
-                <TruncateText>{r.displayName || r.hostname}</TruncateText>
+                <TruncateText>{r.name}</TruncateText>
                 <TruncateText variant="h6" tone="secondary">
                   {formatLastOnline(r.lastSeen)}
                 </TruncateText>
@@ -258,7 +258,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
   const renderSubRow = useCallback(
     (row: QueryDeviceRow) => {
       if (!quickQueryIds.has(String(row.id))) return null;
-      return <QuickQueryPanel fleetHostId={row.fleetHostId} initialQuery={query ?? ''} />;
+      return <QuickQueryPanel fleetHostId={row.fleetHostId} deviceName={row.name} initialQuery={query ?? ''} />;
     },
     [quickQueryIds, query],
   );

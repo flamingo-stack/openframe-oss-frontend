@@ -12,6 +12,7 @@ import { DeviceCard, Tag } from '@flamingo-stack/openframe-frontend-core/compone
 import type React from 'react';
 import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getDeviceOperatingSystem, getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { DeviceInfoSectionSkeleton } from './device-info-section-skeleton';
 import { EmptyValue } from './empty-value';
@@ -51,7 +52,7 @@ function DrawerDeviceCard({ deviceId, onNavigate }: { deviceId: string; onNaviga
       device={{
         id: deviceDetails.id,
         machineId: deviceDetails.machineId,
-        name: deviceDetails.displayName || deviceDetails.hostname || deviceDetails.description || '',
+        name: getDeviceName(deviceDetails),
         organization: deviceDetails.organization || deviceDetails.machineId,
         lastSeen: deviceDetails.lastSeen,
         operatingSystem: getDeviceOperatingSystem(deviceDetails.osType),

@@ -400,8 +400,8 @@ function IncidentsTableContent({
     return (
       <EmptyState
         icon={<AlertTriangleIcon />}
-        title="No incidents yet"
-        description="Security and IT findings from the detection queries running on your devices will be displayed here."
+        title="No incidents detected"
+        description="Your monitored devices are all clear"
       />
     );
   }

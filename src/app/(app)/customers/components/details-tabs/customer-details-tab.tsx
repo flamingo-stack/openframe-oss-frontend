@@ -1,8 +1,13 @@
 'use client';
 
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { InfoCell } from '@/app/components/shared/info-cell';
+import { StackedRowsPanel } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { ValueText } from '@/app/components/shared/value-text';
 import type { CustomerDetails } from '../../hooks/use-customer-details';
+import { buildCustomerContactRows, buildCustomerInfoRows, buildNoContactsRow } from './customer-details-rows';
+
+/** A cell value: the text with the truncation tooltip, or the muted empty mark. */
+const cell = (value?: string | null) => <ValueText value={value} />;
 
 function CustomerNotesCard({ notes }: { notes: string }) {
   return (
@@ -29,22 +34,30 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
       : `https://${organization.website}`
     : undefined;
 
+  const infoRows = buildCustomerInfoRows({
+    website: cell(organization.website),
+    websiteHref,
+    websiteIcon: <ExternalLinkIcon className="h-6 w-6 shrink-0 text-ods-text-secondary" />,
+    physicalAddress: cell(organization.physicalAddress),
+    mailingAddress: cell(organization.mailingAddress),
+  });
+
+  const contactRows =
+    organization.contacts.length > 0
+      ? buildCustomerContactRows(
+          organization.contacts.map(contact => ({
+            contactName: cell(contact.contactName),
+            title: cell(contact.title),
+            email: cell(contact.email),
+            phone: cell(contact.phone),
+          })),
+        )
+      : [buildNoContactsRow()];
+
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
-        <div className="flex h-20 items-center gap-[var(--spacing-system-m)] border-b border-ods-border px-[var(--spacing-system-m)]">
-          <InfoCell
-            value={organization.website}
-            label="Website"
-            icon={<ExternalLinkIcon className="h-6 w-6 shrink-0 text-ods-text-secondary" />}
-            href={websiteHref}
-          />
-        </div>
-        <div className="flex flex-col px-[var(--spacing-system-m)] py-[var(--spacing-system-m)] md:h-20 md:flex-row md:items-center md:gap-[var(--spacing-system-m)] md:py-0">
-          <InfoCell value={organization.physicalAddress} label="Physical Address" />
-          <InfoCell value={organization.mailingAddress} label="Mailing Address" />
-        </div>
-      </div>
+      <StackedRowsPanel rows={infoRows} />
+      <StackedRowsPanel rows={contactRows} />
       <CustomerNotesCard notes={organization.notes.join('\n')} />
     </div>
   );

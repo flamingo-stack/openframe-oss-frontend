@@ -27,7 +27,7 @@ import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
-import { isBillingHidden } from '@/lib/billing-visibility';
+import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { writeCachedOnboardingTopBar } from '@/lib/onboarding-top-bar-cache';
@@ -298,12 +298,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     setTrialDismissed(isTrialBarDismissed(trialToken));
   }, [trialToken]);
   /**
-   * Payments have to be showable at all for this to be worth saying: the native
-   * builds hide every payment surface (App Store Guideline 3.1.1, see
-   * `billing-visibility.ts`), and the page this bar sends you to has no limit
-   * control on them.
+   * The bar exists for its "Expand" action, so it needs a build that has the
+   * limit control: the mobile builds hide every payment surface (App Store
+   * Guideline 3.1.1) and the desktop build shows billing read-only — see
+   * `billing-visibility.ts`. Neither page this bar would send you to can raise
+   * the limit.
    */
-  const showAiSpendBar = billingsEnabled && !isBillingHidden() && sessionReady && !isLocked;
+  const showAiSpendBar = billingsEnabled && !isBillingHidden() && !isBillingReadOnly() && sessionReady && !isLocked;
 
   // The Mingo sidebar (header launcher + in-layout chat drawer) is the only chat
   // surface there is. It is meaningful only inside the full, unlocked app shell

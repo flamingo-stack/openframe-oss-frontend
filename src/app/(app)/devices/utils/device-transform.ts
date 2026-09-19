@@ -99,6 +99,7 @@ export function rowFieldsToDevice(machine: DeviceRowFields): Device {
     machineId: machine.machineId ?? '',
     hostname,
     displayName: machine.displayName || hostname,
+    nickname: machine.nickname ?? undefined,
 
     // Network — no addresses at this step; the shape still requires the array.
     local_ips: [],
@@ -160,8 +161,6 @@ export function machineToDevice(ref: deviceFields_machine$key): Device {
 
   return {
     ...machineSelectorToDevice(machine),
-
-    nickname: machine.nickname ?? undefined,
 
     // Network
     primary_ip: ip,

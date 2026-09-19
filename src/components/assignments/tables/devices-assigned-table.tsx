@@ -6,6 +6,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { DevicesTableBody } from '@/app/(app)/devices/components/devices-table-columns';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { matchesDeviceName } from '@/app/(app)/devices/utils/device-name';
 
 interface DevicesAssignedTableProps {
   devices: Device[];
@@ -20,9 +21,8 @@ export function DevicesAssignedTable({ devices, isLoading }: DevicesAssignedTabl
     const needle = debouncedSearch.trim().toLowerCase();
     if (!needle) return devices;
     return devices.filter(d => {
-      const name = (d.displayName || d.hostname || '').toLowerCase();
       const org = (d.organization || '').toLowerCase();
-      return name.includes(needle) || org.includes(needle);
+      return matchesDeviceName(d, needle) || org.includes(needle);
     });
   }, [devices, debouncedSearch]);
 

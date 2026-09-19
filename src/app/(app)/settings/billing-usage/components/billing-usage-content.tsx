@@ -17,6 +17,7 @@ import { LockedScreen } from '@/app/components/shared/locked-screen';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { isBillingReadOnly, openBillingInBrowser } from '@/lib/billing-visibility';
 import { formatDate } from '@/lib/format-date';
 import { formatCompactCount, formatCount } from '@/lib/format-number';
 import { routes } from '@/lib/routes';
@@ -140,6 +141,10 @@ const billingUsageContentQuery = graphql`
 
 export function BillingUsageContent() {
   const handleBack = useSafeBack(routes.settings.root());
+  // The desktop build: every figure below renders, and nothing that changes one
+  // does — the header's single action leaves for the web app instead (see
+  // `billing-visibility.ts`).
+  const readOnly = isBillingReadOnly();
   // Bumped after a resume so the billing query refetches from the network — the
   // resumeSubscription mutation returns a bare Boolean, so the Relay store can't
   // reflect the new status on its own.
@@ -322,7 +327,16 @@ export function BillingUsageContent() {
       : null;
 
   /** Rightmost is the accent one: the status action, when there is something to settle. */
-  const actions = [...(secondaryAction ? [secondaryAction] : []), ...(statusAction ? [statusAction] : [])];
+  const actions = readOnly
+    ? [
+        {
+          label: 'Manage Billing',
+          icon: <ExternalLinkIcon className="h-6 w-6" />,
+          onClick: openBillingInBrowser,
+          variant: 'accent' as const,
+        },
+      ]
+    : [...(secondaryAction ? [secondaryAction] : []), ...(statusAction ? [statusAction] : [])];
 
   // No subscription record at all. Every figure below would be a zero or a dash
   // presented as this tenant's plan, and the header would offer to change a plan
@@ -351,8 +365,19 @@ export function BillingUsageContent() {
       backButton={{ label: 'Back to Settings', onClick: handleBack }}
       actionsVariant="menu-primary"
       actions={actions}
-      menuActions={menuActions}
+      menuActions={readOnly ? [] : menuActions}
     >
+      {/* Said out loud, because a billing page with no way to change anything
+          otherwise reads as a broken build. */}
+      {readOnly && (
+        <div className="flex items-center gap-[var(--spacing-system-xsf)]">
+          <InfoCircleIcon className="size-6 shrink-0 text-ods-accent" />
+          <p className="text-ods-text-secondary text-h4">
+            Billing and payments are managed in the browser. Manage Billing opens your workspace's billing page there.
+          </p>
+        </div>
+      )}
+
       {/* Dev-only; renders nothing (and issues no requests) unless the test-clock env flag is on. */}
       <TestClockPanel onClockChanged={() => setRefreshKey(k => k + 1)} />
 
@@ -469,9 +494,11 @@ export function BillingUsageContent() {
                 Extra devices will be billed at pay-as-you-go rates, charged separately from your plan.
               </p>
             </div>
-            <Button variant="accent" onClick={() => setPlanModalOpen(true)}>
-              Upgrade Plan
-            </Button>
+            {!readOnly && (
+              <Button variant="accent" onClick={() => setPlanModalOpen(true)}>
+                Upgrade Plan
+              </Button>
+            )}
           </div>
           {/* Figure over label, side by side — not the label-dash-value rows of
               the plan blocks below. These three are read together as the size of
