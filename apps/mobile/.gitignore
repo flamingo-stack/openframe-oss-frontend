@@ -43,3 +43,6 @@ signing.properties
 .idea/
 .vscode/
 
+
+# Claude Code per-user settings (never shared)
+.claude/settings.local.json
