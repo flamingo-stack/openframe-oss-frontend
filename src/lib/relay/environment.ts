@@ -31,6 +31,24 @@ function getGraphqlUrl(): string {
 }
 
 /**
+ * Sends one GraphQL operation as the document goes away (`pagehide`), with the
+ * same endpoint and credentials every Relay request uses. `keepalive` is what
+ * lets the browser finish it after the page has unloaded; nothing can read
+ * the answer, so there is none — and none of the gates above apply, because
+ * by then there is no page to hold the request for.
+ */
+export function sendGraphqlKeepalive(request: { text: string | null }, variables: Record<string, unknown>): void {
+  if (!request.text || typeof window === 'undefined') return;
+  void fetch(getGraphqlUrl(), {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...getAuthHeaders() },
+    credentials: 'include',
+    keepalive: true,
+    body: JSON.stringify({ query: request.text, variables }),
+  }).catch(() => undefined);
+}
+
+/**
  * Ceiling on a single GraphQL request. THE SAME constant `api-client.ts` applies
  * to REST, imported rather than restated so the two halves of the data layer
  * cannot drift. It exists for a reason that bites harder here: `fetch` never

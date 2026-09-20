@@ -13,6 +13,7 @@ import type {
   DeviceSelectorNarrowing,
   SubTab,
 } from '@/app/components/shared/device-selector/device-selector.types';
+import { EMPTY_NARROWING, narrowingToFilter } from '@/app/components/shared/device-selector/picker-narrowing';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
@@ -22,7 +23,6 @@ import { platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleDeviceAssignment } from '../hooks/use-schedule-device-assignment';
 import { useScheduleSelectionMode } from '../hooks/use-schedule-selection-mode';
 import { criteriaEqual, criteriaFromStored, type ScheduleCriteria } from '../utils/schedule-criteria';
-import { EMPTY_NARROWING, narrowingToFilter } from '../utils/schedule-device-filters';
 import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { ScheduleCriteriaPicker } from './schedule-criteria-picker';
 import { SchedulePickerSkeleton } from './schedule-devices-skeleton';

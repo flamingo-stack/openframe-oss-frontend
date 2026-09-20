@@ -7,19 +7,19 @@ import {
   PageLayout,
   RadioGroupBlock,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
-import { getDevicePrimaryId } from '@/app/(app)/scripts/shared/utils/device-helpers';
-import { DeviceListPicker } from '@/app/components/shared/device-selector';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleTimeReference, type SoftwareAction } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { PACKAGE_MANAGER_OS } from '../shared/package-managers';
 import { SOFTWARE_ACTION_COPY } from '../shared/software-action-copy';
+import { BundleDevicePicker } from './bundle-device-picker';
 import { ScheduleFields } from './schedule-fields';
 import { newSoftwareRow, type SoftwareRow } from './software-row';
 import { SoftwareRowFields } from './software-row-fields';
+import { useDraftBundle } from './use-draft-bundle';
 import { type RunMode, useSoftwareActionSubmit } from './use-software-action-submit';
 
 function agentMissing(device: Device): string | undefined {
@@ -27,32 +27,43 @@ function agentMissing(device: Device): string | undefined {
 }
 
 /**
- * Install Software (design 258:24314) and Update Software (409:48080 / 409:48175):
+ * Install Software (design 591:8524) and Update Software (409:48080 / 409:48175):
  * which catalog packages, now or on a schedule, on which devices. One page for
- * both flows; `useSoftwareActionSubmit` owns what each one sends.
+ * both flows.
+ *
+ * The packages and the timing are form state; the devices are not. They live on
+ * a draft bundle the first assignment opens (`useDraftBundle`) and every later
+ * one edits in place, so the selection is never held in the browser — and
+ * submit sends the bundle's id, not a list (`useSoftwareActionSubmit`).
  */
 export function SoftwareActionView({ action }: { action: SoftwareAction }) {
   const copy = SOFTWARE_ACTION_COPY[action];
   const handleBack = useSafeBack(routes.software.actions);
-  const { submit, isSubmitting } = useSoftwareActionSubmit(action);
+  const { bundleId, deviceCount, ensureBundle, markSubmitted } = useDraftBundle();
+  const { submit, isSubmitting } = useSoftwareActionSubmit(action, { onSubmitted: markSubmitted });
 
   const [rows, setRows] = useState<SoftwareRow[]>(() => [newSoftwareRow('row-0')]);
   const [mode, setMode] = useState<RunMode>('now');
   const [date, setDate] = useState<Date | null>(null);
   const [time, setTime] = useState('');
   const [timeReference, setTimeReference] = useState<ScheduleTimeReference>(ScheduleTimeReference.SERVER);
-  const [selection, setSelection] = useState<Device[]>([]);
 
-  const osTypes = [...new Set(rows.map(row => PACKAGE_MANAGER_OS[row.packageManager]))];
-  const deviceFilter: DeviceFilterInput = { statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE], osTypes };
+  // The picker's frame: live devices on the OS the chosen packages install on.
+  // Keyed by the OS list's text so a re-render with the same rows keeps the
+  // same object — the picker's queries and facets are keyed by it.
+  const osTypesKey = [...new Set(rows.map(row => PACKAGE_MANAGER_OS[row.packageManager]))].sort().join(',');
+  const scope = useMemo<DeviceFilterInput>(
+    () => ({ statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE], osTypes: osTypesKey.split(',') }),
+    [osTypesKey],
+  );
 
   const actions: PageActionButton[] = [
     { label: 'Cancel', onClick: handleBack, variant: 'outline', showOnlyMobile: true },
     {
       label: mode === 'now' ? copy.runLabel : copy.scheduleLabel,
       variant: 'accent',
-      onClick: () => submit({ rows, selection, mode, date, time, timeReference }),
-      disabled: selection.length === 0,
+      onClick: () => submit({ rows, bundleId, deviceCount, mode, date, time, timeReference }),
+      disabled: deviceCount === 0,
       loading: isSubmitting,
     },
   ];
@@ -112,11 +123,10 @@ export function SoftwareActionView({ action }: { action: SoftwareAction }) {
 
       <h2 className="pt-[var(--spacing-system-l)] text-ods-text-primary text-h2">Device Selection</h2>
 
-      <DeviceListPicker
-        filter={deviceFilter}
-        selected={selection}
-        onSelectionChange={setSelection}
-        getDeviceKey={getDevicePrimaryId}
+      <BundleDevicePicker
+        bundleId={bundleId}
+        ensureBundle={ensureBundle}
+        scope={scope}
         isDeviceDisabled={agentMissing}
       />
     </PageLayout>

@@ -302,7 +302,8 @@ export const routes = {
     update: '/software/update',
     /**
      * Software Update Details — one install or update run, by its Software
-     * Action id (the run's executionId).
+     * Action id (the opaque one the Software Actions table links by; the run's
+     * executionId is accepted too).
      */
     action: (id: string | number) => withQuery('/software/actions/action', { id }),
     /** A CVE id (`CVE-2024-38063`) rides as `id`, like every other detail page. */

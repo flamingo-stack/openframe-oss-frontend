@@ -2,18 +2,17 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { graphql, useMutation } from 'react-relay';
-import type { useSoftwareActionSubmitInstallMutation as InstallMutationType } from '@/__generated__/useSoftwareActionSubmitInstallMutation.graphql';
-import type { useSoftwareActionSubmitScheduleMutation as ScheduleMutationType } from '@/__generated__/useSoftwareActionSubmitScheduleMutation.graphql';
-import type { useSoftwareActionSubmitUpdateMutation as UpdateMutationType } from '@/__generated__/useSoftwareActionSubmitUpdateMutation.graphql';
-import type { Device } from '@/app/(app)/devices/types/device.types';
+import { useState } from 'react';
+import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
+import type { useSoftwareActionSubmitActionQuery as ActionQueryType } from '@/__generated__/useSoftwareActionSubmitActionQuery.graphql';
+import type { useSoftwareActionSubmitMutation as SubmitMutationType } from '@/__generated__/useSoftwareActionSubmitMutation.graphql';
 import {
   applyTimeSlot,
   isScheduleStartInPast,
   PAST_START_MESSAGE,
   toScheduleInstant,
 } from '@/app/(app)/scripts/schedule/utils/schedule-timing';
-import { type ScheduleTimeReference, SoftwareAction } from '@/generated/schema-enums';
+import type { ScheduleTimeReference, SoftwareAction } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
@@ -21,30 +20,34 @@ import { SOFTWARE_ACTION_COPY } from '../shared/software-action-copy';
 import { type PackageInput, type SoftwareRow, toPackageInputs } from './software-row';
 
 /**
- * Installs catalog packages on the given devices, now. Each package is its own
- * RMM execution, so the result is one row per package with its executionId.
+ * Runs the draft now (`schedule: null`) or creates a software schedule from it,
+ * and marks it COMPLETED. The server validates the whole bundle — devices,
+ * packages, start time — so a rejection reads back as one message.
+ *
+ * `executionIds` is one per dispatched package. It is NOT a Software Action's
+ * id: a run's row is aggregated from the executions its devices report, so it
+ * exists only once the first device has picked the job up — immediately for an
+ * online device, on reconnect for an offline one. See `actionQuery`.
  */
-const installMutation = graphql`
-  mutation useSoftwareActionSubmitInstallMutation($input: SoftwareManagementInput!) {
-    installSoftware(input: $input) {
-      executionId
+const submitMutation = graphql`
+  mutation useSoftwareActionSubmitMutation($input: SubmitSoftwareBundleInput!) {
+    submitSoftwareBundle(input: $input) {
+      id
+      executionIds
     }
   }
 `;
 
-/** Updates catalog packages on the given devices, now — one result per package. */
-const updateMutation = graphql`
-  mutation useSoftwareActionSubmitUpdateMutation($input: SoftwareManagementInput!) {
-    updateSoftware(input: $input) {
-      executionId
-    }
-  }
-`;
-
-/** Schedules a deferred install or update of catalog packages on the given devices. */
-const scheduleMutation = graphql`
-  mutation useSoftwareActionSubmitScheduleMutation($input: CreateSoftwareScheduleInput!) {
-    createSoftwareSchedule(input: $input) {
+/**
+ * Whether a run's row exists yet, by its execution id — which `softwareAction`
+ * accepts alongside a row's own id. Read at the moment of the answer: a row
+ * that is there gets the user, by the id the Software Actions table links by;
+ * one that is not yet leaves them on the list, where it appears as soon as a
+ * device reports.
+ */
+const actionQuery = graphql`
+  query useSoftwareActionSubmitActionQuery($id: ID!) {
+    softwareAction(id: $id) {
       id
     }
   }
@@ -54,89 +57,75 @@ export type RunMode = 'now' | 'schedule';
 
 export interface SoftwareActionForm {
   rows: SoftwareRow[];
-  selection: Device[];
+  /** The draft behind the page — null until the first device is assigned. */
+  bundleId: string | null;
+  /** How many devices the draft holds; the server refuses an empty one too. */
+  deviceCount: number;
   mode: RunMode;
   date: Date | null;
   time: string;
   timeReference: ScheduleTimeReference;
 }
 
-/**
- * The page's submit: validates the form, then runs it now (`installSoftware` /
- * `updateSoftware`) or schedules it (`createSoftwareSchedule` with the matching
- * `action`).
- *
- * A run-now of one package lands on that run's details; several packages are
- * several runs, and a schedule has no run yet — both land on Software Actions,
- * which lists them.
- */
+interface SoftwareActionSubmitOptions {
+  /** The draft is the run's history now — the page must stop treating it as one to discard. */
+  onSubmitted: () => void;
+}
+
 interface SoftwareActionSubmit {
   submit: (form: SoftwareActionForm) => void;
   isSubmitting: boolean;
 }
 
-export function useSoftwareActionSubmit(action: SoftwareAction): SoftwareActionSubmit {
+/** The page's submit: validates what the server would reject anyway, then submits the draft. */
+export function useSoftwareActionSubmit(
+  action: SoftwareAction,
+  { onSubmitted }: SoftwareActionSubmitOptions,
+): SoftwareActionSubmit {
   const copy = SOFTWARE_ACTION_COPY[action];
   const router = useRouter();
+  const environment = useRelayEnvironment();
   const { toast } = useToast();
-
-  const [commitInstall, isInstalling] = useMutation<InstallMutationType>(installMutation);
-  const [commitUpdate, isUpdating] = useMutation<UpdateMutationType>(updateMutation);
-  const [commitSchedule, isScheduling] = useMutation<ScheduleMutationType>(scheduleMutation);
+  const [commitSubmit, isSubmitting] = useMutation<SubmitMutationType>(submitMutation);
+  // The submit has answered but the page has not left yet: the button stays
+  // busy through the lookup that decides where to, rather than re-arming.
+  const [isLeaving, setLeaving] = useState(false);
 
   const fail = (title: string, description: string) => {
     toast({ title, description, variant: 'destructive' });
   };
 
-  const runNow = (packages: PackageInput[], selection: Device[]) => {
-    const machineIds = selection.flatMap(device => (device.machineId ? [device.machineId] : []));
-    const variables = { input: { machineIds, packages } };
-    const onCompleted = (runs: ReadonlyArray<{ readonly executionId: string }>) => {
-      toast({
-        title: copy.started,
-        description: `${packages.length === 1 ? packages[0].packageName : pluralize(packages.length, 'package')} on ${pluralize(machineIds.length, 'device')}.`,
-        variant: 'success',
-      });
-      const [only] = runs;
-      router.push(
-        runs.length === 1 && packages.length === 1 ? routes.software.action(only.executionId) : routes.software.actions,
-      );
-    };
-    const onError = (error: Error) => fail('Error', getRelayErrorMessage(error, copy.failed));
-    if (action === SoftwareAction.UPDATE) {
-      commitUpdate({ variables, onCompleted: response => onCompleted(response.updateSoftware), onError });
-    } else {
-      commitInstall({ variables, onCompleted: response => onCompleted(response.installSoftware), onError });
-    }
-  };
-
-  const schedule = (packages: PackageInput[], form: SoftwareActionForm) => {
-    const { date, time, timeReference, selection } = form;
+  const scheduleInput = (packages: PackageInput[], form: SoftwareActionForm) => {
+    const { date, time, timeReference } = form;
     if (!date || !time) {
       fail('No start time', 'Pick a date and time for the schedule.');
-      return;
+      return null;
     }
     if (isScheduleStartInPast(date, time, timeReference)) {
       fail('Invalid start time', PAST_START_MESSAGE);
-      return;
+      return null;
     }
-    commitSchedule({
-      variables: {
-        input: {
-          name: `${copy.verb} ${packages.map(pkg => pkg.packageName).join(', ')}`,
-          action,
-          packages,
-          timeReference,
-          startAt: toScheduleInstant(applyTimeSlot(date, time), timeReference),
-          // Schedules take Machine global ids, unlike the run-now mutations.
-          machineIds: selection.map(device => device.id),
-        },
+    return {
+      name: `${copy.verb} ${packages.map(pkg => pkg.packageName).join(', ')}`,
+      timeReference,
+      startAt: toScheduleInstant(applyTimeSlot(date, time), timeReference),
+    };
+  };
+
+  /** One run of one package: its page if the row exists by now, the list otherwise. */
+  const leaveForRun = (executionId: string) => {
+    setLeaving(true);
+    fetchQuery<ActionQueryType>(
+      environment,
+      actionQuery,
+      { id: executionId },
+      { fetchPolicy: 'network-only' },
+    ).subscribe({
+      next: data => {
+        router.push(data.softwareAction ? routes.software.action(data.softwareAction.id) : routes.software.actions);
       },
-      onCompleted: () => {
-        toast({ title: copy.scheduled, description: 'It will run at the scheduled time.', variant: 'success' });
-        router.push(routes.software.actions);
-      },
-      onError: error => fail('Error', getRelayErrorMessage(error, 'Failed to create the schedule')),
+      // The run started either way; the list is where it will show up.
+      error: () => router.push(routes.software.actions),
     });
   };
 
@@ -146,13 +135,36 @@ export function useSoftwareActionSubmit(action: SoftwareAction): SoftwareActionS
       fail('No software selected', 'Pick a package in every row, or remove the empty ones.');
       return;
     }
-    if (form.selection.length === 0) {
+    if (!form.bundleId || form.deviceCount === 0) {
       fail('No devices selected', 'Please select at least one device.');
       return;
     }
-    if (form.mode === 'now') runNow(packages, form.selection);
-    else schedule(packages, form);
+    const schedule = form.mode === 'schedule' ? scheduleInput(packages, form) : null;
+    if (form.mode === 'schedule' && !schedule) return;
+
+    const bundleId = form.bundleId;
+    const { deviceCount } = form;
+    commitSubmit({
+      variables: { input: { id: bundleId, action, packages, schedule } },
+      onCompleted: response => {
+        onSubmitted();
+        if (schedule) {
+          toast({ title: copy.scheduled, description: 'It will run at the scheduled time.', variant: 'success' });
+          router.push(routes.software.actions);
+          return;
+        }
+        const runs = response.submitSoftwareBundle.executionIds ?? [];
+        toast({
+          title: copy.started,
+          description: `${packages.length === 1 ? packages[0].packageName : pluralize(packages.length, 'package')} on ${pluralize(deviceCount, 'device')}.`,
+          variant: 'success',
+        });
+        if (runs.length === 1 && packages.length === 1) leaveForRun(runs[0]);
+        else router.push(routes.software.actions);
+      },
+      onError: error => fail('Error', getRelayErrorMessage(error, copy.failed)),
+    });
   };
 
-  return { submit, isSubmitting: isInstalling || isUpdating || isScheduling };
+  return { submit, isSubmitting: isSubmitting || isLeaving };
 }

@@ -53,11 +53,13 @@ export function isExecutionInFlight(status: ScriptExecutionStatus | string | nul
 
 /**
  * Privilege levels, same exhaustive shape as the status table above (ADMIN runs
- * elevated as the system account).
+ * elevated as the system account; ELEVATED_USER is the logged-on Windows user
+ * with the UAC token).
  */
 const PRIVILEGE_LEVEL_LABELS = {
   [PrivilegeLevel.ADMIN]: 'System',
   [PrivilegeLevel.USER]: 'User',
+  [PrivilegeLevel.ELEVATED_USER]: 'Elevated User',
 } satisfies Record<PrivilegeLevel, string>;
 
 /** Human label for a privilege level. */
