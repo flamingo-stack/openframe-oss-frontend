@@ -23,22 +23,14 @@ describe('MockRemoteAccessPolicyService', () => {
 
   it('returns the default tenant policy', async () => {
     const policy = await settle(remoteAccessPolicyService.getTenantPolicy());
-    expect(policy.approvalTimeoutSeconds).toBe(DEFAULT_TENANT_REMOTE_ACCESS_POLICY.approvalTimeoutSeconds);
-    expect(policy.noAnswerFallback).toBe(DEFAULT_TENANT_REMOTE_ACCESS_POLICY.noAnswerFallback);
+    expect(policy).toEqual(DEFAULT_TENANT_REMOTE_ACCESS_POLICY);
   });
 
   it('persists a tenant policy update', async () => {
     const before = await settle(remoteAccessPolicyService.getTenantPolicy());
-    await settle(
-      remoteAccessPolicyService.updateTenantPolicy({
-        ...before,
-        approvalTimeoutSeconds: 120,
-        noAnswerFallback: 'ALLOW_WITH_NOTIFICATION',
-      }),
-    );
+    await settle(remoteAccessPolicyService.updateTenantPolicy({ ...before, mode: 'NOTIFY_ONLY' }));
     const after = await settle(remoteAccessPolicyService.getTenantPolicy());
-    expect(after.approvalTimeoutSeconds).toBe(120);
-    expect(after.noAnswerFallback).toBe('ALLOW_WITH_NOTIFICATION');
+    expect(after.mode).toBe('NOTIFY_ONLY');
     // Restore the shared singleton for the other tests.
     await settle(remoteAccessPolicyService.updateTenantPolicy(before));
   });
