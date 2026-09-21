@@ -35,7 +35,6 @@ const wireRequest = (overrides: Record<string, unknown> = {}): WireRequest =>
   ({
     requestId: REQUEST_ID,
     deviceId: 'dev_7f3c',
-    machineId: 'm_9b1e',
     sessionKind: 'desktop',
     status: 'PENDING',
     mode: 'APPROVAL_REQUIRED',
