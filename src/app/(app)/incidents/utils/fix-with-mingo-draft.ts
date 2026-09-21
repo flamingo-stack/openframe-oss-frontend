@@ -17,21 +17,23 @@ const LEADING_MARKER = /^@([A-Za-z]+):(\S+)\s*/;
  * text — a `@marker:id` left in the text is parsed into a chip labelled with the
  * id and outside the context strip — with the labels the row already knows;
  * the ask stays as the text. A marker of a kind this build does not know is
- * left in the text rather than dropped.
+ * kept in the text rather than dropped, and does not stop the ones after it
+ * from being read.
  */
 export function incidentMingoDraft(prompt: string, incident: IncidentRow): MingoDraft {
   const mentions: NonNullable<MingoDraft['mentions']> = [];
+  const unknown: string[] = [];
   let rest = prompt.trimStart();
   for (;;) {
     const match = LEADING_MARKER.exec(rest);
     if (!match) break;
     const [token, marker, id] = match;
-    const kind = KIND_BY_MARKER.get(marker);
-    if (!kind) break;
-    mentions.push({ type: kind, id, label: labelFor(kind, id, incident) });
     rest = rest.slice(token.length);
+    const kind = KIND_BY_MARKER.get(marker);
+    if (kind) mentions.push({ type: kind, id, label: labelFor(kind, id, incident) });
+    else unknown.push(token.trim());
   }
-  return { text: rest.trim(), mentions };
+  return { text: [...unknown, rest.trim()].filter(Boolean).join(' '), mentions };
 }
 
 function labelFor(kind: ContextEntityKind, id: string, incident: IncidentRow): string {

@@ -33,9 +33,15 @@ describe('incidentMingoDraft', () => {
     expect(draft.text).toBe('Using the insight and device context, investigate this problem.');
   });
 
-  it('labels an unexpected id with the id itself and leaves an unknown marker in the text', () => {
+  it('labels an unexpected id with the id itself and keeps an unknown marker in the text', () => {
     const draft = incidentMingoDraft('@insight:other @widget:w-1 look', incident);
     expect(draft.mentions).toEqual([{ type: 'INSIGHT', id: 'other', label: 'other' }]);
+    expect(draft.text).toBe('@widget:w-1 look');
+  });
+
+  it('reads the markers after an unknown one', () => {
+    const draft = incidentMingoDraft('@widget:w-1 @device:m-1 look', incident);
+    expect(draft.mentions).toEqual([{ type: 'DEVICE', id: 'm-1', label: 'MacBook-Pro-Kirill.local' }]);
     expect(draft.text).toBe('@widget:w-1 look');
   });
 
