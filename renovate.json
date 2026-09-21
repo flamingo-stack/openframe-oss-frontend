@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["helpers:pinGitHubActionDigests"],
+  "extends": ["helpers:pinGitHubActionDigests", "group:monorepos"],
   "enabledManagers": ["npm", "github-actions", "dockerfile"],
   "labels": ["dependencies"],
   "prConcurrentLimit": 3,
@@ -31,10 +31,11 @@
       "ignoreUnstable": true
     },
     {
-      "description": "Disable all other npm dependencies - only update openframe-frontend-core",
+      "description": "Every other npm dependency: listed in the Dependency Dashboard, a PR only when its box is ticked. Releases younger than 7 days are not offered",
       "matchManagers": ["npm"],
       "matchPackageNames": ["!@flamingo-stack/openframe-frontend-core"],
-      "enabled": false
+      "dependencyDashboardApproval": true,
+      "minimumReleaseAge": "7 days"
     },
     {
       "description": "GitHub Actions versions in workflows",
