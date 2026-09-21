@@ -36,17 +36,27 @@ interface BoardColumnSubscriberProps {
  * same key, which it explicitly treats as unsupported: it may drop or duplicate
  * the DOM, and a duplicated card is also a second drag source for one ticket.
  *
- * First occurrence wins, so the earliest page keeps the position it had.
+ * First occurrence wins for POSITION (so the earliest page keeps the slot it
+ * had, keeping column ordering stable across page fetches), but the later
+ * occurrence's FIELDS are merged in on top of it — a ticket duplicated across
+ * pages is often duplicated precisely because it changed (status, assignee,
+ * etc.), and we don't want to keep showing the stale copy of that data just to
+ * preserve its position.
  */
 function dedupeById<T extends { id: string }>(items: T[]): T[] {
   const seen = new Set<string>();
-  const unique: T[] = [];
+  const order: string[] = [];
+  const byId = new Map<string, T>();
   for (const item of items) {
-    if (seen.has(item.id)) continue;
+    if (seen.has(item.id)) {
+      byId.set(item.id, { ...byId.get(item.id), ...item });
+      continue;
+    }
     seen.add(item.id);
-    unique.push(item);
+    order.push(item.id);
+    byId.set(item.id, item);
   }
-  return unique;
+  return order.map(id => byId.get(id) as T);
 }
 
 /**
