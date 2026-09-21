@@ -31,7 +31,6 @@ describe('incidentMingoDraft', () => {
       { type: 'DEVICE', id: 'm-1', label: 'MacBook-Pro-Kirill.local' },
     ]);
     expect(draft.text).toBe('Using the insight and device context, investigate this problem.');
-    expect(draft.insightId).toBe('qa-insight-2');
   });
 
   it('labels an unexpected id with the id itself and leaves an unknown marker in the text', () => {
@@ -44,7 +43,6 @@ describe('incidentMingoDraft', () => {
     expect(incidentMingoDraft('just text', incident)).toEqual({
       text: 'just text',
       mentions: [],
-      insightId: 'qa-insight-2',
     });
   });
 });

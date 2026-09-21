@@ -7,7 +7,7 @@ import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
  * the link as an assignment owned by the insight (item INSIGHT → target TICKET)
  * when a ticket is created with `insightId`, so this is the ticket page's
  * Assigned Items view pointed at the incident. Nothing while loading or empty —
- * a section that appears with its rows, like the Mingo sessions.
+ * a section that appears with its rows, not a slot the page reserves.
  */
 export function IncidentAssignedTickets({ incidentId }: { incidentId: string }) {
   const { tickets } = useAssignedItems({ itemId: incidentId, itemType: 'INSIGHT' });

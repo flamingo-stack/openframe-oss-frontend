@@ -31,7 +31,7 @@ export function incidentMingoDraft(prompt: string, incident: IncidentRow): Mingo
     mentions.push({ type: kind, id, label: labelFor(kind, id, incident) });
     rest = rest.slice(token.length);
   }
-  return { text: rest.trim(), mentions, insightId: incident.insightId };
+  return { text: rest.trim(), mentions };
 }
 
 function labelFor(kind: ContextEntityKind, id: string, incident: IncidentRow): string {

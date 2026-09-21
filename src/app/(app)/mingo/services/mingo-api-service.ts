@@ -1,6 +1,5 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from '@tanstack/react-query';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { apiClient } from '@/lib/api-client';
 
 export interface CreateDialogResponse {
@@ -26,7 +25,7 @@ export interface ApprovalResponse {
 
 export interface CreateDialogRequest {
   agentType: 'ADMIN';
-  /** The STORED insight id when the chat is started from an incident ("Fix with Mingo"). */
+  /** The STORED insight id when the chat is about an incident — the server lists the chat under it. */
   insightId?: string;
 }
 
@@ -60,9 +59,7 @@ export interface SendMessageRequest {
  */
 export function useCreateDialogMutation() {
   return useMutation({
-    mutationFn: async (): Promise<CreateDialogResponse> => {
-      // Consumed here, on the one create the draft chat produces.
-      const insightId = useMingoLauncherStore.getState().consumeDialogInsightId();
+    mutationFn: async ({ insightId }: Pick<CreateDialogRequest, 'insightId'> = {}): Promise<CreateDialogResponse> => {
       const request: CreateDialogRequest = { agentType: 'ADMIN', ...(insightId && { insightId }) };
       const response = await apiClient.post<CreateDialogResponse>('/chat/api/v1/dialogs', request);
 

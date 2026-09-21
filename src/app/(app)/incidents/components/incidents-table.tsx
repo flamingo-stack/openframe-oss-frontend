@@ -31,7 +31,6 @@ import type {
   InsightFilter,
 } from '@/__generated__/incidentsTableRelayQuery.graphql';
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
-import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
 import { EmptyState, liveColumnMeta, skeletonColumnDefs, useRetryKey } from '@/app/components/shared';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -46,9 +45,8 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import type { DialogNode } from '../../mingo/types';
 import { type FacetEntry, type FacetOption, facetToSortedOptions } from '../../scripts/shared/utils/facet-options';
-import { useFixWithMingo } from '../hooks/use-fix-with-mingo';
+import { type MingoAction, mingoActionFor, useFixWithMingo } from '../hooks/use-fix-with-mingo';
 import { useLatestIncidentDialogs } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
 import {
@@ -75,16 +73,14 @@ const PAGE_SIZE = 20;
 type ColumnFilterState = { id: string; value: unknown }[];
 
 /**
- * A row plus the state its Mingo button draws. It rides IN the row data rather
+ * A row plus everything its Mingo button draws. It rides IN the row data rather
  * than in the column defs on purpose: `DataTableRow` is memoized on the row
  * object, which TanStack keeps stable across column changes, so a cell reading
- * a value from the columns' closure keeps showing what it saw first.
+ * any value from the columns' closure keeps showing what it saw first. The
+ * `rows` memo below rebuilds on every input of the action.
  */
 interface IncidentTableRow extends IncidentRow {
-  /** The chat started from this incident; null when none; undefined until the lookup answers. */
-  mingoSession: DialogNode | null | undefined;
-  /** This row's "Fix with Mingo" prompt is being fetched. */
-  mingoPending: boolean;
+  mingoAction: MingoAction;
 }
 
 /**
@@ -145,7 +141,7 @@ function IncidentsTableContent({
 }: IncidentsTableContentProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
-  const { fixWithMingo, pendingId: mingoPendingId, canOpenMingo } = useFixWithMingo();
+  const mingoControls = useFixWithMingo();
 
   // One round-trip per interaction: the filter facets (`insightFilters`) ride the
   // list operation — see the query docstring for the facet semantics.
@@ -166,22 +162,18 @@ function IncidentsTableContent({
     IncidentsFragmentKey
   >(incidentsTableRelayFragment, queryData);
 
+  // Manual memos on purpose: TanStack compares `data` by identity, so `rows`
+  // must only change when an input does — and `incidents` is its stable input.
   const incidents = useMemo<IncidentRow[]>(
     () => (data.insights?.edges ?? []).flatMap(edge => (edge?.node ? [toIncidentRow(edge.node)] : [])),
     [data.insights?.edges],
   );
   // Which rows already have a chat: their button reopens it instead of starting one.
   const mingoSessions = useLatestIncidentDialogs(incidents.map(row => row.insightId));
-  // Manual memo on purpose: TanStack compares `data` by identity, and a fresh
-  // array per render rebuilds the row model every time.
   const rows = useMemo<IncidentTableRow[]>(
     () =>
-      incidents.map(row => ({
-        ...row,
-        mingoSession: mingoSessions[row.insightId],
-        mingoPending: mingoPendingId === row.id,
-      })),
-    [incidents, mingoSessions, mingoPendingId],
+      incidents.map(row => ({ ...row, mingoAction: mingoActionFor(row, mingoSessions[row.insightId], mingoControls) })),
+    [incidents, mingoSessions, mingoControls],
   );
 
   // A failed page must stop the footer: its sentinel stays in view, Relay
@@ -336,47 +328,30 @@ function IncidentsTableContent({
         meta: liveColumnMeta(INCIDENT_COLUMNS.actions),
       },
       {
-        // The Mingo button: "Open Mingo Session" once a chat was started from
-        // the incident, else "Fix with Mingo" — fetch the server's prompt and
-        // open the drawer on a fresh chat with it in the composer, nothing sent.
-        // Inert until the row's lookup answers (no spinner: it settles in place)
-        // and while no drawer is mounted (locked workspace).
+        // The Mingo button, as `mingoActionFor` decides it (see `IncidentTableRow`
+        // for why the cell reads nothing but the row).
         id: 'mingo',
         cell: ({ row }: { row: Row<IncidentTableRow> }) => {
-          const session = row.original.mingoSession;
-          const icon = (
-            <MingoIcon
-              className="size-5"
-              eyesColor="var(--ods-flamingo-cyan-base)"
-              cornerColor="var(--ods-flamingo-cyan-base)"
-            />
-          );
+          const { label, onClick, disabled, loading } = row.original.mingoAction;
           return (
             <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              {session ? (
-                <Button
-                  onClick={() => openMingoDialogInDrawer(session.id)}
-                  variant="outline"
-                  size="icon"
-                  leftIcon={icon}
-                  aria-label="Open Mingo Session"
-                  title="Open Mingo Session"
-                  disabled={!canOpenMingo}
-                  className="bg-ods-card"
-                />
-              ) : (
-                <Button
-                  onClick={() => fixWithMingo(row.original)}
-                  variant="outline"
-                  size="icon"
-                  leftIcon={icon}
-                  aria-label="Fix with Mingo"
-                  title="Fix with Mingo"
-                  disabled={!canOpenMingo || session === undefined || mingoPendingId !== null}
-                  loading={row.original.mingoPending}
-                  className="bg-ods-card"
-                />
-              )}
+              <Button
+                onClick={onClick}
+                variant="outline"
+                size="icon"
+                leftIcon={
+                  <MingoIcon
+                    className="size-5"
+                    eyesColor="var(--ods-flamingo-cyan-base)"
+                    cornerColor="var(--ods-flamingo-cyan-base)"
+                  />
+                }
+                aria-label={label}
+                title={label}
+                disabled={disabled}
+                loading={loading}
+                className="bg-ods-card"
+              />
             </div>
           );
         },
@@ -401,18 +376,7 @@ function IncidentsTableContent({
         meta: liveColumnMeta(INCIDENT_COLUMNS.open),
       },
     ];
-  }, [
-    transition,
-    transitionTable,
-    isMutating,
-    canOpenMingo,
-    fixWithMingo,
-    mingoPendingId,
-    typeOptions,
-    customerOptions,
-    severityOptions,
-    statusOptions,
-  ]);
+  }, [transition, transitionTable, isMutating, typeOptions, customerOptions, severityOptions, statusOptions]);
 
   const filterGroups = [
     { id: INCIDENT_COLUMNS.incident.id, title: 'Category', options: typeOptions },
@@ -487,7 +451,7 @@ function IncidentsTableContent({
                 : 'No incidents found. Try adjusting your filters.'
             }
             rowClassName="mb-1"
-            rowHref={(row: IncidentRow) => routes.incidents.details(row.id)}
+            rowHref={(row: IncidentTableRow) => routes.incidents.details(row.id)}
           />
           <DataTable.InfiniteFooter
             hasNextPage={hasNext && !pageFailed}

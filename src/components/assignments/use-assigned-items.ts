@@ -7,8 +7,9 @@ import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { KnowledgeBaseRow } from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
 import type { Dialog, DialogStatus } from '@/app/(app)/tickets/types/dialog.types';
+import { decodeGlobalId } from '@/lib/relay-id';
 import { postGraphQl } from './graphql';
-import { ensureGlobalId, toRawId } from './relay-id';
+import { ensureGlobalId } from './relay-id';
 import {
   ASSIGNMENT_TARGET_TYPES,
   type AssignmentItemType,
@@ -144,8 +145,13 @@ function toMachineRowFields(target: AssignedTargetNode): DeviceRowFields {
 
 function toDialog(target: AssignedTargetNode): Dialog {
   const t = unaliasFields(target);
+  // api-service-core hands every AssignableTarget a global id, while the ticket
+  // pages key on the raw one — a global id in `/tickets/dialog?id=` is "ticket
+  // not found". Guarded on the typename: a raw 24-hex ObjectId is valid base64
+  // too, and an unguarded decode would mangle the few that contain a colon byte.
+  const decoded = decodeGlobalId(target.id);
   return {
-    id: toRawId(target.id),
+    id: decoded?.typename === 'Ticket' ? decoded.rawId : target.id,
     title: (t.title as string) || 'Untitled Dialog',
     status: ((t.status as string) ?? 'ACTIVE') as DialogStatus,
     owner: { type: 'CLIENT' },

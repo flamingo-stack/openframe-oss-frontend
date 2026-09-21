@@ -14,7 +14,7 @@ import { insightRowFieldsFragment } from '@/graphql/insights/insight-row-fields'
 import { insightTransitionsFragment } from '@/graphql/insights/insight-transitions';
 import { insightUserFieldsFragment } from '@/graphql/insights/insight-user-fields';
 import { getFullImageUrl } from '@/lib/image-url';
-import { decodeGlobalId } from '@/lib/relay-id';
+import { rawIdOf } from '@/lib/relay-id';
 import { getDeviceName } from '../../devices/utils/device-name';
 import { enumMembers } from './incident-labels';
 
@@ -54,7 +54,7 @@ export function toIncidentRow(ref: insightRowFields_insight$key): IncidentRow {
   const machine = node.machine;
   return {
     id: node.id,
-    insightId: decodeGlobalId(node.id)?.rawId ?? node.id,
+    insightId: rawIdOf(node.id),
     title: node.title,
     type: node.type,
     severity: node.severity,

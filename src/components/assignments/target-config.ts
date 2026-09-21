@@ -21,8 +21,10 @@ export interface TargetMeta {
   icon: ComponentType<IconProps>;
   /**
    * The row can be added from the "Assign Item" menu and its picker searched.
-   * INSIGHT is not: a ticket is linked to ONE incident by being filed from it,
-   * so the row only ever shows what the page arrived with (and can be dropped).
+   * A UX flag, not "the server accepts it as a target" (that is
+   * `ASSIGNMENT_TARGET_TYPES`), even though the two coincide today: INSIGHT is
+   * not pickable because a ticket is linked to ONE incident by being filed from
+   * it, so the row only ever shows what the page arrived with (and can be dropped).
    */
   pickable: boolean;
 }

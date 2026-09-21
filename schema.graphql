@@ -69,6 +69,7 @@ type AssignedItemCount {
 enum AssignmentItemType {
   TICKET
   KNOWLEDGE_ARTICLE
+  INSIGHT
 }
 
 enum AssignmentTargetType {
@@ -3479,10 +3480,10 @@ input SnoozeInsightInput {
 }
 
 type InsightStatusTransition {
-  "The status an insight is in."
-  from: InsightStatus!
-  "Every status it may move to from there."
-  to: [InsightStatus!]!
+    "The status an insight is in."
+    from: InsightStatus!
+    "Every status it may move to from there."
+    to: [InsightStatus!]!
 }
 
 type InsightConnection {

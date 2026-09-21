@@ -5,14 +5,13 @@ import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/ic
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, type ReactNode, Suspense } from 'react';
-import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
 import { NotesSectionSkeleton } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { InsightStatus } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
-import { useFixWithMingo } from '../hooks/use-fix-with-mingo';
+import { mingoActionFor, useFixWithMingo } from '../hooks/use-fix-with-mingo';
 import { useIncident, useIncidentDetail } from '../hooks/use-incident';
 import { useLatestIncidentDialog } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
@@ -47,7 +46,7 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
   const { incident, transitions } = useIncidentDetail(incidentId);
 
   const handleBack = useSafeBack(routes.incidents.list);
-  const { fixWithMingo, pendingId: mingoPendingId, canOpenMingo } = useFixWithMingo();
+  const mingoControls = useFixWithMingo();
   // One Mingo button: reopen the chat already started from this incident, or start one.
   const mingoSession = useLatestIncidentDialog(incident.insightId);
   // Mingo's "open view": this incident rides on every message sent while the page is up.
@@ -69,22 +68,11 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
       cornerColor="var(--ods-flamingo-cyan-base)"
     />
   );
-  const mingoAction: PageActionButton = mingoSession
-    ? {
-        label: 'Open Mingo Session',
-        variant: 'outline',
-        icon: mingoIcon,
-        onClick: () => openMingoDialogInDrawer(mingoSession.id),
-        disabled: !canOpenMingo,
-      }
-    : {
-        label: 'Fix with Mingo',
-        variant: 'outline',
-        icon: mingoIcon,
-        onClick: () => fixWithMingo(incident),
-        disabled: !canOpenMingo || mingoPendingId !== null,
-        loading: mingoPendingId !== null,
-      };
+  const mingoAction: PageActionButton = {
+    ...mingoActionFor(incident, mingoSession, mingoControls),
+    variant: 'outline',
+    icon: mingoIcon,
+  };
 
   const actions: PageActionButton[] = [
     mingoAction,

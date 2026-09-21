@@ -3,10 +3,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
 /** What `draftToMingo` puts in the composer — relayed verbatim to the panel's `prefillDraft`. */
-export type MingoDraft = ChatPrefillDraft & {
-  /** The STORED insight id this draft is about; the dialog created from it is linked to the insight. */
-  insightId?: string;
-};
+export type MingoDraft = ChatPrefillDraft;
 
 /**
  * Owns the Mingo drawer's open state (lifted out of `AppShell` so any page can
@@ -41,14 +38,6 @@ interface MingoLauncherStore {
   /** One-shot "open on a fresh chat" request; false once consumed. */
   pendingNewChat: boolean;
   /**
-   * The insight the composer's current fresh chat was started from ("Fix with
-   * Mingo"), for `POST /dialogs` to link the two. Set once the draft is in the
-   * composer; consumed by the create; dropped by anything that leaves that
-   * fresh chat — another conversation, a new chat, a close (the drawer unmounts
-   * on close, and the draft with it).
-   */
-  dialogInsightId: string | null;
-  /**
    * The drawer was closed BY a navigation the same handler had just issued, so it
    * does not own the URL on this pass — the destination is already param-free.
    * Read by `useMingoDialogUrlSync`.
@@ -80,9 +69,6 @@ interface MingoLauncherStore {
   startNewChat: () => void;
   /** Read and clear the pending new-chat request (safe against double-consume). */
   consumePendingNewChat: () => boolean;
-  setDialogInsightId: (insightId: string | null) => void;
-  /** Read and clear the insight link in one step — for the one dialog create it belongs to. */
-  consumeDialogInsightId: () => string | null;
 }
 
 export const useMingoLauncherStore = create<MingoLauncherStore>()(
@@ -93,26 +79,18 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
       pendingPrompt: null,
       pendingDraft: null,
       pendingNewChat: false,
-      dialogInsightId: null,
       closedForNavigation: false,
 
-      setOpen: open =>
-        set(
-          open ? { isOpen: true, closedForNavigation: false } : { isOpen: false, dialogInsightId: null },
-          false,
-          'setOpen',
-        ),
+      setOpen: open => set(open ? { isOpen: true, closedForNavigation: false } : { isOpen: false }, false, 'setOpen'),
       setCanOpen: canOpen => set({ canOpen }, false, 'setCanOpen'),
       toggle: () =>
         set(
-          state =>
-            state.isOpen ? { isOpen: false, dialogInsightId: null } : { isOpen: true, closedForNavigation: false },
+          state => (state.isOpen ? { isOpen: false } : { isOpen: true, closedForNavigation: false }),
           false,
           'toggle',
         ),
-      close: () => set({ isOpen: false, dialogInsightId: null }, false, 'close'),
-      closeForNavigation: () =>
-        set({ isOpen: false, dialogInsightId: null, closedForNavigation: true }, false, 'closeForNavigation'),
+      close: () => set({ isOpen: false }, false, 'close'),
+      closeForNavigation: () => set({ isOpen: false, closedForNavigation: true }, false, 'closeForNavigation'),
 
       sendToMingo: prompt =>
         set(
@@ -121,7 +99,6 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
             pendingPrompt: prompt,
             pendingDraft: null,
             pendingNewChat: false,
-            dialogInsightId: null,
             closedForNavigation: false,
           },
           false,
@@ -154,20 +131,11 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
             pendingNewChat: true,
             pendingPrompt: null,
             pendingDraft: null,
-            dialogInsightId: null,
             closedForNavigation: false,
           },
           false,
           'startNewChat',
         ),
-
-      setDialogInsightId: insightId => set({ dialogInsightId: insightId }, false, 'setDialogInsightId'),
-
-      consumeDialogInsightId: () => {
-        const { dialogInsightId } = get();
-        if (dialogInsightId !== null) set({ dialogInsightId: null }, false, 'consumeDialogInsightId');
-        return dialogInsightId;
-      },
 
       consumePendingNewChat: () => {
         const { pendingNewChat } = get();
