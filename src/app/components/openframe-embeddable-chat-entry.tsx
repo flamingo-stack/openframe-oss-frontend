@@ -143,7 +143,12 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         });
         return;
       }
-      const url = `${origin}${mingoDialogLink(dialog.id)}`;
+      // `origin` is guaranteed free of trailing slashes above; normalize the path so
+      // exactly one slash ever separates them, regardless of what `mingoDialogLink`
+      // returns (missing or duplicated leading slash both produce a malformed URL
+      // otherwise).
+      const path = `/${mingoDialogLink(dialog.id).replace(/^\/+/, '')}`;
+      const url = `${origin}${path}`;
       try {
         await navigator.clipboard.writeText(url);
         toast({ title: 'Link copied', description: 'Anyone with access to this workspace can open it.' });
