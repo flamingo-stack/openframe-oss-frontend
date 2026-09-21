@@ -96,12 +96,18 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
   const [selectedFleetHostIds, setSelectedFleetHostIds] = useState<Set<number>>(new Set());
   const [hostsInitialized, setHostsInitialized] = useState(false);
 
-  // Initialize selected hosts from current assignment (edit mode)
-  if (!hostsInitialized && !isLoadingHosts && isExistingQuery && currentHosts.length > 0) {
-    setSelectedFleetHostIds(new Set(currentHosts.map(h => h.id)));
-    setHostsInitialized(true);
-  }
-  if (!hostsInitialized && !isLoadingHosts && (!isExistingQuery || currentHosts.length === 0)) {
+  // Initialize selected hosts from current assignment (edit mode), during
+  // render rather than in an effect — same rationale as the `seededFrom`
+  // sentinel below: an effect would render the empty selection once before
+  // hosts land, which is a visible flash on every load.
+  //
+  // Guarded by `isLoadingHosts` so this only runs once loading has settled,
+  // avoiding the race where `currentHosts` is still `[]` from a previous
+  // query while the new query's hosts are mid-fetch.
+  if (!hostsInitialized && !isLoadingHosts) {
+    if (isExistingQuery && currentHosts.length > 0) {
+      setSelectedFleetHostIds(new Set(currentHosts.map(h => h.id)));
+    }
     setHostsInitialized(true);
   }
 
