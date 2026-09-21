@@ -37,6 +37,11 @@ export const FEATURE_FLAG_NAMES = [
   // /api/v1/remote-access/** service (dev, where the backend is deployed);
   // off = the in-memory mock that the QA tooling above drives.
   'remote-access-approval-api',
+  // The next remote access cut (v2): surfaces built ahead of their backend
+  // that must stay hidden when v1 (`remote-access-approval`) reaches every
+  // environment. On for dev / qa, absent elsewhere. Today: the "Remote Access
+  // Permission" selector on the New Device page.
+  'remote-access-v2',
   // The Incidents module (`/incidents`) over saas-api's `insights` API.
   'insights',
   // Tenant Management (CU-86akj8ajt): the Settings module that connects
