@@ -47,19 +47,34 @@ function toAgentAiConfig(raw: AgentAiConfigGql): AgentAiConfig {
   };
 }
 
-async function fetchAiConfig(query: string, responseKey: string): Promise<AgentAiConfig | null> {
-  const response = await apiClient.post<GraphqlResponse<Record<string, AgentAiConfigGql | null>>>('/chat/graphql', {
-    query,
-  });
-
+/**
+ * Extracts a GraphQL payload from the shared `apiClient` envelope, throwing a
+ * single consistent error for transport failures, top-level GraphQL errors,
+ * and (optionally) mutation-level userErrors. This mirrors the shape used by
+ * other chat-graphql hooks so the error contract only needs to change here.
+ */
+async function unwrapGraphqlResponse<TData>(
+  response: Awaited<ReturnType<typeof apiClient.post<GraphqlResponse<TData>>>>,
+  fallbackMessage: string,
+): Promise<TData | undefined> {
   if (!response.ok || !response.data) {
-    throw new Error(response.error || 'Failed to load AI config');
+    throw new Error(response.error || fallbackMessage);
   }
   if (response.data.errors?.length) {
     throw new Error(response.data.errors.map(e => e.message).join(', '));
   }
 
-  const raw = response.data.data?.[responseKey];
+  return response.data.data;
+}
+
+async function fetchAiConfig(query: string, responseKey: string): Promise<AgentAiConfig | null> {
+  const response = await apiClient.post<GraphqlResponse<Record<string, AgentAiConfigGql | null>>>('/chat/graphql', {
+    query,
+  });
+
+  const data = await unwrapGraphqlResponse(response, 'Failed to load AI config');
+
+  const raw = data?.[responseKey];
   return raw ? toAgentAiConfig(raw) : null;
 }
 
@@ -104,14 +119,9 @@ async function postUpdateAiConfig(mutation: string, responseKey: string, input: 
     { query: mutation, variables: { input } },
   );
 
-  if (!response.ok || !response.data) {
-    throw new Error(response.error || 'Failed to save AI config');
-  }
-  if (response.data.errors?.length) {
-    throw new Error(response.data.errors.map(e => e.message).join(', '));
-  }
+  const data = await unwrapGraphqlResponse(response, 'Failed to save AI config');
 
-  const userErrors = response.data.data?.[responseKey]?.userErrors ?? [];
+  const userErrors = data?.[responseKey]?.userErrors ?? [];
   if (userErrors.length > 0) {
     throw new Error(userErrors.map(e => e.message).join(', '));
   }
@@ -148,3 +158,4 @@ export function useUpdateClientAiConfig() {
 export function useUpdateAdminAiConfig() {
   return useUpdateAiConfig('ADMIN', UPDATE_ADMIN_AI_CONFIG_MUTATION, 'updateAdminAiConfig');
 }
+
