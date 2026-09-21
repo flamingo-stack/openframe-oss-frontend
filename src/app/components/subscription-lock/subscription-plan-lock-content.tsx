@@ -6,33 +6,10 @@ import {
 } from '@/app/(app)/settings/billing-usage/subscription/components/subscription-settings-view';
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { SubscriptionStatus } from '@/generated/schema-enums';
+import { noAccessCopy } from './no-access-copy';
 import { useSubscriptionLock } from './subscription-guard';
 import { UnpaidInvoicesLoading, UnpaidInvoicesScreen } from './unpaid-invoices-screen';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
-
-/**
- * Copy for the viewer who cannot fix the lock themselves. Split by status because
- * "your trial ended" and "your subscription ended" are different facts, and the
- * one thing both need to say is who to go to.
- *
- * Not sourced from `subscription-lock-copy.ts`: that module is the plan picker's
- * own heading, and this path is the one where no plan is shown.
- */
-function noAccessCopy(status: SubscriptionStatus): { title: string; description: string } {
-  const description =
-    'Only the workspace owner or an admin can restore it. Contact one of them to bring the workspace back for your team.';
-
-  if (status === SubscriptionStatus.TRIAL_EXPIRED) {
-    return { title: 'The free trial has ended.', description };
-  }
-  // Deliberately names no invoice and no amount: what this viewer can do about
-  // it is identical either way, and a member has no business reading the
-  // workspace's balance off a screen they cannot pay from.
-  if (status === SubscriptionStatus.SUSPENDED) {
-    return { title: 'This workspace has been suspended.', description };
-  }
-  return { title: 'The subscription has ended.', description };
-}
 
 /**
  * The lock screen on a build that may show payments. Three of them, in fact:

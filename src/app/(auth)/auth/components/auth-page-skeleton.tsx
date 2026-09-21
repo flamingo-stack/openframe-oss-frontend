@@ -1,7 +1,7 @@
 'use client';
 
-import { AuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { StandaloneAuthShell } from './standalone-auth-shell';
 
 export type AuthPageSkeletonVariant = 'signup' | 'login' | 'complete-account' | 'sso-join';
 
@@ -174,13 +174,13 @@ export function AuthFormSkeleton({ variant = 'signup' }: { variant?: AuthPageSke
 
 /**
  * Loading placeholder for auth pages that bring their own shell (invite, and friends). Renders the
- * real AuthShell — branding and benefits are static — around {@link AuthFormSkeleton}, so there is
- * no layout shift on load.
+ * same shell the page will (`StandaloneAuthShell` — branding and benefits are static) around
+ * {@link AuthFormSkeleton}, so there is no layout shift on load.
  */
 export function AuthPageSkeleton({ variant = 'signup' }: AuthPageSkeletonProps) {
   return (
-    <AuthShell>
+    <StandaloneAuthShell>
       <AuthFormSkeleton variant={variant} />
-    </AuthShell>
+    </StandaloneAuthShell>
   );
 }

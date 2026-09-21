@@ -3,139 +3,55 @@
 import {
   ChatsIcon,
   FileContentIcon,
+  MonitorShieldIcon,
   ShieldCheckIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  CheckboxBlock,
   ImageUploader,
-  Input,
   PageLayout,
   type TabItem,
   TabNavigation,
-  Textarea,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
-import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
-import { getFullImageUrl } from '@/lib/image-url';
+import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes, TAB_IDS } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { deleteWithAuth, uploadWithAuth } from '@/lib/upload-with-auth';
-import { dashboardQueryKeys } from '../../dashboard/utils/query-keys';
-import { useCreateCustomer } from '../hooks/use-create-customer';
-import { customerDetailsQueryKeys, useCustomerDetails } from '../hooks/use-customer-details';
-import { useUpdateCustomer } from '../hooks/use-update-customer';
-import {
-  CustomerAiAssistantAppearance,
-  type CustomerAppearanceHandle,
-} from './ai-assistant-appearance/customer-ai-assistant-appearance';
-import {
-  CustomerAiConfiguration,
-  type CustomerAiConfigurationHandle,
-} from './customer-ai-configuration/customer-ai-configuration';
-import { type CustomerGuardrailsHandle, CustomerGuardrailsSettings } from './customer-guardrails-settings';
+import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
+import { useCustomerForm } from '../hooks/use-customer-form';
+import { useCustomerLogo } from '../hooks/use-customer-logo';
+import { CustomerAiAssistantAppearance } from './ai-assistant-appearance/customer-ai-assistant-appearance';
+import { CustomerAiConfiguration } from './customer-ai-configuration/customer-ai-configuration';
+import { CustomerDeviceGuardrailsSettings } from './customer-device-guardrails-settings';
+import { CustomerFormFields } from './customer-form-fields';
+import { CustomerGuardrailsSettings } from './customer-guardrails-settings';
 
 interface NewCustomerPageProps {
   organizationId: string | null;
 }
 
-interface FormState {
-  name: string;
-  website: string;
-  notes: string;
-  physicalAddress: string;
-  mailingAddress: string;
-  mailingSameAsPhysical: boolean;
-  imageUrl?: string;
-  imageHash?: string;
-}
+const [DETAILS_TAB, AI_CONFIGURATION_TAB, GUARDRAILS_TAB, DEVICE_GUARDRAILS_TAB] = TAB_IDS.customerEdit;
 
-interface PreservedFields {
-  category?: string;
-  numberOfEmployees: number | null;
-  monthlyRevenue: number | null;
-  contractStartDate?: string;
-  contractEndDate?: string;
-  contacts: Array<{ contactName: string; title: string; phone: string; email: string }>;
-}
-
-const DEFAULT_FORM: FormState = {
-  name: '',
-  website: '',
-  notes: '',
-  physicalAddress: '',
-  mailingAddress: '',
-  mailingSameAsPhysical: true,
-};
-
-const DEFAULT_PRESERVED: PreservedFields = {
-  numberOfEmployees: null,
-  monthlyRevenue: null,
-  contacts: [],
-};
-
-const buildAddressDto = (raw: string) => ({
-  street1: raw || '',
-  street2: '',
-  city: '',
-  state: '',
-  postalCode: '',
-  country: '',
-});
-
-const stripPlaceholder = (value?: string | null): string => {
-  if (!value || value === '-') return '';
-  return value;
-};
-
-const contactToDto = (c: { name: string; title: string; phone: string; email: string }) => ({
-  contactName: c.name,
-  title: c.title,
-  phone: c.phone,
-  email: c.email,
-});
-
-const [DETAILS_TAB, AI_CONFIGURATION_TAB, GUARDRAILS_TAB] = TAB_IDS.customerEdit;
-
+/**
+ * Create / edit customer. The form lives in `useCustomerForm` (react-hook-form
+ * + zod) and `CustomerFormFields`; this page owns the tabs, the logo and the
+ * sub-panels. It is compiled by the React Compiler on purpose, so it only
+ * passes `form` through and reads the primitives the hook returns — never
+ * `form.formState` / `watch()` / `getValues()` in render. Mount it with
+ * `key={organizationId}`: the seed is remembered per mount, so switching the
+ * `?id=` in place would keep the previous customer's edits.
+ */
 export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const { createOrganization } = useCreateCustomer();
-  const { updateOrganization } = useUpdateCustomer();
-  // `hasData` gates Save: offline the query PAUSES, so `organization` is null
-  // for a reason that has nothing to do with the record being empty. Without it
-  // the edit form renders blank and Save PATCHes those blanks over the real
-  // customer — website, notes, addresses, contacts.
-  const { organization, hasData: customerLoaded } = useCustomerDetails(organizationId);
 
   const handleBack = useSafeBack(organizationId ? routes.customers.details(organizationId) : routes.customers.list());
 
-  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
-  const [preserved, setPreserved] = useState<PreservedFields>(DEFAULT_PRESERVED);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [didPrefill, setDidPrefill] = useState(false);
-
-  // For new orgs: file is held in memory until creation, then uploaded.
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | undefined>(undefined);
-  const previewUrlRef = useRef<string | undefined>(undefined);
-  // Let "Save Customer" also persist the AI configuration / guardrails blocks.
-  // Only one AI block is mounted at a time (the flag picks old vs new), so at
-  // most one of these refs is set; both handle shapes are `{ validate, commit }`.
-  const aiConfigurationRef = useRef<CustomerAiConfigurationHandle>(null);
-  const appearanceRef = useRef<CustomerAppearanceHandle>(null);
-  const guardrailsRef = useRef<CustomerGuardrailsHandle>(null);
-
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
   const showImageUploader = isSaasTenant;
-  const displayedImage = pendingPreviewUrl || getFullImageUrl(form.imageUrl, form.imageHash);
 
   // Per-customer AI blocks: SaaS-only (they rely on the openframe-saas-ai-agent
   // service, absent in self-hosted) and edit-mode only (they need an org id to
@@ -151,7 +67,11 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const guardrailsEnabled = useFeatureFlag('customer-guardrails');
   const showAiConfig = !!organizationId && isSaasTenant && (isFullAiConfig || customizationEnabled);
   const showGuardrails = !!organizationId && isSaasTenant && guardrailsEnabled;
-  const showTabs = showAiConfig || showGuardrails;
+  // Remote access policy (CU-86akeqw8b): not saas-gated - MeshCentral runs in
+  // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
+  const remoteAccessGate = useRemoteAccessApprovalGate();
+  const showDeviceGuardrails = !!organizationId && remoteAccessGate === 'on';
+  const showTabs = showAiConfig || showGuardrails || showDeviceGuardrails;
 
   const editTabs = useMemo<TabItem[]>(
     () => [
@@ -166,8 +86,11 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
           ]
         : []),
       ...(showGuardrails ? [{ id: GUARDRAILS_TAB, label: 'Customer AI Guardrails', icon: ShieldCheckIcon }] : []),
+      ...(showDeviceGuardrails
+        ? [{ id: DEVICE_GUARDRAILS_TAB, label: 'Customer Device Guardrails', icon: MonitorShieldIcon }]
+        : []),
     ],
-    [showAiConfig, isFullAiConfig, showGuardrails],
+    [showAiConfig, isFullAiConfig, showGuardrails, showDeviceGuardrails],
   );
 
   // Tab rides the URL (controlled mode, mirroring customer-details-view) so
@@ -185,322 +108,51 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
     [router, pathname, searchParams],
   );
 
-  const set = (partial: Partial<FormState>) => setForm(prev => ({ ...prev, ...partial }));
+  // An invalid submit while another tab is showing: bring Details forward and
+  // scroll to the field once its panel is visible. The switch rides the URL, so
+  // it lands on a later render — and the scroll helper skips hidden markers.
+  const pendingScrollRef = useRef(false);
+  const handleInvalid = useCallback(() => {
+    if (activeTab === DETAILS_TAB) return;
+    pendingScrollRef.current = true;
+    handleTabChange(DETAILS_TAB);
+  }, [activeTab, handleTabChange]);
+  useLayoutEffect(() => {
+    if (activeTab !== DETAILS_TAB || !pendingScrollRef.current) return;
+    pendingScrollRef.current = false;
+    scrollToFirstInvalidField();
+  }, [activeTab]);
 
-  // Revoke blob URLs on unmount
-  useEffect(
-    () => () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    },
-    [],
-  );
+  const logo = useCustomerLogo({ organizationId });
+  const { form, isEditMode, customerLoaded, isSubmitting, showErrors, handleSave, refs } = useCustomerForm({
+    organizationId,
+    flushPendingLogo: logo.flushPendingUpload,
+    onInvalid: handleInvalid,
+  });
 
-  // Prefill once, from the fetched organization, during render rather than in an
-  // effect: an effect renders the blank form one more time after the data has
-  // landed, which shows as a flash of empty fields on the edit route.
-  if (organizationId && organization && !didPrefill) {
-    const physical = organization.physicalAddress || '';
-    const mailing = organization.mailingAddress || '';
-    const sameAsPhysical = !mailing || mailing === physical;
-
-    setForm({
-      name: stripPlaceholder(organization.name),
-      website: stripPlaceholder(organization.website),
-      notes: (organization.notes || []).join('\n'),
-      physicalAddress: physical,
-      mailingAddress: mailing,
-      mailingSameAsPhysical: sameAsPhysical,
-      imageUrl: organization.imageUrl || undefined,
-      imageHash: organization.imageHash || undefined,
-    });
-
-    const reconstructedContacts = [organization.primary, organization.billing, organization.technical]
-      .filter(c => c.name || c.title || c.phone || c.email)
-      .map(contactToDto);
-
-    setPreserved({
-      category: stripPlaceholder(organization.industry) || undefined,
-      numberOfEmployees: organization.employees,
-      monthlyRevenue: organization.mrrUsd,
-      contractStartDate: organization.contractStart
-        ? new Date(organization.contractStart).toISOString().slice(0, 10)
-        : undefined,
-      contractEndDate: organization.contractEnd
-        ? new Date(organization.contractEnd).toISOString().slice(0, 10)
-        : undefined,
-      contacts: reconstructedContacts,
-    });
-
-    setDidPrefill(true);
-  }
-
-  // Mirror physical → mailing while the checkbox is on. Done during render: an
-  // effect renders the stale mailing line once per keystroke in the physical
-  // field, which is visible as the two boxes lagging one character apart.
-  if (form.mailingSameAsPhysical && form.mailingAddress !== form.physicalAddress) {
-    setForm(prev => ({ ...prev, mailingAddress: prev.physicalAddress }));
-  }
-
-  const replacePendingPreview = (file: File | null) => {
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    if (file) {
-      const next = URL.createObjectURL(file);
-      previewUrlRef.current = next;
-      setPendingPreviewUrl(next);
-    } else {
-      previewUrlRef.current = undefined;
-      setPendingPreviewUrl(undefined);
-    }
-    setPendingFile(file);
-  };
-
-  const invalidateOrganizationImageQueries = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['organizations'] }),
-      queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.all }),
-      ...(organizationId
-        ? [queryClient.invalidateQueries({ queryKey: customerDetailsQueryKeys.detail(organizationId) })]
-        : []),
-    ]);
-  };
-
-  const handleImageChange = async (file: File) => {
-    if (organizationId) {
-      try {
-        const uploadedUrl = await uploadWithAuth(`/api/organizations/${organizationId}/image`, file);
-        // The image path is stable across uploads, so bust the cache with the
-        // upload time — otherwise the uploader keeps showing the old bytes.
-        set({ imageUrl: uploadedUrl, imageHash: String(Date.now()) });
-        // The image persists immediately (independent of Save), so refresh the
-        // cached org lists that render this logo with its hash elsewhere.
-        await invalidateOrganizationImageQueries();
-        toast({
-          title: 'Upload successful',
-          description: 'Customer image has been updated',
-          variant: 'success',
-        });
-      } catch (err) {
-        toast({
-          title: 'Upload failed',
-          description: err instanceof Error ? err.message : 'Failed to upload image',
-          variant: 'destructive',
-        });
-      }
-    } else {
-      replacePendingPreview(file);
-    }
-  };
-
-  const handleImageRemove = async () => {
-    if (organizationId && form.imageUrl) {
-      try {
-        await deleteWithAuth(`/api/organizations/${organizationId}/image`);
-        set({ imageUrl: undefined, imageHash: undefined });
-        await invalidateOrganizationImageQueries();
-        toast({
-          title: 'Delete successful',
-          description: 'Customer image has been deleted',
-          variant: 'success',
-        });
-      } catch (err) {
-        toast({
-          title: 'Delete failed',
-          description: err instanceof Error ? err.message : 'Failed to delete image',
-          variant: 'destructive',
-        });
-      }
-    } else {
-      replacePendingPreview(null);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!form.name.trim() || isSubmitting) return;
-
-    try {
-      setIsSubmitting(true);
-
-      // Whichever AI block is mounted (flag picks old appearance vs new config).
-      const activeAiHandle = aiConfigurationRef.current ?? appearanceRef.current;
-
-      // Validate the AI fields before writing anything.
-      if (activeAiHandle && !(await activeAiHandle.validate())) {
-        toast({
-          title: 'Check AI configuration',
-          description: 'Fix the highlighted AI configuration fields before saving',
-          variant: 'destructive',
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      const payload = {
-        name: form.name.trim(),
-        category: preserved.category,
-        numberOfEmployees: preserved.numberOfEmployees,
-        websiteUrl: form.website.trim() || undefined,
-        notes: form.notes || undefined,
-        contactInformation: {
-          contacts: preserved.contacts,
-          physicalAddress: buildAddressDto(form.physicalAddress),
-          mailingAddress: buildAddressDto(form.mailingSameAsPhysical ? form.physicalAddress : form.mailingAddress),
-          mailingAddressSameAsPhysical: form.mailingSameAsPhysical,
-        },
-        monthlyRevenue: preserved.monthlyRevenue,
-        contractStartDate: preserved.contractStartDate,
-        contractEndDate: preserved.contractEndDate,
-      };
-
-      let createdOrganizationId: string | null = null;
-
-      if (organizationId) {
-        await updateOrganization(organizationId, payload);
-      } else {
-        const response = await createOrganization(payload);
-        createdOrganizationId = response?.organizationId || response?.id || null;
-      }
-
-      // Deferred logo upload for newly-created orgs
-      if (!organizationId && createdOrganizationId && pendingFile) {
-        try {
-          await uploadWithAuth(`/api/organizations/${createdOrganizationId}/image`, pendingFile);
-        } catch {
-          toast({
-            title: 'Warning',
-            description: 'Customer was created but logo upload failed',
-            variant: 'warning',
-          });
-        }
-      }
-
-      // Persist the AI overrides/reset (edit mode only). The customer is already
-      // saved at this point, so a configuration failure is a non-fatal warning —
-      // it must not surface as a full "Save failed".
-      if (organizationId && activeAiHandle) {
-        try {
-          await activeAiHandle.commit();
-        } catch (e) {
-          toast({
-            title: 'Customer saved, AI configuration not updated',
-            description: e instanceof Error ? e.message : 'Failed to save the customer AI configuration',
-            variant: 'warning',
-          });
-        }
-      }
-
-      // Persist the per-customer guardrails selection (edit mode only). Same
-      // non-fatal semantics as the appearance block: the customer is saved.
-      if (organizationId && guardrailsRef.current) {
-        try {
-          await guardrailsRef.current.commit();
-        } catch (e) {
-          toast({
-            title: 'Customer saved, guardrails not updated',
-            description: e instanceof Error ? e.message : 'Failed to save customer guardrails',
-            variant: 'warning',
-          });
-        }
-      }
-
-      await invalidateOrganizationImageQueries();
-
-      toast({
-        title: organizationId ? 'Customer updated' : 'Customer created',
-        description: `${form.name} has been ${organizationId ? 'updated' : 'created'}`,
-      });
-      if (organizationId) {
-        safeBackOrReplace(router, routes.customers.details(organizationId));
-      } else {
-        router.replace(routes.customers.list());
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to save customer';
-      toast({ title: 'Save failed', description: msg, variant: 'destructive' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Editing an existing customer requires its record to have actually arrived.
-  // Creating one does not — there is nothing to overwrite.
-  const saveDisabled = !form.name.trim() || isSubmitting || (!!organizationId && !customerLoaded);
+  // Editing an existing customer requires its record to have actually arrived;
+  // the fields wait with the button. Creating one does not — there is nothing
+  // to overwrite.
+  const recordPending = isEditMode && !customerLoaded;
 
   const detailsForm = (
-    <div className="flex w-full flex-col gap-6">
-      {/* Row 1: name + website (left) | image (right on lg, below on md/sm) */}
-      <div className="flex flex-col items-stretch gap-6 lg:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col gap-6 md:flex-row md:gap-6 lg:flex-col">
-          <div className="min-w-0 flex-1">
-            <Input
-              label="Customer Name"
-              placeholder="Customer Name"
-              value={form.name}
-              onChange={e => set({ name: e.target.value })}
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <Input
-              label="Website URL"
-              placeholder="https://www.website.com"
-              value={form.website}
-              onChange={e => set({ website: e.target.value })}
-            />
-          </div>
-        </div>
-
-        {showImageUploader && (
-          <div className="w-full shrink-0 lg:w-[316px]">
-            <ImageUploader
-              value={displayedImage}
-              onChange={handleImageChange}
-              onRemove={handleImageRemove}
-              objectFit="contain"
-              label="Customer Logo"
-              description="(Click here or drag and drop)"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Notes */}
-      <Textarea
-        label="Notes"
-        rows={4}
-        placeholder="Your notes here..."
-        value={form.notes}
-        onChange={e => set({ notes: e.target.value })}
-        className="min-h-[96px] resize-y"
-      />
-
-      {/* Row 3: physical address + same-as-physical checkbox */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:gap-6">
-        <div className="min-w-0 flex-1">
-          <Input
-            label="Physical Address"
-            placeholder="123 Main St, City, State, ZIP"
-            value={form.physicalAddress}
-            onChange={e => set({ physicalAddress: e.target.value })}
+    <CustomerFormFields
+      form={form}
+      disabled={recordPending}
+      showErrors={showErrors}
+      logoSlot={
+        showImageUploader ? (
+          <ImageUploader
+            value={logo.displayedImage}
+            onChange={logo.handleImageChange}
+            onRemove={logo.handleImageRemove}
+            objectFit="contain"
+            label="Customer Logo"
+            description="(Click here or drag and drop)"
           />
-        </div>
-        <CheckboxBlock
-          id="mailing-same"
-          className="min-w-0 flex-1 md:max-w-[50%]"
-          label="Mailing Address Same as Physical"
-          checked={form.mailingSameAsPhysical}
-          onCheckedChange={c => set({ mailingSameAsPhysical: Boolean(c) })}
-        />
-      </div>
-
-      {/* Mailing address (full width) */}
-      <Input
-        label="Mailing Address"
-        placeholder="123 Main St, City, State, ZIP"
-        value={form.mailingAddress}
-        onChange={e => set({ mailingAddress: e.target.value })}
-        disabled={form.mailingSameAsPhysical}
-        className="disabled:opacity-60"
-      />
-    </div>
+        ) : undefined
+      }
+    />
   );
 
   return (
@@ -517,7 +169,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
           label: isSubmitting ? 'Saving...' : 'Save Customer',
           variant: 'accent',
           onClick: handleSave,
-          disabled: saveDisabled,
+          disabled: isSubmitting || recordPending,
           loading: isSubmitting,
         },
       ]}
@@ -533,15 +185,20 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
               {showAiConfig && (
                 <div className={activeId === AI_CONFIGURATION_TAB ? undefined : 'hidden'}>
                   {isFullAiConfig ? (
-                    <CustomerAiConfiguration ref={aiConfigurationRef} organizationId={organizationId} />
+                    <CustomerAiConfiguration ref={refs.aiConfigurationRef} organizationId={organizationId} />
                   ) : (
-                    <CustomerAiAssistantAppearance ref={appearanceRef} organizationId={organizationId} />
+                    <CustomerAiAssistantAppearance ref={refs.appearanceRef} organizationId={organizationId} />
                   )}
                 </div>
               )}
               {showGuardrails && (
                 <div className={activeId === GUARDRAILS_TAB ? undefined : 'hidden'}>
-                  <CustomerGuardrailsSettings ref={guardrailsRef} organizationId={organizationId} />
+                  <CustomerGuardrailsSettings ref={refs.guardrailsRef} organizationId={organizationId} />
+                </div>
+              )}
+              {showDeviceGuardrails && (
+                <div className={activeId === DEVICE_GUARDRAILS_TAB ? undefined : 'hidden'}>
+                  <CustomerDeviceGuardrailsSettings ref={refs.deviceGuardrailsRef} organizationId={organizationId} />
                 </div>
               )}
             </div>

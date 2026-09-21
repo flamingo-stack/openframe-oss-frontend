@@ -4,10 +4,14 @@ import {
   type ColumnDef,
   DataTable,
   Skeleton,
+  StackedRowsPanel,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
+import { TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
+import { InlineSkeleton } from '@/app/components/shared';
+import { buildCustomerContactRows, buildCustomerInfoRows } from './details-tabs/customer-details-rows';
 
 /**
  * Mirrors PageLayout's TitleBlock used by CustomerDetailsView with `variant="outline"`.
@@ -80,33 +84,31 @@ function TabTitleSkeleton({ titleWidth = 'w-32', actionWidth }: { titleWidth?: s
 }
 
 /**
- * Skeleton matching the Details tab: the info card — Website (full-width row) +
- * Physical/Mailing Address (two cells, stacking on mobile) — and the Notes card.
+ * Skeleton matching the Details tab: the same panels the tab renders, built
+ * from the same row definitions (`customer-details-rows`) with placeholder
+ * values — the info card (Website; the two addresses) and a contacts card with
+ * one contact (a customer with more shifts by design), then the Notes card.
  */
 export function CustomerDetailsTabSkeleton() {
+  const infoRows = buildCustomerInfoRows({
+    website: <InlineSkeleton className="h-5 w-40" />,
+    websiteIcon: <Skeleton className="size-6 shrink-0" />,
+    physicalAddress: <InlineSkeleton className="h-5 w-72" />,
+    mailingAddress: <InlineSkeleton className="h-5 w-72" />,
+  });
+  const contactRows = buildCustomerContactRows([
+    {
+      contactName: <InlineSkeleton className="h-5 w-28" />,
+      title: <InlineSkeleton className="h-5 w-28" />,
+      email: <InlineSkeleton className="h-5 w-40" />,
+      phone: <InlineSkeleton className="h-5 w-28" />,
+    },
+  ]);
+
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
-        {/* Row 1: Website (with leading icon) */}
-        <div className="flex h-20 items-center gap-[var(--spacing-system-m)] border-b border-ods-border px-[var(--spacing-system-m)]">
-          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xxs)]">
-            <Skeleton className="size-6 shrink-0" />
-            <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
-              <Skeleton className="h-5 w-40 max-w-full" />
-              <Skeleton className="h-4 w-20" />
-            </div>
-          </div>
-        </div>
-        {/* Row 2: Physical + Mailing Address — stacks on mobile, side-by-side on md+ */}
-        <div className="flex flex-col gap-[var(--spacing-system-mf)] px-[var(--spacing-system-m)] py-[var(--spacing-system-m)] md:h-20 md:flex-row md:items-center md:gap-[var(--spacing-system-m)] md:py-0">
-          {[0, 1].map(i => (
-            <div key={i} className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
-              <Skeleton className="h-5 w-72 max-w-full" />
-              <Skeleton className="h-4 w-32" />
-            </div>
-          ))}
-        </div>
-      </div>
+      <StackedRowsPanel rows={infoRows} />
+      <StackedRowsPanel rows={contactRows} />
       {/* Notes card: title + two lines of text */}
       <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] pb-[var(--spacing-system-s)] pt-[var(--spacing-system-l)]">
         <Skeleton className="h-8 w-32 md:h-10" />
@@ -168,7 +170,9 @@ const DevicesTableSkeletonInner = makeTableTabSkeleton([
 ]);
 
 const TicketsTableSkeletonInner = makeTableTabSkeleton([
-  { id: 'title', header: 'TITLE', width: 'flex-1' },
+  // The label comes from the shared ticket layout so it cannot drift from the
+  // loaded tab (`getTicketTableColumns`), which renders TICKET.
+  { id: 'title', header: TICKET_COLUMNS.title.header, width: 'flex-1' },
   { id: 'source', header: 'SOURCE', width: 'w-[240px]' },
   { id: 'created', header: 'CREATED', width: 'w-[180px]' },
   { id: 'status', header: 'STATUS', width: 'w-[140px]' },

@@ -16,8 +16,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { routes } from '@/lib/routes';
+import { getDeviceName } from '../../devices/utils/device-name';
 import { useLogs } from '../../logs-page/hooks/use-logs';
 import type { LogEntry } from '../../logs-page/types/log.types';
+import { logSourceLabels } from '../../logs-page/utils/log-source-labels';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 
 interface LogRow {
@@ -47,7 +50,12 @@ function severityVariant(severity: string): LogRow['status']['variant'] {
 }
 
 const logDetailsUrl = (log: LogEntry): string =>
-  `/log-details?id=${log.toolEventId}&ingestDay=${log.ingestDay}&toolType=${log.toolType}&eventType=${log.eventType}&timestamp=${encodeURIComponent(log.timestamp || '')}`;
+  routes.logs.details(log.toolEventId, {
+    ingestDay: log.ingestDay,
+    toolType: log.toolType,
+    eventType: log.eventType,
+    timestamp: log.timestamp,
+  });
 
 /**
  * Inner body of the "Logging" onboarding step — an activity-trail preview. It pulls
@@ -79,7 +87,7 @@ export function LoggingStep({
         status: { label: log.severity, variant: severityVariant(log.severity) },
         toolType: normalizeToolTypeWithFallback(log.toolType),
         device: {
-          name: log.device?.hostname || log.hostname || log.deviceId || '-',
+          name: getDeviceName(log.device) || log.hostname || log.deviceId || '-',
           organization: log.device?.organization || log.organizationName || '-',
         },
         summary: log.summary || 'No summary available',
@@ -130,13 +138,13 @@ export function LoggingStep({
         enableSorting: false,
         meta: { width: 'w-[240px]', hideAt: 'md' },
         cell: ({ row }: { row: Row<LogRow> }) => {
-          const deviceName = row.original.device.name === 'null' ? 'System' : row.original.device.name;
+          const { deviceName, organization } = logSourceLabels(row.original.device);
           return (
             <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
               {deviceName && <TruncateText>{deviceName}</TruncateText>}
-              {row.original.device.organization && (
+              {organization && (
                 <TruncateText variant="h6" tone="secondary">
-                  {row.original.device.organization}
+                  {organization}
                 </TruncateText>
               )}
             </div>

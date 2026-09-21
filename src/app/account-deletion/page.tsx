@@ -79,8 +79,8 @@ export default function AccountDeletionPage() {
           <p className="text-ods-text-secondary text-h6">
             If you have left the organization, forgotten your password, or an administrator has disabled your account,
             email{' '}
-            <a href="mailto:support@openframe.ai" className="text-ods-text-primary underline">
-              support@openframe.ai
+            <a href="mailto:hello@openframe.ai" className="text-ods-text-primary underline">
+              hello@openframe.ai
             </a>{' '}
             with the subject <span className="text-ods-text-primary">Account deletion request</span> and the email
             address of the account you want deleted. We will verify the request before acting on it and confirm once the

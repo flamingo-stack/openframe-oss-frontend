@@ -10,7 +10,6 @@ export const FEATURE_FLAG_NAMES = [
   'billings',
   'help-center',
   'notifications',
-  'notifications-legacy-path',
   'debug-nats-chunks',
   'mingo-ai-chat-settings',
   'customer-ai-assistant-settings',
@@ -24,6 +23,33 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   'test-clock',
   'download-apps',
+  // MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+  // connect flow, the remote access policy UI and the session recordings
+  // surfaces. Off = the legacy auto-start tunnel behavior, no policy UI.
+  'remote-access-approval',
+  // TEMPORARY - remove together with the remote access backend (approval API
+  // CU-86ajx02gz, recordings storage CU-86akc3c5q). Shows the QA tooling that
+  // drives the mock services: the simulate-decision strip on the awaiting
+  // screen and the recording player's local .mcrec loader. On for dev / qa.
+  'remote-access-mock-tools',
+  // TEMPORARY - remove once the approval API (CU-86ajx02gz) runs on every
+  // environment. On = the approval-gated connect flow talks to the real
+  // /api/v1/remote-access/** service (dev, where the backend is deployed);
+  // off = the in-memory mock that the QA tooling above drives.
+  'remote-access-approval-api',
+  // The next remote access cut (v2): surfaces built ahead of their backend
+  // that must stay hidden when v1 (`remote-access-approval`) reaches every
+  // environment. On for dev / qa, absent elsewhere. Today: the "Remote Access
+  // Permission" selector on the New Device page.
+  'remote-access-v2',
+  // The Incidents module (`/incidents`) over saas-api's `insights` API.
+  'insights',
+  // Tenant Management (CU-86akj8ajt): the Settings module that connects
+  // Microsoft 365 / Google Workspace directories. The backend does not register
+  // the name yet, so the module stays dark on qa/prod until it does; the dev
+  // server treats the missing answer as "on" (`use-tenant-management-gate.ts`)
+  // so the mock-backed UI can be exercised, while an explicit "off" still wins.
+  'tenant-management',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
@@ -96,35 +122,6 @@ export const featureFlags = {
       return getFlagValue('notifications', () => false);
     },
   },
-  /**
-   * Rollback lever for the notification `type` + `attributes` migration: it selects which
-   * of the two contracts the row mapper reads. OFF (the default, and the normal state) →
-   * the spec pair `type` + `attributes`; ON → the legacy typed `context`.
-   *
-   * The selection is EXCLUSIVE, in both directions: the shape the lever does not name is
-   * not read at all, so a row carrying only that shape maps with no type and no entity ids
-   * instead of answering from the other contract. A rollback is therefore a clean swap of
-   * contracts, never a per-row mixture — at the cost that rows the backfill migration has
-   * not swept yet lose their navigation while the lever is OFF. `mapNotificationNode` in
-   * `graphql/notifications/notifications-helpers.ts` is where that is implemented, and
-   * `notifications-contract.test.ts` pins it.
-   *
-   * Mirrors the backend's `notifications.legacy-path` kill-switch by name, but is a
-   * separate switch for a separate job — that one decides what gets WRITTEN, this one
-   * what we READ. It exists so a rollback needs no frontend release; the flag is read
-   * even before it is declared server-side, where it simply resolves to OFF.
-   *
-   * NOT covered by this lever: the transport routing path (`notification-navigation.ts`
-   * `routeFromWireFields`, and the NATS payload helpers in `notifications-data-provider`),
-   * which reads whichever shape a push happens to carry. Those run on cold-start taps
-   * where no flags are loaded, and a push carries one shape anyway — the backend's own
-   * kill-switch decides which.
-   */
-  notificationsLegacyPath: {
-    enabled(): boolean {
-      return getFlagValue('notifications-legacy-path', () => false);
-    },
-  },
   debugNatsChunks: {
     enabled(): boolean {
       // Local override FIRST — see `isDebugChunkLogForced`: a server value of
@@ -185,6 +182,39 @@ export const featureFlags = {
   testClock: {
     enabled(): boolean {
       return getFlagValue('test-clock', () => false);
+    },
+  },
+  /**
+   * MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+   * connect flow, the policy UI and the session recordings surfaces. Off = the
+   * legacy auto-start tunnel behavior. Route gating goes through
+   * `useRemoteAccessApprovalGate` (tri-state); this accessor is for imperative
+   * reads.
+   */
+  remoteAccessApproval: {
+    enabled(): boolean {
+      return getFlagValue('remote-access-approval', () => false);
+    },
+  },
+  /**
+   * The next remote access cut (v2): surfaces built ahead of their backend
+   * that stay hidden where only v1 (`remoteAccessApproval`) is enabled.
+   * Components read it reactively through `useFeatureFlag('remote-access-v2')`;
+   * this accessor is for imperative reads.
+   */
+  remoteAccessV2: {
+    enabled(): boolean {
+      return getFlagValue('remote-access-v2', () => false);
+    },
+  },
+  /**
+   * Tenant Management (CU-86akj8ajt). Route/hub gating goes through
+   * `useTenantManagementGate` (tri-state, dev bypass); this accessor is for
+   * imperative reads only.
+   */
+  tenantManagement: {
+    enabled(): boolean {
+      return getFlagValue('tenant-management', () => false);
     },
   },
 } as const;

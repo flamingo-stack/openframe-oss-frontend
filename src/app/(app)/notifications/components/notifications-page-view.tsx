@@ -9,10 +9,12 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryLoader } from 'react-relay';
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
+import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useSearchParam } from '@/app/hooks/use-search-param';
+import { registerLiveConnectionPairs } from '@/graphql/notifications/live-connection-pairs';
 import {
   notificationsConnectionFilters,
   UNFILTERED_NOTIFICATION_PAIR,
@@ -89,6 +91,10 @@ export function NotificationsPageView() {
     [debouncedSearch],
   );
 
+  // A live READ / DELETED event reaches the drawer's unfiltered pair by name; this page's
+  // search-keyed pair it has to be told about, or a card read elsewhere stays in the table.
+  useEffect(() => registerLiveConnectionPairs(filterPairs), [filterPairs]);
+
   const onMarkAllReadCompleted = useCallback(() => {
     toast({ title: 'All notifications marked as read', variant: 'success' });
   }, [toast]);
@@ -114,11 +120,20 @@ export function NotificationsPageView() {
     },
   ];
 
+  const [isDeleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
+
+  // The update is optimistic — the table empties at once — so the dialog closes on confirm
+  // instead of waiting for the mutation; a failure still surfaces through the hook's toast.
+  const confirmDeleteAll = () => {
+    setDeleteAllConfirmOpen(false);
+    removeAllRead();
+  };
+
   const historyActions: PageActionButton[] = [
     {
       label: 'Delete All',
-      icon: <TrashIcon className="text-ods-text-secondary" />,
-      onClick: removeAllRead,
+      icon: <TrashIcon className="text-ods-error" />,
+      onClick: () => setDeleteAllConfirmOpen(true),
       variant: 'outline',
       disabled: isDeletingAllRead,
     },
@@ -155,6 +170,16 @@ export function NotificationsPageView() {
           actions={newActions}
         />
       )}
+
+      <ConfirmDialog
+        open={isDeleteAllConfirmOpen}
+        onOpenChange={setDeleteAllConfirmOpen}
+        title="Delete All Notifications"
+        description="All notifications in history will be permanently deleted, including those hidden by the current search. This action cannot be undone."
+        confirmLabel="Delete All"
+        variant="destructive"
+        onConfirm={confirmDeleteAll}
+      />
     </div>
   );
 }

@@ -10,9 +10,11 @@
  * `CONTEXT_ENTITY_KIND` mirrors the backend `ContextItemType` enum
  * (`com.openframe.data.document.chat.ContextItemType`) — DEVICE / SCRIPT /
  * TICKET / ORGANIZATION / USER / KB_ARTICLE / KB_FOLDER / POLICY / QUERY /
- * SCHEDULED_SCRIPT. All ten are resolved server-side (the ai-agent ships a
+ * SCHEDULED_SCRIPT / INSIGHT. All are resolved server-side (the ai-agent ships a
  * `*ContextResolver` for each, incl. `PolicyContextResolver` +
- * `ScheduledQueryContextResolver` + `ScheduledScriptContextResolver`). KB_FOLDER
+ * `ScheduledQueryContextResolver` + `ScheduledScriptContextResolver`;
+ * `InsightContextResolver` is a placeholder today — it answers "not available in
+ * this build" until the insight lookup lands). KB_FOLDER
  * is mention-only: the agent emits `@kbFolder:id`, the picker doesn't offer it.
  *
  * `CONTEXT_ENTITY_MARKER` maps each kind to that enum's `marker()` — the SHORT
@@ -42,6 +44,11 @@ export const CONTEXT_ENTITY_KIND = {
   POLICY: 'POLICY',
   QUERY: 'QUERY',
   SCHEDULED_SCRIPT: 'SCHEDULED_SCRIPT',
+  /**
+   * An incident (the API's `Insight`); the marker is `@insight:<stored id>` —
+   * the id INSIDE the Relay handle, like every other kind.
+   */
+  INSIGHT: 'INSIGHT',
 } as const;
 
 export type ContextEntityKind = (typeof CONTEXT_ENTITY_KIND)[keyof typeof CONTEXT_ENTITY_KIND];
@@ -69,6 +76,7 @@ export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
   POLICY: 'policy',
   QUERY: 'query',
   SCHEDULED_SCRIPT: 'scheduledScript',
+  INSIGHT: 'insight',
 };
 
 /**
@@ -93,6 +101,10 @@ export const CONTEXT_RELAY_TYPENAME: Partial<Record<ContextEntityKind, string>> 
   KB_FOLDER: 'KnowledgeBaseItem',
   SCRIPT: 'Script',
   SCHEDULED_SCRIPT: 'ScriptSchedule',
+  // An INSIGHT reference carries the STORED id (what the ai-agent's resolver looks
+  // up); the chip re-encodes it through `ensureGlobalIdForType('Insight', …)` for
+  // the `insight(id:)` query, which takes the global handle.
+  INSIGHT: 'Insight',
 };
 
 /** Minimal wire shape for `contextItems` / `currentView` / `recentViews`. */

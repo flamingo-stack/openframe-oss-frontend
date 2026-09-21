@@ -10,6 +10,7 @@ import { sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
 import { Toaster } from '@/lib/openframe-core-ui';
 import { PostHogAnalyticsBridge } from '@/lib/posthog/posthog-analytics-bridge';
 import { runtimeEnv } from '@/lib/runtime-config';
+import { getAppUrl } from '@/lib/utils';
 import { FeatureFlagsLoader } from '../components/feature-flags-loader';
 import { RouteGuard } from '../components/route-guard';
 import { isAuthEnabled } from '../lib/app-mode';
@@ -26,7 +27,7 @@ import { RegistrationAttributionCapture } from './components/registration-attrib
 import { TokenFreshnessWatcher } from './components/token-freshness-watcher';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://openframe.ai'),
+  metadataBase: new URL(getAppUrl()),
 
   title: {
     default: 'OpenFrame - AI-Driven Open-Source OS for MSPs',
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: process.env.NEXT_PUBLIC_APP_URL || 'https://openframe.ai',
+    url: getAppUrl(),
     siteName: 'OpenFrame',
     title: 'OpenFrame - AI-Driven Open-Source OS for MSPs',
     description:

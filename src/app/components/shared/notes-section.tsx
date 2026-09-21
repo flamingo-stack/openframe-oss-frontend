@@ -10,15 +10,17 @@ import {
 import {
   ActionsMenuDropdown,
   Button,
+  Skeleton,
   SquareAvatar,
   Textarea,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type KeyboardEvent, useState } from 'react';
+import { type KeyboardEvent, type ReactNode, useState } from 'react';
 import { formatDateTime } from '@/lib/format-date';
+import { ConfirmDialog } from './confirm-dialog';
 
-export interface TicketNoteItem {
+export interface NoteItem {
   id: string;
   text: string;
   authorName: string;
@@ -27,12 +29,13 @@ export interface TicketNoteItem {
   isOwn: boolean;
 }
 
-interface TicketNotesSectionProps {
-  notes: TicketNoteItem[];
+interface NotesSectionProps {
+  notes: NoteItem[];
   /** Disables the editor while a note is being created */
   isAddingNote?: boolean;
   onAddNote: (text: string) => void;
   onEditNote: (id: string, text: string) => void;
+  /** Fired once the user has confirmed the delete — the section owns the confirmation step. */
   onDeleteNote: (id: string) => void;
 }
 
@@ -89,7 +92,7 @@ function NoteEditor({ initialText = '', isPending, onSave, onCancel }: NoteEdito
 }
 
 interface NoteCardProps {
-  note: TicketNoteItem;
+  note: NoteItem;
   onEdit: (id: string, text: string) => void;
   onDelete: (id: string) => void;
 }
@@ -175,20 +178,43 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
   );
 }
 
-export function TicketNotesSection({
-  notes,
-  isAddingNote,
-  onAddNote,
-  onEditNote,
-  onDeleteNote,
-}: TicketNotesSectionProps) {
-  const [isAdding, setIsAdding] = useState(false);
-
+/** The section's shell — the "Notes" heading over its content — shared by the loaded state and its skeleton. */
+function NotesSectionFrame({ children }: { children: ReactNode }) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <p className="text-ods-text-secondary text-h5">Notes</p>
+      {children}
+    </section>
+  );
+}
+
+/** The heading with a bar where the first note lands. */
+/**
+ * The heading over an "Add Note" sized bar — the shape of the loaded section
+ * when there are no notes yet, which is what most records have. Notes, when
+ * there are any, grow the section either way.
+ */
+export function NotesSectionSkeleton() {
+  return (
+    <NotesSectionFrame>
+      <Skeleton className="h-8 w-28 rounded-md" />
+    </NotesSectionFrame>
+  );
+}
+
+export function NotesSection({ notes, isAddingNote, onAddNote, onEditNote, onDeleteNote }: NotesSectionProps) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
+
+  const confirmDelete = () => {
+    if (noteToDelete) onDeleteNote(noteToDelete);
+    setNoteToDelete(null);
+  };
+
+  return (
+    <NotesSectionFrame>
       {notes.map(note => (
-        <NoteCard key={note.id} note={note} onEdit={onEditNote} onDelete={onDeleteNote} />
+        <NoteCard key={note.id} note={note} onEdit={onEditNote} onDelete={setNoteToDelete} />
       ))}
       {isAdding ? (
         <NoteEditor
@@ -210,6 +236,15 @@ export function TicketNotesSection({
           Add Note
         </Button>
       )}
-    </section>
+      <ConfirmDialog
+        open={noteToDelete !== null}
+        onOpenChange={open => !open && setNoteToDelete(null)}
+        title="Delete Note"
+        description="Are you sure you want to delete this note? This action cannot be undone."
+        confirmLabel="Delete Note"
+        variant="destructive"
+        onConfirm={confirmDelete}
+      />
+    </NotesSectionFrame>
   );
 }

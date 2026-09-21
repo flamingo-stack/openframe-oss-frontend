@@ -33,8 +33,9 @@ export const TAB_IDS = {
     'details',
     'custom-ai-assistant',
     'customer-ai-guardrails',
+    'customer-device-guardrails',
   ],
-  customerEdit: ['details', 'ai-configuration', 'guardrails'],
+  customerEdit: ['details', 'ai-configuration', 'guardrails', 'device-guardrails'],
   deviceDetails: [
     'overview',
     'vulnerabilities',
@@ -48,6 +49,7 @@ export const TAB_IDS = {
     'network',
     'users',
     'software',
+    'remote-sessions',
   ],
   scriptDetails: ['details', 'executions'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
@@ -55,7 +57,7 @@ export const TAB_IDS = {
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
   queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
-  aiSettings: ['mingo', 'customer', 'guardrails'],
+  aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
 } as const;
 
@@ -73,6 +75,35 @@ export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
 
 /** Legal documents the Help Center `[docType]` route prerenders. */
 export type HelpCenterLegalDoc = 'privacy' | 'terms';
+
+// --------------------------------------------------------------------------
+// Ticket prefill keys (shared with the ticket form and its page)
+// --------------------------------------------------------------------------
+
+/**
+ * What another page can hand the NEW-ticket form to start from, as `/tickets/new`
+ * query params ("Create Ticket" on an incident). One list: the builder's options,
+ * the form's `TicketPrefill` and the page's reader all derive from it, so a key
+ * cannot be added to one and silently dropped by another. Ids are the raw ones
+ * the form's pickers use (`Organization.organizationId`, `Machine.machineId`,
+ * `User.id`); the names label those picks before the option lists have loaded.
+ * `insightId` is the STORED insight id (`CreateTicketInput.insightId`), which
+ * links the ticket to the incident it is filed from; `insightTitle` labels it.
+ */
+export const TICKET_PREFILL_KEYS = [
+  'title',
+  'description',
+  'organizationId',
+  'organizationName',
+  'deviceId',
+  'deviceName',
+  'assigneeId',
+  'assigneeName',
+  'insightId',
+  'insightTitle',
+] as const;
+
+export type TicketPrefill = Partial<Record<(typeof TICKET_PREFILL_KEYS)[number], string>>;
 
 // --------------------------------------------------------------------------
 // Query-string helper
@@ -203,6 +234,11 @@ export const routes = {
      */
     ssoContinue: '/auth/sso-continue',
     /**
+     * Terminal notice for an SSO identity with no account in a login-only mobile build, where the web
+     * would continue into `ssoContinue`. Nothing about the identity travels here.
+     */
+    noAccount: '/auth/no-account',
+    /**
      * "One Last Step": where the auth server parks an SSO flow that is about to CREATE a user - a new
      * member accepting an invitation, or a first login through a shared domain
      * (`openframe.sso.join-confirm-url`). The page confirms the identity + organization from the SAS
@@ -228,6 +264,7 @@ export const routes = {
     remoteShell: (id: string | number) => withQuery('/devices/details/remote-shell', { id }),
     remoteDesktop: (id: string | number) => withQuery('/devices/details/remote-desktop', { id }),
     fileManager: (id: string | number) => withQuery('/devices/details/file-manager', { id }),
+    remoteSessionRecording: (id: string | number) => withQuery('/devices/details/remote-session', { id }),
   },
 
   scripts: {
@@ -265,7 +302,8 @@ export const routes = {
 
   tickets: {
     list: '/tickets',
-    new: (o?: { edit?: string }) => withQuery('/tickets/new', { edit: o?.edit }),
+    /** `edit` opens an existing ticket; a `TicketPrefill` starts a NEW one — one or the other, never both. */
+    new: (o?: { edit: string } | TicketPrefill) => withQuery('/tickets/new', o),
     dialog: (id: string | number, o?: { tab?: 'chat' }) => withQuery('/tickets/dialog', { id, tab: o?.tab }),
     archive: '/tickets/archive',
     statuses: '/tickets/statuses',
@@ -273,12 +311,23 @@ export const routes = {
 
   logs: {
     page: '/logs-page',
-    details: '/log-details',
+    /** The page needs all five params — a missing one redirects to `logs.page`. */
+    details: (
+      id: string | number,
+      o: { ingestDay: string; toolType: string; eventType: string; timestamp?: string | null },
+    ) => withQuery('/log-details', { id, ...o }),
+  },
+
+  // UI says "incident"; the API says "insight". `id` is `Insight.id`, the opaque
+  // handle the `insight(id:)` query takes.
+  incidents: {
+    list: '/incidents',
+    details: (id: string | number) => withQuery('/incidents/details', { id }),
   },
 
   knowledgeBase: {
     list: '/knowledge-base',
-    new: '/knowledge-base/new',
+    new: (o?: { folderId?: string | number }) => withQuery('/knowledge-base/new', { folderId: o?.folderId }),
     archive: '/knowledge-base/archive',
     details: (id: string | number) => withQuery('/knowledge-base/details', { id }),
     edit: (id: string | number) => withQuery('/knowledge-base/edit', { id }),
@@ -296,6 +345,14 @@ export const routes = {
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
     billingUsage: '/settings/billing-usage',
+    // Tenant Management (CU-86akj8ajt): Microsoft 365 / Google Workspace directory
+    // connections. Sub-pages take the connection id as `?id=` like every other
+    // detail page (static-export constraint, see ROUTES.md).
+    tenantManagement: '/settings/tenant-management',
+    tenantNew: '/settings/tenant-management/new',
+    tenantDetails: (id: string | number) => withQuery('/settings/tenant-management/details', { id }),
+    tenantEdit: (id: string | number) => withQuery('/settings/tenant-management/edit', { id }),
+    tenantReconnect: (id: string | number) => withQuery('/settings/tenant-management/reconnect', { id }),
   },
 
   notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),

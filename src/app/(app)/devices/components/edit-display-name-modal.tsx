@@ -1,11 +1,29 @@
 'use client';
 
-import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type React from 'react';
 import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useDeviceActions } from '../hooks/use-device-actions';
+import { useRemoteAccessApprovalGate } from '../hooks/use-remote-access-approval-gate';
+import {
+  useDeviceRemoteAccessMode,
+  useOrganizationRemoteAccessMode,
+  useSetDeviceRemoteAccessMode,
+  useTenantRemoteAccessPolicy,
+} from '../hooks/use-remote-access-policy';
 import type { Device } from '../types/device.types';
+import { REMOTE_ACCESS_MODE_META, REMOTE_ACCESS_MODES, type RemoteAccessMode } from '../types/remote-access';
 
 interface EditDisplayNameModalProps {
   isOpen: boolean;
@@ -15,15 +33,36 @@ interface EditDisplayNameModalProps {
 }
 
 /**
- * Sets or clears a device's user-defined name (the BE `nickname`, labeled
- * "Display Name" in the UI per the design). Clearing reverts the title to
- * the agent-reported displayName/hostname.
+ * "Edit Device" modal: sets or clears a device's user-defined name (the BE
+ * `nickname`, labeled "Display Name" in the UI per the design) and - with the
+ * remote-access-approval gate on - the per-device Remote Access Permission
+ * override (CU-86akeqw8b). Clearing the name reverts the title to the
+ * agent-reported displayName/hostname.
+ *
+ * The permission select shows the device's EFFECTIVE mode (override, else the
+ * inherited customer/tenant default) and offers exactly the 4 modes - no
+ * separate "Default" entry, per the designer's decision. Saving always writes
+ * an explicit per-device override; there is no UI path back to inheritance.
  */
 export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditDisplayNameModalProps) {
+  const { toast } = useToast();
   const { updateNickname, isSavingNickname } = useDeviceActions();
   const [name, setName] = useState('');
 
   const currentName = device?.nickname ?? '';
+  const deviceId = device?.machineId || device?.id || '';
+
+  const showRemoteAccess = useRemoteAccessApprovalGate() === 'on';
+  const deviceMode = useDeviceRemoteAccessMode(deviceId, { enabled: isOpen && showRemoteAccess });
+  const organizationMode = useOrganizationRemoteAccessMode(device?.organizationId ?? '', {
+    enabled: isOpen && showRemoteAccess,
+  });
+  const tenantPolicy = useTenantRemoteAccessPolicy({ enabled: isOpen && showRemoteAccess });
+  const { mutateAsync: setDeviceMode, isPending: isSavingMode } = useSetDeviceRemoteAccessMode();
+
+  // The select shows the loaded mode until the user picks something, so a
+  // background refetch can't overwrite an in-progress choice.
+  const [pickedMode, setPickedMode] = useState<RemoteAccessMode | null>(null);
 
   // Seeded when the modal opens, during render rather than in an effect: an effect
   // paints the field with the previous value once before correcting it. Keyed off
@@ -32,21 +71,56 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
   const [wasOpen, setWasOpen] = useState(isOpen);
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
-    if (isOpen) setName(currentName);
+    if (isOpen) {
+      setName(currentName);
+      setPickedMode(null);
+    }
   }
 
-  const deviceId = device?.machineId || device?.id || '';
+  // Effective mode: device override -> org override -> tenant default.
+  const savedModeValue: RemoteAccessMode | undefined =
+    deviceMode.data ?? organizationMode.data ?? tenantPolicy.data?.mode ?? undefined;
+  const selectedModeValue = pickedMode ?? savedModeValue;
+  const modeLoading = deviceMode.isLoading || organizationMode.isLoading || tenantPolicy.isLoading;
+  const modeChanged =
+    showRemoteAccess &&
+    !modeLoading &&
+    savedModeValue !== undefined &&
+    selectedModeValue !== undefined &&
+    selectedModeValue !== savedModeValue;
+
+  const isSaving = isSavingNickname || isSavingMode;
   const trimmed = name.trim();
+  const nameChanged = trimmed !== currentName.trim();
   // Allow clearing the name (revert to hostname); only block no-op saves.
-  const canSubmit = !!deviceId && trimmed !== currentName.trim() && !isSavingNickname;
+  const canSubmit = !!deviceId && (nameChanged || modeChanged) && !isSaving;
 
   const handleSubmit = async () => {
     if (!device || !canSubmit) return;
-    const success = await updateNickname(deviceId, trimmed);
-    if (success) {
-      onSaved?.();
-      onClose();
+
+    if (modeChanged && selectedModeValue) {
+      try {
+        await setDeviceMode({ deviceId, mode: selectedModeValue });
+      } catch (err) {
+        toast({
+          title: 'Save failed',
+          description: err instanceof Error ? err.message : 'Failed to update the remote access permission',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
+
+    if (nameChanged) {
+      // updateNickname owns its own success/error toasts.
+      const success = await updateNickname(deviceId, trimmed);
+      if (!success) return;
+    } else {
+      toast({ title: 'Saved', description: 'Remote access permission updated', variant: 'success' });
+    }
+
+    onSaved?.();
+    onClose();
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -63,31 +137,65 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
       // text-left: the modal renders in place (no portal), and in the table it
       // mounts inside the actions cell, which sets text-right on its subtree.
       className="max-w-[600px] text-left"
-      title="Device Display Name"
-      contentClassName="flex flex-col gap-[var(--spacing-system-xxs)]"
+      title={showRemoteAccess ? 'Edit Device' : 'Device Display Name'}
+      // Single column per the updated mockup (784-118168): stacked full-width fields.
+      contentClassName="flex flex-col gap-[var(--spacing-system-mf)]"
       footer={
         <>
-          <Button variant="outline" className="flex-1" onClick={onClose} disabled={isSavingNickname}>
+          <Button variant="outline" className="flex-1" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button className="flex-1" onClick={handleSubmit} disabled={!canSubmit} loading={isSavingNickname}>
-            {isSavingNickname ? 'Saving...' : 'Save Display Name'}
+          <Button className="flex-1" onClick={handleSubmit} disabled={!canSubmit} loading={isSaving}>
+            {isSaving ? 'Saving...' : showRemoteAccess ? 'Save Device' : 'Save Display Name'}
           </Button>
         </>
       }
     >
-      <Label htmlFor="device-display-name" className="text-ods-text-primary text-h4">
-        Display Name
-      </Label>
-      <Input
-        id="device-display-name"
-        value={name}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Enter Device Display Name"
-        disabled={isSavingNickname}
-        autoFocus
-      />
+      <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+        <Label htmlFor="device-display-name" className="text-ods-text-primary text-h4">
+          Display Name
+        </Label>
+        <Input
+          id="device-display-name"
+          value={name}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+          onKeyDown={handleKeyDown}
+          // The agent-reported name: what the device is called while no custom
+          // name is set (and what an emptied field reverts it to).
+          placeholder={device?.displayName || device?.hostname || 'Enter Device Display Name'}
+          disabled={isSaving}
+          autoFocus
+        />
+      </div>
+
+      {showRemoteAccess && (
+        <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+          <Label className="text-ods-text-primary text-h4">Remote Access Permission</Label>
+          <Select
+            value={selectedModeValue ?? ''}
+            onValueChange={value => setPickedMode(value as RemoteAccessMode)}
+            disabled={isSaving || modeLoading}
+          >
+            <SelectTrigger>
+              {/* Children override Radix's default item mirror: the closed
+                  trigger shows only the label, without the description line. */}
+              <SelectValue placeholder="Select a permission">
+                {selectedModeValue ? REMOTE_ACCESS_MODE_META[selectedModeValue].label : ''}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {REMOTE_ACCESS_MODES.map(mode => (
+                <SelectItem key={mode} value={mode}>
+                  <span className="flex flex-col text-left">
+                    <span>{REMOTE_ACCESS_MODE_META[mode].label}</span>
+                    <span className="text-ods-text-secondary text-h6">{REMOTE_ACCESS_MODE_META[mode].description}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </SimpleModal>
   );
 }

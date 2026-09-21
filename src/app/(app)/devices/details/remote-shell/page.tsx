@@ -8,6 +8,7 @@ import { TerminalSquare } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
@@ -20,6 +21,12 @@ const WINDOWS_POWERSHELL_CMD =
   'powershell -NoLogo -NoProfile 2>nul || "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoLogo -NoProfile 2>nul || "%SystemRoot%\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe" -NoLogo -NoProfile 2>nul || "%ProgramFiles%\\PowerShell\\7\\pwsh.exe" -NoLogo -NoProfile 2>nul || "%ProgramFiles(x86)%\\PowerShell\\7\\pwsh.exe" -NoLogo -NoProfile 2>nul';
 
 export default function RemoteShellPage() {
+  // No approval gate here: the approval flow covers remote screen sessions
+  // only (decision 2026-09-16); the shell keeps its legacy auto-start.
+  return <RemoteShellSession />;
+}
+
+function RemoteShellSession() {
   const searchParams = useSearchParams();
   const deviceId = searchParams.get('id') ?? '';
   const { toast } = useToast();
@@ -49,9 +56,7 @@ export default function RemoteShellPage() {
   const meshcentralState = getToolConnectionState(meshcentralConnection);
   const meshcentralAgentId = meshcentralState === 'live' ? meshcentralConnection?.agentToolId : undefined;
 
-  const hostname = useMemo(() => {
-    return deviceDetails?.hostname || deviceDetails?.displayName;
-  }, [deviceDetails]);
+  const deviceName = getDeviceName(deviceDetails);
 
   const organizationName = useMemo(() => {
     return deviceDetails?.organization;
@@ -60,7 +65,7 @@ export default function RemoteShellPage() {
   // Keep this device as the Mingo "open view" while on the remote-shell surface
   // (the parent detail page unmounted on navigation, clearing its own openView).
   useTrackOpenView(
-    deviceDetails ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: hostname || deviceId } : null,
+    deviceDetails ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName || deviceId } : null,
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -325,7 +330,7 @@ export default function RemoteShellPage() {
             <TerminalSquare className="h-4 w-4 text-ods-text-primary" />
           </div>
           <div className="flex min-w-0 flex-col">
-            <TruncateText>{hostname || `Device ${deviceId}`}</TruncateText>
+            <TruncateText>{deviceName || `Device ${deviceId}`}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {`${shellLabel}${organizationName ? ` \u2022 ${organizationName}` : ''}`}
             </TruncateText>

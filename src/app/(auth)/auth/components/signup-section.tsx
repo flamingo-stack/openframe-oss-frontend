@@ -47,8 +47,6 @@ export function AuthSignupSection({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [, setSignupMethod] = useState<'form' | 'sso'>('form');
 
-  const displayDomain = isSaasShared ? domain : domain;
-
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email.trim());
 
@@ -134,7 +132,7 @@ export function AuthSignupSection({
               <div className="flex flex-1 flex-col gap-1">
                 <Label>Domain</Label>
                 <Input
-                  value={displayDomain}
+                  value={domain}
                   disabled
                   onKeyDown={handleKeyDown}
                   className="border-ods-border bg-ods-card p-3 text-ods-text-secondary text-h4"

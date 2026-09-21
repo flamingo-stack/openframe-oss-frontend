@@ -3,7 +3,7 @@
 /**
  * Relay-backed context items for the GraphQL sources on OUR endpoint
  * (`/api/graphql`): Device, Organization, Knowledge Article, Script, Script
- * Schedule.
+ * Schedule, Incident.
  *
  * Idiomatic Relay cursor pagination: a `@refetchable` fragment with
  * `@connection` + `useLazyLoadQuery` (suspends on initial load → the picker's
@@ -17,6 +17,9 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { relayItemsDevices_query$key } from '@/__generated__/relayItemsDevices_query.graphql';
 import type { relayItemsDevicesListQuery } from '@/__generated__/relayItemsDevicesListQuery.graphql';
 import type { relayItemsDevicesPaginationQuery } from '@/__generated__/relayItemsDevicesPaginationQuery.graphql';
+import type { relayItemsIncidents_query$key } from '@/__generated__/relayItemsIncidents_query.graphql';
+import type { relayItemsIncidentsListQuery } from '@/__generated__/relayItemsIncidentsListQuery.graphql';
+import type { relayItemsIncidentsPaginationQuery } from '@/__generated__/relayItemsIncidentsPaginationQuery.graphql';
 import type { relayItemsKb_query$key } from '@/__generated__/relayItemsKb_query.graphql';
 import type { relayItemsKbListQuery } from '@/__generated__/relayItemsKbListQuery.graphql';
 import type { relayItemsKbPaginationQuery } from '@/__generated__/relayItemsKbPaginationQuery.graphql';
@@ -31,8 +34,9 @@ import type { relayItemsScriptsListQuery } from '@/__generated__/relayItemsScrip
 import type { relayItemsScriptsPaginationQuery } from '@/__generated__/relayItemsScriptsPaginationQuery.graphql';
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
+import { INCIDENT_SEVERITY_LABELS, labelOf, WORKING_SET_STATUSES } from '@/app/(app)/incidents/utils/incident-labels';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
-import { decodeGlobalId } from '@/lib/relay-id';
+import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared';
 
@@ -175,7 +179,7 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
                 type: CONTEXT_ENTITY_KIND.ORGANIZATION,
                 // Raw db id (organizationId), decoded from the global `id`
                 // (`base64("Organization:<rawId>")`); the chip re-encodes it.
-                id: decodeGlobalId(e.node.id)?.rawId ?? e.node.id,
+                id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
                 description: e.node.category ?? undefined,
               },
@@ -245,7 +249,7 @@ export function KnowledgeBaseItems({ query, selectedKeys, onToggle, atLimit }: C
                 type: CONTEXT_ENTITY_KIND.KB_ARTICLE,
                 // Raw db id, decoded from the global `id`
                 // (`base64("KnowledgeBaseItem:<rawId>")`); the chip re-encodes it.
-                id: decodeGlobalId(e.node.id)?.rawId ?? e.node.id,
+                id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
                 description: e.node.type ?? undefined,
               },
@@ -419,6 +423,87 @@ export function ScheduleItems({ query, selectedKeys, onToggle, atLimit }: Contex
       onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
       loadingMore={isLoadingNext}
       emptyLabel="No script schedules"
+    />
+  );
+}
+
+// ───────────────────────────── Incident ─────────────────────────────────────
+
+// Mingo incident context lists the WORKING SET only — the same default the
+// Incidents page opens on: everything but ARCHIVED, which is filed away and
+// nothing to act on. `Insight.id` is already the opaque id the `insight(id:)`
+// query and the `@insight:<id>` marker take, so no decode/re-encode here.
+const INCIDENT_CONTEXT_FILTER = { statuses: [...WORKING_SET_STATUSES] };
+
+const INCIDENTS_FRAGMENT = graphql`
+  fragment relayItemsIncidents_query on Query
+  @refetchable(queryName: "relayItemsIncidentsPaginationQuery")
+  @argumentDefinitions(
+    filter: { type: "InsightFilter" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
+    insights(filter: $filter, search: $search, first: $first, after: $after)
+      @connection(key: "relayItemsIncidents_insights") {
+      edges {
+        node {
+          id
+          title
+          severity
+          machine {
+            nickname
+            hostname
+            displayName
+          }
+        }
+      }
+    }
+  }
+`;
+
+const INCIDENTS_LIST_QUERY = graphql`
+  query relayItemsIncidentsListQuery($filter: InsightFilter, $search: String, $first: Int) {
+    ...relayItemsIncidents_query @arguments(filter: $filter, search: $search, first: $first)
+  }
+`;
+
+export function IncidentItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
+  const root = useLazyLoadQuery<relayItemsIncidentsListQuery>(INCIDENTS_LIST_QUERY, {
+    filter: INCIDENT_CONTEXT_FILTER,
+    search: query || null,
+    first: MINGO_CONTEXT_PAGE_SIZE,
+  });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsIncidentsPaginationQuery,
+    relayItemsIncidents_query$key
+  >(INCIDENTS_FRAGMENT, root as relayItemsIncidents_query$key);
+  const items = useMemo(
+    () =>
+      (data.insights?.edges ?? []).flatMap(e => {
+        if (!e?.node) return [];
+        const device = getDeviceName(e.node.machine);
+        return [
+          {
+            type: CONTEXT_ENTITY_KIND.INSIGHT,
+            id: rawIdOf(e.node.id),
+            label: e.node.title,
+            description: [labelOf(INCIDENT_SEVERITY_LABELS, e.node.severity), device].filter(Boolean).join(' · '),
+          },
+        ];
+      }),
+    [data],
+  );
+  return (
+    <ContextItemsList
+      items={items}
+      selectedKeys={selectedKeys}
+      onToggle={onToggle}
+      atLimit={atLimit}
+      hasMore={hasNext}
+      onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
+      loadingMore={isLoadingNext}
+      emptyLabel="No incidents"
     />
   );
 }

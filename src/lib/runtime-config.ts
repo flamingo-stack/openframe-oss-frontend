@@ -67,11 +67,13 @@ export const runtimeEnv = {
   appType(): string {
     return getEnvVar('NEXT_PUBLIC_APP_TYPE') || 'openframe-dashboard';
   },
+  /**
+   * This install's configured address, or '' when none is set. No default here: the
+   * fallback (registry URL in production, localhost in development) is the lib's
+   * `getDeploymentUrl` rule, applied by `getAppUrl` in `./utils`.
+   */
   appUrl(): string {
-    return getEnvVar('NEXT_PUBLIC_APP_URL') || 'https://openframe.dev';
-  },
-  devUrl(): string {
-    return getEnvVar('NEXT_PUBLIC_DEV_URL') || 'http://localhost:4000';
+    return getEnvVar('NEXT_PUBLIC_APP_URL') || '';
   },
   enableDevTicketObserver(): boolean {
     return (getEnvVar('NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER') || 'false') === 'true';
@@ -91,5 +93,13 @@ export const runtimeEnv = {
   /** Tenant the native shell logs into — baked into the mobile bundle at build time. */
   mobileTenantId(): string {
     return getEnvVar('NEXT_PUBLIC_MOBILE_TENANT_ID') || '';
+  },
+  /**
+   * Which auth screens the mobile shell shows. Anything but `legacy` is the login-only set — no Sign
+   * Up tab, no in-app organization setup — so a build that forgets the variable ships the screens
+   * App Review accepts. Baked into the mobile bundle by openframe-mobile's `inject-env.mjs`.
+   */
+  mobileAuthUi(): 'login-only' | 'legacy' {
+    return getEnvVar('NEXT_PUBLIC_MOBILE_AUTH_UI') === 'legacy' ? 'legacy' : 'login-only';
   },
 };

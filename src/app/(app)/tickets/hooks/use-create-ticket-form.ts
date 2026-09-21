@@ -12,7 +12,7 @@ import { useApplyAssignmentsDiff, useAssignedItems } from '@/components/assignme
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
 import { queryState } from '@/lib/query-state';
-import { routes } from '@/lib/routes';
+import { routes, type TicketPrefill } from '@/lib/routes';
 import { API_ENDPOINTS, CREATION_SOURCE } from '../constants';
 import { GET_TICKET_QUERY } from '../queries/ticket-queries';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
@@ -30,9 +30,11 @@ import { useUpdateTicket } from './use-update-ticket';
 
 interface UseCreateTicketFormOptions {
   ticketId?: string | null;
+  /** Create-mode starting values (the page passes none in edit mode, where the ticket itself prefills). */
+  prefill?: TicketPrefill;
 }
 
-export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {}) {
+export function useCreateTicketForm({ ticketId, prefill }: UseCreateTicketFormOptions = {}) {
   const isEditMode = !!ticketId;
   const router = useRouter();
   const createTicketMutation = useCreateTicket();
@@ -69,17 +71,22 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
   const form = useForm<CreateTicketFormData>({
     resolver: zodResolver(createTicketSchema),
     defaultValues: {
-      title: '',
+      title: prefill?.title ?? '',
       statusId: undefined,
-      organizationId: undefined,
-      deviceId: undefined,
+      organizationId: prefill?.organizationId,
+      deviceId: prefill?.deviceId,
       userId: undefined,
-      assignedTo: undefined,
+      assignedTo: prefill?.assigneeId,
       type: 'text',
       tagIds: [],
-      description: '',
+      description: prefill?.description ?? '',
       assignKnowledgeBase: false,
-      assignments: {},
+      // Filed from an incident: the link is an assignment row on the form (read-only)
+      // and goes out as `CreateTicketInput.insightId` — the server owns the
+      // incident → ticket assignment, so it is not written through `assignItem`.
+      assignments: prefill?.insightId
+        ? { INSIGHT: [{ id: prefill.insightId, label: prefill.insightTitle || prefill.insightId }] }
+        : {},
     },
   });
 
@@ -186,6 +193,7 @@ export function useCreateTicketForm({ ticketId }: UseCreateTicketFormOptions = {
           organizationId: data.organizationId || undefined,
           deviceId: data.deviceId || undefined,
           assigneeId: data.assignedTo || undefined,
+          insightId: nextAssignments.INSIGHT?.[0]?.id,
           tagIds: tagIds.length ? tagIds : undefined,
           tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
         });
