@@ -117,7 +117,7 @@ export function MingoStep({
                 dragScroll
                 fade={['left', 'right']}
                 fadeSize={{ left: 32 }}
-                fadeColor="var(--color-bg)"
+                fadeColor="var(--ods-bg)"
                 copyGap="var(--spacing-system-xxs)"
                 className="max-h-44 shrink-0"
               />
