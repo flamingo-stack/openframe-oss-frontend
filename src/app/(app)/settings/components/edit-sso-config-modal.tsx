@@ -23,7 +23,7 @@ import type React from 'react';
 import { useMemo, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
-import { runtimeEnv } from '@/lib/runtime-config';
+import { useSsoRedirectUrl } from '../hooks/use-sso-redirect-url';
 import type { AvailableProvider } from '../hooks/use-sso-config';
 
 interface SsoConfigModalProps {
@@ -88,10 +88,7 @@ export function SsoConfigModal({
 
   const isMicrosoft = effectiveProviderKey.toLowerCase() === 'microsoft';
 
-  const redirectUrl = useMemo(() => {
-    const sharedHost = runtimeEnv.sharedHostUrl() || (typeof window !== 'undefined' ? window.location.origin : '');
-    return `${sharedHost}/sas/login/oauth2/code/${effectiveProviderKey.toLowerCase()}`;
-  }, [effectiveProviderKey]);
+  const redirectUrl = useSsoRedirectUrl(effectiveProviderKey);
 
   const handleCopyRedirectUrl = () => copyToClipboard(redirectUrl);
 
@@ -130,10 +127,8 @@ export function SsoConfigModal({
   const canSubmit = useMemo(() => {
     if (isCreate && !effectiveProviderKey) return false;
     const hasBasicFields = clientId.trim().length > 0 && clientSecret.trim().length > 0;
-    if (isMicrosoft && isSingleTenant) {
-      if (!hasBasicFields || msTenantId.trim().length === 0) return false;
-    }
     if (!hasBasicFields) return false;
+    if (isMicrosoft && isSingleTenant && msTenantId.trim().length === 0) return false;
     // If auto-provision is enabled, require at least one domain
     if (autoProvisionUsers && allowedDomains.length === 0) {
       return false;
@@ -340,9 +335,13 @@ export function SsoConfigModal({
       {autoProvisionUsers && (
         <AllowedDomainsInput
           value={allowedDomains}
-          onChange={setAllowedDomains}
+          onChange={domains => {
+            setDomainError(null);
+            setAllowedDomains(domains);
+          }}
           onValidate={domain => {
             const validation = validateEmailDomain(domain);
+            setDomainError(validation.valid ? null : (validation.error ?? null));
             return {
               valid: validation.valid,
               error: validation.error,
