@@ -1,6 +1,6 @@
 # OpenFrame Frontend - Claude Development Guide
 
-**Next.js 16 + React 19 + TypeScript 5.8 + @flamingo-stack/openframe-frontend-core (^0.0.632)**
+**Next.js 16 + React 19 + TypeScript 5.9 + @flamingo-stack/openframe-frontend-core (0.0.653)**
 
 > Comprehensive instructions for Claude when working with the OpenFrame Frontend service.
 
@@ -138,11 +138,11 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 ### Technology Stack
 | Category | Technology | Version |
 |----------|-----------|---------|
-| Framework | Next.js | 16 (^16.2.4) |
-| UI Library | React | 19 (^19.2.0) |
+| Framework | Next.js | 16 (16.3.5) |
+| UI Library | React | 19 (19.2.4) |
 | Auto-memoization | React Compiler (`reactCompiler: true` + babel-plugin-react-compiler) | 1.0 |
-| Type System | TypeScript | 5.8 (^5.8.3) |
-| Component Library | @flamingo-stack/openframe-frontend-core | ^0.0.632 (npm registry) |
+| Type System | TypeScript | 5.9 (5.9.3) |
+| Component Library | @flamingo-stack/openframe-frontend-core | 0.0.653 (npm registry) |
 | GraphQL Data Fetching | react-relay + relay-runtime + relay-compiler | 20.1 |
 | REST / Legacy Data Fetching | @tanstack/react-query | 5.90 |
 | Forms | react-hook-form + @hookform/resolvers | 7.71 + 5.2 |
@@ -151,13 +151,31 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 | Styling | Tailwind CSS + tailwindcss-animate | 3.4 |
 | Terminal | @xterm/xterm + @xterm/addon-fit | 6.0 + 0.11 |
 | Code Editor | @monaco-editor/react | 4.7 |
-| GraphQL | graphql + graphql-tag | 16.8 + 2.12 |
+| GraphQL | graphql | 16.12 |
 | Date Utils | date-fns | 4.1 |
 | Icons | lucide-react | 0.454 |
-| Runtime Env | next-runtime-env | 3.2 |
+| Runtime Env | next-runtime-env | 3.3 |
 | Linting | ESLint + `@flamingo-stack/openframe-frontend-core/eslint-config` | 9.39 |
 | Formatting | Prettier + the shared preset (Tailwind class sorting) | 3.9 |
 | Git Hooks | Husky | 9.1 |
+
+### Dependency Versions Are Pinned
+
+`package.json` carries **exact versions — no `^` or `~`** — and `.npmrc` sets `save-exact=true`, so
+`npm install <pkg>` keeps it that way. `package-lock.json` already froze what CI and the Docker build
+install (`npm ci`); the exact pins make `package.json` say the same thing, so an `npm install` or
+`npm update` on a laptop cannot move a version no PR asked for. The Dockerfile base image is pinned
+to a full version tag for the same reason.
+
+- **To bump:** change the version, run `npm install`, and check the `Scan Code` job — Trivy over
+  `package-lock.json` and the Dockerfile's base images, failing on any HIGH/CRITICAL that has a fix.
+- **A transitive finding** is fixed with `npm update <pkg>` when the parent's range allows the
+  patched version, and with `overrides` only when it does not.
+- **`overrides` → `next-runtime-env`:** the package declares `next@^14` and `react@^18` as hard
+  dependencies (still true in 3.3.0), which installed a second Next 14 + React 18 tree — 16 packages,
+  and the source of most scanner findings. The override points it at this app's own `next` and `react`.
+- **An override does not reach a subtree the lockfile already holds.** Delete that package's entries
+  from `package-lock.json` (not the whole file — that re-resolves everything), then `npm install`.
 
 ### Core Library is External
 
@@ -166,7 +184,7 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 **Key Facts:**
 - **Source repo**: `openframe-oss-lib/openframe-frontend-core/`
 - **Ownership**: Shared across Flamingo Stack projects (OpenFrame, OpenMSP, Flamingo, TMCG, hubs, openframe-chat)
-- **Normal state**: installed from the **npm registry** (`"@flamingo-stack/openframe-frontend-core": "^0.0.632"`); the lib repo's own `package.json` version lags the registry (CI bumps at publish)
+- **Normal state**: installed from the **npm registry** (`"@flamingo-stack/openframe-frontend-core": "0.0.653"`); the lib repo's own `package.json` version lags the registry (CI bumps at publish)
 - **Local lib development**: link via **yalc** — `npm run core:link` here, and in the lib repo `npm run build && yalc push` after every change (consumers see `dist/`, not `src/`)
 - **Updates**: Changes affect ALL Flamingo Stack projects
 
