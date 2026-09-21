@@ -9,7 +9,7 @@ interface SessionChatProps {
 }
 
 /**
- * The read-only SESSION CHAT transcript under the player (Figma 758-46714).
+ * The read-only SESSION CHAT transcript under the player.
  * Rows are shared with the live session chat panel on the remote-desktop
  * page; here the technician is the recording's employee.
  */

@@ -8,13 +8,13 @@ import { REMOTE_SESSION_CHAT_MOCK_ACTIVE, remoteSessionChatService } from '../se
 import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
 
 /**
- * The chat dialog of the current remote session (CU-86ajx041x).
+ * The chat dialog of the current remote session.
  *
  * On the mock the id is derived from the approved request, so it exists
  * exactly when the approval flow ran (null with the `remote-access-approval`
  * flag off - the legacy auto-start session has no chat). The real id arrives
- * in `REMOTE_SESSION_STARTED` once the BE provisions the dialog with the
- * session (CU-86ajx02qj / CU-86ajx0359) - this hook is the one place to swap.
+ * in `REMOTE_SESSION_STARTED` once the backend provisions the dialog with the
+ * session - this hook is the one place to swap.
  */
 export function useRemoteSessionDialogId(): string | null {
   const requestId = useApprovedRemoteAccessRequestId();

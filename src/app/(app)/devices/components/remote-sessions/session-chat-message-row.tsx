@@ -18,7 +18,7 @@ interface SessionChatMessageRowProps {
 }
 
 /**
- * One session-chat message (Figma 758-46714 transcript, 1-70919 live panel):
+ * One session-chat message, shared by the transcript and the live panel:
  * the technician's rows carry a 24px avatar and an accent-colored name, the
  * end user's rows a plain grey name; the timestamp sits right-aligned on the
  * name row and the message body follows below.

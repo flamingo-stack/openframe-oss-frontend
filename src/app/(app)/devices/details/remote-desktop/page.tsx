@@ -217,8 +217,8 @@ function RemoteDesktopSession() {
   // events from the BE (CU-86ajx02qj) - until then only the dev lever below
   // can set it, so the state ships dark with the UI ready.
   const [sessionEnded, setSessionEnded] = useState(false);
-  // Session chat (CU-86ajx041x): the dialog exists only for an approved
-  // session (null with the flag off), so the toggle stays hidden otherwise.
+  // Session chat: the dialog exists only for an approved session (null with
+  // the flag off), so the toggle stays hidden otherwise.
   // The panel closes with the session.
   const chatDialogId = useRemoteSessionDialogId();
   const chat = useRemoteSessionChat(chatDialogId);

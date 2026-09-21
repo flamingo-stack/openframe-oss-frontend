@@ -55,6 +55,16 @@ describe('MockRemoteSessionChatService', () => {
     expect(received).toEqual([expect.objectContaining({ author: 'user', body: 'Is it done?' })]);
   });
 
+  it('drops a pending scripted reply when the last subscriber leaves', async () => {
+    const received: RemoteSessionChatMessage[] = [];
+    const stop = service.subscribe('d3', m => received.push(m));
+    await settle(service.send('d3', 'Still there?', technician));
+    stop();
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(await settle(service.history('d3'))).toHaveLength(1);
+    expect(received).toHaveLength(1);
+  });
+
   it('keeps dialogs apart and stops delivering after unsubscribe', async () => {
     const d1: RemoteSessionChatMessage[] = [];
     const d2: RemoteSessionChatMessage[] = [];

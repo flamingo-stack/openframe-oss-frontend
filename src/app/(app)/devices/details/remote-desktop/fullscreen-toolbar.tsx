@@ -19,7 +19,7 @@ interface FullscreenToolbarProps {
   actionsMenuGroups: ActionsMenuGroup[];
   onOpenSettings: () => void;
   onExitFullscreen: () => void;
-  /** Session chat toggle (CU-86ajx041x) - omitted when the session has no chat. */
+  /** Session chat toggle - omitted when the session has no chat. */
   chatOpen?: boolean;
   onToggleChat?: () => void;
 }

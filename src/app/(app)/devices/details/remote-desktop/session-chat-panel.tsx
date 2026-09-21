@@ -21,18 +21,18 @@ interface SessionChatPanelProps {
   /** Resolves `false` to keep the draft in the input (nothing was sent). */
   onSend: (body: string) => Promise<boolean>;
   /**
-   * `side` - the right-hand column next to the canvas (Figma 1-70919);
-   * `overlay` - floating over the stream in fullscreen (Figma 1-71003),
-   * positioned against the fullscreen canvas container.
+   * `side` - the right-hand column next to the canvas;
+   * `overlay` - floating over the stream in fullscreen, positioned against
+   * the fullscreen canvas container.
    */
   variant: 'side' | 'overlay';
 }
 
 /**
- * Chat with the end user during a remote session (CU-86ajx041x): the message
- * stream bottom-aligned above the composer. The end user's side is the
- * session block in openframe-chat (CU-86ajx051y); the "JOINED CHAT" badge is
- * that side's indication only and is not shown here (decision 2026-09-21).
+ * Chat with the end user during a remote session: the message stream
+ * bottom-aligned above the composer. The end user's side is the session block
+ * in openframe-chat; the "JOINED CHAT" badge is that side's indication only
+ * and is not shown here (decision 2026-09-21).
  */
 export function SessionChatPanel({
   dialogId,

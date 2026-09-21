@@ -1,8 +1,8 @@
 // Session chat between the technician and the end user during a remote
-// screen session (CU-86ajx041x). The technician side lives on the
-// remote-desktop page; the end user answers in the openframe-chat session
-// block (CU-86ajx051y). Both talk to the same dialog once the BE provisions
-// it (CU-86ajx0359) - until then a mock service backs this contract.
+// screen session. The technician side lives on the remote-desktop page; the
+// end user answers in the openframe-chat session block. Both talk to the same
+// dialog once the backend provisions it - until then a mock service backs
+// this contract.
 
 export type RemoteSessionChatAuthor = 'technician' | 'user';
 

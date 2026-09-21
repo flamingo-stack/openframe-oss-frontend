@@ -1,8 +1,8 @@
-// Remote session chat service (CU-86ajx041x).
+// Remote session chat service.
 //
-// Backs the technician's session chat panel while the BE dialog provisioning
-// (CU-86ajx0359) and the session lifecycle events (CU-86ajx02qj) are in
-// design. The real implementation talks to the dialogs API on `/chat/graphql`
+// Backs the technician's session chat panel while the backend dialog
+// provisioning and the session lifecycle events are in design. The real
+// implementation talks to the dialogs API on `/chat/graphql`
 // for history + send and to NATS `chat.<dialogId>.message` for live delivery
 // (pattern: tickets/components/ticket-dialog-subscription.tsx); swapping is
 // one new implementation of `IRemoteSessionChatService`.
@@ -47,7 +47,8 @@ interface MockDialog {
  * In-memory mock. Dialogs live for the SPA session; every technician message
  * gets a scripted end-user reply a moment later so the panel can be exercised
  * end to end, and `simulateUserReply` lets the QA tooling inject one on
- * demand.
+ * demand. A pending reply is dropped when the last subscriber leaves (panel
+ * closed, session ended) - nothing answers into an abandoned dialog.
  */
 class MockRemoteSessionChatService implements IRemoteSessionChatService {
   private readonly dialogs = new Map<string, MockDialog>();
@@ -66,7 +67,11 @@ class MockRemoteSessionChatService implements IRemoteSessionChatService {
     await delay(MOCK_LATENCY_MS);
     const message = this.append(dialogId, 'technician', technician.name, body);
     const dialog = this.dialog(dialogId);
-    dialog.timers.push(setTimeout(() => this.replyFromUser(dialogId), MOCK_REPLY_DELAY_MS));
+    const timer = setTimeout(() => {
+      dialog.timers = dialog.timers.filter(t => t !== timer);
+      this.replyFromUser(dialogId);
+    }, MOCK_REPLY_DELAY_MS);
+    dialog.timers.push(timer);
     return message;
   }
 
@@ -75,6 +80,7 @@ class MockRemoteSessionChatService implements IRemoteSessionChatService {
     dialog.listeners.add(listener);
     return () => {
       dialog.listeners.delete(listener);
+      if (dialog.listeners.size === 0) this.cancelPendingReplies(dialog);
     };
   }
 
@@ -85,10 +91,12 @@ class MockRemoteSessionChatService implements IRemoteSessionChatService {
 
   /** Test helper - drops every dialog and pending scripted reply. */
   reset(): void {
-    for (const dialog of this.dialogs.values()) {
-      for (const timer of dialog.timers) clearTimeout(timer);
-    }
+    for (const dialog of this.dialogs.values()) this.cancelPendingReplies(dialog);
     this.dialogs.clear();
+  }
+
+  private cancelPendingReplies(dialog: MockDialog): void {
+    for (const timer of dialog.timers.splice(0)) clearTimeout(timer);
   }
 
   private replyFromUser(dialogId: string, body?: string): RemoteSessionChatMessage {
