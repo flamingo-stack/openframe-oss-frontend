@@ -50,6 +50,17 @@ const titleColorBySeverity: Partial<Record<NotificationSeverity, string>> = {
   SUCCESS: 'text-ods-success',
 };
 
+/**
+ * How many lines of the description a row shows before it ellipsizes (the full
+ * text stays in the tooltip).
+ *
+ * Two, because that is what fits the table's design row height — 78px of cell on
+ * desktop (kind label 24 + 2×20) and 66px on a phone (title 20 + 2×16). Three
+ * needed the row to grow with its content, which made every row a different
+ * height: the skeleton could not match it, so the list jumped on load.
+ */
+const DESCRIPTION_LINES = 2;
+
 export function buildNotificationColumns({
   rowVariant,
   canOpenMingoDrawer = false,
@@ -82,7 +93,7 @@ export function buildNotificationColumns({
             {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
             <div className="flex min-w-0 flex-col md:hidden">
               <TruncateText className={titleColor}>{row.original.title}</TruncateText>
-              <TruncateText lines={3} variant="h6" tone="secondary" className="break-words">
+              <TruncateText lines={DESCRIPTION_LINES} variant="h6" tone="secondary" className="break-words">
                 {row.original.description || relativeTime}
               </TruncateText>
             </div>
@@ -104,7 +115,7 @@ export function buildNotificationColumns({
           <div className="flex min-w-0 flex-col">
             {kindLabel ? <TruncateText>{kindLabel}</TruncateText> : null}
             {row.original.description ? (
-              <TruncateText lines={3} variant="h6" tone="secondary" className="break-words">
+              <TruncateText lines={DESCRIPTION_LINES} variant="h6" tone="secondary" className="break-words">
                 {row.original.description}
               </TruncateText>
             ) : null}
