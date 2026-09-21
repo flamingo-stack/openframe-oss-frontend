@@ -156,7 +156,11 @@ export function AiSettings() {
           syncAiConfiguration(payload.ai, clientAiConfig);
 
           // Attach the staged avatar to the SAVED view id — on a fresh tenant
-          // the record only exists after the save above created it.
+          // the record only exists after the save above created it. If the
+          // commit fails, settings are already saved but the avatar is out of
+          // sync, so stay in edit mode instead of also announcing overall
+          // success — the user can retry the avatar upload without redoing
+          // the rest of the form.
           try {
             const savedViewId = savedView?.id || clientView.view?.id;
             if (savedViewId) {
@@ -168,6 +172,7 @@ export function AiSettings() {
               description: err instanceof Error ? err.message : 'Settings saved, but the avatar was not updated',
               variant: 'destructive',
             });
+            return;
           }
 
           toast({ title: 'Saved', description: 'AI assistant settings updated', variant: 'success' });
