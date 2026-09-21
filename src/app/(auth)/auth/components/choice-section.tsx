@@ -106,7 +106,6 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
           throw new Error(response.error || 'Failed to check domain availability');
         }
       } catch (error) {
-        console.error('Domain check error:', error);
         toast({
           title: 'Error',
           description: 'Failed to check domain availability. Please try again.',
