@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
 import { API_ENDPOINTS } from '../constants';
@@ -10,6 +10,7 @@ import type { TicketPayload } from '../types/ticket.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
+import { useMutation } from '@tanstack/react-query';
 
 export interface TakeOverTicketInput {
   ticketId: string;
@@ -22,6 +23,14 @@ export interface TakeOverTicketInput {
  * mutation moves the ticket to the selected status, assigns the technician,
  * and switches the client dialog to DIRECT mode (creating one when the ticket
  * has none) in a single backend transaction — all-or-nothing.
+ *
+ * NOTE: This still goes through the legacy REST-tunneled GraphQL endpoint
+ * (`apiClient.post` against `API_ENDPOINTS.GRAPHQL`) rather than react-relay.
+ * Migrating this hook to react-relay requires generating the corresponding
+ * Relay mutation artifacts (via the Relay compiler) from a `.graphql`
+ * mutation definition, which is outside the scope of a same-file fix and
+ * cannot be safely fabricated here without those generated artifacts
+ * existing in the repository. This is flagged as a follow-up migration.
  */
 export function useTakeOverTicket() {
   const { toast } = useToast();
