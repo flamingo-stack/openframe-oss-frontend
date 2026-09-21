@@ -152,14 +152,29 @@ export class MeshControlClient {
         let request = msg.responseid ? this.pendingRequests.get(msg.responseid) : undefined;
 
         if (!request) {
-          for (const [key, val] of this.pendingRequests) {
-            if (key.startsWith(`${msg.type}_`)) {
+          // No responseid correlation available from the server. Fall back to the
+          // oldest still-pending request of this type (Map iteration order is
+          // insertion order), so that under concurrent same-type clipboard calls
+          // we resolve them in the order they were sent rather than picking an
+          // arbitrary match.
+          let oldestKey: string | undefined;
+          let oldestTime = Infinity;
+          for (const key of this.pendingRequests.keys()) {
+            if (!key.startsWith(`${msg.type}_`)) continue;
+            const parts = key.split('_');
+            const ts = Number(parts[1]);
+            const time = Number.isFinite(ts) ? ts : 0;
+            if (time < oldestTime) {
+              oldestTime = time;
+              oldestKey = key;
+            }
+          }
+          if (oldestKey) {
+            const val = this.pendingRequests.get(oldestKey);
+            if (val) {
               request = val;
-              if (request) {
-                clearTimeout(request.timeout);
-                this.pendingRequests.delete(key);
-              }
-              break;
+              clearTimeout(val.timeout);
+              this.pendingRequests.delete(oldestKey);
             }
           }
         } else {
@@ -309,8 +324,11 @@ export class MeshControlClient {
     const actiontype = actionTypes[action];
     // Full MeshCentral node ids are `node/<domain>/<hash>` (domain may be empty →
     // `node//<hash>`). Agent tool ids already arrive in that full form; only a
-    // bare hash needs the default-domain prefix.
-    const nodePath = nodeId.startsWith('node/') ? nodeId : `node//${nodeId}`;
+    // bare hash needs the default-domain prefix. A bare hash is not expected to
+    // contain a `/`, so treat any id containing a `/` that doesn't already start
+    // with `node/` as already fully-qualified (e.g. a different `<type>/...`
+    // namespaced id) rather than double-prefixing it.
+    const nodePath = nodeId.startsWith('node/') || nodeId.includes('/') ? nodeId : `node//${nodeId}`;
     const responseid = `power_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
     return new Promise<void>((resolve, reject) => {
