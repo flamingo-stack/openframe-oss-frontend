@@ -1,9 +1,8 @@
 'use client';
 
 import { Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Loading01Icon, ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Loader2 } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
@@ -133,7 +132,7 @@ export function RemoteAccessGate({
 
   let body: ReactNode;
   if (policyLoading) {
-    body = <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />;
+    body = <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />;
   } else if (policyDenied) {
     // Designer decision: DENY_ACCESS disables the entry points in place; this
     // screen only exists for direct URLs, which never passed through a menu.
@@ -152,12 +151,12 @@ export function RemoteAccessGate({
   } else if (approval.state === 'idle' || approval.state === 'requesting') {
     // Auto-request in flight (NOTIFY/SILENT settle instantly; APPROVAL_REQUIRED
     // proceeds to the awaiting screen).
-    body = <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />;
+    body = <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />;
   } else if (approval.state === 'awaiting') {
     const request = approval.request;
     body = (
       <>
-        <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
+        <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
         <div className="flex flex-col items-center gap-[var(--spacing-system-xxs)] text-center">
           <h2 className="text-ods-text-primary text-h3">Waiting for approval</h2>
           <p className="text-ods-text-secondary text-h6">

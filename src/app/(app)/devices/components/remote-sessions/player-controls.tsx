@@ -1,8 +1,15 @@
 'use client';
 
+import {
+  BackwardIcon,
+  Collapse01Icon,
+  Expand01Icon,
+  ForwardIcon,
+  PauseIcon,
+  PlayIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { FastForward, Maximize, Minimize, Pause, Play, Rewind } from 'lucide-react';
 import { useState } from 'react';
 import type { RecordingPlaybackSpeed, RecordingPlayerState } from '@/lib/meshcentral/recording';
 import { formatTimecodeMs } from './format';
@@ -98,7 +105,7 @@ export function PlayerControls({
           aria-label={state === 'playing' ? 'Pause' : 'Play'}
           onClick={onTogglePlay}
           disabled={disabled}
-          leftIcon={state === 'playing' ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+          leftIcon={state === 'playing' ? <PauseIcon className="h-6 w-6" /> : <PlayIcon className="h-6 w-6" />}
         />
         <Button
           variant="transparent"
@@ -106,7 +113,7 @@ export function PlayerControls({
           aria-label="Back 10 seconds"
           onClick={onStepBack}
           disabled={disabled}
-          leftIcon={<Rewind className="h-6 w-6" />}
+          leftIcon={<BackwardIcon className="h-6 w-6" />}
         />
         <Button
           variant="transparent"
@@ -114,7 +121,7 @@ export function PlayerControls({
           aria-label="Forward 10 seconds"
           onClick={onStepForward}
           disabled={disabled}
-          leftIcon={<FastForward className="h-6 w-6" />}
+          leftIcon={<ForwardIcon className="h-6 w-6" />}
         />
         <span className="min-w-0 flex-1 truncate text-ods-text-primary text-h4">
           {formatTimecodeMs(shownMs)}
@@ -143,7 +150,7 @@ export function PlayerControls({
           size="icon"
           aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           onClick={onToggleFullscreen}
-          leftIcon={isFullscreen ? <Minimize className="h-6 w-6" /> : <Maximize className="h-6 w-6" />}
+          leftIcon={isFullscreen ? <Collapse01Icon className="h-6 w-6" /> : <Expand01Icon className="h-6 w-6" />}
         />
       </div>
     </div>

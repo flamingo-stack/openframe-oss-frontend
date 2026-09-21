@@ -1,7 +1,7 @@
 'use client';
 
+import { TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Trash2 } from 'lucide-react';
 import { Suspense, useCallback, useMemo } from 'react';
 import type { tagsEditor_keySuggestions$key as KeySuggestionsFragmentKey } from '@/__generated__/tagsEditor_keySuggestions.graphql';
 import { TagValueAutocomplete } from './tag-value-autocomplete';
@@ -142,7 +142,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
           size="icon"
           onClick={onDelete}
           aria-label="Remove tag row"
-          leftIcon={<Trash2 className="size-4 text-ods-error md:size-6" />}
+          leftIcon={<TrashIcon className="size-4 text-ods-error md:size-6" />}
         />
       </div>
     </div>
