@@ -38,7 +38,6 @@ export interface RemoteAccessRequest {
   requestId: string;
   /** The OpenFrame machine id - what the device pages carry as `?id=` and what the backend resolves. */
   deviceId: string;
-  machineId?: string;
   sessionKind: RemoteSessionKind;
   status: RemoteAccessRequestStatus;
   /** Why the technician is connecting - shown to the end user in the prompt. */

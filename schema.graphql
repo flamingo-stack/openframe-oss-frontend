@@ -1114,6 +1114,10 @@ type Machine implements Node & AssignableTarget {
 }
 
 type Mutation {
+    "Create the approval request for a device, or return the caller's own live request on that device."
+    createRemoteAccessRequest(input: CreateRemoteAccessRequestInput!): RemoteAccessRequestPayload!
+    "Cancel Request: settles the caller's own live request as REVOKED."
+    revokeRemoteAccessRequest(requestId: String!): RemoteAccessRequestPayload!
     "new | snoozed -> acknowledged. Clears any snooze."
     acknowledgeInsight(input: InsightIdInput!): Insight!
     "new | acknowledged -> snoozed until the given moment."
@@ -1875,6 +1879,8 @@ enum PushPlatform {
 }
 
 type Query {
+    "Poll every 2 s while PENDING or DELIVERED; the push on user.<technicianId>.notification is the fast path."
+    remoteAccessRequest(requestId: String!): RemoteAccessRequest!
     """
     Cursor-paginated insights for the calling tenant (newest first unless sorted otherwise).
     Tenant scoping is applied by the datastore — the filter narrows within the tenant,
@@ -3639,4 +3645,80 @@ enum InsightStatus {
     RESOLVED
     "Filed away after being resolved. Kept apart from RESOLVED so the working set stays clean."
     ARCHIVED
+}
+
+# Remote access approval, technician side (openframe-saas-api `schema/remote-access.graphqls`).
+enum RemoteAccessRequestStatus {
+    PENDING
+    DELIVERED
+    APPROVED
+    DENIED
+    TIMED_OUT
+    REVOKED
+    CANCELLED
+    EXPIRED
+}
+
+enum RemoteAccessMode {
+    APPROVAL_REQUIRED
+    NOTIFY_ONLY
+    SILENT_ACCESS
+    DENY_ACCESS
+}
+
+enum RemoteAccessDecisionSource {
+    USER
+    POLICY
+    FALLBACK
+    TECHNICIAN
+    TIMEOUT
+}
+
+"Remote screen (MeshCentral desktop) only; the enum exists so the wire shape does not change when more kinds arrive."
+enum RemoteSessionKind {
+    DESKTOP
+}
+
+type RemoteAccessRequest {
+    "A plain 26-char ULID. The frontend mints the MeshCentral relay id as <requestId>.<p>.<nonce>."
+    requestId: String!
+    "The OpenFrame machine id the request targets, the value the device pages carry as ?id=."
+    deviceId: String!
+    technicianId: String!
+    sessionKind: RemoteSessionKind!
+    status: RemoteAccessRequestStatus!
+    "The policy mode resolved at creation, recorded for audit."
+    mode: RemoteAccessMode!
+    "Who settled the request; null while it is open."
+    decisionSource: RemoteAccessDecisionSource
+    reason: String
+    ticketId: String
+    ticketNumber: String
+    recordingEnabled: Boolean!
+    createdAt: Instant!
+    deliveredAt: Instant
+    "Server clock; the countdown is expiresAt - createdAt, never the browser clock."
+    expiresAt: Instant!
+    resolvedAt: Instant
+}
+
+input CreateRemoteAccessRequestInput {
+    deviceId: String!
+    sessionKind: RemoteSessionKind!
+    reason: String
+    ticketId: String
+}
+
+"""
+Mutation payload. Domain refusals come back as userErrors with a stable code:
+DEVICE_HAS_LIVE_REQUEST, DEVICE_HAS_ACTIVE_SESSION (another technician holds the device),
+DEVICE_UNREACHABLE (the request could not be delivered and was discarded, a retry is safe),
+REMOTE_ACCESS_DISABLED, DEVICE_NOT_FOUND, REMOTE_ACCESS_REQUEST_NOT_FOUND, REMOTE_ACCESS_FORBIDDEN,
+REMOTE_ACCESS_REQUEST_SETTLED (revoke on a settled request; the settled request is returned).
+"""
+type RemoteAccessRequestPayload {
+    request: RemoteAccessRequest
+    "True when the mutation created a new request; false when the technician's own live request was returned."
+    created: Boolean!
+    userErrors: [UserError!]!
 }

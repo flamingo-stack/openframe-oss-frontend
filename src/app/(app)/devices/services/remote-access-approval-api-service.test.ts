@@ -1,165 +1,211 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { remoteAccessApprovalApiService_request$data as WireRequest } from '@/__generated__/remoteAccessApprovalApiService_request.graphql';
 import { buildRemoteAccessRelayIdPrefix, RemoteAccessCreateError } from '../types/remote-access';
 import {
   applyRemoteAccessDecisionEvent,
-  normalizeRemoteAccessRequest,
+  fromWireRemoteAccessRequest,
   parseRemoteAccessDecisionEvent,
   RemoteAccessApprovalApiService,
 } from './remote-access-approval-api-service';
 
-const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+type MutationConfig = {
+  variables: Record<string, unknown>;
+  onCompleted: (response: unknown, errors: ReadonlyArray<{ message: string }> | null) => void;
+  onError: (error: Error) => void;
+};
 
-vi.mock('@/lib/api-client', () => ({
-  apiClient: { post, get },
+const relay = vi.hoisted(() => ({
+  commitMutation: vi.fn(),
+  fetchQuery: vi.fn(),
 }));
+
+vi.mock('react-relay', () => ({
+  graphql: () => ({}),
+  commitMutation: relay.commitMutation,
+  fetchQuery: relay.fetchQuery,
+}));
+vi.mock('@/lib/relay', () => ({ getRelayEnvironment: () => ({}) }));
+// `@inline` fragments are read with `readInlineData`; the wire objects below stand in for the ref.
+vi.mock('relay-runtime', () => ({ readInlineData: (_fragment: unknown, ref: unknown) => ref }));
 
 const REQUEST_ID = '01J8ZQK3N5ABCDEFGHJKMNPQRS';
 
-const wireRequest = (overrides: Record<string, unknown> = {}) => ({
-  requestId: REQUEST_ID,
-  deviceId: 'dev_7f3c',
-  machineId: 'm_9b1e',
-  sessionKind: 'desktop',
+/** The fragment's data as the server sends it; `Instant` is untyped, so epochs are allowed too. */
+const wireRequest = (overrides: Record<string, unknown> = {}): WireRequest =>
+  ({
+    requestId: REQUEST_ID,
+    deviceId: 'dev_7f3c',
+    sessionKind: 'desktop',
+    status: 'PENDING',
+    mode: 'APPROVAL_REQUIRED',
+    decisionSource: null,
+    reason: 'Printer driver reinstall',
+    ticketId: 't_2a91',
+    ticketNumber: '1234',
+    technicianId: 'u_91c',
+    createdAt: '2026-09-15T09:15:02Z',
+    deliveredAt: null,
+    expiresAt: '2026-09-15T09:16:02Z',
+    resolvedAt: null,
+    ...overrides,
+  }) as unknown as WireRequest;
+
+const service = new RemoteAccessApprovalApiService();
+
+const WIRE_REQUEST = {
+  requestId: '01M2TFW3CCTSKAXWRSP84605F4',
+  deviceId: 'machine-1',
+  technicianId: 'tech-1',
+  sessionKind: 'DESKTOP',
   status: 'PENDING',
   mode: 'APPROVAL_REQUIRED',
   decisionSource: null,
-  reason: 'Printer driver reinstall',
-  ticketId: 't_2a91',
-  ticketNumber: '1234',
-  technicianId: 'u_91c',
+  reason: null,
+  ticketId: null,
+  ticketNumber: null,
+  recordingEnabled: true,
   createdAt: '2026-09-15T09:15:02Z',
   deliveredAt: null,
-  expiresAt: '2026-09-15T09:16:02Z',
+  expiresAt: '2026-09-15T09:15:32Z',
   resolvedAt: null,
-  ...overrides,
-});
+};
+
+/** The next mutation completes with `response` (or a GraphQL-level error). */
+function completeMutationWith(response: unknown, errors: ReadonlyArray<{ message: string }> | null = null) {
+  relay.commitMutation.mockImplementationOnce((_env: unknown, config: MutationConfig) => {
+    config.onCompleted(response, errors);
+    return { dispose: () => {} };
+  });
+}
+
+function lastMutationVariables(): Record<string, unknown> {
+  const call = relay.commitMutation.mock.calls.at(-1);
+  return (call?.[1] as MutationConfig).variables;
+}
 
 describe('RemoteAccessApprovalApiService', () => {
-  const service = new RemoteAccessApprovalApiService();
-
   beforeEach(() => {
-    post.mockReset();
-    get.mockReset();
+    relay.commitMutation.mockReset();
+    relay.fetchQuery.mockReset();
   });
 
-  it('creates a request with the contract body and normalizes the 201', async () => {
-    post.mockResolvedValue({ ok: true, status: 201, data: wireRequest() });
-    const created = await service.create({
-      deviceId: 'dev_7f3c',
+  it('creates a request with the wire input and normalizes a new request', async () => {
+    completeMutationWith({
+      createRemoteAccessRequest: { request: WIRE_REQUEST, userErrors: [] },
+    });
+    const request = await service.create({
+      deviceId: 'machine-1',
       sessionKind: 'desktop',
-      reason: 'Printer driver reinstall',
+      reason: 'Printer',
+      ticketId: 't-1',
     });
-    expect(post).toHaveBeenCalledWith('/api/v1/remote-access/requests', {
-      deviceId: 'dev_7f3c',
+    expect(lastMutationVariables()).toEqual({
+      input: { deviceId: 'machine-1', sessionKind: 'DESKTOP', reason: 'Printer', ticketId: 't-1' },
+    });
+    expect(request).toMatchObject({
+      requestId: WIRE_REQUEST.requestId,
+      deviceId: 'machine-1',
       sessionKind: 'desktop',
-      reason: 'Printer driver reinstall',
+      status: 'PENDING',
+      mode: 'APPROVAL_REQUIRED',
+      technicianId: 'tech-1',
+      recordingEnabled: true,
+      expiresAt: '2026-09-15T09:15:32Z',
     });
-    expect(created.requestId).toBe(REQUEST_ID);
-    expect(created.status).toBe('PENDING');
-    expect(created.mode).toBe('APPROVAL_REQUIRED');
-    expect(created.decisionSource).toBeNull();
-    expect(created.ticketNumber).toBe('1234');
   });
 
-  it('does not send absent optionals and accepts the 200 re-attach as a normal answer', async () => {
-    post.mockResolvedValue({ ok: true, status: 200, data: wireRequest({ status: 'DELIVERED' }) });
-    const existing = await service.create({ deviceId: 'dev_7f3c', sessionKind: 'desktop', organizationId: 'org_1' });
-    expect(post).toHaveBeenCalledWith('/api/v1/remote-access/requests', {
-      deviceId: 'dev_7f3c',
-      sessionKind: 'desktop',
+  it('sends absent optionals as null and takes the re-attach as a normal answer', async () => {
+    completeMutationWith({
+      createRemoteAccessRequest: { request: { ...WIRE_REQUEST, status: 'DELIVERED' }, userErrors: [] },
     });
-    expect(existing.status).toBe('DELIVERED');
+    const request = await service.create({ deviceId: 'machine-1', sessionKind: 'desktop' });
+    expect(lastMutationVariables()).toEqual({
+      input: { deviceId: 'machine-1', sessionKind: 'DESKTOP', reason: null, ticketId: null },
+    });
+    expect(request.status).toBe('DELIVERED');
   });
 
-  it('turns the 409 codes and the 503 into typed create errors', async () => {
-    post.mockResolvedValue({
-      ok: false,
-      status: 409,
-      data: { code: 'DEVICE_HAS_LIVE_REQUEST', message: 'Another technician is waiting for approval on this device' },
-      error: 'Another technician is waiting for approval on this device',
-    });
-    await expect(service.create({ deviceId: 'd', sessionKind: 'desktop' })).rejects.toMatchObject({
-      name: 'RemoteAccessCreateError',
-      code: 'DEVICE_HAS_LIVE_REQUEST',
-      status: 409,
-    });
-
-    post.mockResolvedValue({ ok: false, status: 409, data: { code: 'DEVICE_HAS_ACTIVE_SESSION', message: 'busy' } });
-    await expect(service.create({ deviceId: 'd', sessionKind: 'desktop' })).rejects.toMatchObject({
-      code: 'DEVICE_HAS_ACTIVE_SESSION',
-    });
-
-    post.mockResolvedValue({ ok: false, status: 503, data: { code: 'DEVICE_UNREACHABLE', message: 'no broker' } });
-    await expect(service.create({ deviceId: 'd', sessionKind: 'desktop' })).rejects.toMatchObject({
-      code: 'DEVICE_UNREACHABLE',
-    });
-
-    // A 503 without a body still reads as unreachable; anything else is UNKNOWN.
-    post.mockResolvedValue({ ok: false, status: 503, error: 'Service Unavailable' });
-    await expect(service.create({ deviceId: 'd', sessionKind: 'desktop' })).rejects.toMatchObject({
-      code: 'DEVICE_UNREACHABLE',
-    });
-    post.mockResolvedValue({
-      ok: false,
-      status: 404,
-      data: { code: 'REMOTE_ACCESS_DISABLED', message: 'Remote access approval is disabled', status: 404 },
-    });
-    await expect(service.create({ deviceId: 'd', sessionKind: 'desktop' })).rejects.toMatchObject({
-      code: 'REMOTE_ACCESS_DISABLED',
-    });
-    post.mockResolvedValue({ ok: false, status: 400, data: { message: 'deviceId is required' } });
-    const unknown = await service.create({ deviceId: 'd', sessionKind: 'desktop' }).catch(e => e);
-    expect(unknown).toBeInstanceOf(RemoteAccessCreateError);
-    expect(unknown.code).toBe('UNKNOWN');
-    expect(unknown.message).toBe('deviceId is required');
+  it('turns the userErrors codes into typed create errors', async () => {
+    const cases: Array<[string, string]> = [
+      ['DEVICE_HAS_LIVE_REQUEST', 'DEVICE_HAS_LIVE_REQUEST'],
+      ['DEVICE_HAS_ACTIVE_SESSION', 'DEVICE_HAS_ACTIVE_SESSION'],
+      ['DEVICE_UNREACHABLE', 'DEVICE_UNREACHABLE'],
+      ['REMOTE_ACCESS_DISABLED', 'REMOTE_ACCESS_DISABLED'],
+      ['DEVICE_NOT_FOUND', 'UNKNOWN'],
+    ];
+    for (const [wire, expected] of cases) {
+      completeMutationWith({
+        createRemoteAccessRequest: {
+          request: null,
+          userErrors: [{ code: wire, message: `Refused: ${wire}` }],
+        },
+      });
+      const error = await service.create({ deviceId: 'machine-1', sessionKind: 'desktop' }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(RemoteAccessCreateError);
+      expect((error as RemoteAccessCreateError).code).toBe(expected);
+      expect((error as RemoteAccessCreateError).message).toBe(`Refused: ${wire}`);
+    }
   });
 
-  it('polls the request by id and rejects on a failed GET', async () => {
-    get.mockResolvedValue({ ok: true, status: 200, data: wireRequest({ status: 'APPROVED', decisionSource: 'USER' }) });
-    const current = await service.get(REQUEST_ID);
-    expect(get).toHaveBeenCalledWith(`/api/v1/remote-access/requests/${REQUEST_ID}`);
-    expect(current.status).toBe('APPROVED');
-    expect(current.decisionSource).toBe('USER');
-
-    get.mockResolvedValue({ ok: false, status: 404, error: 'Unknown request' });
-    await expect(service.get(REQUEST_ID)).rejects.toThrow('Unknown request');
+  it('rejects a create on a GraphQL-level error', async () => {
+    completeMutationWith(null, [{ message: 'Unauthorized' }]);
+    await expect(service.create({ deviceId: 'machine-1', sessionKind: 'desktop' })).rejects.toThrow('Unauthorized');
   });
 
-  it('revokes and treats an already-settled 409 as done', async () => {
-    post.mockResolvedValue({ ok: true, status: 200, data: wireRequest({ status: 'REVOKED' }) });
-    await expect(service.revoke(REQUEST_ID)).resolves.toBeUndefined();
-    expect(post).toHaveBeenCalledWith(`/api/v1/remote-access/requests/${REQUEST_ID}/revoke`);
+  it('polls the request by id over the network and rejects when it is gone', async () => {
+    relay.fetchQuery.mockReturnValueOnce({
+      toPromise: () => Promise.resolve({ remoteAccessRequest: { ...WIRE_REQUEST, status: 'APPROVED' } }),
+    });
+    const request = await service.get(WIRE_REQUEST.requestId);
+    expect(relay.fetchQuery.mock.calls[0][2]).toEqual({ requestId: WIRE_REQUEST.requestId });
+    expect(relay.fetchQuery.mock.calls[0][3]).toEqual({ fetchPolicy: 'network-only' });
+    expect(request.status).toBe('APPROVED');
 
-    post.mockResolvedValue({ ok: false, status: 409, data: wireRequest({ status: 'APPROVED' }) });
-    await expect(service.revoke(REQUEST_ID)).resolves.toBeUndefined();
+    relay.fetchQuery.mockReturnValueOnce({ toPromise: () => Promise.reject(new Error('not found')) });
+    await expect(service.get('missing')).rejects.toThrow('not found');
+  });
 
-    post.mockResolvedValue({ ok: false, status: 403, error: 'Not the caller' });
-    await expect(service.revoke(REQUEST_ID)).rejects.toThrow('Not the caller');
+  it('revokes, treats an already-settled request as done and surfaces other refusals', async () => {
+    completeMutationWith({
+      revokeRemoteAccessRequest: { userErrors: [] },
+    });
+    await expect(service.revoke('r1')).resolves.toBeUndefined();
+    expect(lastMutationVariables()).toEqual({ requestId: 'r1' });
+
+    completeMutationWith({
+      revokeRemoteAccessRequest: {
+        userErrors: [{ code: 'REMOTE_ACCESS_REQUEST_SETTLED', message: 'settled' }],
+      },
+    });
+    await expect(service.revoke('r1')).resolves.toBeUndefined();
+
+    completeMutationWith({
+      revokeRemoteAccessRequest: {
+        userErrors: [{ code: 'REMOTE_ACCESS_FORBIDDEN', message: 'not yours' }],
+      },
+    });
+    await expect(service.revoke('r1')).rejects.toThrow('not yours');
   });
 });
 
-describe('normalizeRemoteAccessRequest', () => {
+describe('fromWireRemoteAccessRequest', () => {
   it('reads ISO timestamps and tolerates numeric epochs in seconds or millis', () => {
-    const iso = normalizeRemoteAccessRequest(wireRequest());
+    const iso = fromWireRemoteAccessRequest(wireRequest());
     expect(iso.createdAt).toBe('2026-09-15T09:15:02Z');
-    const seconds = normalizeRemoteAccessRequest(
+    const seconds = fromWireRemoteAccessRequest(
       wireRequest({ createdAt: 1789463702.5, expiresAt: 1789463762, deliveredAt: null, recordingEnabled: true }),
     );
     expect(seconds.createdAt).toBe('2026-09-15T09:15:02.500Z');
     expect(seconds.expiresAt).toBe('2026-09-15T09:16:02.000Z');
     expect(seconds.deliveredAt).toBeNull();
     expect(seconds.recordingEnabled).toBe(true);
-    const millis = normalizeRemoteAccessRequest(wireRequest({ createdAt: 1789463702500 }));
+    const millis = fromWireRemoteAccessRequest(wireRequest({ createdAt: 1789463702500 }));
     expect(millis.createdAt).toBe('2026-09-15T09:15:02.500Z');
   });
 
-  it('accepts the mock-era resolvedMode name and rejects a body without id or status', () => {
-    expect(normalizeRemoteAccessRequest(wireRequest({ mode: undefined, resolvedMode: 'NOTIFY_ONLY' })).mode).toBe(
-      'NOTIFY_ONLY',
-    );
-    expect(() => normalizeRemoteAccessRequest({ requestId: REQUEST_ID })).toThrow();
-    expect(() => normalizeRemoteAccessRequest({ status: 'PENDING' })).toThrow();
-    expect(() => normalizeRemoteAccessRequest(wireRequest({ status: 'WEIRD' }))).toThrow();
+  it('rejects a body without id or status', () => {
+    expect(() => fromWireRemoteAccessRequest(wireRequest({ requestId: '' }))).toThrow();
+    expect(() => fromWireRemoteAccessRequest(wireRequest({ status: 'WHATEVER' }))).toThrow();
   });
 });
 
@@ -191,7 +237,7 @@ describe('REMOTE_ACCESS_DECISION event', () => {
   });
 
   it('merges DELIVERED and the settlement into the request without losing fields', () => {
-    const pending = normalizeRemoteAccessRequest(wireRequest());
+    const pending = fromWireRemoteAccessRequest(wireRequest());
     const delivered = applyRemoteAccessDecisionEvent(pending, {
       type: 'REMOTE_ACCESS_DECISION',
       requestId: REQUEST_ID,
