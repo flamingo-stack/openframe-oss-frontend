@@ -187,7 +187,10 @@ async function learnTenantHostFromToken(accessToken?: string | null): Promise<st
     const domain = res.ok ? (res.data as { domain?: string } | undefined)?.domain : undefined;
     // 'localhost' is discovery's answer for a single-tenant dev backend, not a reachable gateway.
     return domain && domain !== 'localhost' ? new URL(tenantOrigin(domain)).origin : '';
-  } catch {
+  } catch (err) {
+    // Preserve diagnostics: a caught exception here is a discovery/network failure, not the
+    // legitimate 'no domain found' answer — logging it keeps that distinction visible in the field.
+    console.warn('learnTenantHostFromToken: tenant discovery failed', err);
     return '';
   }
 }
@@ -528,3 +531,4 @@ async function sha256Hex(input: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
+
