@@ -1,6 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "enabledManagers": ["npm", "github-actions"],
+  "extends": ["helpers:pinGitHubActionDigests"],
+  "enabledManagers": ["npm", "github-actions", "dockerfile"],
   "labels": ["dependencies"],
   "prConcurrentLimit": 3,
   "prCreation": "immediate",
@@ -8,6 +9,11 @@
   "timezone": "UTC",
   "commitMessageAction": "",
   "commitMessageExtra": "to {{{newVersion}}}",
+
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true
+  },
 
   "packageRules": [
     {
@@ -41,6 +47,20 @@
       "description": "Let upstream releases settle before offering them",
       "matchManagers": ["github-actions"],
       "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Docker base images: pinned by digest and kept current within the Node major",
+      "matchManagers": ["dockerfile"],
+      "groupName": "docker base images",
+      "groupSlug": "docker-base-images",
+      "labels": ["dependencies", "ci"],
+      "pinDigests": true
+    },
+    {
+      "description": "A new Node major is a decision, not a routine bump",
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     }
   ]
 }
