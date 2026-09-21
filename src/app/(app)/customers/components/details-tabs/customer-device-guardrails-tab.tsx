@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadError, Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { LoadError, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { InfoCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
