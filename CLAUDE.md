@@ -164,7 +164,8 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 `package.json` carries **exact versions — no `^` or `~`** — and `.npmrc` sets `save-exact=true`, so
 `npm install <pkg>` keeps it that way. `package-lock.json` already froze what CI and the Docker build
 install (`npm ci`); the exact pins make `package.json` say the same thing, so an `npm install` or
-`npm update` on a laptop cannot move a version no PR asked for.
+`npm update` on a laptop cannot move a version no PR asked for. The Dockerfile base image is pinned
+to a full version tag for the same reason.
 
 - **To bump:** change the version, run `npm install`, and check the `Scan Code` job — Trivy over
   `package-lock.json` and the Dockerfile's base images, failing on any HIGH/CRITICAL that has a fix.
