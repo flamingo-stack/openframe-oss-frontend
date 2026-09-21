@@ -181,6 +181,9 @@ export function TicketsTab({ device }: TicketsTabProps) {
           isFetchingNextPage={isFetchingNextPage}
           onLoadMore={handleLoadMore}
           skeletonRows={2}
+          // The rows are narrowed on the client, so a page can arrive in full and
+          // add none of them: the footer reads progress off this count instead.
+          loadedCount={tickets.length}
         />
       </DataTable>
     </div>
