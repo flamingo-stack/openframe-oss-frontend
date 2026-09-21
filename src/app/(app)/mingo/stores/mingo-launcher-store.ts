@@ -126,7 +126,13 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
 
       startNewChat: () =>
         set(
-          { isOpen: true, pendingNewChat: true, pendingPrompt: null, pendingDraft: null, closedForNavigation: false },
+          {
+            isOpen: true,
+            pendingNewChat: true,
+            pendingPrompt: null,
+            pendingDraft: null,
+            closedForNavigation: false,
+          },
           false,
           'startNewChat',
         ),

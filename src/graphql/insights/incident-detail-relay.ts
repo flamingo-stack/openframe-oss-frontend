@@ -9,5 +9,6 @@ export const incidentDetailRelayQuery = graphql`
     insight(id: $id) {
       ...insightFields_insight
     }
+    ...insightTransitions_query
   }
 `;
