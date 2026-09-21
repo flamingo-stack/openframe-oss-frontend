@@ -224,6 +224,8 @@ export class WebSocketManager {
 
       const tokenRefreshed = await this.refreshTokenIfNeeded(forceRefresh);
 
+      if (this.isDisposed) return;
+
       if (this.socket?.readyState === WebSocket.OPEN) {
         this.setState('connected');
         return;
