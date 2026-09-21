@@ -222,7 +222,6 @@ export function SoftwareDevicesTable({
           }
           rowClassName="mb-1"
           rowHref={deviceHref}
-          autoHeight
         />
         {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
         {rows.length > 0 && (

@@ -205,7 +205,6 @@ export function SoftwareActionsTable({
           }
           rowClassName="mb-1"
           rowHref={detailsHref}
-          autoHeight
         />
         {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
         {rows.length > 0 && (

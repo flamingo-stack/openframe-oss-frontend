@@ -201,7 +201,6 @@ export function SoftwareListTable({
           }
           rowClassName="mb-1"
           rowHref={rowHref}
-          autoHeight
         />
         {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
         {rows.length > 0 && (

@@ -229,7 +229,6 @@ export function SoftwareVulnerabilitiesTable({
                 : 'No known vulnerabilities for this software.'
           }
           rowClassName="mb-1"
-          autoHeight
         />
         {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
         {rows.length > 0 && (
