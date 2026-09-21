@@ -147,13 +147,18 @@ export function SsoConfigurationTab() {
       const domainInfo = await fetchTenantDomain();
       setTenantDomain(domainInfo);
     } catch (err) {
-      console.error('Failed to load tenant domain:', err);
-      // Don't set error state - shared SSO section will just not show
+      // Don't set error state - shared SSO section will just not show; surface
+      // via toast so the failure isn't silently swallowed.
+      toast({
+        title: 'Failed to load domain settings',
+        description: err instanceof Error ? err.message : 'Failed to load tenant domain',
+        variant: 'destructive',
+      });
       setTenantDomain(null);
     } finally {
       setIsDomainLoading(false);
     }
-  }, [fetchTenantDomain]);
+  }, [fetchTenantDomain, toast]);
 
   // The 'openframe' pseudo-provider backs the tenant-wide built-in login toggle.
   // Older backends 404 on it (fetchProviderConfig -> undefined); any other
@@ -164,12 +169,16 @@ export function SsoConfigurationTab() {
       const cfg = await fetchProviderConfig('openframe');
       setOpenframeSso(cfg ? { enabled: cfg.enabled === true } : null);
     } catch (err) {
-      console.error('Failed to load OpenFrame SSO state:', err);
+      toast({
+        title: 'Failed to load OpenFrame SSO',
+        description: err instanceof Error ? err.message : 'Failed to load OpenFrame SSO state',
+        variant: 'destructive',
+      });
       setOpenframeSso(null);
     } finally {
       setIsOpenframeLoading(false);
     }
-  }, [fetchProviderConfig]);
+  }, [fetchProviderConfig, toast]);
 
   const openDetails = useCallback((row: UiProviderRow) => setDetailsRow(row), []);
 
