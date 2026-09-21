@@ -354,6 +354,7 @@ function RunExecutionRows({
       hasNext={hasNext}
       isLoadingNext={isLoadingNext}
       onLoadMore={fetchNextPage}
+      loadedCount={data.scheduleExecutions?.edges?.length ?? 0}
       {...tableState}
     />
   );

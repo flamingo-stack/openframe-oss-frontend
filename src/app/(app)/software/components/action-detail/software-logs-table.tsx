@@ -335,6 +335,9 @@ export function SoftwareLogsTable({
               isFetchingNextPage={isLoadingNext}
               onLoadMore={fetchNextPage}
               skeletonRows={2}
+              // The search narrows the loaded rows on the client, so a page can
+              // arrive and add no match: progress is read off this count instead.
+              loadedCount={allRows.length}
             />
           )}
         </DataTable>

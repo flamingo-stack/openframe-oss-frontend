@@ -256,6 +256,13 @@ export interface ExecutionsTableProps {
   hasNext: boolean;
   isLoadingNext: boolean;
   onLoadMore: () => void;
+  /**
+   * Rows fetched so far, for a caller that narrows `executions` on the client
+   * (see `narrowExecutions`). A page can then arrive in full and add no visible
+   * row; without this the infinite footer reads that as a stalled fetch and
+   * stops pulling the remaining pages in.
+   */
+  loadedCount?: number;
   /** The search term the rows on screen were fetched with (for the empty copy). */
   search: string;
   /** Dispatched-date sort + range, hosted by the Execution column's header. */
@@ -284,6 +291,7 @@ export function ExecutionsTable({
   hasNext,
   isLoadingNext,
   onLoadMore,
+  loadedCount,
   search,
   dateFilter,
   emptyState,
@@ -603,6 +611,7 @@ export function ExecutionsTable({
               isFetchingNextPage={isLoadingNext}
               onLoadMore={onLoadMore}
               skeletonRows={2}
+              loadedCount={loadedCount}
             />
           )}
         </DataTable>
