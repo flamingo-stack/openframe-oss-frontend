@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Next.js 16 standalone (distDir=dist), multi-arch via BuildKit
-FROM --platform=$BUILDPLATFORM node:24.21.0-alpine3.24 AS builder
+FROM --platform=$BUILDPLATFORM node:22-alpine3.24 AS builder
 WORKDIR /app
 
 # npm's defaults allow 970s of silence per hung registry socket; these bound it to 115s 
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/app/dist/cache \
       rm -rf dist/standalone/node_modules/@img dist/standalone/node_modules/sharp; \
     fi
 
-FROM node:24.21.0-alpine3.24 AS runner
+FROM node:22-alpine3.24 AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
