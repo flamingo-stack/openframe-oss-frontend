@@ -32,8 +32,19 @@ export const FEATURE_FLAG_NAMES = [
   // drives the mock services: the simulate-decision strip on the awaiting
   // screen and the recording player's local .mcrec loader. On for dev / qa.
   'remote-access-mock-tools',
+  // TEMPORARY - remove once the approval API (CU-86ajx02gz) runs on every
+  // environment. On = the approval-gated connect flow talks to the real
+  // /api/v1/remote-access/** service (dev, where the backend is deployed);
+  // off = the in-memory mock that the QA tooling above drives.
+  'remote-access-approval-api',
   // The Incidents module (`/incidents`) over saas-api's `insights` API.
   'insights',
+  // Tenant Management (CU-86akj8ajt): the Settings module that connects
+  // Microsoft 365 / Google Workspace directories. The backend does not register
+  // the name yet, so the module stays dark on qa/prod until it does; the dev
+  // server treats the missing answer as "on" (`use-tenant-management-gate.ts`)
+  // so the mock-backed UI can be exercised, while an explicit "off" still wins.
+  'tenant-management',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
@@ -178,6 +189,16 @@ export const featureFlags = {
   remoteAccessApproval: {
     enabled(): boolean {
       return getFlagValue('remote-access-approval', () => false);
+    },
+  },
+  /**
+   * Tenant Management (CU-86akj8ajt). Route/hub gating goes through
+   * `useTenantManagementGate` (tri-state, dev bypass); this accessor is for
+   * imperative reads only.
+   */
+  tenantManagement: {
+    enabled(): boolean {
+      return getFlagValue('tenant-management', () => false);
     },
   },
 } as const;

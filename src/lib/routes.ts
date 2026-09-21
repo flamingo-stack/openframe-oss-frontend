@@ -345,6 +345,14 @@ export const routes = {
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
     billingUsage: (o?: { action?: BillingUsageAction }) => withQuery('/settings/billing-usage', { action: o?.action }),
+    // Tenant Management (CU-86akj8ajt): Microsoft 365 / Google Workspace directory
+    // connections. Sub-pages take the connection id as `?id=` like every other
+    // detail page (static-export constraint, see ROUTES.md).
+    tenantManagement: '/settings/tenant-management',
+    tenantNew: '/settings/tenant-management/new',
+    tenantDetails: (id: string | number) => withQuery('/settings/tenant-management/details', { id }),
+    tenantEdit: (id: string | number) => withQuery('/settings/tenant-management/edit', { id }),
+    tenantReconnect: (id: string | number) => withQuery('/settings/tenant-management/reconnect', { id }),
   },
 
   notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),

@@ -248,6 +248,19 @@ export default defineConfig([
   },
 
   {
+    // TEMPORARY (CU-86akj8ajt). The directory-integration enums exist only on an
+    // unmerged backend branch, so `npm run generate-enums` cannot emit them yet.
+    // This file mirrors them in the generated file's exact shape — a `const` and a
+    // same-named `type` — so that swapping it for a re-export from
+    // `@/generated/schema-enums` changes no import anywhere. The generated
+    // directory is not linted, which is the only reason this shape needs a block.
+    // Delete this block together with the mirror.
+    name: 'openframe-frontend/tenant-management-enum-mirror',
+    files: ['src/app/(app)/settings/tenant-management/types/directory-enums.ts'],
+    rules: { '@typescript-eslint/no-redeclare': 'off' },
+  },
+
+  {
     // `relay/generated-typescript-types` matches on the HOOK NAME alone. This app
     // runs react-relay and TanStack React Query side by side on purpose (see
     // CLAUDE.md: Relay for `/api/graphql`, react-query for REST and the

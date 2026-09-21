@@ -3,7 +3,7 @@
 import { CheckCircle2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { isBillingHidden } from '@/lib/billing-visibility';
+import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
 import { CheckoutResultCard } from '../components/checkout-result-card';
 
@@ -22,7 +22,7 @@ export default function CheckoutSuccessPage() {
   // the flags store, so the 404 was permanent and every paying customer met it.
   // Only a resolved `off` may 404 — the same rule as `billing-usage/page.tsx`.
   const gate = useFeatureFlagGate('billings');
-  if (isBillingHidden() || gate === 'off') {
+  if (isBillingHidden() || isBillingReadOnly() || gate === 'off') {
     notFound();
   }
 

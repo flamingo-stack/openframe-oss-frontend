@@ -13,8 +13,6 @@ class ResizeObserverStub {
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
 
-const BLANK_CONTACT = { name: '', title: '', email: '', phone: '' };
-
 function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
   return {
     id: 'org-1',
@@ -26,9 +24,7 @@ function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
     updatedAt: '2025-08-27T14:45:00Z',
     physicalAddress: '',
     mailingAddress: '',
-    primary: { ...BLANK_CONTACT },
-    billing: { ...BLANK_CONTACT },
-    technical: { ...BLANK_CONTACT },
+    contacts: [],
     mrrUsd: null,
     contractStart: null,
     contractEnd: null,
@@ -82,5 +78,84 @@ describe('CustomerDetailsTab', () => {
     render(customer({ notes: ['  \n\t\n '] }));
 
     expect(notesBody()).toContain('No notes yet');
+  });
+});
+
+const CONTACT = { contactName: 'Jane Doe', title: 'IT Manager', email: 'jane@acme.com', phone: '+1-555-0123' };
+
+describe('CustomerDetailsTab cards', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  const render = (organization: CustomerDetails) => {
+    act(() => root.render(<CustomerDetailsTab organization={organization} />));
+  };
+
+  // The two StackedRowsPanel cards, in order: info, contacts.
+  const panels = () => [...container.querySelectorAll<HTMLElement>('[class~="overflow-clip"]')];
+  const contactsPanel = () => {
+    const panel = panels()[1];
+    if (!panel) throw new Error('Contacts card not rendered');
+    return panel;
+  };
+
+  it('renders each contact once for desktop and split in two for mobile, dropping the last border', () => {
+    render(customer({ contacts: [CONTACT, { ...CONTACT, contactName: 'John Roe', email: 'john@acme.com' }] }));
+
+    const desktopRows = [...contactsPanel().querySelectorAll<HTMLElement>('[class~="md:flex"]')];
+    const mobileRows = [...contactsPanel().querySelectorAll<HTMLElement>('[class~="md:hidden"]')];
+    expect(desktopRows).toHaveLength(2);
+    expect(mobileRows).toHaveLength(4);
+
+    for (const label of ['Contact Name', 'Contact Title', 'Email Address', 'Phone Number']) {
+      expect(desktopRows[0].textContent).toContain(label);
+    }
+    expect(desktopRows[0].textContent).toContain('jane@acme.com');
+    expect(mobileRows[0].textContent).toContain('Jane Doe');
+    expect(mobileRows[0].textContent).not.toContain('jane@acme.com');
+    expect(mobileRows[1].textContent).toContain('jane@acme.com');
+    expect(mobileRows[2].textContent).toContain('John Roe');
+
+    expect(desktopRows[0].className).not.toContain('md:border-b-0');
+    expect(desktopRows[1].className).toContain('md:border-b-0');
+  });
+
+  it('shows the empty state when there are no contacts', () => {
+    render(customer({ contacts: [] }));
+
+    expect(contactsPanel().textContent).toContain('No contacts yet');
+  });
+
+  it('links a bare website domain over https and renders a missing one as a dash without a link', () => {
+    render(customer({ website: 'techflow.com' }));
+    expect(panels()[0].querySelector('a')?.getAttribute('href')).toBe('https://techflow.com');
+
+    render(customer({ website: '-' }));
+    expect(panels()[0].querySelector('a')).toBeNull();
+    expect(panels()[0].textContent).toContain('—');
+  });
+
+  it('renders the addresses on one desktop row and two mobile rows, dashes when missing', () => {
+    render(customer({ physicalAddress: '1 Main St', mailingAddress: '' }));
+
+    const info = panels()[0];
+    const desktop = info.querySelector<HTMLElement>('[class~="md:flex"]');
+    const mobile = [...info.querySelectorAll<HTMLElement>('[class~="md:hidden"]')];
+    expect(desktop?.textContent).toContain('1 Main St');
+    expect(desktop?.textContent).toContain('Mailing Address');
+    expect(desktop?.className).toContain('md:border-b-0');
+    expect(mobile).toHaveLength(2);
+    expect(mobile[1].textContent).toContain('—');
   });
 });

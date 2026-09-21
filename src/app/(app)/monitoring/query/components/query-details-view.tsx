@@ -198,7 +198,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
                   data={rows}
                   loading={isReportLoading}
                   emptyMessage="No report results available"
-                  columnOrder={['host_name', 'last_fetched']}
+                  columnOrder={['device', 'last_fetched']}
                   showExport={false}
                 />
               )}

@@ -14,7 +14,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLocalStorage } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useNatsJsonSubscription } from '@flamingo-stack/openframe-frontend-core/nats';
+import { useNatsJsonSubscription, useOptionalNats } from '@flamingo-stack/openframe-frontend-core/nats';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -49,8 +49,10 @@ import { cancelPendingPushMutation } from '@/graphql/notifications/cancel-pendin
 import { getLiveConnectionPairs } from '@/graphql/notifications/live-connection-pairs';
 import { markNotificationReadMutation } from '@/graphql/notifications/mark-notification-read-mutation';
 import {
+  DRAWER_PAGE_SIZE,
   notificationsDrawerRelayFragment,
   notificationsDrawerRelayQuery,
+  refetchNotificationsDrawer,
 } from '@/graphql/notifications/notifications-drawer-relay';
 import {
   adjustUnreadCount,
@@ -92,7 +94,6 @@ import {
 import { openMingoDialogInDrawer } from './open-mingo-dialog';
 import { useApproveRequest } from './use-approve-request';
 
-const DRAWER_PAGE_SIZE = 30;
 const SHOW_POPUPS_STORAGE_KEY = 'of.notifications:showPopups';
 const SHOW_DESKTOP_POPUPS_STORAGE_KEY = 'of.notifications:desktop';
 const DESKTOP_NOTIFICATION_ICON = '/assets/openframe/android-chrome-192x192.png';
@@ -152,16 +153,21 @@ function writeNotificationShapes(node: RecordProxy, payload: NatsNotificationPay
   }
 }
 
-/** Prepend a notification node to the unread connection, skipping if it's already present. */
+/**
+ * Prepend a notification node to the unread connection. Returns whether an edge
+ * was actually inserted, so the caller bumps the unread count only for genuinely
+ * new rows and a redelivered push cannot double-count.
+ */
 function prependNotificationEdge(
   store: RecordSourceSelectorProxy,
   conn: RecordProxy,
   node: RecordProxy,
   relayId: string,
-): void {
-  if (connectionHasNode(conn, relayId)) return;
+): boolean {
+  if (connectionHasNode(conn, relayId)) return false;
   const edge = ConnectionHandler.createEdge(store, conn, node, 'NotificationEdge');
   ConnectionHandler.insertEdgeBefore(conn, edge);
+  return true;
 }
 
 /**
@@ -632,6 +638,19 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
     routerRef.current = router;
   });
 
+  // Plain core NATS has no replay: anything published while the socket was down
+  // never reaches this tab. On reconnect, re-pull the first page and the counts.
+  // This IS the recovery mechanism, by decision: the DB is the source of truth
+  // and NATS is a lossy live hint — no JetStream replay for notifications.
+  const reconnectionCount = useOptionalNats()?.reconnectionCount ?? 0;
+  const lastReconnectRef = useRef(reconnectionCount);
+  useEffect(() => {
+    if (reconnectionCount === lastReconnectRef.current) return;
+    lastReconnectRef.current = reconnectionCount;
+    refetchNotificationsDrawer(environmentRef.current);
+    refreshUnreadCounts(environmentRef.current);
+  }, [reconnectionCount]);
+
   useNatsJsonSubscription<NatsNotificationPayload>(
     subject,
     useCallback(payload => {
@@ -654,6 +673,8 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       const resolution = payloadAttributes(payload)[NOTIFICATION_ATTR.resolution] ?? null;
 
       let resolutionAutoRead = false;
+      let redeliveredAsRead = false;
+      let connectionMissing = false;
       commitLocalUpdate(environmentRef.current, store => {
         const existing = store.get(relayId);
         // An UPDATED event mutates a notification in place (e.g. an approval that was
@@ -681,6 +702,13 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
           return;
         }
 
+        // A CREATED for a notification already read is a redelivery (ids are stable),
+        // not a new fact — keep the fields fresh but don't resurrect it as unread.
+        if (existing?.getValue('read') === true) {
+          redeliveredAsRead = true;
+          return;
+        }
+
         node.setValue(createdAtSeconds, 'createdAt');
         node.setValue(false, 'read');
 
@@ -696,10 +724,18 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
           NOTIFICATIONS_CONNECTION_KEY,
           UNFILTERED_NOTIFICATION_PAIR.unread,
         );
-        if (!conn) return;
-        prependNotificationEdge(store, conn, node, relayId);
-        // Bump the sidebar bucket in the same transaction as the drawer prepend.
-        adjustUnreadCount(store, category, 1);
+        if (!conn) {
+          // Boot race or an errored drawer query: the node is written but the edge
+          // has nowhere to go — the throttled refetch below lists it instead of
+          // silently dropping the row while the badge moves.
+          connectionMissing = true;
+          return;
+        }
+        // Bump the sidebar bucket in the same transaction, and only when an edge
+        // was actually inserted.
+        if (prependNotificationEdge(store, conn, node, relayId)) {
+          adjustUnreadCount(store, category, 1);
+        }
       });
 
       // In-place update: no popup and no desktop mirror. When a resolution auto-read the
@@ -716,6 +752,12 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
         }
         return;
       }
+
+      // Redelivered CREATED for an already-read notification: fields refreshed,
+      // nothing to alert about again on any surface.
+      if (redeliveredAsRead) return;
+
+      if (connectionMissing) refetchNotificationsDrawer(environmentRef.current);
 
       // An active human at this session is looking at the app right now, so kill the
       // pending OS push rather than buzzing a phone about something already on screen.

@@ -3,7 +3,7 @@
 import { XCircle } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { isBillingHidden } from '@/lib/billing-visibility';
+import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
 import { CheckoutResultCard } from '../components/checkout-result-card';
 
@@ -12,7 +12,7 @@ export default function CheckoutCancelPage() {
   // there for why the `billings` flag may only 404 this page once it has actually
   // answered.
   const gate = useFeatureFlagGate('billings');
-  if (isBillingHidden() || gate === 'off') {
+  if (isBillingHidden() || isBillingReadOnly() || gate === 'off') {
     notFound();
   }
 

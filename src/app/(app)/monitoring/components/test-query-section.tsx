@@ -16,7 +16,8 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { Device } from '../../devices/types/device.types';
-import { getFleetHostId } from '../../devices/utils/device-action-utils';
+import { getFleetHostId, indexDevicesByFleetHostId } from '../../devices/utils/device-action-utils';
+import { getDeviceName } from '../../devices/utils/device-name';
 import { getDeviceStatusConfig } from '../../devices/utils/device-status';
 import { useQueryTestRun } from './query-test-run';
 
@@ -37,7 +38,14 @@ export interface TestQuerySectionProps {
  * assigned to any device.
  */
 export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices, className }: TestQuerySectionProps) {
-  const test = useQueryTestRun();
+  // Result rows come back from Fleet keyed by host id with Fleet's own display name;
+  // the registry devices this section already holds name them like every other screen.
+  const deviceByFleetId = useMemo(() => indexDevicesByFleetHostId(devices), [devices]);
+  const hostName = useCallback(
+    ({ id, fleetName }: { id: number; fleetName: string }) => getDeviceName(deviceByFleetId.get(id)) || fleetName,
+    [deviceByFleetId],
+  );
+  const test = useQueryTestRun({ hostName });
   const [isOpen, setIsOpen] = useState(false);
   const [selectedHostId, setSelectedHostId] = useState<string>('');
 
@@ -46,8 +54,8 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
     () =>
       devices
         .filter(d => getFleetHostId(d) !== undefined)
-        .sort((a, b) => (a.displayName || a.hostname || '').localeCompare(b.displayName || b.hostname || ''))
-        .map(d => ({ value: String(getFleetHostId(d)), label: d.displayName || d.hostname || '' })),
+        .sort((a, b) => getDeviceName(a).localeCompare(getDeviceName(b)))
+        .map(d => ({ value: String(getFleetHostId(d)), label: getDeviceName(d) })),
     [devices],
   );
 

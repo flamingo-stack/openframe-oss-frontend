@@ -154,8 +154,12 @@ export interface Device {
   machineId: string;
   hostname: string;
   displayName: string;
-  /** User-defined nickname — preferred over displayName/hostname when set. */
-  nickname?: string;
+  /**
+   * User-defined nickname — preferred over displayName/hostname when set. A
+   * required key (see `DeviceNameSource`): every constructor states it, so a
+   * source that forgot to select it fails here instead of rendering the hostname.
+   */
+  nickname: string | undefined;
 
   // Hardware - CPU
   cpu_brand?: string;
@@ -319,12 +323,19 @@ export interface GraphQlResponse<T> {
   }>;
 }
 
+/**
+ * A partial `Device` that still names itself — a log row's device, a card fed from
+ * another entity. `Partial` alone would make `nickname` optional again and reopen
+ * the silent hostname fallback `DeviceNameSource` closes.
+ */
+export type PartialNamedDevice = Partial<Device> & Pick<Device, 'nickname'>;
+
 export type DeviceGraphQlNode = {
   id: string;
   machineId: string;
   hostname: string;
   displayName?: string;
-  nickname?: string | null;
+  nickname: string | null;
   ip?: string;
   macAddress?: string;
   osUuid?: string;
