@@ -49,7 +49,7 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
   const handleBack = useSafeBack(routes.incidents.list);
   const { fixWithMingo, pendingId: mingoPendingId, canOpenMingo } = useFixWithMingo();
   // One Mingo button: reopen the chat already started from this incident, or start one.
-  const { dialog: mingoSession, isLoading: isMingoSessionLoading } = useLatestIncidentDialog(incident.insightId);
+  const mingoSession = useLatestIncidentDialog(incident.insightId);
   // Mingo's "open view": this incident rides on every message sent while the page is up.
   useTrackOpenView({ type: CONTEXT_ENTITY_KIND.INSIGHT, id: incident.insightId, label: incident.title });
   const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } = useIncidentTransitions();
@@ -82,8 +82,8 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
         variant: 'outline',
         icon: mingoIcon,
         onClick: () => fixWithMingo(incident),
-        disabled: !canOpenMingo || mingoPendingId !== null || isMingoSessionLoading,
-        loading: mingoPendingId !== null || isMingoSessionLoading,
+        disabled: !canOpenMingo || mingoPendingId !== null,
+        loading: mingoPendingId !== null,
       };
 
   const actions: PageActionButton[] = [

@@ -8,7 +8,7 @@ import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/uti
 import type { KnowledgeBaseRow } from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
 import type { Dialog, DialogStatus } from '@/app/(app)/tickets/types/dialog.types';
 import { postGraphQl } from './graphql';
-import { ensureGlobalId } from './relay-id';
+import { ensureGlobalId, toRawId } from './relay-id';
 import {
   ASSIGNMENT_TARGET_TYPES,
   type AssignmentItemType,
@@ -145,7 +145,7 @@ function toMachineRowFields(target: AssignedTargetNode): DeviceRowFields {
 function toDialog(target: AssignedTargetNode): Dialog {
   const t = unaliasFields(target);
   return {
-    id: target.id,
+    id: toRawId(target.id),
     title: (t.title as string) || 'Untitled Dialog',
     status: ((t.status as string) ?? 'ACTIVE') as DialogStatus,
     owner: { type: 'CLIENT' },

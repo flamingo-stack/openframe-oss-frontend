@@ -31,6 +31,7 @@ import type {
   InsightFilter,
 } from '@/__generated__/incidentsTableRelayQuery.graphql';
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
+import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
 import { EmptyState, liveColumnMeta, skeletonColumnDefs, useRetryKey } from '@/app/components/shared';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -45,8 +46,10 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
+import type { DialogNode } from '../../mingo/types';
 import { type FacetEntry, type FacetOption, facetToSortedOptions } from '../../scripts/shared/utils/facet-options';
 import { useFixWithMingo } from '../hooks/use-fix-with-mingo';
+import { useLatestIncidentDialogs } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
 import {
   enumMembers,
@@ -70,6 +73,19 @@ const PAGE_SIZE = 20;
  * dependency, not this app's.
  */
 type ColumnFilterState = { id: string; value: unknown }[];
+
+/**
+ * A row plus the state its Mingo button draws. It rides IN the row data rather
+ * than in the column defs on purpose: `DataTableRow` is memoized on the row
+ * object, which TanStack keeps stable across column changes, so a cell reading
+ * a value from the columns' closure keeps showing what it saw first.
+ */
+interface IncidentTableRow extends IncidentRow {
+  /** The chat started from this incident; null when none; undefined until the lookup answers. */
+  mingoSession: DialogNode | null | undefined;
+  /** This row's "Fix with Mingo" prompt is being fetched. */
+  mingoPending: boolean;
+}
 
 /**
  * Dropdown options for an enum facet, labelled with this app's names so the
@@ -150,8 +166,22 @@ function IncidentsTableContent({
     IncidentsFragmentKey
   >(incidentsTableRelayFragment, queryData);
 
-  const rows: IncidentRow[] = (data.insights?.edges ?? []).flatMap(edge =>
-    edge?.node ? [toIncidentRow(edge.node)] : [],
+  const incidents = useMemo<IncidentRow[]>(
+    () => (data.insights?.edges ?? []).flatMap(edge => (edge?.node ? [toIncidentRow(edge.node)] : [])),
+    [data.insights?.edges],
+  );
+  // Which rows already have a chat: their button reopens it instead of starting one.
+  const mingoSessions = useLatestIncidentDialogs(incidents.map(row => row.insightId));
+  // Manual memo on purpose: TanStack compares `data` by identity, and a fresh
+  // array per render rebuilds the row model every time.
+  const rows = useMemo<IncidentTableRow[]>(
+    () =>
+      incidents.map(row => ({
+        ...row,
+        mingoSession: mingoSessions[row.insightId],
+        mingoPending: mingoPendingId === row.id,
+      })),
+    [incidents, mingoSessions, mingoPendingId],
   );
 
   // A failed page must stop the footer: its sentinel stays in view, Relay
@@ -215,7 +245,7 @@ function IncidentsTableContent({
     useIncidentTransitions(refreshFilterMeta);
   const transitionTable = toTransitionTable(queryData);
 
-  const columns = useMemo<ColumnDef<IncidentRow>[]>(() => {
+  const columns = useMemo<ColumnDef<IncidentTableRow>[]>(() => {
     const renderRowActions = (row: IncidentRow) => {
       const items = transitionMenuItems(row, transitionTable, transition, isMutating);
       return items.length > 0 ? <ActionsMenuDropdown groups={[{ items }]} /> : null;
@@ -224,7 +254,7 @@ function IncidentsTableContent({
       {
         accessorKey: 'type',
         header: INCIDENT_COLUMNS.incident.header,
-        cell: ({ row }: { row: Row<IncidentRow> }) => (
+        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
           <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
             <TruncateText>{row.original.title}</TruncateText>
             {/* The Status column is hidden below lg; its time line moves under the title. */}
@@ -249,7 +279,7 @@ function IncidentsTableContent({
         // device facet, and a customer narrows the fleet the way a technician does.
         accessorKey: 'organizationId',
         header: INCIDENT_COLUMNS.device.header,
-        cell: ({ row }: { row: Row<IncidentRow> }) => (
+        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
           <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
             <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
               {renderDeviceTypeIcon(row.original.deviceType ?? undefined, 'size-6 shrink-0 text-ods-text-secondary')}
@@ -271,7 +301,7 @@ function IncidentsTableContent({
       {
         accessorKey: 'severity',
         header: INCIDENT_COLUMNS.severity.header,
-        cell: ({ row }: { row: Row<IncidentRow> }) => <IncidentSeverityTag severity={row.original.severity} />,
+        cell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentSeverityTag severity={row.original.severity} />,
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: liveColumnMeta(INCIDENT_COLUMNS.severity, { filter: { options: severityOptions } }),
@@ -279,7 +309,7 @@ function IncidentsTableContent({
       {
         accessorKey: 'status',
         header: INCIDENT_COLUMNS.status.header,
-        cell: ({ row }: { row: Row<IncidentRow> }) => (
+        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
           <div className="flex min-w-0 flex-col items-start justify-center gap-[var(--spacing-system-xxs)]">
             <IncidentStatusTag status={row.original.status} />
             <TruncateText variant="h6" tone="secondary">
@@ -297,7 +327,7 @@ function IncidentsTableContent({
       },
       {
         id: 'actions',
-        cell: ({ row }: { row: Row<IncidentRow> }) => (
+        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
           <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             {renderRowActions(row.original)}
           </div>
@@ -306,36 +336,56 @@ function IncidentsTableContent({
         meta: liveColumnMeta(INCIDENT_COLUMNS.actions),
       },
       {
-        // "Fix with Mingo": fetches the server's prompt for the incident and
-        // opens the drawer on a fresh chat with it in the composer — nothing
-        // sent. Disabled while no drawer is mounted (locked workspace).
+        // The Mingo button: "Open Mingo Session" once a chat was started from
+        // the incident, else "Fix with Mingo" — fetch the server's prompt and
+        // open the drawer on a fresh chat with it in the composer, nothing sent.
+        // Inert until the row's lookup answers (no spinner: it settles in place)
+        // and while no drawer is mounted (locked workspace).
         id: 'mingo',
-        cell: ({ row }: { row: Row<IncidentRow> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={() => fixWithMingo(row.original)}
-              variant="outline"
-              size="icon"
-              leftIcon={
-                <MingoIcon
-                  className="size-5"
-                  eyesColor="var(--ods-flamingo-cyan-base)"
-                  cornerColor="var(--ods-flamingo-cyan-base)"
-                />
-              }
-              aria-label="Fix with Mingo"
-              disabled={!canOpenMingo || mingoPendingId !== null}
-              loading={mingoPendingId === row.original.id}
-              className="bg-ods-card"
+        cell: ({ row }: { row: Row<IncidentTableRow> }) => {
+          const session = row.original.mingoSession;
+          const icon = (
+            <MingoIcon
+              className="size-5"
+              eyesColor="var(--ods-flamingo-cyan-base)"
+              cornerColor="var(--ods-flamingo-cyan-base)"
             />
-          </div>
-        ),
+          );
+          return (
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+              {session ? (
+                <Button
+                  onClick={() => openMingoDialogInDrawer(session.id)}
+                  variant="outline"
+                  size="icon"
+                  leftIcon={icon}
+                  aria-label="Open Mingo Session"
+                  title="Open Mingo Session"
+                  disabled={!canOpenMingo}
+                  className="bg-ods-card"
+                />
+              ) : (
+                <Button
+                  onClick={() => fixWithMingo(row.original)}
+                  variant="outline"
+                  size="icon"
+                  leftIcon={icon}
+                  aria-label="Fix with Mingo"
+                  title="Fix with Mingo"
+                  disabled={!canOpenMingo || session === undefined || mingoPendingId !== null}
+                  loading={row.original.mingoPending}
+                  className="bg-ods-card"
+                />
+              )}
+            </div>
+          );
+        },
         enableSorting: false,
         meta: liveColumnMeta(INCIDENT_COLUMNS.mingo),
       },
       {
         id: 'open',
-        cell: ({ row }: { row: Row<IncidentRow> }) => (
+        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
           <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={openInNewTab(routes.incidents.details(row.original.id))}
@@ -392,10 +442,10 @@ function IncidentsTableContent({
     [columnFilters, onFilterChange],
   );
 
-  const table = useDataTable<IncidentRow>({
+  const table = useDataTable<IncidentTableRow>({
     data: rows,
     columns,
-    getRowId: (row: IncidentRow) => row.id,
+    getRowId: (row: IncidentTableRow) => row.id,
     enableSorting: false,
     state: { columnFilters },
     onColumnFiltersChange: handleColumnFiltersChange,

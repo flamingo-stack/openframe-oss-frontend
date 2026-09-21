@@ -57,3 +57,10 @@ function toGlobalId(type: AssignmentItemType | AssignmentTargetType, rawId: stri
 export function ensureGlobalId(type: AssignmentItemType | AssignmentTargetType, value: string): string {
   return decodeGlobalId(value) ? value : toGlobalId(type, value);
 }
+
+// The inverse, for what comes BACK: api-service-core hands every AssignableTarget a
+// global id, while the ticket pages (ai-agent) key on the raw one — a global id in
+// `/tickets/dialog?id=` is "ticket not found".
+export function toRawId(value: string): string {
+  return decodeGlobalId(value)?.id ?? value;
+}
