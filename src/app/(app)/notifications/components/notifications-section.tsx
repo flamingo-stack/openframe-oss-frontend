@@ -219,7 +219,7 @@ function SectionTable({
           stickyHeaderOffset={stickyHeaderOffset}
           rightSlot={<DataTable.RowCount itemName="result" />}
         />
-        <DataTable.Body rowClassName="mb-1" renderSubRow={renderSubRow} autoHeight />
+        <DataTable.Body rowClassName="mb-1" renderSubRow={renderSubRow} />
         <DataTable.InfiniteFooter
           hasNextPage={hasNext}
           isFetchingNextPage={isLoadingNext}
@@ -257,7 +257,7 @@ function SectionTableSkeleton({
         stickyHeaderOffset={stickyHeaderOffset}
         rightSlot={<DataTable.RowCount itemName="result" />}
       />
-      <DataTable.Body loading skeletonRows={4} />
+      <DataTable.Body loading skeletonRows={4} rowClassName="mb-1" />
     </DataTable>
   );
 }
