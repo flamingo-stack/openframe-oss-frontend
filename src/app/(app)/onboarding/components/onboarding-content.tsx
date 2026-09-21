@@ -149,24 +149,19 @@ function LoadedOnboardingContent() {
     return () => window.removeEventListener('hashchange', refresh);
   }, []);
 
-  // Open/close → hash write. Opening goes through the canonical
-  // `navigateSamePageHash` (replaceState — a step toggle is not a history step —
-  // + synthetic `hashchange` + anchoring-proof tween aimed at the same offset the
-  // hook scrolls to). Closing clears the fragment; the helper deliberately
-  // refuses hash-less targets, so replicate its replaceState + synthetic-event
-  // pair (`replaceState` fires no native `hashchange` per the HTML spec).
+  // Open/close → hash write, both routed through the canonical `navigateSamePageHash`
+  // helper (replaceState — a step toggle is not a history step — + synthetic
+  // `hashchange` + anchoring-proof tween). Closing has no target anchor, so it clears
+  // the fragment by navigating to the bare pathname+search, which still carries no `#`
+  // for the helper to scroll to.
   const syncHashToStep = useCallback((step: UserOnboardingStepId | null) => {
-    if (step) {
-      navigateSamePageHash(`#${onboardingStepAnchorId(step)}`, {
+    navigateSamePageHash(
+      step ? `#${onboardingStepAnchorId(step)}` : window.location.pathname + window.location.search,
+      {
         headerOffset: ANCHOR_TOP_OFFSET_PX,
         history: 'replace',
-      });
-    } else {
-      const oldUrl = window.location.href;
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      // oldURL/newURL are the DOM HashChangeEventInit field names
-      window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: oldUrl, newURL: window.location.href }));
-    }
+      },
+    );
   }, []);
 
   // Guided flow: the first incomplete step opens automatically (anchored on mount —
