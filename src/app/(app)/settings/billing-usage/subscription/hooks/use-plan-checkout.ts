@@ -157,14 +157,26 @@ export function usePlanCheckout(data: PlanCheckoutData | null): PlanCheckout {
   });
 
   /**
-   * Every non-device product, entered with no options. A checkout session
-   * describes the WHOLE target plan rather than a diff, so leaving these out
-   * would activate a subscription with the AI assistants switched off. How each
-   * is billed is the product's own decision — `payAsYouGoEnabled` is left out on
-   * purpose, since asking for the meter on a product sold in advance is refused.
+   * Every non-device product. A checkout session describes the WHOLE target
+   * plan rather than a diff, so leaving these out would activate a subscription
+   * with the AI assistants switched off.
+   *
+   * AI states its meter OFF rather than leaving the flag out. It is sold in
+   * advance — the token bank — and asking for the meter there is refused
+   * ("Sold in advance, so pay-as-you-go cannot be enabled: [AI_ASSISTANCE]"),
+   * which is what a trial hit when this sent `true`. An explicit `false` also
+   * does not depend on how the backend reads an absent flag. Any other product
+   * is entered bare and decides for itself.
    */
   const otherProducts = useMemo<ProductCheckoutInput[]>(
-    () => products.filter(p => p.name !== OpenframeProduct.MANAGED_DEVICES).map(p => ({ productName: p.name })),
+    () =>
+      products
+        .filter(p => p.name !== OpenframeProduct.MANAGED_DEVICES)
+        .map(p =>
+          p.name === OpenframeProduct.AI_ASSISTANCE
+            ? { productName: p.name, payAsYouGoEnabled: false }
+            : { productName: p.name },
+        ),
     [products],
   );
 
