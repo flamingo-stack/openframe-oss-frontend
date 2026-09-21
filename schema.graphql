@@ -69,6 +69,7 @@ type AssignedItemCount {
 enum AssignmentItemType {
   TICKET
   KNOWLEDGE_ARTICLE
+  INSIGHT
 }
 
 enum AssignmentTargetType {
@@ -1894,6 +1895,17 @@ type Query {
     a list of insights must not be able to pull notes row by row.
     """
     insightNotes(insightId: ID!, first: Int, after: String): InsightNoteConnection!
+    """
+    A ready-to-send chat message about one insight: a short ask plus the `@insight:<id>` marker the
+    assistant expands into the finding itself. Built server-side so the marker carries the stored id,
+    which the client never sees, and the text cannot go stale when the detector refreshes the insight.
+    """
+    insightChatPrompt(id: ID!): String!
+    """
+    Which status an insight may move to from each status it can be in. The mutations below enforce
+    exactly this table, so a client can drive its controls from it rather than restating the rules.
+    """
+    insightStatusTransitions: [InsightStatusTransition!]!
 
   """ Relay Node interface queries"""
   node(id: ID!): Node
@@ -3465,6 +3477,13 @@ input SnoozeInsightInput {
     id: ID!
     "When the insight returns to the working set."
     until: Instant!
+}
+
+type InsightStatusTransition {
+    "The status an insight is in."
+    from: InsightStatus!
+    "Every status it may move to from there."
+    to: [InsightStatus!]!
 }
 
 type InsightConnection {

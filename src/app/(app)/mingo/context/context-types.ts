@@ -44,7 +44,10 @@ export const CONTEXT_ENTITY_KIND = {
   POLICY: 'POLICY',
   QUERY: 'QUERY',
   SCHEDULED_SCRIPT: 'SCHEDULED_SCRIPT',
-  /** An incident (the API's `Insight`); the marker is `@insight:<Insight.id>`. */
+  /**
+   * An incident (the API's `Insight`); the marker is `@insight:<stored id>` —
+   * the id INSIDE the Relay handle, like every other kind.
+   */
   INSIGHT: 'INSIGHT',
 } as const;
 
@@ -98,8 +101,9 @@ export const CONTEXT_RELAY_TYPENAME: Partial<Record<ContextEntityKind, string>> 
   KB_FOLDER: 'KnowledgeBaseItem',
   SCRIPT: 'Script',
   SCHEDULED_SCRIPT: 'ScriptSchedule',
-  // `Insight.id` is ALREADY the opaque global id (the `insight(id:)` query takes
-  // it as is), so `ensureGlobalIdForType` passes it through untouched.
+  // An INSIGHT reference carries the STORED id (what the ai-agent's resolver looks
+  // up); the chip re-encodes it through `ensureGlobalIdForType('Insight', …)` for
+  // the `insight(id:)` query, which takes the global handle.
   INSIGHT: 'Insight',
 };
 

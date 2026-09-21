@@ -135,6 +135,8 @@ export interface CreateTicketInput {
   deviceId?: string;
   organizationId?: string;
   assigneeId?: string;
+  /** Raw insight id when the ticket is filed from an incident; links the two on create. */
+  insightId?: string;
   tagIds?: string[];
   linkedArticleIds?: string[];
   tempAttachmentIds?: string[];

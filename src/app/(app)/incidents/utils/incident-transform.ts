@@ -5,13 +5,18 @@ import type {
   insightRowFields_insight$data,
   insightRowFields_insight$key,
 } from '@/__generated__/insightRowFields_insight.graphql';
+import type { insightTransitions_query$key } from '@/__generated__/insightTransitions_query.graphql';
 import type { insightUserFields_user$key } from '@/__generated__/insightUserFields_user.graphql';
 import { DELETED_EMPLOYEE_LABEL, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { InsightStatus } from '@/generated/schema-enums';
 import { insightFieldsFragment } from '@/graphql/insights/insight-fields';
 import { insightRowFieldsFragment } from '@/graphql/insights/insight-row-fields';
+import { insightTransitionsFragment } from '@/graphql/insights/insight-transitions';
 import { insightUserFieldsFragment } from '@/graphql/insights/insight-user-fields';
 import { getFullImageUrl } from '@/lib/image-url';
+import { rawIdOf } from '@/lib/relay-id';
 import { getDeviceName } from '../../devices/utils/device-name';
+import { enumMembers } from './incident-labels';
 
 /**
  * A row of the Incidents table. The enum fields keep the artifact's own union
@@ -21,6 +26,12 @@ import { getDeviceName } from '../../devices/utils/device-name';
  */
 export interface IncidentRow {
   id: string;
+  /**
+   * The STORED id (`id` is the Relay global handle around it) — what the
+   * ai-agent's insight resolver looks up, so it is what every Mingo context
+   * reference (`@insight:` chip, open view, dialog link) carries.
+   */
+  insightId: string;
   title: string;
   type: insightRowFields_insight$data['type'];
   severity: insightRowFields_insight$data['severity'];
@@ -43,6 +54,7 @@ export function toIncidentRow(ref: insightRowFields_insight$key): IncidentRow {
   const machine = node.machine;
   return {
     id: node.id,
+    insightId: rawIdOf(node.id),
     title: node.title,
     type: node.type,
     severity: node.severity,
@@ -120,4 +132,21 @@ export function toIncident(ref: insightFields_insight$key): Incident {
     assignee: node.assigneeId ? toIncidentUser(node.assigneeId, node.assignee) : null,
     organizationImageUrl: getFullImageUrl(node.organization?.image?.imageUrl, node.organization?.image?.hash),
   };
+}
+
+/** Which statuses an incident may move to from each status — the server's table, keyed by `from`. */
+export type IncidentTransitionTable = Readonly<Record<string, readonly InsightStatus[]>>;
+
+/** `insightStatusTransitions` as a lookup. Statuses this build does not know are dropped, not offered. */
+export function toTransitionTable(ref: insightTransitions_query$key): IncidentTransitionTable {
+  const data = readInlineData(insightTransitionsFragment, ref);
+  const table: Record<string, readonly InsightStatus[]> = {};
+  for (const entry of data.insightStatusTransitions) {
+    table[entry.from] = enumMembers(entry.to, InsightStatus);
+  }
+  return table;
+}
+
+export function transitionsFrom(table: IncidentTransitionTable, status: string): readonly InsightStatus[] {
+  return table[status] ?? [];
 }

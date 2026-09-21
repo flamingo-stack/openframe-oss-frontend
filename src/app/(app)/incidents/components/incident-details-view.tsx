@@ -11,14 +11,16 @@ import { InsightStatus } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
-import { useMingoLauncherStore } from '../../mingo/stores/mingo-launcher-store';
-import { useIncident } from '../hooks/use-incident';
+import { mingoActionFor, useFixWithMingo } from '../hooks/use-fix-with-mingo';
+import { useIncident, useIncidentDetail } from '../hooks/use-incident';
+import { useLatestIncidentDialog } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
-import { incidentMingoDraft } from '../utils/fix-with-mingo-prompt';
-import { INCIDENT_TRANSITION_ACTIONS, transitionsFrom } from '../utils/incident-labels';
+import { INCIDENT_TRANSITION_ACTIONS } from '../utils/incident-labels';
+import { transitionsFrom } from '../utils/incident-transform';
+import { IncidentAssignedTickets } from './incident-assigned-tickets';
 import { IncidentAssignee } from './incident-assignee';
 import { IncidentNotes } from './incident-notes';
-import { IncidentQueryResults } from './incident-query-results';
+import { IncidentQueryResults, IncidentQueryResultsSkeleton } from './incident-query-results';
 import { IncidentSummaryCard, IncidentSummaryCardSkeleton } from './incident-summary-card';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
@@ -41,36 +43,39 @@ const TICKET_PREFILL_DESCRIPTION_MAX = 1000;
  * what waits for it.
  */
 function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
-  const incident = useIncident(incidentId);
+  const { incident, transitions } = useIncidentDetail(incidentId);
 
   const handleBack = useSafeBack(routes.incidents.list);
-  const canOpenMingo = useMingoLauncherStore(state => state.canOpen);
+  const mingoControls = useFixWithMingo();
+  // One Mingo button: reopen the chat already started from this incident, or start one.
+  const mingoSession = useLatestIncidentDialog(incident.insightId);
   // Mingo's "open view": this incident rides on every message sent while the page is up.
-  useTrackOpenView({ type: CONTEXT_ENTITY_KIND.INSIGHT, id: incident.id, label: incident.title });
+  useTrackOpenView({ type: CONTEXT_ENTITY_KIND.INSIGHT, id: incident.insightId, label: incident.title });
   const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } = useIncidentTransitions();
 
   // The status button is named after the transition the technician most likely
   // wants — Resolve while the incident is open — and its menu lists every legal
   // one (design: "Resolve ▾"). A resolved incident offers Archive / Reopen.
-  const targets = transitionsFrom(incident.status);
+  const targets = transitionsFrom(transitions, incident.status);
   const primary = targets.includes(InsightStatus.RESOLVED) ? InsightStatus.RESOLVED : targets[0];
   // A deleted assignee is not offered by the ticket picker — the ticket starts unassigned.
   const ticketAssignee = incident.assignee && !incident.assignee.deleted ? incident.assignee : undefined;
 
+  const mingoIcon = (
+    <MingoIcon
+      className="size-5"
+      eyesColor="var(--ods-flamingo-cyan-base)"
+      cornerColor="var(--ods-flamingo-cyan-base)"
+    />
+  );
+  const mingoAction: PageActionButton = {
+    ...mingoActionFor(incident, mingoSession, mingoControls),
+    variant: 'outline',
+    icon: mingoIcon,
+  };
+
   const actions: PageActionButton[] = [
-    {
-      label: 'Fix with Mingo',
-      variant: 'outline',
-      icon: (
-        <MingoIcon
-          className="size-5"
-          eyesColor="var(--ods-flamingo-cyan-base)"
-          cornerColor="var(--ods-flamingo-cyan-base)"
-        />
-      ),
-      onClick: () => useMingoLauncherStore.getState().draftToMingo(incidentMingoDraft(incident)),
-      disabled: !canOpenMingo,
-    },
+    mingoAction,
     {
       label: 'Create Ticket',
       variant: 'outline',
@@ -84,6 +89,8 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
         deviceName: incident.deviceName,
         assigneeId: ticketAssignee?.id,
         assigneeName: ticketAssignee?.name,
+        insightId: incident.insightId,
+        insightTitle: incident.title,
       }),
     },
     ...(primary
@@ -92,7 +99,7 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
             label: INCIDENT_TRANSITION_ACTIONS[primary].label,
             variant: 'outline' as const,
             disabled: isMutating,
-            submenu: transitionMenuItems(incident, transition, isMutating),
+            submenu: transitionMenuItems(incident, transitions, transition, isMutating),
           },
         ]
       : []),
@@ -168,6 +175,7 @@ export function IncidentDetailsSkeleton() {
         <>
           <IncidentSummaryCardSkeleton />
           <NotesSectionSkeleton />
+          <IncidentQueryResultsSkeleton />
         </>
       }
     />
@@ -195,7 +203,8 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
             <IncidentSummary incidentId={incidentId} />
           </Suspense>
           <IncidentNotes incidentId={incidentId} />
-          <Suspense fallback={null}>
+          <IncidentAssignedTickets incidentId={incidentId} />
+          <Suspense fallback={<IncidentQueryResultsSkeleton />}>
             <IncidentEvidence incidentId={incidentId} />
           </Suspense>
         </>

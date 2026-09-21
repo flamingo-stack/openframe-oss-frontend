@@ -12,6 +12,7 @@ export const assignmentsSchema = z
     DEVICE: z.array(assignmentRefSchema).optional(),
     TICKET: z.array(assignmentRefSchema).optional(),
     KNOWLEDGE_ARTICLE: z.array(assignmentRefSchema).optional(),
+    INSIGHT: z.array(assignmentRefSchema).optional(),
   })
   .optional() satisfies z.ZodType<AssignmentsValue | undefined>;
 
