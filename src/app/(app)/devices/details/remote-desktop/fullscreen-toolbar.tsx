@@ -3,6 +3,8 @@
 import { ActionsMenuDropdown, type ActionsMenuGroup, Button } from '@flamingo-stack/openframe-frontend-core';
 import { OpenFrameLogo } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
+  ChatOffIcon,
+  ChatTextIcon,
   Chevron02DownIcon,
   Collapse02Icon,
   Ellipsis01Icon,
@@ -17,6 +19,9 @@ interface FullscreenToolbarProps {
   actionsMenuGroups: ActionsMenuGroup[];
   onOpenSettings: () => void;
   onExitFullscreen: () => void;
+  /** Session chat toggle (CU-86ajx041x) - omitted when the session has no chat. */
+  chatOpen?: boolean;
+  onToggleChat?: () => void;
 }
 
 /**
@@ -33,6 +38,8 @@ export function FullscreenToolbar({
   actionsMenuGroups,
   onOpenSettings,
   onExitFullscreen,
+  chatOpen = false,
+  onToggleChat,
 }: FullscreenToolbarProps) {
   return (
     <>
@@ -69,6 +76,16 @@ export function FullscreenToolbar({
           )}
         </div>
         <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
+          {onToggleChat && (
+            <Button
+              variant="outline"
+              size="small"
+              onClick={onToggleChat}
+              leftIcon={chatOpen ? <ChatOffIcon className="h-4 w-4" /> : <ChatTextIcon className="h-4 w-4" />}
+            >
+              <span className="text-h5">{chatOpen ? 'Close Chat' : 'Open Chat'}</span>
+            </Button>
+          )}
           <ActionsMenuDropdown
             groups={actionsMenuGroups}
             customTrigger={
