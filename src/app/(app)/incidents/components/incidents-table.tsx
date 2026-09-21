@@ -45,10 +45,9 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { useMingoLauncherStore } from '../../mingo/stores/mingo-launcher-store';
 import { type FacetEntry, type FacetOption, facetToSortedOptions } from '../../scripts/shared/utils/facet-options';
+import { useFixWithMingo } from '../hooks/use-fix-with-mingo';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
-import { incidentMingoDraft } from '../utils/fix-with-mingo-prompt';
 import {
   enumMembers,
   INCIDENT_SEVERITY_LABELS,
@@ -57,7 +56,7 @@ import {
   labelOf,
   WORKING_SET_STATUSES,
 } from '../utils/incident-labels';
-import { type IncidentRow, toIncidentRow } from '../utils/incident-transform';
+import { type IncidentRow, toIncidentRow, toTransitionTable } from '../utils/incident-transform';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
 import { INCIDENT_COLUMNS, INCIDENTS_TABLE_COLUMNS } from './incidents-table-columns';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
@@ -130,7 +129,7 @@ function IncidentsTableContent({
 }: IncidentsTableContentProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
-  const canOpenMingo = useMingoLauncherStore(state => state.canOpen);
+  const { fixWithMingo, pendingId: mingoPendingId, canOpenMingo } = useFixWithMingo();
 
   // One round-trip per interaction: the filter facets (`insightFilters`) ride the
   // list operation — see the query docstring for the facet semantics.
@@ -214,10 +213,11 @@ function IncidentsTableContent({
 
   const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } =
     useIncidentTransitions(refreshFilterMeta);
+  const transitionTable = toTransitionTable(queryData);
 
   const columns = useMemo<ColumnDef<IncidentRow>[]>(() => {
     const renderRowActions = (row: IncidentRow) => {
-      const items = transitionMenuItems(row, transition, isMutating);
+      const items = transitionMenuItems(row, transitionTable, transition, isMutating);
       return items.length > 0 ? <ActionsMenuDropdown groups={[{ items }]} /> : null;
     };
     return [
@@ -306,14 +306,14 @@ function IncidentsTableContent({
         meta: liveColumnMeta(INCIDENT_COLUMNS.actions),
       },
       {
-        // "Fix with Mingo": opens the drawer on a fresh chat with the incident
-        // prefilled in the composer — nothing sent. Disabled while no drawer is
-        // mounted (locked workspace).
+        // "Fix with Mingo": fetches the server's prompt for the incident and
+        // opens the drawer on a fresh chat with it in the composer — nothing
+        // sent. Disabled while no drawer is mounted (locked workspace).
         id: 'mingo',
         cell: ({ row }: { row: Row<IncidentRow> }) => (
           <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
-              onClick={() => useMingoLauncherStore.getState().draftToMingo(incidentMingoDraft(row.original))}
+              onClick={() => fixWithMingo(row.original)}
               variant="outline"
               size="icon"
               leftIcon={
@@ -324,7 +324,8 @@ function IncidentsTableContent({
                 />
               }
               aria-label="Fix with Mingo"
-              disabled={!canOpenMingo}
+              disabled={!canOpenMingo || mingoPendingId !== null}
+              loading={mingoPendingId === row.original.id}
               className="bg-ods-card"
             />
           </div>
@@ -350,7 +351,18 @@ function IncidentsTableContent({
         meta: liveColumnMeta(INCIDENT_COLUMNS.open),
       },
     ];
-  }, [transition, isMutating, canOpenMingo, typeOptions, customerOptions, severityOptions, statusOptions]);
+  }, [
+    transition,
+    transitionTable,
+    isMutating,
+    canOpenMingo,
+    fixWithMingo,
+    mingoPendingId,
+    typeOptions,
+    customerOptions,
+    severityOptions,
+    statusOptions,
+  ]);
 
   const filterGroups = [
     { id: INCIDENT_COLUMNS.incident.id, title: 'Category', options: typeOptions },

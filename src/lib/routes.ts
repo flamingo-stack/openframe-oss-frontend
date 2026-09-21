@@ -87,6 +87,8 @@ export type HelpCenterLegalDoc = 'privacy' | 'terms';
  * cannot be added to one and silently dropped by another. Ids are the raw ones
  * the form's pickers use (`Organization.organizationId`, `Machine.machineId`,
  * `User.id`); the names label those picks before the option lists have loaded.
+ * `insightId` is the STORED insight id (`CreateTicketInput.insightId`), which
+ * links the ticket to the incident it is filed from; `insightTitle` labels it.
  */
 export const TICKET_PREFILL_KEYS = [
   'title',
@@ -97,6 +99,8 @@ export const TICKET_PREFILL_KEYS = [
   'deviceName',
   'assigneeId',
   'assigneeName',
+  'insightId',
+  'insightTitle',
 ] as const;
 
 export type TicketPrefill = Partial<Record<(typeof TICKET_PREFILL_KEYS)[number], string>>;

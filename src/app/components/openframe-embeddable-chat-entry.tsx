@@ -212,6 +212,9 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     const draft = consumePendingDraft();
     if (!draft) return;
     chatHandle.current?.prefillDraft(draft);
+    // After, not before: the prefill lands on a fresh chat by way of
+    // `selectDialog(null)`, which drops whatever link was set.
+    if (draft.insightId) useMingoLauncherStore.getState().setDialogInsightId(draft.insightId);
   }, [pendingDraft, consumePendingDraft]);
 
   // Entity-context picker config (the `+` "Assign Item" menu + `@` trigger).

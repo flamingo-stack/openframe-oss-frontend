@@ -486,7 +486,9 @@ export function IncidentItems({ query, selectedKeys, onToggle, atLimit }: Contex
         return [
           {
             type: CONTEXT_ENTITY_KIND.INSIGHT,
-            id: e.node.id,
+            // The stored id, not the Relay handle: that is what the ai-agent's
+            // resolver looks up (the chip re-encodes it for its own query).
+            id: decodeGlobalId(e.node.id)?.rawId ?? e.node.id,
             label: e.node.title,
             description: [labelOf(INCIDENT_SEVERITY_LABELS, e.node.severity), device].filter(Boolean).join(' · '),
           },

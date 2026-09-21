@@ -1,5 +1,6 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from '@tanstack/react-query';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { apiClient } from '@/lib/api-client';
 
 export interface CreateDialogResponse {
@@ -25,6 +26,8 @@ export interface ApprovalResponse {
 
 export interface CreateDialogRequest {
   agentType: 'ADMIN';
+  /** The STORED insight id when the chat is started from an incident ("Fix with Mingo"). */
+  insightId?: string;
 }
 
 /** Minimal entity ref carried in the message payload. */
@@ -58,9 +61,10 @@ export interface SendMessageRequest {
 export function useCreateDialogMutation() {
   return useMutation({
     mutationFn: async (): Promise<CreateDialogResponse> => {
-      const response = await apiClient.post<CreateDialogResponse>('/chat/api/v1/dialogs', {
-        agentType: 'ADMIN',
-      } as CreateDialogRequest);
+      // Consumed here, on the one create the draft chat produces.
+      const insightId = useMingoLauncherStore.getState().consumeDialogInsightId();
+      const request: CreateDialogRequest = { agentType: 'ADMIN', ...(insightId && { insightId }) };
+      const response = await apiClient.post<CreateDialogResponse>('/chat/api/v1/dialogs', request);
 
       if (!response.ok) {
         throw new Error(response.error || `Failed to create dialog with status ${response.status}`);

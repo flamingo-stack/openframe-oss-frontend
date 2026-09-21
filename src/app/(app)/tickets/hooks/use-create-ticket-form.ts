@@ -188,6 +188,7 @@ export function useCreateTicketForm({ ticketId, prefill }: UseCreateTicketFormOp
           organizationId: data.organizationId || undefined,
           deviceId: data.deviceId || undefined,
           assigneeId: data.assignedTo || undefined,
+          insightId: prefill?.insightId,
           tagIds: tagIds.length ? tagIds : undefined,
           tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
         });

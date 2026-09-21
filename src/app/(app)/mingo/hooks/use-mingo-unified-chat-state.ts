@@ -37,6 +37,7 @@ import type {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { buildDiscussPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
@@ -332,6 +333,9 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // ─── Dialog selection (mirrors the /mingo page glue, minus URL syncing) ───
   const selectDialog = useCallback(
     (id: string | null) => {
+      // Any change of conversation leaves the fresh chat a "Fix with Mingo" draft
+      // was linking to an insight (the entry re-sets the link after its prefill).
+      useMingoLauncherStore.getState().setDialogInsightId(null);
       if (id === null) {
         setActiveDialogId(null);
         return;

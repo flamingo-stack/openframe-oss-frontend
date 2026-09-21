@@ -4,7 +4,12 @@ import { useLazyLoadQuery } from 'react-relay';
 import type { incidentDetailRelayQuery as IncidentDetailQueryType } from '@/__generated__/incidentDetailRelayQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import { incidentDetailRelayQuery } from '@/graphql/insights/incident-detail-relay';
-import { type Incident, toIncident } from '../utils/incident-transform';
+import {
+  type Incident,
+  type IncidentTransitionTable,
+  toIncident,
+  toTransitionTable,
+} from '../utils/incident-transform';
 
 /**
  * The detail page's record, for every island that draws it. One place for the
@@ -14,11 +19,16 @@ import { type Incident, toIncident } from '../utils/incident-transform';
  * replays a retained rejection after Retry (see `ScriptSummary`).
  */
 export function useIncident(incidentId: string): Incident {
+  return useIncidentDetail(incidentId).incident;
+}
+
+/** The record plus the status-transition table that rides on the same query (the header needs both). */
+export function useIncidentDetail(incidentId: string): { incident: Incident; transitions: IncidentTransitionTable } {
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<IncidentDetailQueryType>(
     incidentDetailRelayQuery,
     { id: incidentId },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  return toIncident(data.insight);
+  return { incident: toIncident(data.insight), transitions: toTransitionTable(data) };
 }
