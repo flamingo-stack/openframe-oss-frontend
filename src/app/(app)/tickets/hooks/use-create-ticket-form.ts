@@ -81,7 +81,12 @@ export function useCreateTicketForm({ ticketId, prefill }: UseCreateTicketFormOp
       tagIds: [],
       description: prefill?.description ?? '',
       assignKnowledgeBase: false,
-      assignments: {},
+      // Filed from an incident: the link is an assignment row on the form (read-only)
+      // and goes out as `CreateTicketInput.insightId` — the server owns the
+      // incident → ticket assignment, so it is not written through `assignItem`.
+      assignments: prefill?.insightId
+        ? { INSIGHT: [{ id: prefill.insightId, label: prefill.insightTitle || prefill.insightId }] }
+        : {},
     },
   });
 
@@ -188,7 +193,7 @@ export function useCreateTicketForm({ ticketId, prefill }: UseCreateTicketFormOp
           organizationId: data.organizationId || undefined,
           deviceId: data.deviceId || undefined,
           assigneeId: data.assignedTo || undefined,
-          insightId: prefill?.insightId,
+          insightId: nextAssignments.INSIGHT?.[0]?.id,
           tagIds: tagIds.length ? tagIds : undefined,
           tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
         });

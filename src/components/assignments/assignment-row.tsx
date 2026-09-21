@@ -13,12 +13,14 @@ interface AssignmentRowProps {
   onChange: (next: AssignmentRef[]) => void;
   onRemoveRow: () => void;
   disabled?: boolean;
+  /** The picker cannot change the set — the row shows it, and the trash drops it. */
+  readOnly?: boolean;
 }
 
-export function AssignmentRow({ targetType, value, onChange, onRemoveRow, disabled }: AssignmentRowProps) {
+export function AssignmentRow({ targetType, value, onChange, onRemoveRow, disabled, readOnly }: AssignmentRowProps) {
   const meta = TARGET_CONFIG[targetType];
   const [searchInput, setSearchInput] = useState('');
-  const { options, isLoading } = useAssignmentSearch(targetType, searchInput);
+  const { options, isLoading } = useAssignmentSearch(targetType, searchInput, !readOnly);
 
   const selectedIds = useMemo(() => value.map(ref => ref.id), [value]);
 
@@ -59,7 +61,7 @@ export function AssignmentRow({ targetType, value, onChange, onRemoveRow, disabl
             placeholder="Add More..."
             loading={isLoading}
             disableClientFilter
-            disabled={disabled}
+            disabled={disabled || readOnly}
           />
         </div>
         <Button

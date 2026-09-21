@@ -14,7 +14,7 @@ import {
   type AssignmentItemType,
   type AssignmentRef,
   type AssignmentsValue,
-  type AssignmentTargetType,
+  type ServerAssignmentTargetType,
 } from './types';
 
 const ASSIGNED_ITEMS_QUERY = `#graphql
@@ -171,7 +171,10 @@ interface AssignedItemsPayload {
   tickets?: Dialog[];
 }
 
-async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetType): Promise<AssignedItemsPayload> {
+async function fetchAssignedItems(
+  itemId: string,
+  targetType: ServerAssignmentTargetType,
+): Promise<AssignedItemsPayload> {
   const data = await postGraphQl<AssignedItemsData>(ASSIGNED_ITEMS_QUERY, {
     itemId,
     targetType,
@@ -222,8 +225,8 @@ async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetTy
       return { refs, tickets };
     default: {
       // `targetType` is `never` here because the cases above cover
-      // AssignmentTargetType. A new member of that union fails to compile rather
-      // than resolving the query with `undefined`.
+      // ServerAssignmentTargetType. A new member of that union fails to compile
+      // rather than resolving the query with `undefined`.
       const unreachable: never = targetType;
       return unreachable;
     }

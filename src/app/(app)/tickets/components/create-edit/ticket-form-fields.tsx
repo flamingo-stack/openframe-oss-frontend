@@ -1,17 +1,14 @@
 'use client';
 'use no memo';
 
-import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete, FileUpload, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn, useWatch } from 'react-hook-form';
 import { AssignmentsField } from '@/components/assignments';
 import { getFullImageUrl } from '@/lib/image-url';
 import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
-import { toGlobalId } from '@/lib/relay-id';
-import { routes, type TicketPrefill } from '@/lib/routes';
+import type { TicketPrefill } from '@/lib/routes';
 import type { useTempAttachments } from '../../hooks/use-temp-attachments';
 import {
   type AutocompleteOption,
@@ -207,22 +204,6 @@ export function TicketFormFields({
         )}
       />
 
-      {/* Filed from an incident: the link travels as the STORED insight id, the
-          details route takes the global one. Read-only — the incident is where
-          the ticket came from, not a field of it. */}
-      {prefill?.insightId && (
-        <div>
-          <Label className="text-ods-text-primary text-h4">Assigned Incident</Label>
-          <Link
-            href={routes.incidents.details(toGlobalId('Insight', prefill.insightId))}
-            className="inline-flex items-center gap-[var(--spacing-system-xxs)] text-ods-accent underline text-h4 hover:text-ods-accent-hover"
-          >
-            <AlertTriangleIcon className="size-5 shrink-0" />
-            {prefill.insightTitle || prefill.insightId}
-          </Link>
-        </div>
-      )}
-
       {/* Organization, Device, Assigned, Status — 4-column grid (2 on mobile) */}
       <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
         <Controller
@@ -367,7 +348,8 @@ export function TicketFormFields({
           <AssignmentsField
             value={field.value ?? {}}
             onChange={field.onChange}
-            enabledTypes={['ORGANIZATION', 'DEVICE', 'KNOWLEDGE_ARTICLE']}
+            // INSIGHT is not pickable: the row shows the incident the ticket is filed from (seeded from the prefill).
+            enabledTypes={['ORGANIZATION', 'DEVICE', 'KNOWLEDGE_ARTICLE', 'INSIGHT']}
           />
         )}
       />

@@ -15,7 +15,9 @@ const SESSIONS_LIMIT = 20;
  */
 export function useIncidentDialogs(insightId: string) {
   return useQuery({
-    queryKey: ['incident-dialogs', insightId],
+    // Under the `mingo-dialogs` prefix: the drawer invalidates that on every
+    // dialog it creates, which is exactly when this list changes.
+    queryKey: ['mingo-dialogs', 'insight', insightId],
     queryFn: async (): Promise<DialogNode[]> => {
       const response = await apiClient.post<DialogsResponse>('/chat/graphql', {
         query: GET_MINGO_DIALOGS_QUERY,

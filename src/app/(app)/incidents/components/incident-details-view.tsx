@@ -16,6 +16,7 @@ import { useIncident, useIncidentDetail } from '../hooks/use-incident';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
 import { INCIDENT_TRANSITION_ACTIONS } from '../utils/incident-labels';
 import { transitionsFrom } from '../utils/incident-transform';
+import { IncidentAssignedTickets } from './incident-assigned-tickets';
 import { IncidentAssignee } from './incident-assignee';
 import { IncidentNotes } from './incident-notes';
 import { IncidentQueryResults } from './incident-query-results';
@@ -200,6 +201,7 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
           </Suspense>
           <IncidentNotes incidentId={incidentId} />
           <IncidentSessions incidentId={incidentId} />
+          <IncidentAssignedTickets incidentId={incidentId} />
           <Suspense fallback={null}>
             <IncidentEvidence incidentId={incidentId} />
           </Suspense>
