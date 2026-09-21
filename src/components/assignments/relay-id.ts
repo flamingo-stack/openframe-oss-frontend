@@ -15,6 +15,7 @@ const RELAY_TYPE_NAME: Record<AssignmentItemType | AssignmentTargetType, string>
   DEVICE: 'Machine',
   TICKET: 'Ticket',
   KNOWLEDGE_ARTICLE: 'KnowledgeBaseItem',
+  INSIGHT: 'Insight',
 };
 
 const KNOWN_RELAY_TYPES: ReadonlySet<string> = new Set(Object.values(RELAY_TYPE_NAME));

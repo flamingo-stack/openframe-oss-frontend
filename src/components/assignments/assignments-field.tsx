@@ -5,7 +5,12 @@ import { ActionsMenuDropdown, Button } from '@flamingo-stack/openframe-frontend-
 import { useMemo } from 'react';
 import { AssignmentRow } from './assignment-row';
 import { TARGET_CONFIG } from './target-config';
-import { ASSIGNMENT_TARGET_TYPES, type AssignmentRef, type AssignmentsValue, type AssignmentTargetType } from './types';
+import {
+  ALL_ASSIGNMENT_TARGET_TYPES,
+  type AssignmentRef,
+  type AssignmentsValue,
+  type AssignmentTargetType,
+} from './types';
 
 interface AssignmentsFieldProps {
   value: AssignmentsValue;
@@ -20,13 +25,17 @@ const isPresent = (refs: AssignmentRef[] | undefined): refs is AssignmentRef[] =
 export function AssignmentsField({
   value,
   onChange,
-  enabledTypes = ASSIGNMENT_TARGET_TYPES as AssignmentTargetType[],
+  enabledTypes = ALL_ASSIGNMENT_TARGET_TYPES as AssignmentTargetType[],
   disabled,
   className,
 }: AssignmentsFieldProps) {
   const activeTypes = useMemo(() => enabledTypes.filter(type => isPresent(value[type])), [enabledTypes, value]);
 
-  const availableTypes = useMemo(() => enabledTypes.filter(type => !isPresent(value[type])), [enabledTypes, value]);
+  // Only pickable targets can be added by hand; the rest show up when the value carries them.
+  const availableTypes = useMemo(
+    () => enabledTypes.filter(type => TARGET_CONFIG[type].pickable && !isPresent(value[type])),
+    [enabledTypes, value],
+  );
 
   const setRow = (type: AssignmentTargetType, refs: AssignmentRef[]) => {
     onChange({ ...value, [type]: refs });
@@ -68,6 +77,7 @@ export function AssignmentsField({
             onChange={refs => setRow(type, refs)}
             onRemoveRow={() => removeRow(type)}
             disabled={disabled}
+            readOnly={!TARGET_CONFIG[type].pickable}
           />
         ))}
 

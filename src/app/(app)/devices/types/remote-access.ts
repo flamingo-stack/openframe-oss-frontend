@@ -38,7 +38,6 @@ export interface RemoteAccessRequest {
   requestId: string;
   /** The OpenFrame machine id - what the device pages carry as `?id=` and what the backend resolves. */
   deviceId: string;
-  machineId?: string;
   sessionKind: RemoteSessionKind;
   status: RemoteAccessRequestStatus;
   /** Why the technician is connecting - shown to the end user in the prompt. */
@@ -162,26 +161,11 @@ export const REMOTE_ACCESS_MODE_META: Record<RemoteAccessMode, { label: string; 
 };
 
 /**
- * What happens when an approval request cannot be answered - either no client
- * is connected to ack delivery (`noClientFallback`) or the user never answered
- * before the approval timeout (`noAnswerFallback`).
+ * Tenant-wide remote access policy: the default mode only. The approval
+ * timeout (30 s), the delivery timeout and the no-client / no-answer fallbacks
+ * are fixed backend constants (decision 2026-09-18, CU-86akeqw6h) - not a
+ * tenant setting and not surfaced in the UI.
  */
-export const REMOTE_ACCESS_FALLBACKS = ['DENY', 'ALLOW_WITH_NOTIFICATION', 'ALLOW_SILENTLY'] as const;
-export type RemoteAccessFallback = (typeof REMOTE_ACCESS_FALLBACKS)[number];
-
-export const REMOTE_ACCESS_FALLBACK_META: Record<RemoteAccessFallback, { label: string }> = {
-  DENY: { label: 'Deny' },
-  ALLOW_WITH_NOTIFICATION: { label: 'Allow with Notification' },
-  ALLOW_SILENTLY: { label: 'Allow Silently' },
-};
-
-/** Tenant-wide remote access policy: the default mode plus approval tuning. */
 export interface TenantRemoteAccessPolicy {
   mode: RemoteAccessMode;
-  /** How long the end user has to answer an approval prompt. */
-  approvalTimeoutSeconds: number;
-  /** How long to wait for a client to ack delivery before `noClientFallback`. */
-  deliveryTimeoutSeconds: number;
-  noClientFallback: RemoteAccessFallback;
-  noAnswerFallback: RemoteAccessFallback;
 }
