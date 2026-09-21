@@ -114,12 +114,18 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
     [sessionSortDirection, dateRange, handleDateFilterApply],
   );
 
-  // EMPLOYEE header funnel options - the technicians present in this device's
-  // list (the mock has no employee ids, so the name doubles as the value; the
-  // filterFn compares it against the employee cell's accessor value).
+  // EMPLOYEE header funnel options - keyed by the employee's own id, not the
+  // display name, so two technicians who happen to share a name still filter
+  // independently and the dropdown doesn't collapse them into one option. The
+  // employee column's accessor/filterFn below use the same id.
   const employeeOptions = useMemo(() => {
-    const names = [...new Set(allRecordings.map(recording => recording.employee.name))].sort();
-    return names.map(name => ({ id: name, value: name, label: name }));
+    const byId = new Map<string, string>();
+    for (const recording of allRecordings) {
+      if (!byId.has(recording.employee.id)) byId.set(recording.employee.id, recording.employee.name);
+    }
+    return [...byId.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, name]) => ({ id, value: id, label: name }));
   }, [allRecordings]);
 
   // The mobile FilterModal (Figma 758-46869) and the desktop header funnel are
@@ -184,7 +190,8 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
       {
         id: REMOTE_SESSION_COLUMNS.employee.id,
         header: REMOTE_SESSION_COLUMNS.employee.header,
-        accessorFn: (row: RecordingSummary) => row.employee.name,
+        // Filtered by employee id (see employeeOptions above), not by name.
+        accessorFn: (row: RecordingSummary) => row.employee.id,
         cell: ({ row }: { row: Row<RecordingSummary> }) => {
           const { name, role, avatarUrl } = row.original.employee;
           return (
