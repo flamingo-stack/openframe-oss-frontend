@@ -149,12 +149,12 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   }, [actionAvailability, deviceMenuItems]);
 
   const handleDeviceLogs = () => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams.toString());
     // Logs now live on the Overview tab.
     params.set('tab', 'overview');
     // Add timestamp to force logs refresh
     params.set('refresh', Date.now().toString());
-    router.push(`${window.location.pathname}?${params.toString()}`);
+    router.push(`${routes.devices.details(deviceId)}?${params.toString()}`);
   };
 
   if (isLoading) {
@@ -229,3 +229,4 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     </PageLayout>
   );
 }
+
