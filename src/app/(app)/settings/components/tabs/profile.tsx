@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { Button, Skeleton, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { PageError, SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { AlertCircle, Pencil } from 'lucide-react';
@@ -131,12 +131,9 @@ export function ProfileTab() {
             </div>
             {/* Role badges */}
             {user.roles?.map(role => (
-              <span
-                key={role}
-                className="inline-flex shrink-0 items-center rounded-md border border-ods-border bg-ods-card px-2 py-1 text-ods-text-primary text-h5"
-              >
+              <Tag key={role} className="shrink-0">
                 {role}
-              </span>
+              </Tag>
             ))}
           </div>
           <div className="flex items-center gap-2">
@@ -146,14 +143,15 @@ export function ProfileTab() {
               </TruncateText>
             </div>
             {user.emailVerified === false && (
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => setIsVerificationModalOpen(true)}
-                className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
+                className="flex h-auto items-center gap-1 p-0 text-ods-warning transition-colors hover:text-ods-warning/80"
                 title="Email not verified - click to resend verification"
+                leftIcon={<AlertCircle className="h-4 w-4" />}
               >
-                <AlertCircle className="h-4 w-4" />
                 <span className="text-h6">Not verified</span>
-              </button>
+              </Button>
             )}
           </div>
         </div>
