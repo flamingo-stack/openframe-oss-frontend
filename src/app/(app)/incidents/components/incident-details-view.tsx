@@ -20,7 +20,7 @@ import { transitionsFrom } from '../utils/incident-transform';
 import { IncidentAssignedTickets } from './incident-assigned-tickets';
 import { IncidentAssignee } from './incident-assignee';
 import { IncidentNotes } from './incident-notes';
-import { IncidentQueryResults } from './incident-query-results';
+import { IncidentQueryResults, IncidentQueryResultsSkeleton } from './incident-query-results';
 import { IncidentSummaryCard, IncidentSummaryCardSkeleton } from './incident-summary-card';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
@@ -175,6 +175,7 @@ export function IncidentDetailsSkeleton() {
         <>
           <IncidentSummaryCardSkeleton />
           <NotesSectionSkeleton />
+          <IncidentQueryResultsSkeleton />
         </>
       }
     />
@@ -203,7 +204,7 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
           </Suspense>
           <IncidentNotes incidentId={incidentId} />
           <IncidentAssignedTickets incidentId={incidentId} />
-          <Suspense fallback={null}>
+          <Suspense fallback={<IncidentQueryResultsSkeleton />}>
             <IncidentEvidence incidentId={incidentId} />
           </Suspense>
         </>

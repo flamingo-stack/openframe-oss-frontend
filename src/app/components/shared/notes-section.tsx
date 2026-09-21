@@ -189,10 +189,15 @@ function NotesSectionFrame({ children }: { children: ReactNode }) {
 }
 
 /** The heading with a bar where the first note lands. */
+/**
+ * The heading over an "Add Note" sized bar — the shape of the loaded section
+ * when there are no notes yet, which is what most records have. Notes, when
+ * there are any, grow the section either way.
+ */
 export function NotesSectionSkeleton() {
   return (
     <NotesSectionFrame>
-      <Skeleton className="h-20 w-full rounded-md" />
+      <Skeleton className="h-8 w-28 rounded-md" />
     </NotesSectionFrame>
   );
 }
