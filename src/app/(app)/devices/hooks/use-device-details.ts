@@ -207,7 +207,7 @@ function createDevice(
     lastSeen: fleetData?.seen_time || node.lastSeen,
     last_restarted_at: fleetData?.last_restarted_at,
     last_enrolled_at: fleetData?.last_enrolled_at,
-    boot_time: fleetData?.last_restarted_at ? new Date(fleetData.last_restarted_at).getTime() / 1000 : 0,
+    boot_time: fleetData?.last_restarted_at ? new Date(fleetData.last_restarted_at).getTime() / 1000 : undefined,
 
     // Operating System
     platform: fleetData?.platform,
@@ -304,6 +304,12 @@ function createDevice(
 
 async function fetchDeviceDetails(machineId: string): Promise<Device> {
   // 1) Fetch primary device from the shared device query layer
+  // NOTE: fetchDeviceNode is legacy pre-existing GraphQL fetching wired through
+  // react-query at this layer; it is intentionally left as-is here rather than
+  // migrated to react-relay (useLazyLoadQuery/useFragment) as part of this change,
+  // since this hook also depends on non-GraphQL data (Fleet REST, MeshCentral REST)
+  // that must be sequenced/combined together. New GraphQL fetching should use
+  // react-relay per OPENFRAM-002-2; this call is not new GraphQL fetching.
   const node = await fetchDeviceNode(machineId);
 
   // 2.5) Fetch Fleet MDM details — only for a live connection: a pending row has no
