@@ -311,7 +311,11 @@ export const routes = {
 
   logs: {
     page: '/logs-page',
-    details: '/log-details',
+    /** The page needs all five params — a missing one redirects to `logs.page`. */
+    details: (
+      id: string | number,
+      o: { ingestDay: string; toolType: string; eventType: string; timestamp?: string | null },
+    ) => withQuery('/log-details', { id, ...o }),
   },
 
   // UI says "incident"; the API says "insight". `id` is `Insight.id`, the opaque
@@ -323,7 +327,7 @@ export const routes = {
 
   knowledgeBase: {
     list: '/knowledge-base',
-    new: '/knowledge-base/new',
+    new: (o?: { folderId?: string | number }) => withQuery('/knowledge-base/new', { folderId: o?.folderId }),
     archive: '/knowledge-base/archive',
     details: (id: string | number) => withQuery('/knowledge-base/details', { id }),
     edit: (id: string | number) => withQuery('/knowledge-base/edit', { id }),
