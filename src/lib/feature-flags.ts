@@ -197,6 +197,17 @@ export const featureFlags = {
     },
   },
   /**
+   * The next remote access cut (v2): surfaces built ahead of their backend
+   * that stay hidden where only v1 (`remoteAccessApproval`) is enabled.
+   * Components read it reactively through `useFeatureFlag('remote-access-v2')`;
+   * this accessor is for imperative reads.
+   */
+  remoteAccessV2: {
+    enabled(): boolean {
+      return getFlagValue('remote-access-v2', () => false);
+    },
+  },
+  /**
    * Tenant Management (CU-86akj8ajt). Route/hub gating goes through
    * `useTenantManagementGate` (tri-state, dev bypass); this accessor is for
    * imperative reads only.
