@@ -5,6 +5,7 @@ import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/ic
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, type ReactNode, Suspense } from 'react';
+import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
 import { NotesSectionSkeleton } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { InsightStatus } from '@/generated/schema-enums';
@@ -13,6 +14,7 @@ import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useFixWithMingo } from '../hooks/use-fix-with-mingo';
 import { useIncident, useIncidentDetail } from '../hooks/use-incident';
+import { useLatestIncidentDialog } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
 import { INCIDENT_TRANSITION_ACTIONS } from '../utils/incident-labels';
 import { transitionsFrom } from '../utils/incident-transform';
@@ -20,7 +22,6 @@ import { IncidentAssignedTickets } from './incident-assigned-tickets';
 import { IncidentAssignee } from './incident-assignee';
 import { IncidentNotes } from './incident-notes';
 import { IncidentQueryResults } from './incident-query-results';
-import { IncidentSessions } from './incident-sessions';
 import { IncidentSummaryCard, IncidentSummaryCardSkeleton } from './incident-summary-card';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
@@ -47,6 +48,8 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
 
   const handleBack = useSafeBack(routes.incidents.list);
   const { fixWithMingo, pendingId: mingoPendingId, canOpenMingo } = useFixWithMingo();
+  // One Mingo button: reopen the chat already started from this incident, or start one.
+  const { dialog: mingoSession, isLoading: isMingoSessionLoading } = useLatestIncidentDialog(incident.insightId);
   // Mingo's "open view": this incident rides on every message sent while the page is up.
   useTrackOpenView({ type: CONTEXT_ENTITY_KIND.INSIGHT, id: incident.insightId, label: incident.title });
   const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } = useIncidentTransitions();
@@ -59,21 +62,32 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
   // A deleted assignee is not offered by the ticket picker — the ticket starts unassigned.
   const ticketAssignee = incident.assignee && !incident.assignee.deleted ? incident.assignee : undefined;
 
+  const mingoIcon = (
+    <MingoIcon
+      className="size-5"
+      eyesColor="var(--ods-flamingo-cyan-base)"
+      cornerColor="var(--ods-flamingo-cyan-base)"
+    />
+  );
+  const mingoAction: PageActionButton = mingoSession
+    ? {
+        label: 'Open Mingo Session',
+        variant: 'outline',
+        icon: mingoIcon,
+        onClick: () => openMingoDialogInDrawer(mingoSession.id),
+        disabled: !canOpenMingo,
+      }
+    : {
+        label: 'Fix with Mingo',
+        variant: 'outline',
+        icon: mingoIcon,
+        onClick: () => fixWithMingo(incident),
+        disabled: !canOpenMingo || mingoPendingId !== null || isMingoSessionLoading,
+        loading: mingoPendingId !== null || isMingoSessionLoading,
+      };
+
   const actions: PageActionButton[] = [
-    {
-      label: 'Fix with Mingo',
-      variant: 'outline',
-      icon: (
-        <MingoIcon
-          className="size-5"
-          eyesColor="var(--ods-flamingo-cyan-base)"
-          cornerColor="var(--ods-flamingo-cyan-base)"
-        />
-      ),
-      onClick: () => fixWithMingo(incident),
-      disabled: !canOpenMingo || mingoPendingId !== null,
-      loading: mingoPendingId !== null,
-    },
+    mingoAction,
     {
       label: 'Create Ticket',
       variant: 'outline',
@@ -200,7 +214,6 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
             <IncidentSummary incidentId={incidentId} />
           </Suspense>
           <IncidentNotes incidentId={incidentId} />
-          <IncidentSessions incidentId={incidentId} />
           <IncidentAssignedTickets incidentId={incidentId} />
           <Suspense fallback={null}>
             <IncidentEvidence incidentId={incidentId} />
