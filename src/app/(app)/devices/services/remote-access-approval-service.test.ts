@@ -24,10 +24,10 @@ describe('MockRemoteAccessApprovalService', () => {
     vi.useRealTimers();
   });
 
-  it('creates a PENDING request that expires 60s out', async () => {
+  it('creates a PENDING request that expires 30s out', async () => {
     const request = await createRequest(nextDeviceId());
     expect(request.status).toBe('PENDING');
-    expect(Date.parse(request.expiresAt) - Date.parse(request.createdAt)).toBe(60_000);
+    expect(Date.parse(request.expiresAt) - Date.parse(request.createdAt)).toBe(30_000);
   });
 
   it('moves to DELIVERED after the client ack window', async () => {
@@ -42,7 +42,7 @@ describe('MockRemoteAccessApprovalService', () => {
     const request = await createRequest(nextDeviceId());
     const seen: string[] = [];
     mockRemoteAccessApprovalService.onDecision(request.requestId, r => seen.push(r.status));
-    await vi.advanceTimersByTimeAsync(61_000);
+    await vi.advanceTimersByTimeAsync(31_000);
     expect(seen).toContain('TIMED_OUT');
   });
 
@@ -85,7 +85,7 @@ describe('MockRemoteAccessApprovalService', () => {
     mockRemoteAccessDecision(request.requestId, 'APPROVED');
     expect(seen).toEqual(['APPROVED']);
     // The timeout sweep must not fire on a settled request.
-    await vi.advanceTimersByTimeAsync(61_000);
+    await vi.advanceTimersByTimeAsync(31_000);
     expect(seen).toEqual(['APPROVED']);
   });
 
