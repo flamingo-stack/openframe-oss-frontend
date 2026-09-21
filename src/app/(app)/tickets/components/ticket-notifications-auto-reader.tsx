@@ -16,16 +16,32 @@ import { dialogsQueryKeys } from '../utils/query-keys';
  * Written rather than invalidated: invalidation only marks those queries stale while they
  * are unmounted behind this page, so navigating back paints the cached pages and the card
  * kept its badge until the column's 15s poll. The count is known to be zero here.
+ *
+ * `dialogsQueryKeys.all` may match both infinite-query caches (`{ pages: [...] }`) and,
+ * on some board surfaces, single-page caches shaped as `{ dialogs: [...] }` directly. Both
+ * shapes are handled explicitly below so a mismatch cannot silently leave a stale badge.
  */
 function clearCachedUnreadCount(queryClient: QueryClient, ticketId: string): void {
-  queryClient.setQueriesData<InfiniteData<TicketsPage>>({ queryKey: dialogsQueryKeys.all }, prev => {
-    if (!prev?.pages?.some(page => page.dialogs.some(d => d.id === ticketId && d.unreadNotificationCount))) return prev;
+  queryClient.setQueriesData<InfiniteData<TicketsPage> | TicketsPage>({ queryKey: dialogsQueryKeys.all }, prev => {
+    if (!prev) return prev;
+
+    if ('pages' in prev) {
+      if (!prev.pages?.some(page => page.dialogs.some(d => d.id === ticketId && d.unreadNotificationCount))) {
+        return prev;
+      }
+      return {
+        ...prev,
+        pages: prev.pages.map(page => ({
+          ...page,
+          dialogs: page.dialogs.map(d => (d.id === ticketId ? { ...d, unreadNotificationCount: 0 } : d)),
+        })),
+      };
+    }
+
+    if (!prev.dialogs?.some(d => d.id === ticketId && d.unreadNotificationCount)) return prev;
     return {
       ...prev,
-      pages: prev.pages.map(page => ({
-        ...page,
-        dialogs: page.dialogs.map(d => (d.id === ticketId ? { ...d, unreadNotificationCount: 0 } : d)),
-      })),
+      dialogs: prev.dialogs.map(d => (d.id === ticketId ? { ...d, unreadNotificationCount: 0 } : d)),
     };
   });
 }
