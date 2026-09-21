@@ -40,10 +40,10 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           <div className="flex items-center gap-2">
             <OpenFrameLogo
               className="h-10 w-auto"
-              lowerPathColor="var(--color-accent-primary)"
-              upperPathColor="var(--color-text-primary)"
+              lowerPathColor="text-ods-accent-primary"
+              upperPathColor="text-ods-text-primary"
             />
-            <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
+            <OpenFrameText textColor="text-ods-text-primary" style={{ width: '144px', height: '24px' }} />
           </div>
 
           <div className="flex max-w-[600px] flex-col items-center gap-10 text-center">
