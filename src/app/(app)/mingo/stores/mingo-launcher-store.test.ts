@@ -18,6 +18,14 @@ describe('mingo launcher: closedForNavigation', () => {
 
     // The card click: runtime `navigate` closes for the navigation, then the lib
     // panel's `closeChat` arrives through `onOpenChange(false)`.
+    //
+    // NOTE: this test pins call-order, not a real guard: it only passes because
+    // `setOpen(false)` happens to leave `closedForNavigation` untouched when the
+    // flag is already true. There is no explicit "ignore next close" transition
+    // in the store to make this robust against a future `setOpen` refactor that
+    // starts clearing the flag on every close. If `setOpen` changes, this test
+    // is the only thing that will catch it — treat a failure here as a signal to
+    // harden the store implementation, not just to patch the test.
     store().closeForNavigation();
     store().setOpen(false);
 
