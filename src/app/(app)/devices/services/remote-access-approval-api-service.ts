@@ -48,6 +48,9 @@ const CREATE_ERROR_CODES: ReadonlySet<string> = new Set([
   'REMOTE_ACCESS_DISABLED',
 ]);
 
+// Terminal statuses for which a 409 on revoke means "already settled, nothing to cancel".
+const SETTLED_STATUSES: ReadonlySet<string> = new Set(['APPROVED', 'DENIED', 'TIMED_OUT', 'REVOKED', 'CANCELLED', 'EXPIRED']);
+
 type Raw = Record<string, unknown>;
 
 function text(raw: Raw, key: string): string | undefined {
@@ -173,8 +176,15 @@ export class RemoteAccessApprovalApiService implements IRemoteAccessApprovalServ
 
   async revoke(requestId: string): Promise<void> {
     const response = await apiClient.post<unknown>(`${REQUESTS_PATH}/${encodeURIComponent(requestId)}/revoke`);
-    // 409 = already settled; there is nothing left to cancel, the outcome is the same.
-    if (!response.ok && response.status !== 409) {
+    if (!response.ok) {
+      // 409 = already settled; there is nothing left to cancel, the outcome is the same.
+      // But only when the body confirms a terminal status - a 409 for any other reason
+      // (e.g. an unrelated concurrent modification) must still surface as a failure.
+      if (response.status === 409) {
+        const raw = (response.data ?? {}) as Raw;
+        const status = oneOf<RemoteAccessRequestStatus>(raw.status, STATUSES);
+        if (status && SETTLED_STATUSES.has(status)) return;
+      }
       throw new Error(response.error ?? `Request failed with status ${response.status}`);
     }
   }
