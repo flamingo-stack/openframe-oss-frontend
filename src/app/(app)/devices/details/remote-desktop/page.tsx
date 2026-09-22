@@ -223,6 +223,9 @@ function RemoteDesktopSession() {
   const chatDialogId = useRemoteSessionDialogId();
   const chat = useRemoteSessionChat(chatDialogId);
   const [chatOpen, setChatOpen] = useState(false);
+  // The single source for the panel AND the toggle labels, so "Close Chat"
+  // can never show while nothing is open; the flag itself is reset wherever
+  // the session ends (see the ended lever below).
   const showChat = chatOpen && !!chatDialogId && !sessionEnded;
   const toggleChat = () => setChatOpen(open => !open);
 
@@ -233,6 +236,7 @@ function RemoteDesktopSession() {
     const onEnded = () => {
       tunnelRef.current?.stop();
       setSessionEnded(true);
+      setChatOpen(false);
     };
     window.addEventListener('openframe:dev-remote-session-ended', onEnded);
     return () => window.removeEventListener('openframe:dev-remote-session-ended', onEnded);
@@ -669,14 +673,14 @@ function RemoteDesktopSession() {
             variant="outline"
             onClick={toggleChat}
             leftIcon={
-              chatOpen ? (
+              showChat ? (
                 <ChatOffIcon className="h-4 w-4 md:h-6 md:w-6" />
               ) : (
                 <ChatTextIcon className="h-4 w-4 md:h-6 md:w-6" />
               )
             }
           >
-            {chatOpen ? 'Close Chat' : 'Open Chat'}
+            {showChat ? 'Close Chat' : 'Open Chat'}
           </Button>
         )}
         <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
@@ -823,7 +827,7 @@ function RemoteDesktopSession() {
             actionsMenuGroups={actionsMenuGroups}
             onOpenSettings={() => setSettingsOpen(true)}
             onExitFullscreen={exitFullscreen}
-            chatOpen={chatDialogId ? chatOpen : undefined}
+            chatOpen={chatDialogId ? showChat : undefined}
             onToggleChat={chatDialogId ? toggleChat : undefined}
           />
         ) : (
