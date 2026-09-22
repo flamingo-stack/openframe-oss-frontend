@@ -1,5 +1,6 @@
 'use client';
 
+import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Alert,
   type ColumnDef,
@@ -12,7 +13,6 @@ import {
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { AlertTriangle } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo } from 'react';
 import { DevicesGrid } from '@/app/(app)/devices/components/devices-grid';
@@ -281,7 +281,7 @@ function DevicesPanelContent({
           // span so Alert's `[&>svg]` absolute-positioning rules don't apply.
           <Alert className="mb-[var(--spacing-system-l)] flex items-start gap-[var(--spacing-system-m)] rounded-[6px] border-0 bg-ods-warning-secondary text-ods-warning">
             <span className="shrink-0">
-              <AlertTriangle className="h-6 w-6" />
+              <AlertTriangleIcon className="h-6 w-6" />
             </span>
             <p className="text-h3">Add a customer to connect a new device</p>
           </Alert>

@@ -1,10 +1,9 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
-import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CheckIcon, Chevron02LeftIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, PageLayout, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
-import { ChevronLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { DeviceInfoSection } from '@/app/components/shared';
@@ -81,7 +80,7 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
           <Button
             onClick={handleBackToLogs}
             className="rounded-[6px] border border-ods-border bg-ods-card px-4 py-3 font-bold text-ods-text-primary text-h6 hover:bg-ods-bg-hover"
-            leftIcon={<ChevronLeft className="h-4 w-4" />}
+            leftIcon={<Chevron02LeftIcon className="h-4 w-4" />}
           >
             Back
           </Button>
