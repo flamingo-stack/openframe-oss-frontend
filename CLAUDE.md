@@ -153,7 +153,7 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 | Code Editor | @monaco-editor/react | 4.7 |
 | GraphQL | graphql | 16.12 |
 | Date Utils | date-fns | 4.1 |
-| Icons | lucide-react | 0.454 |
+| Icons | `@flamingo-stack/openframe-frontend-core/components/icons-v2` (no `lucide-react` — not a dependency; `import/no-extraneous-dependencies` rejects it) | — |
 | Runtime Env | next-runtime-env | 3.3 |
 | Linting | ESLint + `@flamingo-stack/openframe-frontend-core/eslint-config` | 9.39 |
 | Formatting | Prettier + the shared preset (Tailwind class sorting) | 3.9 |

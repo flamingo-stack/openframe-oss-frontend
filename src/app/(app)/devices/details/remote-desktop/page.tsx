@@ -14,13 +14,13 @@ import {
   ChatTextIcon,
   Collapse02Icon,
   Expand02Icon,
+  Loading01Icon,
   MonitorIcon,
   MonitorOffIcon,
   ScanXmarkIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
@@ -768,7 +768,7 @@ function RemoteDesktopSession() {
       )}
       {connectionStatus === 'reconnecting' && !sessionEnded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
-          <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
+          <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
           <span className="text-ods-text-primary text-h4">Connection lost</span>
           <span className="text-ods-text-secondary text-h6">Attempting to reconnect...</span>
         </div>

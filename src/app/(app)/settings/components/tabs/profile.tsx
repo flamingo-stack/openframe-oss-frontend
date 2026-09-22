@@ -1,9 +1,9 @@
 'use client';
 
 import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { AlertCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageError, SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { AlertCircle, Pencil } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { apiClient } from '@/lib/api-client';
@@ -151,7 +151,7 @@ export function ProfileTab() {
                 className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
                 title="Email not verified - click to resend verification"
               >
-                <AlertCircle className="h-4 w-4" />
+                <AlertCircleIcon className="h-4 w-4" />
                 <span className="text-h6">Not verified</span>
               </button>
             )}
@@ -174,7 +174,11 @@ export function ProfileTab() {
           >
             <span className="font-bold">User Logs</span>
           </Button> */}
-          <Button variant="outline" onClick={() => setIsEditModalOpen(true)} leftIcon={<Pencil className="h-5 w-5" />}>
+          <Button
+            variant="outline"
+            onClick={() => setIsEditModalOpen(true)}
+            leftIcon={<PenEditIcon className="h-5 w-5" />}
+          >
             <span className="font-bold">Edit Profile</span>
           </Button>
         </div>

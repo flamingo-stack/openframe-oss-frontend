@@ -1,8 +1,8 @@
 'use client';
 
+import { Chevron02RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -74,7 +74,7 @@ export function SettingMenuItem({ href, icon, title, description, badge }: Setti
         aria-label={title}
         className={cn(CHEVRON_FRAME_CLASSES, 'transition-colors hover:bg-ods-bg-hover')}
       >
-        <ChevronRight className="size-6 text-ods-text-primary" />
+        <Chevron02RightIcon className="size-6 text-ods-text-primary" />
       </Link>
     </div>
   );
