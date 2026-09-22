@@ -1,6 +1,6 @@
 'use client';
 
-import { WifiOff } from 'lucide-react';
+import { WifiOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useEffect, useState } from 'react';
 import { subscribeConnectivity } from '@/lib/connectivity';
 
@@ -32,7 +32,7 @@ export function OfflineBanner() {
       className="fixed left-1/2 top-[calc(var(--native-safe-top,0px)+0.5rem)] z-[70] -translate-x-1/2"
     >
       <div className="flex items-center gap-2 rounded-full border border-ods-border bg-ods-card px-4 py-2 shadow-lg">
-        <WifiOff className="h-4 w-4 text-ods-text-secondary" />
+        <WifiOffIcon className="h-4 w-4 text-ods-text-secondary" />
         <span className="text-ods-text-primary text-code">You're offline</span>
       </div>
     </div>
