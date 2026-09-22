@@ -707,11 +707,9 @@ function RemoteDesktopSession() {
   const chatPanel = (variant: 'side' | 'overlay') =>
     showChat && chatDialogId ? (
       <SessionChatPanel
-        dialogId={chatDialogId}
         messages={chat.messages}
         technician={chat.technician}
         sending={chat.sending}
-        isMock={chat.isMock}
         onSend={chat.send}
         variant={variant}
       />

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useApprovedRemoteAccessRequestId } from '../components/remote-access/remote-access-session-context';
-import { REMOTE_SESSION_CHAT_MOCK_ACTIVE, remoteSessionChatService } from '../services/remote-session-chat-service';
+import { remoteSessionChatService } from '../services/remote-session-chat-service';
 import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
 
 /**
@@ -46,8 +46,6 @@ export interface RemoteSessionChatState {
   isLoading: boolean;
   sending: boolean;
   technician: RemoteSessionChatTechnician;
-  /** True while the panel runs on the mock service. */
-  isMock: boolean;
   /** Resolves `false` when nothing was sent (blank text, no dialog, failure). */
   send: (body: string) => Promise<boolean>;
 }
@@ -123,7 +121,6 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
     isLoading: !!dialogId && !current.historyLoaded,
     sending,
     technician,
-    isMock: REMOTE_SESSION_CHAT_MOCK_ACTIVE,
     send,
   };
 }

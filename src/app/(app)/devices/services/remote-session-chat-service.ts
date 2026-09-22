@@ -46,9 +46,8 @@ interface MockDialog {
 /**
  * In-memory mock. Dialogs live for the SPA session; every technician message
  * gets a scripted end-user reply a moment later so the panel can be exercised
- * end to end, and `simulateUserReply` lets the QA tooling inject one on
- * demand. A pending reply is dropped when the last subscriber leaves (panel
- * closed, session ended) - nothing answers into an abandoned dialog.
+ * end to end. A pending reply is dropped when the last subscriber leaves
+ * (panel closed, session ended) - nothing answers into an abandoned dialog.
  */
 class MockRemoteSessionChatService implements IRemoteSessionChatService {
   private readonly dialogs = new Map<string, MockDialog>();
@@ -84,7 +83,7 @@ class MockRemoteSessionChatService implements IRemoteSessionChatService {
     };
   }
 
-  /** QA lever: the end user sends `body` (or the next scripted reply) now. */
+  /** Test helper - the end user sends `body` (or the next scripted reply) now. */
   simulateUserReply(dialogId: string, body?: string): RemoteSessionChatMessage {
     return this.replyFromUser(dialogId, body);
   }
@@ -138,13 +137,3 @@ class MockRemoteSessionChatService implements IRemoteSessionChatService {
 export const mockRemoteSessionChatService = new MockRemoteSessionChatService();
 
 export const remoteSessionChatService: IRemoteSessionChatService = mockRemoteSessionChatService;
-
-/** True while the panel runs on the mock - drives the QA "simulate" lever. */
-export const REMOTE_SESSION_CHAT_MOCK_ACTIVE = remoteSessionChatService instanceof MockRemoteSessionChatService;
-
-/** No-op once the real service is wired - the lever only exists for the mock. */
-export function simulateRemoteSessionUserReply(dialogId: string, body?: string): void {
-  if (remoteSessionChatService instanceof MockRemoteSessionChatService) {
-    remoteSessionChatService.simulateUserReply(dialogId, body);
-  }
-}

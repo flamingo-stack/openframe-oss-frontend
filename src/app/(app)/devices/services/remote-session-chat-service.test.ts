@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteSessionChatMessage } from '../types/remote-session-chat';
-import {
-  mockRemoteSessionChatService as service,
-  REMOTE_SESSION_END_USER_NAME,
-  simulateRemoteSessionUserReply,
-} from './remote-session-chat-service';
+import { mockRemoteSessionChatService as service, REMOTE_SESSION_END_USER_NAME } from './remote-session-chat-service';
 
 const technician = { name: 'Roman K.' };
 
@@ -48,10 +44,10 @@ describe('MockRemoteSessionChatService', () => {
     expect(received[1].body.length).toBeGreaterThan(0);
   });
 
-  it('injects an end-user reply on demand with the given text', async () => {
+  it('lets a test inject an end-user reply with the given text', async () => {
     const received: RemoteSessionChatMessage[] = [];
     service.subscribe('d2', m => received.push(m));
-    simulateRemoteSessionUserReply('d2', 'Is it done?');
+    service.simulateUserReply('d2', 'Is it done?');
     expect(received).toEqual([expect.objectContaining({ author: 'user', body: 'Is it done?' })]);
   });
 
@@ -70,11 +66,11 @@ describe('MockRemoteSessionChatService', () => {
     const d2: RemoteSessionChatMessage[] = [];
     const stop = service.subscribe('d1', m => d1.push(m));
     service.subscribe('d2', m => d2.push(m));
-    simulateRemoteSessionUserReply('d1');
+    service.simulateUserReply('d1');
     expect(d1).toHaveLength(1);
     expect(d2).toHaveLength(0);
     stop();
-    simulateRemoteSessionUserReply('d1');
+    service.simulateUserReply('d1');
     expect(d1).toHaveLength(1);
     expect(await settle(service.history('d1'))).toHaveLength(2);
   });

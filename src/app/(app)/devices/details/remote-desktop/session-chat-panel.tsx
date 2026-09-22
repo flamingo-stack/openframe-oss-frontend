@@ -1,23 +1,18 @@
 'use client';
 
-import { Button } from '@flamingo-stack/openframe-frontend-core';
 import { ChatInput } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useEffect, useRef } from 'react';
 import { SessionChatMessageRow } from '@/app/(app)/devices/components/remote-sessions/session-chat-message-row';
-import { useRemoteAccessMockTools } from '@/app/(app)/devices/hooks/use-remote-access-mock-tools';
-import { simulateRemoteSessionUserReply } from '@/app/(app)/devices/services/remote-session-chat-service';
 import type {
   RemoteSessionChatMessage,
   RemoteSessionChatTechnician,
 } from '@/app/(app)/devices/types/remote-session-chat';
 
 interface SessionChatPanelProps {
-  dialogId: string;
   messages: RemoteSessionChatMessage[];
   technician: RemoteSessionChatTechnician;
   sending: boolean;
-  isMock: boolean;
   /** Resolves `false` to keep the draft in the input (nothing was sent). */
   onSend: (body: string) => Promise<boolean>;
   /**
@@ -34,16 +29,7 @@ interface SessionChatPanelProps {
  * in openframe-chat; the "JOINED CHAT" badge is that side's indication only
  * and is not shown here (decision 2026-09-21).
  */
-export function SessionChatPanel({
-  dialogId,
-  messages,
-  technician,
-  sending,
-  isMock,
-  onSend,
-  variant,
-}: SessionChatPanelProps) {
-  const showMockTools = useRemoteAccessMockTools();
+export function SessionChatPanel({ messages, technician, sending, onSend, variant }: SessionChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keep the newest message in view as the stream grows.
@@ -80,15 +66,6 @@ export function SessionChatPanel({
           )}
         </div>
       </div>
-
-      {isMock && showMockTools && (
-        <div className="flex items-center justify-between gap-[var(--spacing-system-xsf)] rounded-md border border-dashed border-ods-border p-[var(--spacing-system-xsf)]">
-          <span className="text-ods-text-muted text-h6">Mock service - the end user</span>
-          <Button type="button" variant="outline" size="small" onClick={() => simulateRemoteSessionUserReply(dialogId)}>
-            Simulate reply
-          </Button>
-        </div>
-      )}
 
       <ChatInput
         placeholder="Enter your Message..."
