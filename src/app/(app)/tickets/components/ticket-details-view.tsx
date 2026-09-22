@@ -364,7 +364,15 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const displayClientModel = currentClientModel ?? historyClientModel ?? orgClientModel;
 
   const clientInitialOptStartSeq = useMemo(() => maxPersistedStreamSeq(clientChat.rawPages), [clientChat.rawPages]);
-  const isInitialOptStartSeqReady = clientChat.isFetched;
+  // Fresh pages only (`isFetchedAfterMount`), not `isFetched`: on re-entry React Query
+  // serves the previous visit's cache first while `useTicketMessages` refetches, and
+  // `isFetched` is already true for it. A consumer created from that stale max seq
+  // replays every message that arrived while the user was away - and the refetch
+  // renders the same messages as persisted rows, so each shows twice (the replay
+  // lands after the history merge ran, so nothing dedupes it). Waiting for the
+  // post-mount fetch starts the consumer after the newest persisted seq instead;
+  // anything published in the meantime is still delivered from there.
+  const isInitialOptStartSeqReady = clientChat.isFetchedAfterMount;
 
   // NATS reconnect: JetStream replays only ~10 minutes of CHAT_CHUNKS, so an
   // outage longer than that leaves a gap the resume-by-seq cannot fill.
