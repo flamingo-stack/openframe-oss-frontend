@@ -10,6 +10,8 @@ import {
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
 import {
+  ChatOffIcon,
+  ChatTextIcon,
   Collapse02Icon,
   Expand02Icon,
   Loading01Icon,
@@ -25,6 +27,7 @@ import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/r
 import { useApprovedRemoteAccessRequestId } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
+import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devices/hooks/use-remote-session-chat';
 import { buildRemoteAccessRelayIdPrefix } from '@/app/(app)/devices/types/remote-access';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
@@ -47,6 +50,7 @@ import {
   type RemoteShortcut,
   SHORTCUT_DESCRIPTIONS,
 } from './remote-shortcuts';
+import { SessionChatPanel } from './session-chat-panel';
 import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
 
 interface LegacyDeviceData {
@@ -213,6 +217,18 @@ function RemoteDesktopSession() {
   // events from the BE (CU-86ajx02qj) - until then only the dev lever below
   // can set it, so the state ships dark with the UI ready.
   const [sessionEnded, setSessionEnded] = useState(false);
+  // Session chat: the dialog exists only for an approved session (null with
+  // the flag off), so the toggle stays hidden otherwise.
+  // The panel closes with the session.
+  const chatDialogId = useRemoteSessionDialogId();
+  const chat = useRemoteSessionChat(chatDialogId);
+  // "Open" is remembered per dialog: a different (or absent) dialog id reads
+  // as closed without any effect, so a panel can never carry over to the next
+  // dialog. `showChat` is the single source for the panel AND the toggle
+  // labels, so "Close Chat" never shows while nothing is open.
+  const [chatOpenFor, setChatOpenFor] = useState<string | null>(null);
+  const showChat = chatDialogId !== null && chatOpenFor === chatDialogId && !sessionEnded;
+  const toggleChat = () => setChatOpenFor(showChat ? null : chatDialogId);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return undefined;
@@ -221,6 +237,7 @@ function RemoteDesktopSession() {
     const onEnded = () => {
       tunnelRef.current?.stop();
       setSessionEnded(true);
+      setChatOpenFor(null);
     };
     window.addEventListener('openframe:dev-remote-session-ended', onEnded);
     return () => window.removeEventListener('openframe:dev-remote-session-ended', onEnded);
@@ -652,6 +669,21 @@ function RemoteDesktopSession() {
             }
           />
         )}
+        {chatDialogId && (
+          <Button
+            variant="outline"
+            onClick={toggleChat}
+            leftIcon={
+              showChat ? (
+                <ChatOffIcon className="h-4 w-4 md:h-6 md:w-6" />
+              ) : (
+                <ChatTextIcon className="h-4 w-4 md:h-6 md:w-6" />
+              )
+            }
+          >
+            {showChat ? 'Close Chat' : 'Open Chat'}
+          </Button>
+        )}
         <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
         <Button
           variant="outline"
@@ -676,6 +708,17 @@ function RemoteDesktopSession() {
   // each display with known geometry (cmd 82) gets its own cropped view.
   const gridDisplays = displays.filter(d => d.id !== 0 && d.w > 0 && d.h > 0);
   const isGridActive = currentDisplay === 0 && gridDisplays.length > 1;
+
+  const chatPanel = (variant: 'side' | 'overlay') =>
+    showChat && chatDialogId ? (
+      <SessionChatPanel
+        messages={chat.messages}
+        technician={chat.technician}
+        sending={chat.sending}
+        onSend={chat.send}
+        variant={variant}
+      />
+    ) : null;
 
   const canvasContainer = (
     <div className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-black ${isFullscreen ? '' : 'rounded-lg'}`}>
@@ -766,6 +809,7 @@ function RemoteDesktopSession() {
           />
         </div>
       )}
+      {isFullscreen && chatPanel('overlay')}
     </div>
   );
 
@@ -784,11 +828,19 @@ function RemoteDesktopSession() {
             actionsMenuGroups={actionsMenuGroups}
             onOpenSettings={() => setSettingsOpen(true)}
             onExitFullscreen={exitFullscreen}
+            chatOpen={chatDialogId ? showChat : undefined}
+            onToggleChat={chatDialogId ? toggleChat : undefined}
           />
         ) : (
           controlsBar
         )}
-        {canvasContainer}
+        {/* One wrapper in both modes: the canvas must keep its DOM node across
+            the fullscreen toggle (MeshDesktop is attached to it once), so the
+            tree shape never changes - only the side panel comes and goes. */}
+        <div className={`flex min-h-0 min-w-0 flex-1 ${isFullscreen ? '' : 'gap-[var(--spacing-system-mf)]'}`}>
+          {canvasContainer}
+          {!isFullscreen && chatPanel('side')}
+        </div>
       </div>
 
       <RemoteSettingsModal
