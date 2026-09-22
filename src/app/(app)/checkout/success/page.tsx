@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { notFound } from 'next/navigation';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
@@ -28,7 +28,7 @@ export default function CheckoutSuccessPage() {
 
   return (
     <CheckoutResultCard
-      icon={CheckCircle2}
+      icon={CheckCircleIcon}
       iconWrapperClassName="bg-ods-success-secondary text-ods-success"
       title="Payment Successful"
       description="Thanks for subscribing. Your plan is activating now — it may take a moment to show up across the app."

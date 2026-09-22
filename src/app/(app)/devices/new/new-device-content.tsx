@@ -98,7 +98,11 @@ export function NewDeviceContent() {
     });
   }, [tags]);
 
-  const { command, registerCommand, initialKey } = useInstallCommand({ organizationId, platform, tags: validTags });
+  const { command, registerCommand, initialKey, rotateMachineId } = useInstallCommand({
+    organizationId,
+    platform,
+    tags: validTags,
+  });
 
   const orgOptions: AutocompleteOption[] = useMemo(
     () => orgs.map(o => ({ label: o.name, value: o.organizationId })),
@@ -159,6 +163,9 @@ export function NewDeviceContent() {
     if (!(await validateBeforeAction())) return;
     if (installMethod === 'script') {
       doCopy(command);
+      // The copied command carries this id; the one now on screen gets a
+      // fresh one so the next device enrolled from this tab is distinguishable.
+      rotateMachineId();
       return;
     }
     // Both steps in one paste: install through the package manager, then
@@ -167,7 +174,7 @@ export function NewDeviceContent() {
     // registration only runs after a successful install.
     const separator = platform === 'windows' ? '; ' : ' && ';
     doCopy(`${PACKAGE_MANAGER_METHODS[installMethod].installCommand}${separator}${registerCommand}`);
-  }, [command, registerCommand, installMethod, platform, doCopy, validateBeforeAction]);
+  }, [command, registerCommand, installMethod, platform, doCopy, validateBeforeAction, rotateMachineId]);
 
   // Corner copy buttons take their own clipboard hook so the main button's
   // "copied" checkmark doesn't light up for a box-level copy.
@@ -179,7 +186,8 @@ export function NewDeviceContent() {
   const copyInstallScript = useCallback(async () => {
     if (!(await validateBeforeAction())) return;
     copyBoxCommand(command);
-  }, [command, copyBoxCommand, validateBeforeAction]);
+    rotateMachineId();
+  }, [command, copyBoxCommand, validateBeforeAction, rotateMachineId]);
 
   const copyRegisterCommand = useCallback(async () => {
     if (!(await validateBeforeAction())) return;

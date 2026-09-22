@@ -60,6 +60,7 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { transformOrganizationFilters } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { LogFilterInput } from '../types/log.types';
 import { logSourceLabels } from '../utils/log-source-labels';
@@ -367,7 +368,12 @@ function LogsTableContent({
   const getLogDetailsUrl = useCallback((log: UiLogEntry): string => {
     const original = log.originalLogEntry;
     const id = log.id || log.logId;
-    return `/log-details?id=${id}&ingestDay=${original.ingestDay}&toolType=${original.toolType}&eventType=${original.eventType}&timestamp=${encodeURIComponent(original.timestamp || '')}`;
+    return routes.logs.details(id, {
+      ingestDay: original.ingestDay,
+      toolType: original.toolType,
+      eventType: original.eventType,
+      timestamp: original.timestamp,
+    });
   }, []);
 
   const columns = useMemo<ColumnDef<UiLogEntry>[]>(

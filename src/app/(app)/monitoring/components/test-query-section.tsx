@@ -11,9 +11,13 @@ import {
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
-import { FlaskVialIcon, XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  FlaskVialIcon,
+  Refresh01LeftIcon,
+  StopIcon,
+  XmarkCircleIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { RotateCcw, Square } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import type { Device } from '../../devices/types/device.types';
 import { getFleetHostId, indexDevicesByFleetHostId } from '../../devices/utils/device-action-utils';
@@ -165,7 +169,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                   type="button"
                   variant="outline"
                   onClick={test.stop}
-                  leftIcon={<Square size={16} />}
+                  leftIcon={<StopIcon size={16} />}
                   className="h-11 w-full md:h-12"
                 >
                   Stop Test
@@ -176,7 +180,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                   variant="outline"
                   onClick={handleRun}
                   disabled={!canRun}
-                  leftIcon={<RotateCcw size={16} />}
+                  leftIcon={<Refresh01LeftIcon size={16} />}
                   className="h-11 w-full md:h-12"
                 >
                   Test Again

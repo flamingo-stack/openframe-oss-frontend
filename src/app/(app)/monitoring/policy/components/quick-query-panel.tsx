@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, TestRunResults, TestRunStatusStat, TimingStat } from '@flamingo-stack/openframe-frontend-core';
-import { RotateCcw, Square } from 'lucide-react';
+import { Refresh01LeftIcon, StopIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useCallback, useState } from 'react';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { useQueryTestRun } from '../../components/query-test-run';
@@ -55,7 +55,7 @@ export function QuickQueryPanel({ fleetHostId, deviceName, initialQuery }: Quick
               type="button"
               variant="outline"
               onClick={test.stop}
-              leftIcon={<Square size={16} />}
+              leftIcon={<StopIcon size={16} />}
               className="h-11 md:h-12 md:w-full"
             >
               Stop Test
@@ -66,7 +66,7 @@ export function QuickQueryPanel({ fleetHostId, deviceName, initialQuery }: Quick
               variant="outline"
               onClick={handleRun}
               disabled={!canRun}
-              leftIcon={<RotateCcw size={16} />}
+              leftIcon={<Refresh01LeftIcon size={16} />}
               className="h-11 md:h-12 md:w-full"
             >
               Test Again
