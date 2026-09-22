@@ -222,12 +222,13 @@ function RemoteDesktopSession() {
   // The panel closes with the session.
   const chatDialogId = useRemoteSessionDialogId();
   const chat = useRemoteSessionChat(chatDialogId);
-  const [chatOpen, setChatOpen] = useState(false);
-  // The single source for the panel AND the toggle labels, so "Close Chat"
-  // can never show while nothing is open; the flag itself is reset wherever
-  // the session ends (see the ended lever below).
-  const showChat = chatOpen && !!chatDialogId && !sessionEnded;
-  const toggleChat = () => setChatOpen(open => !open);
+  // "Open" is remembered per dialog: a different (or absent) dialog id reads
+  // as closed without any effect, so a panel can never carry over to the next
+  // dialog. `showChat` is the single source for the panel AND the toggle
+  // labels, so "Close Chat" never shows while nothing is open.
+  const [chatOpenFor, setChatOpenFor] = useState<string | null>(null);
+  const showChat = chatDialogId !== null && chatOpenFor === chatDialogId && !sessionEnded;
+  const toggleChat = () => setChatOpenFor(showChat ? null : chatDialogId);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return undefined;
@@ -236,7 +237,7 @@ function RemoteDesktopSession() {
     const onEnded = () => {
       tunnelRef.current?.stop();
       setSessionEnded(true);
-      setChatOpen(false);
+      setChatOpenFor(null);
     };
     window.addEventListener('openframe:dev-remote-session-ended', onEnded);
     return () => window.removeEventListener('openframe:dev-remote-session-ended', onEnded);
