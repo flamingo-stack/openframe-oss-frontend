@@ -10,9 +10,10 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 const SOFTWARE_LIST_COLUMNS = {
   name: { id: 'name', header: 'Software', width: 'flex-1 min-w-0' },
   currentVersion: { id: 'currentVersion', header: 'Current Version', width: 'flex-1 min-w-0', hideAt: 'md' },
-  // DEVICES and VULNS carry the server-side sort toggles (see SORTABLE_COLUMN_IDS).
+  // DEVICES and VULNS carry the server-side sort toggles (see SORTABLE_COLUMN_IDS);
+  // VULNS sorts by the CVE count, the one figure the column shows.
   devicesCount: { id: 'devicesCount', header: 'Devices', width: 'w-[100px] md:w-[144px]', sortable: true },
-  vulnerabilities: { id: 'severity', header: 'Vulns', width: 'w-[96px]', sortable: true },
+  vulnerabilities: { id: 'cveCount', header: 'Vulns', width: 'w-[96px]', sortable: true },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 

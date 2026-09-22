@@ -1,5 +1,6 @@
 'use client';
 
+import { BracketSquareCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
   DataTable,
@@ -8,6 +9,7 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   softwareVulnerabilitiesTable_query$data,
@@ -15,35 +17,32 @@ import type {
 } from '@/__generated__/softwareVulnerabilitiesTable_query.graphql';
 import type { softwareVulnerabilitiesTablePaginationQuery as SoftwareVulnerabilitiesTablePaginationQueryType } from '@/__generated__/softwareVulnerabilitiesTablePaginationQuery.graphql';
 import type {
-  SoftwareVulnerabilityFilterInput,
   softwareVulnerabilitiesTableQuery as SoftwareVulnerabilitiesTableQueryType,
   SortInput,
 } from '@/__generated__/softwareVulnerabilitiesTableQuery.graphql';
-import { CVE_SEVERITY, CVE_SEVERITY_BANDS, liveColumnMeta, useRetryKey } from '@/app/components/shared';
-import { multiSelectFilterFn } from '@/lib/table-filters';
+import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { openNvd } from '../../shared/nvd-url';
 import { OpenRowButton } from '../../shared/open-row-button';
-import { singleColumnFilter } from '../../shared/single-column-filter';
 import { SOFTWARE_VULNERABILITIES_PAGE_SIZE, SOFTWARE_VULNERABILITY_COLUMNS } from './software-vulnerabilities-columns';
-import { SoftwareVulnerabilityPublishedCell } from './software-vulnerability-published-cell';
-import { SoftwareVulnerabilitySeverityCell } from './software-vulnerability-severity-cell';
+import { SoftwareVulnerabilityDiscoveredCell } from './software-vulnerability-discovered-cell';
 import { SoftwareVulnerabilityVersionCell } from './software-vulnerability-version-cell';
 
 /**
- * Software → Vulnerabilities: the CVEs matched to this title. One row per CVE,
- * with the fleet version it affects and when it was published.
+ * Software → Vulnerabilities: the CVEs matched to this title. One row per CVE
+ * × affected fleet version — a CVE that hits several installed versions is
+ * listed once per version — with when Fleet first found it. Search and the
+ * Discovered sort only; no severity, which the scanner does not rate.
  */
 const softwareVulnerabilitiesTableQuery = graphql`
   query softwareVulnerabilitiesTableQuery(
     $softwareId: ID!
-    $filter: SoftwareVulnerabilityFilterInput
     $search: String
     $sort: SortInput
     $first: Int!
     $after: String
   ) {
     ...softwareVulnerabilitiesTable_query
-      @arguments(softwareId: $softwareId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
+      @arguments(softwareId: $softwareId, search: $search, sort: $sort, first: $first, after: $after)
   }
 `;
 
@@ -52,30 +51,23 @@ const softwareVulnerabilitiesTableFragment = graphql`
   @refetchable(queryName: "softwareVulnerabilitiesTablePaginationQuery")
   @argumentDefinitions(
     softwareId: { type: "ID!" }
-    filter: { type: "SoftwareVulnerabilityFilterInput" }
     search: { type: "String" }
     sort: { type: "SortInput" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    softwareVulnerabilities(
-      softwareId: $softwareId
-      filter: $filter
-      search: $search
-      sort: $sort
-      first: $first
-      after: $after
-    ) @connection(key: "softwareVulnerabilitiesTable_softwareVulnerabilities") {
+    softwareVulnerabilities(softwareId: $softwareId, search: $search, sort: $sort, first: $first, after: $after)
+      @connection(key: "softwareVulnerabilitiesTable_softwareVulnerabilities") {
       filteredCount
       edges {
         node {
           cveId
-          # What the severity funnel narrows the rows on screen by, while the
-          # refetch it triggered is still in flight.
-          severity
-          ...softwareVulnerabilitySeverityCell_vulnerability
+          # The other half of the row key: the same CVE comes once per
+          # affected version, and the cell below reads it through its own
+          # fragment.
+          affectedVersion
           ...softwareVulnerabilityVersionCell_vulnerability
-          ...softwareVulnerabilityPublishedCell_vulnerability
+          ...softwareVulnerabilityDiscoveredCell_vulnerability
         }
       }
       pageInfo {
@@ -90,9 +82,6 @@ type SoftwareVulnerabilityRow = NonNullable<
   softwareVulnerabilitiesTable_query$data['softwareVulnerabilities']
 >['edges'][number]['node'];
 
-/** Severity funnel options, highest band first. */
-const SEVERITY_OPTIONS = CVE_SEVERITY_BANDS.map(band => ({ id: band, label: CVE_SEVERITY[band].label, value: band }));
-
 const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
   {
     id: SOFTWARE_VULNERABILITY_COLUMNS.cveId.id,
@@ -100,17 +89,6 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
     cell: ({ row }: { row: Row<SoftwareVulnerabilityRow> }) => <TruncateText>{row.original.cveId}</TruncateText>,
     enableSorting: false,
     meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.cveId),
-  },
-  {
-    id: SOFTWARE_VULNERABILITY_COLUMNS.severity.id,
-    header: SOFTWARE_VULNERABILITY_COLUMNS.severity.header,
-    accessorFn: (row: SoftwareVulnerabilityRow) => row.severity ?? '',
-    cell: ({ row }: { row: Row<SoftwareVulnerabilityRow> }) => (
-      <SoftwareVulnerabilitySeverityCell vulnerability={row.original} />
-    ),
-    enableSorting: false,
-    filterFn: multiSelectFilterFn,
-    meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.severity, { filter: { options: SEVERITY_OPTIONS } }),
   },
   {
     id: SOFTWARE_VULNERABILITY_COLUMNS.affectedVersion.id,
@@ -122,13 +100,13 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
     meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.affectedVersion),
   },
   {
-    id: SOFTWARE_VULNERABILITY_COLUMNS.publishedAt.id,
-    header: SOFTWARE_VULNERABILITY_COLUMNS.publishedAt.header,
+    id: SOFTWARE_VULNERABILITY_COLUMNS.discoveredAt.id,
+    header: SOFTWARE_VULNERABILITY_COLUMNS.discoveredAt.header,
     cell: ({ row }: { row: Row<SoftwareVulnerabilityRow> }) => (
-      <SoftwareVulnerabilityPublishedCell vulnerability={row.original} />
+      <SoftwareVulnerabilityDiscoveredCell vulnerability={row.original} />
     ),
     enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.publishedAt),
+    meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.discoveredAt),
   },
   {
     id: SOFTWARE_VULNERABILITY_COLUMNS.open.id,
@@ -140,45 +118,40 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
   },
 ];
 
-const getRowId = (row: SoftwareVulnerabilityRow) => row.cveId;
+/**
+ * A row is a CVE on one affected version; the CVE id alone repeats. `\0` cannot
+ * occur in either half, so the pair can't collide with another.
+ */
+const getRowId = (row: SoftwareVulnerabilityRow) => `${row.cveId}\0${row.affectedVersion ?? ''}`;
 
 interface SoftwareVulnerabilitiesTableProps {
   softwareId: string;
-  backendFilters: SoftwareVulnerabilityFilterInput | null;
   debouncedSearch: string;
   sort: SortInput | null;
   sortState: DataTableSortState | null;
   onSortChange: (columnId: string) => void;
-  severityFilter: string[];
-  onSeverityFilterChange: (values: string[]) => void;
+  /** True while a refetch is in flight — guards the empty state so it never flashes on stale data. */
   isPending: boolean;
+  /** Nothing matched to this title at all (not a search miss) — the tab drops its toolbar. */
+  onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
 }
 
 /** The Vulnerabilities tab's rows — suspends on the query, so it lives under the tab's `<Suspense>`. */
 export function SoftwareVulnerabilitiesTable({
   softwareId,
-  backendFilters,
   debouncedSearch,
   sort,
   sortState,
   onSortChange,
-  severityFilter,
-  onSeverityFilterChange,
   isPending,
+  onEmptyChange,
   stickyHeaderOffset,
 }: SoftwareVulnerabilitiesTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareVulnerabilitiesTableQueryType>(
     softwareVulnerabilitiesTableQuery,
-    {
-      softwareId,
-      filter: backendFilters,
-      search: debouncedSearch || null,
-      sort,
-      first: SOFTWARE_VULNERABILITIES_PAGE_SIZE,
-      after: null,
-    },
+    { softwareId, search: debouncedSearch || null, sort, first: SOFTWARE_VULNERABILITIES_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
@@ -194,20 +167,30 @@ export function SoftwareVulnerabilitiesTable({
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_VULNERABILITIES_PAGE_SIZE);
   };
 
-  const { columnFilters, onColumnFiltersChange } = singleColumnFilter(
-    SOFTWARE_VULNERABILITY_COLUMNS.severity.id,
-    severityFilter,
-    onSeverityFilterChange,
-  );
-
   const table = useDataTable<SoftwareVulnerabilityRow>({
     data: rows,
     columns: COLUMNS,
     getRowId,
     enableSorting: false,
-    state: { columnFilters },
-    onColumnFiltersChange,
   });
+
+  // A search that finds nothing keeps the table (its own "no match" row); a
+  // title with no CVEs at all gets the section's empty state instead.
+  const showEmptyState = !debouncedSearch && !isPending && rows.length === 0;
+
+  useEffect(() => {
+    onEmptyChange(showEmptyState);
+  }, [showEmptyState, onEmptyChange]);
+
+  if (showEmptyState) {
+    return (
+      <EmptyState
+        icon={<BracketSquareCheckIcon />}
+        title="No known vulnerabilities"
+        description="CVEs matched to this software will be listed here once the vulnerability scan reports them."
+      />
+    );
+  }
 
   return (
     <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
@@ -221,13 +204,7 @@ export function SoftwareVulnerabilitiesTable({
         />
         <DataTable.Body
           skeletonRows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
-          emptyMessage={
-            debouncedSearch
-              ? `No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`
-              : backendFilters
-                ? 'No vulnerabilities at the selected severity. Try adjusting your filter.'
-                : 'No known vulnerabilities for this software.'
-          }
+          emptyMessage={`No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`}
           rowClassName="mb-1"
         />
         {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}

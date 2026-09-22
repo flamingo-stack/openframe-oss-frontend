@@ -35,7 +35,7 @@ const PAGE_ACTIONS: PageActionButton[] = [
  * the fleet, the scheduled ones included — one row per package per run. Owns
  * the URL search and the sticky toolbar; the rows suspend below it.
  */
-export function SoftwareActionsView() {
+export function SoftwareActionsView({ loading = false }: { loading?: boolean }) {
   const { params, setParam } = useApiParams({
     search: { type: 'string', default: '' },
   });
@@ -53,6 +53,15 @@ export function SoftwareActionsView() {
   // backend orders it.
   const { deferredSearch, isPending } = useDeferredQuery(null, debouncedSearch);
 
+  // The rows before they answer — the same for a query in flight and for the flag's own window.
+  const tableSkeleton = (
+    <TableSkeleton
+      columns={SOFTWARE_ACTION_TABLE_COLUMNS}
+      rows={SOFTWARE_ACTIONS_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
+  );
+
   return (
     // No page padding here: it lives in `SoftwarePageShell`, around the error
     // boundary, so a thrown query keeps the title indented.
@@ -64,25 +73,22 @@ export function SoftwareActionsView() {
             placeholder="Search for Update"
             value={searchInput}
             onChange={setSearchInput}
+            disabled={loading}
           />
         )}
 
-        <Suspense
-          fallback={
-            <TableSkeleton
-              columns={SOFTWARE_ACTION_TABLE_COLUMNS}
-              rows={SOFTWARE_ACTIONS_PAGE_SIZE}
+        {loading ? (
+          tableSkeleton
+        ) : (
+          <Suspense fallback={tableSkeleton}>
+            <SoftwareActionsTable
+              debouncedSearch={deferredSearch}
+              isPending={isPending}
+              onEmptyChange={setIsEmpty}
               stickyHeaderOffset={stickyHeaderOffset}
             />
-          }
-        >
-          <SoftwareActionsTable
-            debouncedSearch={deferredSearch}
-            isPending={isPending}
-            onEmptyChange={setIsEmpty}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        </Suspense>
+          </Suspense>
+        )}
       </div>
     </PageLayout>
   );

@@ -1,12 +1,12 @@
-import { MonitorIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { BracketSquareCheckIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ComponentType } from 'react';
 import type { SoftwareDetailTab } from '@/lib/routes';
 import { SoftwareDevicesTab } from './devices-tab/software-devices-tab';
 import { SoftwareVulnerabilitiesTab } from './vulnerabilities-tab/software-vulnerabilities-tab';
 
-/** What every tab body receives: the tables fetch by id on their own. */
-type SoftwareTabBody = ComponentType<{ softwareId: string }>;
+/** What every tab body receives: the tables fetch by id on their own, unless told not to yet. */
+type SoftwareTabBody = ComponentType<{ softwareId: string; loading?: boolean }>;
 
 /**
  * The Software detail tabs: label, icon and BODY, one entry per tab.
@@ -22,7 +22,7 @@ export const SOFTWARE_DETAIL_TABS: TabItem[] = [
   {
     id: 'vulnerabilities' satisfies SoftwareDetailTab,
     label: 'Vulnerabilities',
-    icon: ShieldCheckIcon,
+    icon: BracketSquareCheckIcon,
     component: SoftwareVulnerabilitiesTab,
   },
 ];

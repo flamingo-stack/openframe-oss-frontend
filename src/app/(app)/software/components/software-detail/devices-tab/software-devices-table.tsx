@@ -1,5 +1,6 @@
 'use client';
 
+import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
   DataTable,
@@ -7,6 +8,7 @@ import {
   type Row,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   softwareDevicesTable_query$data,
@@ -18,7 +20,7 @@ import type {
   softwareDevicesTableQuery as SoftwareDevicesTableQueryType,
   SortInput,
 } from '@/__generated__/softwareDevicesTableQuery.graphql';
-import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -119,7 +121,9 @@ const COLUMNS: ColumnDef<SoftwareDeviceRow>[] = [
     enableSorting: false,
     filterFn: multiSelectFilterFn,
     meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.softwareVersion, {
-      filter: { options: STATUS_OPTIONS, placement: 'bottom-end' },
+      // The column stretches to the row's end, so an end-anchored popover would
+      // hang off the far right, nowhere near the header it belongs to.
+      filter: { options: STATUS_OPTIONS },
     }),
   },
   {
@@ -143,7 +147,10 @@ interface SoftwareDevicesTableProps {
   onSortChange: (columnId: string) => void;
   statusFilter: string[];
   onStatusFilterChange: (values: string[]) => void;
+  /** True while a refetch is in flight — guards the empty state so it never flashes on stale data. */
   isPending: boolean;
+  /** No device carries this title at all (not a search or funnel miss) — the tab drops its toolbar. */
+  onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
 }
 
@@ -158,6 +165,7 @@ export function SoftwareDevicesTable({
   statusFilter,
   onStatusFilterChange,
   isPending,
+  onEmptyChange,
   stickyHeaderOffset,
 }: SoftwareDevicesTableProps) {
   const retryKey = useRetryKey();
@@ -201,6 +209,24 @@ export function SoftwareDevicesTable({
     onColumnFiltersChange,
   });
 
+  // A search or a funnel that finds nothing keeps the table (its own "no match"
+  // row); a title on no device at all gets the section's empty state instead.
+  const showEmptyState = !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
+
+  useEffect(() => {
+    onEmptyChange(showEmptyState);
+  }, [showEmptyState, onEmptyChange]);
+
+  if (showEmptyState) {
+    return (
+      <EmptyState
+        icon={<MonitorIcon />}
+        title="No devices"
+        description="Devices with this software installed will be listed here once they report their inventory."
+      />
+    );
+  }
+
   return (
     <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
       <DataTable table={table}>
@@ -216,9 +242,7 @@ export function SoftwareDevicesTable({
           emptyMessage={
             debouncedSearch
               ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
-              : backendFilters
-                ? 'No devices with the selected status. Try adjusting your filter.'
-                : 'No devices have this software installed.'
+              : 'No devices with the selected status. Try adjusting your filter.'
           }
           rowClassName="mb-1"
           rowHref={deviceHref}

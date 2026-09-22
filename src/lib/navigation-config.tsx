@@ -61,6 +61,7 @@ export interface NavigationFlags {
   timeTracker: boolean;
   helpCenter: boolean;
   insights: boolean;
+  softwareManagement: boolean;
 }
 
 export const getNavigationItems = (
@@ -139,13 +140,18 @@ export const getNavigationItems = (
       path: routes.monitoring.root(),
       isActive: pathname.startsWith('/monitoring'),
     },
-    {
-      id: 'software',
-      label: 'Software',
-      icon: <Parcel02Icon size={24} />,
-      path: routes.software.list,
-      isActive: pathname.startsWith('/software'),
-    },
+    // The Software module — behind `software-management`, like its routes.
+    ...(flags.softwareManagement
+      ? [
+          {
+            id: 'software',
+            label: 'Software',
+            icon: <Parcel02Icon size={24} />,
+            path: routes.software.list,
+            isActive: pathname.startsWith('/software'),
+          },
+        ]
+      : []),
     {
       id: 'logs',
       label: 'Logs',

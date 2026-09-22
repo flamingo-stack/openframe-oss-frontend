@@ -9,10 +9,18 @@ interface SoftwareSearchToolbarProps {
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
+  /** The list is not there to search yet — the bar draws as it will, locked. */
+  disabled?: boolean;
 }
 
 /** The search bar pinned above a Software table. */
-export function SoftwareSearchToolbar({ toolbarRef, placeholder, value, onChange }: SoftwareSearchToolbarProps) {
+export function SoftwareSearchToolbar({
+  toolbarRef,
+  placeholder,
+  value,
+  onChange,
+  disabled,
+}: SoftwareSearchToolbarProps) {
   return (
     <div
       ref={toolbarRef}
@@ -22,6 +30,7 @@ export function SoftwareSearchToolbar({ toolbarRef, placeholder, value, onChange
         placeholder={placeholder}
         value={value}
         onChange={e => onChange(e.target.value)}
+        disabled={disabled}
         className="flex-1"
         startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
       />

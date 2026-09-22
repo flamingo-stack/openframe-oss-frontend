@@ -276,6 +276,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const helpCenterEnabled = useFeatureFlag('help-center');
   const insightsEnabled = useFeatureFlag('insights');
+  const softwareManagementEnabled = useFeatureFlag('software-management');
   const notificationsEnabled = useFeatureFlag('notifications');
   const billingsEnabled = useFeatureFlag('billings');
   /**
@@ -403,8 +404,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       timeTracker: timeTrackerEnabled,
       helpCenter: helpCenterEnabled,
       insights: insightsEnabled,
+      softwareManagement: softwareManagementEnabled,
     }),
-    [timeTrackerEnabled, helpCenterEnabled, insightsEnabled],
+    [timeTrackerEnabled, helpCenterEnabled, insightsEnabled, softwareManagementEnabled],
   );
 
   const navigationItems = useMemo(

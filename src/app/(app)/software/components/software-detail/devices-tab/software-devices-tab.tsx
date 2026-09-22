@@ -1,7 +1,7 @@
 'use client';
 
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useMemo } from 'react';
+import { memo, Suspense, useMemo, useState } from 'react';
 import type { SoftwareOnDeviceFilterInput } from '@/__generated__/softwareDevicesTableQuery.graphql';
 import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -21,7 +21,14 @@ import { SoftwareDevicesTable } from './software-devices-table';
  * version and lifecycle status. Owns the tab's URL state and search toolbar;
  * the rows suspend below it.
  */
-export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({ softwareId }: { softwareId: string }) {
+export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
+  softwareId,
+  loading = false,
+}: {
+  softwareId: string;
+  /** The module's flag has not answered yet: the toolbar draws locked, the rows do not fetch. */
+  loading?: boolean;
+}) {
   const { params, setParam, setParams } = useApiParams({
     deviceSearch: { type: 'string', default: '' },
     deviceStatus: { type: 'array', default: [] },
@@ -35,6 +42,7 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({ softwar
     debouncedSearch,
   } = useSearchParam(params.deviceSearch, value => setParam('deviceSearch', value), 300);
 
+  const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const { sort, sortState, onSortChange } = useServerSort({
@@ -55,37 +63,46 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({ softwar
   }, [params.deviceStatus, sort]);
   const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
 
+  // The rows before they answer — the same for a query in flight and for the flag's own window.
+  const tableSkeleton = (
+    <TableSkeleton
+      columns={SOFTWARE_DEVICES_TABLE_COLUMNS}
+      rows={SOFTWARE_DEVICES_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
+  );
+
   return (
     <div className="flex flex-col pt-[var(--spacing-system-l)]" style={containerStyle}>
-      <SoftwareSearchToolbar
-        toolbarRef={toolbarRef}
-        placeholder="Search for Devices"
-        value={searchInput}
-        onChange={setSearchInput}
-      />
+      {!isEmpty && (
+        <SoftwareSearchToolbar
+          toolbarRef={toolbarRef}
+          placeholder="Search for Devices"
+          value={searchInput}
+          onChange={setSearchInput}
+          disabled={loading}
+        />
+      )}
 
-      <Suspense
-        fallback={
-          <TableSkeleton
-            columns={SOFTWARE_DEVICES_TABLE_COLUMNS}
-            rows={SOFTWARE_DEVICES_PAGE_SIZE}
+      {loading ? (
+        tableSkeleton
+      ) : (
+        <Suspense fallback={tableSkeleton}>
+          <SoftwareDevicesTable
+            softwareId={softwareId}
+            backendFilters={deferredVars.filter}
+            debouncedSearch={deferredSearch}
+            sort={deferredVars.sort}
+            sortState={sortState}
+            onSortChange={onSortChange}
+            statusFilter={params.deviceStatus}
+            onStatusFilterChange={values => setParam('deviceStatus', values)}
+            isPending={isPending}
+            onEmptyChange={setIsEmpty}
             stickyHeaderOffset={stickyHeaderOffset}
           />
-        }
-      >
-        <SoftwareDevicesTable
-          softwareId={softwareId}
-          backendFilters={deferredVars.filter}
-          debouncedSearch={deferredSearch}
-          sort={deferredVars.sort}
-          sortState={sortState}
-          onSortChange={onSortChange}
-          statusFilter={params.deviceStatus}
-          onStatusFilterChange={values => setParam('deviceStatus', values)}
-          isPending={isPending}
-          stickyHeaderOffset={stickyHeaderOffset}
-        />
-      </Suspense>
+        </Suspense>
+      )}
     </div>
   );
 });

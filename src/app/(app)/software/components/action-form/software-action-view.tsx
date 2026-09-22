@@ -10,6 +10,7 @@ import {
 import { useMemo, useState } from 'react';
 import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import { ServerDevicePickerSkeleton } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleTimeReference, type SoftwareAction } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
@@ -36,7 +37,14 @@ function agentMissing(device: Device): string | undefined {
  * one edits in place, so the selection is never held in the browser — and
  * submit sends the bundle's id, not a list (`useSoftwareActionSubmit`).
  */
-export function SoftwareActionView({ action }: { action: SoftwareAction }) {
+export function SoftwareActionView({
+  action,
+  loading = false,
+}: {
+  action: SoftwareAction;
+  /** The module's flag has not answered yet: the form draws, the picker does not fetch and nothing submits. */
+  loading?: boolean;
+}) {
   const copy = SOFTWARE_ACTION_COPY[action];
   const handleBack = useSafeBack(routes.software.actions);
   const { bundleId, deviceCount, ensureBundle, markSubmitted } = useDraftBundle();
@@ -63,7 +71,7 @@ export function SoftwareActionView({ action }: { action: SoftwareAction }) {
       label: mode === 'now' ? copy.runLabel : copy.scheduleLabel,
       variant: 'accent',
       onClick: () => submit({ rows, bundleId, deviceCount, mode, date, time, timeReference }),
-      disabled: deviceCount === 0,
+      disabled: loading || deviceCount === 0,
       loading: isSubmitting,
     },
   ];
@@ -123,12 +131,16 @@ export function SoftwareActionView({ action }: { action: SoftwareAction }) {
 
       <h2 className="pt-[var(--spacing-system-l)] text-ods-text-primary text-h2">Device Selection</h2>
 
-      <BundleDevicePicker
-        bundleId={bundleId}
-        ensureBundle={ensureBundle}
-        scope={scope}
-        isDeviceDisabled={agentMissing}
-      />
+      {loading ? (
+        <ServerDevicePickerSkeleton />
+      ) : (
+        <BundleDevicePicker
+          bundleId={bundleId}
+          ensureBundle={ensureBundle}
+          scope={scope}
+          isDeviceDisabled={agentMissing}
+        />
+      )}
     </PageLayout>
   );
 }

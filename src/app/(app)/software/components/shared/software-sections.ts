@@ -1,7 +1,7 @@
 import {
+  BracketSquareCheckIcon,
   Parcel02Icon,
   Refresh02HrIcon,
-  ShieldCheckIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { routes } from '@/lib/routes';
 
@@ -12,7 +12,8 @@ import { routes } from '@/lib/routes';
 export const SOFTWARE_SECTIONS = {
   all: { label: 'All Software', href: routes.software.list, icon: Parcel02Icon },
   actions: { label: 'Software Actions', href: routes.software.actions, icon: Refresh02HrIcon },
-  vulnerabilities: { label: 'Vulnerabilities', href: routes.software.vulnerabilities, icon: ShieldCheckIcon },
+  // The same glyph as the device page's Vulnerabilities tab.
+  vulnerabilities: { label: 'Vulnerabilities', href: routes.software.vulnerabilities, icon: BracketSquareCheckIcon },
 };
 
 export type SoftwareSectionId = keyof typeof SOFTWARE_SECTIONS;

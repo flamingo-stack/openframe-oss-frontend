@@ -1,8 +1,7 @@
 'use client';
 
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useMemo } from 'react';
-import type { SoftwareVulnerabilityFilterInput } from '@/__generated__/softwareVulnerabilitiesTableQuery.graphql';
+import { memo, Suspense, useState } from 'react';
 import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -22,12 +21,14 @@ import { SoftwareVulnerabilitiesTable } from './software-vulnerabilities-table';
  */
 export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesTabImpl({
   softwareId,
+  loading = false,
 }: {
   softwareId: string;
+  /** The module's flag has not answered yet: the toolbar draws locked, the rows do not fetch. */
+  loading?: boolean;
 }) {
   const { params, setParam, setParams } = useApiParams({
     cveSearch: { type: 'string', default: '' },
-    cveSeverity: { type: 'array', default: [] },
     cveSortBy: { type: 'string', default: '' },
     cveSortDir: { type: 'string', default: 'desc' },
   });
@@ -38,6 +39,7 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
     debouncedSearch,
   } = useSearchParam(params.cveSearch, value => setParam('cveSearch', value), 300);
 
+  const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const { sort, sortState, onSortChange } = useServerSort({
@@ -47,48 +49,47 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
     onChange: (sortBy, sortDir) => setParams({ cveSortBy: sortBy, cveSortDir: sortDir }),
   });
 
-  // Memoized for its identity, not for speed: `useDeferredQuery` tells a pending
-  // refetch by comparing references.
-  const queryVars = useMemo(() => {
-    const filter: SoftwareVulnerabilityFilterInput | null =
-      params.cveSeverity.length > 0
-        ? { severities: params.cveSeverity as SoftwareVulnerabilityFilterInput['severities'] }
-        : null;
-    return { filter, sort };
-  }, [params.cveSeverity, sort]);
-  const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
+  // Sort travels as a deferred object so the query lags in lockstep with the
+  // search and `isPending` covers both. The tab has no funnels.
+  const { deferredFilters: deferredSort, deferredSearch, isPending } = useDeferredQuery(sort, debouncedSearch);
+
+  // The rows before they answer — the same for a query in flight and for the flag's own window.
+  const tableSkeleton = (
+    <TableSkeleton
+      columns={SOFTWARE_VULNERABILITIES_TABLE_COLUMNS}
+      rows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
+  );
 
   return (
     <div className="flex flex-col pt-[var(--spacing-system-l)]" style={containerStyle}>
-      <SoftwareSearchToolbar
-        toolbarRef={toolbarRef}
-        placeholder="Search for Vulnerability"
-        value={searchInput}
-        onChange={setSearchInput}
-      />
+      {!isEmpty && (
+        <SoftwareSearchToolbar
+          toolbarRef={toolbarRef}
+          placeholder="Search for Vulnerability"
+          value={searchInput}
+          onChange={setSearchInput}
+          disabled={loading}
+        />
+      )}
 
-      <Suspense
-        fallback={
-          <TableSkeleton
-            columns={SOFTWARE_VULNERABILITIES_TABLE_COLUMNS}
-            rows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
+      {loading ? (
+        tableSkeleton
+      ) : (
+        <Suspense fallback={tableSkeleton}>
+          <SoftwareVulnerabilitiesTable
+            softwareId={softwareId}
+            debouncedSearch={deferredSearch}
+            sort={deferredSort}
+            sortState={sortState}
+            onSortChange={onSortChange}
+            isPending={isPending}
+            onEmptyChange={setIsEmpty}
             stickyHeaderOffset={stickyHeaderOffset}
           />
-        }
-      >
-        <SoftwareVulnerabilitiesTable
-          softwareId={softwareId}
-          backendFilters={deferredVars.filter}
-          debouncedSearch={deferredSearch}
-          sort={deferredVars.sort}
-          sortState={sortState}
-          onSortChange={onSortChange}
-          severityFilter={params.cveSeverity}
-          onSeverityFilterChange={values => setParam('cveSeverity', values)}
-          isPending={isPending}
-          stickyHeaderOffset={stickyHeaderOffset}
-        />
-      </Suspense>
+        </Suspense>
+      )}
     </div>
   );
 });

@@ -7,11 +7,12 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  */
 const SOFTWARE_VULNERABILITY_COLUMNS = {
   cveId: { id: 'cveId', header: 'CVE ID', width: 'flex-1 min-w-0' },
-  severity: { id: 'severity', header: 'Severity', width: 'w-[140px] md:w-[180px]', filterable: true },
-  affectedVersion: { id: 'affectedVersion', header: 'Version', width: 'flex-1 min-w-0', hideAt: 'md', sortable: true },
-  publishedAt: {
-    id: 'publishedAt',
-    header: 'Published',
+  affectedVersion: { id: 'affectedVersion', header: 'Version', width: 'flex-1 min-w-0', hideAt: 'md' },
+  // The id is the backend sort field: when Fleet first matched the CVE
+  // against this title, not the CVE's publication date.
+  discoveredAt: {
+    id: 'discoveredAt',
+    header: 'Discovered',
     width: 'w-[140px] md:w-[180px]',
     hideAt: 'lg',
     sortable: true,
@@ -24,16 +25,14 @@ export { SOFTWARE_VULNERABILITY_COLUMNS };
 /** Render order for the live table and its skeleton. */
 export const SOFTWARE_VULNERABILITIES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
   SOFTWARE_VULNERABILITY_COLUMNS.cveId,
-  SOFTWARE_VULNERABILITY_COLUMNS.severity,
   SOFTWARE_VULNERABILITY_COLUMNS.affectedVersion,
-  SOFTWARE_VULNERABILITY_COLUMNS.publishedAt,
+  SOFTWARE_VULNERABILITY_COLUMNS.discoveredAt,
   SOFTWARE_VULNERABILITY_COLUMNS.open,
 ];
 
 /** Backend sort fields this list offers — anything else in the URL is ignored. */
 export const SOFTWARE_VULNERABILITIES_SORTABLE_COLUMN_IDS: readonly string[] = [
-  SOFTWARE_VULNERABILITY_COLUMNS.affectedVersion.id,
-  SOFTWARE_VULNERABILITY_COLUMNS.publishedAt.id,
+  SOFTWARE_VULNERABILITY_COLUMNS.discoveredAt.id,
 ];
 
 export const SOFTWARE_VULNERABILITIES_PAGE_SIZE = 20;

@@ -10,12 +10,14 @@
  * `CONTEXT_ENTITY_KIND` mirrors the backend `ContextItemType` enum
  * (`com.openframe.data.document.chat.ContextItemType`) — DEVICE / SCRIPT /
  * TICKET / ORGANIZATION / USER / KB_ARTICLE / KB_FOLDER / POLICY / QUERY /
- * SCHEDULED_SCRIPT / INSIGHT. All are resolved server-side (the ai-agent ships a
- * `*ContextResolver` for each, incl. `PolicyContextResolver` +
- * `ScheduledQueryContextResolver` + `ScheduledScriptContextResolver`;
- * `InsightContextResolver` is a placeholder today — it answers "not available in
- * this build" until the insight lookup lands). KB_FOLDER
- * is mention-only: the agent emits `@kbFolder:id`, the picker doesn't offer it.
+ * SCHEDULED_SCRIPT / INSIGHT / SOFTWARE / VULNERABILITY. All are resolved
+ * server-side (the ai-agent ships a `*ContextResolver` for each, incl.
+ * `PolicyContextResolver` + `ScheduledQueryContextResolver` +
+ * `ScheduledScriptContextResolver`; `InsightContextResolver` is a placeholder
+ * today — it answers "not available in this build" until the insight lookup
+ * lands; SOFTWARE and VULNERABILITY are the two the backend enum still has to
+ * grow — see their entries). KB_FOLDER is mention-only: the agent emits
+ * `@kbFolder:id`, the picker doesn't offer it.
  *
  * `CONTEXT_ENTITY_MARKER` maps each kind to that enum's `marker()` — the SHORT
  * token the backend uses for inline `@marker:id` mentions (note `KB_ARTICLE` →
@@ -49,6 +51,17 @@ export const CONTEXT_ENTITY_KIND = {
    * the id INSIDE the Relay handle, like every other kind.
    */
   INSIGHT: 'INSIGHT',
+  /**
+   * A software title from the fleet inventory. `Software.id` is the inventory's
+   * own id — not a Relay global id — and it is what `software(id:)` and the
+   * `/software/details?id=` route take, so it travels as is.
+   */
+  SOFTWARE: 'SOFTWARE',
+  /**
+   * A CVE. Keyed by its `cveId` (`CVE-2024-38063`) everywhere — the API has no
+   * other handle for one — so the id doubles as the display name.
+   */
+  VULNERABILITY: 'VULNERABILITY',
 } as const;
 
 export type ContextEntityKind = (typeof CONTEXT_ENTITY_KIND)[keyof typeof CONTEXT_ENTITY_KIND];
@@ -77,6 +90,8 @@ export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
   QUERY: 'query',
   SCHEDULED_SCRIPT: 'scheduledScript',
   INSIGHT: 'insight',
+  SOFTWARE: 'software',
+  VULNERABILITY: 'vulnerability',
 };
 
 /**
@@ -91,8 +106,9 @@ export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
  * context-add in the picker) we do the inverse: take the GraphQL node's global
  * `id`, `decodeGlobalId` it, and store the decoded raw id. This typename map
  * never leaves the client. The remaining REST kinds (user/policy/query/ticket)
- * resolve via their own REST fetchers and have NO entry here. Drop this whole
- * dance once the backend speaks global ids end-to-end for context.
+ * resolve via their own REST fetchers and have NO entry here — nor do SOFTWARE
+ * and VULNERABILITY, whose stored id already IS what their query takes. Drop
+ * this whole dance once the backend speaks global ids end-to-end for context.
  */
 export const CONTEXT_RELAY_TYPENAME: Partial<Record<ContextEntityKind, string>> = {
   DEVICE: 'Machine',

@@ -33,6 +33,8 @@ const softwareActionDetailViewQuery = graphql`
 interface SoftwareActionDetailViewProps {
   /** Software Action id — see `routes.software.action`. */
   actionId: string;
+  /** The module's flag has not answered yet: every island draws its fallback and nothing fetches. */
+  loading?: boolean;
 }
 
 /**
@@ -45,51 +47,65 @@ interface SoftwareActionDetailViewProps {
  * their own `QueryIsland` — one request between them — and the logs' search
  * toolbar between the last two is real from the first frame.
  */
-export function SoftwareActionDetailView({ actionId }: SoftwareActionDetailViewProps) {
+export function SoftwareActionDetailView({ actionId, loading = false }: SoftwareActionDetailViewProps) {
   const variables = { id: actionId };
+
+  // Each island's fallback stands in for it twice: while its query is in
+  // flight, and for the flag's own window, when the query is not sent at all.
+  const titleFallback = <DetailTitle title={SOFTWARE_ACTION_DETAIL_TITLE} backTo={routes.software.actions} loading />;
+  const summaryFallback = <ActionDetailSummarySkeleton />;
 
   return (
     // No page padding here: it lives on the page's wrapper around
     // `ContentErrorBoundary`, so a thrown query keeps the fallback indented.
     <div className="flex w-full flex-col">
       {/* The bar stands for the title: whether this is an update or an install is the record's answer. */}
-      <Suspense
-        fallback={<DetailTitle title={SOFTWARE_ACTION_DETAIL_TITLE} backTo={routes.software.actions} loading />}
-      >
-        <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
-          {({ softwareAction }) => <ActionDetailHeader action={softwareAction} />}
-        </QueryIsland>
-      </Suspense>
-
-      <div className="flex flex-1 flex-col">
-        <Suspense fallback={<ActionDetailSummarySkeleton />}>
+      {loading ? (
+        titleFallback
+      ) : (
+        <Suspense fallback={titleFallback}>
           <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
-            {({ softwareAction }) => <ActionDetailSummary action={softwareAction} />}
+            {({ softwareAction }) => <ActionDetailHeader action={softwareAction} />}
           </QueryIsland>
         </Suspense>
+      )}
+
+      <div className="flex flex-1 flex-col">
+        {loading ? (
+          summaryFallback
+        ) : (
+          <Suspense fallback={summaryFallback}>
+            <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
+              {({ softwareAction }) => <ActionDetailSummary action={softwareAction} />}
+            </QueryIsland>
+          </Suspense>
+        )}
 
         <ExecutionsTabShell clientSearch searchPlaceholder="Search for Logs">
-          {state => (
+          {state => {
             // Its own boundary, so loading draws this table's columns rather
             // than the shell's script-execution skeleton.
-            <Suspense
-              fallback={
-                <TableSkeleton
-                  columns={SOFTWARE_LOG_TABLE_COLUMNS}
-                  rows={EXECUTIONS_PAGE_SIZE}
-                  stickyHeaderOffset={state.stickyHeaderOffset}
-                />
-              }
-            >
-              <QueryIsland<SoftwareActionDetailViewQueryType>
-                query={softwareActionDetailViewQuery}
-                variables={variables}
-                fetchPolicy="store-or-network"
-              >
-                {({ softwareAction }) => <ActionDetailLogs action={softwareAction} state={state} />}
-              </QueryIsland>
-            </Suspense>
-          )}
+            const tableFallback = (
+              <TableSkeleton
+                columns={SOFTWARE_LOG_TABLE_COLUMNS}
+                rows={EXECUTIONS_PAGE_SIZE}
+                stickyHeaderOffset={state.stickyHeaderOffset}
+              />
+            );
+            return loading ? (
+              tableFallback
+            ) : (
+              <Suspense fallback={tableFallback}>
+                <QueryIsland<SoftwareActionDetailViewQueryType>
+                  query={softwareActionDetailViewQuery}
+                  variables={variables}
+                  fetchPolicy="store-or-network"
+                >
+                  {({ softwareAction }) => <ActionDetailLogs action={softwareAction} state={state} />}
+                </QueryIsland>
+              </Suspense>
+            );
+          }}
         </ExecutionsTabShell>
       </div>
     </div>

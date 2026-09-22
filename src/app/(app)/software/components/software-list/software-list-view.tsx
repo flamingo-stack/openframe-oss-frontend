@@ -21,6 +21,8 @@ export interface SoftwareListViewProps {
   title: string;
   emptyTitle: string;
   emptyDescription: string;
+  /** The module's flag has not answered yet: the frame draws, the rows do not fetch. */
+  loading?: boolean;
 }
 
 /**
@@ -28,10 +30,10 @@ export interface SoftwareListViewProps {
  * the fleet. Owns the URL state (search + sort) and the sticky search toolbar;
  * the rows suspend below it.
  */
-export function SoftwareListView({ title, emptyTitle, emptyDescription }: SoftwareListViewProps) {
+export function SoftwareListView({ title, emptyTitle, emptyDescription, loading = false }: SoftwareListViewProps) {
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
-    // Server-side sort: backend sort field ('devicesCount' / 'severity' from the
+    // Server-side sort: backend sort field ('devicesCount' / 'cveCount' from the
     // two header toggles) + direction. Empty sortBy = backend default order.
     sortBy: { type: 'string', default: '' },
     sortDir: { type: 'string', default: 'desc' },
@@ -59,6 +61,15 @@ export function SoftwareListView({ title, emptyTitle, emptyDescription }: Softwa
   // search and `isPending` covers both. The list has no filter funnels.
   const { deferredFilters: deferredSort, deferredSearch, isPending } = useDeferredQuery(sort, debouncedSearch);
 
+  // The rows before they answer — the same for a query in flight and for the flag's own window.
+  const tableSkeleton = (
+    <TableSkeleton
+      columns={SOFTWARE_LIST_TABLE_COLUMNS}
+      rows={SOFTWARE_LIST_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
+  );
+
   return (
     // No page padding here: it lives in `SoftwarePageShell`, around the error
     // boundary, so a thrown query keeps the title indented.
@@ -70,30 +81,27 @@ export function SoftwareListView({ title, emptyTitle, emptyDescription }: Softwa
             placeholder="Search for Software"
             value={searchInput}
             onChange={setSearchInput}
+            disabled={loading}
           />
         )}
 
-        <Suspense
-          fallback={
-            <TableSkeleton
-              columns={SOFTWARE_LIST_TABLE_COLUMNS}
-              rows={SOFTWARE_LIST_PAGE_SIZE}
+        {loading ? (
+          tableSkeleton
+        ) : (
+          <Suspense fallback={tableSkeleton}>
+            <SoftwareListTable
+              debouncedSearch={deferredSearch}
+              sort={deferredSort}
+              sortState={sortState}
+              onSortChange={onSortChange}
+              isPending={isPending}
+              onEmptyChange={setIsEmpty}
               stickyHeaderOffset={stickyHeaderOffset}
+              emptyTitle={emptyTitle}
+              emptyDescription={emptyDescription}
             />
-          }
-        >
-          <SoftwareListTable
-            debouncedSearch={deferredSearch}
-            sort={deferredSort}
-            sortState={sortState}
-            onSortChange={onSortChange}
-            isPending={isPending}
-            onEmptyChange={setIsEmpty}
-            stickyHeaderOffset={stickyHeaderOffset}
-            emptyTitle={emptyTitle}
-            emptyDescription={emptyDescription}
-          />
-        </Suspense>
+          </Suspense>
+        )}
       </div>
     </PageLayout>
   );
