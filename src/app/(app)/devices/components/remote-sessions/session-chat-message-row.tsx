@@ -2,10 +2,7 @@
 
 import { SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-
-export function formatSessionChatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-}
+import { formatTime } from '@/lib/format-date';
 
 interface SessionChatMessageRowProps {
   authorName: string;
@@ -48,7 +45,7 @@ export function SessionChatMessageRow({
         >
           {authorName}
         </span>
-        <span className="shrink-0 text-ods-text-secondary text-h6">{formatSessionChatTime(sentAt)}</span>
+        <span className="shrink-0 text-ods-text-secondary text-h6">{formatTime(sentAt)}</span>
       </div>
       <p className="whitespace-pre-wrap text-ods-text-primary text-h4">{body}</p>
     </div>
