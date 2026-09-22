@@ -10,13 +10,15 @@ import type { scheduleDevicePickerRelayPaginationQuery as AvailablePaginationQue
 import type { scheduleDevicePickerRelayQuery as AvailableQueryType } from '@/__generated__/scheduleDevicePickerRelayQuery.graphql';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import { DeviceSelector } from '@/app/components/shared/device-selector';
+import { DEVICE_PICKER_PAGE_SIZE, toDevices } from '@/app/components/shared/device-selector/picker-narrowing';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import {
   scheduleDevicePickerRelayFragment,
   scheduleDevicePickerRelayQuery,
 } from '@/graphql/scripts/schedule-device-picker-relay';
 import { criteriaToFilter, type ScheduleCriteria } from '../utils/schedule-criteria';
-import { DEVICE_PICKER_PAGE_SIZE, toDevices, toRelayFilter, UNFILTERED } from '../utils/schedule-device-filters';
+import { UNFILTERED } from '../utils/schedule-device-filters';
 import { ScheduleCriteriaFields } from './schedule-criteria-fields';
 
 interface ScheduleCriteriaPickerProps {
@@ -54,7 +56,13 @@ export function ScheduleCriteriaPicker({ scheduleId, criteria, onCriteriaChange,
 
   const data = useLazyLoadQuery<AvailableQueryType>(
     scheduleDevicePickerRelayQuery,
-    { scheduleId, filter: toRelayFilter(deferredFilter), search: null, first: DEVICE_PICKER_PAGE_SIZE, after: null },
+    {
+      scheduleId,
+      filter: toRelayDeviceFilter(deferredFilter),
+      search: null,
+      first: DEVICE_PICKER_PAGE_SIZE,
+      after: null,
+    },
     { fetchPolicy: 'store-and-network' },
   );
 

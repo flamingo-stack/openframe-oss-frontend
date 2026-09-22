@@ -13,8 +13,8 @@ import type {
   BookingConfirmation,
   SchedulingLink,
 } from '@flamingo-stack/openframe-frontend-core/schemas/meeting-booking-schema';
-import { format } from 'date-fns';
 import { CONTENT_BASE } from '@/app/(app)/help-center/endpoints';
+import { formatDateTime } from '@/lib/format-date';
 
 export interface BookCallSchedulerProps {
   link: SchedulingLink;
@@ -38,7 +38,7 @@ export function BookCallScheduler({ link, onBack, className }: BookCallScheduler
       onBooked={(booking: BookingConfirmation) =>
         toast({
           title: 'Call booked',
-          description: `${booking.title} — ${format(new Date(booking.startTimeMs), 'PPp')}. Check your email for the invite.`,
+          description: `${booking.title} — ${formatDateTime(booking.startTimeMs)}. Check your email for the invite.`,
           variant: 'success',
         })
       }

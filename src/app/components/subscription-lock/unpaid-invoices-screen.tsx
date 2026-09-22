@@ -6,8 +6,10 @@ import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/
 import { type ReactNode, Suspense, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { unpaidInvoicesScreenQuery as UnpaidInvoicesScreenQueryType } from '@/__generated__/unpaidInvoicesScreenQuery.graphql';
-import { formatCurrency, formatDateOrDash } from '@/app/(app)/settings/billing-usage/lib/format';
+import { formatCurrency } from '@/app/(app)/settings/billing-usage/lib/format';
 import { InvoiceStatus } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
+import { formatDate } from '@/lib/format-date';
 import { LockScreenActions } from './lock-screen-actions';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
@@ -186,8 +188,8 @@ function InvoiceRow({ invoice }: { invoice: PendingInvoice }) {
     <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] sm:h-20 sm:flex-row sm:items-center sm:py-0">
       {/* The identifier over the date it was issued — an em dash when a legacy
           entry has no number, the same reading the Invoices History table uses. */}
-      <InvoiceCell caption={formatDateOrDash(invoice.createdAt)}>{invoice.invoiceNumber ?? '—'}</InvoiceCell>
-      <InvoiceCell caption="Due Date">{formatDateOrDash(invoice.dueDate)}</InvoiceCell>
+      <InvoiceCell caption={formatDate(invoice.createdAt)}>{invoice.invoiceNumber ?? EMPTY_VALUE}</InvoiceCell>
+      <InvoiceCell caption="Due Date">{formatDate(invoice.dueDate)}</InvoiceCell>
       <InvoiceCell caption="Amount">{formatCurrency(invoice.amountDue)}</InvoiceCell>
       <InvoiceCell caption="Status">
         <Tag variant={overdue ? 'error' : 'warning'} label={overdue ? 'Overdue' : 'Unpaid'} />

@@ -1,5 +1,6 @@
 'use client';
 
+import { pluralize } from '@/lib/pluralize';
 import { LockScreenActionsMenu } from './lock-screen-actions';
 import type { PaywallCopy } from './subscription-lock-copy';
 
@@ -38,7 +39,7 @@ export function PaywallHeader({ copy, deviceCount = null }: PaywallHeaderProps) 
       <p className="text-ods-text-secondary text-h6">
         {deviceCount == null
           ? copy.description
-          : `We've detected ${deviceCount.toLocaleString('en-US')} active device${deviceCount === 1 ? '' : 's'} in your OpenFrame instance that ${deviceCount === 1 ? 'requires' : 'require'} a subscription to continue management.`}
+          : `We've detected ${pluralize(deviceCount, 'active device')} in your OpenFrame instance that ${deviceCount === 1 ? 'requires' : 'require'} a subscription to continue management.`}
       </p>
     </div>
   );

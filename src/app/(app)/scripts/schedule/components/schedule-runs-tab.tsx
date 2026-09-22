@@ -34,13 +34,9 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scheduleRunsRelayFragment, scheduleRunsRelayQuery } from '@/graphql/scripts/schedule-runs-relay';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
+import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
-import {
-  executionStatusLabel,
-  formatExecutionTimestamp,
-  initiatorInitials,
-  initiatorName,
-} from '../../shared/utils/execution-helpers';
+import { executionStatusLabel, initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
 import {
   RUNS_PAGE_SIZE,
   runDetailsHref,
@@ -137,7 +133,7 @@ function ScheduleRunsContent({
           id: node.id,
           executionId: node.executionId,
           status: node.status,
-          timestamp: formatExecutionTimestamp(node.dispatchedAt),
+          timestamp: formatDateTime(node.dispatchedAt),
           responded: node.respondedMachineCount,
           total: node.totalMachineCount,
           initiatorId: node.initiator?.id ?? '',

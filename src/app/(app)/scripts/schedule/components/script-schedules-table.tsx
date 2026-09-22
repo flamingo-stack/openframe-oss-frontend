@@ -55,6 +55,7 @@ import {
   type TableDateFilter,
   useRetryKey,
 } from '@/app/components/shared';
+import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -402,7 +403,7 @@ function SchedulesTableContent({
           }
           const { date, time } = formatScheduleStartAt(row.original.startAt, row.original.timeReference);
           if (!row.original.startAt) {
-            return <span className="text-ods-text-secondary text-h4">—</span>;
+            return <ValueText value={null} />;
           }
           return (
             <div className="flex min-w-0 flex-col justify-center gap-1">
@@ -427,7 +428,7 @@ function SchedulesTableContent({
         header: SCHEDULE_COLUMNS.repeat.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) =>
           isEventTrigger(row.original.trigger) ? (
-            <span className="text-ods-text-secondary text-h4">—</span>
+            <ValueText value={null} />
           ) : (
             <span className="text-ods-text-primary text-h4">{repeatToLabel(row.original.repeat)}</span>
           ),

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { apiClient } from '@/lib/api-client';
 import { authApiClient } from '@/lib/auth-api-client';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { handleApiError } from '@/lib/handle-api-error';
 import { getFullImageUrl } from '@/lib/image-url';
 import { EditProfileModal } from '../edit-profile-modal';
@@ -93,7 +94,7 @@ export function ProfileTab() {
   }, [fetchFullProfile]);
 
   // Get display name
-  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '—';
+  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : EMPTY_VALUE;
 
   if (isLoadingProfile && !user) {
     return (

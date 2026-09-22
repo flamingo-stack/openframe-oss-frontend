@@ -1,5 +1,8 @@
 export { ContentErrorBoundary, useRetryKey } from './content-error-boundary';
+export { CVE_SEVERITY, CVE_SEVERITY_BANDS, cveSeverityRank, resolveCveSeverity } from './cve/cve-severity';
+export { CveSeverityTag } from './cve/cve-severity-tag';
 export { DateColumnHeader, type DateColumnHeaderProps, type TableDateFilter } from './date-column-header';
+export { DateWithAge } from './date-with-age';
 export { DeviceInfoSection } from './device-info-section';
 export type { DeviceSelectorProps, InfiniteScrollConfig } from './device-selector';
 export { DeviceSelector } from './device-selector';
@@ -8,6 +11,7 @@ export { DevicesList, type DevicesListNarrowing, type DevicesListProps, EMPTY_DE
 export { DevicesPanel, type DevicesPanelProps } from './devices-panel';
 export { EMBEDDED_PAGE_OFFSET } from './embedded-page';
 export { EmptyState, type EmptyStateProps } from './empty-state';
+export { EmptyValue } from './empty-value';
 export { LogDrawer, type LogDrawerInfoField } from './log-drawer';
 export { type NoteItem, NotesSection, NotesSectionSkeleton } from './notes-section';
 export { type OnboardingGuideSource, onboardingGuideButton } from './onboarding-guide-button';
@@ -36,4 +40,5 @@ export { SectionLoadError, type SectionLoadErrorProps } from './section-load-err
 export { type SelectableTag, SelectableTagsRow, SelectableTagsRowSkeleton } from './selectable-tags-row';
 export { liveColumnMeta, skeletonColumnMeta, type TableSkeletonColumn } from './table-column-layout';
 export { TagFilterBar, TagFilterBarSkeleton } from './tag-filter-bar';
+export { ValueText } from './value-text';
 export * from './tags';

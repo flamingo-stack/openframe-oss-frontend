@@ -12,13 +12,7 @@ import {
   CUSTOMER_FORM_DEFAULT_VALUES,
   EMPTY_CONTACT_ROW,
 } from '../types/customer-form.types';
-import {
-  DEFAULT_PRESERVED_FIELDS,
-  formToWriteInput,
-  recordToForm,
-  stripPlaceholder,
-  toPreservedFields,
-} from './customer-form-mappers';
+import { DEFAULT_PRESERVED_FIELDS, formToWriteInput, recordToForm, toPreservedFields } from './customer-form-mappers';
 import type { CustomerDetails } from './map-organization';
 
 function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
@@ -26,8 +20,8 @@ function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
     id: 'org-1',
     organizationId: 'techflow',
     name: 'TechFlow Solutions',
-    industry: '-',
-    website: '-',
+    industry: '',
+    website: '',
     employees: null,
     updatedAt: '2026-01-02T00:00:00Z',
     physicalAddress: '',
@@ -51,14 +45,12 @@ const contact = (index: number) => ({
 });
 
 describe('recordToForm', () => {
-  it('strips the "-" placeholders and joins the notes', () => {
+  it('copies the record into the form and joins the notes', () => {
     const form = recordToForm(customer({ notes: ['line one\nline two'] }));
 
     expect(form.name).toBe('TechFlow Solutions');
     expect(form.website).toBe('');
     expect(form.notes).toBe('line one\nline two');
-    expect(stripPlaceholder('-')).toBe('');
-    expect(stripPlaceholder(null)).toBe('');
   });
 
   it('infers "same as physical" from an empty mailing line and mirrors the physical address into it', () => {

@@ -1,10 +1,15 @@
 import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import type { TagEntry } from '@/app/components/shared/tags';
 import { isAppShell } from '@/lib/platform';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { selectUser, useAuthStore } from '@/stores';
-import { assetsDownloadBase, buildInstallCommand, buildRegisterCommand } from '../utils/device-command-utils';
+import {
+  assetsDownloadBase,
+  buildInstallCommand,
+  buildRegisterCommand,
+  newDownloadMachineId,
+} from '../utils/device-command-utils';
 import { useRegistrationSecret } from './use-registration-secret';
 
 interface UseInstallCommandOptions {
@@ -80,6 +85,20 @@ function getServerDownloadBaseSnapshot(): string {
   return '';
 }
 
+/**
+ * Whether this render is on the hydrated client. The machine id below is
+ * random, so the prerender and the client cannot agree on it; the header
+ * value is held back until hydration the same way the two snapshots above
+ * hold back their `window`-dependent answers.
+ */
+function getClientHydratedSnapshot(): boolean {
+  return true;
+}
+
+function getServerHydratedSnapshot(): boolean {
+  return false;
+}
+
 export function useInstallCommand({ organizationId, platform, tags = [] }: UseInstallCommandOptions) {
   const { initialKey } = useRegistrationSecret();
   // Installing user, so registration can associate the device with whoever ran
@@ -94,6 +113,15 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
   // after, which is also what makes the shell branch above safe to take.
   const serverUrl = useSyncExternalStore(subscribe, currentServerUrl, getServerSnapshot);
   const downloadBaseUrl = useSyncExternalStore(subscribe, assetsDownloadBase, getServerDownloadBaseSnapshot);
+  const hydrated = useSyncExternalStore(subscribe, getClientHydratedSnapshot, getServerHydratedSnapshot);
+
+  // Value of the download's `x-machine-id` header (CU-86aknaw57): random,
+  // fresh per visit, and rotated by the page after every copy so two devices
+  // enrolled from one open tab do not download under the same id. State
+  // rather than a value computed in render: a random id must survive
+  // re-renders unchanged until the page asks for a new one.
+  const [machineId, setMachineId] = useState(newDownloadMachineId);
+  const rotateMachineId = useCallback(() => setMachineId(newDownloadMachineId()), []);
 
   const command = useMemo(
     () =>
@@ -103,10 +131,11 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
         initialKey,
         orgId: organizationId,
         downloadBaseUrl,
+        machineId: hydrated ? machineId : '',
         userId,
         additionalArgs: buildTagArgs(tags, platform),
       }),
-    [initialKey, tags, platform, organizationId, serverUrl, downloadBaseUrl, userId],
+    [initialKey, tags, platform, organizationId, serverUrl, downloadBaseUrl, hydrated, machineId, userId],
   );
 
   // Step 2 of the package-manager install flow (step 1 installs the binary, so
@@ -124,5 +153,5 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
     [initialKey, tags, platform, organizationId, serverUrl, userId],
   );
 
-  return { command, registerCommand, initialKey };
+  return { command, registerCommand, initialKey, rotateMachineId };
 }

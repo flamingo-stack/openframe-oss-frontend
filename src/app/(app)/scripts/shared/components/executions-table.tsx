@@ -32,7 +32,9 @@ import { readInlineData } from 'relay-runtime';
 import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__generated__/executionFacets_filters.graphql';
 import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__generated__/executionFields_execution.graphql';
 import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import {
@@ -47,20 +49,18 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { executionFacetsFragment } from '@/graphql/scripts/execution-facets';
 import { executionFieldsFragment } from '@/graphql/scripts/execution-fields';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
+import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import {
-  executionResultText,
+  executionOutput,
   executionStatusLabel,
   executionStatusVariant,
-  formatExecutionTimestamp,
   initiatorInitials,
   initiatorName,
-  machineLabel,
-  organizationLabel,
 } from '../utils/execution-helpers';
 import { type FacetOption, facetToSortedOptions } from '../utils/facet-options';
 import { ExecutionSourceBadge } from './execution-source-badge';
@@ -160,10 +160,10 @@ export function toUiExecution(ref: ExecutionFieldsKey, scriptName?: string | nul
     id: node.id,
     executionId: node.executionId,
     status: node.status,
-    timestamp: formatExecutionTimestamp(node.dispatchedAt as string | null),
+    timestamp: formatDateTime(node.dispatchedAt),
     machineId: node.machine?.machineId ?? '',
-    machineName: machineLabel(node.machine),
-    organization: organizationLabel(node.machine),
+    machineName: getDeviceName(node.machine),
+    organization: node.machine?.organization?.name ?? '',
     initiatorId: node.initiator?.id ?? '',
     initiatorName: initiatorName(node.initiator),
     initiatorInitials: initiatorInitials(node.initiator),
@@ -171,7 +171,7 @@ export function toUiExecution(ref: ExecutionFieldsKey, scriptName?: string | nul
     initiatorDeleted: isDeletedUserStatus(node.initiator?.status),
     scriptName: scriptName ?? '',
     source: node.source,
-    result: executionResultText(node),
+    result: executionOutput({ stdout: node.stdout, stderr: node.stderr, error: node.error }),
   };
 }
 
@@ -380,7 +380,7 @@ export function ExecutionsTable({
               <MonitorIcon className="size-6 shrink-0 text-ods-text-secondary" />
               {/* min-w-0 flex-1 wrapper so the name can shrink and ellipsize next to the icon. */}
               <div className="min-w-0 flex-1">
-                <TruncateText>{row.original.machineName}</TruncateText>
+                <ValueText value={row.original.machineName} />
               </div>
             </div>
             {row.original.organization && (
@@ -467,9 +467,12 @@ export function ExecutionsTable({
       {
         accessorKey: 'result',
         header: 'Result',
-        cell: ({ row }: { row: Row<UiExecution> }) => (
-          <TruncateText lines={2}>{row.original.result || '—'}</TruncateText>
-        ),
+        cell: ({ row }: { row: Row<UiExecution> }) =>
+          row.original.result ? (
+            <TruncateText lines={2}>{row.original.result}</TruncateText>
+          ) : (
+            <ValueText value={null} />
+          ),
         enableSorting: false,
         meta: liveColumnMeta(EXECUTION_COLUMNS.result),
       },
@@ -722,8 +725,11 @@ export interface ExecutionsTabState {
 export function ExecutionsTabShell({
   children,
   clientSearch,
+  searchPlaceholder = 'Search for Executions',
 }: {
   children: (state: ExecutionsTabState) => ReactNode;
+  /** The search box's placeholder — the lists name their rows differently. */
+  searchPlaceholder?: string;
   /**
    * Says the query's `search` argument is already spoken for, so the typed term
    * comes back as `narrowSearch` instead of `querySearch`.
@@ -862,7 +868,7 @@ export function ExecutionsTabShell({
         >
           <div className="flex-1">
             <Input
-              placeholder="Search for Executions"
+              placeholder={searchPlaceholder}
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
