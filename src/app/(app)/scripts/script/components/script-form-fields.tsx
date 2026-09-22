@@ -281,6 +281,7 @@ export function ScriptFormFields({
               keyPlaceholder="Enter Environment Var"
               valuePlaceholder="Enter Value"
               addButtonLabel="Add Environment Var"
+              addSecretButtonLabel="Add Secret"
               titleLabel="Environment Vars"
               disabled={disabled}
               className="flex-1"
