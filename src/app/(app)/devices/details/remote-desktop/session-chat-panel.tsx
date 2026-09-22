@@ -27,7 +27,7 @@ interface SessionChatPanelProps {
  * Chat with the end user during a remote session: the message stream
  * bottom-aligned above the composer. The end user's side is the session block
  * in openframe-chat; the "JOINED CHAT" badge is that side's indication only
- * and is not shown here (decision 2026-09-21).
+ * and is not shown here.
  */
 export function SessionChatPanel({ messages, technician, sending, onSend, variant }: SessionChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
