@@ -6,7 +6,7 @@ import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { NotificationEntityType } from '@/generated/schema-enums';
 import { useMarkEntityNotificationsRead } from '@/graphql/notifications/use-mark-entity-notifications-read';
 import { registerActiveDialogView } from '@/lib/active-dialog-views';
-import { ATTENTION_IDLE_MS, isSessionActive, subscribeSessionActivity } from '@/lib/session-activity';
+import { ATTENTION_IDLE_MS, isSessionActive, subscribeAttention } from '@/lib/session-activity';
 import type { TicketsPage } from '../services/ticket-service.types';
 import { dialogsQueryKeys } from '../utils/query-keys';
 
@@ -83,8 +83,11 @@ export function TicketNotificationsAutoReader({
   // otherwise still commit an irreversible cross-device write on every ticket-chat view.
   const notificationsEnabled = useFeatureFlag('notifications');
   const markedReadTicketRef = useRef<string | null>(null);
+  // Same edge `EntityViewAutoReader` re-runs on: hard focus edges plus input resuming
+  // after the attention window, so a ticket opened by a tab restore is read the moment
+  // a human provably arrives, not never.
   const [activityEdge, setActivityEdge] = useState(0);
-  useEffect(() => subscribeSessionActivity(() => setActivityEdge(edge => edge + 1)), []);
+  useEffect(() => subscribeAttention(() => setActivityEdge(edge => edge + 1)), []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: activityEdge is the re-run trigger, not read in the body.
   useEffect(() => {
