@@ -68,7 +68,8 @@ class MockRemoteSessionChatService implements IRemoteSessionChatService {
     const dialog = this.dialog(dialogId);
     const timer = setTimeout(() => {
       dialog.timers = dialog.timers.filter(t => t !== timer);
-      this.replyFromUser(dialogId);
+      // A dialog dropped by `reset()` must not be revived by its own reply.
+      if (this.dialogs.get(dialogId) === dialog) this.replyFromUser(dialogId);
     }, MOCK_REPLY_DELAY_MS);
     dialog.timers.push(timer);
     return message;
