@@ -16,6 +16,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { routes } from '@/lib/routes';
 import { getDeviceName } from '../../devices/utils/device-name';
 import { useLogs } from '../../logs-page/hooks/use-logs';
 import type { LogEntry } from '../../logs-page/types/log.types';
@@ -49,7 +50,12 @@ function severityVariant(severity: string): LogRow['status']['variant'] {
 }
 
 const logDetailsUrl = (log: LogEntry): string =>
-  `/log-details?id=${log.toolEventId}&ingestDay=${log.ingestDay}&toolType=${log.toolType}&eventType=${log.eventType}&timestamp=${encodeURIComponent(log.timestamp || '')}`;
+  routes.logs.details(log.toolEventId, {
+    ingestDay: log.ingestDay,
+    toolType: log.toolType,
+    eventType: log.eventType,
+    timestamp: log.timestamp,
+  });
 
 /**
  * Inner body of the "Logging" onboarding step — an activity-trail preview. It pulls

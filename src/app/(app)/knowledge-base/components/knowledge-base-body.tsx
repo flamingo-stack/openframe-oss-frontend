@@ -79,7 +79,7 @@ function buildActions(
   onNewFolder: () => void,
   emphasizeAddArticle = false,
 ): PageActionButton[] {
-  const newArticleHref = parentId ? `/knowledge-base/new?folderId=${parentId}` : '/knowledge-base/new';
+  const newArticleHref = parentId ? routes.knowledgeBase.new({ folderId: parentId }) : routes.knowledgeBase.new();
   const actions: PageActionButton[] = [
     {
       label: 'New Folder',
@@ -526,7 +526,7 @@ function RootBodyContent() {
 
 function FolderBodyContent({ parentId }: { parentId: string }) {
   const folder = useKnowledgeBaseItem(parentId);
-  const parentUrl = folder?.parentId ? routes.knowledgeBase.folder(folder.parentId) : '/knowledge-base';
+  const parentUrl = folder?.parentId ? routes.knowledgeBase.folder(folder.parentId) : routes.knowledgeBase.list;
   const handleBack = useSafeBack(parentUrl);
 
   if (!folder || folder.type !== 'FOLDER') {

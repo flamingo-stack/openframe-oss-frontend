@@ -36,7 +36,7 @@ import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/dev
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { INCIDENT_SEVERITY_LABELS, labelOf, WORKING_SET_STATUSES } from '@/app/(app)/incidents/utils/incident-labels';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
-import { decodeGlobalId } from '@/lib/relay-id';
+import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared';
 
@@ -179,7 +179,7 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
                 type: CONTEXT_ENTITY_KIND.ORGANIZATION,
                 // Raw db id (organizationId), decoded from the global `id`
                 // (`base64("Organization:<rawId>")`); the chip re-encodes it.
-                id: decodeGlobalId(e.node.id)?.rawId ?? e.node.id,
+                id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
                 description: e.node.category ?? undefined,
               },
@@ -249,7 +249,7 @@ export function KnowledgeBaseItems({ query, selectedKeys, onToggle, atLimit }: C
                 type: CONTEXT_ENTITY_KIND.KB_ARTICLE,
                 // Raw db id, decoded from the global `id`
                 // (`base64("KnowledgeBaseItem:<rawId>")`); the chip re-encodes it.
-                id: decodeGlobalId(e.node.id)?.rawId ?? e.node.id,
+                id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
                 description: e.node.type ?? undefined,
               },
@@ -486,7 +486,7 @@ export function IncidentItems({ query, selectedKeys, onToggle, atLimit }: Contex
         return [
           {
             type: CONTEXT_ENTITY_KIND.INSIGHT,
-            id: e.node.id,
+            id: rawIdOf(e.node.id),
             label: e.node.title,
             description: [labelOf(INCIDENT_SEVERITY_LABELS, e.node.severity), device].filter(Boolean).join(' · '),
           },

@@ -30,26 +30,6 @@ export function labelOf(labels: Record<string, string>, value: string): string {
   return labels[value] ?? value;
 }
 
-/**
- * Which statuses an incident may move to from each status — a mirror of the
- * backend's `InsightStatusTransitionValidator`, so the UI offers only actions
- * the server will accept. Archiving is reachable only from RESOLVED: an
- * incident is filed away after it was dealt with, never instead of it.
- */
-const INCIDENT_TRANSITIONS: Record<InsightStatus, readonly InsightStatus[]> = {
-  NEW: [InsightStatus.ACKNOWLEDGED, InsightStatus.SNOOZED, InsightStatus.RESOLVED],
-  ACKNOWLEDGED: [InsightStatus.SNOOZED, InsightStatus.RESOLVED],
-  SNOOZED: [InsightStatus.ACKNOWLEDGED, InsightStatus.RESOLVED],
-  RESOLVED: [InsightStatus.ARCHIVED, InsightStatus.NEW],
-  ARCHIVED: [InsightStatus.NEW],
-};
-
-/** Transitions offered from `status`; none for a status this build does not know (`"%future added value"`). */
-export function transitionsFrom(status: string): readonly InsightStatus[] {
-  const transitions: Record<string, readonly InsightStatus[]> = INCIDENT_TRANSITIONS;
-  return transitions[status] ?? [];
-}
-
 /** How a transition INTO each status is named: the menu item, and the past tense the toast uses. */
 export const INCIDENT_TRANSITION_ACTIONS: Record<InsightStatus, { label: string; done: string }> = {
   NEW: { label: 'Reopen', done: 'reopened' },

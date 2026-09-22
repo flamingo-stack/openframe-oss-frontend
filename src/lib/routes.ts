@@ -87,6 +87,8 @@ export type HelpCenterLegalDoc = 'privacy' | 'terms';
  * cannot be added to one and silently dropped by another. Ids are the raw ones
  * the form's pickers use (`Organization.organizationId`, `Machine.machineId`,
  * `User.id`); the names label those picks before the option lists have loaded.
+ * `insightId` is the STORED insight id (`CreateTicketInput.insightId`), which
+ * links the ticket to the incident it is filed from; `insightTitle` labels it.
  */
 export const TICKET_PREFILL_KEYS = [
   'title',
@@ -97,6 +99,8 @@ export const TICKET_PREFILL_KEYS = [
   'deviceName',
   'assigneeId',
   'assigneeName',
+  'insightId',
+  'insightTitle',
 ] as const;
 
 export type TicketPrefill = Partial<Record<(typeof TICKET_PREFILL_KEYS)[number], string>>;
@@ -307,7 +311,11 @@ export const routes = {
 
   logs: {
     page: '/logs-page',
-    details: '/log-details',
+    /** The page needs all five params — a missing one redirects to `logs.page`. */
+    details: (
+      id: string | number,
+      o: { ingestDay: string; toolType: string; eventType: string; timestamp?: string | null },
+    ) => withQuery('/log-details', { id, ...o }),
   },
 
   // UI says "incident"; the API says "insight". `id` is `Insight.id`, the opaque
@@ -319,7 +327,7 @@ export const routes = {
 
   knowledgeBase: {
     list: '/knowledge-base',
-    new: '/knowledge-base/new',
+    new: (o?: { folderId?: string | number }) => withQuery('/knowledge-base/new', { folderId: o?.folderId }),
     archive: '/knowledge-base/archive',
     details: (id: string | number) => withQuery('/knowledge-base/details', { id }),
     edit: (id: string | number) => withQuery('/knowledge-base/edit', { id }),

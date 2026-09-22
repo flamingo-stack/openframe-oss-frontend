@@ -3,6 +3,7 @@
 import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { usePathname, useRouter } from 'next/navigation';
+import { routes } from '@/lib/routes';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 
 /**
@@ -56,7 +57,7 @@ export function KnowledgeBaseStep({
             // Heading to the article editor completes the step in the background
             // (if not already done) — no spinner, navigation is the feedback.
             if (!completed) onCompleteBackground?.();
-            router.push(onboardingHintUrl('/knowledge-base/new', 'knowledge', pathname));
+            router.push(onboardingHintUrl(routes.knowledgeBase.new(), 'knowledge', pathname));
           }}
           className="w-full md:flex-1"
         >

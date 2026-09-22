@@ -200,7 +200,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
 
           {/* Domain Field - Full Width */}
           <div className="flex flex-col gap-1">
-            <Label>{isSaasShared ? 'Domain' : 'Domain'}</Label>
+            <Label>Domain</Label>
             <div className="flex flex-col gap-2">
               {isSaasShared ? (
                 <Input
