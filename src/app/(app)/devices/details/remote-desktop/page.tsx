@@ -833,14 +833,13 @@ function RemoteDesktopSession() {
         ) : (
           controlsBar
         )}
-        {isFullscreen ? (
-          canvasContainer
-        ) : (
-          <div className="flex min-h-0 min-w-0 flex-1 gap-[var(--spacing-system-mf)]">
-            {canvasContainer}
-            {chatPanel('side')}
-          </div>
-        )}
+        {/* One wrapper in both modes: the canvas must keep its DOM node across
+            the fullscreen toggle (MeshDesktop is attached to it once), so the
+            tree shape never changes - only the side panel comes and goes. */}
+        <div className={`flex min-h-0 min-w-0 flex-1 ${isFullscreen ? '' : 'gap-[var(--spacing-system-mf)]'}`}>
+          {canvasContainer}
+          {!isFullscreen && chatPanel('side')}
+        </div>
       </div>
 
       <RemoteSettingsModal
