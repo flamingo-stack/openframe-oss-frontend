@@ -55,11 +55,11 @@ describe('mapOrganization contacts', () => {
     expect(mapped.contacts).toEqual([{ contactName: 'Only a name', title: '', phone: '', email: '' }]);
   });
 
-  it('renders the "-" placeholder for a missing name, industry and website', () => {
+  it('maps a missing name, industry and website to an empty string', () => {
     const mapped = mapOrganization(node({ name: null, category: null, websiteUrl: null }));
 
-    expect(mapped.name).toBe('-');
-    expect(mapped.industry).toBe('-');
-    expect(mapped.website).toBe('-');
+    expect(mapped.name).toBe('');
+    expect(mapped.industry).toBe('');
+    expect(mapped.website).toBe('');
   });
 });

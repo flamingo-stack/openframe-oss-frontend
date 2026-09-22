@@ -12,6 +12,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingBarsQuery as BillingBarsQueryType } from '@/__generated__/billingBarsQuery.graphql';
 import { SubscriptionStatus } from '@/generated/schema-enums';
 import { type AiSpendTone, aiSpendPercent, aiSpendTone } from '@/lib/ai-spend-tone';
+import { pluralize } from '@/lib/pluralize';
 
 /**
  * Everything the app-wide billing banners are decided from, in ONE query.
@@ -121,7 +122,7 @@ export function TrialEndingBar({ daysLeft, onActivate, onDismiss }: TrialEndingB
       contentClassName="cursor-pointer md:cursor-default"
       onContentClick={onActivate}
       startAdornment={<CalendarDaysIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
-      title={`${daysLeft === 1 ? '1 day' : `${daysLeft} days`} left on your free trial. Activate your subscription to keep your agents working.`}
+      title={`${pluralize(daysLeft, 'day')} left on your free trial. Activate your subscription to keep your agents working.`}
       actionBlock={
         <Button variant="outline" size="small" onClick={onActivate}>
           Activate Subscription

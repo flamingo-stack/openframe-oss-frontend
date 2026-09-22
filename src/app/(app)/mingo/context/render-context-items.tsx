@@ -23,6 +23,8 @@ import {
   OrganizationItems,
   ScheduleItems,
   ScriptItems,
+  SoftwareItems,
+  VulnerabilityItems,
 } from './relay-items';
 import { PolicyItems, QueryItems, TicketItems } from './rest-items';
 
@@ -37,6 +39,8 @@ const COMPONENTS: Record<string, (p: ContextItemsProps) => ReactNode> = {
   [CONTEXT_ENTITY_KIND.SCRIPT]: ScriptItems,
   [CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT]: ScheduleItems,
   [CONTEXT_ENTITY_KIND.INSIGHT]: IncidentItems,
+  [CONTEXT_ENTITY_KIND.SOFTWARE]: SoftwareItems,
+  [CONTEXT_ENTITY_KIND.VULNERABILITY]: VulnerabilityItems,
 };
 
 export function renderMingoContextItems({

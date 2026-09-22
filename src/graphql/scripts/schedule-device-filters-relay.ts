@@ -27,7 +27,7 @@ import { graphql } from 'react-relay';
  *
  * `tagKeys` comes back empty from both fields for now (the backend documents it),
  * which is why the tag chips are fed from the fleet-wide facets instead — a
- * backend gap, not a wiring one.
+ * backend gap, not a wiring one. See `toDeviceFilters`.
  */
 export const scheduleDeviceFiltersRelayQuery = graphql`
   query scheduleDeviceFiltersRelayQuery(
@@ -40,47 +40,11 @@ export const scheduleDeviceFiltersRelayQuery = graphql`
     scriptSchedule(id: $scheduleId) {
       id
       availableDeviceFilters(filter: $filter, search: $search) @include(if: $available) {
-        ...scheduleDeviceFiltersRelay_facets
+        ...deviceFacetsFields_filters
       }
       assignedDeviceFilters(filter: $filter, search: $search) @include(if: $assigned) {
-        ...scheduleDeviceFiltersRelay_facets
+        ...deviceFacetsFields_filters
       }
     }
-  }
-`;
-
-/**
- * The facet shape itself, shared by both fields above so the two branches cannot
- * drift — and so the reader has one fragment to spread rather than two identical
- * selections to keep in step.
- */
-export const scheduleDeviceFiltersRelayFacetsFragment = graphql`
-  fragment scheduleDeviceFiltersRelay_facets on DeviceFilters {
-    statuses {
-      value
-      label
-      count
-    }
-    deviceTypes {
-      value
-      label
-      count
-    }
-    osTypes {
-      value
-      label
-      count
-    }
-    organizationIds {
-      value
-      label
-      count
-    }
-    tagKeys {
-      key
-      value
-      count
-    }
-    filteredCount
   }
 `;

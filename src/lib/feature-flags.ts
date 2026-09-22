@@ -50,6 +50,11 @@ export const FEATURE_FLAG_NAMES = [
   // server treats the missing answer as "on" (`use-tenant-management-gate.ts`)
   // so the mock-backed UI can be exercised, while an explicit "off" still wins.
   'tenant-management',
+  // The Software module (`/software/*`: the inventory, its vulnerabilities,
+  // install / update runs) and its two Mingo context kinds (SOFTWARE and
+  // VULNERABILITY). Off = no sidebar entry, every `/software` route 404s, the
+  // picker offers neither kind; a mention already in a chat still renders.
+  'software-management',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

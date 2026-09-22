@@ -1,8 +1,5 @@
 import { ConnectionHandler, type RecordSourceSelectorProxy } from 'relay-runtime';
-import type { DeviceFilterInput as RelayDeviceFilterInput } from '@/__generated__/addAllDevicesToScheduleMutation.graphql';
-
-export const AVAILABLE_CONNECTION_KEY = 'scheduleDevicePickerRelay_availableDevices';
-export const ASSIGNED_CONNECTION_KEY = 'scheduleDevicePickerRelay_assignedDevices';
+import type { RelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 
 /**
  * The narrowing a connection record is keyed by.
@@ -14,12 +11,25 @@ export const ASSIGNED_CONNECTION_KEY = 'scheduleDevicePickerRelay_assignedDevice
  * with.
  */
 export interface ConnectionNarrowing {
-  filter: RelayDeviceFilterInput;
+  filter: RelayDeviceFilter | null;
   search: string | null;
 }
 
 /**
- * The store writes for one device joining or leaving the assignment.
+ * The record that owns an assignment — a script schedule, a software bundle —
+ * and the `@connection` keys its picker reads the two halves under.
+ */
+export interface AssignmentOwner {
+  /** The owner's Relay data id (its global id). */
+  id: string;
+  keys: {
+    available: string;
+    assigned: string;
+  };
+}
+
+/**
+ * The store writes for one device joining or leaving an assignment.
  *
  * Everything a single +/− changes is something the client already knows, so it
  * is written directly instead of being asked for again:
@@ -30,8 +40,8 @@ export interface ConnectionNarrowing {
  *   what the server would return: both lists are queried with the SAME
  *   narrowing, so a device visible in Available necessarily satisfies the
  *   filter and search the Selected list is under.
- * - **`deviceCount`** moves by one, and stays moved — the payload no longer
- *   restates it; see `addDevicesToScheduleMutation` for why.
+ * - **`deviceCount`** moves by one, and stays moved — the payload does not
+ *   restate it; see `addDevicesToScheduleMutation` for why.
  *
  * This is what lets the row render ONCE. Re-reading both connections instead
  * would republish every node on the page, and a node whose `lastSeen` ticked
@@ -43,7 +53,7 @@ export interface ConnectionNarrowing {
  * refetches it.
  */
 export function assignmentUpdaters(
-  scheduleId: string,
+  owner: AssignmentOwner,
   deviceId: string,
   assigned: boolean,
   narrowing: ConnectionNarrowing,
@@ -51,15 +61,15 @@ export function assignmentUpdaters(
   const delta = assigned ? 1 : -1;
 
   const patchLists = (store: RecordSourceSelectorProxy) => {
-    const schedule = store.get(scheduleId);
-    if (!schedule) return;
+    const record = store.get(owner.id);
+    if (!record) return;
 
-    const available = ConnectionHandler.getConnection(schedule, AVAILABLE_CONNECTION_KEY, narrowing);
+    const available = ConnectionHandler.getConnection(record, owner.keys.available, narrowing);
     for (const edge of available?.getLinkedRecords('edges') ?? []) {
       if (edge?.getLinkedRecord('node')?.getDataID() === deviceId) edge.setValue(assigned, 'assigned');
     }
 
-    const selected = ConnectionHandler.getConnection(schedule, ASSIGNED_CONNECTION_KEY, narrowing);
+    const selected = ConnectionHandler.getConnection(record, owner.keys.assigned, narrowing);
     if (!selected) return;
     const present = (selected.getLinkedRecords('edges') ?? []).some(
       edge => edge?.getLinkedRecord('node')?.getDataID() === deviceId,
@@ -80,20 +90,20 @@ export function assignmentUpdaters(
     }
 
     // What the Selected list reports under itself — the narrowed count, not the
-    // schedule's `deviceCount`.
+    // owner's `deviceCount`.
     const filteredCount = selected.getValue('filteredCount');
     if (typeof filteredCount === 'number') {
       selected.setValue(Math.max(0, filteredCount + delta), 'filteredCount');
     }
 
-    // The schedule's own count — what the picker's tab label and the DEVICES
-    // column show. Moved by the same delta, in the same pass and under the same
-    // idempotency guard as the lists, because the payload no longer carries it:
-    // it answered with an ABSOLUTE count, and two clicks whose responses crossed
-    // settled on the older of the two snapshots. Deltas compose in any order.
-    const deviceCount = schedule.getValue('deviceCount');
+    // The owner's own count — what the picker's tab label shows. Moved by the
+    // same delta, in the same pass and under the same idempotency guard as the
+    // lists, because the payload does not carry it: it answered with an ABSOLUTE
+    // count, and two clicks whose responses crossed settled on the older of the
+    // two snapshots. Deltas compose in any order.
+    const deviceCount = record.getValue('deviceCount');
     if (typeof deviceCount === 'number') {
-      schedule.setValue(Math.max(0, deviceCount + delta), 'deviceCount');
+      record.setValue(Math.max(0, deviceCount + delta), 'deviceCount');
     }
   };
 

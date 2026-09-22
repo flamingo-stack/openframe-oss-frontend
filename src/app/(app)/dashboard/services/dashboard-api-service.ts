@@ -1,6 +1,7 @@
 'use client';
 
 import { apiClient } from '@/lib/api-client';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { DEFAULT_DASHBOARD_STATUSES, DEVICE_STATUS } from '../../devices/constants/device-statuses';
 import { fetchDeviceStatusCounts } from '../../devices/queries/devices-api';
 import type { GraphQlResponse } from '../../devices/types/device.types';
@@ -135,7 +136,7 @@ class DashboardApiService {
         total,
         active,
         resolved,
-        avgResolveTime: data.averageResolutionTimeFormatted || '—',
+        avgResolveTime: data.averageResolutionTimeFormatted || EMPTY_VALUE,
         avgFaeRate: typeof data.averageRating === 'number' ? Number(data.averageRating.toFixed(1)) : 0,
         activePercentage: total > 0 ? Math.round((active / total) * 100) : 0,
         resolvedPercentage: total > 0 ? Math.round((resolved / total) * 100) : 0,

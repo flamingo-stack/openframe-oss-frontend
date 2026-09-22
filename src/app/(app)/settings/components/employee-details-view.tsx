@@ -11,6 +11,7 @@ import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from 
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
@@ -103,7 +104,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
       ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
       : user.email
     : ' ';
-  const role = user ? (user.roles || []).join(', ') || '—' : '';
+  const role = user ? (user.roles || []).join(', ') || EMPTY_VALUE : '';
   const isActive = user?.status === UserStatus.Active;
   const isDeleted = isDeletedUserStatus(user?.status);
 

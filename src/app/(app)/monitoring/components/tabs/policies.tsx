@@ -9,12 +9,13 @@ import {
   Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { formatDistanceToNow } from 'date-fns';
+import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { PoliciesTable, type PolicyTableRow, type PolicyTableStatus, SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
@@ -188,18 +189,20 @@ export function Policies() {
           // reports "Total Policies 0 / Failed 0", an all-clear a compliance
           // console has not earned.
           <>
-            <DashboardInfoCard title="Total Policies" value={hasData ? summary.totalPolicies : '—'} />
+            <DashboardInfoCard title="Total Policies" value={hasData ? summary.totalPolicies : EMPTY_VALUE} />
             <DashboardInfoCard
               title="Compliance Rate"
               value={
-                hasData ? `${summary.compliantPolicies}/${summary.compliantPolicies + summary.failingPolicies}` : '—'
+                hasData
+                  ? `${summary.compliantPolicies}/${summary.compliantPolicies + summary.failingPolicies}`
+                  : EMPTY_VALUE
               }
               percentage={hasData ? summary.compliantPoliciesPercentage : undefined}
               showProgress={hasData}
             />
             <DashboardInfoCard
               title="Failed Policies"
-              value={hasData ? summary.failingPolicies : '—'}
+              value={hasData ? summary.failingPolicies : EMPTY_VALUE}
               percentage={hasData ? summary.failingPoliciesPercentage : undefined}
               showProgress={hasData}
               progressVariant="error"
@@ -207,11 +210,7 @@ export function Policies() {
             <DashboardInfoCard
               title="Updated"
               value={
-                !hasData
-                  ? '—'
-                  : summary.lastUpdatedAt
-                    ? formatDistanceToNow(new Date(summary.lastUpdatedAt), { addSuffix: true })
-                    : 'N/A'
+                !hasData ? EMPTY_VALUE : summary.lastUpdatedAt ? formatRelativeTime(summary.lastUpdatedAt) : EMPTY_VALUE
               }
               valueClassName="!text-h3"
               tooltip="Policy compliance stats are updated hourly. View a policy's devices for real-time status."

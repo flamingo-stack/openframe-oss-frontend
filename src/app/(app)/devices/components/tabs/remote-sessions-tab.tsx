@@ -29,6 +29,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 import { formatDate, formatDateTime, formatTime } from '@/lib/format-date';
@@ -221,7 +222,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
           const { durationMs, sizeBytes } = row.original;
           return (
             <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-              <TruncateText>{durationMs != null ? formatDurationMs(durationMs) : '—'}</TruncateText>
+              <ValueText value={durationMs != null ? formatDurationMs(durationMs) : null} />
               {sizeBytes != null && (
                 <TruncateText variant="h6" tone="secondary">
                   {formatBytes(sizeBytes)}

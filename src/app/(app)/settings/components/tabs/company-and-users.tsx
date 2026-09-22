@@ -19,6 +19,7 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { ValueText } from '@/app/components/shared/value-text';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -199,9 +200,7 @@ export function CompanyAndUsersTab() {
       {
         accessorKey: 'roles',
         header: 'ROLE',
-        cell: ({ row }: { row: Row<UnifiedUserRecord> }) => (
-          <TruncateText>{(row.original.roles || []).join(', ') || '—'}</TruncateText>
-        ),
+        cell: ({ row }: { row: Row<UnifiedUserRecord> }) => <ValueText value={(row.original.roles || []).join(', ')} />,
         meta: { width: 'w-1/3 max-md:flex-[2] max-md:min-w-0' },
       },
       {

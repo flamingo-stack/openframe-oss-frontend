@@ -1,18 +1,13 @@
 'use client';
 
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { StackedRowsPanel, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { StackedRowsPanel } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { ValueText } from '@/app/components/shared/value-text';
 import type { CustomerDetails } from '../../hooks/use-customer-details';
 import { buildCustomerContactRows, buildCustomerInfoRows, buildNoContactsRow } from './customer-details-rows';
 
-const EMPTY_VALUE = '—';
-
-/** `mapOrganization` renders a missing value as '-'; the tab shows an em dash and no link for it. */
-const isEmpty = (value?: string | null): boolean => !value || value === '-';
-const display = (value?: string | null): string => (isEmpty(value) ? EMPTY_VALUE : (value as string));
-
-/** A cell value with the measured truncation tooltip — the app's rule for clipped text. */
-const cell = (value?: string | null) => <TruncateText>{display(value)}</TruncateText>;
+/** A cell value: the text with the truncation tooltip, or the muted empty mark. */
+const cell = (value?: string | null) => <ValueText value={value} />;
 
 function CustomerNotesCard({ notes }: { notes: string }) {
   return (
@@ -32,7 +27,7 @@ interface CustomerDetailsTabProps {
 }
 
 export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
-  const hasWebsite = !isEmpty(organization.website);
+  const hasWebsite = Boolean(organization.website);
   const websiteHref = hasWebsite
     ? organization.website.startsWith('http')
       ? organization.website

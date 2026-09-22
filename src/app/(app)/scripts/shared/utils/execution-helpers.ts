@@ -1,17 +1,8 @@
-import type { executionFields_execution$data } from '@/__generated__/executionFields_execution.graphql';
 // Value import: the generated module exports each enum as both a `const` and a
 // `type` under the same name, so these stand in for hardcoded literals.
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { PrivilegeLevel, ScriptExecutionStatus } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { presentationFor } from '@/lib/exhaustive-map';
-import { formatDate, formatTime } from '@/lib/format-date';
-
-/** "date, time" in the user's local format (e.g. "6/26/26, 2:31 PM"). */
-export function formatExecutionTimestamp(input: string | number | Date | null | undefined): string {
-  if (!input) return '—';
-  const date = new Date(input);
-  return `${formatDate(date)}, ${formatTime(date)}`;
-}
 
 /**
  * Presentation helpers for script executions — shared by the Execution History
@@ -47,7 +38,7 @@ const EXECUTION_STATUS_PRESENTATION = {
 
 /** Human label for an execution status. */
 export function executionStatusLabel(status: ScriptExecutionStatus | string | null | undefined): string {
-  return presentationFor(EXECUTION_STATUS_PRESENTATION, status)?.label ?? (status ? String(status) : '—');
+  return presentationFor(EXECUTION_STATUS_PRESENTATION, status)?.label ?? (status ? String(status) : EMPTY_VALUE);
 }
 
 /** Tag color variant for an execution status. */
@@ -62,38 +53,18 @@ export function isExecutionInFlight(status: ScriptExecutionStatus | string | nul
 
 /**
  * Privilege levels, same exhaustive shape as the status table above (ADMIN runs
- * elevated as the system account).
+ * elevated as the system account; ELEVATED_USER is the logged-on Windows user
+ * with the UAC token).
  */
 const PRIVILEGE_LEVEL_LABELS = {
   [PrivilegeLevel.ADMIN]: 'System',
   [PrivilegeLevel.USER]: 'User',
+  [PrivilegeLevel.ELEVATED_USER]: 'Elevated User',
 } satisfies Record<PrivilegeLevel, string>;
 
 /** Human label for a privilege level. */
 export function privilegeLevelLabel(level: PrivilegeLevel | string | null | undefined): string {
-  return presentationFor(PRIVILEGE_LEVEL_LABELS, level) ?? (level ? String(level) : '—');
-}
-
-/**
- * The machine an execution ran on, as every execution operation selects it — the
- * `executionFields_execution` fragment and the detail query pick the same fields.
- * Typed off the generated shape rather than a hand-written all-optional
- * interface so an operation that drops a name field fails to compile instead of
- * rendering the next fallback.
- */
-export type ExecutionMachine = NonNullable<executionFields_execution$data['machine']>;
-
-/**
- * Best display name for a machine — the shared device name, then `machineId` as
- * a last resort so a row that has no name at all still identifies its machine.
- */
-export function machineLabel(machine: ExecutionMachine | null | undefined): string {
-  return getDeviceName(machine) || machine?.machineId || '—';
-}
-
-/** Organization name for a machine, or empty string. */
-export function organizationLabel(machine: ExecutionMachine | null | undefined): string {
-  return machine?.organization?.name ?? '';
+  return presentationFor(PRIVILEGE_LEVEL_LABELS, level) ?? (level ? String(level) : EMPTY_VALUE);
 }
 
 interface InitiatorLike {
@@ -118,13 +89,17 @@ export function initiatorInitials(user: InitiatorLike | null | undefined): strin
   return (user.email?.trim()?.slice(0, 2) || 'UN').toUpperCase();
 }
 
-interface ExecutionResultLike {
+interface ExecutionOutput {
   stdout?: string | null;
   stderr?: string | null;
   error?: string | null;
 }
 
-/** Combined result text shown in the table / details (stdout → stderr → error). */
-export function executionResultText(node: ExecutionResultLike | null | undefined): string {
-  return node?.stdout || node?.stderr || node?.error || '';
+/**
+ * Everything an execution printed: stdout, then stderr, then the dispatch error
+ * — all three, not the first non-empty one, since a failed run often prints
+ * progress to stdout and the reason to stderr. Empty when it printed nothing.
+ */
+export function executionOutput({ stdout, stderr, error }: ExecutionOutput): string {
+  return [stdout, stderr, error].filter(Boolean).join('\n\n');
 }

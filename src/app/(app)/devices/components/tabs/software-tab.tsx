@@ -23,7 +23,10 @@ import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/util
 import { useQueryClient } from '@tanstack/react-query';
 import { type ComponentType, useMemo, useState } from 'react';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { EMPTY_VALUE } from '@/lib/empty-value';
+import { toValidDate } from '@/lib/format-date';
 import type { Device, Software } from '../../types/device.types';
 import { fleetTimestampMs } from '../../utils/fleet-timestamp';
 import { deviceQueryKeys } from '../../utils/query-keys';
@@ -50,10 +53,10 @@ function getSourceIcon(source: string): { Icon: ComponentType<{ className?: stri
   return SOURCE_ICON[source] ?? { Icon: PackageIcon, label: source };
 }
 
+/** Fleet reports "never used" as the epoch, so a zero instant reads as empty too. */
 function formatLastUsed(dateString?: string): string {
-  if (!dateString) return '—';
-  const date = new Date(dateString);
-  return date.getTime() > 0 ? formatRelativeTime(date) : '—';
+  const date = toValidDate(dateString);
+  return date && date.getTime() > 0 ? formatRelativeTime(date) : EMPTY_VALUE;
 }
 
 export function SoftwareTab({ device }: SoftwareTabProps) {
@@ -135,11 +138,7 @@ export function SoftwareTab({ device }: SoftwareTabProps) {
         accessorFn: (row: Software) => row.installed_paths?.[0] ?? '',
         cell: ({ row }: { row: Row<Software> }) => {
           const path = row.original.installed_paths?.[0];
-          return path ? (
-            <TruncateText>{path}</TruncateText>
-          ) : (
-            <span className="text-ods-text-secondary text-h4">—</span>
-          );
+          return path ? <TruncateText>{path}</TruncateText> : <ValueText value={null} />;
         },
         enableSorting: false,
         meta: liveColumnMeta(SOFTWARE_COLUMNS.filePath),

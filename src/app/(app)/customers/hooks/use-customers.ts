@@ -51,13 +51,13 @@ export function mapOrganizationNode(node: OrganizationNode): Customer {
   return {
     id: node.id,
     organizationId: node.organizationId,
-    name: node.name ?? '-',
+    name: node.name ?? '',
     websiteUrl: node.websiteUrl ?? '',
     contact: {
       name: primaryContact?.contactName ?? '',
       email: primaryContact?.email ?? '',
     },
-    industry: node.category ?? '-',
+    industry: node.category ?? '',
     mrrUsd: node.monthlyRevenue ?? 0,
     numberOfEmployees: node.numberOfEmployees ?? 0,
     contractDue: node.contractEndDate ?? '',
