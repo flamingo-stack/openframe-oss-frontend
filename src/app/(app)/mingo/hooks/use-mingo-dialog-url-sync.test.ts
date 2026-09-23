@@ -107,6 +107,19 @@ describe('resolveMingoUrlSync', () => {
     });
   });
 
+  it('adopts another chat after an inline tag closes the current drawer for navigation', () => {
+    expect(
+      resolveMingoUrlSync({
+        ...base,
+        navigated: true,
+        urlDialogId: 'chat-2',
+        mirroredDialogId: 'chat-1',
+        activeDialogId: 'chat-1',
+        closedForNavigation: true,
+      }),
+    ).toEqual({ type: 'adopt', dialogId: 'chat-2' });
+  });
+
   it('closes when back lands on an entry without the param, rather than re-stamping it', () => {
     // Same pathname, so `navigated` is false — only `mirroredDialogId` reveals
     // that the URL lost something we put there. Re-stamping would rewrite the

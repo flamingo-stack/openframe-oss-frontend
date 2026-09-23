@@ -42,13 +42,15 @@ const CHIP_CLASS = 'max-w-[16rem] align-middle [&_svg]:size-4 [&_svg]:text-ods-t
 interface MentionTagProps {
   icon?: ReactNode;
   label: ReactNode;
-  /** Entity detail-page URL — always one of OUR routes (`routes.*`). */
+  /** Internal entity or Mingo chat URL from `routes.*`. */
   href?: string;
+  openInCurrentWindow?: boolean;
 }
 
-export function MentionTag({ icon, label, href }: MentionTagProps) {
+export function MentionTag({ icon, label, href, openInCurrentWindow = false }: MentionTagProps) {
   const sameWindow = useSameWindowLinks();
   const router = useRouter();
+  const opensHere = sameWindow || openInCurrentWindow;
 
   // String labels go straight to Tag: its label slot shows a FloatingTooltip with
   // the full entity name only when the chip's max-w actually clips it, on a span
@@ -77,7 +79,7 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   // on the phone while the same chip, opening a new tab on the desktop, worked.
   // Same rule as the runtime's `navigate` for in-chat cards.
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (!sameWindow || !navigatesCurrentWindow(e)) return;
+    if (!opensHere || !navigatesCurrentWindow(e)) return;
     e.preventDefault();
     useMingoLauncherStore.getState().closeForNavigation();
     router.push(href);
@@ -86,7 +88,7 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   return (
     <a
       href={href}
-      {...(sameWindow ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+      {...(opensHere ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
       onClick={handleClick}
       className="no-underline"
     >

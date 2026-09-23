@@ -3,6 +3,14 @@
 import { PrivilegeLevel, ScriptExecutionStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { presentationFor } from '@/lib/exhaustive-map';
+import { formatDate, formatTime } from '@/lib/format-date';
+
+/** "date, time" in the user's local format (e.g. "6/26/26, 2:31 PM"). */
+export function formatExecutionTimestamp(input: string | number | Date | null | undefined): string {
+  if (!input) return EMPTY_VALUE;
+  const date = new Date(input);
+  return `${formatDate(date)}, ${formatTime(date)}`;
+}
 
 /**
  * Presentation helpers for script executions — shared by the Execution History
@@ -67,6 +75,23 @@ export function privilegeLevelLabel(level: PrivilegeLevel | string | null | unde
   return presentationFor(PRIVILEGE_LEVEL_LABELS, level) ?? (level ? String(level) : EMPTY_VALUE);
 }
 
+interface MachineLike {
+  machineId?: string | null;
+  hostname?: string | null;
+  displayName?: string | null;
+  organization?: { name?: string | null } | null;
+}
+
+/** Best display name for a machine (displayName → hostname → machineId). */
+export function machineLabel(machine: MachineLike | null | undefined): string {
+  return machine?.displayName || machine?.hostname || machine?.machineId || EMPTY_VALUE;
+}
+
+/** Organization name for a machine, or empty string. */
+export function organizationLabel(machine: MachineLike | null | undefined): string {
+  return machine?.organization?.name ?? '';
+}
+
 interface InitiatorLike {
   firstName?: string | null;
   lastName?: string | null;
@@ -102,4 +127,9 @@ interface ExecutionOutput {
  */
 export function executionOutput({ stdout, stderr, error }: ExecutionOutput): string {
   return [stdout, stderr, error].filter(Boolean).join('\n\n');
+}
+
+/** Combined result text shown in the table / details. */
+export function executionResultText(node: ExecutionOutput | null | undefined): string {
+  return executionOutput(node ?? {});
 }

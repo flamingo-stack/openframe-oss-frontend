@@ -45,6 +45,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
 import { mingoDialogLink } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
+import { KNOWLEDGE_BASE_ROUTE } from '../(app)/help-center/endpoints';
 import { useMingoContextEntityTypes } from '../(app)/mingo/context/context-sources';
 import { CONTEXT_ITEMS_MAX } from '../(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoMention } from '../(app)/mingo/context/mention-chips/render-mention';
@@ -216,10 +217,8 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
 
   // Entity-context picker config (the `+` "Assign Item" menu + `@` trigger).
   // Stable so the lib's composer doesn't re-derive its icon map each render:
-  // the entity list is one of two constants, so the memo moves only when a
-  // flag does. `renderMingoContextItems` maps each entity type to its data
-  // component (Relay / TanStack hooks); the store-backed openView/recentViews
-  // are folded in at send time by the unified hook.
+  // the entity list moves only when its feature flag does. The store-backed
+  // openView/recentViews are folded in at send time by the unified hook.
   const entityTypes = useMingoContextEntityTypes();
   const contextPicker = useMemo<ChatContextPickerConfig>(
     () => ({
@@ -309,6 +308,11 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         // the uncontrolled active mode defaults to 'mingo'.
         modes={{}}
         mingoState={state}
+        // Where an in-app doc chip navigates. Guide Mode V3 answers cite product
+        // documentation, and each cited source renders as a chip whose target is
+        // resolved against this route; without it the lib derives one from
+        // `runtime.source`, which is the hub's doc tree, not ours.
+        baseRoute={KNOWLEDGE_BASE_ROUTE}
         // PENDING approval cards are FILTERED OUT of their bubble by
         // `useMingoChat` (dedupe for interrupted retries), so a card that the
         // reducer built renders nowhere unless it is handed back here — the
