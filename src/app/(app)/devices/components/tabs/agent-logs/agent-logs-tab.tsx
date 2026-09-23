@@ -33,6 +33,8 @@ import { AgentLogsToolbar } from './agent-logs-toolbar';
 /** Production retention; the empty state mentions it for ranges that reach past it. */
 const RETENTION_DAYS = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** The largest value `new Date(ms)` still represents; past it every format throws. */
+const MAX_TIMESTAMP_MS = 8.64e15;
 
 const isDeviceLogLevel = (value: string): value is DeviceLogLevel =>
   (DEVICE_LOG_LEVELS as readonly string[]).includes(value);
@@ -89,7 +91,10 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   // filter on every render. Re-anchored only from events (a preset change, the
   // refresh button, the Run Script modal's stamp), never during render.
   const [anchorMs, setAnchorMs] = useState(() => Date.now());
-  const anchorNow = Math.max(anchorMs, Number(refreshParam) || 0);
+  // A stamp past the Date range makes every `toISOString()` below throw, and a
+  // hand-edited `?refresh=` is all it takes.
+  const stamped = Number(refreshParam);
+  const anchorNow = Math.max(anchorMs, stamped > 0 && stamped <= MAX_TIMESTAMP_MS ? stamped : 0);
   const refresh = () => setAnchorMs(Date.now());
 
   const filter = useMemo<DeviceLogFilter>(() => {
@@ -117,6 +122,9 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   const deferredList = useDeferredValue(list);
   const isPending = deferredList !== list;
 
+  // Published by the boundary's fallback: a search the WAF rejected belongs at
+  // the box, not over the list (spec §8).
+  const [serverSearchError, setServerSearchError] = useState<string | null>(null);
   const [autoUpdate, setAutoUpdate] = useState(true);
   const hasSearch = Boolean(filter.contains?.length || filter.excludes?.length);
   const hasActiveFilters =
@@ -157,7 +165,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
       <AgentLogsToolbar
         search={search}
         onSearchChange={setSearch}
-        searchError={liveSearch.error}
+        searchError={liveSearch.error ?? serverSearchError}
         selectedLevels={selectedLevels}
         onToggleLevel={toggleLevel}
         range={range}
@@ -173,7 +181,14 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
       <ContentErrorBoundary
         label="AgentLogsTab"
         resetKey={list.key}
-        fallback={(retry, { error }) => <AgentLogsErrorState error={error} hasSearch={hasSearch} retry={retry} />}
+        fallback={(retry, { error }) => (
+          <AgentLogsErrorState
+            error={error}
+            hasSearch={hasSearch}
+            retry={retry}
+            onSearchRejected={setServerSearchError}
+          />
+        )}
       >
         <Suspense fallback={<AgentLogsRowsSkeleton />}>
           <AgentLogsContent

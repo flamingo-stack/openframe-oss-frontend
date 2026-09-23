@@ -113,6 +113,9 @@ export function deviceLogDayBounds(fromDay: string, toDay: string): { from?: str
   if (!lower || !upper) return { from: undefined, to: undefined };
   const to = new Date(`${upper}T23:59:59.999Z`);
   const from = new Date(`${lower}T00:00:00.000Z`);
+  // A hand-edited day param must never reach `toISOString()`, which throws on an
+  // invalid date — and this runs above the tab's error boundary.
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return { from: undefined, to: undefined };
   // The picker cannot offer a wider range, but a hand-edited URL can, and the
   // API answers VALIDATION_ERROR — clamp instead of sending a doomed request.
   // `+1ms` lands exactly on a UTC day start, so the clamp stays day-aligned.

@@ -132,4 +132,18 @@ describe('deviceLogDayBounds', () => {
   it('leaves a range inside the limit untouched', () => {
     expect(deviceLogDayBounds('2026-09-20', '2026-09-23').from).toBe('2026-09-20T00:00:00.000Z');
   });
+
+  it('falls back instead of throwing on a hand-edited day param', () => {
+    // `toISOString()` on an invalid date throws, and this runs above the tab's
+    // error boundary — a junk URL would take the whole device page down.
+    for (const pair of [
+      ['garbage', ''],
+      ['', 'oops'],
+      ['2026-13-45', ''],
+      ['2026-09-23', 'not-a-day'],
+    ] as const) {
+      expect(() => deviceLogDayBounds(pair[0], pair[1])).not.toThrow();
+      expect(deviceLogDayBounds(pair[0], pair[1])).toEqual({ from: undefined, to: undefined });
+    }
+  });
 });

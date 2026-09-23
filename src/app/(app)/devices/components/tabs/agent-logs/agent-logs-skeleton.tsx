@@ -5,15 +5,16 @@ import { CheckboxBlock, Input, Skeleton, Tag } from '@flamingo-stack/openframe-f
 import { DEVICE_LOG_LEVELS, getDeviceLogLevelVariant } from '../../../utils/device-log-level';
 import { DEFAULT_DEVICE_LOG_RANGE, DEVICE_LOG_RANGE_LABELS } from '../../../utils/device-log-time';
 
-/** Boxed exactly like `AgentLogRow` — same columns, same 40px height — so the
- *  swap from skeleton to content does not shift the list. */
+/** Boxed exactly like `AgentLogRow`: same columns, same 42px height (32px chip
+ *  + 4px padding + the row's 1px border, top and bottom), so the swap to real
+ *  content does not shift the list. */
 export function AgentLogsRowsSkeleton({ rows = 12 }: { rows?: number }) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-hidden="true">
       {Array.from({ length: rows }, (_, index) => (
         <div
           key={index}
-          className="flex h-10 items-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-xs)]"
+          className="flex h-[42px] items-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-xs)]"
         >
           <Skeleton className="h-5 w-[144px] shrink-0 md:w-[168px]" />
           <Skeleton className="h-8 w-[64px] shrink-0" />
