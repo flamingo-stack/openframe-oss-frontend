@@ -22,10 +22,12 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { InvoiceStatus } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
+import { formatDate } from '@/lib/format-date';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { formatCurrency, formatDateOrDash } from '../lib/format';
+import { formatCurrency } from '../lib/format';
 import { INVOICE_COLUMNS } from '../lib/invoices-table-columns';
 
 interface InvoiceItem {
@@ -158,8 +160,8 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
         header: 'INVOICE',
         cell: ({ row }: { row: Row<InvoiceItem> }) => (
           <>
-            <TruncateText>{row.original.invoiceNumber ?? '—'}</TruncateText>
-            <span className="truncate text-ods-text-secondary text-h6">{formatDateOrDash(row.original.createdAt)}</span>
+            <ValueText value={row.original.invoiceNumber} />
+            <span className="truncate text-ods-text-secondary text-h6">{formatDate(row.original.createdAt)}</span>
           </>
         ),
         enableSorting: false,
@@ -169,9 +171,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
         id: 'dueDate',
         accessorFn: (row: InvoiceItem) => dateSortValue(row.dueDate),
         header: 'DUE DATE',
-        cell: ({ row }: { row: Row<InvoiceItem> }) => (
-          <TruncateText>{formatDateOrDash(row.original.dueDate)}</TruncateText>
-        ),
+        cell: ({ row }: { row: Row<InvoiceItem> }) => <TruncateText>{formatDate(row.original.dueDate)}</TruncateText>,
         sortUndefined: 'last',
         meta: liveColumnMeta(INVOICE_COLUMNS.dueDate),
       },

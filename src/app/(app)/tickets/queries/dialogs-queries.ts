@@ -47,20 +47,6 @@ export function normalizeMessageDataAliases<T>(messageData: T): T {
   return (changed ? normalized : messageData) as T;
 }
 
-export const GET_DIALOG_STATISTICS_QUERY = `
-  query GetDialogStatistics {
-    dialogStatistics {
-      totalCount
-      statusCounts {
-        status
-        count
-      }
-      averageResolutionTimeFormatted
-      averageRating
-    }
-  }
-`;
-
 export function getDialogMessagesQuery() {
   // Gated on `ai-escalation`: these types ship with the escalation backend, and
   // a fragment on a type the schema doesn't declare fails validation for the

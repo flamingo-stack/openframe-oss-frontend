@@ -19,3 +19,12 @@
 export function presentationFor<K extends string, V>(map: Record<K, V>, key: string | null | undefined): V | undefined {
   return key != null && key in map ? map[key as K] : undefined;
 }
+
+/**
+ * The same question when the caller needs the enum value itself rather than a
+ * row of a table: a Relay-typed string narrowed to a `@/generated/schema-enums`
+ * const, or null for a value this build does not know.
+ */
+export function knownValue<T extends string>(values: Record<string, T>, value: string | null | undefined): T | null {
+  return value != null && (Object.values(values) as string[]).includes(value) ? (value as T) : null;
+}

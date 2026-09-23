@@ -13,7 +13,7 @@ import {
   TICKETS_DEFAULT_SORT,
   TRANSITION_TICKET_MUTATION,
 } from '../queries/ticket-queries';
-import type { Dialog, DialogOwnerEnum, DialogStatus, Message, TicketActivityState } from '../types/dialog.types';
+import type { Dialog, DialogOwnerEnum, Message, TicketActivityState } from '../types/dialog.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import type {
@@ -31,7 +31,6 @@ interface TicketNode {
   id: string;
   ticketNumber: number;
   title: string;
-  status: string;
   statusDefinition?: { id: string; name: string; color: string; kind?: string } | null;
   availableTransitions?: Array<{ id: string; name: string; color: string }> | null;
   owner: {
@@ -122,16 +121,8 @@ interface TicketsResponse {
   };
 }
 
-const TICKET_TO_DIALOG_STATUS: Record<string, DialogStatus> = {
-  ACTIVE: 'ACTIVE',
-  TECH_REQUIRED: 'TECH_REQUIRED',
-  ON_HOLD: 'ON_HOLD',
-  RESOLVED: 'RESOLVED',
-  ARCHIVED: 'ARCHIVED',
-};
-
 interface StatusMutationPayload {
-  ticket: { id: string; status: string } | null;
+  ticket: { id: string } | null;
   userErrors: Array<{ field?: string[]; message: string }>;
 }
 
@@ -144,7 +135,6 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
   return {
     id: ticket.id,
     title: ticket.title,
-    status: TICKET_TO_DIALOG_STATUS[ticket.status] || (ticket.status as DialogStatus),
     statusId: ticket.statusDefinition?.id,
     statusName: ticket.statusDefinition?.name,
     statusColor: ticket.statusDefinition?.color,
@@ -353,7 +343,7 @@ export class TicketService implements TicketServiceInterface {
     }));
   }
 
-  async reorderTicket(params: ReorderTicketParams): Promise<DialogStatus> {
+  async reorderTicket(params: ReorderTicketParams): Promise<void> {
     const input: Record<string, unknown> = {
       id: params.id,
       afterTicketId: params.afterTicketId,
@@ -377,8 +367,6 @@ export class TicketService implements TicketServiceInterface {
     if (!payload.ticket) {
       throw new Error('reorderTicket returned no ticket');
     }
-
-    return TICKET_TO_DIALOG_STATUS[payload.ticket.status] || (payload.ticket.status as DialogStatus);
   }
 
   async markDialogMessagesRead(dialogId: string): Promise<number> {

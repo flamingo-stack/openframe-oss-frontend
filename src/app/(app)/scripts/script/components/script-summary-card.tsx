@@ -4,6 +4,8 @@ import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
+import { ValueText } from '@/app/components/shared/value-text';
+import { displayValue } from '@/lib/empty-value';
 import { scriptShellLabel } from '../../shared/utils/shell-types';
 
 interface ScriptSummaryCardProps {
@@ -57,7 +59,7 @@ function MetaSpacer({ count }: { count: number }) {
 function MetaStat({ value, label }: { value: string; label: string }) {
   return (
     <MetaCell>
-      <TruncateText variant="h4">{value}</TruncateText>
+      <ValueText value={value} />
       <TruncateText variant="h6" tone="secondary">
         {label}
       </TruncateText>
@@ -84,13 +86,13 @@ export function ScriptSummaryCard({
   showTimeout = true,
   author,
 }: ScriptSummaryCardProps) {
-  const platformsText = platforms.map(getOSLabel).join(', ') || '—';
+  const platformsText = platforms.map(getOSLabel).join(', ');
 
   const stats = [
     { label: STAT_LABELS.shell, value: shellLabel(shellId) },
-    { label: STAT_LABELS.platforms, value: platformsText },
-    ...(showTimeout ? [{ label: STAT_LABELS.timeout, value: String(timeoutSeconds ?? '—') }] : []),
-    ...(author !== undefined ? [{ label: STAT_LABELS.author, value: author || '—' }] : []),
+    { label: STAT_LABELS.platforms, value: displayValue(platformsText) },
+    ...(showTimeout ? [{ label: STAT_LABELS.timeout, value: displayValue(timeoutSeconds) }] : []),
+    ...(author !== undefined ? [{ label: STAT_LABELS.author, value: displayValue(author) }] : []),
   ];
 
   return (

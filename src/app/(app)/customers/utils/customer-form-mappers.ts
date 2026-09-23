@@ -20,15 +20,12 @@ export const DEFAULT_PRESERVED_FIELDS: PreservedCustomerFields = {
   monthlyRevenue: null,
 };
 
-/** `mapOrganization` renders a missing value as '-'; the form wants ''. */
-export const stripPlaceholder = (value?: string | null): string => (!value || value === '-' ? '' : value);
-
 const toDateOnly = (value: string | null): string | undefined =>
   value ? new Date(value).toISOString().slice(0, 10) : undefined;
 
 export function toPreservedFields(organization: CustomerDetails): PreservedCustomerFields {
   return {
-    category: stripPlaceholder(organization.industry) || undefined,
+    category: organization.industry || undefined,
     numberOfEmployees: organization.employees,
     monthlyRevenue: organization.mrrUsd,
     contractStartDate: toDateOnly(organization.contractStart),
@@ -53,8 +50,8 @@ export function recordToForm(organization: CustomerDetails): CustomerFormData {
   const contacts = organization.contacts.filter(contact => !isBlankContact(contact));
 
   return {
-    name: stripPlaceholder(organization.name),
-    website: stripPlaceholder(organization.website),
+    name: organization.name,
+    website: organization.website,
     notes: (organization.notes || []).join('\n'),
     physicalAddress: physical,
     mailingAddress: mailingSameAsPhysical ? physical : mailing,

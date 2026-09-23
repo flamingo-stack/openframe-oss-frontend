@@ -20,7 +20,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { formatDistanceToNowStrict } from 'date-fns';
+import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchQuery, readInlineData, useLazyLoadQuery, usePaginationFragment, useRelayEnvironment } from 'react-relay';
 import type { incidentFiltersRefreshRelayQuery as IncidentFiltersRefreshQueryType } from '@/__generated__/incidentFiltersRefreshRelayQuery.graphql';
@@ -99,7 +99,7 @@ function enumFacetOptions(facet: readonly FacetEntry[], labels: Record<string, s
  */
 function statusTime(row: IncidentRow): string {
   if (row.status === InsightStatus.NEW) {
-    return formatDistanceToNowStrict(new Date(row.detectedAt));
+    return formatRelativeTime(row.detectedAt);
   }
   if (row.status === InsightStatus.SNOOZED && row.snoozedUntil) {
     return formatDateTime(row.snoozedUntil);

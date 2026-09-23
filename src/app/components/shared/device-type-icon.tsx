@@ -15,12 +15,7 @@ const DEFAULT_CLASS_NAME = 'w-6 h-6 text-ods-text-secondary';
  * the core library.
  *
  * Returns `undefined` for unknown / missing types so the caller can skip rendering.
- *
- * TODO: migrate remaining call sites that still use the deprecated
- * `getDeviceTypeIcon` from `@flamingo-stack/openframe-frontend-core`:
- *   - src/app/(app)/monitoring/policy/components/policy-devices-table.tsx
- *   - src/app/(app)/devices/components/devices-table-columns.tsx
- *   - src/app/components/shared/device-selector/device-selector.tsx
+ * A row that names a device draws it through `DeviceTypeTile`.
  */
 export function renderDeviceTypeIcon(type?: string, className: string = DEFAULT_CLASS_NAME): React.ReactNode {
   switch (type?.toLowerCase()) {

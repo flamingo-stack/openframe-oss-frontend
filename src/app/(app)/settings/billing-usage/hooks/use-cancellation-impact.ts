@@ -11,10 +11,7 @@ const MAIN_GRAPHQL_ENDPOINT = '/api/graphql';
 const TICKETS_TOTAL_QUERY = `
   query CancellationTicketTotal {
     ticketStatistics {
-      statusCounts {
-        status
-        count
-      }
+      totalCount
     }
   }
 `;
@@ -82,15 +79,17 @@ interface CancellationImpact {
 }
 
 async function fetchTicketsTotal(): Promise<number> {
-  const res = await apiClient.post<GraphQlEnvelope<{ ticketStatistics?: { statusCounts?: Array<{ count: number }> } }>>(
+  // `totalCount` is computed from the lifecycle status counts on the backend;
+  // the legacy `statusCounts` this used to sum has come back empty since the
+  // custom-status lifecycle shipped, so this figure always showed 0.
+  const res = await apiClient.post<GraphQlEnvelope<{ ticketStatistics?: { totalCount?: number } }>>(
     TICKETS_GRAPHQL_ENDPOINT,
     { query: TICKETS_TOTAL_QUERY },
   );
   if (!res.ok || res.data?.errors?.length) {
     throw new Error(res.error || res.data?.errors?.[0]?.message || 'Failed to load ticket total');
   }
-  const counts = res.data?.data?.ticketStatistics?.statusCounts ?? [];
-  return counts.reduce((sum, sc) => sum + (sc.count ?? 0), 0);
+  return res.data?.data?.ticketStatistics?.totalCount ?? 0;
 }
 
 interface KnowledgeBaseTrees {

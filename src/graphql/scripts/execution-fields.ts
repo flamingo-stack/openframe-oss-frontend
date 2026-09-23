@@ -38,9 +38,9 @@ export const executionFieldsFragment = graphql`
     machine {
       id
       machineId
+      nickname
       hostname
       displayName
-      nickname
       organization {
         id
         name

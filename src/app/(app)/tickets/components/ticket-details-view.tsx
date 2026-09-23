@@ -50,6 +50,7 @@ import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation'
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -61,7 +62,7 @@ import { useDeviceDetails } from '../../devices/hooks/use-device-details';
 import { getDeviceName } from '../../devices/utils/device-name';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
-import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE, DIALOG_STATUS } from '../constants';
+import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE } from '../constants';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
 import { useDirectChat } from '../hooks/use-direct-chat';
@@ -546,7 +547,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {
     if (!dialog) return [];
 
-    const isArchived = dialog.status === DIALOG_STATUS.ARCHIVED;
+    const isArchived = dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED;
 
     const ticketItems: ActionsMenuItem[] = [];
     const infoItems: ActionsMenuItem[] = [];
@@ -602,8 +603,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   }
 
   const isAdminOwner = dialog.owner?.type === 'ADMIN';
-  const isResolved = dialog.status === DIALOG_STATUS.RESOLVED;
-  const isArchived = dialog.status === DIALOG_STATUS.ARCHIVED;
+  const isResolved = dialog.statusKind === TICKET_STATUS_KIND.RESOLVED;
+  const isArchived = dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED;
   const isClosed = isResolved || isArchived;
   const clientTokenUsage = dialog.tokenUsage?.find(t => t.chatType === CHAT_TYPE.CLIENT);
   const showTokenMemory = !isClosed;
@@ -613,7 +614,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // unified design (AI_ASSISTANCE/RESOLVED → canonical styling like the board;
   // TECH_REQUIRED and custom → backend color), shared with the chat surfaces.
   const statusTag = resolveStatusTagProps({
-    status: dialog.statusId ?? dialog.status,
+    status: dialog.statusId,
     statusKind: dialog.statusKind,
     statusName: dialog.statusName,
     statusColor: dialog.statusColor,
@@ -646,7 +647,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     {
       id: 'ticket-number',
       label: 'Ticket Number',
-      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : '—' },
+      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : EMPTY_VALUE },
     },
     {
       id: 'customer',
@@ -657,13 +658,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
             imageSrc: getFullImageUrl(dialog.organizationImageUrl, dialog.organizationImageHash),
             imageFallback: customerName,
           }
-        : { text: '—' },
+        : { text: EMPTY_VALUE },
     },
     {
       id: 'device',
       label: 'Device',
       value: {
-        text: ticketDeviceName || '—',
+        text: ticketDeviceName || EMPTY_VALUE,
         href: machineId ? routes.devices.details(machineId) : undefined,
       },
     },
@@ -690,7 +691,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     {
       id: 'created',
       label: 'Created',
-      value: { text: dialog.createdAt ? formatDateTime(dialog.createdAt) : 'Unknown' },
+      value: { text: formatDateTime(dialog.createdAt) },
     },
     {
       id: 'status',

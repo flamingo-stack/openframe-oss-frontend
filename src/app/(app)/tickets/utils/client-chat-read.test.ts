@@ -20,7 +20,7 @@ describe('lastClientMessageId', () => {
 });
 
 function ticket(id: string, unreadMessageCount: number): Dialog {
-  return { id, title: id, status: 'ACTIVE', createdAt: '2026-09-23T00:00:00Z', unreadMessageCount } as Dialog;
+  return { id, title: id, owner: { type: 'ADMIN' }, createdAt: '2026-09-23T00:00:00Z', unreadMessageCount };
 }
 
 function pages(...dialogs: Dialog[]): InfiniteData<TicketsPage> {

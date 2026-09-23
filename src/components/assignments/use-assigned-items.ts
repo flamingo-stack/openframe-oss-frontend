@@ -6,7 +6,7 @@ import type { Device } from '@/app/(app)/devices/types/device.types';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { KnowledgeBaseRow } from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
-import type { Dialog, DialogStatus } from '@/app/(app)/tickets/types/dialog.types';
+import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { postGraphQl } from './graphql';
 import { ensureGlobalId } from './relay-id';
@@ -71,7 +71,6 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               ticketNumber
               title
               description
-              status
               creationSource
               deviceId
               deviceHostname
@@ -153,7 +152,6 @@ function toDialog(target: AssignedTargetNode): Dialog {
   return {
     id: decoded?.typename === 'Ticket' ? decoded.rawId : target.id,
     title: (t.title as string) || 'Untitled Dialog',
-    status: ((t.status as string) ?? 'ACTIVE') as DialogStatus,
     owner: { type: 'CLIENT' },
     createdAt: (t.createdAt as string) || '',
     resolvedAt: (t.resolvedAt as string) ?? null,

@@ -10,15 +10,6 @@ interface SubscriptionCancelledModalProps {
   onClose: () => void;
 }
 
-function formatEndDate(iso: string | null): string {
-  if (!iso) return '—';
-  try {
-    return formatDate(iso);
-  } catch {
-    return iso;
-  }
-}
-
 export function SubscriptionCancelledModal({ isOpen, endDate, onClose }: SubscriptionCancelledModalProps) {
   return (
     <SimpleModal
@@ -37,7 +28,7 @@ export function SubscriptionCancelledModal({ isOpen, endDate, onClose }: Subscri
     >
       <p className="text-ods-text-primary text-h4">
         {`Pay-as-you-go top-ups are now disabled. Your existing devices and included tokens remain active until `}
-        <span className="text-ods-warning">{formatEndDate(endDate)}</span>
+        <span className="text-ods-warning">{formatDate(endDate)}</span>
         {`, after which this data will no longer be accessible.`}
       </p>
     </SimpleModal>
