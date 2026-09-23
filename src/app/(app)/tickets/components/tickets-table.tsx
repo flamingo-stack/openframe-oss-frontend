@@ -27,17 +27,18 @@ import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
 import { TicketsFilterModal } from './tickets-filter-modal';
 
-// Per-row unread count comes from the ticket entity itself (`Ticket.unreadNotificationCount`).
-// Viewing a ticket's client chat marks its notifications read (`useMarkEntityNotificationsRead`),
-// clearing the badge in lockstep with the drawer and the sidebar nav count.
-const getUnreadCount = (ticket: Dialog) => ticket.unreadNotificationCount;
+// Per-row unread count comes from the ticket entity itself (`Ticket.unreadMessageCount`): the
+// client-chat messages no technician has read yet, one counter shared by all of them. Viewing
+// the ticket's client chat marks them read (`TicketNotificationsAutoReader`), which clears the
+// badge for every technician. The bell/drawer/sidebar counts are per user and separate.
+const getUnreadCount = (ticket: Dialog) => ticket.unreadMessageCount;
 
 interface TicketsTableProps {
   isArchived: boolean;
   statusFilters?: string[];
   organizationIds?: string[];
   assigneeIds?: string[];
-  /** Only tickets the caller has unread notifications about. */
+  /** Only tickets with unread client-chat messages (the row badge). */
   unreadOnly?: boolean;
   /**
    * Applies status/assignee/customer/new-messages atomically in ONE call — the
