@@ -34,6 +34,8 @@ export interface DeviceMenuItemContext {
   isWindows?: boolean;
   /** Adds an "open in new tab" arrow icon-action to each item. */
   withNewTabAction?: boolean;
+  /** The `device-agent-logs` gate — the "Device Logs" entry exists only when it is on. */
+  agentLogsEnabled?: boolean;
 }
 
 /**
@@ -49,7 +51,8 @@ export interface DeviceMenuItems {
   remoteShell: ActionsMenuItem;
   remoteControl: ActionsMenuItem;
   manageFiles: ActionsMenuItem;
-  deviceLogs: ActionsMenuItem;
+  /** Null while the Agent Logs feature is off or unknown — nothing to point at. */
+  deviceLogs: ActionsMenuItem | null;
 }
 
 // No size and no color on the glyph, both on purpose. The trailing half of a split
@@ -135,7 +138,7 @@ export function buildDeviceMenuItems(ctx: DeviceMenuItemContext): DeviceMenuItem
   const manageFilesDisabled = !ctx.availability?.manageFilesEnabled;
 
   const deviceDetailsHref = routes.devices.details(ctx.deviceId);
-  const deviceLogsHref = routes.devices.details(ctx.deviceId, { tab: 'overview' });
+  const deviceLogsHref = routes.devices.details(ctx.deviceId, { tab: 'agent-logs' });
 
   return {
     deviceDetails: {
@@ -162,12 +165,14 @@ export function buildDeviceMenuItems(ctx: DeviceMenuItemContext): DeviceMenuItem
       disabled: manageFilesDisabled,
       ...maybeNewTabAction(ctx, manageFilesHref, 'Manage Files', manageFilesDisabled),
     },
-    deviceLogs: {
-      id: 'device-logs',
-      label: 'Device Logs',
-      icon: <ClipboardListIcon className={iconClass(ctx)} />,
-      href: deviceLogsHref,
-      ...maybeNewTabAction(ctx, deviceLogsHref, 'Device Logs'),
-    },
+    deviceLogs: ctx.agentLogsEnabled
+      ? {
+          id: 'device-logs',
+          label: 'Device Logs',
+          icon: <ClipboardListIcon className={iconClass(ctx)} />,
+          href: deviceLogsHref,
+          ...maybeNewTabAction(ctx, deviceLogsHref, 'Device Logs'),
+        }
+      : null,
   };
 }

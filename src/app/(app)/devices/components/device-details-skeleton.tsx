@@ -32,6 +32,7 @@ import {
   skeletonColumnDefs,
   type TableSkeletonColumn,
 } from '@/app/components/shared';
+import { AgentLogsTabSkeleton } from './tabs/agent-logs/agent-logs-skeleton';
 import {
   REMOTE_SESSIONS_TAB_COLUMNS,
   SOFTWARE_TAB_COLUMNS,
@@ -640,6 +641,8 @@ function getTabSkeleton(activeTab: string) {
       return <TicketsTabSkeleton />;
     case 'remote-sessions':
       return <TableTabSkeleton columns={REMOTE_SESSIONS_TAB_COLUMNS} placeholder="Search for Remote Session" />;
+    case 'agent-logs':
+      return <AgentLogsTabSkeleton />;
     default:
       return <OverviewTabSkeleton />;
   }

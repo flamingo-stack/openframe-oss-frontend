@@ -16,6 +16,7 @@ import { EditDisplayNameModal } from '../components/edit-display-name-modal';
 import type { Device } from '../types/device.types';
 import { type DeviceActionAvailability, getDeviceActionAvailability } from '../utils/device-action-utils';
 import { buildDeviceMenuItems } from '../utils/device-menu-items';
+import { useDeviceAgentLogsGate } from './use-device-agent-logs-gate';
 import { useDeviceConfirmationDialogs } from './use-device-confirmation-dialogs';
 import { useRemoteAccessApprovalGate } from './use-remote-access-approval-gate';
 import { useEffectiveDeviceRemoteAccessMode } from './use-remote-access-policy';
@@ -43,7 +44,8 @@ export interface DeviceActionsMenuItems {
   /** Null on read-only archive records (DELETED / legacy ARCHIVED). */
   editDisplayName: ActionsMenuItem | null;
   reboot: ActionsMenuItem | null;
-  deviceLogs: ActionsMenuItem;
+  /** Null while the `device-agent-logs` flag is off or still loading. */
+  deviceLogs: ActionsMenuItem | null;
   delete: ActionsMenuItem | null;
 }
 
@@ -106,12 +108,14 @@ export function useDeviceActionsMenu(
     }
   };
 
+  const agentLogsGate = useDeviceAgentLogsGate();
   const base = buildDeviceMenuItems({
     deviceId,
     availability: actionAvailability,
     iconSize: iconSize,
     isWindows,
     withNewTabAction: true,
+    agentLogsEnabled: agentLogsGate === 'on',
   });
 
   const runScriptDisabled = !actionAvailability?.runScriptEnabled;

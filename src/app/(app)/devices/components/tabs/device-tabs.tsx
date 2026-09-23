@@ -3,6 +3,7 @@
 import {
   // BracketCurlyEllipsisVrIcon, // Queries tab temporarily disabled
   BracketSquareCheckIcon,
+  ClipboardListIcon,
   ComputerMouseIcon,
   FolderShieldIcon,
   HardDrivesIcon,
@@ -17,7 +18,9 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { DeviceDetailTab } from '@/lib/routes';
+import { useDeviceAgentLogsGate } from '../../hooks/use-device-agent-logs-gate';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
+import { AgentLogsTab } from './agent-logs/agent-logs-tab';
 import { AgentsTab } from './agents-tab';
 import { HardwareTab } from './hardware-tab';
 import { NetworkTab } from './network-tab';
@@ -121,15 +124,26 @@ const REMOTE_SESSIONS_TAB: TabItem = {
   component: RemoteSessionsTab,
 };
 
-/** Superset used to resolve the active tab's component regardless of visibility. */
-export const ALL_DEVICE_TABS: TabItem[] = [...BASE_DEVICE_TABS, REMOTE_SESSIONS_TAB];
+export const AGENT_LOGS_TAB_ID = 'agent-logs' satisfies DeviceDetailTab;
+
+// Last, as in Figma `696:38907`; the same glyph as the "Device Logs" menu entry.
+const AGENT_LOGS_TAB: TabItem = {
+  id: AGENT_LOGS_TAB_ID,
+  label: 'Agent Logs',
+  icon: ClipboardListIcon,
+  component: AgentLogsTab,
+};
 
 /**
- * Tabs shown for a device. Remote Sessions is gated on the 'remote-access-approval'
- * flag (same pattern as `getCustomerTabs`): 'loading' and 'off' both hide it, so
- * the tab only ever appears when the feature is actually on.
+ * Tabs for a device. Remote Sessions and Agent Logs are flag-gated, and
+ * 'loading' hides like 'off' — a tab appears only once its flag is truly on.
  */
 export function useDeviceTabs(): TabItem[] {
   const recordingsGate = useRemoteAccessApprovalGate();
-  return recordingsGate === 'on' ? ALL_DEVICE_TABS : BASE_DEVICE_TABS;
+  const agentLogsGate = useDeviceAgentLogsGate();
+  return [
+    ...BASE_DEVICE_TABS,
+    ...(recordingsGate === 'on' ? [REMOTE_SESSIONS_TAB] : []),
+    ...(agentLogsGate === 'on' ? [AGENT_LOGS_TAB] : []),
+  ];
 }

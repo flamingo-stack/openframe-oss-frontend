@@ -19,13 +19,14 @@ import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
+import { useDeviceAgentLogsGate } from '../hooks/use-device-agent-logs-gate';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { getDeviceName } from '../utils/device-name';
 import { getDeviceStatusConfig } from '../utils/device-status';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { DeviceDetailsSkeleton } from './device-details-skeleton';
 import { RunScriptModal } from './run-script/run-script-modal';
-import { useDeviceTabs } from './tabs/device-tabs';
+import { AGENT_LOGS_TAB_ID, useDeviceTabs } from './tabs/device-tabs';
 
 // Icon size for the "…" dropdown items only. The same registry feeds the header
 // buttons, but there this class never applies: every button variant styles its glyphs
@@ -148,11 +149,12 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     return groups;
   }, [actionAvailability, deviceMenuItems]);
 
+  // The Run Script modal's "Device Logs" CTA exists only with the feature on;
+  // the stamp forces the Agent Logs tab to reload even when already open.
+  const agentLogsGate = useDeviceAgentLogsGate();
   const handleDeviceLogs = () => {
     const params = new URLSearchParams(window.location.search);
-    // Logs now live on the Overview tab.
-    params.set('tab', 'overview');
-    // Add timestamp to force logs refresh
+    params.set('tab', AGENT_LOGS_TAB_ID);
     params.set('refresh', Date.now().toString());
     router.push(`${window.location.pathname}?${params.toString()}`);
   };
@@ -222,7 +224,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         isOpen={isScriptsModalOpen}
         onClose={() => setIsScriptsModalOpen(false)}
         machineId={normalizedDevice.machineId}
-        onViewDeviceLogs={handleDeviceLogs}
+        onViewDeviceLogs={agentLogsGate === 'on' ? handleDeviceLogs : undefined}
       />
 
       {confirmationDialogs}

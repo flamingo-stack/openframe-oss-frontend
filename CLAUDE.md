@@ -478,9 +478,21 @@ What it changes about how you write code here:
 diagnostics cannot see it. The rule requires a module-level `'use no memo'` in any file importing
 react-hook-form at runtime, or importing one of its live-form handle types (`UseFormReturn`,
 `Control`, …). 34 files, 41 functions' worth of memoization. The compiler knows only about
-`useForm().watch` itself, plus `@tanstack/react-table`, which only the core lib calls (its
-`react-virtual` entry matches nothing — neither repo depends on it). Delete the rule and its
+`useForm().watch` itself, plus `@tanstack/react-table`, which only the core lib calls, and
+`@tanstack/react-virtual`, which the agent-logs list calls directly. Delete the rule and its
 directives on react-hook-form 7.75 + React 19.2.5.
+
+**`useVirtualizer` must be called at the render site, never through a wrapper hook.** It has
+`useReactTable`'s shape — one instance built once, mutated in place every render, identity
+never changing — so the compiler's `knownIncompatible` entry for `@tanstack/react-virtual` is
+what protects it: the *calling* function is skipped, and no identity-keyed cache is built
+around the instance. Wrapping it in a repo hook hides the incompatibility, the caller compiles,
+and the whole row list lands behind a `$[n] !== virtualizer` guard that never invalidates —
+the `useDataTable` freeze verbatim. The same applies to handing a virtualizer (or a value
+derived only from it) to a child component: the child still compiles. `src/app/(app)/devices/
+components/tabs/agent-logs/agent-logs-content.tsx` is the reference. Nothing enforces this:
+`react-hooks/incompatible-library` is off, and when forced on it flags the safe direct call and
+stays silent on the wrapper.
 
 **The core library IS compiled.** Next skips node_modules for the compiler loader, but
 `transpilePackages` packages are exempted from that skip (`exclude()` in
