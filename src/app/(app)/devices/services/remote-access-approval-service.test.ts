@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteAccessRequest } from '../types/remote-access';
-import { mockRemoteAccessDecision, remoteAccessApprovalService } from './remote-access-approval-service';
+import { mockRemoteAccessApprovalService, mockRemoteAccessDecision } from './remote-access-approval-service';
 import { remoteAccessPolicyService } from './remote-access-policy-service';
 
 // The mock is a module singleton, so each test works on its own deviceId to
@@ -9,7 +9,7 @@ let deviceSeq = 0;
 const nextDeviceId = () => `dev-approval-${++deviceSeq}`;
 
 async function createRequest(deviceId: string): Promise<RemoteAccessRequest> {
-  const promise = remoteAccessApprovalService.create({ deviceId, sessionKind: 'desktop', reason: 'test' });
+  const promise = mockRemoteAccessApprovalService.create({ deviceId, sessionKind: 'desktop', reason: 'test' });
   // Covers the create latency plus the policy resolution it performs.
   await vi.advanceTimersByTimeAsync(700);
   return promise;
@@ -24,16 +24,16 @@ describe('MockRemoteAccessApprovalService', () => {
     vi.useRealTimers();
   });
 
-  it('creates a PENDING request that expires 60s out', async () => {
+  it('creates a PENDING request that expires 30s out', async () => {
     const request = await createRequest(nextDeviceId());
     expect(request.status).toBe('PENDING');
-    expect(Date.parse(request.expiresAt) - Date.parse(request.createdAt)).toBe(60_000);
+    expect(Date.parse(request.expiresAt) - Date.parse(request.createdAt)).toBe(30_000);
   });
 
   it('moves to DELIVERED after the client ack window', async () => {
     const request = await createRequest(nextDeviceId());
     await vi.advanceTimersByTimeAsync(1_500);
-    const currentPromise = remoteAccessApprovalService.get(request.requestId);
+    const currentPromise = mockRemoteAccessApprovalService.get(request.requestId);
     await vi.advanceTimersByTimeAsync(400);
     expect((await currentPromise).status).toBe('DELIVERED');
   });
@@ -41,8 +41,8 @@ describe('MockRemoteAccessApprovalService', () => {
   it('auto-settles as TIMED_OUT at expiry and notifies the subscriber', async () => {
     const request = await createRequest(nextDeviceId());
     const seen: string[] = [];
-    remoteAccessApprovalService.onDecision(request.requestId, r => seen.push(r.status));
-    await vi.advanceTimersByTimeAsync(61_000);
+    mockRemoteAccessApprovalService.onDecision(request.requestId, r => seen.push(r.status));
+    await vi.advanceTimersByTimeAsync(31_000);
     expect(seen).toContain('TIMED_OUT');
   });
 
@@ -65,9 +65,9 @@ describe('MockRemoteAccessApprovalService', () => {
   it('revoke settles the request as REVOKED and ignores later decisions', async () => {
     const request = await createRequest(nextDeviceId());
     const seen: string[] = [];
-    remoteAccessApprovalService.onDecision(request.requestId, r => seen.push(r.status));
+    mockRemoteAccessApprovalService.onDecision(request.requestId, r => seen.push(r.status));
 
-    const revokePromise = remoteAccessApprovalService.revoke(request.requestId);
+    const revokePromise = mockRemoteAccessApprovalService.revoke(request.requestId);
     await vi.advanceTimersByTimeAsync(400);
     await revokePromise;
     expect(seen).toEqual(['REVOKED']);
@@ -80,12 +80,12 @@ describe('MockRemoteAccessApprovalService', () => {
   it('delivers an APPROVED decision to subscribers exactly once', async () => {
     const request = await createRequest(nextDeviceId());
     const seen: string[] = [];
-    remoteAccessApprovalService.onDecision(request.requestId, r => seen.push(r.status));
+    mockRemoteAccessApprovalService.onDecision(request.requestId, r => seen.push(r.status));
     mockRemoteAccessDecision(request.requestId, 'APPROVED');
     mockRemoteAccessDecision(request.requestId, 'APPROVED');
     expect(seen).toEqual(['APPROVED']);
     // The timeout sweep must not fire on a settled request.
-    await vi.advanceTimersByTimeAsync(61_000);
+    await vi.advanceTimersByTimeAsync(31_000);
     expect(seen).toEqual(['APPROVED']);
   });
 
@@ -97,7 +97,7 @@ describe('MockRemoteAccessApprovalService', () => {
 
     const request = await createRequest(deviceId);
     expect(request.status).toBe('APPROVED');
-    expect(request.resolvedMode).toBe('NOTIFY_ONLY');
+    expect(request.mode).toBe('NOTIFY_ONLY');
 
     // No open request lingers - a follow-up create resolves fresh.
     const second = await createRequest(deviceId);
@@ -113,6 +113,6 @@ describe('MockRemoteAccessApprovalService', () => {
 
     const request = await createRequest(deviceId);
     expect(request.status).toBe('DENIED');
-    expect(request.resolvedMode).toBe('DENY_ACCESS');
+    expect(request.mode).toBe('DENY_ACCESS');
   });
 });

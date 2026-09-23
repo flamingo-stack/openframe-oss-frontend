@@ -2,9 +2,9 @@
 //
 // Backs the policy settings UI while the BE policy task (CU-86akeqw6h) is in
 // design: one `RemoteAccessMode` per scope with device -> organization ->
-// tenant resolution, plus the tenant-level approval tuning (timeouts and
-// fallbacks). Swapping to the real API is one new implementation of
-// `IRemoteAccessPolicyService`.
+// tenant resolution. The approval timeout and the fallbacks are fixed backend
+// constants (decision 2026-09-18), not part of the policy. Swapping to the
+// real API is one new implementation of `IRemoteAccessPolicyService`.
 
 import type { RemoteAccessMode, TenantRemoteAccessPolicy } from '../types/remote-access';
 
@@ -23,10 +23,6 @@ export interface IRemoteAccessPolicyService {
 
 export const DEFAULT_TENANT_REMOTE_ACCESS_POLICY: TenantRemoteAccessPolicy = {
   mode: 'APPROVAL_REQUIRED',
-  approvalTimeoutSeconds: 60,
-  deliveryTimeoutSeconds: 5,
-  noClientFallback: 'DENY',
-  noAnswerFallback: 'DENY',
 };
 
 const MOCK_LATENCY_MS = 250;

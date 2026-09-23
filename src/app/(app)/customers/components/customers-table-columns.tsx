@@ -14,9 +14,11 @@ import {
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo } from 'react';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
+import { EmptyValue } from '@/app/components/shared/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 import { useCustomerDeviceCounts } from '../hooks/use-customer-device-counts';
 import type { Customer } from '../hooks/use-customers';
@@ -82,9 +84,8 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
     header: 'Devices',
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => {
       const { deviceCount, numberOfEmployees } = row.original;
-      const devicesLabel =
-        deviceCount === null ? '—' : `${deviceCount.toLocaleString()} ${deviceCount === 1 ? 'device' : 'devices'}`;
-      const usersLabel = `${numberOfEmployees.toLocaleString()} ${numberOfEmployees === 1 ? 'user' : 'users'}`;
+      const devicesLabel = deviceCount === null ? <EmptyValue /> : pluralize(deviceCount, 'device');
+      const usersLabel = pluralize(numberOfEmployees, 'user');
       return (
         <div className="flex min-w-0 flex-col justify-center">
           <span className="truncate text-ods-text-primary text-h4">{devicesLabel}</span>

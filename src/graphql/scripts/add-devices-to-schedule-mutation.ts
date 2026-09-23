@@ -20,7 +20,7 @@ import { graphql } from 'react-relay';
  * stayed there until something refetched.
  *
  * So the picker owns that number as a delta instead (`assignmentUpdaters` in
- * `schedule-devices-view.tsx`), applied in the optimistic layer and again on
+ * the shared device selector), applied in the optimistic layer and again on
  * commit. Deltas from concurrent clicks compose in any order; absolute counts
  * cannot be ordered by a client that has no sequence to order them by. The
  * server's own number is not lost — it arrives with every read of the schedule,
@@ -31,7 +31,7 @@ import { graphql } from 'react-relay';
  * carry the SAME answer and cannot land out of order the way two counts can.
  *
  * The picker's two connections ARE patched by an updater rather than refetched
- * (`assignmentUpdaters` in `schedule-devices-view.tsx`), which is safe for this
+ * (`assignmentUpdaters` in the shared device selector), which is safe for this
  * pair precisely because it names its machines: the one row that moves is known,
  * and it satisfies whatever narrowing is on screen — both lists are read with
  * the same one, so a device visible in Available belongs in Selected too. The

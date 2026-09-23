@@ -15,12 +15,17 @@ import { RenameItemModal } from './rename-item-modal';
 interface FileManagerContainerProps {
   deviceId: string;
   meshcentralAgentId: string;
-  hostname?: string;
+  deviceName?: string;
   organizationName?: string;
   className?: string;
 }
 
-export function FileManagerContainer({ deviceId, meshcentralAgentId, hostname, className }: FileManagerContainerProps) {
+export function FileManagerContainer({
+  deviceId,
+  meshcentralAgentId,
+  deviceName,
+  className,
+}: FileManagerContainerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -276,7 +281,7 @@ export function FileManagerContainer({ deviceId, meshcentralAgentId, hostname, c
   return (
     <PageLayout
       title={'File Manager'}
-      subtitle={hostname || `Device ${deviceId}`}
+      subtitle={deviceName || `Device ${deviceId}`}
       className={className ? `${className} h-full` : 'h-full'}
       contentClassName="flex min-h-0 flex-col overflow-hidden"
       backButton={{
@@ -292,7 +297,7 @@ export function FileManagerContainer({ deviceId, meshcentralAgentId, hostname, c
             files={files}
             currentPath={currentPath}
             selectedFiles={selectedFiles}
-            deviceName={hostname || `Device ${deviceId}`}
+            deviceName={deviceName || `Device ${deviceId}`}
             searchQuery={searchQuery}
             loading={
               loading ||

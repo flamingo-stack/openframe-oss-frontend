@@ -6,7 +6,7 @@ import { isBillingHidden } from '@/lib/billing-visibility';
 import { BillingUsageSkeleton } from './billing-usage-skeleton';
 import { UsageView } from './usage-view';
 
-// Lazy so a build that may not show payments (the native app builds) never
+// Lazy so a build that may not show payments (the mobile builds) never
 // pulls the billing page in:
 // its query carries prices, next payment and invoices, and its module carries
 // the cancel/resume/checkout flows. Static, they would ride along with the
@@ -19,11 +19,12 @@ const BillingUsageContent = dynamic(
 /**
  * Entry point for `/settings/billing-usage`, picking the page the build is
  * allowed to show (see `billing-visibility.ts`):
- *   - payments hidden → `UsageView`, consumption counters over its own
- *     price-free query;
- *   - otherwise → the full billing page.
+ *   - payments hidden (mobile) → `UsageView`, consumption counters over its
+ *     own price-free query;
+ *   - otherwise → the billing page, which renders itself read-only on the
+ *     desktop build.
  *
- * The choice happens before either component mounts, so the native builds never
+ * The choice happens before either component mounts, so the mobile builds never
  * run the billing query or its cancellation hooks.
  */
 export function BillingUsageView() {

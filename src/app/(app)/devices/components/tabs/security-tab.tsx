@@ -142,7 +142,7 @@ function buildSections(device: Device): SecuritySection[] {
       title: 'OpenFrame Agent',
       rows: [
         { label: 'Version', value: openframeVersion },
-        { label: 'Last Seen', value: device.last_seen ? formatDateTime(device.last_seen) : 'Unknown' },
+        { label: 'Last Seen', value: formatDateTime(device.last_seen) },
       ],
     });
   }

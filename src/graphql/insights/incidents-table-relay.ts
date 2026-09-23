@@ -17,6 +17,7 @@ export const incidentsTableRelayQuery = graphql`
     insightFilters(filter: $filter, search: $search) {
       ...insightFacets_filters
     }
+    ...insightTransitions_query
   }
 `;
 

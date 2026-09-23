@@ -9,7 +9,8 @@ import type { ActionsMenuItem } from '@flamingo-stack/openframe-frontend-core/co
 import type { ComponentType } from 'react';
 import type { InsightStatus } from '@/generated/schema-enums';
 import type { TransitionTarget } from '../hooks/use-incident-transitions';
-import { INCIDENT_TRANSITION_ACTIONS, transitionsFrom } from '../utils/incident-labels';
+import { INCIDENT_TRANSITION_ACTIONS } from '../utils/incident-labels';
+import { type IncidentTransitionTable, transitionsFrom } from '../utils/incident-transform';
 
 const TRANSITION_ICON: Record<InsightStatus, ComponentType<{ className?: string }>> = {
   NEW: Refresh01LeftIcon,
@@ -20,16 +21,18 @@ const TRANSITION_ICON: Record<InsightStatus, ComponentType<{ className?: string 
 };
 
 /**
- * The status-transition menu — one item per transition the backend allows
- * from the incident's status, so the menu never offers an action that would
- * come back as an error. Shared by the list's row menu and the detail header.
+ * The status-transition menu — one item per transition the server's table
+ * (`insightStatusTransitions`, read into `transitions`) allows from the
+ * incident's status, so the menu never offers an action that would come back
+ * as an error. Shared by the list's row menu and the detail header.
  */
 export function transitionMenuItems(
   incident: TransitionTarget & { status: string },
+  transitions: IncidentTransitionTable,
   transition: (target: TransitionTarget, status: InsightStatus) => void,
   disabled: boolean,
 ): ActionsMenuItem[] {
-  return transitionsFrom(incident.status).map(status => {
+  return transitionsFrom(transitions, incident.status).map(status => {
     const Icon = TRANSITION_ICON[status];
     return {
       id: `transition-${status}`,

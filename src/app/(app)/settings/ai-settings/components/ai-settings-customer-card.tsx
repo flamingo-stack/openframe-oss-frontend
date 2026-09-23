@@ -5,6 +5,7 @@ import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-co
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
 import type { AgentAiConfig, ClientView } from '../types/ai-settings';
 import {
@@ -25,7 +26,7 @@ const CELL = 'flex items-center gap-2 min-h-14 md:min-h-20 px-3 md:px-4 py-3 md:
 
 export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: AiSettingsCustomerCardProps) {
   const ProviderIcon = LLM_PROVIDER_ICON[aiConfig.llmProvider];
-  const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : '—';
+  const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : EMPTY_VALUE;
 
   const cells: ReactNode[] = [
     <>
@@ -53,7 +54,7 @@ export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: A
     />,
     <InfoCell
       key="provider-model"
-      value={providerModelLabel || aiConfig.providerModel || '—'}
+      value={providerModelLabel || aiConfig.providerModel || EMPTY_VALUE}
       label="Provider Model"
     />,
     <InfoCell key="answer-style" value={answerStyleLabel} label="Answer Style" />,

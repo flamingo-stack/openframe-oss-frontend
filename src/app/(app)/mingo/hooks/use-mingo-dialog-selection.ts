@@ -26,6 +26,7 @@ import {
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage, MessagesResponse } from '../types';
+import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 /**
  * Thrown when the dialog id resolves to nothing this user can open — deleted, someone
@@ -176,7 +177,7 @@ export function useMingoDialogSelection() {
   const suspiciousBusyRef = useRef(false);
 
   const dialogQuery = useQuery({
-    queryKey: ['mingo-dialog', activeDialogId],
+    queryKey: mingoDialogQueryKeys.detail(activeDialogId),
     queryFn: async () => {
       if (!activeDialogId) return null;
 
@@ -215,7 +216,7 @@ export function useMingoDialogSelection() {
   });
 
   const messagesQuery = useInfiniteQuery({
-    queryKey: ['mingo-dialog-messages', activeDialogId],
+    queryKey: mingoDialogQueryKeys.messages(activeDialogId),
     queryFn: async ({ pageParam }: { pageParam: string | undefined }): Promise<MessagePage> => {
       if (!activeDialogId) return { messages: [], pageInfo: { hasNextPage: false, hasPreviousPage: false } };
 

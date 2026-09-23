@@ -6,6 +6,7 @@ import {
   AlertCircleIcon,
   BellIcon,
   PenEditIcon,
+  Refresh01LeftIcon,
   UserXmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -14,12 +15,12 @@ import {
   SquareAvatar,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { RotateCcw } from 'lucide-react';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { DeleteAccountModal } from './delete-account-modal';
@@ -82,7 +83,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
 
-  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '—';
+  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : EMPTY_VALUE;
 
   if (!user) {
     // Two situations this used to conflate.
@@ -177,7 +178,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                         {
                           id: 'reset-onboarding',
                           label: 'Reset Onboarding',
-                          icon: <RotateCcw className="h-5 w-5 text-ods-text-secondary" />,
+                          icon: <Refresh01LeftIcon className="h-5 w-5 text-ods-text-secondary" />,
                           onClick: () => setIsResetConfirmOpen(true),
                           disabled: isResettingOnboarding,
                         },
@@ -202,14 +203,13 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
         </div>
       </div>
 
-      {/* Mounted only while open: the modal's query suspends, so this both defers the
-          fetch to the moment it is needed and gives it a boundary to suspend against.
-          Same shape as the notifications drawer hydrator. */}
+      {/* Mounted only while open, so the query fires on the click rather than with the
+          page. The modal carries its OWN Suspense boundary (skeleton body inside an
+          already-open panel) — do not add one here, it would swallow the whole modal
+          and put us back to nothing rendering until the round-trip finished. */}
       {isNotificationSettingsOpen && (
         <ErrorBoundary fallback={null}>
-          <Suspense fallback={null}>
-            <NotificationSettingsModal onClose={() => setIsNotificationSettingsOpen(false)} />
-          </Suspense>
+          <NotificationSettingsModal onClose={() => setIsNotificationSettingsOpen(false)} />
         </ErrorBoundary>
       )}
 

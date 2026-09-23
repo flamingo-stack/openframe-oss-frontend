@@ -1,12 +1,13 @@
 // Value import: the generated module exports each enum as both a `const` and a
 // `type` under the same name, so these stand in for hardcoded literals.
 import { PrivilegeLevel, ScriptExecutionStatus } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDate, formatTime } from '@/lib/format-date';
 
 /** "date, time" in the user's local format (e.g. "6/26/26, 2:31 PM"). */
 export function formatExecutionTimestamp(input: string | number | Date | null | undefined): string {
-  if (!input) return '—';
+  if (!input) return EMPTY_VALUE;
   const date = new Date(input);
   return `${formatDate(date)}, ${formatTime(date)}`;
 }
@@ -45,7 +46,7 @@ const EXECUTION_STATUS_PRESENTATION = {
 
 /** Human label for an execution status. */
 export function executionStatusLabel(status: ScriptExecutionStatus | string | null | undefined): string {
-  return presentationFor(EXECUTION_STATUS_PRESENTATION, status)?.label ?? (status ? String(status) : '—');
+  return presentationFor(EXECUTION_STATUS_PRESENTATION, status)?.label ?? (status ? String(status) : EMPTY_VALUE);
 }
 
 /** Tag color variant for an execution status. */
@@ -60,8 +61,8 @@ export function isExecutionInFlight(status: ScriptExecutionStatus | string | nul
 
 /**
  * Privilege levels, same exhaustive shape as the status table above (ADMIN runs
- * elevated as the system account; ELEVATED_USER uses the logged-on Windows
- * user's UAC token).
+ * elevated as the system account; ELEVATED_USER is the logged-on Windows user
+ * with the UAC token).
  */
 const PRIVILEGE_LEVEL_LABELS = {
   [PrivilegeLevel.ADMIN]: 'System',
@@ -71,7 +72,7 @@ const PRIVILEGE_LEVEL_LABELS = {
 
 /** Human label for a privilege level. */
 export function privilegeLevelLabel(level: PrivilegeLevel | string | null | undefined): string {
-  return presentationFor(PRIVILEGE_LEVEL_LABELS, level) ?? (level ? String(level) : '—');
+  return presentationFor(PRIVILEGE_LEVEL_LABELS, level) ?? (level ? String(level) : EMPTY_VALUE);
 }
 
 interface MachineLike {
@@ -83,7 +84,7 @@ interface MachineLike {
 
 /** Best display name for a machine (displayName → hostname → machineId). */
 export function machineLabel(machine: MachineLike | null | undefined): string {
-  return machine?.displayName || machine?.hostname || machine?.machineId || '—';
+  return machine?.displayName || machine?.hostname || machine?.machineId || EMPTY_VALUE;
 }
 
 /** Organization name for a machine, or empty string. */
@@ -113,13 +114,22 @@ export function initiatorInitials(user: InitiatorLike | null | undefined): strin
   return (user.email?.trim()?.slice(0, 2) || 'UN').toUpperCase();
 }
 
-interface ExecutionResultLike {
+interface ExecutionOutput {
   stdout?: string | null;
   stderr?: string | null;
   error?: string | null;
 }
 
-/** Combined result text shown in the table / details (stdout → stderr → error). */
-export function executionResultText(node: ExecutionResultLike | null | undefined): string {
-  return node?.stdout || node?.stderr || node?.error || '';
+/**
+ * Everything an execution printed: stdout, then stderr, then the dispatch error
+ * — all three, not the first non-empty one, since a failed run often prints
+ * progress to stdout and the reason to stderr. Empty when it printed nothing.
+ */
+export function executionOutput({ stdout, stderr, error }: ExecutionOutput): string {
+  return [stdout, stderr, error].filter(Boolean).join('\n\n');
+}
+
+/** Combined result text shown in the table / details. */
+export function executionResultText(node: ExecutionOutput | null | undefined): string {
+  return executionOutput(node ?? {});
 }

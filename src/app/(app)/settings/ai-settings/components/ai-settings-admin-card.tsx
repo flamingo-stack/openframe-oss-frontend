@@ -1,6 +1,7 @@
 'use client';
 
 import { InfoCell } from '@/app/components/shared/info-cell';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import type { AgentAiConfig } from '../types/ai-settings';
 import { ANSWER_STYLE_LABEL, LLM_PROVIDER_ICON, LLM_PROVIDER_LABEL } from '../utils/ai-settings-display';
 
@@ -19,7 +20,7 @@ const CELL = 'flex items-center gap-2 min-h-14 md:min-h-20 px-3 md:px-4 py-3 md:
  */
 export function AiSettingsAdminCard({ aiConfig, providerModelLabel }: AiSettingsAdminCardProps) {
   const ProviderIcon = LLM_PROVIDER_ICON[aiConfig.llmProvider];
-  const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : '—';
+  const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : EMPTY_VALUE;
 
   return (
     <div className="grid grid-cols-1 rounded-md border border-ods-border bg-ods-card sm:grid-cols-3">
@@ -31,7 +32,7 @@ export function AiSettingsAdminCard({ aiConfig, providerModelLabel }: AiSettings
         />
       </div>
       <div className={CELL}>
-        <InfoCell value={providerModelLabel || aiConfig.providerModel || '—'} label="Provider Model" />
+        <InfoCell value={providerModelLabel || aiConfig.providerModel || EMPTY_VALUE} label="Provider Model" />
       </div>
       <div className={CELL}>
         <InfoCell value={answerStyleLabel} label="Answer Style" />

@@ -60,6 +60,7 @@ export const dialogsQueryKeys = {
       assigneeIds?: string[];
       tagIds?: string[];
       unreadOnly?: boolean;
+      activity?: string[];
     },
   ) =>
     [
@@ -71,6 +72,7 @@ export const dialogsQueryKeys = {
         assigneeIds: params.assigneeIds || [],
         tagIds: params.tagIds || [],
         unreadOnly: params.unreadOnly ?? false,
+        activity: params.activity || [],
       },
     ] as const,
 } as const;

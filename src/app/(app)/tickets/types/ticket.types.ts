@@ -1,10 +1,14 @@
 // Ticket system types matching the backend GraphQL schema (openframe-saas-ai-agent)
 
+import type { Machine } from './dialog.types';
+
 export type TicketStatus = 'ACTIVE' | 'TECH_REQUIRED' | 'ON_HOLD' | 'RESOLVED' | 'ARCHIVED';
 
 export interface TicketOwner {
   type: 'CLIENT' | 'ADMIN';
   machineId?: string;
+  /** Resolved from the device registry for a CLIENT owner — the machine that opened the ticket. */
+  machine?: Machine;
   userId?: string;
 }
 
@@ -131,6 +135,8 @@ export interface CreateTicketInput {
   deviceId?: string;
   organizationId?: string;
   assigneeId?: string;
+  /** Raw insight id when the ticket is filed from an incident; links the two on create. */
+  insightId?: string;
   tagIds?: string[];
   linkedArticleIds?: string[];
   tempAttachmentIds?: string[];

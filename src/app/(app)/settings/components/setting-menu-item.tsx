@@ -1,8 +1,8 @@
 'use client';
 
+import { Chevron02RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -11,6 +11,8 @@ interface SettingMenuItemProps {
   icon: ReactNode;
   title: string;
   description: string;
+  /** Inline stamp after the title, e.g. a "Beta" `Tag` (Figma 2097-117139). */
+  badge?: ReactNode;
 }
 
 // Shared so the placeholder below can't drift from the card it stands in for. The two
@@ -56,12 +58,15 @@ export function SettingMenuItemSkeleton() {
   );
 }
 
-export function SettingMenuItem({ href, icon, title, description }: SettingMenuItemProps) {
+export function SettingMenuItem({ href, icon, title, description, badge }: SettingMenuItemProps) {
   return (
     <div className={CARD_SHELL_CLASSES}>
       <div className={ICON_FRAME_CLASSES}>{icon}</div>
       <div className="min-w-0 flex-1">
-        <p className="text-ods-text-primary text-h3">{title}</p>
+        <div className="flex items-center gap-[var(--spacing-system-xs)]">
+          <p className="text-ods-text-primary text-h3">{title}</p>
+          {badge}
+        </div>
         <p className="text-ods-text-secondary text-h6">{description}</p>
       </div>
       <Link
@@ -69,7 +74,7 @@ export function SettingMenuItem({ href, icon, title, description }: SettingMenuI
         aria-label={title}
         className={cn(CHEVRON_FRAME_CLASSES, 'transition-colors hover:bg-ods-bg-hover')}
       >
-        <ChevronRight className="size-6 text-ods-text-primary" />
+        <Chevron02RightIcon className="size-6 text-ods-text-primary" />
       </Link>
     </div>
   );

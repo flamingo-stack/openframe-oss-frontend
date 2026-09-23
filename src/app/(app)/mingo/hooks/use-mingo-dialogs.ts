@@ -14,10 +14,12 @@ import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
 // temporary workaround — disabled for now; flip this flag to restore it.
 const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
 
-// Statuses shown in the active "Current Chats" list — every DialogStatus except
-// ARCHIVED. The backend returns archived dialogs when no statuses are passed, so
-// list them explicitly; archived dialogs live in the separate Chat Archive page.
-const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
+/**
+ * The statuses the drawer's list shows. Sent explicitly because the backend
+ * returns ARCHIVED dialogs too when no statuses are passed — and a dialog
+ * outside this set cannot be opened in the drawer.
+ */
+export const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
 
 function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): DialogItem {
   // Admin owner → trailing avatar in the chat-history rows (Figma 113:63224).

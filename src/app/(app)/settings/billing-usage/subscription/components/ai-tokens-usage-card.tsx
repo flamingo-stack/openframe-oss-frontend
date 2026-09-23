@@ -8,10 +8,10 @@ import {
   DropdownMenuTrigger,
   Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { formatCompactCount } from '@/lib/format-number';
 import { AI_LIMIT_EXPLANATION, AiSpendLimitFields } from '../../components/ai-spend-limit-fields';
 import type { AiSpendLimit } from '../../hooks/use-ai-spend-limit';
 import { freeTokensForPlan } from '../../lib/ai-free-tokens';
-import { formatCompactCount } from '../../lib/format';
 import type { DevicePlanMode } from '../types/subscription.types';
 import { ModelTokenRates } from './model-token-rates';
 

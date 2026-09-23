@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
+import { pluralize } from '@/lib/pluralize';
 import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -194,7 +195,16 @@ async function fetchFleetApiToken(): Promise<string> {
 
 // ── Hook ───────────────────────────────────────────────────────────
 
-export function useLiveCampaign(): UseLiveCampaignReturn {
+export interface UseLiveCampaignOptions {
+  /**
+   * Names a host in result, error and empty-result rows. Fleet only knows its own
+   * display name; the caller that has the device registry resolves the SSOT name
+   * (nickname first) and falls back to the Fleet name it is handed.
+   */
+  hostName?: (host: { id: number; fleetName: string }) => string;
+}
+
+export function useLiveCampaign({ hostName }: UseLiveCampaignOptions = {}): UseLiveCampaignReturn {
   const { toast } = useToast();
 
   const { data: fleetApiToken } = useQuery({
@@ -269,6 +279,14 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
     finishCampaign('canceled');
   }, [finishCampaign]);
 
+  const nameHost = useCallback(
+    (host: CampaignMessage['data']['host']) => {
+      const fleetName = host?.display_name || 'Unknown';
+      return (host?.id !== undefined && hostName?.({ id: host.id, fleetName })) || fleetName;
+    },
+    [hostName],
+  );
+
   const handleCampaignMessage = useCallback(
     (msg: CampaignMessage) => {
       if (!isMountedRef.current) return;
@@ -290,7 +308,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
           if (count.results + count.errors >= CAMPAIGN_LIMIT) {
             toast({
               title: 'Campaign limit reached',
-              description: `Stopped after ${CAMPAIGN_LIMIT.toLocaleString()} results`,
+              description: `Stopped after ${pluralize(CAMPAIGN_LIMIT, 'result')}`,
               variant: 'destructive',
             });
             finishCampaign('completed');
@@ -301,7 +319,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
           if (hasError) {
             const err: CampaignError = {
               host_id: msg.data.host?.id ?? 0,
-              host_display_name: msg.data.host?.display_name || 'Unknown',
+              host_display_name: nameHost(msg.data.host),
               osquery_version: msg.data.host?.osquery_version || '',
               error: msg.data.error || 'Error details require osquery 4.4.0+',
             };
@@ -310,7 +328,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
             count.errors++;
           } else {
             const rows: QueryResultRow[] = (msg.data.rows || []).map((row: Record<string, unknown>) => ({
-              host_display_name: msg.data.host?.display_name || 'Unknown',
+              host_display_name: nameHost(msg.data.host),
               ...row,
             }));
             if (rows.length === 0) {
@@ -318,7 +336,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
                 ...prev,
                 {
                   host_id: msg.data.host?.id ?? 0,
-                  host_display_name: msg.data.host?.display_name || 'Unknown',
+                  host_display_name: nameHost(msg.data.host),
                 },
               ]);
             }
@@ -348,7 +366,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         }
       }
     },
-    [finishCampaign, toast],
+    [finishCampaign, nameHost, toast],
   );
 
   const startCampaign = useCallback(

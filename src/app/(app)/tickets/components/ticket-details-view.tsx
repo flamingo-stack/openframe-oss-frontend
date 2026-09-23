@@ -50,6 +50,7 @@ import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation'
 import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -58,6 +59,7 @@ import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
+import { getDeviceName } from '../../devices/utils/device-name';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE, DIALOG_STATUS } from '../constants';
@@ -78,6 +80,7 @@ import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
+import { getTicketDeviceName } from '../utils/ticket-device-name';
 import { formatTicketRef } from '../utils/ticket-ref';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
@@ -173,6 +176,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     return ownerMachineId || dialog.deviceId;
   }, [dialog, isClientOwner]);
   const { deviceDetails, isLoading: isDeviceLoading } = useDeviceDetails(machineId);
+  // The device this ticket is attached to, named like every other screen: the registry
+  // record once it has loaded; until then — or when deviceId is a Mongo ObjectId that
+  // resolves to nothing (see above) — the name the ticket itself carries. An ADMIN-owned
+  // ticket has no owner.machine, so without the registry it would only ever show hostname.
+  const ticketDeviceName = getDeviceName(deviceDetails) || (dialog ? getTicketDeviceName(dialog) : '');
   const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
 
   const { client, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
@@ -291,10 +299,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [router, pathname, searchParams],
   );
 
-  const clientDisplayName =
-    dialog?.deviceHostname ||
-    (dialog?.owner && isClientOwner(dialog.owner) ? dialog.owner.machine?.hostname : undefined) ||
-    undefined;
+  const clientDisplayName = ticketDeviceName || undefined;
 
   const processClientChunk = useSideChunkProcessor('client', {
     ticketId,
@@ -630,7 +635,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     {
       id: 'ticket-number',
       label: 'Ticket Number',
-      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : '—' },
+      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : EMPTY_VALUE },
     },
     {
       id: 'customer',
@@ -641,18 +646,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
             imageSrc: getFullImageUrl(dialog.organizationImageUrl, dialog.organizationImageHash),
             imageFallback: customerName,
           }
-        : { text: '—' },
+        : { text: EMPTY_VALUE },
     },
     {
       id: 'device',
       label: 'Device',
       value: {
-        text:
-          dialog.deviceHostname ||
-          (isClientOwner(dialog.owner)
-            ? dialog.owner.machine?.hostname || dialog.owner.machine?.displayName
-            : undefined) ||
-          '—',
+        text: ticketDeviceName || EMPTY_VALUE,
         href: machineId ? routes.devices.details(machineId) : undefined,
       },
     },
@@ -679,7 +679,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     {
       id: 'created',
       label: 'Created',
-      value: { text: dialog.createdAt ? formatDateTime(dialog.createdAt) : 'Unknown' },
+      value: { text: formatDateTime(dialog.createdAt) },
     },
     {
       id: 'status',
@@ -874,7 +874,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         isInitialOptStartSeqReady={isInitialOptStartSeqReady}
         onReconnected={handleNatsReconnected}
       />
-      <TicketNotificationsAutoReader ticketId={ticketId} clientChatOnScreen={clientChatOnScreen} />
+      <TicketNotificationsAutoReader
+        ticketId={ticketId}
+        dialogId={messageDialogId}
+        clientChatOnScreen={clientChatOnScreen}
+      />
       <PageLayout
         title={dialog.title || 'Untitled Dialog'}
         backButton={{ label: 'Back', onClick: handleBackToTickets }}

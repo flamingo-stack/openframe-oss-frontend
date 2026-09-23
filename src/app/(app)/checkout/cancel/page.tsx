@@ -1,9 +1,9 @@
 'use client';
 
-import { XCircle } from 'lucide-react';
+import { XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { notFound } from 'next/navigation';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { isBillingHidden } from '@/lib/billing-visibility';
+import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
 import { CheckoutResultCard } from '../components/checkout-result-card';
 
@@ -12,13 +12,13 @@ export default function CheckoutCancelPage() {
   // there for why the `billings` flag may only 404 this page once it has actually
   // answered.
   const gate = useFeatureFlagGate('billings');
-  if (isBillingHidden() || gate === 'off') {
+  if (isBillingHidden() || isBillingReadOnly() || gate === 'off') {
     notFound();
   }
 
   return (
     <CheckoutResultCard
-      icon={XCircle}
+      icon={XmarkCircleIcon}
       iconWrapperClassName="bg-ods-error-secondary text-ods-error"
       title="Payment Cancelled"
       description="No charges were made. You can pick a plan whenever you're ready."

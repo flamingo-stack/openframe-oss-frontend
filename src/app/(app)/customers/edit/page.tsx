@@ -7,5 +7,6 @@ import { routes } from '@/lib/routes';
 export default function EditOrganizationPage() {
   const id = useRequiredIdParam('/customers', routes.customers.new);
   if (!id) return null;
-  return <NewCustomerPage organizationId={id} />;
+  // Keyed by id: the form remembers its seed per mount, so a `?id=` change must remount.
+  return <NewCustomerPage key={id} organizationId={id} />;
 }
