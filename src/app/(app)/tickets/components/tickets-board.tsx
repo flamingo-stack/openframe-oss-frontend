@@ -20,6 +20,7 @@ import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNow } from '@/app/hooks/use-now';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
@@ -194,7 +195,7 @@ function dialogToBoardTicket(
     id: dialog.id,
     title: dialog.title,
     ticketNumber: dialog.ticketNumber !== undefined ? String(dialog.ticketNumber) : '',
-    status: dialog.statusName ?? dialog.status,
+    status: dialog.statusName ?? EMPTY_VALUE,
     // The lib prop is named deviceHostnames, but it is the card's device line — name the
     // device like the table and the details page do (nickname first), not by its hostname.
     deviceHostnames: deviceName ? [deviceName] : undefined,

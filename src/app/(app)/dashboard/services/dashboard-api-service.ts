@@ -5,7 +5,7 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { DEFAULT_DASHBOARD_STATUSES, DEVICE_STATUS } from '../../devices/constants/device-statuses';
 import { fetchDeviceStatusCounts } from '../../devices/queries/devices-api';
 import type { GraphQlResponse } from '../../devices/types/device.types';
-import { API_ENDPOINTS, TICKET_STATUS } from '../../tickets/constants';
+import { API_ENDPOINTS } from '../../tickets/constants';
 import { GET_TICKET_STATISTICS_QUERY } from '../../tickets/queries/ticket-queries';
 import {
   kindColorFromStatistics,
@@ -128,9 +128,11 @@ class DashboardApiService {
       }
 
       const total = data.totalCount || 0;
-      const active = (data.statusCounts || []).find(s => s.status === TICKET_STATUS.ACTIVE)?.count || 0;
       const resolved = resolvedCountFromStatistics(data);
       const kinds = kindCountsFromStatistics(data);
+      // "Active" is the AI_ASSISTANCE lane — the lifecycle equivalent of the
+      // removed legacy ACTIVE enum bucket (statusCounts came back empty anyway).
+      const active = kinds.aiAssistance;
 
       return {
         total,

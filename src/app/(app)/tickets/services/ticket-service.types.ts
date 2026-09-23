@@ -1,6 +1,6 @@
 import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatType } from '../constants';
-import type { CursorPageInfo, Dialog, DialogStatus, Message, TicketActivityFilter } from '../types/dialog.types';
+import type { CursorPageInfo, Dialog, Message, TicketActivityFilter } from '../types/dialog.types';
 
 export interface TicketsPage {
   dialogs: Dialog[];
@@ -88,7 +88,7 @@ export interface TicketService {
   fetchDialog(id: string): Promise<Dialog | null>;
   fetchMessages(params: FetchMessagesParams): Promise<MessagePage>;
   transitionTicket(ticketId: string, toStatusId: string): Promise<void>;
-  reorderTicket(params: ReorderTicketParams): Promise<DialogStatus>;
+  reorderTicket(params: ReorderTicketParams): Promise<void>;
   fetchTicketStatusTransitionRules(): Promise<TicketStatusTransitionRule[]>;
   sendMessage(dialogId: string, content: string, chatType: ChatType): Promise<void>;
   approveRequest(requestId: string): Promise<void>;

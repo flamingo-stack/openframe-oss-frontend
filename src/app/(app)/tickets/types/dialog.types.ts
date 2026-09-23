@@ -1,7 +1,5 @@
 import type { BoardTicketPendingApproval } from '@flamingo-stack/openframe-frontend-core/components/features';
 
-export type DialogStatus = 'ACTIVE' | 'TECH_REQUIRED' | 'ON_HOLD' | 'RESOLVED' | 'ARCHIVED';
-
 // Live activity of a ticket (`Ticket.activityState`): AI_WORKING while the
 // dialog holds the AI processing lock, AWAITING_EXTERNAL after our side
 // messaged the client and until the client replies, IDLE otherwise.
@@ -43,7 +41,6 @@ export interface DialogRating {
 export interface Dialog {
   id: string;
   title: string;
-  status: DialogStatus;
   // Lifecycle (custom-status) board fields — populated from Ticket.statusDefinition.
   statusId?: string;
   statusName?: string;

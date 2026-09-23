@@ -1,15 +1,9 @@
-export interface TicketStatusCount {
-  status: string;
-  count: number;
-}
-
 export interface TicketStatusDefinitionCount {
   status: { kind: string; color?: string };
   count: number;
 }
 
 export interface TicketStatisticsCounts {
-  statusCounts?: TicketStatusCount[];
   statusDefinitionCounts?: TicketStatusDefinitionCount[];
 }
 
@@ -40,8 +34,6 @@ export function resolvedCountFromStatistics(stats: TicketStatisticsCounts | unde
 /** Total tickets across every status (used to tell "any tickets exist yet"). */
 export function totalCountFromStatistics(stats: TicketStatisticsCounts | undefined): number {
   if (!stats) return 0;
-  const fromStatusCounts = (stats.statusCounts ?? []).reduce((total, c) => total + c.count, 0);
-  if (fromStatusCounts > 0) return fromStatusCounts;
   return (stats.statusDefinitionCounts ?? []).reduce((total, c) => total + c.count, 0);
 }
 
