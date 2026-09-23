@@ -727,6 +727,7 @@ function RemoteDesktopSession() {
     showChat && chatDialogId ? (
       <SessionChatPanel
         messages={chat.messages}
+        loading={chat.isLoading}
         technician={chat.technician}
         sending={chat.sending}
         onSend={chat.send}
