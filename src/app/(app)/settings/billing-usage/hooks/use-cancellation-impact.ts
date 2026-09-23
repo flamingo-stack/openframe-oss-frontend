@@ -80,8 +80,8 @@ interface CancellationImpact {
 
 async function fetchTicketsTotal(): Promise<number> {
   // `totalCount` is computed from the lifecycle status counts on the backend;
-  // the legacy `statusCounts` this used to sum comes back empty since the
-  // custom-status lifecycle shipped (CU-86aknhdbd — this always showed 0).
+  // the legacy `statusCounts` this used to sum has come back empty since the
+  // custom-status lifecycle shipped, so this figure always showed 0.
   const res = await apiClient.post<GraphQlEnvelope<{ ticketStatistics?: { totalCount?: number } }>>(
     TICKETS_GRAPHQL_ENDPOINT,
     { query: TICKETS_TOTAL_QUERY },
