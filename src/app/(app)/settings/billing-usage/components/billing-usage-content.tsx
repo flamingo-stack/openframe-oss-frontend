@@ -17,6 +17,9 @@ import { LockedScreen } from '@/app/components/shared/locked-screen';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { isBillingReadOnly, openBillingInBrowser } from '@/lib/billing-visibility';
+import { formatDate } from '@/lib/format-date';
+import { formatCompactCount, formatCount } from '@/lib/format-number';
 import { routes } from '@/lib/routes';
 import { TOKENS_PER_MILLION } from '../hooks/use-ai-spend-limit';
 import { useBillingPortalSession } from '../hooks/use-billing-portal-session';
@@ -24,7 +27,7 @@ import { useBillingSummary } from '../hooks/use-billing-summary';
 import { useCancelSubscription } from '../hooks/use-cancel-subscription';
 import { useCancellationImpact } from '../hooks/use-cancellation-impact';
 import { useResumeSubscription } from '../hooks/use-resume-subscription';
-import { formatCompactCount, formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
+import { formatCurrency } from '../lib/format';
 import { openExternalTab } from '../lib/stripe-window';
 import { AiTokensLimitModal } from './ai-tokens-limit-modal';
 import { BillingRow, SectionBlock, TestModeBanner } from './billing-section';
@@ -138,6 +141,10 @@ const billingUsageContentQuery = graphql`
 
 export function BillingUsageContent() {
   const handleBack = useSafeBack(routes.settings.root());
+  // The desktop build: every figure below renders, and nothing that changes one
+  // does — the header's single action leaves for the web app instead (see
+  // `billing-visibility.ts`).
+  const readOnly = isBillingReadOnly();
   // Bumped after a resume so the billing query refetches from the network — the
   // resumeSubscription mutation returns a bare Boolean, so the Relay store can't
   // reflect the new status on its own.
@@ -320,7 +327,16 @@ export function BillingUsageContent() {
       : null;
 
   /** Rightmost is the accent one: the status action, when there is something to settle. */
-  const actions = [...(secondaryAction ? [secondaryAction] : []), ...(statusAction ? [statusAction] : [])];
+  const actions = readOnly
+    ? [
+        {
+          label: 'Manage Billing',
+          icon: <ExternalLinkIcon className="h-6 w-6" />,
+          onClick: openBillingInBrowser,
+          variant: 'accent' as const,
+        },
+      ]
+    : [...(secondaryAction ? [secondaryAction] : []), ...(statusAction ? [statusAction] : [])];
 
   // No subscription record at all. Every figure below would be a zero or a dash
   // presented as this tenant's plan, and the header would offer to change a plan
@@ -349,8 +365,19 @@ export function BillingUsageContent() {
       backButton={{ label: 'Back to Settings', onClick: handleBack }}
       actionsVariant="menu-primary"
       actions={actions}
-      menuActions={menuActions}
+      menuActions={readOnly ? [] : menuActions}
     >
+      {/* Said out loud, because a billing page with no way to change anything
+          otherwise reads as a broken build. */}
+      {readOnly && (
+        <div className="flex items-center gap-[var(--spacing-system-xsf)]">
+          <InfoCircleIcon className="size-6 shrink-0 text-ods-accent" />
+          <p className="text-ods-text-secondary text-h4">
+            Billing and payments are managed in the browser. Manage Billing opens your workspace's billing page there.
+          </p>
+        </div>
+      )}
+
       {/* Dev-only; renders nothing (and issues no requests) unless the test-clock env flag is on. */}
       <TestClockPanel onClockChanged={() => setRefreshKey(k => k + 1)} />
 
@@ -443,7 +470,7 @@ export function BillingUsageContent() {
                 : 'Your AI balance is running low. Mingo and Fae stop responding when it hits zero.'}
               {/* Only when the period has a known end — the reset date is that
                   date, not a separate fact this can guess at. */}
-              {billing.nextBillingDate && ` Free tokens reset on ${formatDateOrDash(billing.nextBillingDate)}.`}
+              {billing.nextBillingDate && ` Free tokens reset on ${formatDate(billing.nextBillingDate)}.`}
             </p>
           </div>
         </div>
@@ -467,9 +494,11 @@ export function BillingUsageContent() {
                 Extra devices will be billed at pay-as-you-go rates, charged separately from your plan.
               </p>
             </div>
-            <Button variant="accent" onClick={() => setPlanModalOpen(true)}>
-              Upgrade Plan
-            </Button>
+            {!readOnly && (
+              <Button variant="accent" onClick={() => setPlanModalOpen(true)}>
+                Upgrade Plan
+              </Button>
+            )}
           </div>
           {/* Figure over label, side by side — not the label-dash-value rows of
               the plan blocks below. These three are read together as the size of
@@ -481,7 +510,7 @@ export function BillingUsageContent() {
               <OverageStat value={formatCurrency(billing.estimatedOverage)} label="Overage Payment" />
             )}
             {billing.nextBillingDate && (
-              <OverageStat value={formatDateOrDash(billing.nextBillingDate)} label="Next Billing" />
+              <OverageStat value={formatDate(billing.nextBillingDate)} label="Next Billing" />
             )}
           </div>
         </div>
@@ -518,7 +547,7 @@ export function BillingUsageContent() {
               repeated. A trial has no `currentPeriodEnd`, so its row simply never
               appears beside "Trial ends on". */}
           {billing.nextBillingDate && (
-            <BillingRow label="Next Billing Date" value={formatDateOrDash(billing.nextBillingDate)} />
+            <BillingRow label="Next Billing Date" value={formatDate(billing.nextBillingDate)} />
           )}
           {billing.cancellationEffectiveAt && (
             <BillingRow label="Plan ends on" warning value={<WarningDate iso={billing.cancellationEffectiveAt} />} />
@@ -581,9 +610,7 @@ export function BillingUsageContent() {
                 }
               />
             )}
-            {billing.nextBillingDate && (
-              <BillingRow label="Next Billing" value={formatDateOrDash(billing.nextBillingDate)} />
-            )}
+            {billing.nextBillingDate && <BillingRow label="Next Billing" value={formatDate(billing.nextBillingDate)} />}
           </SectionBlock>
         )}
       </div>
@@ -699,7 +726,7 @@ function DeviceUsageCaption({ isTrial, trialEndsOn, prepaid, isAnnual }: DeviceU
     if (!trialEndsOn) return <>Included in trial</>;
     return (
       <>
-        Trial Period ends <StatEmphasis>{formatDateOrDash(trialEndsOn)}</StatEmphasis>
+        Trial Period ends <StatEmphasis>{formatDate(trialEndsOn)}</StatEmphasis>
       </>
     );
   }
@@ -754,7 +781,7 @@ function OverageStat({ value, label }: { value: string; label: string }) {
 function WarningDate({ iso }: { iso: string }) {
   return (
     <>
-      {formatDateOrDash(iso)}
+      {formatDate(iso)}
       <AlertTriangleIcon className="size-4 text-ods-warning" />
     </>
   );

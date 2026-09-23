@@ -216,7 +216,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
     return <NotFoundError message="Customer not found" />;
   }
 
-  const subtitleParts = [organization.website, organization.industry].filter(p => p && p !== '-');
+  const subtitleParts = [organization.website, organization.industry].filter(Boolean);
   const subtitle = subtitleParts.length > 0 ? subtitleParts.join(' • ') : undefined;
 
   const logoSrc = getFullImageUrl(organization.imageUrl, organization.imageHash);

@@ -1,11 +1,12 @@
 // Remote-access approval read models (CU-86ajx03db).
 //
-// Shapes mirror the BE contract from the approval-API spec review on
-// CU-86ajx02gz: requests move PENDING -> DELIVERED -> APPROVED | DENIED |
-// TIMED_OUT | REVOKED, the technician learns the decision via a NATS event
-// with a status-GET polling fallback. The backend is still in design, so these
-// are the contract the mock service implements and the future client must
-// satisfy; field names may still shift with the final API.
+// Shapes follow the BE contract on CU-86ajx02gz (OpenAPI 1.0.0-draft, decisions
+// of 2026-09-16/17): requests move PENDING -> DELIVERED -> APPROVED | DENIED |
+// TIMED_OUT | REVOKED; the technician learns the decision from the
+// REMOTE_ACCESS_DECISION event on `user.<technicianUserId>.notification` with a
+// status-GET poll every 2 s as the fallback. The real client
+// (remote-access-approval-api-service.ts) and the in-memory mock both produce
+// these shapes.
 
 /** Which MeshCentral surface the technician is trying to open. */
 // The approval flow covers remote screen (MeshCentral desktop) sessions only
@@ -21,36 +22,110 @@ export type RemoteAccessRequestStatus =
   | 'DENIED'
   | 'TIMED_OUT'
   /** The technician cancelled while the request was still open. */
-  | 'REVOKED';
+  | 'REVOKED'
+  /**
+   * Never emitted by the technician API (JetStream-era aliases the chat still
+   * tolerates); accepted as terminal in case they ever show up on the wire.
+   */
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+/** Who settled the request. `null` while it is open. */
+export type RemoteAccessDecisionSource = 'USER' | 'POLICY' | 'FALLBACK' | 'TECHNICIAN' | 'TIMEOUT';
 
 export interface RemoteAccessRequest {
+  /** A plain 26-char ULID; the first token of the MeshCentral relay id (see buildRemoteAccessRelayIdPrefix). */
   requestId: string;
+  /** The OpenFrame machine id - what the device pages carry as `?id=` and what the backend resolves. */
   deviceId: string;
   sessionKind: RemoteSessionKind;
   status: RemoteAccessRequestStatus;
   /** Why the technician is connecting - shown to the end user in the prompt. */
   reason?: string;
+  ticketId?: string;
+  ticketNumber?: string;
   /**
    * The policy mode the server resolved at creation (recorded for audit per
    * the CU-86ajx02gz contract). DENY_ACCESS arrives already DENIED; NOTIFY_ONLY
    * and SILENT_ACCESS arrive already APPROVED.
    */
-  resolvedMode?: RemoteAccessMode;
+  mode?: RemoteAccessMode;
+  decisionSource?: RemoteAccessDecisionSource | null;
+  technicianId?: string;
+  /** Whether the session will be recorded (tenant mesh recording config); informational. */
+  recordingEnabled?: boolean;
   /** ISO timestamps, server clock (device clocks skew - countdowns use these). */
   createdAt: string;
   expiresAt: string;
+  deliveredAt?: string | null;
+  resolvedAt?: string | null;
 }
 
 export interface CreateRemoteAccessRequestInput {
   deviceId: string;
   sessionKind: RemoteSessionKind;
   reason?: string;
+  /** When the technician connects from a ticket; the backend resolves the number. */
+  ticketId?: string;
   /**
    * Mock-only resolution hint: the real API derives the device's organization
    * server-side; the in-memory mock has no device registry, so callers that
    * know the organization pass it for the org-level override to apply.
    */
   organizationId?: string;
+}
+
+/**
+ * Why a create was refused (CU-86ajx02gz): `DEVICE_HAS_LIVE_REQUEST` and
+ * `DEVICE_HAS_ACTIVE_SESSION` are the 409s for another technician's request or
+ * session (one technician per device at a time; the body carries no
+ * identifiers), `DEVICE_UNREACHABLE` is the 503 when the request could not be
+ * published (the request is deleted, a retry is safe), `UNKNOWN` is anything else.
+ */
+export type RemoteAccessCreateErrorCode =
+  | 'DEVICE_HAS_LIVE_REQUEST'
+  | 'DEVICE_HAS_ACTIVE_SESSION'
+  | 'DEVICE_UNREACHABLE'
+  /** 404: the backend switch `openframe.remote-access-approval.enabled` is off on this environment. */
+  | 'REMOTE_ACCESS_DISABLED'
+  | 'UNKNOWN';
+
+export class RemoteAccessCreateError extends Error {
+  constructor(
+    readonly code: RemoteAccessCreateErrorCode,
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'RemoteAccessCreateError';
+  }
+}
+
+/**
+ * The transient technician-side event on `user.<technicianUserId>.notification`
+ * (flat JSON, no notification id, so the notifications drawer ignores it).
+ * Sent for attended requests only: once on the device's ack (DELIVERED) and
+ * once on settlement; instant modes settle inside the create response.
+ */
+export interface RemoteAccessDecisionEvent {
+  type: 'REMOTE_ACCESS_DECISION';
+  requestId: string;
+  status: Extract<RemoteAccessRequestStatus, 'DELIVERED' | 'APPROVED' | 'DENIED' | 'TIMED_OUT' | 'REVOKED'>;
+  decisionSource: RemoteAccessDecisionSource | null;
+  mode?: RemoteAccessMode | null;
+  deliveredAt?: string | null;
+  resolvedAt?: string | null;
+}
+
+/**
+ * The MeshCentral relay id of a session opened under an approval:
+ * `<requestId>.<p>.<nonce>` (CU-86ajx02gz) - the gateway gate (CU-86ajx02x3)
+ * matches the first token against the approval grant. `p` is the Mesh
+ * protocol number (2 = desktop); the nonce keeps every tunnel of the session
+ * (multi-monitor "Show All") unique.
+ */
+export function buildRemoteAccessRelayIdPrefix(requestId: string, protocol: number): string {
+  return `${requestId}.${protocol}`;
 }
 
 // --------------------------------------------------------------------------
@@ -86,26 +161,74 @@ export const REMOTE_ACCESS_MODE_META: Record<RemoteAccessMode, { label: string; 
 };
 
 /**
- * What happens when an approval request cannot be answered - either no client
- * is connected to ack delivery (`noClientFallback`) or the user never answered
- * before the approval timeout (`noAnswerFallback`).
+ * Tenant-wide remote access policy: the default mode only. The approval
+ * timeout (30 s), the delivery timeout and the no-client / no-answer fallbacks
+ * are fixed backend constants (decision 2026-09-18, CU-86akeqw6h) - not a
+ * tenant setting and not surfaced in the UI.
  */
-export const REMOTE_ACCESS_FALLBACKS = ['DENY', 'ALLOW_WITH_NOTIFICATION', 'ALLOW_SILENTLY'] as const;
-export type RemoteAccessFallback = (typeof REMOTE_ACCESS_FALLBACKS)[number];
-
-export const REMOTE_ACCESS_FALLBACK_META: Record<RemoteAccessFallback, { label: string }> = {
-  DENY: { label: 'Deny' },
-  ALLOW_WITH_NOTIFICATION: { label: 'Allow with Notification' },
-  ALLOW_SILENTLY: { label: 'Allow Silently' },
-};
-
-/** Tenant-wide remote access policy: the default mode plus approval tuning. */
 export interface TenantRemoteAccessPolicy {
   mode: RemoteAccessMode;
-  /** How long the end user has to answer an approval prompt. */
-  approvalTimeoutSeconds: number;
-  /** How long to wait for a client to ack delivery before `noClientFallback`. */
-  deliveryTimeoutSeconds: number;
-  noClientFallback: RemoteAccessFallback;
-  noAnswerFallback: RemoteAccessFallback;
+}
+
+// --------------------------------------------------------------------------
+// Remote session lifecycle
+// --------------------------------------------------------------------------
+
+export type RemoteSessionStatus = 'ACTIVE' | 'ENDED';
+
+/**
+ * Why a session is over: `client` - the end user pressed End Session, `admin`
+ * - the technician left, `timeout` - the session cap passed, `connection_lost`
+ * - the tunnel dropped (there is no rejoin: the technician opens a new
+ * session), `policy` - reserved, nothing produces it yet. Lower-case as on the
+ * NATS wire; the GraphQL enum arrives upper-case and is folded.
+ */
+export type RemoteSessionEndReason = 'admin' | 'client' | 'timeout' | 'connection_lost' | 'policy';
+
+/**
+ * The session record the backend creates when a request reaches APPROVED:
+ * the technician's handle for ending the session, and the source of the chat
+ * dialog id. Every lifecycle event carries the same payload.
+ */
+export interface RemoteSession {
+  /** A plain 26-char ULID. */
+  sessionId: string;
+  requestId: string;
+  deviceId?: string;
+  technicianId?: string;
+  sessionKind: RemoteSessionKind;
+  mode?: RemoteAccessMode;
+  status: RemoteSessionStatus;
+  startedAt: string;
+  endedAt?: string | null;
+  endReason?: RemoteSessionEndReason | null;
+  reason?: string;
+  ticketId?: string;
+  ticketNumber?: string;
+  recordingEnabled?: boolean;
+  /** The session chat dialog; null until the backend provisions it. */
+  dialogId: string | null;
+}
+
+/** How a session ended, as far as the page knows. */
+export interface RemoteSessionEnd {
+  endReason: RemoteSessionEndReason | null;
+  endedAt: string | null;
+}
+
+/**
+ * The transient technician-side lifecycle event on
+ * `user.<technicianUserId>.notification` (flat JSON, no notification id, so
+ * the notifications drawer ignores it): the session payload, plus `endReason`
+ * and `endedAt` on ENDED.
+ */
+export interface RemoteSessionEvent {
+  type: 'REMOTE_SESSION_STARTED' | 'REMOTE_SESSION_ENDED';
+  sessionId: string;
+  requestId?: string;
+  startedAt?: string;
+  dialogId: string | null;
+  recordingEnabled?: boolean;
+  endReason: RemoteSessionEndReason | null;
+  endedAt?: string | null;
 }

@@ -1,28 +1,15 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useFragment, useLazyLoadQuery } from 'react-relay';
-import type { scheduleDeviceFiltersRelay_facets$key as FacetsFragmentKey } from '@/__generated__/scheduleDeviceFiltersRelay_facets.graphql';
+import { useLazyLoadQuery } from 'react-relay';
 import type { scheduleDeviceFiltersRelayQuery as ScheduleDeviceFiltersQueryType } from '@/__generated__/scheduleDeviceFiltersRelayQuery.graphql';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import type { DeviceFilters } from '@/app/(app)/devices/types/device.types';
 import { useRetryKey } from '@/app/components/shared';
+import { toDeviceFilters } from '@/graphql/devices/device-facets-fields';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
-import {
-  scheduleDeviceFiltersRelayFacetsFragment,
-  scheduleDeviceFiltersRelayQuery,
-} from '@/graphql/scripts/schedule-device-filters-relay';
+import { scheduleDeviceFiltersRelayQuery } from '@/graphql/scripts/schedule-device-filters-relay';
 import { UNFILTERED } from '../utils/schedule-device-filters';
-
-/** What a facet-less answer looks like — a schedule that resolved to nothing. */
-const EMPTY_FILTERS: DeviceFilters = {
-  statuses: [],
-  deviceTypes: [],
-  osTypes: [],
-  organizationIds: [],
-  tagKeys: [],
-  filteredCount: 0,
-};
 
 /** Which of the schedule's two device sets the facets describe. */
 export type ScheduleDeviceHalf = 'assigned' | 'available';
@@ -59,13 +46,8 @@ interface ScheduleDeviceFiltersOptions {
  * screen". The narrowed number is the LIST's to report, and it does — from its
  * connection's `filteredCount`.
  *
- * The one thing these fields do NOT answer is tags: the backend documents
- * `tagKeys` as "currently always empty for the pickers", so the tag chips would
- * simply stop offering anything — a filter the picker has today, lost to a
- * change that was supposed to sharpen it. They keep coming from the fleet-wide
- * facets until the scoped fields carry them, which is exactly where they came
- * from before and still narrows the scoped list correctly (a tag no assigned
- * device carries just returns nothing).
+ * Tags come from the fleet-wide facets until the scoped fields carry them — see
+ * `toDeviceFilters`; a tag no assigned device carries just returns nothing.
  *
  * **Suspends** — render it inside the same boundary as the list it narrows. It
  * has no narrowing of its own to change, so it settles once and then stays put
@@ -95,29 +77,13 @@ export function useScheduleDeviceFilters(
   );
 
   const schedule = data.scriptSchedule;
-  const facetsKey = (half === 'assigned' ? schedule?.assignedDeviceFilters : schedule?.availableDeviceFilters) as
-    FacetsFragmentKey | null | undefined;
-  const facets = useFragment(scheduleDeviceFiltersRelayFacetsFragment, facetsKey ?? null);
+  const facets = half === 'assigned' ? schedule?.assignedDeviceFilters : schedule?.availableDeviceFilters;
 
   // Tags only — see above. Unfiltered for the same reason the scoped query is:
   // a tag chip must not remove the other tags from the menu.
   const fleetFacets = useDeviceFilters(UNFILTERED);
 
-  // Relay hands back readonly arrays; the table and filter-modal helpers that
-  // consume `DeviceFilters` mutate theirs, so copy rather than cast. Memoized
-  // because a fresh copy per render rebuilds the table's column defs and filter
-  // groups on every keystroke in the search box.
-  return useMemo(() => {
-    if (!facets) return { ...EMPTY_FILTERS, tagKeys: fleetFacets.tagKeys };
-    return {
-      statuses: [...facets.statuses],
-      deviceTypes: [...facets.deviceTypes],
-      osTypes: [...facets.osTypes],
-      organizationIds: [...facets.organizationIds],
-      // The scoped field's own `tagKeys` is empty by contract; prefer it the
-      // moment it stops being, so this falls away without another edit here.
-      tagKeys: facets.tagKeys.length > 0 ? [...facets.tagKeys] : fleetFacets.tagKeys,
-      filteredCount: facets.filteredCount,
-    };
-  }, [facets, fleetFacets.tagKeys]);
+  // Memoized because a fresh copy per render rebuilds the table's column defs
+  // and filter groups on every keystroke in the search box.
+  return useMemo(() => toDeviceFilters(facets, fleetFacets.tagKeys), [facets, fleetFacets.tagKeys]);
 }

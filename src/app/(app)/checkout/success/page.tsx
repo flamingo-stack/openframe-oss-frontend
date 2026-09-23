@@ -1,9 +1,9 @@
 'use client';
 
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { notFound } from 'next/navigation';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { isBillingHidden } from '@/lib/billing-visibility';
+import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
 import { CheckoutResultCard } from '../components/checkout-result-card';
 
@@ -22,13 +22,13 @@ export default function CheckoutSuccessPage() {
   // the flags store, so the 404 was permanent and every paying customer met it.
   // Only a resolved `off` may 404 — the same rule as `billing-usage/page.tsx`.
   const gate = useFeatureFlagGate('billings');
-  if (isBillingHidden() || gate === 'off') {
+  if (isBillingHidden() || isBillingReadOnly() || gate === 'off') {
     notFound();
   }
 
   return (
     <CheckoutResultCard
-      icon={CheckCircle2}
+      icon={CheckCircleIcon}
       iconWrapperClassName="bg-ods-success-secondary text-ods-success"
       title="Payment Successful"
       description="Thanks for subscribing. Your plan is activating now — it may take a moment to show up across the app."

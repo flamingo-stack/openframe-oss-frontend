@@ -2,7 +2,7 @@
 
 import { useTestRunState } from '@flamingo-stack/openframe-frontend-core';
 import { useCallback } from 'react';
-import { useLiveCampaign } from '../hooks/use-live-campaign';
+import { useLiveCampaign, type UseLiveCampaignOptions } from '../hooks/use-live-campaign';
 
 /**
  * Fleet-flavored wrapper over the core lib's test-run state machine: binds
@@ -10,8 +10,8 @@ import { useLiveCampaign } from '../hooks/use-live-campaign';
  * to this app's Fleet live-campaign transport. The UI building blocks
  * (TimingStat, TestRunResults, TestResultsSkeleton/Table) come from the lib.
  */
-export function useQueryTestRun() {
-  const campaign = useLiveCampaign();
+export function useQueryTestRun(options?: UseLiveCampaignOptions) {
+  const campaign = useLiveCampaign(options);
   const test = useTestRunState(campaign);
 
   const { run: runStart } = test;

@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { FileManagerContainer } from '@/app/(app)/devices/details/file-manager/components/file-manager-container';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getToolConnection } from '@/app/(app)/devices/utils/device-action-utils';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
@@ -34,7 +35,7 @@ export default function FileManagerPage() {
       ? {
           type: CONTEXT_ENTITY_KIND.DEVICE,
           id: deviceId,
-          label: deviceDetails.hostname || deviceDetails.displayName || deviceId,
+          label: getDeviceName(deviceDetails) || deviceId,
         }
       : null,
   );
@@ -84,7 +85,7 @@ export default function FileManagerPage() {
     );
   }
 
-  const hostname = deviceDetails?.hostname || deviceDetails?.displayName;
+  const deviceName = getDeviceName(deviceDetails);
 
   // No approval gate here: the approval flow covers remote screen sessions
   // only (decision 2026-09-16); the file manager keeps its legacy auto-start.
@@ -92,7 +93,7 @@ export default function FileManagerPage() {
     <FileManagerContainer
       deviceId={deviceId}
       meshcentralAgentId={meshcentralAgentId}
-      hostname={hostname}
+      deviceName={deviceName}
       className={PAGE_PADDING}
     />
   );

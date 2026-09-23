@@ -8,12 +8,15 @@ import {
   AppLayoutDrawerHeader,
   AppLayoutDrawerTitle,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
-import { DeviceCard, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DeviceCard, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getDeviceOperatingSystem, getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { DeviceInfoSectionSkeleton } from './device-info-section-skeleton';
+import { EmptyValue } from './empty-value';
+import { ValueText } from './value-text';
 
 export interface LogDrawerInfoField {
   label: string;
@@ -49,7 +52,7 @@ function DrawerDeviceCard({ deviceId, onNavigate }: { deviceId: string; onNaviga
       device={{
         id: deviceDetails.id,
         machineId: deviceDetails.machineId,
-        name: deviceDetails.displayName || deviceDetails.hostname || deviceDetails.description || '',
+        name: getDeviceName(deviceDetails),
         organization: deviceDetails.organization || deviceDetails.machineId,
         lastSeen: deviceDetails.lastSeen,
         operatingSystem: getDeviceOperatingSystem(deviceDetails.osType),
@@ -128,9 +131,9 @@ export function LogDrawer({
                 {infoFields.map(field => (
                   <div key={typeof field.label === 'string' ? field.label : ''} className="flex flex-col gap-0.5">
                     {typeof field.value === 'string' ? (
-                      <TruncateText>{field.value || '—'}</TruncateText>
+                      <ValueText value={field.value} />
                     ) : (
-                      <span className="truncate text-ods-text-primary text-h4">{field.value || '—'}</span>
+                      <span className="truncate text-ods-text-primary text-h4">{field.value || <EmptyValue />}</span>
                     )}
                     <span className="truncate text-ods-text-secondary text-h6">{field.label}</span>
                   </div>

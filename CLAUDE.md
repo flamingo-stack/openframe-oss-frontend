@@ -1,6 +1,6 @@
 # OpenFrame Frontend - Claude Development Guide
 
-**Next.js 16 + React 19 + TypeScript 5.8 + @flamingo-stack/openframe-frontend-core (^0.0.632)**
+**Next.js 16 + React 19 + TypeScript 5.9 + @flamingo-stack/openframe-frontend-core (0.0.653)**
 
 > Comprehensive instructions for Claude when working with the OpenFrame Frontend service.
 
@@ -74,11 +74,14 @@ Feature flags are **not** env vars — they are server-loaded via GraphQL (see F
 
 ### Payment UI Visibility (native app builds)
 
-`src/lib/billing-visibility.ts` is the single switch for every payment surface, and it is exactly
-`isAppShell()` — both native builds (Capacitor mobile, Tauri desktop) hide payments, the web app
-keeps them. Billing runs through Stripe on the web; App Store Guideline 3.1.1 forbids showing plans,
-prices, invoices, or any CTA leading to a non-IAP purchase, and Google Play treats an in-app Stripe
-Checkout for a digital subscription as bypassing Play Billing.
+`src/lib/billing-visibility.ts` is the single switch for every payment surface, in three tiers keyed
+on the shell: **web** shows and changes everything; **desktop** (`isBillingReadOnly()` =
+`isDesktopShell()`) shows everything and changes nothing; **mobile** (`isBillingHidden()` =
+`isMobileShell()`) shows none of it. Billing runs through Stripe on the web; App Store Guideline 3.1.1
+forbids showing plans, prices, invoices, or any CTA leading to a non-IAP purchase, and Google Play
+treats an in-app Stripe Checkout for a digital subscription as bypassing Play Billing. Desktop ships
+outside any store, so neither rule reaches it — but payment still belongs in the browser (bank
+verification steps, autofill, saved cards), hence read-only plus one exit.
 
 No env var backs this: the shell injects `window.Capacitor` / the Tauri globals itself, so a native
 build can't forget to declare what it is, and the web bundle can't be misconfigured into hiding its
@@ -89,23 +92,34 @@ billing.
 The same export runs in three places, so ask the axis that owns the feature — never "is this native?":
 
 - `isAppShell()` — either shell. Shell-custodied tokens, no Next server behind the origin (so
-  `/content` goes absolute), in-app auth pages, no external navigation, the billing ban above, and
-  the `authMobile=true` login completing on the custom scheme (`APP_SCHEME`).
+  `/content` goes absolute), in-app auth pages, no external navigation, and the `authMobile=true`
+  login completing on the custom scheme (`APP_SCHEME`).
 - `isMobileShell()` — the phone. FCM push, biometrics, status bar/splash/safe-area insets, Android
-  back.
-- `isDesktopShell()` — Tauri. Shell-side token rotation + OS-notification click event transports.
+  back, and the billing ban above.
+- `isDesktopShell()` — Tauri. Shell-side token rotation + OS-notification click event transports,
+  read-only billing.
 
 `platform.ts` is the only module that reads the injected globals, and it probes **Tauri first**: the
 desktop shell injects a Capacitor-shaped bridge, so a Capacitor check alone reports every desktop
 install as mobile. `native-shell.ts` owns typed bridge access and gates each plugin on its own axis.
 CSS scopes on `html[data-shell="mobile"|"desktop"]`.
 
-- `isBillingHidden()` — payments not allowed on this build
-- `isPaymentUiEnabled()` — `billings` server flag **and** payments allowed on this build
+- `isBillingHidden()` — mobile: no payment surface at all
+- `isBillingReadOnly()` — desktop: billing is displayed, never changed
+- `isPaymentUiEnabled()` — `billings` server flag **and** a build that may change billing (web only)
+- `openBillingInBrowser()` — the read-only build's one exit: the web app's `/settings/billing-usage`
+  in the system browser. The web page, not the Stripe portal — the portal exposes neither plan
+  changes nor cancellation. Never `openDeferredTab()` on desktop: the shell denies its blank
+  placeholder tab and the fallback navigates the app window itself.
+
+When read-only: `billing-usage-content.tsx` renders every figure (plan, rates, next payment, usage,
+invoices) with a single **Manage Billing** header action in place of the plan/AI-limit/cancel/pay
+actions; `/checkout/*` 404s; the AI spend bar stays off (its only action is the limit control); and
+the lock screen is `read-only-lock-content.tsx` — `WorkspaceInactiveScreen` with Manage Billing for
+owners/admins, the "contact the owner" copy (`no-access-copy.ts`) for everyone else.
 
 When hidden: Settings shows a **Usage** card (`billing-usage/components/usage-view.tsx` — device/AI
-counters and workspace limits over its own price-free query), `/checkout/*` 404s on its own
-`isPaymentUiEnabled()` check, and the subscription lock screen renders `WorkspaceInactiveScreen`
+counters and workspace limits over its own price-free query), `/checkout/*` 404s, and the subscription lock screen renders `WorkspaceInactiveScreen`
 instead of the plan picker. `isRouteAllowedInCurrentMode()` deliberately does NOT gate these: it
 answers from app mode alone, and consulting a server-loaded flag there once threw "Access restricted"
 over billing routes for as long as the flags query was in flight.
@@ -115,19 +129,20 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 (`subscription/components/device-plan-picker.tsx`) is what the subscription lock screen shows. The
 `subscription/` folder under `billing-usage/` holds those components/hooks and has no page of its own.
 
-**Any new payment-adjacent UI (price, plan, invoice, upgrade/pay CTA) must be gated on
-`isPaymentUiEnabled()` / `isBillingHidden()`.**
+**Any new payment-adjacent UI must pick its tier: figures (price, plan, invoice) are gated on
+`isBillingHidden()`; anything that changes billing (upgrade/pay/cancel CTA, limit control) also on
+`isBillingReadOnly()`.**
 
 ## Architecture & Structure
 
 ### Technology Stack
 | Category | Technology | Version |
 |----------|-----------|---------|
-| Framework | Next.js | 16 (^16.2.4) |
-| UI Library | React | 19 (^19.2.0) |
+| Framework | Next.js | 16 (16.3.5) |
+| UI Library | React | 19 (19.2.4) |
 | Auto-memoization | React Compiler (`reactCompiler: true` + babel-plugin-react-compiler) | 1.0 |
-| Type System | TypeScript | 5.8 (^5.8.3) |
-| Component Library | @flamingo-stack/openframe-frontend-core | ^0.0.632 (npm registry) |
+| Type System | TypeScript | 5.9 (5.9.3) |
+| Component Library | @flamingo-stack/openframe-frontend-core | 0.0.653 (npm registry) |
 | GraphQL Data Fetching | react-relay + relay-runtime + relay-compiler | 20.1 |
 | REST / Legacy Data Fetching | @tanstack/react-query | 5.90 |
 | Forms | react-hook-form + @hookform/resolvers | 7.71 + 5.2 |
@@ -136,13 +151,31 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 | Styling | Tailwind CSS + tailwindcss-animate | 3.4 |
 | Terminal | @xterm/xterm + @xterm/addon-fit | 6.0 + 0.11 |
 | Code Editor | @monaco-editor/react | 4.7 |
-| GraphQL | graphql + graphql-tag | 16.8 + 2.12 |
+| GraphQL | graphql | 16.12 |
 | Date Utils | date-fns | 4.1 |
-| Icons | lucide-react | 0.454 |
-| Runtime Env | next-runtime-env | 3.2 |
+| Icons | `@flamingo-stack/openframe-frontend-core/components/icons-v2` (no `lucide-react` — not a dependency; `import/no-extraneous-dependencies` rejects it) | — |
+| Runtime Env | next-runtime-env | 3.3 |
 | Linting | ESLint + `@flamingo-stack/openframe-frontend-core/eslint-config` | 9.39 |
 | Formatting | Prettier + the shared preset (Tailwind class sorting) | 3.9 |
 | Git Hooks | Husky | 9.1 |
+
+### Dependency Versions Are Pinned
+
+`package.json` carries **exact versions — no `^` or `~`** — and `.npmrc` sets `save-exact=true`, so
+`npm install <pkg>` keeps it that way. `package-lock.json` already froze what CI and the Docker build
+install (`npm ci`); the exact pins make `package.json` say the same thing, so an `npm install` or
+`npm update` on a laptop cannot move a version no PR asked for. The Dockerfile base image is pinned
+to a full version tag for the same reason.
+
+- **To bump:** change the version, run `npm install`, and check the `Scan Code` job — Trivy over
+  `package-lock.json` and the Dockerfile's base images, failing on any HIGH/CRITICAL that has a fix.
+- **A transitive finding** is fixed with `npm update <pkg>` when the parent's range allows the
+  patched version, and with `overrides` only when it does not.
+- **`overrides` → `next-runtime-env`:** the package declares `next@^14` and `react@^18` as hard
+  dependencies (still true in 3.3.0), which installed a second Next 14 + React 18 tree — 16 packages,
+  and the source of most scanner findings. The override points it at this app's own `next` and `react`.
+- **An override does not reach a subtree the lockfile already holds.** Delete that package's entries
+  from `package-lock.json` (not the whole file — that re-resolves everything), then `npm install`.
 
 ### Core Library is External
 
@@ -151,7 +184,7 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 **Key Facts:**
 - **Source repo**: `openframe-oss-lib/openframe-frontend-core/`
 - **Ownership**: Shared across Flamingo Stack projects (OpenFrame, OpenMSP, Flamingo, TMCG, hubs, openframe-chat)
-- **Normal state**: installed from the **npm registry** (`"@flamingo-stack/openframe-frontend-core": "^0.0.632"`); the lib repo's own `package.json` version lags the registry (CI bumps at publish)
+- **Normal state**: installed from the **npm registry** (`"@flamingo-stack/openframe-frontend-core": "0.0.653"`); the lib repo's own `package.json` version lags the registry (CI bumps at publish)
 - **Local lib development**: link via **yalc** — `npm run core:link` here, and in the lib repo `npm run build && yalc push` after every change (consumers see `dist/`, not `src/`)
 - **Updates**: Changes affect ALL Flamingo Stack projects
 

@@ -4,8 +4,9 @@ import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/compone
 import { CheckboxBlock, Input, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useId } from 'react';
+import { formatCompactCount } from '@/lib/format-number';
 import { type AiSpendLimit, CUSTOM_LIMIT, PRESET_TOKEN_LIMITS } from '../hooks/use-ai-spend-limit';
-import { formatCompactCount, formatCurrency } from '../lib/format';
+import { formatCurrency } from '../lib/format';
 
 /**
  * What a limit does once it is reached. Stated wherever the limit is edited, but

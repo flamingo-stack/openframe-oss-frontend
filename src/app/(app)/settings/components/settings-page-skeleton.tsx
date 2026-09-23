@@ -8,7 +8,7 @@ import { PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/co
  * is a placeholder; the layout matches the loaded hub so nothing shifts.
  */
 
-const MENU_CARD_KEYS = ['billing', 'ai', 'architecture', 'employees', 'api-keys', 'sso'] as const;
+const MENU_CARD_KEYS = ['billing', 'ai', 'architecture', 'employees', 'api-keys', 'sso', 'tenant-management'] as const;
 
 export function SettingsPageSkeleton() {
   return (

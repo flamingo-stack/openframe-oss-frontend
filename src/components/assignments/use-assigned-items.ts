@@ -3,9 +3,11 @@
 import { type UseQueryResult, useQueries } from '@tanstack/react-query';
 import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app/(app)/customers/hooks/use-customers';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { KnowledgeBaseRow } from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
-import type { Dialog, DialogStatus } from '@/app/(app)/tickets/types/dialog.types';
+import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
+import { decodeGlobalId } from '@/lib/relay-id';
 import { postGraphQl } from './graphql';
 import { ensureGlobalId } from './relay-id';
 import {
@@ -13,7 +15,7 @@ import {
   type AssignmentItemType,
   type AssignmentRef,
   type AssignmentsValue,
-  type AssignmentTargetType,
+  type ServerAssignmentTargetType,
 } from './types';
 
 const ASSIGNED_ITEMS_QUERY = `#graphql
@@ -47,6 +49,7 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               machineId
               hostname
               displayName
+              nickname
               machineStatus: status
               lastSeen
               machineType: type
@@ -68,7 +71,6 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               ticketNumber
               title
               description
-              status
               creationSource
               deviceId
               deviceHostname
@@ -130,6 +132,7 @@ function toMachineRowFields(target: AssignedTargetNode): DeviceRowFields {
     machineId: t.machineId as string,
     hostname: t.hostname as string | null,
     displayName: t.displayName as string | null,
+    nickname: t.nickname as string | null,
     osType: t.osType as DeviceRowFields['osType'],
     status: t.status as DeviceRowFields['status'],
     lastSeen: t.lastSeen ?? null,
@@ -141,10 +144,14 @@ function toMachineRowFields(target: AssignedTargetNode): DeviceRowFields {
 
 function toDialog(target: AssignedTargetNode): Dialog {
   const t = unaliasFields(target);
+  // api-service-core hands every AssignableTarget a global id, while the ticket
+  // pages key on the raw one — a global id in `/tickets/dialog?id=` is "ticket
+  // not found". Guarded on the typename: a raw 24-hex ObjectId is valid base64
+  // too, and an unguarded decode would mangle the few that contain a colon byte.
+  const decoded = decodeGlobalId(target.id);
   return {
-    id: target.id,
+    id: decoded?.typename === 'Ticket' ? decoded.rawId : target.id,
     title: (t.title as string) || 'Untitled Dialog',
-    status: ((t.status as string) ?? 'ACTIVE') as DialogStatus,
     owner: { type: 'CLIENT' },
     createdAt: (t.createdAt as string) || '',
     resolvedAt: (t.resolvedAt as string) ?? null,
@@ -168,7 +175,10 @@ interface AssignedItemsPayload {
   tickets?: Dialog[];
 }
 
-async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetType): Promise<AssignedItemsPayload> {
+async function fetchAssignedItems(
+  itemId: string,
+  targetType: ServerAssignmentTargetType,
+): Promise<AssignedItemsPayload> {
   const data = await postGraphQl<AssignedItemsData>(ASSIGNED_ITEMS_QUERY, {
     itemId,
     targetType,
@@ -184,14 +194,20 @@ async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetTy
   for (const { node } of data.assignedItems.edges) {
     const target = node.target;
     if (!target) continue;
-    refs.push({ id: target.id, label: node.displayName });
+    // The server stamps `displayName` at assign time and, for a device, stamps its hostname —
+    // while the Machine fields selected above carry the nickname. Name the chip like every
+    // other screen does; the server label stays the fallback and the label for other targets.
+    let label = node.displayName;
     switch (target.__typename) {
       case 'Organization':
         customers.push(mapOrganizationNode(unaliasFields(target) as unknown as OrganizationNode));
         break;
-      case 'Machine':
-        devices.push(rowFieldsToDevice(toMachineRowFields(target)));
+      case 'Machine': {
+        const row = toMachineRowFields(target);
+        devices.push(rowFieldsToDevice(row));
+        label = getDeviceName(row) || node.displayName;
         break;
+      }
       case 'KnowledgeBaseItem':
         articles.push(unaliasFields(target) as unknown as KnowledgeBaseRow);
         break;
@@ -199,6 +215,7 @@ async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetTy
         tickets.push(toDialog(target));
         break;
     }
+    refs.push({ id: target.id, label });
   }
 
   switch (targetType) {
@@ -212,8 +229,8 @@ async function fetchAssignedItems(itemId: string, targetType: AssignmentTargetTy
       return { refs, tickets };
     default: {
       // `targetType` is `never` here because the cases above cover
-      // AssignmentTargetType. A new member of that union fails to compile rather
-      // than resolving the query with `undefined`.
+      // ServerAssignmentTargetType. A new member of that union fails to compile
+      // rather than resolving the query with `undefined`.
       const unreachable: never = targetType;
       return unreachable;
     }

@@ -1,8 +1,8 @@
 'use client';
 
+import { Upload02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, TicketAttachmentsList } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Upload } from 'lucide-react';
 import { type ChangeEvent, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { hasNativeFiles, pickNativeFiles } from '@/lib/native-files';
@@ -79,7 +79,7 @@ export function TicketAttachmentsSection({ ticketId, attachments }: TicketAttach
         variant="outline"
         size="small"
         className="w-fit"
-        leftIcon={<Upload />}
+        leftIcon={<Upload02Icon />}
         onClick={addFiles}
         disabled={addAttachments.isPending}
       >

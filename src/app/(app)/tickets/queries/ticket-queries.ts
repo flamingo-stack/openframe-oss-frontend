@@ -10,7 +10,6 @@ export const CREATE_TICKET_MUTATION = `
         ticketNumber
         title
         description
-        status
         owner {
           ... on ClientTicketOwner {
             type
@@ -100,7 +99,6 @@ export const GET_TICKET_QUERY = `
       ticketNumber
       title
       description
-      status
       statusDefinition {
         id
         name
@@ -121,6 +119,7 @@ export const GET_TICKET_QUERY = `
             id
             machineId
             hostname
+            nickname
             organizationId
           }
         }
@@ -214,7 +213,6 @@ export const GET_TICKETS_QUERY = `
           id
           ticketNumber
           title
-          status
           statusDefinition {
             id
             name
@@ -229,6 +227,7 @@ export const GET_TICKETS_QUERY = `
                 id
                 machineId
                 hostname
+                nickname
                 organizationId
               }
             }
@@ -298,13 +297,21 @@ export const GET_TICKETS_QUERY = `
  * carrying the field must ship BEFORE this frontend, or the board columns, the
  * tickets table and the ticket picker (`use-ticket-options.ts`, same document)
  * all come back empty. Same constraint at the `GET_TICKETS_QUERY` selection.
+ *
+ * `lastActivityAt` / `activityState` (board activity indicators) are in the
+ * same unconditional, no-flag position: the saas-ai-agent build exposing them
+ * (openframe-saas-tenant#2938) must be deployed before this frontend.
+ *
+ * `machine.nickname` (every `ClientTicketOwner.machine` selection in this file)
+ * is the same case: `shared.graphqls` declares it unflagged, so the saas-ai-agent
+ * that added it (openframe-saas-tenant#3020) must be deployed before a frontend
+ * carrying this selection, or the same three surfaces come back empty.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
     id
     ticketNumber
     title
-    status
     statusDefinition {
       id
       name
@@ -328,6 +335,7 @@ const boardCardTicketFragment = () => `
           id
           machineId
           hostname
+          nickname
           organizationId
         }
       }
@@ -357,6 +365,8 @@ const boardCardTicketFragment = () => `
       color
     }
     unreadNotificationCount
+    lastActivityAt
+    activityState
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
     ${featureFlags.aiResolution.enabled() ? 'resolvedBy' : ''}
     pendingApproval {
@@ -384,9 +394,9 @@ const boardCardTicketFragment = () => `
 `;
 
 export const getBoardColumnTicketsQuery = () => `
-  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!], $hasUnreadNotifications: Boolean) {
+  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!], $hasUnreadNotifications: Boolean, $activity: [TicketActivityFilter!]) {
     tickets(
-      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds, hasUnreadNotifications: $hasUnreadNotifications }
+      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds, hasUnreadNotifications: $hasUnreadNotifications, activity: $activity }
       pagination: { limit: $limit, cursor: $cursor }
       search: $search
       sort: { field: "order", direction: ASC }
@@ -427,7 +437,6 @@ export const TRANSITION_TICKET_MUTATION = `
     transitionTicket(input: $input) {
       ticket {
         id
-        status
         statusDefinition {
           id
         }
@@ -534,7 +543,6 @@ export const UPDATE_TICKET_MUTATION = `
         ticketNumber
         title
         description
-        status
         owner {
           ... on ClientTicketOwner {
             type
@@ -597,7 +605,7 @@ export const REQUEST_TICKET_REOPEN_MUTATION = `
 export const REORDER_TICKET_MUTATION = `
   mutation ReorderTicket($input: ReorderTicketInput!) {
     reorderTicket(input: $input) {
-      ticket { id status order }
+      ticket { id order }
       userErrors { field message }
     }
   }
@@ -620,7 +628,6 @@ export const TAKE_OVER_TICKET_MUTATION = `
     takeOverTicket(input: $input) {
       ticket {
         id
-        status
         statusDefinition { id name color kind }
         assignedTo
         assignedName
@@ -661,10 +668,6 @@ export const GET_TICKET_STATISTICS_QUERY = `
   query GetTicketStatistics {
     ticketStatistics {
       totalCount
-      statusCounts {
-        status
-        count
-      }
       statusDefinitionCounts {
         status {
           kind

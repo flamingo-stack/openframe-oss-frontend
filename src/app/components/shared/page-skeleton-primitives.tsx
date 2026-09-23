@@ -5,6 +5,7 @@ import {
   DataTable,
   type PageActionButton,
   PageLayout,
+  type PageLayoutProps,
   Skeleton,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -138,6 +139,11 @@ export function skeletonColumnDefs<T>(columns: readonly TableSkeletonColumn[]): 
 interface TableSkeletonProps {
   columns: readonly TableSkeletonColumn[];
   rows?: number;
+  /**
+   * Set when the live table pins its header under a sticky toolbar — the
+   * skeleton pins at the same offset, so the header does not jump on load.
+   */
+  stickyHeaderOffset?: string;
 }
 
 /**
@@ -151,7 +157,7 @@ interface TableSkeletonProps {
  * `table`/`children`/`className`, so the attribute needs its own element. It
  * wraps a single child, so the flex-item count of the parent is unchanged.
  */
-export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
+export function TableSkeleton({ columns, rows = 10, stickyHeaderOffset }: TableSkeletonProps) {
   const columnDefs = useMemo<ColumnDef<unknown>[]>(() => skeletonColumnDefs<unknown>(columns), [columns]);
 
   const table = useDataTable<unknown>({
@@ -164,7 +170,7 @@ export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
   return (
     <div aria-busy>
       <DataTable table={table}>
-        <DataTable.Header />
+        <DataTable.Header stickyHeader={stickyHeaderOffset !== undefined} stickyHeaderOffset={stickyHeaderOffset} />
         <DataTable.Body loading skeletonRows={rows} emptyMessage="" rowClassName="mb-1" />
       </DataTable>
     </div>
@@ -200,6 +206,8 @@ export function SearchBarSkeleton() {
 export interface ListPageSkeletonProps {
   /** Real page title — static text, so it renders as-is instead of a bar. */
   title: string;
+  /** The page's Back link, when it has one — its row is part of the header height. */
+  backButton?: PageLayoutProps['backButton'];
   /** Real header buttons, rendered disabled so the header is pixel-identical. */
   actions?: PageActionButton[];
   /** Tab cell widths when the page renders a tab bar above its header. */
@@ -213,7 +221,7 @@ export interface ListPageSkeletonProps {
  * `PageLayout` header (title + disabled actions), a search toolbar and a table
  * in its loading state.
  */
-export function ListPageSkeleton({ title, actions, tabWidths, columns, rows }: ListPageSkeletonProps) {
+export function ListPageSkeleton({ title, backButton, actions, tabWidths, columns, rows }: ListPageSkeletonProps) {
   return (
     <div className="flex w-full flex-col">
       {tabWidths && (
@@ -223,6 +231,7 @@ export function ListPageSkeleton({ title, actions, tabWidths, columns, rows }: L
       )}
       <PageLayout
         title={title}
+        backButton={backButton}
         actions={actions}
         actionsVariant="icon-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"

@@ -54,6 +54,11 @@ export function ensureGlobalIdForType(typename: string, value: string): string {
   return toGlobalId(typename, value);
 }
 
+/** The id INSIDE a global handle; a value that is not one comes back as is. */
+export function rawIdOf(value: string): string {
+  return decodeGlobalId(value)?.rawId ?? value;
+}
+
 export function notificationGlobalId(rawId: string): string {
   return ensureGlobalIdForType('Notification', rawId);
 }

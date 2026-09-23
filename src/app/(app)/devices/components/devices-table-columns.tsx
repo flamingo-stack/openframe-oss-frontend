@@ -1,4 +1,3 @@
-import { type DeviceType, getDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core';
 import { OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ArrowRightUpIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -16,6 +15,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { type ReactNode, useMemo } from 'react';
+import { DeviceTypeTile } from '@/app/components/shared/device-type-tile';
 import { deduplicateFilterOptions } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -271,12 +271,7 @@ export function getDeviceTableColumns(
         const device = row.original;
         return (
           <div className="relative box-border flex h-20 w-full shrink-0 content-stretch items-center justify-start gap-4 py-0">
-            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-ods-border">
-              {device.type &&
-                getDeviceTypeIcon(device.type.toLowerCase() as DeviceType, {
-                  className: 'w-5 h-5 text-ods-text-secondary',
-                })}
-            </div>
+            <DeviceTypeTile type={device.type} />
             <div className="min-w-0 flex-1">
               <TruncateText>{getDeviceName(device)}</TruncateText>
             </div>

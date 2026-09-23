@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { NotificationEntityType } from '@/generated/schema-enums';
 import { useMarkEntityNotificationsRead } from '@/graphql/notifications/use-mark-entity-notifications-read';
+import { registerActiveDialogView } from '@/lib/active-dialog-views';
 import { ATTENTION_IDLE_MS, isSessionActive, subscribeSessionActivity } from '@/lib/session-activity';
 import type { TicketsPage } from '../services/ticket-service.types';
 import { dialogsQueryKeys } from '../utils/query-keys';
@@ -32,6 +33,13 @@ function clearCachedUnreadCount(queryClient: QueryClient, ticketId: string): voi
 interface TicketNotificationsAutoReaderProps {
   ticketId: string;
   /**
+   * The ticket's client-chat dialog id, or null before it resolves. Registered as an
+   * active dialog view while the chat is on screen so a live message notification for
+   * this dialog is suppressed and auto-read, exactly as the Mingo drawer does for its
+   * own dialog — without it the same event pops on the ticket page but not in Mingo.
+   */
+  dialogId: string | null;
+  /**
    * Whether the ticket's client chat is the pane actually being shown. Derived by
    * `TicketDetailsContent`, which is the only place that knows which of the page's two
    * layouts is mounted and which tab system that layout uses.
@@ -53,9 +61,23 @@ interface TicketNotificationsAutoReaderProps {
  *   because this only fires while the URL carries `tab=chat` — the very param a chat
  *   notification's own route matches on.
  */
-export function TicketNotificationsAutoReader({ ticketId, clientChatOnScreen }: TicketNotificationsAutoReaderProps) {
+export function TicketNotificationsAutoReader({
+  ticketId,
+  dialogId,
+  clientChatOnScreen,
+}: TicketNotificationsAutoReaderProps) {
   const queryClient = useQueryClient();
   const markEntityNotificationsRead = useMarkEntityNotificationsRead();
+
+  // While the client chat is the visible pane, mark its dialog an active view so
+  // the live-notification pipeline skips the popup and auto-reads a message for it
+  // (isWatchingNotificationDialog) — the same suppression the Mingo drawer gets.
+  // Gated on the chat being on screen, not on mount: on the Details tab the user is
+  // not watching the conversation, so its messages should still alert.
+  useEffect(() => {
+    if (!clientChatOnScreen || !dialogId) return undefined;
+    return registerActiveDialogView(dialogId);
+  }, [clientChatOnScreen, dialogId]);
   // Same gate every other consumer of notification data carries (`EntityViewAutoReader`,
   // `UnreadCountsHydrator`): with the flag off nothing renders these counts, and this would
   // otherwise still commit an irreversible cross-device write on every ticket-chat view.

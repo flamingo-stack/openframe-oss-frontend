@@ -26,6 +26,7 @@ import { OrgAvatar } from '@/app/components/shared';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { isValidTag, type TagEntryWithId, TagsEditor } from '@/app/components/shared/tags';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 import { routes } from '@/lib/routes';
@@ -56,8 +57,11 @@ type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
 export function NewDeviceContent() {
   const handleBack = useSafeBack(routes.devices.list);
   const { toast } = useToast();
-  // Remote access policy (CU-86akeqw8b) ships dark with the approval flag.
-  const showRemoteAccess = useRemoteAccessApprovalGate() === 'on';
+  // The remote access permission selector belongs to the next remote access
+  // cut (v2): it needs the approval flow flag AND the v2 flag, so it stays
+  // hidden where only v1 is enabled.
+  const remoteAccessV2 = useFeatureFlag('remote-access-v2');
+  const showRemoteAccess = useRemoteAccessApprovalGate() === 'on' && remoteAccessV2;
 
   // Customer context passed by "Add Device" launched from a customer's section
   // (e.g. `/devices/new?organizationId=<id>`), used to pre-select the dropdown.
@@ -94,7 +98,11 @@ export function NewDeviceContent() {
     });
   }, [tags]);
 
-  const { command, registerCommand, initialKey } = useInstallCommand({ organizationId, platform, tags: validTags });
+  const { command, registerCommand, initialKey, rotateMachineId } = useInstallCommand({
+    organizationId,
+    platform,
+    tags: validTags,
+  });
 
   const orgOptions: AutocompleteOption[] = useMemo(
     () => orgs.map(o => ({ label: o.name, value: o.organizationId })),
@@ -155,6 +163,9 @@ export function NewDeviceContent() {
     if (!(await validateBeforeAction())) return;
     if (installMethod === 'script') {
       doCopy(command);
+      // The copied command carries this id; the one now on screen gets a
+      // fresh one so the next device enrolled from this tab is distinguishable.
+      rotateMachineId();
       return;
     }
     // Both steps in one paste: install through the package manager, then
@@ -163,7 +174,7 @@ export function NewDeviceContent() {
     // registration only runs after a successful install.
     const separator = platform === 'windows' ? '; ' : ' && ';
     doCopy(`${PACKAGE_MANAGER_METHODS[installMethod].installCommand}${separator}${registerCommand}`);
-  }, [command, registerCommand, installMethod, platform, doCopy, validateBeforeAction]);
+  }, [command, registerCommand, installMethod, platform, doCopy, validateBeforeAction, rotateMachineId]);
 
   // Corner copy buttons take their own clipboard hook so the main button's
   // "copied" checkmark doesn't light up for a box-level copy.
@@ -175,7 +186,8 @@ export function NewDeviceContent() {
   const copyInstallScript = useCallback(async () => {
     if (!(await validateBeforeAction())) return;
     copyBoxCommand(command);
-  }, [command, copyBoxCommand, validateBeforeAction]);
+    rotateMachineId();
+  }, [command, copyBoxCommand, validateBeforeAction, rotateMachineId]);
 
   const copyRegisterCommand = useCallback(async () => {
     if (!(await validateBeforeAction())) return;

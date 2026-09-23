@@ -3,6 +3,7 @@
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { ticketService } from '@/app/(app)/tickets/services';
 import { useTicketStatusesQuery } from '@/app/(app)/tickets/statuses/hooks/use-ticket-statuses-query';
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
@@ -33,7 +34,7 @@ const ORGANIZATIONS_SEARCH_QUERY = `#graphql
 // documents for the same reason.
 const DEVICES_SEARCH_QUERY = `#graphql
   query AssignmentsDevicesSearch($search: String, $first: Int) {
-    devices(search: $search, first: $first) { edges { node { id hostname displayName } } }
+    devices(search: $search, first: $first) { edges { node { id hostname displayName nickname } } }
   }
 `;
 
@@ -53,11 +54,16 @@ const fetchCustomers = async (search: string): Promise<AssignmentSearchOption[]>
 
 const fetchDevices = async (search: string): Promise<AssignmentSearchOption[]> => {
   const data = await postGraphQl<{
-    devices: ConnectionEdges<{ id: string; hostname: string | null; displayName: string | null }>;
+    devices: ConnectionEdges<{
+      id: string;
+      hostname: string | null;
+      displayName: string | null;
+      nickname: string | null;
+    }>;
   }>(DEVICES_SEARCH_QUERY, { search, first: PAGE_SIZE });
   return data.devices.edges.map(({ node }) => ({
     value: node.id,
-    label: node.displayName || node.hostname || node.id,
+    label: getDeviceName(node) || node.id,
   }));
 };
 
@@ -95,6 +101,7 @@ const EMPTY_OPTIONS: AssignmentSearchOption[] = [];
 function useServerSearchOptions(
   targetType: AssignmentTargetType,
   search: string,
+  enabled: boolean,
 ): { options: AssignmentSearchOption[]; isLoading: boolean } {
   const debouncedSearch = useDebounce(search, 300);
   const fetcher = SERVER_SEARCH_FETCHERS[targetType];
@@ -102,7 +109,7 @@ function useServerSearchOptions(
   // (the API takes no status enum), so it waits for the status snapshot —
   // cached and shared with the tickets pages.
   const isTicket = targetType === 'TICKET';
-  const statusesQuery = useTicketStatusesQuery({ enabled: isTicket });
+  const statusesQuery = useTicketStatusesQuery({ enabled: enabled && isTicket });
   const nonArchivedStatusIds = useMemo(
     () => statusesQuery.data?.snapshot.filter(s => s.kind !== TICKET_STATUS_KIND.ARCHIVED).map(s => s.id),
     [statusesQuery.data],
@@ -113,7 +120,7 @@ function useServerSearchOptions(
       if (isTicket) return fetchTickets(debouncedSearch, nonArchivedStatusIds ?? []);
       return fetcher ? fetcher(debouncedSearch) : Promise.resolve(EMPTY_OPTIONS);
     },
-    enabled: isTicket ? !!nonArchivedStatusIds?.length : !!fetcher,
+    enabled: enabled && (isTicket ? !!nonArchivedStatusIds?.length : !!fetcher),
     staleTime: 30_000,
   });
   return {
@@ -122,11 +129,15 @@ function useServerSearchOptions(
   };
 }
 
-function useKnowledgeArticleOptions(search: string): { options: AssignmentSearchOption[]; isLoading: boolean } {
+function useKnowledgeArticleOptions(
+  search: string,
+  enabled: boolean,
+): { options: AssignmentSearchOption[]; isLoading: boolean } {
   const query = useQuery({
     queryKey: ['assignments', 'search', 'KNOWLEDGE_ARTICLE'],
     queryFn: fetchKnowledgeArticles,
     staleTime: 30_000,
+    enabled,
   });
   const debouncedSearch = useDebounce(search, 300);
   const options = useMemo(() => {
@@ -138,11 +149,13 @@ function useKnowledgeArticleOptions(search: string): { options: AssignmentSearch
   return { options, isLoading: query.isLoading };
 }
 
+/** `enabled` false keeps every request off — a read-only row has nothing to search. */
 export function useAssignmentSearch(
   targetType: AssignmentTargetType,
   search: string,
+  enabled = true,
 ): { options: AssignmentSearchOption[]; isLoading: boolean } {
-  const articleResult = useKnowledgeArticleOptions(search);
-  const serverResult = useServerSearchOptions(targetType, search);
+  const articleResult = useKnowledgeArticleOptions(search, enabled);
+  const serverResult = useServerSearchOptions(targetType, search, enabled);
   return targetType === 'KNOWLEDGE_ARTICLE' ? articleResult : serverResult;
 }

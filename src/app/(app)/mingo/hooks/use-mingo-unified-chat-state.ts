@@ -48,7 +48,12 @@ import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
-import { CONTEXT_ITEMS_MAX, RECENT_VIEWS_MAX } from '../context/context-types';
+import {
+  CONTEXT_ENTITY_KIND,
+  CONTEXT_ENTITY_MARKER,
+  CONTEXT_ITEMS_MAX,
+  RECENT_VIEWS_MAX,
+} from '../context/context-types';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
@@ -58,6 +63,9 @@ import { useMingoDialogs } from './use-mingo-dialogs';
 import { useMingoRealtimeSubscription } from './use-mingo-realtime-subscription';
 
 const ADMIN_CHAT_TYPE = 'ADMIN_AI_CHAT' as const;
+
+/** The composer's inline incident mention: `@insight:<stored id>`, a whole token. */
+const INSIGHT_MENTION = new RegExp(`(?:^|\\s)@${CONTEXT_ENTITY_MARKER.INSIGHT}:(\\S+)`);
 const WELCOME_TEXT = "Hi! I'm Mingo AI, ready to help with your technical tasks. What can I do for you?";
 
 /** Metadata frame shape emitted by `<DialogSubscription onMetadata>`. */
@@ -407,7 +415,17 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       const trimmed = text.trim();
       if (!trimmed) return;
 
-      const newId = await createDialog();
+      // A chat whose first message references an incident is listed under it.
+      // Read off the message itself, so nothing else's first send — a
+      // quick-action chip, a launcher prompt — can inherit a stale link. The
+      // strip is one carrier; the `@insight:<id>` token in the text is the
+      // other, and the one that holds on the "Fix with Mingo" path: the
+      // prefilled mention reached the send as text with `contextItems` absent
+      // (observed), and the token is what the server resolves anyway.
+      const insightId =
+        context?.contextItems?.find(item => item.type === CONTEXT_ENTITY_KIND.INSIGHT)?.id ??
+        INSIGHT_MENTION.exec(trimmed)?.[1];
+      const newId = await createDialog(insightId);
       if (!newId) return;
       addMessage(newId, {
         id: `welcome-${newId}`,

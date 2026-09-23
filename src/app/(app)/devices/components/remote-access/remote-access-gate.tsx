@@ -1,15 +1,17 @@
 'use client';
 
 import { Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Loading01Icon, ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Loader2 } from 'lucide-react';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import { useEffectiveDeviceRemoteAccessMode } from '../../hooks/use-remote-access-policy';
+import { useRemoteSession } from '../../hooks/use-remote-session';
 import { mockRemoteAccessDecision } from '../../services/remote-access-approval-service';
+import { RemoteAccessSessionProvider } from './remote-access-session-context';
 
 interface RemoteAccessGateProps {
   deviceId: string;
@@ -66,18 +68,28 @@ export function RemoteAccessGate({
   children,
 }: RemoteAccessGateProps) {
   const gate = useRemoteAccessApprovalGate();
+  // The dev server forces the gate on before the flags answer; the request
+  // must still wait for them, because `remote-access-approval-api` decides
+  // which backend it is created on.
+  const flagsReady = useFeatureFlagsReady();
   const approval = useRemoteAccessApproval(deviceId, organizationId);
   // Temporary QA tooling for the mock service; appearing late is fine here.
   const showMockTools = useRemoteAccessMockTools();
 
   // Policy sync (CU-86akeqw8b): the effective mode decides the flow shape -
   // DENY_ACCESS never requests, NOTIFY_ONLY / SILENT_ACCESS auto-approve on
-  // the service side.
-  const effectiveMode = useEffectiveDeviceRemoteAccessMode({ machineId: deviceId, id: deviceId, organizationId });
-  const policyLoading = gate === 'on' && effectiveMode === undefined;
-  // Either the policy read says DENY up front, or a create raced a policy
-  // change and came back DENIED with the resolved mode recorded.
-  const policyDenied = effectiveMode === 'DENY_ACCESS' || approval.request?.resolvedMode === 'DENY_ACCESS';
+  // the service side. The pre-read exists for the mock only: the real API
+  // resolves the policy inside create and answers DENIED with the mode
+  // recorded, so against it the response is the only source of truth.
+  const effectiveMode = useEffectiveDeviceRemoteAccessMode(
+    approval.isMock ? { machineId: deviceId, id: deviceId, organizationId } : null,
+  );
+  const policyLoading = gate === 'on' && (!flagsReady || (approval.isMock && effectiveMode === undefined));
+  // Either the mock policy read says DENY up front, or create came back
+  // DENIED by policy (DENY_ACCESS recorded as the resolved mode).
+  const policyDenied =
+    (approval.isMock && effectiveMode === 'DENY_ACCESS') ||
+    (approval.request?.status === 'DENIED' && approval.request.mode === 'DENY_ACCESS');
 
   // Nothing to type - fire the request as soon as the policy is known. Keyed
   // off `state === 'idle'` rather than a one-shot flag: StrictMode's dev
@@ -104,7 +116,13 @@ export function RemoteAccessGate({
 
   if (gate === 'off') return <>{children}</>;
   if (gate === 'loading') return <CompactPageLoader />;
-  if (approval.state === 'approved') return <>{children}</>;
+  if (approval.state === 'approved') {
+    return (
+      <ApprovedSessionScope deviceId={deviceId} requestId={approval.request?.requestId ?? null} live={!approval.isMock}>
+        {children}
+      </ApprovedSessionScope>
+    );
+  }
 
   const target = deviceName || 'this device';
 
@@ -115,7 +133,7 @@ export function RemoteAccessGate({
 
   let body: ReactNode;
   if (policyLoading) {
-    body = <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />;
+    body = <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />;
   } else if (policyDenied) {
     // Designer decision: DENY_ACCESS disables the entry points in place; this
     // screen only exists for direct URLs, which never passed through a menu.
@@ -134,12 +152,12 @@ export function RemoteAccessGate({
   } else if (approval.state === 'idle' || approval.state === 'requesting') {
     // Auto-request in flight (NOTIFY/SILENT settle instantly; APPROVAL_REQUIRED
     // proceeds to the awaiting screen).
-    body = <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />;
+    body = <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />;
   } else if (approval.state === 'awaiting') {
     const request = approval.request;
     body = (
       <>
-        <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
+        <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
         <div className="flex flex-col items-center gap-[var(--spacing-system-xxs)] text-center">
           <h2 className="text-ods-text-primary text-h3">Waiting for approval</h2>
           <p className="text-ods-text-secondary text-h6">
@@ -165,7 +183,7 @@ export function RemoteAccessGate({
         >
           Cancel Request
         </Button>
-        {showMockTools && request && (
+        {approval.isMock && showMockTools && request && (
           <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)] rounded-md border border-dashed border-ods-border p-[var(--spacing-system-sf)]">
             <span className="text-ods-text-muted text-h6">Mock service - simulate the end user's decision</span>
             <div className="flex items-stretch gap-[var(--spacing-system-xsf)]">
@@ -203,12 +221,20 @@ export function RemoteAccessGate({
     );
   } else if (approval.state === 'denied') {
     // "Access declined" mockup (1036-31838): a single way out, no retry - the
-    // technician asks again by starting over from the device page.
+    // technician asks again by starting over from the device page. The copy
+    // tells a user's Decline from the policy fallback (no client to ask, or no
+    // answer, with the fallback set to Deny) without a GET - decisionSource
+    // comes with the decision event / the request object.
+    const fallback = approval.request?.decisionSource === 'FALLBACK';
     body = (
       <NoData
         icon={<ScanXmarkIcon />}
         title="Remote access declined"
-        description="The user declined your remote access request."
+        description={
+          fallback
+            ? `Nobody on ${target} could answer the request, and the remote access policy denies access in that case.`
+            : 'The user declined your remote access request.'
+        }
         button={
           <Button type="button" variant="outline" onClick={onBack}>
             Back to Device Details
@@ -217,18 +243,32 @@ export function RemoteAccessGate({
       />
     );
   } else {
-    // timed_out / error: no dedicated mockups - same placeholder pattern as
-    // the declined and connection-failed screens, with a Retry.
+    // timed_out / busy / unreachable / error: no dedicated mockups - same
+    // placeholder pattern as the declined and connection-failed screens, with
+    // a Retry.
     const copy =
       approval.state === 'timed_out'
         ? {
             title: 'No response',
             description: `Nobody answered the request on ${target} before it expired.`,
           }
-        : {
-            title: 'Request failed',
-            description: approval.error ?? 'Something went wrong while requesting access.',
-          };
+        : approval.state === 'busy'
+          ? {
+              title: 'Device is busy',
+              description:
+                approval.errorCode === 'DEVICE_HAS_ACTIVE_SESSION'
+                  ? `Another technician has an active remote session on ${target}. Try again once it ends.`
+                  : `Another technician is waiting for approval on ${target}. Try again in a moment.`,
+            }
+          : approval.state === 'unreachable'
+            ? {
+                title: "Couldn't reach the device",
+                description: `The request could not be delivered to ${target}. Nothing was sent, so it is safe to retry.`,
+              }
+            : {
+                title: 'Request failed',
+                description: approval.error ?? 'Something went wrong while requesting access.',
+              };
     body = (
       <NoData
         icon={<ScanXmarkIcon />}
@@ -262,4 +302,26 @@ export function RemoteAccessGate({
       </div>
     </PageLayout>
   );
+}
+
+/**
+ * Mounted for the approved session only: resolves the backend session record
+ * behind the request (its id ends the session, its dialog id feeds the chat)
+ * and hands it to the surface. On the mock there is no record; the surface
+ * then runs without lifecycle events, as before.
+ */
+function ApprovedSessionScope({
+  deviceId,
+  requestId,
+  live,
+  children,
+}: {
+  deviceId: string;
+  requestId: string | null;
+  live: boolean;
+  children: ReactNode;
+}) {
+  const { session, ended, endSession } = useRemoteSession(deviceId, requestId, live);
+  const value = useMemo(() => ({ requestId, session, ended, endSession }), [requestId, session, ended, endSession]);
+  return <RemoteAccessSessionProvider value={value}>{children}</RemoteAccessSessionProvider>;
 }

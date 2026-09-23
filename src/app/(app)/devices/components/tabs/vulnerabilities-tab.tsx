@@ -1,6 +1,5 @@
 'use client';
 
-import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import {
   ArrowRightUpIcon,
   BracketSquareCheckIcon,
@@ -17,11 +16,12 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
-import { differenceInCalendarDays } from 'date-fns';
 import { useCallback, useMemo, useState } from 'react';
+import { cveSeverityRank, resolveCveSeverity } from '@/app/components/shared/cve/cve-severity';
+import { CveSeverityTag } from '@/app/components/shared/cve/cve-severity-tag';
+import { DateWithAge } from '@/app/components/shared/date-with-age';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { formatDate } from '@/lib/format-date';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
 import { deviceQueryKeys } from '../../utils/query-keys';
 import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../../utils/vulnerabilities-empty-state';
@@ -41,40 +41,19 @@ interface VulnerabilityWithSoftware extends Vulnerability {
   unique_key: string; // Unique identifier for React keys
 }
 
-type Severity = 'critical' | 'high' | 'medium' | 'low';
-
-const SEVERITY_RANK: Record<Severity, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-const SEVERITY_VARIANT: Record<Severity, 'critical' | 'error' | 'warning' | 'grey'> = {
-  critical: 'critical',
-  high: 'error',
-  medium: 'warning',
-  low: 'grey',
-};
-
 const EMPTY_COLUMN_FILTERS: never[] = [];
-
-/** CVSS v3 band → severity. */
-function severityFromScore(score: number): Severity {
-  if (score >= 9) return 'critical';
-  if (score >= 7) return 'high';
-  if (score >= 4) return 'medium';
-  return 'low';
-}
 
 /** Affected package for the mobile fold — name and version are separate lines from `md`. */
 function softwareLabel(vuln: VulnerabilityWithSoftware): string {
   return vuln.software_version ? `${vuln.software_name} · ${vuln.software_version}` : vuln.software_name;
 }
 
-// Prefer the real Fleet CVSS score; fall back to a year-based heuristic when it's absent.
-function getSeverity(vuln: { cve: string; cvss_score?: number | null }): Severity {
-  if (typeof vuln.cvss_score === 'number') return severityFromScore(vuln.cvss_score);
-  const year = Number.parseInt(vuln.cve.match(/CVE-(\d{4})/)?.[1] || '0', 10);
-  const currentYear = new Date().getFullYear();
-  if (currentYear - year === 0) return 'critical';
-  if (currentYear - year <= 1) return 'high';
-  if (currentYear - year <= 3) return 'medium';
-  return 'low';
+/**
+ * The band a Fleet vulnerability rates by its CVSS score; null without one —
+ * unrated stays unrated rather than being guessed.
+ */
+function severityOf(vuln: { cvss_score?: number | null }) {
+  return resolveCveSeverity(null, vuln.cvss_score);
 }
 
 export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
@@ -134,20 +113,13 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
       {
         id: VULNERABILITY_COLUMNS.severity.id,
         header: VULNERABILITY_COLUMNS.severity.header,
-        accessorFn: (row: VulnerabilityWithSoftware) => SEVERITY_RANK[getSeverity(row)],
-        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => {
-          const severity = getSeverity(row.original);
-          const score = row.original.cvss_score;
-          return (
-            <div className="flex min-w-0 flex-col items-start gap-1">
-              <Tag label={severity.toUpperCase()} variant={SEVERITY_VARIANT[severity]} />
-              {typeof score === 'number' && <span className="text-ods-text-secondary text-h6">CVSS {score}</span>}
-            </div>
-          );
-        },
+        accessorFn: (row: VulnerabilityWithSoftware) => cveSeverityRank(severityOf(row)),
+        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
+          <CveSeverityTag severity={null} cvssScore={row.original.cvss_score} />
+        ),
         enableSorting: true,
         sortingFn: (a: Row<VulnerabilityWithSoftware>, b: Row<VulnerabilityWithSoftware>) =>
-          SEVERITY_RANK[getSeverity(a.original)] - SEVERITY_RANK[getSeverity(b.original)],
+          cveSeverityRank(severityOf(a.original)) - cveSeverityRank(severityOf(b.original)),
         meta: liveColumnMeta(VULNERABILITY_COLUMNS.severity),
       },
       {
@@ -168,21 +140,7 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
       {
         accessorKey: 'created_at',
         header: VULNERABILITY_COLUMNS.discovered.header,
-        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => {
-          const discovered = new Date(row.original.created_at);
-          if (Number.isNaN(discovered.getTime())) {
-            return <span className="text-ods-text-secondary text-h4">—</span>;
-          }
-          const days = differenceInCalendarDays(new Date(), discovered);
-          return (
-            <div className="flex min-w-0 flex-col justify-center">
-              <span className="truncate text-h4">{formatDate(row.original.created_at)}</span>
-              <span className="truncate text-ods-text-secondary text-h6">
-                {days} {days === 1 ? 'day' : 'days'}
-              </span>
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => <DateWithAge date={row.original.created_at} />,
         enableSorting: true,
         // Least-needed column for mobile triage — hidden below md, where the row keeps
         // CVE (+ the folded-in package), severity and the details button.

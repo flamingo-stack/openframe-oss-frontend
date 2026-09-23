@@ -6,15 +6,16 @@ import type {
 import { remoteAccessPolicyService } from './remote-access-policy-service';
 
 /**
- * Remote-access approval backend surface (CU-86ajx03db). The approval API
- * (CU-86ajx02gz) is still in design, so the app runs on
- * `MockRemoteAccessApprovalService`; swapping in the real client is one new
- * implementation of this interface plus flipping the singleton below - the
- * hook and gate UI stay untouched.
+ * Remote-access approval backend surface (CU-86ajx03db). Two implementations:
+ * `RemoteAccessApprovalApiService` (remote-access-approval-api-service.ts) for
+ * the real approval API (CU-86ajx02gz) and the in-memory
+ * `MockRemoteAccessApprovalService` below; `useRemoteAccessApprovalService`
+ * picks one by the `remote-access-approval-api` flag.
  *
- * `onDecision` models the push channel (NATS `REMOTE_ACCESS_DECISION` on the
- * technician's notification subject); `get` is the polling fallback the real
- * flow keeps for missed pushes.
+ * `onDecision` is the mock's push channel (its settle lever notifies
+ * listeners); for the real API the decision arrives on the NATS notification
+ * subject and the hook subscribes to it. `get` is the polling fallback both
+ * flows keep for missed pushes.
  */
 export interface IRemoteAccessApprovalService {
   /**
@@ -36,14 +37,21 @@ export interface IRemoteAccessApprovalService {
 const MOCK_LATENCY_MS = 350;
 /** Client ack arrives shortly after create - PENDING -> DELIVERED. */
 const MOCK_DELIVERY_MS = 1200;
-/** Matches the spec's default approval timeout. */
-const MOCK_TIMEOUT_MS = 60_000;
+/** Matches the fixed approval timeout (30 s, decision 2026-09-18). */
+const MOCK_TIMEOUT_MS = 30_000;
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-const SETTLED: ReadonlySet<RemoteAccessRequestStatus> = new Set(['APPROVED', 'DENIED', 'TIMED_OUT', 'REVOKED']);
+const SETTLED: ReadonlySet<RemoteAccessRequestStatus> = new Set([
+  'APPROVED',
+  'DENIED',
+  'TIMED_OUT',
+  'REVOKED',
+  'CANCELLED',
+  'EXPIRED',
+]);
 
 export function isSettledRequestStatus(status: RemoteAccessRequestStatus): boolean {
   return SETTLED.has(status);
@@ -88,7 +96,9 @@ class MockRemoteAccessApprovalService implements IRemoteAccessApprovalService {
       sessionKind: input.sessionKind,
       status: resolvedMode === 'DENY_ACCESS' ? 'DENIED' : resolvedMode === 'APPROVAL_REQUIRED' ? 'PENDING' : 'APPROVED',
       reason: input.reason,
-      resolvedMode,
+      ticketId: input.ticketId,
+      mode: resolvedMode,
+      decisionSource: resolvedMode === 'APPROVAL_REQUIRED' ? null : 'POLICY',
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + MOCK_TIMEOUT_MS).toISOString(),
     };
@@ -101,7 +111,7 @@ class MockRemoteAccessApprovalService implements IRemoteAccessApprovalService {
       entry.timers.push(
         setTimeout(() => {
           if (entry.request.status === 'PENDING') {
-            entry.request = { ...entry.request, status: 'DELIVERED' };
+            entry.request = { ...entry.request, status: 'DELIVERED', deliveredAt: new Date().toISOString() };
             this.notify(entry);
           }
         }, MOCK_DELIVERY_MS),
@@ -142,7 +152,12 @@ class MockRemoteAccessApprovalService implements IRemoteAccessApprovalService {
   ): void {
     const entry = this.requests.get(requestId);
     if (!entry || isSettledRequestStatus(entry.request.status)) return;
-    entry.request = { ...entry.request, status };
+    entry.request = {
+      ...entry.request,
+      status,
+      decisionSource: status === 'TIMED_OUT' ? 'TIMEOUT' : status === 'REVOKED' ? 'TECHNICIAN' : 'USER',
+      resolvedAt: new Date().toISOString(),
+    };
     for (const timer of entry.timers) clearTimeout(timer);
     entry.timers = [];
     if (this.openByDevice.get(entry.request.deviceId) === requestId) {
@@ -157,7 +172,7 @@ class MockRemoteAccessApprovalService implements IRemoteAccessApprovalService {
   }
 }
 
-export const remoteAccessApprovalService: IRemoteAccessApprovalService = new MockRemoteAccessApprovalService();
+export const mockRemoteAccessApprovalService: IRemoteAccessApprovalService = new MockRemoteAccessApprovalService();
 
 /**
  * The mock's decision lever, exported ONLY for the simulation controls on the
@@ -165,7 +180,7 @@ export const remoteAccessApprovalService: IRemoteAccessApprovalService = new Moc
  * from the end user's machine - so this is a no-op once the mock is gone.
  */
 export const mockRemoteAccessDecision = (requestId: string, status: 'APPROVED' | 'DENIED' | 'TIMED_OUT'): void => {
-  if (remoteAccessApprovalService instanceof MockRemoteAccessApprovalService) {
-    remoteAccessApprovalService.settle(requestId, status);
+  if (mockRemoteAccessApprovalService instanceof MockRemoteAccessApprovalService) {
+    mockRemoteAccessApprovalService.settle(requestId, status);
   }
 };

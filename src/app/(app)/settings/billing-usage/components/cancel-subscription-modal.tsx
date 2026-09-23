@@ -16,6 +16,7 @@ import { graphql, type PreloadedQuery, usePreloadedQuery, useQueryLoader } from 
 import type { cancelSubscriptionModalPreviewQuery as CancelSubscriptionModalPreviewQueryType } from '@/__generated__/cancelSubscriptionModalPreviewQuery.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { formatDate } from '@/lib/format-date';
+import { formatCount } from '@/lib/format-number';
 
 // Live-from-Stripe preview of the effective cancellation date, fetched lazily
 // only when the modal opens (subscription.cancellationEffectiveAt is null while
@@ -57,21 +58,9 @@ interface CancelSubscriptionModalProps {
   onConfirm: (reason: CancelReason, comment: string) => void;
 }
 
-function formatEndDate(iso: string | null): string {
-  if (!iso) return '—';
-  try {
-    return formatDate(iso);
-  } catch {
-    return iso;
-  }
-}
-
-function formatCount(value: number): string {
-  if (value >= 1000) {
-    const rounded = Math.floor(value / 100) * 100;
-    return `${rounded.toLocaleString('en-US')}+`;
-  }
-  return value.toLocaleString('en-US');
+/** "1,200+": a count rounded down to the hundred once it reaches a thousand — what the user is about to lose, not an audit. */
+function formatApproximateCount(value: number): string {
+  return value >= 1000 ? `${formatCount(Math.floor(value / 100) * 100)}+` : formatCount(value);
 }
 
 export function CancelSubscriptionModal({
@@ -151,7 +140,7 @@ export function CancelSubscriptionModal({
             <CancellationEffectiveDate queryRef={previewRef} fallback={endDate} />
           </Suspense>
         ) : (
-          <span className="text-ods-warning">{formatEndDate(endDate)}</span>
+          <span className="text-ods-warning">{formatDate(endDate)}</span>
         )}
       </div>
       <p className="text-ods-text-primary text-h4">
@@ -207,7 +196,7 @@ function CancellationEffectiveDate({
   fallback: string | null;
 }) {
   const data = usePreloadedQuery(cancelSubscriptionModalPreviewQuery, queryRef);
-  return <span className="text-ods-warning">{formatEndDate(data.subscriptionCancellationPreview ?? fallback)}</span>;
+  return <span className="text-ods-warning">{formatDate(data.subscriptionCancellationPreview ?? fallback)}</span>;
 }
 
 function DataLossItem({ children }: { children: React.ReactNode }) {
@@ -220,7 +209,7 @@ function DataLossItem({ children }: { children: React.ReactNode }) {
 }
 
 function Stat({ value }: { value: number }) {
-  return <span className="text-ods-warning text-h4">{formatCount(value)}</span>;
+  return <span className="text-ods-warning text-h4">{formatApproximateCount(value)}</span>;
 }
 
 // Rows with a zero metric are hidden. The policies/queries row is dropped only

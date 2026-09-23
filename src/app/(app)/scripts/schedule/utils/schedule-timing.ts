@@ -1,4 +1,5 @@
 import { ScheduleOfflineBehavior, ScheduleTimeReference, ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate, formatTime } from '@/lib/format-date';
 
 /**
@@ -677,7 +678,7 @@ export function formatScheduleStartAt(
   iso: string | null | undefined,
   timeReference?: ScheduleTimeReference | string | null,
 ): { date: string; time: string } {
-  if (!iso) return { date: '—', time: '—' };
+  if (!iso) return { date: EMPTY_VALUE, time: EMPTY_VALUE };
   const d = fromScheduleInstant(iso, timeReference);
   return { date: formatDate(d), time: formatTime(d) };
 }

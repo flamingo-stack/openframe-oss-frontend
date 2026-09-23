@@ -23,6 +23,7 @@ import {
   scheduleExecutionsRelayQuery,
 } from '@/graphql/scripts/schedule-executions-relay';
 import { scheduleRunDetailRelayQuery } from '@/graphql/scripts/schedule-run-detail-relay';
+import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
@@ -39,7 +40,6 @@ import {
 import {
   executionStatusLabel,
   executionStatusVariant,
-  formatExecutionTimestamp,
   initiatorInitials,
   initiatorName,
 } from '../../shared/utils/execution-helpers';
@@ -145,10 +145,10 @@ function RunInfoBar({ run }: { run: RunNode }) {
       </div>
       <div className="grid grid-cols-2">
         <RunInfoCell label="Start Time">
-          <TruncateText>{formatExecutionTimestamp(dispatchedAt)}</TruncateText>
+          <TruncateText>{formatDateTime(dispatchedAt)}</TruncateText>
         </RunInfoCell>
         <RunInfoCell label="Finish Time">
-          <TruncateText>{formatExecutionTimestamp(finishedAt)}</TruncateText>
+          <TruncateText>{formatDateTime(finishedAt)}</TruncateText>
         </RunInfoCell>
       </div>
     </div>
@@ -354,6 +354,7 @@ function RunExecutionRows({
       hasNext={hasNext}
       isLoadingNext={isLoadingNext}
       onLoadMore={fetchNextPage}
+      loadedCount={data.scheduleExecutions?.edges?.length ?? 0}
       {...tableState}
     />
   );
