@@ -37,104 +37,109 @@ const INSTALL_CHECK_DELAY_MS = 10_000;
 const originalCreateServer = http.createServer;
 let guardInstalled = false;
 
-http.createServer = function createServerWithStatusRepair(...args) {
-  const handlerIndex = args.findIndex(arg => typeof arg === 'function');
+if (!originalCreateServer.__statusRepairWrapped) {
+  const createServerWithStatusRepair = function createServerWithStatusRepair(...args) {
+    const handlerIndex = args.findIndex(arg => typeof arg === 'function');
 
-  if (handlerIndex !== -1) {
-    const originalHandler = args[handlerIndex];
-    guardInstalled = true;
+    if (handlerIndex !== -1) {
+      const originalHandler = args[handlerIndex];
+      guardInstalled = true;
 
-    args[handlerIndex] = function repairingHandler(req, res) {
-      const originalWriteHead = res.writeHead;
-      const originalWrite = res.write;
-      const originalEnd = res.end;
-      let repairing = false;
-      let bodySent = false;
+      args[handlerIndex] = function repairingHandler(req, res) {
+        const originalWriteHead = res.writeHead;
+        const originalWrite = res.write;
+        const originalEnd = res.end;
+        let repairing = false;
+        let bodySent = false;
 
-      const isBotched405 = status => status === 500 && Boolean(res.getHeader('Allow'));
+        const isBotched405 = status => status === 500 && Boolean(res.getHeader('Allow'));
 
-      const applyRepair = () => {
-        repairing = true;
-        // All three described the asset, not this body.
-        res.removeHeader('ETag');
-        res.removeHeader('Transfer-Encoding'); // would conflict with Content-Length
-        res.setHeader('Cache-Control', 'no-store');
-        res.setHeader('Content-Type', 'text/plain');
-        res.setHeader('Content-Length', String(BODY_LENGTH));
-      };
+        const applyRepair = () => {
+          repairing = true;
+          // All three described the asset, not this body.
+          res.removeHeader('ETag');
+          res.removeHeader('Transfer-Encoding'); // would conflict with Content-Length
+          res.setHeader('Cache-Control', 'no-store');
+          res.setHeader('Content-Type', 'text/plain');
+          res.setHeader('Content-Length', String(BODY_LENGTH));
+        };
 
-      // Must hook writeHead: Next calls writeHead(500) explicitly, so by the
-      // time end() runs the headers are already sent.
-      res.writeHead = function patchedWriteHead(...headArgs) {
-        if (repairing || isBotched405(headArgs[0])) {
-          applyRepair();
-          // Status only — no forwarded arguments. A headers argument takes
-          // precedence over applyRepair's setHeader calls, so passing it on
-          // would re-attach the asset's Content-Length/ETag to an 18-byte body,
-          // and the 500's reason phrase would read "405 Internal Server Error".
-          // `repairing` is in the condition, not `!repairing`: a repair started
-          // from write() has not flushed headers, so a later writeHead() must
-          // stay repaired rather than fall through and re-open the response.
-          return originalWriteHead.call(this, 405);
-        }
-        return originalWriteHead.apply(this, headArgs);
-      };
-
-      // Everything the original response would have written is discarded: only
-      // BODY may reach the wire, or the bytes sent stop matching Content-Length
-      // and the surplus is parsed as the head of the next keep-alive response.
-      // The check has to run here rather than lean on writeHead: a first write()
-      // flushes the headers implicitly, so by the time writeHead repairs, this
-      // chunk is already going out.
-      res.write = function patchedWrite(...writeArgs) {
-        if (!repairing && !res.headersSent && isBotched405(res.statusCode)) {
-          res.statusCode = 405;
-          applyRepair();
-        }
-        if (!repairing) {
-          return originalWrite.apply(this, writeArgs);
-        }
-        const callback = writeArgs.find(arg => typeof arg === 'function');
-        if (callback) process.nextTick(callback);
-        return true;
-      };
-
-      res.end = function patchedEnd(...endArgs) {
-        if (!repairing && !res.headersSent && isBotched405(res.statusCode)) {
-          res.statusCode = 405;
-          applyRepair();
-        }
-        if (repairing) {
-          const callback = endArgs.find(arg => typeof arg === 'function');
-          // BODY goes out once. A second end() must stay the no-op it is
-          // without this wrapper — passing a chunk after the stream finished
-          // emits ERR_STREAM_WRITE_AFTER_END on the response, which nothing
-          // listens for and which takes the process down.
-          if (bodySent) {
-            return callback ? originalEnd.call(this, callback) : originalEnd.call(this);
+        // Must hook writeHead: Next calls writeHead(500) explicitly, so by the
+        // time end() runs the headers are already sent.
+        res.writeHead = function patchedWriteHead(...headArgs) {
+          if (repairing || isBotched405(headArgs[0])) {
+            applyRepair();
+            // Status only — no forwarded arguments. A headers argument takes
+            // precedence over applyRepair's setHeader calls, so passing it on
+            // would re-attach the asset's Content-Length/ETag to an 18-byte body,
+            // and the 500's reason phrase would read "405 Internal Server Error".
+            // `repairing` is in the condition, not `!repairing`: a repair started
+            // from write() has not flushed headers, so a later writeHead() must
+            // stay repaired rather than fall through and re-open the response.
+            return originalWriteHead.call(this, 405);
           }
-          bodySent = true;
-          return callback ? originalEnd.call(this, BODY, callback) : originalEnd.call(this, BODY);
-        }
-        return originalEnd.apply(this, endArgs);
+          return originalWriteHead.apply(this, headArgs);
+        };
+
+        // Everything the original response would have written is discarded: only
+        // BODY may reach the wire, or the bytes sent stop matching Content-Length
+        // and the surplus is parsed as the head of the next keep-alive response.
+        // The check has to run here rather than lean on writeHead: a first write()
+        // flushes the headers implicitly, so by the time writeHead repairs, this
+        // chunk is already going out.
+        res.write = function patchedWrite(...writeArgs) {
+          if (!repairing && !res.headersSent && isBotched405(res.statusCode)) {
+            res.statusCode = 405;
+            applyRepair();
+          }
+          if (!repairing) {
+            return originalWrite.apply(this, writeArgs);
+          }
+          const callback = writeArgs.find(arg => typeof arg === 'function');
+          if (callback) process.nextTick(callback);
+          return true;
+        };
+
+        res.end = function patchedEnd(...endArgs) {
+          if (!repairing && !res.headersSent && isBotched405(res.statusCode)) {
+            res.statusCode = 405;
+            applyRepair();
+          }
+          if (repairing) {
+            const callback = endArgs.find(arg => typeof arg === 'function');
+            // BODY goes out once. A second end() must stay the no-op it is
+            // without this wrapper — passing a chunk after the stream finished
+            // emits ERR_STREAM_WRITE_AFTER_END on the response, which nothing
+            // listens for and which takes the process down.
+            if (bodySent) {
+              return callback ? originalEnd.call(this, callback) : originalEnd.call(this);
+            }
+            bodySent = true;
+            return callback ? originalEnd.call(this, BODY, callback) : originalEnd.call(this, BODY);
+          }
+          return originalEnd.apply(this, endArgs);
+        };
+
+        return originalHandler.call(this, req, res);
       };
+    }
 
-      return originalHandler.call(this, req, res);
-    };
-  }
+    return originalCreateServer.apply(this, args);
+  };
 
-  return originalCreateServer.apply(this, args);
-};
+  createServerWithStatusRepair.__statusRepairWrapped = true;
+  http.createServer = createServerWithStatusRepair;
 
-// If a future Next stops building its listener via http.createServer this hook
-// silently no-ops and the 500s return. Alert on this string.
-setTimeout(() => {
-  if (!guardInstalled) {
-    console.error(
-      'server-entry: status-repair NOT installed — http.createServer was never called with a handler. ' +
-        'Non-GET on existing static files is emitting 500 again. See scripts/server-entry.js.',
-    );
-  }
-}, INSTALL_CHECK_DELAY_MS).unref();
+  // If a future Next stops building its listener via http.createServer this hook
+  // silently no-ops and the 500s return. Alert on this string.
+  setTimeout(() => {
+    if (!guardInstalled) {
+      console.error(
+        'server-entry: status-repair NOT installed — http.createServer was never called with a handler. ' +
+          'Non-GET on existing static files is emitting 500 again. See scripts/server-entry.js.',
+      );
+    }
+  }, INSTALL_CHECK_DELAY_MS).unref();
+}
 
 require('./server.js');
