@@ -19,6 +19,7 @@ import {
   type RemoteAccessRequestStatus,
 } from '../types/remote-access';
 import type { IRemoteAccessApprovalService } from './remote-access-approval-service';
+import { nullableTimestamp, oneOf, type RawWire, text, timestamp } from './remote-access-wire';
 
 /**
  * The real approval API (saas-tenant PR #3241 + saas-lib PR #885): the
@@ -114,36 +115,6 @@ const CREATE_ERROR_CODES: ReadonlySet<string> = new Set([
 /** A revoke of an already settled request: the outcome is the same, nothing left to cancel. */
 const REVOKE_SETTLED_CODE = 'REMOTE_ACCESS_REQUEST_SETTLED';
 
-type Raw = Record<string, unknown>;
-
-function text(raw: Raw, key: string): string | undefined {
-  const value = raw[key];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-/**
- * `Instant` is an untyped scalar for Relay: it arrives as an ISO-8601 string
- * (Spring's default), but a numeric epoch (seconds, possibly fractional, or
- * milliseconds) is accepted too, so a Jackson setting on one host cannot
- * silently break the countdown.
- */
-function timestamp(value: unknown): string | undefined {
-  if (typeof value === 'string' && value.length > 0) return value;
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    const millis = value < 1e12 ? value * 1000 : value;
-    return new Date(millis).toISOString();
-  }
-  return undefined;
-}
-
-function nullableTimestamp(value: unknown): string | null | undefined {
-  return value === null ? null : timestamp(value);
-}
-
-function oneOf<T extends string>(value: unknown, allowed: ReadonlySet<string>): T | undefined {
-  return typeof value === 'string' && allowed.has(value) ? (value as T) : undefined;
-}
-
 /** The wire request (the fragment's data) -> the app's read model. Throws on a body without the required fields. */
 export function fromWireRemoteAccessRequest(data: WireRequest): RemoteAccessRequest {
   const status = oneOf<RemoteAccessRequestStatus>(data.status, STATUSES);
@@ -178,7 +149,7 @@ function readRequest(ref: WireRequestKey): RemoteAccessRequest {
 /** A notification-subject payload -> the decision event, or `null` for anything else. */
 export function parseRemoteAccessDecisionEvent(payload: unknown): RemoteAccessDecisionEvent | null {
   if (!payload || typeof payload !== 'object') return null;
-  const raw = payload as Raw;
+  const raw = payload as RawWire;
   if (raw.type !== 'REMOTE_ACCESS_DECISION') return null;
   const requestId = text(raw, 'requestId');
   const status = oneOf<RemoteAccessDecisionEvent['status']>(

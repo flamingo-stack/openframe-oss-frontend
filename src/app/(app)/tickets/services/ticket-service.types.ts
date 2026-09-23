@@ -36,6 +36,9 @@ export interface FetchTicketsParams {
   tagIds?: string[];
   // Sent as `TicketFilterInput.hasUnreadNotifications: true`; the backend
   // treats false and null alike (no filter), so only `true` is ever sent.
+  // Despite the name it keeps the tickets whose client chat has messages the
+  // technicians have not read (`unreadMessageCount > 0`, openframe-saas-tenant#3301),
+  // so the filter matches the row badge.
   unreadOnly?: boolean;
   /** List sort; null/undefined keeps the board position order. */
   sort?: TicketListSort | null;
@@ -89,6 +92,9 @@ export interface TicketService {
   fetchMessages(params: FetchMessagesParams): Promise<MessagePage>;
   transitionTicket(ticketId: string, toStatusId: string): Promise<void>;
   reorderTicket(params: ReorderTicketParams): Promise<void>;
+  /** Resets the technicians' shared unread client-message counter of one dialog;
+   *  resolves to the server's count after the reset (0), throws on `userErrors`. */
+  markDialogMessagesRead(dialogId: string): Promise<number>;
   fetchTicketStatusTransitionRules(): Promise<TicketStatusTransitionRule[]>;
   sendMessage(dialogId: string, content: string, chatType: ChatType): Promise<void>;
   approveRequest(requestId: string): Promise<void>;

@@ -25,6 +25,7 @@ import {
 import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
+import type { FeatureFlagName } from '@/lib/feature-flags';
 import { CONTEXT_ENTITY_KIND, CONTEXT_ENTITY_MARKER, type ContextEntityKind } from './context-types';
 
 const KbArticleIcon = KB_ITEM_ICON[KnowledgeBaseItemType.ARTICLE];
@@ -111,22 +112,36 @@ export const MINGO_CONTEXT_ENTITY_TYPES: ChatContextEntityType[] = [
   },
 ];
 
-/** The kinds the Software module brings — offered only while `software-management` is on. */
-const SOFTWARE_KINDS: ReadonlySet<ContextEntityKind> = new Set([
-  CONTEXT_ENTITY_KIND.SOFTWARE,
-  CONTEXT_ENTITY_KIND.VULNERABILITY,
-]);
+/**
+ * The flag that turns on the module a kind belongs to. A kind listed here is
+ * offered only while its flag holds; the rest are always on. The type is the
+ * closed set of those flags, so a new entry cannot compile until the hook
+ * below reads its flag too.
+ */
+type ModuleFlag = Extract<FeatureFlagName, 'insights' | 'software-management'>;
 
-const TYPES_WITHOUT_SOFTWARE = MINGO_CONTEXT_ENTITY_TYPES.filter(t => !SOFTWARE_KINDS.has(t.type as ContextEntityKind));
+const KIND_FLAG: Partial<Record<ContextEntityKind, ModuleFlag>> = {
+  // The Incidents module — the same flag as its sidebar entry and its pages.
+  [CONTEXT_ENTITY_KIND.INSIGHT]: 'insights',
+  [CONTEXT_ENTITY_KIND.SOFTWARE]: 'software-management',
+  [CONTEXT_ENTITY_KIND.VULNERABILITY]: 'software-management',
+};
 
 /**
- * The picker's list, shaped by the flags. Two constant arrays, so the picker
- * config that memoizes on the result stays put while the flag holds still.
- * Appearing late is fine here: an entry absent until the flag answers changes
- * nothing else, and a mention already in a chat renders as a chip regardless
- * (`renderMingoMention` dispatches by marker, not by this list).
+ * The picker's list, shaped by the flags. The compiler memoizes the filter on
+ * the flag booleans, so the picker config that memoizes on the result stays
+ * put while the flags hold still. Appearing late is fine here: an entry absent
+ * until its flag answers changes nothing else, and a mention already in a chat
+ * renders as a chip regardless (`renderMingoMention` dispatches by marker, not
+ * by this list).
  */
 export function useMingoContextEntityTypes(): ChatContextEntityType[] {
-  const softwareEnabled = useFeatureFlag('software-management');
-  return softwareEnabled ? MINGO_CONTEXT_ENTITY_TYPES : TYPES_WITHOUT_SOFTWARE;
+  const enabled: Record<ModuleFlag, boolean> = {
+    insights: useFeatureFlag('insights'),
+    'software-management': useFeatureFlag('software-management'),
+  };
+  return MINGO_CONTEXT_ENTITY_TYPES.filter(t => {
+    const flag = KIND_FLAG[t.type as ContextEntityKind];
+    return flag === undefined || enabled[flag];
+  });
 }
