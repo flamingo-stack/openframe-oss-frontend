@@ -217,8 +217,9 @@ function dialogToBoardTicket(
     createdAt: dialog.statusUpdatedAt ?? dialog.createdAt,
     // The card has no numeric affordance — `BoardTicket` carries a boolean, which
     // draws the column-coloured border and the "New Message" tag. The exact count
-    // lives on the table row; here any unread at all is the signal.
-    hasNewMessage: (dialog.unreadNotificationCount ?? 0) > 0,
+    // lives on the table row; here any unread at all is the signal. Shared by
+    // every technician: once one of them reads the chat the tag drops for all.
+    hasNewMessage: (dialog.unreadMessageCount ?? 0) > 0,
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
     activity,

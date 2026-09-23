@@ -8,6 +8,7 @@ import {
   GET_TICKET_STATUS_TRANSITION_RULES_QUERY,
   GET_TICKETS_QUERY,
   getBoardColumnTicketsQuery,
+  MARK_DIALOG_MESSAGES_READ_MUTATION,
   REORDER_TICKET_MUTATION,
   TICKETS_DEFAULT_SORT,
   TRANSITION_TICKET_MUTATION,
@@ -49,7 +50,7 @@ interface TicketNode {
   assignedName?: string;
   assigneeImage?: { imageUrl: string; hash?: string };
   tags?: Array<{ id: string; key: string; color?: string }>;
-  unreadNotificationCount?: number;
+  unreadMessageCount?: number;
   lastActivityAt?: string;
   activityState?: TicketActivityState;
   escalatedByUser?: boolean | null;
@@ -134,6 +135,11 @@ interface StatusMutationPayload {
   userErrors: Array<{ field?: string[]; message: string }>;
 }
 
+interface MarkDialogMessagesReadPayload {
+  dialog: { id: string; unreadMessageCount: number } | null;
+  userErrors: Array<{ field?: string[]; message: string }>;
+}
+
 function normalizeTicketToDialog(ticket: TicketNode): Dialog {
   return {
     id: ticket.id,
@@ -176,7 +182,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     assigneeImageUrl: ticket.assigneeImage?.imageUrl,
     assigneeImageHash: ticket.assigneeImage?.hash,
     tags: ticket.tags,
-    unreadNotificationCount: ticket.unreadNotificationCount,
+    unreadMessageCount: ticket.unreadMessageCount,
     lastActivityAt: ticket.lastActivityAt ?? null,
     activityState: ticket.activityState,
     escalatedByUser: ticket.escalatedByUser,
@@ -373,6 +379,20 @@ export class TicketService implements TicketServiceInterface {
     }
 
     return TICKET_TO_DIALOG_STATUS[payload.ticket.status] || (payload.ticket.status as DialogStatus);
+  }
+
+  async markDialogMessagesRead(dialogId: string): Promise<number> {
+    const response = await apiClient.post<
+      GraphQlResponse<Record<'markDialogMessagesRead', MarkDialogMessagesReadPayload>>
+    >(API_ENDPOINTS.GRAPHQL, { query: MARK_DIALOG_MESSAGES_READ_MUTATION, variables: { input: { id: dialogId } } });
+
+    const payload = extractGraphQlData(response).markDialogMessagesRead;
+
+    if (payload.userErrors?.length) {
+      throw new Error(payload.userErrors[0].message);
+    }
+
+    return payload.dialog?.unreadMessageCount ?? 0;
   }
 
   async sendMessage(dialogId: string, content: string, chatType: ChatType): Promise<void> {

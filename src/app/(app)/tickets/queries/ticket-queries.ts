@@ -264,7 +264,7 @@ export const GET_TICKETS_QUERY = `
             color
           }
           # Unflagged, so it must not outrun the backend — see boardCardTicketFragment.
-          unreadNotificationCount
+          unreadMessageCount
           createdAt
           updatedAt
           resolvedAt
@@ -292,7 +292,8 @@ export const GET_TICKETS_QUERY = `
  * merely missing a badge. `resolvedBy` rides the `ai-resolution` flag for the
  * same reason.
  *
- * `unreadNotificationCount` is selected UNCONDITIONALLY and carries that same
+ * `unreadMessageCount` (the technicians' shared unread client-message counter,
+ * openframe-saas-tenant#3301) is selected UNCONDITIONALLY and carries that same
  * failure mode, because `ticket.graphqls` declares it with no feature flag —
  * there is no flag to ride, and borrowing an unrelated one (`notifications`
  * gates the notifications UI, not the ai-agent schema) would only move the
@@ -368,7 +369,7 @@ const boardCardTicketFragment = () => `
       key
       color
     }
-    unreadNotificationCount
+    unreadMessageCount
     lastActivityAt
     activityState
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
@@ -603,6 +604,21 @@ export const REQUEST_TICKET_REOPEN_MUTATION = `
     requestTicketReopen(input: $input) {
       ticketId
       targetStatusKind
+      userErrors { field message }
+    }
+  }
+`;
+
+/**
+ * Resets the caller's side of the dialog's unread client-message counter
+ * (`Dialog.unreadMessageCount`). For an admin token that is the side every
+ * technician shares, so one technician reading the chat clears the board's
+ * "New Message" badge for all of them. Idempotent; a reply resets it too.
+ */
+export const MARK_DIALOG_MESSAGES_READ_MUTATION = `
+  mutation MarkDialogMessagesRead($input: DialogIdInput!) {
+    markDialogMessagesRead(input: $input) {
+      dialog { id unreadMessageCount }
       userErrors { field message }
     }
   }

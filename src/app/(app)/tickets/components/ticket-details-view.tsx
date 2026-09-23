@@ -76,6 +76,7 @@ import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-qu
 import { useTicketDetailsStore } from '../stores/ticket-details-store';
 import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
+import { lastClientMessageId } from '../utils/client-chat-read';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
@@ -187,6 +188,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
 
   const { messages: clientMessages, isTyping: isClientChatTyping } = client;
+  // Re-arms the shared unread-message mark (TicketNotificationsAutoReader) on every
+  // end-user row the chat shows; technician and assistant rows do not move it.
+  const newestClientMessageId = lastClientMessageId(clientMessages);
 
   const isClientCompacting = useMemo(() => {
     const lastMsg = clientMessages.at(-1);
@@ -885,6 +889,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         ticketId={ticketId}
         dialogId={messageDialogId}
         clientChatOnScreen={clientChatOnScreen}
+        lastClientMessageId={newestClientMessageId}
       />
       <PageLayout
         title={dialog.title || 'Untitled Dialog'}

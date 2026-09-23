@@ -79,10 +79,11 @@ export interface Dialog {
   assigneeImageUrl?: string;
   assigneeImageHash?: string;
   tags?: Array<{ id: string; key: string; color?: string }>;
-  // How many notifications about this ticket the caller has not read
-  // (`Ticket.unreadNotificationCount`). Drives the per-row count in the table
-  // and the "New Message" highlight on the board card.
-  unreadNotificationCount?: number;
+  // How many client-chat messages the technicians have not read
+  // (`Ticket.unreadMessageCount`): ONE counter shared by every technician, so a
+  // ticket one technician opened shows no badge to the others. Drives the
+  // per-row count in the table and the "New Message" highlight on the board card.
+  unreadMessageCount?: number;
   // Canonical "last conversation activity" stamp (`Ticket.lastActivityAt`,
   // served with a createdAt fallback so it is never null on the BE). Moves on
   // any chat message, AI action, or lifecycle transition — unlike
