@@ -145,4 +145,75 @@ describe('session-activity', () => {
     window.dispatchEvent(new Event('focus'));
     expect(listener).toHaveBeenCalledTimes(1);
   });
+
+  // The auto-readers gate on the attention window and re-run on this edge. Without
+  // the input-resume edge a client message that arrived while the technician sat
+  // still in the ticket chat stayed unread until the board's poll badged the ticket.
+  describe('attention edge', () => {
+    it('fires on the first input after the attention window, once per silence', async () => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+      const { subscribeAttention, isSessionActive, ATTENTION_IDLE_MS } = await load();
+      const listener = vi.fn();
+      subscribeAttention(listener);
+
+      // Input inside the window is the clock ticking, not an edge.
+      document.dispatchEvent(new Event('keydown'));
+      expect(listener).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(ATTENTION_IDLE_MS + 1_000);
+      expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(false);
+      document.dispatchEvent(new Event('pointermove'));
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
+
+      // Still inside the window: the move stream stays quiet.
+      vi.advanceTimersByTime(2_000);
+      document.dispatchEvent(new Event('pointermove'));
+      document.dispatchEvent(new Event('keydown'));
+      expect(listener).toHaveBeenCalledTimes(1);
+
+      // A second silence, a second edge.
+      vi.advanceTimersByTime(ATTENTION_IDLE_MS + 1_000);
+      document.dispatchEvent(new Event('keydown'));
+      expect(listener).toHaveBeenCalledTimes(2);
+    });
+
+    it('is silent when the timer merely lapses, and hears the hard edges too', async () => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+      const { subscribeAttention, ATTENTION_IDLE_MS } = await load();
+      const listener = vi.fn();
+      subscribeAttention(listener);
+
+      vi.advanceTimersByTime(ATTENTION_IDLE_MS + 1_000);
+      expect(listener).not.toHaveBeenCalled();
+
+      window.dispatchEvent(new Event('blur'));
+      window.dispatchEvent(new Event('focus'));
+      expect(listener).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not treat input in a blurred window as attention', async () => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+      const { subscribeAttention, ATTENTION_IDLE_MS } = await load();
+      const listener = vi.fn();
+      subscribeAttention(listener);
+
+      window.dispatchEvent(new Event('blur'));
+      expect(listener).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(ATTENTION_IDLE_MS + 1_000);
+      document.dispatchEvent(new Event('keydown'));
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not reach the hard-edge subscribers', async () => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+      const { subscribeSessionActivity, ATTENTION_IDLE_MS } = await load();
+      const listener = vi.fn();
+      subscribeSessionActivity(listener);
+
+      vi.advanceTimersByTime(ATTENTION_IDLE_MS + 1_000);
+      document.dispatchEvent(new Event('keydown'));
+      expect(listener).not.toHaveBeenCalled();
+    });
+  });
 });

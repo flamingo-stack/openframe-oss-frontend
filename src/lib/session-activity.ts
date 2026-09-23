@@ -56,6 +56,23 @@ import { isMobileShell } from './platform';
  * `true` in WKWebView with no focused input, so including it would not have broken
  * the shell — the touch argument above is the reason for the split, not that one.
  *
+ * ## Edges
+ *
+ * Two subscriptions, because the consumers need different things from "something
+ * changed":
+ *
+ *   - `subscribeSessionActivity` fires on the hard edges only (focus / blur,
+ *     foreground / background). Presence beats on it, and a beat per edge is the
+ *     right rate.
+ *   - `subscribeAttention` fires on those same edges AND on the first input after
+ *     ATTENTION_IDLE_MS of silence. That is the one moment the tight window has no
+ *     event for: a reader who sat still through an arrival and then moved. The
+ *     auto-readers re-check their gate on it, so what arrived while they were
+ *     "inattentive" is read the instant a human is provably back - not when the
+ *     board's next poll paints a "new message" badge on a ticket they were
+ *     looking at. The idle timer LAPSING still fires nothing: that is a clock
+ *     question, and there is no human behind it.
+ *
  * ## Shape
  *
  * A plain subscribable store started lazily, mirroring `connectivity.ts`. Lazy
@@ -77,6 +94,8 @@ const MOVE_THROTTLE_MS = 1_000;
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
+/** Hard edges plus input resuming after the attention window - see "Edges" above. */
+const attentionListeners = new Set<Listener>();
 let sourceStarted = false;
 
 /** Web: last input timestamp. Mobile: unused — `shellActive` is the whole answer. */
@@ -93,8 +112,14 @@ let shellActive = true;
 let usingShellSource = false;
 let webSourceStarted = false;
 
+function notifyAttention(): void {
+  for (const listener of [...attentionListeners]) listener();
+}
+
+/** A hard edge: every subscriber hears it. */
 function notify(): void {
   for (const listener of [...listeners]) listener();
+  notifyAttention();
 }
 
 function setWindowActive(next: boolean): void {
@@ -104,15 +129,27 @@ function setWindowActive(next: boolean): void {
   notify();
 }
 
+/**
+ * Stamp the input clock. Input that ends an attention-window silence is the
+ * "human came back" edge for `subscribeAttention`; input inside the window is
+ * just the clock ticking. A blurred window gets no edge here: its input cannot
+ * make it active (see `isSessionActive`), and `focus` already fires one.
+ */
+function markInput(now: number): void {
+  const resumed = windowActive && now - lastInputAt >= ATTENTION_IDLE_MS;
+  lastInputAt = now;
+  if (resumed) notifyAttention();
+}
+
 function recordInput(): void {
-  lastInputAt = Date.now();
+  markInput(Date.now());
 }
 
 function recordMove(): void {
   const now = Date.now();
   if (now - lastMoveWrite < MOVE_THROTTLE_MS) return;
   lastMoveWrite = now;
-  lastInputAt = now;
+  markInput(now);
 }
 
 function startWebSource(): void {
@@ -205,7 +242,8 @@ export function isSessionActive({ idleAfterMs }: { idleAfterMs: number }): boole
 /**
  * Fires on hard edges only (focus/blur, foreground/background) — NOT when the idle
  * timer lapses, which is a clock question with no event behind it. Poll
- * `isSessionActive` for that.
+ * `isSessionActive` for that. Consumers that need to know when a paused human is
+ * back (the auto-readers) want `subscribeAttention` instead.
  */
 export function subscribeSessionActivity(listener: Listener): () => void {
   if (typeof window === 'undefined') return () => {};
@@ -213,5 +251,23 @@ export function subscribeSessionActivity(listener: Listener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+  };
+}
+
+/**
+ * Fires on every hard edge `subscribeSessionActivity` fires on, plus on the first
+ * input after {@link ATTENTION_IDLE_MS} of silence in an active window - the moment
+ * `isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })` flips back to true with a
+ * human behind it. Still nothing when the timer merely lapses. Once per silence,
+ * not per input: the throttled move stream inside the window stays quiet.
+ *
+ * On the mobile shell there is no idle window, so this is the hard edges alone.
+ */
+export function subscribeAttention(listener: Listener): () => void {
+  if (typeof window === 'undefined') return () => {};
+  startSource();
+  attentionListeners.add(listener);
+  return () => {
+    attentionListeners.delete(listener);
   };
 }

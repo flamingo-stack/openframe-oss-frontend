@@ -13,7 +13,7 @@ export interface DialogsQueryParams {
   organizationIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
-  /** Only tickets the caller has unread notifications about. */
+  /** Only tickets with unread client-chat messages (the row badge). */
   unreadOnly?: boolean;
   /** User-chosen list sort; part of the key so a sort change restarts the
    *  cursor from the first page instead of interleaving two orders. */
