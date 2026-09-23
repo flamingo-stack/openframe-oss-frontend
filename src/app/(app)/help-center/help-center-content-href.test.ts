@@ -41,9 +41,17 @@ describe('composeOpenframeInAppContentUrl', () => {
   it('builds ticket deep links through the lib SSOT, on OUR tickets surface', () => {
     // `&search=` is what makes a ticket outside the first page of the list open
     // at all; `/help-center/tickets` is ours, `/tickets` is the ticket board.
-    for (const type of ['hubspot_ticket', 'hubspot_ticket_anon', 'hubspot_ticket_self']) {
+    for (const type of ['hubspot_ticket', 'hubspot_ticket_self']) {
       expect(href({ type, identifier: 'T-1' })).toBe('/help-center/tickets?ticket=T-1&search=T-1#ticket-T-1');
     }
+  });
+
+  it('does not re-home anonymized known-issue tickets onto the viewer tickets list', () => {
+    // They belong to other customers, so `/help-center/tickets` cannot find them.
+    // No host override → the lib's `noComposedHref` leaves the card unlinked.
+    const composed = composeOpenframeInAppContentUrl({ type: 'hubspot_ticket_anon', identifier: 'T-1' });
+    expect(composed.hostOverride).toBeUndefined();
+    expect(composed.href).not.toContain('/help-center/tickets');
   });
 
   it('marks the overrides as an explicit host decision, through the in-app wrapper', () => {

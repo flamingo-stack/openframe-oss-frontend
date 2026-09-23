@@ -120,12 +120,17 @@ const composeLibContentUrl = makeComposeContentUrl({
     // Mingo entity cards with a real in-app destination → soft-nav in the chat
     // (and same-origin nav on the pages) instead of bouncing to the content hub.
     // A HubSpot-ticket card opens the Help Center tickets list with that ticket
-    // pre-opened (every variant the RAG can emit); a FAQ card deep-links to its
-    // specific question via the `#faq-item-<id>` hash the FAQ page dispatches on
-    // (same anchor the hub uses) — `faqItemAnchor` is the lib's SSOT for it. Both
-    // live under `/help-center`, so `isInAppHelpCenterHref` already covers them.
+    // pre-opened; a FAQ card deep-links to its specific question via the
+    // `#faq-item-<id>` hash the FAQ page dispatches on (same anchor the hub
+    // uses) — `faqItemAnchor` is the lib's SSOT for it. Both live under
+    // `/help-center`, so `isInAppHelpCenterHref` already covers them.
+    //
+    // `hubspot_ticket_anon` is deliberately absent: it is a cross-customer known
+    // issue (`/known-issues-tickets`), not the viewer's ticket, so our session-
+    // scoped tickets list answers "No tickets found". The hub mints it with
+    // `url: null` on purpose; without an override the lib's `noComposedHref`
+    // keeps the card unlinked and "Ask Mingo" is its only action.
     hubspot_ticket: helpCenterTicketHref,
-    hubspot_ticket_anon: helpCenterTicketHref,
     hubspot_ticket_self: helpCenterTicketHref,
     faq: id => ({ href: `${HELP_CENTER_BASE}/faqs#${faqItemAnchor(id)}`, targetPlatform: null }),
   },
