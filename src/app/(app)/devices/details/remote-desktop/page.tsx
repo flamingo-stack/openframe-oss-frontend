@@ -683,7 +683,7 @@ function RemoteDesktopSession() {
             }
           />
         )}
-        {chatDialogId && (
+        {chatDialogId && !sessionEnded && (
           <Button
             variant="outline"
             onClick={toggleChat}
@@ -842,8 +842,8 @@ function RemoteDesktopSession() {
             actionsMenuGroups={actionsMenuGroups}
             onOpenSettings={() => setSettingsOpen(true)}
             onExitFullscreen={exitFullscreen}
-            chatOpen={chatDialogId ? showChat : undefined}
-            onToggleChat={chatDialogId ? toggleChat : undefined}
+            chatOpen={chatDialogId && !sessionEnded ? showChat : undefined}
+            onToggleChat={chatDialogId && !sessionEnded ? toggleChat : undefined}
           />
         ) : (
           controlsBar

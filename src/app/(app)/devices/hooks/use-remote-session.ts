@@ -93,6 +93,9 @@ export function useRemoteSession(deviceId: string, requestId: string | null, liv
         .active(deviceId)
         .then(found => {
           if (cancelled) return;
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('[remote-session] lookup', attempt, found ? `${found.sessionId} ${found.status}` : 'none');
+          }
           if (found) adopt(found);
           else retry();
         })
@@ -116,11 +119,17 @@ export function useRemoteSession(deviceId: string, requestId: string | null, liv
         if (!event) return;
         const current = sessionRef.current;
         const mine = current ? event.sessionId === current.sessionId : event.requestId === requestId;
-        if (!mine) return;
         if (process.env.NODE_ENV === 'development') {
           // Dev-only trace: the one way to tell the push from the poll when checking a backend.
-          console.debug('[remote-session] push', event.type, event.endReason ?? '');
+          console.debug(
+            '[remote-session] push',
+            event.type,
+            event.endReason ?? '',
+            mine ? 'mine' : 'other',
+            `session=${event.sessionId} request=${event.requestId ?? '-'} known=${current?.sessionId ?? '-'} ours=${requestId ?? '-'}`,
+          );
         }
+        if (!mine) return;
         setSession(prev => applyRemoteSessionEvent(prev, event));
         if (event.type === 'REMOTE_SESSION_ENDED') {
           settle({ endReason: event.endReason, endedAt: event.endedAt ?? null });
