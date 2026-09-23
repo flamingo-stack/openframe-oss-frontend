@@ -15,7 +15,7 @@ import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/util
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { routes } from '@/lib/routes';
+import { routes, withDeviceLogsRefresh } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
@@ -99,8 +99,8 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     // Clear the action param to avoid re-triggering
     const newParams = new URLSearchParams(searchParams.toString());
     newParams.delete('action');
-    router.replace(`/devices/details${newParams.toString() ? `?${newParams.toString()}` : ''}`);
-  }, [runScriptRequested, searchParams, router]);
+    router.replace(`${pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`);
+  }, [runScriptRequested, searchParams, router, pathname]);
 
   const normalizedDevice = deviceDetails;
 
@@ -153,10 +153,11 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   // the stamp forces the Agent Logs tab to reload even when already open.
   const agentLogsGate = useDeviceAgentLogsGate();
   const handleDeviceLogs = () => {
+    // Rides the live URL so the tab's own filters survive the jump; the stamp's
+    // name lives in the registry (ROUTES.md § cross-cutting overlay params).
     const params = new URLSearchParams(window.location.search);
     params.set('tab', AGENT_LOGS_TAB_ID);
-    params.set('refresh', Date.now().toString());
-    router.push(`${window.location.pathname}?${params.toString()}`);
+    router.push(withDeviceLogsRefresh(`${window.location.pathname}?${params.toString()}`, Date.now()));
   };
 
   if (isLoading) {

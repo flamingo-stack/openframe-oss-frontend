@@ -21,6 +21,7 @@ import { describeDeviceLogError, type DeviceLogErrorInfo } from '../../../utils/
 import { deviceLogDay, formatDeviceLogDay } from '../../../utils/device-log-time';
 import { toUiDeviceLog } from '../../../utils/device-log-transform';
 import { TabEmptyState } from '../tab-empty-state';
+import { AGENT_LOG_ROW_HEIGHT_PX } from './agent-log-columns';
 import { AgentLogRow } from './agent-log-row';
 import { AgentLogsRowsSkeleton } from './agent-logs-skeleton';
 
@@ -34,9 +35,9 @@ export interface AgentLogsList {
 type LogItem =
   { kind: 'day'; key: string; timestamp: string } | { kind: 'line'; key: string; line: UiDeviceLog; posinset: number };
 
-/** Exact, not a guess: 32px chip + 4px padding + the row's 1px border, top and
- *  bottom. One line at every width; only an expanded row measures past it. */
-const ROW_ESTIMATE_PX = 42;
+/** The row's own recorded height — one line at every width; only an expanded
+ *  row measures past it. */
+const ROW_ESTIMATE_PX = AGENT_LOG_ROW_HEIGHT_PX;
 /** `--spacing-system-xxs`, which is 4px at every breakpoint. */
 const ROW_GAP_PX = 4;
 /** Rows from the end at which the next page is requested. */
@@ -211,8 +212,9 @@ export function AgentLogsContent({
 
   const virtualItems = virtualizer.getVirtualItems();
   const lastRenderedIndex = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1].index : -1;
-  // The sentinel node is gone with virtualization — the last rendered index is
-  // what "near the end" means now.
+  // A threshold, not the bottom sentinel `DataTable` owns — this list is not a
+  // table. Keyed on `items.length` too, so a short list keeps filling without a
+  // scroll; `hasNext` is trusted here exactly as in every other Relay list.
   useEffect(() => {
     if (loadMoreError !== null) return;
     if (lastRenderedIndex >= 0 && lastRenderedIndex >= items.length - 1 - LOAD_MORE_PREFETCH) fetchRef.current();

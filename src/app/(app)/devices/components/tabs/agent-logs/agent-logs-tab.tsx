@@ -4,11 +4,13 @@ import type { DateRange } from '@flamingo-stack/openframe-frontend-core/componen
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { startOfDay, subDays } from 'date-fns';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useDeferredValue, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
+import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import type { DeviceLogLevel } from '@/generated/schema-enums';
 import { dateRangeFromParams, toDayParam } from '@/lib/date-filter-params';
+import { DEVICE_LOGS_REFRESH_PARAM } from '@/lib/routes';
 import type { DeviceLogFilter } from '../../../types/device-log.types';
 import type { Device } from '../../../types/device.types';
 import { DEVICE_LOG_LEVELS } from '../../../utils/device-log-level';
@@ -52,7 +54,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   const machineId = device.machineId || device.id;
   const searchParams = useSearchParams();
   // The Run Script modal's "Device Logs" stamps a fresh value to force a reload.
-  const refreshParam = searchParams.get('refresh') ?? '';
+  const refreshParam = searchParams.get(DEVICE_LOGS_REFRESH_PARAM) ?? '';
 
   const { params, setParam, setParams } = useApiParams({
     logSearch: { type: 'string', default: '' },
@@ -119,8 +121,9 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
     () => ({ filter, key: `${machineId}|${JSON.stringify(filter)}|${anchorNow}` }),
     [machineId, filter, anchorNow],
   );
-  const deferredList = useDeferredValue(list);
-  const isPending = deferredList !== list;
+  // Same contract every other list here uses: the rows lag the controls, so a
+  // filter change dims the current page instead of dropping it to a skeleton.
+  const { deferredFilters: deferredList, isPending } = useDeferredQuery(list, '');
 
   // Published by the boundary's fallback: a search the WAF rejected belongs at
   // the box, not over the list (spec §8).

@@ -57,21 +57,23 @@ const handleBack = useSafeBack(routes.customers.list({ tab: 'archived' }));
 
 ### Cross-cutting overlay params
 
-A third form, for a panel that floats over *any* route rather than belonging to
-one — currently only the Mingo chat drawer:
+A third form, for something that rides *any* route rather than belonging to one —
+today the Mingo chat drawer and the device-logs reload stamp:
 
 ```ts
-withMingoDialog('/devices/details?id=m-1', 'd-1')  // …&mingoDialog=d-1
-withMingoDialog(currentUrl, null)                  // strips it
+withMingoDialog('/devices/details?id=m-1', 'd-1')   // …&mingoDialog=d-1
+withMingoDialog(currentUrl, null)                   // strips it
+withDeviceLogsRefresh(currentUrl, Date.now())       // …&refresh=<ms>
 ```
 
 A `<NAME>_PARAM` constant plus a transformer that edits an existing URL, not an entry
-in `routes` — these don't produce a URL, they amend the one already showing. Reuse or
-generalize an existing transformer where you can; `withMingoDialog` is set/delete and
-preserves the fragment and trailing slash, while the older `onboardingHintUrl` appends
-blindly, so they are not yet interchangeable. This is **not** an exception to the
-registry (the list at the bottom is about raw path *strings*): the transformer is still
-a single owner encoding through `URLSearchParams`, exactly as `withQuery` does.
+in `routes` — these don't produce a URL, they amend the one already showing. Both go
+through the private `withOverlayParam`, which is set/delete and preserves the fragment
+and the trailing slash; **add a new one by calling it too**, not by writing a third
+parser. (The older `onboardingHintUrl` appends blindly and is not interchangeable with
+them.) This is **not** an exception to the registry (the list at the bottom is about
+raw path *strings*): the transformer is still a single owner encoding through
+`URLSearchParams`, exactly as `withQuery` does.
 
 Rules for one:
 
@@ -83,7 +85,9 @@ Rules for one:
   `useMingoDialogUrlSync`, which mirrors drawer state into the URL and adopts it
   back. A resolver may hand the param in once as a redirect target and must then
   leave it alone; that is a handoff, not a second owner. Two owners turn a shared
-  param into a race with no arbiter.
+  param into a race with no arbiter. A **write-once stamp** such as `refresh` has
+  no live value to mirror: one writer sets it, and readers compare it — clamping
+  first if they parse it, since the URL is hand-editable.
 - **Other query writers must re-base on the live search string.** An overlay param is
   only as durable as the code that writes *around* it, and dropping it is not a
   cosmetic loss: the owner sees a param it was mirroring vanish and treats that as
@@ -103,11 +107,13 @@ Rules for one:
   rather than re-stamping. Both directions land in the same place: don't write query
   strings from scratch.
 - **Feed the transformer the live location** when the result goes through
-  `history.replaceState` — see the `withMingoDialog` JSDoc for why.
+  `history.replaceState` — see the `withOverlayParam` JSDoc for why. A `router.push`
+  /`replace` normalizes the path afterwards, so a `routes.*` value is fine there.
 - **Give it a canonical counterpart.** An overlay param rides the sharer's page,
   which is not what a notification or a copied link should carry — those need a
   page-independent URL that *resolves into* the overlay. For `mingoDialog` that is
-  `mingoDialogLink()`: the same param on a fixed landing page.
+  `mingoDialogLink()`: the same param on a fixed landing page. A stamp needs none —
+  a copied `refresh` is stale by definition and reads as no stamp at all.
 
 ## Tab ids (`TAB_IDS`)
 

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MINGO_DIALOG_PARAM, mingoDialogLink, routes, withMingoDialog } from './routes';
+import {
+  DEVICE_LOGS_REFRESH_PARAM,
+  MINGO_DIALOG_PARAM,
+  mingoDialogLink,
+  routes,
+  withDeviceLogsRefresh,
+  withMingoDialog,
+} from './routes';
 
 /**
  * `withMingoDialog` writes the URL that `history.replaceState` puts in the address
@@ -69,5 +76,29 @@ describe('settings.tenant* (CU-86akj8ajt)', () => {
   it('encodes the id and accepts a numeric one', () => {
     expect(routes.settings.tenantDetails('a b&c=1')).toBe('/settings/tenant-management/details?id=a+b%26c%3D1');
     expect(routes.settings.tenantDetails(7)).toBe('/settings/tenant-management/details?id=7');
+  });
+});
+
+describe('withDeviceLogsRefresh', () => {
+  it('stamps the live URL without disturbing what is already on it', () => {
+    expect(withDeviceLogsRefresh('/devices/details?id=m-1&tab=agent-logs', 1700000000000)).toBe(
+      '/devices/details?id=m-1&tab=agent-logs&refresh=1700000000000',
+    );
+    expect(withDeviceLogsRefresh('/devices/details?id=m-1&logSearch=nats', 42)).toBe(
+      '/devices/details?id=m-1&logSearch=nats&refresh=42',
+    );
+  });
+
+  it('replaces an older stamp rather than appending a second one', () => {
+    expect(withDeviceLogsRefresh('/devices/details?id=m-1&refresh=1', 2)).toBe('/devices/details?id=m-1&refresh=2');
+  });
+
+  it('clears the stamp on null, and keeps the fragment', () => {
+    expect(withDeviceLogsRefresh('/devices/details?id=m-1&refresh=1#row', null)).toBe('/devices/details?id=m-1#row');
+  });
+
+  it('spells the param in exactly one place', () => {
+    expect(DEVICE_LOGS_REFRESH_PARAM).toBe('refresh');
+    expect(withDeviceLogsRefresh('/x', 1)).toContain(`${DEVICE_LOGS_REFRESH_PARAM}=1`);
   });
 });

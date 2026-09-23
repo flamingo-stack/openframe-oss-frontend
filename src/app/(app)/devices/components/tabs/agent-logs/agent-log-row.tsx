@@ -7,6 +7,12 @@ import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import type { UiDeviceLog } from '../../../types/device-log.types';
 import { getDeviceLogLevelVariant } from '../../../utils/device-log-level';
 import { formatDeviceLogTime } from '../../../utils/device-log-time';
+import {
+  AGENT_LOG_LEVEL_COLUMN,
+  AGENT_LOG_LINE_BOX,
+  AGENT_LOG_MESSAGE_INDENT,
+  AGENT_LOG_TIME_COLUMN,
+} from './agent-log-columns';
 
 interface AgentLogRowProps {
   line: UiDeviceLog;
@@ -58,12 +64,18 @@ export function AgentLogRow({ line, deviceHostname, expanded, onToggle }: AgentL
         {/* FE-4: monospace, tabular figures, fixed WIDTH — an unparseable instant
             passes through whole, and equal content alone would not keep the
             message column starting at the same x on every row. */}
-        <span className="w-[144px] shrink-0 truncate py-[8px] tabular-nums text-ods-text-secondary text-code md:w-[168px] md:py-[6px]">
+        <span
+          className={cn(
+            AGENT_LOG_TIME_COLUMN,
+            AGENT_LOG_LINE_BOX,
+            'shrink-0 truncate tabular-nums text-ods-text-secondary text-code',
+          )}
+        >
           {formatDeviceLogTime(line.timestamp)}
         </span>
         {/* A slot, not the chip's own width: `INFO` and `ERROR` differ, and the
             message column must start at the same x on every row. */}
-        <span className="flex w-[64px] shrink-0">
+        <span className={cn('flex shrink-0', AGENT_LOG_LEVEL_COLUMN)}>
           {/* A node label, not a string: a string makes `Tag` mount a truncation
               observer and a body-portalled tooltip — per chip, per row. */}
           <Tag
@@ -78,7 +90,8 @@ export function AgentLogRow({ line, deviceHostname, expanded, onToggle }: AgentL
             unfolds in place. */}
         <span
           className={cn(
-            'min-w-0 flex-1 truncate py-[8px] text-ods-text-primary text-code md:py-[6px]',
+            AGENT_LOG_LINE_BOX,
+            'min-w-0 flex-1 truncate text-ods-text-primary text-code',
             expanded && 'md:overflow-visible md:text-clip md:whitespace-pre-wrap md:[overflow-wrap:anywhere]',
           )}
         >
@@ -104,7 +117,12 @@ export function AgentLogRow({ line, deviceHostname, expanded, onToggle }: AgentL
         </span>
       </button>
       {expanded && (
-        <div className="flex flex-col gap-[var(--spacing-system-xs)] px-[var(--spacing-system-xs)] pb-[var(--spacing-system-xs)] md:gap-[var(--spacing-system-xxs)] md:pl-[256px]">
+        <div
+          className={cn(
+            'flex flex-col gap-[var(--spacing-system-xs)] px-[var(--spacing-system-xs)] pb-[var(--spacing-system-xs)] md:gap-[var(--spacing-system-xxs)]',
+            AGENT_LOG_MESSAGE_INDENT,
+          )}
+        >
           {/* Only below `md`, where the title above stays truncated: full width,
               because columns leave a log line a third of a phone screen. */}
           <div className="flex flex-col gap-[var(--spacing-system-xxs)] md:hidden">
