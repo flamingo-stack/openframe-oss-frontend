@@ -10,7 +10,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   softwareLogsTable_query$data,
@@ -27,12 +27,12 @@ import { singleColumnFilter } from '../shared/single-column-filter';
 import { SoftwareLogCustomerCell } from './software-log-customer-cell';
 import { SoftwareLogDeviceCell } from './software-log-device-cell';
 import { SoftwareLogResultPanel } from './software-log-result-panel';
-import { SoftwareLogResultToggle } from './software-log-result-toggle';
+import { SoftwareLogResultToggleCell } from './software-log-result-toggle';
 import { matchesSoftwareLog } from './software-log-search';
 import { SoftwareLogStatusCell } from './software-log-status-cell';
 import { SOFTWARE_LOG_COLUMNS } from './software-logs-columns';
 import { softwareRunStatusLabel } from './software-run-status';
-import { useResultPhases } from './use-result-phases';
+import { ResultPhasesContext, useResultPhases } from './use-result-phases';
 
 /**
  * Execution history for one catalog package's install or update runs —
@@ -205,12 +205,17 @@ export function SoftwareLogsTable({
   const { phases, toggle, collapsed } = useResultPhases();
 
   // The facet labels read the way this page's tags do ("Success", not "Completed").
-  const statusOptions: FacetOption[] = (queryData.softwareExecutionFilters?.statuses ?? []).map(facet => ({
-    id: facet.value,
-    label: softwareRunStatusLabel(facet.value),
-    value: facet.value,
-    count: facet.count,
-  }));
+  const statusFacets = queryData.softwareExecutionFilters?.statuses;
+  const statusOptions = useMemo<FacetOption[]>(
+    () =>
+      (statusFacets ?? []).map(facet => ({
+        id: facet.value,
+        label: softwareRunStatusLabel(facet.value),
+        value: facet.value,
+        count: facet.count,
+      })),
+    [statusFacets],
+  );
 
   const needle = narrowSearch.trim().toLowerCase();
   const allRows = (data.softwareExecutions?.edges ?? []).map(edge => edge.node);
@@ -220,44 +225,46 @@ export function SoftwareLogsTable({
     if (hasNext && !isLoadingNext) loadNext(EXECUTIONS_PAGE_SIZE);
   };
 
-  const columns: ColumnDef<SoftwareLogRow>[] = [
-    {
-      id: SOFTWARE_LOG_COLUMNS.device.id,
-      header: SOFTWARE_LOG_COLUMNS.device.header,
-      cell: ({ row }: { row: Row<SoftwareLogRow> }) => <SoftwareLogDeviceCell machine={row.original.machine} />,
-      enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.device),
-    },
-    {
-      id: SOFTWARE_LOG_COLUMNS.customer.id,
-      header: SOFTWARE_LOG_COLUMNS.customer.header,
-      cell: ({ row }: { row: Row<SoftwareLogRow> }) => <SoftwareLogCustomerCell machine={row.original.machine} />,
-      enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.customer),
-    },
-    {
-      id: SOFTWARE_LOG_COLUMNS.status.id,
-      header: SOFTWARE_LOG_COLUMNS.status.header,
-      accessorFn: (row: SoftwareLogRow) => row.status,
-      cell: ({ row }: { row: Row<SoftwareLogRow> }) => (
-        <SoftwareLogStatusCell execution={row.original} actionLabel={actionLabel} />
-      ),
-      enableSorting: false,
-      filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.status, { filter: { options: statusOptions } }),
-    },
-    {
-      id: SOFTWARE_LOG_COLUMNS.result.id,
-      cell: ({ row }: { row: Row<SoftwareLogRow> }) => (
-        <SoftwareLogResultToggle
-          open={phases.get(row.original.id) === 'open'}
-          onToggle={() => toggle(row.original.id)}
-        />
-      ),
-      enableSorting: false,
-      meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.result),
-    },
-  ];
+  // Memoized by hand on purpose: TanStack keys its column model on this array's
+  // identity and `flexRender` mounts each `cell` function as a component, so a
+  // rebuilt array remounts every cell. The result cell reads the phases through
+  // `ResultPhasesContext` precisely so they are not a dependency here.
+  const columns = useMemo<ColumnDef<SoftwareLogRow>[]>(
+    () => [
+      {
+        id: SOFTWARE_LOG_COLUMNS.device.id,
+        header: SOFTWARE_LOG_COLUMNS.device.header,
+        cell: ({ row }: { row: Row<SoftwareLogRow> }) => <SoftwareLogDeviceCell machine={row.original.machine} />,
+        enableSorting: false,
+        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.device),
+      },
+      {
+        id: SOFTWARE_LOG_COLUMNS.customer.id,
+        header: SOFTWARE_LOG_COLUMNS.customer.header,
+        cell: ({ row }: { row: Row<SoftwareLogRow> }) => <SoftwareLogCustomerCell machine={row.original.machine} />,
+        enableSorting: false,
+        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.customer),
+      },
+      {
+        id: SOFTWARE_LOG_COLUMNS.status.id,
+        header: SOFTWARE_LOG_COLUMNS.status.header,
+        accessorFn: (row: SoftwareLogRow) => row.status,
+        cell: ({ row }: { row: Row<SoftwareLogRow> }) => (
+          <SoftwareLogStatusCell execution={row.original} actionLabel={actionLabel} />
+        ),
+        enableSorting: false,
+        filterFn: multiSelectFilterFn,
+        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.status, { filter: { options: statusOptions } }),
+      },
+      {
+        id: SOFTWARE_LOG_COLUMNS.result.id,
+        cell: ({ row }: { row: Row<SoftwareLogRow> }) => <SoftwareLogResultToggleCell id={row.original.id} />,
+        enableSorting: false,
+        meta: liveColumnMeta(SOFTWARE_LOG_COLUMNS.result),
+      },
+    ],
+    [actionLabel, statusOptions],
+  );
 
   const { columnFilters, onColumnFiltersChange } = singleColumnFilter(
     SOFTWARE_LOG_COLUMNS.status.id,
@@ -311,7 +318,7 @@ export function SoftwareLogsTable({
   useEffect(() => () => onEmptyChange(false), [onEmptyChange]);
 
   return (
-    <>
+    <ResultPhasesContext.Provider value={{ phases, toggle }}>
       <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
         <DataTable table={table}>
           {showHeader && (
@@ -350,6 +357,6 @@ export function SoftwareLogsTable({
         onFilterChange={onFilterChange}
         currentFilters={{ status: tableFilters.status ?? [] }}
       />
-    </>
+    </ResultPhasesContext.Provider>
   );
 }
