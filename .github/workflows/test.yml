@@ -127,7 +127,7 @@ jobs:
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
                   -f "./Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
-            docker buildx build "${args[@]}" "."
+            docker buildx build "${args[@]}" --provenance=false --sbom=true "."
 
       - name: Scan image
         uses: ./.github/steps/trivy
@@ -184,3 +184,4 @@ jobs:
       - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
       - run: echo "All checks passed"
+
