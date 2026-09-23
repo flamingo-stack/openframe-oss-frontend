@@ -3,12 +3,13 @@
 import { Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { Loading01Icon, ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import { useEffectiveDeviceRemoteAccessMode } from '../../hooks/use-remote-access-policy';
+import { useRemoteSession } from '../../hooks/use-remote-session';
 import { mockRemoteAccessDecision } from '../../services/remote-access-approval-service';
 import { RemoteAccessSessionProvider } from './remote-access-session-context';
 
@@ -117,9 +118,9 @@ export function RemoteAccessGate({
   if (gate === 'loading') return <CompactPageLoader />;
   if (approval.state === 'approved') {
     return (
-      <RemoteAccessSessionProvider requestId={approval.request?.requestId ?? null}>
+      <ApprovedSessionScope deviceId={deviceId} requestId={approval.request?.requestId ?? null} live={!approval.isMock}>
         {children}
-      </RemoteAccessSessionProvider>
+      </ApprovedSessionScope>
     );
   }
 
@@ -301,4 +302,29 @@ export function RemoteAccessGate({
       </div>
     </PageLayout>
   );
+}
+
+/**
+ * Mounted for the approved session only: resolves the backend session record
+ * behind the request (its id ends the session, its dialog id feeds the chat)
+ * and hands it to the surface. On the mock there is no record; the surface
+ * then runs without lifecycle events, as before.
+ */
+function ApprovedSessionScope({
+  deviceId,
+  requestId,
+  live,
+  children,
+}: {
+  deviceId: string;
+  requestId: string | null;
+  live: boolean;
+  children: ReactNode;
+}) {
+  const { session, ended, endSession } = useRemoteSession(deviceId, requestId, live);
+  const value = useMemo(
+    () => ({ requestId, live, session, ended, endSession }),
+    [requestId, live, session, ended, endSession],
+  );
+  return <RemoteAccessSessionProvider value={value}>{children}</RemoteAccessSessionProvider>;
 }

@@ -13,8 +13,9 @@ import { refreshUnreadCounts } from './unread-counts-relay';
  *
  * Complements `EntityViewAutoReader`, which flips the notifications the drawer has actually
  * loaded so its list and connections stay consistent. This one is about the counts: it also
- * clears notifications the drawer never paged in, which is what `Ticket.unreadNotificationCount`
- * and the sidebar bucket are counting. The returned number spans categories, so counts are
+ * clears notifications the drawer never paged in, which is what the sidebar bucket is counting
+ * (and the ai-agent's `Ticket.unreadNotificationCount`; the tickets board badge reads the shared
+ * `Ticket.unreadMessageCount` instead, reset by `markDialogMessagesRead`). The returned number spans categories, so counts are
  * refetched rather than adjusted locally.
  *
  * Commits no Relay updater, so wherever the auto-reader does NOT also match the current
@@ -26,8 +27,9 @@ import { refreshUnreadCounts } from './unread-counts-relay';
  *
  * `entityId` is the RAW entity id, not a Relay global id, even though the mutation runs
  * against openframe-api: `NotificationReadState.entityId` is written and counted with the
- * id the notification's producer carried (for a ticket, the ai-agent `Ticket.id` that also
- * keys `Ticket.unreadNotificationCount`). Encoding it — as the saas-api time-tracker
+ * id the notification's producer carried (for a ticket, the ai-agent `Ticket.id`, the id the
+ * ai-agent's own `Ticket.unreadNotificationCount` is keyed on - a field that still exists there
+ * even though the board badge reads `unreadMessageCount`). Encoding it — as the saas-api time-tracker
  * mutations require via `toTicketGlobalId` — would match zero rows and silently no-op.
  *
  * No toast on failure: the user never triggered this, so a toast would be noise about

@@ -20,6 +20,7 @@ import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNow } from '@/app/hooks/use-now';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
@@ -136,7 +137,7 @@ interface TicketsBoardProps {
   onAssigneeIdsChange?: (ids: string[]) => void;
   tagIds?: string[];
   onTagIdsChange?: (ids: string[]) => void;
-  /** Only tickets the caller has unread notifications about. */
+  /** Only tickets with unread client-chat messages (the card badge). */
   unreadOnly?: boolean;
   onUnreadOnlyChange?: (value: boolean) => void;
   /** Server-side activity filter (active / stale / awaiting client); OR within the list. */
@@ -194,7 +195,7 @@ function dialogToBoardTicket(
     id: dialog.id,
     title: dialog.title,
     ticketNumber: dialog.ticketNumber !== undefined ? String(dialog.ticketNumber) : '',
-    status: dialog.statusName ?? dialog.status,
+    status: dialog.statusName ?? EMPTY_VALUE,
     // The lib prop is named deviceHostnames, but it is the card's device line — name the
     // device like the table and the details page do (nickname first), not by its hostname.
     deviceHostnames: deviceName ? [deviceName] : undefined,
@@ -217,8 +218,9 @@ function dialogToBoardTicket(
     createdAt: dialog.statusUpdatedAt ?? dialog.createdAt,
     // The card has no numeric affordance — `BoardTicket` carries a boolean, which
     // draws the column-coloured border and the "New Message" tag. The exact count
-    // lives on the table row; here any unread at all is the signal.
-    hasNewMessage: (dialog.unreadNotificationCount ?? 0) > 0,
+    // lives on the table row; here any unread at all is the signal. Shared by
+    // every technician: once one of them reads the chat the tag drops for all.
+    hasNewMessage: (dialog.unreadMessageCount ?? 0) > 0,
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
     activity,

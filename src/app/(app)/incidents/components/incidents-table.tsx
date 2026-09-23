@@ -293,7 +293,13 @@ function IncidentsTableContent({
       {
         accessorKey: 'severity',
         header: INCIDENT_COLUMNS.severity.header,
-        cell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentSeverityTag severity={row.original.severity} />,
+        // The cell is a column flexbox, so a bare Tag stretches to the column
+        // width — `items-start` keeps it at its own width, as in the Status cell.
+        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+          <div className="flex flex-col items-start">
+            <IncidentSeverityTag severity={row.original.severity} />
+          </div>
+        ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: liveColumnMeta(INCIDENT_COLUMNS.severity, { filter: { options: severityOptions } }),
