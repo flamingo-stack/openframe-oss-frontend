@@ -10,7 +10,6 @@ export const CREATE_TICKET_MUTATION = `
         ticketNumber
         title
         description
-        status
         owner {
           ... on ClientTicketOwner {
             type
@@ -100,7 +99,6 @@ export const GET_TICKET_QUERY = `
       ticketNumber
       title
       description
-      status
       statusDefinition {
         id
         name
@@ -215,7 +213,6 @@ export const GET_TICKETS_QUERY = `
           id
           ticketNumber
           title
-          status
           statusDefinition {
             id
             name
@@ -315,7 +312,6 @@ const boardCardTicketFragment = () => `
     id
     ticketNumber
     title
-    status
     statusDefinition {
       id
       name
@@ -441,7 +437,6 @@ export const TRANSITION_TICKET_MUTATION = `
     transitionTicket(input: $input) {
       ticket {
         id
-        status
         statusDefinition {
           id
         }
@@ -548,7 +543,6 @@ export const UPDATE_TICKET_MUTATION = `
         ticketNumber
         title
         description
-        status
         owner {
           ... on ClientTicketOwner {
             type
@@ -611,7 +605,7 @@ export const REQUEST_TICKET_REOPEN_MUTATION = `
 export const REORDER_TICKET_MUTATION = `
   mutation ReorderTicket($input: ReorderTicketInput!) {
     reorderTicket(input: $input) {
-      ticket { id status order }
+      ticket { id order }
       userErrors { field message }
     }
   }
@@ -634,7 +628,6 @@ export const TAKE_OVER_TICKET_MUTATION = `
     takeOverTicket(input: $input) {
       ticket {
         id
-        status
         statusDefinition { id name color kind }
         assignedTo
         assignedName
@@ -675,10 +668,6 @@ export const GET_TICKET_STATISTICS_QUERY = `
   query GetTicketStatistics {
     ticketStatistics {
       totalCount
-      statusCounts {
-        status
-        count
-      }
       statusDefinitionCounts {
         status {
           kind

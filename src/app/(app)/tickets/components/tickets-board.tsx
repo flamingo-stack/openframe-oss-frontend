@@ -194,7 +194,7 @@ function dialogToBoardTicket(
     id: dialog.id,
     title: dialog.title,
     ticketNumber: dialog.ticketNumber !== undefined ? String(dialog.ticketNumber) : '',
-    status: dialog.statusName ?? dialog.status,
+    status: dialog.statusName ?? '',
     // The lib prop is named deviceHostnames, but it is the card's device line — name the
     // device like the table and the details page do (nickname first), not by its hostname.
     deviceHostnames: deviceName ? [deviceName] : undefined,
