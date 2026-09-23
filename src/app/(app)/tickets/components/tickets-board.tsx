@@ -136,7 +136,7 @@ interface TicketsBoardProps {
   onAssigneeIdsChange?: (ids: string[]) => void;
   tagIds?: string[];
   onTagIdsChange?: (ids: string[]) => void;
-  /** Only tickets the caller has unread notifications about. */
+  /** Only tickets with unread client-chat messages (the card badge). */
   unreadOnly?: boolean;
   onUnreadOnlyChange?: (value: boolean) => void;
   /** Server-side activity filter (active / stale / awaiting client); OR within the list. */

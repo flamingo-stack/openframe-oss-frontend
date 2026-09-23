@@ -38,7 +38,7 @@ interface TicketsTableProps {
   statusFilters?: string[];
   organizationIds?: string[];
   assigneeIds?: string[];
-  /** Only tickets the caller has unread notifications about. */
+  /** Only tickets with unread client-chat messages (the row badge). */
   unreadOnly?: boolean;
   /**
    * Applies status/assignee/customer/new-messages atomically in ONE call — the

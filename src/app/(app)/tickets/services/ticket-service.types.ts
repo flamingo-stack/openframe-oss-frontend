@@ -36,9 +36,9 @@ export interface FetchTicketsParams {
   tagIds?: string[];
   // Sent as `TicketFilterInput.hasUnreadNotifications: true`; the backend
   // treats false and null alike (no filter), so only `true` is ever sent.
-  // Filters by the CALLER's unread notifications, while the row badge reads the
-  // technicians' shared `unreadMessageCount` - the ai-agent has no filter on that
-  // counter yet, so a ticket another technician already read can still match.
+  // Despite the name it keeps the tickets whose client chat has messages the
+  // technicians have not read (`unreadMessageCount > 0`, openframe-saas-tenant#3301),
+  // so the filter matches the row badge.
   unreadOnly?: boolean;
   /** List sort; null/undefined keeps the board position order. */
   sort?: TicketListSort | null;
