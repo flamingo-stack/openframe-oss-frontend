@@ -11,13 +11,14 @@
  * stable identity falls out for free — the lib's per-message memo relies on
  * `renderMention` keeping reference equality across streaming chunks.
  *
- * Coverage = all eleven markers the agent can emit. GraphQL types (device,
+ * Coverage = all context markers plus chat-memory references. GraphQL types (device,
  * customer, kb article, kb folder, scheduled script, incident) resolve via Relay; REST/ai-agent types (policy,
  * query, user, ticket) via `RestMentionChip`. SCRIPT is dual-sourced — a NEW
  * script (24-char ObjectId) resolves via Relay, a LEGACY Tactical script (numeric
  * id) via REST — so both kinds of script id render regardless of the flag. Every
- * chip falls back to a plain id chip (clickable where a route exists) if its
- * fetch can't resolve a name. Unknown marker → bare token.
+ * context chip falls back to a plain id chip (clickable where a route exists)
+ * if its fetch can't resolve a name. Inaccessible chat references stay unlinked.
+ * Unknown marker → bare token.
  */
 
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -26,6 +27,7 @@ import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-ba
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
 import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
+import { ChatMemoryMention } from './chat-memory-mention';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
 
@@ -61,6 +63,8 @@ export function renderMingoMention({
 }): ReactNode {
   const icon = ICON_BY_MARKER.get(marker);
   switch (marker) {
+    case 'chat':
+      return <ChatMemoryMention id={id} />;
     case M.DEVICE:
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.DEVICE} id={id} icon={icon} fallbackLabel={label} />;
     case M.ORGANIZATION:
