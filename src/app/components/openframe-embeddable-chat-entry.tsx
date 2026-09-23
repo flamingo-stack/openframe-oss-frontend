@@ -217,8 +217,8 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
 
   // Entity-context picker config (the `+` "Assign Item" menu + `@` trigger).
   // Stable so the lib's composer doesn't re-derive its icon map each render:
-  // the entity list is one of two constants, so the memo moves only when a
-  // flag does. `renderMingoContextItems` maps each entity type to its data
+  // the hook's list is memoized on the module flags, so the memo moves only
+  // when a flag does. `renderMingoContextItems` maps each entity type to its data
   // component (Relay / TanStack hooks); the store-backed openView/recentViews
   // are folded in at send time by the unified hook.
   const entityTypes = useMingoContextEntityTypes();
