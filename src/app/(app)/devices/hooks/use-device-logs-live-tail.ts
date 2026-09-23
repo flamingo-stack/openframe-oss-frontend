@@ -7,13 +7,11 @@ import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscrip
 import { DEVICE_LOGS_POLL_SIZE, deviceLogsRelayPollQuery } from '@/graphql/devices/device-logs-relay';
 import type { DeviceLogFilter, UiDeviceLog } from '../types/device-log.types';
 import { describeDeviceLogError, type DeviceLogErrorInfo } from '../utils/device-log-errors';
-import { isInstantAfter } from '../utils/device-log-time';
+import { mergeFreshLines, pollBackoffMs } from '../utils/device-log-tail';
 import { toUiDeviceLog } from '../utils/device-log-transform';
 
 /** New lines reach the platform about once a minute; polling faster than this shows nothing sooner. */
 const DEVICE_LOGS_POLL_INTERVAL_MS = 5_000;
-/** After a failed poll: 15 s, then 30 s until the first success. */
-const BACKOFF_STEPS_MS = [15_000, 30_000] as const;
 /** A burst larger than this many poll pages is left for the next tick. */
 const MAX_POLL_PAGES = 10;
 
@@ -149,15 +147,12 @@ export function useDeviceLogsLiveTail({
         walkFrom = null;
         walkAfter = null;
         walkLines = [];
-        // `from` is inclusive, so the line it names comes back; compare against
-        // the walk's own bound rather than a tail that moved under us.
-        const newer = drained.filter(line => isInstantAfter(line.timestamp, from));
+        // Compared against the walk's own bound, not a tail that moved under us.
         setFresh(prev => {
           const lines = prev.listKey === listKey ? prev.lines : [];
-          if (newer.length === 0)
-            return prev.error || prev.listKey !== listKey ? { listKey, lines, error: null } : prev;
-          const known = new Set(lines.map(line => line.key));
-          return { listKey, lines: [...newer.filter(line => !known.has(line.key)), ...lines], error: null };
+          const merged = mergeFreshLines(lines, drained, from);
+          if (merged === null) return prev.error || prev.listKey !== listKey ? { listKey, lines, error: null } : prev;
+          return { listKey, lines: merged, error: null };
         });
         schedule(DEVICE_LOGS_POLL_INTERVAL_MS);
       } catch (error) {
@@ -169,7 +164,7 @@ export function useDeviceLogsLiveTail({
         // A vanished device or a rejected filter cannot recover by waiting; the
         // list's own error handling owns those. Everything else backs off.
         if (info.kind === 'not-found' || info.kind === 'validation') return;
-        schedule(BACKOFF_STEPS_MS[Math.min(failuresRef.current, BACKOFF_STEPS_MS.length - 1)]);
+        schedule(pollBackoffMs(failuresRef.current));
         failuresRef.current += 1;
       } finally {
         inFlight = false;
