@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RemoteSessionChatMessage } from '../types/remote-session-chat';
-import { mockRemoteSessionChatService as service, REMOTE_SESSION_END_USER_NAME } from './remote-session-chat-service';
+import { REMOTE_SESSION_END_USER_NAME, type RemoteSessionChatMessage } from '../types/remote-session-chat';
+import {
+  isMockRemoteSessionDialog,
+  mockRemoteSessionChatService as service,
+  mockRemoteSessionDialogId,
+} from './remote-session-chat-service';
 
 const technician = { name: 'Roman K.' };
 
@@ -21,16 +25,17 @@ describe('MockRemoteSessionChatService', () => {
   });
 
   it('starts every dialog empty', async () => {
-    expect(await settle(service.history('d1'))).toEqual([]);
+    expect(await settle(service.history('d1'))).toEqual({ messages: [], lastSeq: 0 });
   });
 
   it('stores a sent message under the technician and delivers it to subscribers', async () => {
     const received: RemoteSessionChatMessage[] = [];
     service.subscribe('d1', m => received.push(m));
-    const sent = await settle(service.send('d1', 'Hi Anthony', technician));
-    expect(sent).toMatchObject({ author: 'technician', authorName: 'Roman K.', body: 'Hi Anthony' });
-    expect(received).toEqual([sent]);
-    expect(await settle(service.history('d1'))).toEqual([sent]);
+    await settle(service.send('d1', 'Hi Anthony', technician));
+    expect(received).toEqual([
+      expect.objectContaining({ author: 'technician', authorName: 'Roman K.', body: 'Hi Anthony' }),
+    ]);
+    expect((await settle(service.history('d1'))).messages).toEqual(received);
   });
 
   it('never answers a technician message on its own', async () => {
@@ -39,7 +44,7 @@ describe('MockRemoteSessionChatService', () => {
     await settle(service.send('d1', 'What is wrong?', technician));
     await vi.advanceTimersByTimeAsync(10_000);
     expect(received).toHaveLength(1);
-    expect(await settle(service.history('d1'))).toHaveLength(1);
+    expect((await settle(service.history('d1'))).messages).toHaveLength(1);
   });
 
   it('lets a test inject an end-user reply with the given text', async () => {
@@ -62,6 +67,15 @@ describe('MockRemoteSessionChatService', () => {
     stop();
     service.simulateUserReply('d1', 'Still here');
     expect(d1).toHaveLength(1);
-    expect(await settle(service.history('d1'))).toHaveLength(2);
+    expect((await settle(service.history('d1'))).messages).toHaveLength(2);
+  });
+});
+
+describe('mock dialog ids', () => {
+  it('are named after the request and recognisable', () => {
+    const id = mockRemoteSessionDialogId('01REQ');
+    expect(isMockRemoteSessionDialog(id)).toBe(true);
+    expect(isMockRemoteSessionDialog('6ab3dc7f39817b02bf2d58a8')).toBe(false);
+    expect(isMockRemoteSessionDialog(null)).toBe(false);
   });
 });

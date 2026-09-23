@@ -322,6 +322,9 @@ function ApprovedSessionScope({
   children: ReactNode;
 }) {
   const { session, ended, endSession } = useRemoteSession(deviceId, requestId, live);
-  const value = useMemo(() => ({ requestId, session, ended, endSession }), [requestId, session, ended, endSession]);
+  const value = useMemo(
+    () => ({ requestId, live, session, ended, endSession }),
+    [requestId, live, session, ended, endSession],
+  );
   return <RemoteAccessSessionProvider value={value}>{children}</RemoteAccessSessionProvider>;
 }
