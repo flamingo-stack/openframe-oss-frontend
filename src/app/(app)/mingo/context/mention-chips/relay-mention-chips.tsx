@@ -28,6 +28,9 @@ import { type ReactNode, Suspense } from 'react';
  *   - script schedule       → `scriptSchedule(id:)` (same deal as script: a
  *     dedicated query on a GLOBAL id, and the `/scripts/schedules/details`
  *     route keys on the global id too).
+ *   - software              → `software(id:)` on the inventory's OWN id — not a
+ *     global id, so nothing is re-encoded; the `/software/details` route takes
+ *     the same id.
  */
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { relayMentionChipsInsightQuery } from '@/__generated__/relayMentionChipsInsightQuery.graphql';
@@ -35,6 +38,7 @@ import type { relayMentionChipsKbQuery } from '@/__generated__/relayMentionChips
 import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChipsNodeQuery.graphql';
 import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentionChipsScheduleQuery.graphql';
 import type { relayMentionChipsScriptQuery } from '@/__generated__/relayMentionChipsScriptQuery.graphql';
+import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentionChipsSoftwareQuery.graphql';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
@@ -43,9 +47,10 @@ import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-
 
 interface GraphqlMentionChipProps {
   /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | KB_ARTICLE | KB_FOLDER |
-   *  SCRIPT | SCHEDULED_SCRIPT. */
+   *  SCRIPT | SCHEDULED_SCRIPT | INSIGHT | SOFTWARE. */
   kind: ContextEntityKind;
-  /** RAW db id (machineId / organizationId / kb id / script id / schedule id). */
+  /** RAW db id (machineId / organizationId / kb id / script id / schedule id /
+   *  software id). */
   id: string;
   icon?: ReactNode;
   /** Known display name (e.g. a context item's picked label). Shown instead of
@@ -112,15 +117,27 @@ const INSIGHT_QUERY = graphql`
   }
 `;
 
-/** Detail-page URL for a resolved entity. Device/org routes key on the RAW id;
- *  the kb + script + schedule + incident routes key on the GLOBAL id (same id their queries
- *  take). */
+/** software — `software(id:)` takes the inventory id the mention carries; null
+ *  (not a throw) for an unknown one, which the fallback label covers. */
+const SOFTWARE_QUERY = graphql`
+  query relayMentionChipsSoftwareQuery($id: ID!) {
+    software(id: $id) {
+      name
+    }
+  }
+`;
+
+/** Detail-page URL for a resolved entity. Device/org/software routes key on the
+ *  RAW id; the kb + script + schedule + incident routes key on the GLOBAL id
+ *  (same id their queries take). */
 function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): string | undefined {
   switch (kind) {
     case CONTEXT_ENTITY_KIND.DEVICE:
       return routes.devices.details(rawId);
     case CONTEXT_ENTITY_KIND.ORGANIZATION:
       return routes.customers.details(rawId);
+    case CONTEXT_ENTITY_KIND.SOFTWARE:
+      return routes.software.details(rawId);
     case CONTEXT_ENTITY_KIND.KB_ARTICLE:
       return routes.knowledgeBase.details(globalId);
     case CONTEXT_ENTITY_KIND.KB_FOLDER:
@@ -211,6 +228,17 @@ function InsightInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
   );
 }
 
+function SoftwareInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
+  const data = useLazyLoadQuery<relayMentionChipsSoftwareQuery>(
+    SOFTWARE_QUERY,
+    { id: globalId },
+    { fetchPolicy: 'store-or-network' },
+  );
+  return (
+    <MentionTag icon={icon} label={data.software?.name || fallbackLabel || id} href={hrefFor(kind, id, globalId)} />
+  );
+}
+
 function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
   switch (kind) {
     case CONTEXT_ENTITY_KIND.KB_ARTICLE:
@@ -222,6 +250,8 @@ function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
       return ScheduleInner;
     case CONTEXT_ENTITY_KIND.INSIGHT:
       return InsightInner;
+    case CONTEXT_ENTITY_KIND.SOFTWARE:
+      return SoftwareInner;
     default:
       return NodeInner;
   }
@@ -229,16 +259,14 @@ function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
 
 export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMentionChipProps) {
   const typename = CONTEXT_RELAY_TYPENAME[kind];
-  // No relay typename for this kind → can't build a global id; render a plain
-  // (clickable where a route exists) chip. Should not happen for the six
-  // GraphQL kinds.
-  if (!typename) return <MentionTag icon={icon} label={fallbackLabel || id} href={hrefFor(kind, id, id)} />;
   // `id` may be a RAW db id (context item) OR an already-global id (an inline
   // `@kb:<globalId>` mention, since KB's idHint == the node id). `ensure…`
   // encodes the former and passes the latter through unchanged — no double-encode.
   // `toGlobalId` emits the backend's unpadded form, so this global id is URL-safe
-  // for the kb/script detail hrefs (`/scripts/details/<globalId>`).
-  const globalId = ensureGlobalIdForType(typename, id);
+  // for the kb/script detail hrefs (`/scripts/details/<globalId>`). A kind with
+  // no typename (software) is one whose stored id already IS what its query
+  // takes, so it goes through as is.
+  const globalId = typename ? ensureGlobalIdForType(typename, id) : id;
   const Inner = innerFor(kind);
   return (
     <MentionErrorBoundary

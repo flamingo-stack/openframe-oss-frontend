@@ -11,23 +11,24 @@
  * stable identity falls out for free — the lib's per-message memo relies on
  * `renderMention` keeping reference equality across streaming chunks.
  *
- * Coverage = all context markers plus chat-memory references. GraphQL types (device,
- * customer, kb article, kb folder, scheduled script, incident) resolve via Relay; REST/ai-agent types (policy,
- * query, user, ticket) via `RestMentionChip`. SCRIPT is dual-sourced — a NEW
- * script (24-char ObjectId) resolves via Relay, a LEGACY Tactical script (numeric
- * id) via REST — so both kinds of script id render regardless of the flag. Every
- * context chip falls back to a plain id chip (clickable where a route exists)
- * if its fetch can't resolve a name. Inaccessible chat references stay unlinked.
- * Unknown marker → bare token.
+ * Coverage = all context markers plus chat-memory references. GraphQL types
+ * (device, customer, kb article, kb folder, scheduled script, incident, software)
+ * resolve via Relay; REST/ai-agent types (policy, query, user, ticket) via
+ * `RestMentionChip`; a vulnerability needs no fetch because its CVE id is its
+ * name. SCRIPT supports native and legacy ids. Context chips fall back to an id
+ * when their name cannot resolve; inaccessible chat references stay unlinked.
+ * Unknown markers remain bare tokens.
  */
 
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import type { ReactNode } from 'react';
 import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
+import { routes } from '@/lib/routes';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
 import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
 import { ChatMemoryMention } from './chat-memory-mention';
+import { MentionTag } from './mention-tag';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
 
@@ -81,6 +82,12 @@ export function renderMingoMention({
       );
     case M.INSIGHT:
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.INSIGHT} id={id} icon={icon} fallbackLabel={label} />;
+    case M.SOFTWARE:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SOFTWARE} id={id} icon={icon} fallbackLabel={label} />;
+    case M.VULNERABILITY:
+      // A CVE id is its own name: nothing to resolve, so no fetch and no
+      // skeleton — a linked chip straight away.
+      return <MentionTag icon={icon} label={label || id} href={routes.software.vulnerability(id)} />;
     case M.SCRIPT:
       // Dual-sourced: a 24-char ObjectId is a NATIVE script (Relay `script(id:)`);
       // anything else (numeric) is a LEGACY Tactical id, still reachable in old
