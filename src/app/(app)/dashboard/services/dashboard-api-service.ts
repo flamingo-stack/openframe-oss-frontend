@@ -31,11 +31,9 @@ export interface DashboardDeviceStats {
 
 export interface DashboardTicketStats {
   total: number;
-  active: number;
   resolved: number;
   avgResolveTime: string;
   avgFaeRate: number;
-  activePercentage: number;
   resolvedPercentage: number;
   // Lifecycle (custom-status) kind breakdown — populated when the ticket-statuses feature is on.
   aiAssistance: number;
@@ -130,17 +128,12 @@ class DashboardApiService {
       const total = data.totalCount || 0;
       const resolved = resolvedCountFromStatistics(data);
       const kinds = kindCountsFromStatistics(data);
-      // "Active" is the AI_ASSISTANCE lane — the lifecycle equivalent of the
-      // removed legacy ACTIVE enum bucket (statusCounts came back empty anyway).
-      const active = kinds.aiAssistance;
 
       return {
         total,
-        active,
         resolved,
         avgResolveTime: data.averageResolutionTimeFormatted || EMPTY_VALUE,
         avgFaeRate: typeof data.averageRating === 'number' ? Number(data.averageRating.toFixed(1)) : 0,
-        activePercentage: total > 0 ? Math.round((active / total) * 100) : 0,
         resolvedPercentage: total > 0 ? Math.round((resolved / total) * 100) : 0,
         aiAssistance: kinds.aiAssistance,
         techRequired: kinds.techRequired,
