@@ -98,11 +98,9 @@ export function useTicketsOverview() {
 
   return {
     total: query.data?.total ?? null,
-    active: query.data?.active ?? null,
     resolved: query.data?.resolved ?? null,
     avgResolveTime: query.data?.avgResolveTime ?? EMPTY_VALUE,
     avgFaeRate: query.data?.avgFaeRate ?? null,
-    activePercentage: query.data?.activePercentage ?? null,
     resolvedPercentage: query.data?.resolvedPercentage ?? null,
     aiAssistance: query.data?.aiAssistance ?? null,
     techRequired: query.data?.techRequired ?? null,
