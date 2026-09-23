@@ -1,4 +1,4 @@
-import { CHAT_TYPE, type ChunkData, OWNER_TYPE } from '@flamingo-stack/openframe-frontend-core';
+import { CHAT_TYPE, OWNER_TYPE } from '@flamingo-stack/openframe-frontend-core';
 import { decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { ticketService } from '@/app/(app)/tickets/services';
 import type { AdminOwner, Message } from '@/app/(app)/tickets/types/dialog.types';
@@ -76,8 +76,8 @@ export function decodeRemoteSessionChatChunk(
 ): RemoteSessionChatMessage | null {
   const event = decodeNatsChunk(payload);
   if (!event || event.type !== 'participant' || event.kind === 'system' || !event.text) return null;
-  const streamSeq = (payload as ChunkData).streamSeq;
-  const seq = typeof streamSeq === 'number' && streamSeq > 0 ? streamSeq : undefined;
+  // The decoder lifts the JetStream sequence into the event; a chunk without one gets a local id.
+  const seq = typeof event.seq === 'number' && event.seq > 0 ? event.seq : undefined;
   const id = seq !== undefined ? `seq-${seq}` : `live-${++liveRowCounter}`;
   const sentAt = new Date().toISOString();
   if (event.ownerType === OWNER_TYPE.CLIENT) {
