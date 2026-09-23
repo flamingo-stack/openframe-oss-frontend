@@ -24,11 +24,11 @@ import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openfr
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
-import { useApprovedRemoteAccessRequestId } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
+import { useRemoteAccessSession } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devices/hooks/use-remote-session-chat';
-import { buildRemoteAccessRelayIdPrefix } from '@/app/(app)/devices/types/remote-access';
+import { buildRemoteAccessRelayIdPrefix, type RemoteSessionEndReason } from '@/app/(app)/devices/types/remote-access';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -113,6 +113,15 @@ export default function RemoteDesktopPage() {
 /** MeshCentral relay protocol number for the desktop (KVM) stream. */
 const DESKTOP_PROTOCOL = 2;
 
+/** The "Session ended" line per end reason; the dev lever plays the end user's end. */
+const SESSION_ENDED_COPY: Record<RemoteSessionEndReason, string> = {
+  client: 'The user ended the remote session',
+  admin: 'The remote session was ended',
+  timeout: 'The remote session reached its time limit',
+  connection_lost: 'The connection to the device was lost',
+  policy: 'Remote access to this device was disabled',
+};
+
 function RemoteDesktopSession() {
   const searchParams = useSearchParams();
   const deviceId = searchParams.get('id') ?? '';
@@ -120,7 +129,7 @@ function RemoteDesktopSession() {
   // the first token of every relay id, so the gateway gate can match the
   // tunnel against the grant. Read once into a ref - the session is mounted
   // only after approval and never re-approved while mounted.
-  const approvedRequestId = useApprovedRemoteAccessRequestId();
+  const { requestId: approvedRequestId, ended: remoteSessionEnd, endSession } = useRemoteAccessSession();
   const relayIdPrefixRef = useRef(
     approvedRequestId ? buildRemoteAccessRelayIdPrefix(approvedRequestId, DESKTOP_PROTOCOL) : undefined,
   );
@@ -212,11 +221,11 @@ function RemoteDesktopSession() {
     'connecting',
   );
   const [retryNonce, setRetryNonce] = useState(0);
-  // "The user ended the remote session" (mockup 1036-33339). Distinguishing a
-  // clean client-side end from a connection drop needs the session lifecycle
-  // events from the BE (CU-86ajx02qj) - until then only the dev lever below
-  // can set it, so the state ships dark with the UI ready.
-  const [sessionEnded, setSessionEnded] = useState(false);
+  // The session is over: the backend said so (the end user pressed End
+  // Session, the cap passed, the tunnel was lost), or the dev lever below did.
+  // The stream must stop here - nothing on the server side closes the relay.
+  const [devSessionEnded, setDevSessionEnded] = useState(false);
+  const sessionEnded = devSessionEnded || remoteSessionEnd !== null;
   // Session chat: the dialog exists only for an approved session (null with
   // the flag off), so the toggle stays hidden otherwise.
   // The panel closes with the session.
@@ -231,12 +240,16 @@ function RemoteDesktopSession() {
   const toggleChat = () => setChatOpenFor(showChat ? null : chatDialogId);
 
   useEffect(() => {
+    if (remoteSessionEnd) tunnelRef.current?.stop();
+  }, [remoteSessionEnd]);
+
+  useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return undefined;
     // Dev only - simulate the end user ending the session:
     // window.dispatchEvent(new Event('openframe:dev-remote-session-ended'))
     const onEnded = () => {
       tunnelRef.current?.stop();
-      setSessionEnded(true);
+      setDevSessionEnded(true);
       setChatOpenFor(null);
     };
     window.addEventListener('openframe:dev-remote-session-ended', onEnded);
@@ -482,6 +495,7 @@ function RemoteDesktopSession() {
   }, [clipboardEnabled, meshcentralAgentId, isPageReady]);
 
   const handleBack = () => {
+    endSession();
     tunnelRef.current?.stop();
     safeBackToDevice();
   };
@@ -800,7 +814,7 @@ function RemoteDesktopSession() {
           <NoData
             icon={<MonitorOffIcon />}
             title="Session ended"
-            description="The user ended the remote session"
+            description={SESSION_ENDED_COPY[remoteSessionEnd?.endReason ?? 'client']}
             button={
               <Button variant="outline" onClick={handleBack}>
                 Back to Device Details
