@@ -32,6 +32,7 @@ export interface UiDeviceLog {
   rawLevel: string;
   message: string;
   hostname: string | null;
-  /** Identical lines the agent collapsed into this one; `null` when not collapsed. */
+  /** FE-7's `×N`, null below 2. The SDL documents no meaning for `count` and QA
+   *  never populates it, so what fills it is a question for the backend. */
   count: number | null;
 }

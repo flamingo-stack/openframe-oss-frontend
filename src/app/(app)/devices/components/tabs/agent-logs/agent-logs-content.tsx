@@ -34,9 +34,9 @@ export interface AgentLogsList {
 type LogItem =
   { kind: 'day'; key: string; timestamp: string } | { kind: 'line'; key: string; line: UiDeviceLog; posinset: number };
 
-/** Exact, not a guess: a collapsed row is one line at every width, and the level
- *  chip fixes its height. Only an expanded row measures past it. */
-const ROW_ESTIMATE_PX = 40;
+/** Exact, not a guess: 32px chip + 4px padding + the row's 1px border, top and
+ *  bottom. One line at every width; only an expanded row measures past it. */
+const ROW_ESTIMATE_PX = 42;
 /** `--spacing-system-xxs`, which is 4px at every breakpoint. */
 const ROW_GAP_PX = 4;
 /** Rows from the end at which the next page is requested. */

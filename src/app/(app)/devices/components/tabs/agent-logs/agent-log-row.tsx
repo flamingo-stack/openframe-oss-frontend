@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Chevron01RightIcon, Copy01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
@@ -20,32 +20,34 @@ interface AgentLogRowProps {
 function MetaLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-[var(--spacing-system-xs)]">
-      <dt className="w-[72px] shrink-0 text-ods-text-tertiary text-code">{label}</dt>
-      <dd className="min-w-0 flex-1 text-ods-text-secondary text-code [overflow-wrap:anywhere]">{value}</dd>
+      <dt className="w-[72px] shrink-0 text-ods-text-secondary text-code">{label}</dt>
+      <dd className="min-w-0 flex-1 text-ods-text-primary text-code [overflow-wrap:anywhere]">{value}</dd>
     </div>
   );
 }
 
 /**
  * One log line, spec §4 in the log-viewer shape: time · level · message,
- * monospace throughout, the message on one truncated line until the row is
- * opened. Opening wraps the message and adds the metadata (FE-6/FE-7).
+ * monospace throughout, truncated until the row is opened. Opening unfolds the
+ * message in place on `md+`, and appends it full width below on a phone.
  */
 export function AgentLogRow({ line, deviceHostname, expanded, onToggle }: AgentLogRowProps) {
   const { copy } = useCopyToClipboard({ successDescription: 'Log line copied' });
   const foreignHostname = line.hostname && line.hostname !== deviceHostname ? line.hostname : null;
   const levelText = line.rawLevel.trim().toUpperCase() || line.level;
 
+  // The border is always there, only its colour changes: `border-box` would
+  // otherwise pull the content in by 1px at the moment the row opens.
   return (
-    <div className={cn('rounded-md', expanded && 'bg-ods-card')}>
+    <div className={cn('rounded-md border border-transparent', expanded && 'border-ods-border bg-ods-card')}>
       <button
         type="button"
         aria-expanded={expanded}
         onClick={() => onToggle(line.key)}
         className={cn(
           // `items-start` in BOTH states: switching it on expand moved the first
-          // line 6px up, because the 20px text is centred against the 32px chip.
-          // The `py-[6px]` below gives text the chip's height instead.
+          // line up. The text padding below instead grows the line box to the
+          // chip's 32px — 8px against a 16px line, 6px against the 20px one.
           'flex w-full items-start gap-[var(--spacing-system-xs)] rounded-md px-[var(--spacing-system-xs)] py-[var(--spacing-system-xxs)] text-left',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent',
           // An open row already carries the card background; stacking hover on
@@ -56,7 +58,7 @@ export function AgentLogRow({ line, deviceHostname, expanded, onToggle }: AgentL
         {/* FE-4: monospace, tabular figures, fixed WIDTH — an unparseable instant
             passes through whole, and equal content alone would not keep the
             message column starting at the same x on every row. */}
-        <span className="w-[144px] shrink-0 truncate py-[6px] tabular-nums text-ods-text-secondary text-code md:w-[168px]">
+        <span className="w-[144px] shrink-0 truncate py-[8px] tabular-nums text-ods-text-secondary text-code md:w-[168px] md:py-[6px]">
           {formatDeviceLogTime(line.timestamp)}
         </span>
         {/* A slot, not the chip's own width: `INFO` and `ERROR` differ, and the
@@ -71,10 +73,13 @@ export function AgentLogRow({ line, deviceHostname, expanded, onToggle }: AgentL
             className="max-w-full"
           />
         </span>
+        {/* Below `md` the line stays a truncated title even when open — the full
+            text is appended underneath. On `md+` there is room, so it still
+            unfolds in place. */}
         <span
           className={cn(
-            'min-w-0 flex-1 py-[6px] text-ods-text-primary text-code',
-            expanded ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
+            'min-w-0 flex-1 truncate py-[8px] text-ods-text-primary text-code md:py-[6px]',
+            expanded && 'md:overflow-visible md:text-clip md:whitespace-pre-wrap md:[overflow-wrap:anywhere]',
           )}
         >
           {line.message}
@@ -90,11 +95,25 @@ export function AgentLogRow({ line, deviceHostname, expanded, onToggle }: AgentL
         {line.count !== null && (
           <Tag as="span" variant="outline" label={<span>×{line.count}</span>} className="shrink-0" />
         )}
+        {/* Decorative: `aria-expanded` on the button already states the state.
+            Boxed to the chip's height so it centres without a padding of its own. */}
+        <span aria-hidden="true" className="flex h-8 shrink-0 items-center">
+          <Chevron01RightIcon
+            className={cn('h-4 w-4 text-ods-text-tertiary transition-transform', expanded && 'rotate-90')}
+          />
+        </span>
       </button>
-      {/* The 256px indent is 8 (row padding) + 168 (time) + 8 + 64 (chip) + 8, so
-          the metadata starts under the message rather than beside it. */}
       {expanded && (
-        <div className="flex flex-col gap-[var(--spacing-system-xxs)] px-[var(--spacing-system-xs)] pb-[var(--spacing-system-xs)] md:pl-[256px]">
+        <div className="flex flex-col gap-[var(--spacing-system-xs)] px-[var(--spacing-system-xs)] pb-[var(--spacing-system-xs)] md:gap-[var(--spacing-system-xxs)] md:pl-[256px]">
+          {/* Only below `md`, where the title above stays truncated: full width,
+              because columns leave a log line a third of a phone screen. */}
+          <div className="flex flex-col gap-[var(--spacing-system-xxs)] md:hidden">
+            <span className="text-ods-text-secondary text-h5">Message</span>
+            <p className="whitespace-pre-wrap text-ods-text-primary text-code [overflow-wrap:anywhere]">
+              {line.message}
+            </p>
+          </div>
+          <span aria-hidden="true" className="h-px bg-ods-border md:hidden" />
           {/* `received` repeats the row's time WITH its date, and `agent_ts` is
               the device's own clock — the two a reader opens a line to compare. */}
           <dl className="flex flex-col gap-[var(--spacing-system-xxs)]">
@@ -102,7 +121,7 @@ export function AgentLogRow({ line, deviceHostname, expanded, onToggle }: AgentL
             {line.agentTimestamp && <MetaLine label="agent_ts" value={line.agentTimestamp} />}
             {line.hostname && <MetaLine label="hostname" value={line.hostname} />}
           </dl>
-          <div className="pt-[var(--spacing-system-xxs)]">
+          <div>
             <Button
               variant="outline"
               size="small"
