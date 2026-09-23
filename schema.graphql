@@ -1452,6 +1452,9 @@ type Mutation {
   """Cancel Request: settles the caller's own live request as REVOKED."""
   revokeRemoteAccessRequest(requestId: String!): RemoteAccessRequestPayload!
 
+  """Back / leave: ends the caller's own session with endReason ADMIN and frees the device."""
+  endRemoteSession(sessionId: String!): RemoteSessionPayload!
+
   """new | snoozed -> acknowledged. Clears any snooze."""
   acknowledgeInsight(input: InsightIdInput!): Insight!
 
@@ -2307,6 +2310,16 @@ type Query {
   """
   remoteAccessRequest(requestId: String!): RemoteAccessRequest!
 
+  """The caller's own session, the read the Back / leave flow needs before ending it."""
+  remoteSession(sessionId: String!): RemoteSession!
+
+  """
+  The caller's own ACTIVE session on the device, or null. A session held by another technician reads as
+  null on purpose: who holds a device is not disclosed, the same rule as the identifier-free
+  DEVICE_HAS_ACTIVE_SESSION refusal on createRemoteAccessRequest. The session indicator's reload path.
+  """
+  activeRemoteSession(deviceId: String!): RemoteSession
+
   """
   Cursor-paginated insights for the calling tenant (newest first unless sorted otherwise).
   Tenant scoping is applied by the datastore — the filter narrows within the tenant,
@@ -2771,6 +2784,55 @@ Remote screen (MeshCentral desktop) only; the enum exists so the wire shape does
 """
 enum RemoteSessionKind {
   DESKTOP
+}
+
+" Remote session lifecycle, technician side. A session record is created when a request reaches APPROVED;\n the machine side (sessions/current, sessions/{id}/end) stays REST on openframe-saas-client. Lifecycle events\n reach the technician as REMOTE_SESSION_STARTED / REMOTE_SESSION_ENDED on user.<technicianId>.notification,\n with no drawer entry. A lost tunnel ends the session (endReason CONNECTION_LOST) instead of parking it."
+enum RemoteSessionStatus {
+  ACTIVE
+  ENDED
+}
+
+enum RemoteSessionEndReason {
+  ADMIN
+  CLIENT
+  TIMEOUT
+  CONNECTION_LOST
+  POLICY
+}
+
+type RemoteSession {
+  """A plain 26-char ULID."""
+  sessionId: String!
+  requestId: String!
+
+  """The OpenFrame machine id, the value the device pages carry as ?id=."""
+  deviceId: String!
+  technicianId: String!
+  sessionKind: RemoteSessionKind!
+
+  """The policy mode copied from the request; SILENT_ACCESS sessions send nothing to the device."""
+  mode: RemoteAccessMode!
+  status: RemoteSessionStatus!
+  startedAt: Instant!
+  endedAt: Instant
+  endReason: RemoteSessionEndReason
+  reason: String
+  ticketId: String
+  ticketNumber: String
+  recordingEnabled: Boolean!
+
+  """Null until the session chat provisions the dialog."""
+  dialogId: String
+}
+
+"""
+Mutation payload. Domain refusals come back as userErrors with a stable code:
+REMOTE_SESSION_NOT_FOUND, REMOTE_ACCESS_FORBIDDEN (another technician's session), REMOTE_ACCESS_DISABLED,
+REMOTE_SESSION_ENDED (the session was already over; the ended session is returned).
+"""
+type RemoteSessionPayload {
+  session: RemoteSession
+  userErrors: [UserError!]!
 }
 
 input RunCommandInput {
