@@ -25,6 +25,7 @@ vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({
   useSubscriptionOpen: () => subscriptionOpen,
 }));
 
+import { OfflineError } from '@/lib/query-state';
 import type { DeviceLogErrorInfo } from '../utils/device-log-errors';
 import type { PolledPage } from '../utils/device-log-tail';
 import { DEVICE_LOGS_POLL_INTERVAL_MS, useDeviceLogsLiveTail } from './use-device-logs-live-tail';
@@ -64,6 +65,8 @@ const fetchNewer = (from: string) =>
   });
 
 interface ProbeProps {
+  connectionId?: string;
+  hasSearch?: boolean;
   enabled?: boolean;
   atTop?: boolean;
   newestTimestamp?: string | null;
@@ -71,14 +74,22 @@ interface ProbeProps {
   windowEnd?: string;
 }
 
-function Probe({ enabled = true, atTop = true, newestTimestamp = null, windowStart, windowEnd }: ProbeProps) {
+function Probe({
+  connectionId = CONNECTION,
+  hasSearch = false,
+  enabled = true,
+  atTop = true,
+  newestTimestamp = null,
+  windowStart,
+  windowEnd,
+}: ProbeProps) {
   const result = useDeviceLogsLiveTail({
-    connectionId: CONNECTION,
+    connectionId,
     fetchNewer,
     newestTimestamp,
     windowStart,
     windowEnd,
-    hasSearch: false,
+    hasSearch,
     enabled,
     atTop,
     onGap,
@@ -253,6 +264,19 @@ describe('useDeviceLogsLiveTail', () => {
     expect(latest?.error).toBeNull();
   });
 
+  it('starts a new list on the first backoff step, not where the old list left off', () => {
+    render();
+    tick();
+    act(() => calls[0].sink.error(new Error('Relay fetch failed: 503')));
+
+    render({ connectionId: 'client:other-list' });
+    tick();
+    expect(calls).toHaveLength(2);
+    act(() => calls[1].sink.error(new Error('Relay fetch failed: 503')));
+    tick(15_000);
+    expect(calls).toHaveLength(3);
+  });
+
   it('stops for good when the device is gone — waiting cannot fix it', () => {
     render();
     tick();
@@ -281,6 +305,24 @@ describe('useDeviceLogsLiveTail', () => {
     // A second rejection in a row is no longer a clock blip: say so.
     act(() => calls[1].sink.error(rejected));
     expect(latest?.error?.kind).toBe('validation');
+  });
+
+  it('stops on a rejected search: the same text is rejected the same way every tick', () => {
+    render({ hasSearch: true });
+    tick();
+    act(() => calls[0].sink.error(new Error('Relay fetch failed: 502 Bad Gateway')));
+    expect(latest?.error?.kind).toBe('search-rejected');
+    tick(120_000);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('keeps waiting through an offline spell instead of giving up', () => {
+    render();
+    tick();
+    act(() => calls[0].sink.error(new OfflineError('agentLogsContentPollQuery')));
+    expect(latest?.error?.kind).toBe('offline');
+    tick(15_000);
+    expect(calls).toHaveLength(2);
   });
 
   it('cancels the request in flight and its timer when the tab goes away', () => {

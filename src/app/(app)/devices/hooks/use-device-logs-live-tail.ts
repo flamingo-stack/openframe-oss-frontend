@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { commitLocalUpdate, useRelayEnvironment } from 'react-relay';
 import type { Observable, Subscription } from 'relay-runtime';
 import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscription-guard';
-import { describeDeviceLogError, type DeviceLogErrorInfo } from '../utils/device-log-errors';
+import { describeDeviceLogError, type DeviceLogErrorInfo, isRetryableDeviceLogError } from '../utils/device-log-errors';
 import { pollBackoffMs, type PolledPage, prependNewerLines } from '../utils/device-log-tail';
 
 /** New lines reach the platform about once a minute; polling faster shows nothing sooner. */
@@ -50,8 +50,8 @@ export function useDeviceLogsLiveTail({
   const subscriptionOpen = useSubscriptionOpen();
   const [failure, setFailure] = useState<{ connectionId: string; error: DeviceLogErrorInfo } | null>(null);
   // Outside the effect: `atTop` restarts it, and a ladder that resets on every
-  // scroll is no ladder at all.
-  const failuresRef = useRef(0);
+  // scroll is no ladder at all. Keyed to the list, so a new one starts at step one.
+  const failuresRef = useRef({ connectionId, count: 0 });
 
   // Latest values for the timer, written after the commit; the effect keys on identity only.
   const latest = useRef({ fetchNewer, newestTimestamp, windowStart, windowEnd, hasSearch, onGap });
@@ -63,6 +63,8 @@ export function useDeviceLogsLiveTail({
 
   useEffect(() => {
     if (!active) return undefined;
+    if (failuresRef.current.connectionId !== connectionId) failuresRef.current = { connectionId, count: 0 };
+    const failures = failuresRef.current;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let request: Subscription | null = null;
     // "Now", not the API's 7-day default, for an empty list with an open-ended filter.
@@ -90,20 +92,21 @@ export function useDeviceLogsLiveTail({
         },
         complete: () => {
           request = null;
-          failuresRef.current = 0;
+          failures.count = 0;
           setFailure(null);
           schedule(DEVICE_LOGS_POLL_INTERVAL_MS);
         },
         error: (error: Error) => {
           request = null;
           const info = describeDeviceLogError(error, { hasSearch: latest.current.hasSearch });
-          // Only a vanished device is final. The list already had this filter
-          // accepted, so a rejection here is the range (`from` at the server's
-          // "now" when pod clocks drift): silent once, since it passes on retry.
-          if (info.kind !== 'validation' || failuresRef.current > 0) setFailure({ connectionId, error: info });
-          if (info.kind === 'not-found') return;
-          schedule(pollBackoffMs(failuresRef.current));
-          failuresRef.current += 1;
+          // Beyond the shared rule, two kinds pass with time here: offline, and a
+          // rejected range — the list had this filter accepted, so it is `from` at the
+          // server's "now" when pod clocks drift. That one is silent the first time.
+          if (info.kind !== 'validation' || failures.count > 0) setFailure({ connectionId, error: info });
+          const passesWithTime = info.kind === 'offline' || info.kind === 'validation';
+          if (!isRetryableDeviceLogError(info.kind) && !passesWithTime) return;
+          schedule(pollBackoffMs(failures.count));
+          failures.count += 1;
         },
       });
     }

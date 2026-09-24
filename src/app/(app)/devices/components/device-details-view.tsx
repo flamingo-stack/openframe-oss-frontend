@@ -23,10 +23,11 @@ import { useDeviceAgentLogsGate } from '../hooks/use-device-agent-logs-gate';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { getDeviceName } from '../utils/device-name';
 import { getDeviceStatusConfig } from '../utils/device-status';
+import { AGENT_LOGS_TAB_ID, DEFAULT_DEVICE_TAB, resolveDeviceTab } from '../utils/device-tab-gates';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { DeviceDetailsSkeleton } from './device-details-skeleton';
 import { RunScriptModal } from './run-script/run-script-modal';
-import { AGENT_LOGS_TAB_ID, useDeviceTabs } from './tabs/device-tabs';
+import { useDeviceTabs } from './tabs/device-tabs';
 
 // Icon size for the "…" dropdown items only. The same registry feeds the header
 // buttons, but there this class never applies: every button variant styles its glyphs
@@ -40,22 +41,21 @@ interface DeviceDetailsViewProps {
   deviceId: string;
 }
 
-const DEFAULT_DEVICE_TAB = 'overview';
-
 export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Derive the valid-tab set from the visible tabs (the single source of truth) so
-  // disabled tabs (e.g. the commented-out `queries`) and flag-gated tabs the tenant
-  // doesn't have are excluded automatically. Otherwise a URL like `?tab=queries`
-  // would pass validation but render a blank panel (no component).
-  const deviceTabs = useDeviceTabs();
-  const deviceTabIds = deviceTabs.map(tab => tab.id);
-
+  // The valid tabs come from the listed ones (the single source of truth), so a
+  // disabled or flag-gated tab in the URL falls back instead of rendering blank.
   const requestedTab = searchParams.get('tab') ?? DEFAULT_DEVICE_TAB;
-  const activeTab = (deviceTabIds as readonly string[]).includes(requestedTab) ? requestedTab : DEFAULT_DEVICE_TAB;
+  const agentLogsGate = useDeviceAgentLogsGate();
+  const deviceTabs = useDeviceTabs(requestedTab);
+  const { tab: activeTab, awaitingFlag } = resolveDeviceTab(
+    requestedTab,
+    deviceTabs.map(tab => tab.id),
+    agentLogsGate,
+  );
 
   // Controlled mode for TabNavigation: URL is the single source of truth.
   // Avoids a flicker bug in `urlSync` mode where the internal sync effect
@@ -149,18 +149,17 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     return groups;
   }, [actionAvailability, deviceMenuItems]);
 
-  // The Run Script modal's "Device Logs" CTA exists only with the feature on;
-  // the stamp forces the Agent Logs tab to reload even when already open.
-  const agentLogsGate = useDeviceAgentLogsGate();
+  // The Run Script modal's "Device Logs" CTA: Agent Logs with the feature on, the
+  // Overview logs table otherwise; the stamp forces a reload even when already open.
   const handleDeviceLogs = () => {
     // Rides the live URL so the tab's own filters survive the jump; the stamp's
     // name lives in the registry (ROUTES.md § cross-cutting overlay params).
     const params = new URLSearchParams(window.location.search);
-    params.set('tab', AGENT_LOGS_TAB_ID);
+    params.set('tab', agentLogsGate === 'on' ? AGENT_LOGS_TAB_ID : DEFAULT_DEVICE_TAB);
     router.push(withDeviceLogsRefresh(`${window.location.pathname}?${params.toString()}`, Date.now()));
   };
 
-  if (isLoading) {
+  if (isLoading || awaitingFlag) {
     return <DeviceDetailsSkeleton activeTab={activeTab} />;
   }
 
@@ -225,7 +224,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         isOpen={isScriptsModalOpen}
         onClose={() => setIsScriptsModalOpen(false)}
         machineId={normalizedDevice.machineId}
-        onViewDeviceLogs={agentLogsGate === 'on' ? handleDeviceLogs : undefined}
+        onViewDeviceLogs={handleDeviceLogs}
       />
 
       {confirmationDialogs}

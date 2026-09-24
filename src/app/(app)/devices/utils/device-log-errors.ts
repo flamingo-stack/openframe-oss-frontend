@@ -12,17 +12,25 @@ export interface DeviceLogErrorInfo {
   code: string | null;
 }
 
+/**
+ * Whether sending the same request again can succeed: an outage, not an answer
+ * about the request. Offline is not — it waits for the link to return instead.
+ */
+export function isRetryableDeviceLogError(kind: DeviceLogErrorKind): boolean {
+  return kind === 'unavailable' || kind === 'generic';
+}
+
 export const DEVICE_LOGS_UNAVAILABLE_MESSAGE = 'Logs are temporarily unavailable.';
 export const DEVICE_LOGS_GENERIC_MESSAGE = "Couldn't load agent logs.";
 
-/** `fetchRelay` throws this prefix for any non-200 that carried no GraphQL body (the edge proxy's 502). */
-function isTransportFailure(error: unknown): boolean {
-  return error instanceof Error && error.message.startsWith('Relay fetch failed:');
+/** The edge proxy's bodiless 502 only: other statuses and the auth blip share the prefix but are outages. */
+function isProxyRejection(error: unknown): boolean {
+  return error instanceof Error && /^Relay fetch failed: 502\b/.test(error.message);
 }
 
 /**
- * Chooses the UI from `extensions.code`, not from the message text. A non-200
- * while a search is active is the edge proxy rejecting the text (a WAF rule),
+ * Chooses the UI from `extensions.code`, not from the message text. A bodiless
+ * 502 while a search is active is the edge proxy rejecting the text (a WAF rule),
  * never a crash or a blank list.
  */
 export function describeDeviceLogError(error: unknown, { hasSearch }: { hasSearch: boolean }): DeviceLogErrorInfo {
@@ -40,7 +48,7 @@ export function describeDeviceLogError(error: unknown, { hasSearch }: { hasSearc
     default:
       break;
   }
-  if (!coded && hasSearch && isTransportFailure(error)) {
+  if (!coded && hasSearch && isProxyRejection(error)) {
     return { kind: 'search-rejected', message: DEVICE_LOG_SEARCH_REJECTED_MESSAGE, code: null };
   }
   return { kind: 'generic', message: DEVICE_LOGS_GENERIC_MESSAGE, code: coded?.code ?? null };

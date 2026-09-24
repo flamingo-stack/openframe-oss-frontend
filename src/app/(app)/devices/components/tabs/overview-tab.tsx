@@ -25,9 +25,13 @@ export function OverviewTab({ device }: OverviewTabProps) {
   // Use machineId as the primary device identifier for filtering logs.
   const deviceId = device?.machineId || device?.id;
 
+  // A stamp already in the URL at mount is served by the table's own mount fetch;
+  // it outlives its jump while the user is on Agent Logs.
+  const mountStampRef = useRef(refreshParam);
+
   // Trigger a logs refresh when the `refresh` param changes (e.g. after running a script).
   useEffect(() => {
-    if (refreshParam && logsTableRef.current) {
+    if (refreshParam && refreshParam !== mountStampRef.current && logsTableRef.current) {
       const timer = setTimeout(() => {
         logsTableRef.current?.refresh();
       }, 100);

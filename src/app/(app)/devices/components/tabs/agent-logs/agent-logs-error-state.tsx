@@ -4,7 +4,7 @@ import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/compo
 import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect } from 'react';
 import { loadErrorProps } from '@/lib/query-state';
-import { describeDeviceLogError } from '../../../utils/device-log-errors';
+import { describeDeviceLogError, isRetryableDeviceLogError } from '../../../utils/device-log-errors';
 import { TabEmptyState } from '../tab-empty-state';
 
 interface AgentLogsErrorStateProps {
@@ -52,6 +52,14 @@ export function AgentLogsErrorState({ error, hasSearch, retry, onSearchRejected 
     case 'validation':
       return <LoadError message={info.message} />;
     default:
-      return <LoadError {...loadErrorProps(info.kind === 'offline', info.message, retry)} />;
+      return (
+        <LoadError
+          {...loadErrorProps(
+            info.kind === 'offline',
+            info.message,
+            isRetryableDeviceLogError(info.kind) ? retry : undefined,
+          )}
+        />
+      );
   }
 }

@@ -6,8 +6,8 @@ import { SimpleModal } from '@/app/components/shared/simple-modal';
 interface ScriptRunningModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Navigates to the device's Agent Logs tab and closes the flow; absent while the feature is off. */
-  onViewDeviceLogs?: () => void;
+  /** Navigates to the device's logs and closes the flow. */
+  onViewDeviceLogs: () => void;
 }
 
 /**
@@ -27,19 +27,13 @@ export function ScriptRunningModal({ isOpen, onClose, onViewDeviceLogs }: Script
           <Button variant="outline" onClick={onClose} className="flex-1">
             Close
           </Button>
-          {onViewDeviceLogs && (
-            <Button variant="accent" onClick={onViewDeviceLogs} className="flex-1">
-              Device Logs
-            </Button>
-          )}
+          <Button variant="accent" onClick={onViewDeviceLogs} className="flex-1">
+            Device Logs
+          </Button>
         </>
       }
     >
-      <p className="text-ods-text-primary text-h4">
-        {onViewDeviceLogs
-          ? 'You can check the results in the device logs section.'
-          : 'The script has been sent to the device.'}
-      </p>
+      <p className="text-ods-text-primary text-h4">You can check the results in the device logs section.</p>
     </SimpleModal>
   );
 }

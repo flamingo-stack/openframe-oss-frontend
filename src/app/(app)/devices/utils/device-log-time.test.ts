@@ -3,6 +3,7 @@
 // UTC-day or millisecond shortcut shows the wrong day, hour or line order.
 import { describe, expect, it } from 'vitest';
 import {
+  adoptRefreshStamp,
   deviceLogCustomBounds,
   deviceLogDay,
   formatDeviceLogDay,
@@ -132,5 +133,28 @@ describe('deviceLogCustomBounds', () => {
   it('is empty when nothing is picked', () => {
     expect(deviceLogCustomBounds(undefined)).toEqual({});
     expect(deviceLogCustomBounds({ from: undefined, to: undefined })).toEqual({});
+  });
+});
+
+describe('adoptRefreshStamp', () => {
+  const anchor = Date.UTC(2026, 8, 24, 12);
+
+  it('moves the window to a newer stamp — the Run Script jump', () => {
+    expect(adoptRefreshStamp(String(anchor + 5_000), anchor)).toBe(anchor + 5_000);
+  });
+
+  it('ignores an older stamp, so Back to an earlier jump reloads nothing', () => {
+    expect(adoptRefreshStamp(String(anchor - 5_000), anchor)).toBeNull();
+    expect(adoptRefreshStamp(String(anchor), anchor)).toBeNull();
+  });
+
+  it('rejects what `Date` cannot represent, where every format would throw', () => {
+    expect(adoptRefreshStamp('8640000000000001', anchor)).toBeNull();
+    expect(adoptRefreshStamp('Infinity', anchor)).toBeNull();
+  });
+
+  it('rejects an empty or hand-edited non-number stamp', () => {
+    expect(adoptRefreshStamp('', anchor)).toBeNull();
+    expect(adoptRefreshStamp('yesterday', anchor)).toBeNull();
   });
 });

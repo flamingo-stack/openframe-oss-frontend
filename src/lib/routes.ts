@@ -143,15 +143,9 @@ function withQuery(base: string, query?: Record<string, QueryValue>): string {
 export const MINGO_DIALOG_PARAM = 'mingoDialog';
 
 /**
- * Add (or, with `null`, remove) {@link MINGO_DIALOG_PARAM} on an app-relative URL,
- * preserving the path, the fragment, and the values of other params (which are
- * re-serialized through `URLSearchParams`, so their encoding may be normalized).
- *
- * A caller writing the result straight through `history.replaceState` must feed it
- * the LIVE location (`pathname + search + hash`), never a `routes.*` constant:
- * nothing normalizes it afterwards, and `trailingSlash: true` means a slash-less path
- * is one the static export's file host cannot resolve on reload. Passing a `routes.*`
- * value is fine when the result goes through `router.replace`, which does normalize.
+ * Set (or, with `null`, delete) param `name`, keeping the path, fragment and other params. Feed
+ * `history.replaceState` the LIVE location: nothing normalizes it, and a slash-less path breaks the
+ * static export on reload (`trailingSlash: true`); `router.push`/`replace` normalize a `routes.*` value.
  */
 function withOverlayParam(url: string, name: string, value: string | null): string {
   const hashAt = url.indexOf('#');

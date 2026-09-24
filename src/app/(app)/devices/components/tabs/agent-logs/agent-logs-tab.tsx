@@ -25,6 +25,7 @@ import {
   type DeviceLogRangePreset,
   isDeviceLogRangePreset,
   MAX_DEVICE_LOG_RANGE_DAYS,
+  adoptRefreshStamp,
   presetToFromInstant,
 } from '../../../utils/device-log-time';
 import { AgentLogsContent, type AgentLogsList } from './agent-logs-content';
@@ -35,8 +36,6 @@ import { AgentLogsToolbar } from './agent-logs-toolbar';
 /** Production retention; the empty state mentions it for ranges that reach past it. */
 const RETENTION_DAYS = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** The largest value `new Date(ms)` still represents; past it every format throws. */
-const MAX_TIMESTAMP_MS = 8.64e15;
 
 const isDeviceLogLevel = (value: string): value is DeviceLogLevel =>
   (DEVICE_LOG_LEVELS as readonly string[]).includes(value);
@@ -93,14 +92,18 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   const customRange = useMemo(() => dateRangeFromParams(params.logFrom, params.logTo), [params.logFrom, params.logTo]);
 
   // "Now" is fixed per list, not per render: a sliding `from` would be a new
-  // filter on every render. Re-anchored only from events (a preset change, the
-  // refresh button, the Run Script modal's stamp), never during render.
-  const [anchorMs, setAnchorMs] = useState(() => Date.now());
-  // A stamp past the Date range makes every `toISOString()` below throw, and a
-  // hand-edited `?refresh=` is all it takes.
-  const stamped = Number(refreshParam);
-  const anchorNow = Math.max(anchorMs, stamped > 0 && stamped <= MAX_TIMESTAMP_MS ? stamped : 0);
-  const refresh = () => setAnchorMs(Date.now());
+  // filter on every render. The clock is read only in events (a preset change,
+  // the refresh button) and the Run Script modal's stamp below.
+  const [anchorNow, setAnchorNow] = useState(() => Date.now());
+  // A stamp is an event, not a floor: adopted once when it changes, so a future one
+  // cannot pin the window past Refresh.
+  const [seenStamp, setSeenStamp] = useState(refreshParam);
+  if (refreshParam !== seenStamp) {
+    setSeenStamp(refreshParam);
+    const adopted = adoptRefreshStamp(refreshParam, anchorNow);
+    if (adopted !== null) setAnchorNow(adopted);
+  }
+  const refresh = () => setAnchorNow(Date.now());
 
   const filter = useMemo<DeviceLogFilter>(() => {
     const next: DeviceLogFilter = {};
@@ -132,7 +135,8 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   // the box, not over the list (spec §8).
   const [serverSearchError, setServerSearchError] = useState<string | null>(null);
   const [autoUpdate, setAutoUpdate] = useState(true);
-  const hasSearch = Boolean(filter.contains?.length || filter.excludes?.length);
+  // From the DEFERRED list: its errors are the ones being classified.
+  const hasSearch = Boolean(deferredList.filter.contains?.length || deferredList.filter.excludes?.length);
   const hasActiveFilters =
     selectedLevels.length > 0 || search !== '' || range !== DEFAULT_DEVICE_LOG_RANGE || customRange !== undefined;
   const beyondRetention =
@@ -150,7 +154,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   };
 
   const changeRange = (next: DeviceLogRangePreset) => {
-    setAnchorMs(Date.now());
+    setAnchorNow(Date.now());
     setParams({ logRange: next, ...(next === 'custom' ? {} : { logFrom: '', logTo: '' }) });
   };
 
@@ -187,7 +191,8 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
       />
       <ContentErrorBoundary
         label="AgentLogsTab"
-        resetKey={list.key}
+        // The deferred key: the live one would remount the failed list and re-send it.
+        resetKey={deferredList.key}
         fallback={(retry, { error }) => (
           <AgentLogsErrorState
             error={error}

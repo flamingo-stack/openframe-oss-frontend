@@ -12,8 +12,8 @@ interface RunScriptModalProps {
   onClose: () => void;
   /** Machine id of the device the script runs on (batchRunScript target). */
   machineId: string;
-  /** Navigate to the device's Agent Logs tab — the "Device Logs" CTA. Omitted while the feature is off. */
-  onViewDeviceLogs?: () => void;
+  /** Navigate to the device's logs (Agent Logs tab, or Overview while that flag is off) — the "Device Logs" CTA. */
+  onViewDeviceLogs: () => void;
 }
 
 /**
@@ -23,7 +23,7 @@ interface RunScriptModalProps {
  *   2. Run Script — a mini run view: the selected script's details + overridable
  *      per-run variables (timeout, privilege, args, env), then `batchRunScript`
  *      to this one device.
- *   3. Scripts Running — post-run confirmation pointing to the agent logs.
+ *   3. Scripts Running — post-run confirmation pointing to the device logs.
  */
 export function RunScriptModal({ isOpen, onClose, machineId, onViewDeviceLogs }: RunScriptModalProps) {
   const [step, setStep] = useState<'select' | 'config'>('select');
@@ -52,7 +52,7 @@ export function RunScriptModal({ isOpen, onClose, machineId, onViewDeviceLogs }:
   const handleViewDeviceLogs = useCallback(() => {
     setRan(false);
     onClose();
-    onViewDeviceLogs?.();
+    onViewDeviceLogs();
   }, [onClose, onViewDeviceLogs]);
 
   return (
@@ -78,11 +78,7 @@ export function RunScriptModal({ isOpen, onClose, machineId, onViewDeviceLogs }:
         )}
       </SimpleModal>
 
-      <ScriptRunningModal
-        isOpen={isOpen && ran}
-        onClose={onClose}
-        onViewDeviceLogs={onViewDeviceLogs ? handleViewDeviceLogs : undefined}
-      />
+      <ScriptRunningModal isOpen={isOpen && ran} onClose={onClose} onViewDeviceLogs={handleViewDeviceLogs} />
     </>
   );
 }

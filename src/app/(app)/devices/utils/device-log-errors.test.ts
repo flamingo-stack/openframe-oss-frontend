@@ -3,7 +3,7 @@
 // own UI, and an unknown failure must fall back to Retry, never to a blank list.
 import { describe, expect, it } from 'vitest';
 import { OfflineError } from '@/lib/query-state';
-import { describeDeviceLogError } from './device-log-errors';
+import { describeDeviceLogError, isRetryableDeviceLogError } from './device-log-errors';
 
 /** Relay's thrown error: the classified entry first, then graphql-java's non-null follow-up. */
 function relayError(code: string, message: string) {
@@ -41,7 +41,34 @@ describe('describeDeviceLogError', () => {
     expect(describeDeviceLogError(transport, { hasSearch: false }).kind).toBe('generic');
   });
 
+  it('keeps other bodiless failures during a search retryable: an outage is not the text', () => {
+    for (const message of [
+      'Relay fetch failed: 503 Service Unavailable',
+      'Relay fetch failed: 5020 Odd',
+      'Relay fetch failed: authentication temporarily unavailable (agentLogsContentQuery)',
+    ]) {
+      expect(describeDeviceLogError(new Error(message), { hasSearch: true }).kind).toBe('generic');
+    }
+  });
+
   it('keeps offline distinct so the UI can drop Retry', () => {
     expect(describeDeviceLogError(new OfflineError('deviceLogsRelayQuery'), { hasSearch: true }).kind).toBe('offline');
+  });
+});
+
+describe('isRetryableDeviceLogError', () => {
+  it('offers a resend only for outages — the one policy all three surfaces read', () => {
+    expect(isRetryableDeviceLogError('unavailable')).toBe(true);
+    expect(isRetryableDeviceLogError('generic')).toBe(true);
+  });
+
+  it('never for an answer about the request, which a resend gets again', () => {
+    for (const kind of ['not-found', 'validation', 'search-rejected'] as const) {
+      expect(isRetryableDeviceLogError(kind)).toBe(false);
+    }
+  });
+
+  it('not for offline either: that waits for the link instead of a button', () => {
+    expect(isRetryableDeviceLogError('offline')).toBe(false);
   });
 });

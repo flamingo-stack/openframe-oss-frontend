@@ -563,8 +563,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     }
 
     if (deviceDetails || isDeviceLoading) {
-      infoItems.push(deviceMenuItems.deviceDetails);
-      if (deviceMenuItems.deviceLogs) infoItems.push(deviceMenuItems.deviceLogs);
+      infoItems.push(deviceMenuItems.deviceDetails, deviceMenuItems.deviceLogs);
       remoteItems.push(
         withActivityTracking(deviceMenuItems.remoteShell, EVENT_SUBTYPE.OPEN_REMOTE_SHELL, href => router.push(href)),
       );

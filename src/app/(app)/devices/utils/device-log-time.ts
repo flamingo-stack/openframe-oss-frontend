@@ -31,6 +31,18 @@ export function isDeviceLogRangePreset(value: string): value is DeviceLogRangePr
   return (DEVICE_LOG_RANGE_PRESETS as readonly string[]).includes(value);
 }
 
+/** The largest value `new Date(ms)` still represents; past it every format throws. */
+const MAX_TIMESTAMP_MS = 8.64e15;
+
+/**
+ * The anchor a `?refresh=` stamp moves the window to, or null to keep it: only a
+ * newer, representable instant counts, so Back to an older stamp reloads nothing.
+ */
+export function adoptRefreshStamp(stamp: string, anchorMs: number): number | null {
+  const stamped = Number(stamp);
+  return Number.isFinite(stamped) && stamped > anchorMs && stamped <= MAX_TIMESTAMP_MS ? stamped : null;
+}
+
 /** Lower bound for a preset, computed once per list so the window does not slide on every render. */
 export function presetToFromInstant(preset: DeviceLogRangeWindow, now = new Date()): string {
   return new Date(now.getTime() - PRESET_DURATION_MS[preset]).toISOString();

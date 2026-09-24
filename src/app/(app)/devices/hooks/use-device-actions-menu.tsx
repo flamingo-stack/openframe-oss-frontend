@@ -44,8 +44,7 @@ export interface DeviceActionsMenuItems {
   /** Null on read-only archive records (DELETED / legacy ARCHIVED). */
   editDisplayName: ActionsMenuItem | null;
   reboot: ActionsMenuItem | null;
-  /** Null while the `device-agent-logs` flag is off or still loading. */
-  deviceLogs: ActionsMenuItem | null;
+  deviceLogs: ActionsMenuItem;
   delete: ActionsMenuItem | null;
 }
 

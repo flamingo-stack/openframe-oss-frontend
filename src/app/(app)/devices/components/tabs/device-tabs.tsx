@@ -20,6 +20,7 @@ import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components
 import type { DeviceDetailTab } from '@/lib/routes';
 import { useDeviceAgentLogsGate } from '../../hooks/use-device-agent-logs-gate';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
+import { AGENT_LOGS_TAB_ID, listsAgentLogsTab } from '../../utils/device-tab-gates';
 import { AgentLogsTab } from './agent-logs/agent-logs-tab';
 import { AgentsTab } from './agents-tab';
 import { HardwareTab } from './hardware-tab';
@@ -124,7 +125,7 @@ const REMOTE_SESSIONS_TAB: TabItem = {
   component: RemoteSessionsTab,
 };
 
-export const AGENT_LOGS_TAB_ID = 'agent-logs' satisfies DeviceDetailTab;
+export { AGENT_LOGS_TAB_ID };
 
 // Last, as in Figma `696:38907`; the same glyph as the "Device Logs" menu entry.
 const AGENT_LOGS_TAB: TabItem = {
@@ -135,15 +136,15 @@ const AGENT_LOGS_TAB: TabItem = {
 };
 
 /**
- * Tabs for a device. Remote Sessions and Agent Logs are flag-gated, and
- * 'loading' hides like 'off' — a tab appears only once its flag is truly on.
+ * Tabs for a device. Remote Sessions and Agent Logs are flag-gated; a flag still
+ * loading hides its tab, except Agent Logs for the deep link that asked for it.
  */
-export function useDeviceTabs(): TabItem[] {
+export function useDeviceTabs(requestedTab: string): TabItem[] {
   const recordingsGate = useRemoteAccessApprovalGate();
   const agentLogsGate = useDeviceAgentLogsGate();
   return [
     ...BASE_DEVICE_TABS,
     ...(recordingsGate === 'on' ? [REMOTE_SESSIONS_TAB] : []),
-    ...(agentLogsGate === 'on' ? [AGENT_LOGS_TAB] : []),
+    ...(listsAgentLogsTab(agentLogsGate, requestedTab) ? [AGENT_LOGS_TAB] : []),
   ];
 }

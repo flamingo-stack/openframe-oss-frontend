@@ -663,7 +663,7 @@ interface DeviceDetailsSkeletonProps {
  */
 export function DeviceDetailsSkeleton({ activeTab = 'overview' }: DeviceDetailsSkeletonProps) {
   // The gated tab set, so the loading tab bar matches the loaded one exactly.
-  const deviceTabs = useDeviceTabs();
+  const deviceTabs = useDeviceTabs(activeTab);
   return (
     <PageLayout
       loading

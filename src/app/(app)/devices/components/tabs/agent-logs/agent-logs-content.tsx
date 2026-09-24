@@ -12,8 +12,13 @@ import { SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { useDeviceLogsLiveTail } from '../../../hooks/use-device-logs-live-tail';
 import { useGridInfiniteScroll } from '../../../hooks/use-grid-infinite-scroll';
 import { useIsAtTop } from '../../../hooks/use-is-at-top';
+import { useRetryOnReconnect } from '../../../hooks/use-retry-on-reconnect';
 import type { DeviceLogFilter } from '../../../types/device-log.types';
-import { describeDeviceLogError, type DeviceLogErrorInfo } from '../../../utils/device-log-errors';
+import {
+  describeDeviceLogError,
+  type DeviceLogErrorInfo,
+  isRetryableDeviceLogError,
+} from '../../../utils/device-log-errors';
 import type { PolledPage } from '../../../utils/device-log-tail';
 import { deviceLogDay, formatDeviceLogDay, formatDeviceLogZone } from '../../../utils/device-log-time';
 import { TabEmptyState } from '../tab-empty-state';
@@ -169,6 +174,9 @@ export function AgentLogsContent({
       },
     });
   };
+  // A page lost to a dead link has no Retry; the link coming back is the retry.
+  // Clearing the error re-arms the trigger.
+  useRetryOnReconnect(loadMoreError?.kind === 'offline', () => setLoadMore(null));
   const bottomRef = useGridInfiniteScroll({
     enabled: edges.length > 0 && loadMoreError === null,
     hasNextPage: hasNext,
@@ -259,7 +267,7 @@ export function AgentLogsContent({
       {loadMoreError && (
         <SectionLoadError
           message={loadMoreError.message}
-          onRetry={loadMoreError.kind === 'offline' ? undefined : fetchNextPage}
+          onRetry={isRetryableDeviceLogError(loadMoreError.kind) ? fetchNextPage : undefined}
         />
       )}
       {!hasNext && (
