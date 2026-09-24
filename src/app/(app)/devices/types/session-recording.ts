@@ -34,13 +34,21 @@ export interface RecordingChatMessage {
   body: string;
 }
 
+/** One `.mcrec` file of a session; a tunnel that drops and re-pairs yields several, listed in start order. */
+export interface RecordingSegment {
+  id: string;
+  /** Signed GET for this segment's bytes; absent while the file is still being processed. */
+  downloadUrl?: string;
+  sizeBytes: number;
+}
+
 export interface RecordingDetail extends RecordingSummary {
   hostname: string;
   organization: { id: string; name: string; logoUrl?: string };
   /** e.g. "1280 × 720" - may be unknown until the file is decoded. */
   resolution?: string;
   loggedInUser?: string;
-  /** Signed GET for the .mcrec bytes; absent while processing. */
-  downloadUrl?: string;
+  /** Every file the session produced; the player stitches them into one timeline. */
+  segments: RecordingSegment[];
   chat: RecordingChatMessage[];
 }

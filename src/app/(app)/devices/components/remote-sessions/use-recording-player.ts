@@ -8,6 +8,7 @@ import {
   parseMcrec,
   type RecordingPlaybackSpeed,
   type RecordingPlayerState,
+  stitchRecordings,
   TerminalRecordingRenderer,
 } from '@/lib/meshcentral/recording';
 
@@ -22,8 +23,8 @@ export interface UseRecordingPlayerResult {
   protocol: 1 | 2 | null;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   terminalHostRef: React.RefObject<HTMLDivElement | null>;
-  /** Parse a `.mcrec` buffer, build the matching renderer, and rewind. */
-  loadBuffer: (buffer: ArrayBuffer) => Promise<void>;
+  /** Parse the `.mcrec` segments of one session into a single timeline, build the matching renderer, and rewind. */
+  loadBuffers: (buffers: ArrayBuffer[]) => Promise<void>;
   togglePlay: () => void;
   seek: (ms: number) => void;
   stepBack: () => void;
@@ -35,7 +36,7 @@ export interface UseRecordingPlayerResult {
 /**
  * Owns one `McrecPlayer` for the recording page. The player instance lives in
  * a ref; React state mirrors only what the controls render (state, time,
- * duration, speed). The renderer is created on `loadBuffer` from the parsed
+ * duration, speed). The renderer is created on `loadBuffers` from the parsed
  * protocol: desktop draws into `canvasRef`, terminal lazily boots xterm into
  * `terminalHostRef` (read-only, `disableStdin`).
  */
@@ -66,11 +67,11 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
     };
   }, []);
 
-  const loadBuffer = async (buffer: ArrayBuffer) => {
+  const loadBuffers = async (buffers: ArrayBuffer[]) => {
     const player = playerRef.current;
     if (!player) return;
 
-    const recording = parseMcrec(buffer);
+    const recording = stitchRecordings(buffers.map(parseMcrec));
 
     if (recording.protocol === 2) {
       const canvas = canvasRef.current;
@@ -135,7 +136,7 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
     protocol,
     canvasRef,
     terminalHostRef,
-    loadBuffer,
+    loadBuffers,
     togglePlay,
     seek,
     stepBack: () => {

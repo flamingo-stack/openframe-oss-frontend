@@ -60,18 +60,18 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     }
   };
 
-  // Fetch the .mcrec once the detail arrives. The mock service always throws
-  // RecordingUnavailableError (no storage backend yet) - the page then shows
-  // the processing empty state, and in dev the local-file loader feeds the
-  // player instead.
-  const { loadBuffer } = player;
+  // Fetch the session's .mcrec segments once the detail arrives. The mock
+  // service always throws RecordingUnavailableError (no storage backend yet) -
+  // the page then shows the processing empty state, and in dev the local-file
+  // loader feeds the player instead.
+  const { loadBuffers } = player;
   useEffect(() => {
     if (!recording) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const buffer = await sessionRecordingsService.downloadRecording(recording);
-        if (!cancelled) await loadBuffer(buffer);
+        const buffers = await sessionRecordingsService.downloadRecording(recording);
+        if (!cancelled) await loadBuffers(buffers);
       } catch (error) {
         if (!cancelled && error instanceof RecordingUnavailableError) setUnavailable(true);
       }
@@ -79,7 +79,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [recording, loadBuffer]);
+  }, [recording, loadBuffers]);
 
   return (
     <PageLayout
@@ -94,8 +94,8 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col gap-0 bg-black' : 'contents'}>
         {showDevLoader && !isFullscreen && (
           <DevLocalFileLoader
-            onLoad={async buffer => {
-              await player.loadBuffer(buffer);
+            onLoad={async buffers => {
+              await player.loadBuffers(buffers);
               setUnavailable(false);
             }}
           />

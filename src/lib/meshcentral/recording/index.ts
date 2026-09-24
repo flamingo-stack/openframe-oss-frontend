@@ -1,4 +1,5 @@
 export { McrecParseError, parseMcrec } from './mcrec-parser';
+export { DEFAULT_MAX_SEGMENT_GAP_MS, type StitchOptions, stitchRecordings } from './mcrec-stitch';
 export { McrecPlayer, type McrecPlayerCallbacks } from './mcrec-player';
 export {
   MCREC_FLAG_BINARY,

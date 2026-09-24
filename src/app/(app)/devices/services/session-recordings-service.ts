@@ -1,10 +1,15 @@
-import type { RecordingChatMessage, RecordingDetail, RecordingSummary } from '../types/session-recording';
+import type {
+  RecordingChatMessage,
+  RecordingDetail,
+  RecordingSegment,
+  RecordingSummary,
+} from '../types/session-recording';
 
 /**
  * Thrown by `downloadRecording` when the bytes cannot be fetched - the
- * recording is still processing, has no download URL yet, or the storage
- * request failed. The player page renders its "Session recording unavailable"
- * state on this error specifically.
+ * recording is still processing, a segment has no download URL yet, or a
+ * storage request failed. The player page renders its "Session recording
+ * unavailable" state on this error specifically.
  */
 export class RecordingUnavailableError extends Error {
   constructor(message = 'Session recording unavailable') {
@@ -23,8 +28,8 @@ export class RecordingUnavailableError extends Error {
 export interface ISessionRecordingsService {
   list(deviceId: string): Promise<RecordingSummary[]>;
   get(recordingId: string): Promise<RecordingDetail>;
-  /** Fetch the raw `.mcrec` bytes. Throws {@link RecordingUnavailableError}. */
-  downloadRecording(recording: RecordingDetail): Promise<ArrayBuffer>;
+  /** Fetch every segment's `.mcrec` bytes, in session order. Throws {@link RecordingUnavailableError}. */
+  downloadRecording(recording: RecordingDetail): Promise<ArrayBuffer[]>;
   delete(recordingId: string): Promise<void>;
 }
 
@@ -85,6 +90,13 @@ interface MockRecordingSeed extends RecordingSummary {
   detail: Omit<RecordingDetail, keyof RecordingSummary | 'chat'>;
 }
 
+/** Sizes of the three files one 34-minute dev session produced through two reconnects. */
+const MOCK_SEGMENT_SIZES = [139_200_507, 112_203_302, 55_184_172];
+
+function mockSegments(sizes: number[]): RecordingSegment[] {
+  return sizes.map((sizeBytes, index) => ({ id: `seg-${index + 1}`, sizeBytes }));
+}
+
 /**
  * Deterministic ids so deep links survive reloads. Every device shows the same
  * set - the mock has no real per-device data.
@@ -97,19 +109,23 @@ function buildSeeds(deviceId: string): MockRecordingSeed[] {
       durationMs: null,
       sizeBytes: null,
       processing: true,
-      detail: { hostname: 'workstation-23.acme.local', organization: { id: 'org-1', name: 'Acme Logistics Co. (HQ)' } },
+      detail: {
+        hostname: 'workstation-23.acme.local',
+        organization: { id: 'org-1', name: 'Acme Logistics Co. (HQ)' },
+        segments: [],
+      },
     },
     {
       id: 'rec-desktop-long',
       startedAt: '2026-09-08T11:05:00Z',
-      durationMs: 23 * 60_000 + 49_000,
-      sizeBytes: 110 * 1024 * 1024,
+      durationMs: 33 * 60_000 + 36_000,
+      sizeBytes: MOCK_SEGMENT_SIZES.reduce((sum, size) => sum + size, 0),
       detail: {
         hostname: 'workstation-23.acme.local',
         organization: { id: 'org-1', name: 'Acme Logistics Co. (HQ)' },
-        resolution: '1280 × 720',
+        resolution: '1512 × 949',
         loggedInUser: 'John Smith',
-        downloadUrl: undefined,
+        segments: mockSegments(MOCK_SEGMENT_SIZES),
       },
     },
     {
@@ -122,6 +138,7 @@ function buildSeeds(deviceId: string): MockRecordingSeed[] {
         organization: { id: 'org-1', name: 'Acme Logistics Co. (HQ)' },
         resolution: '1280 × 720',
         loggedInUser: 'John Smith',
+        segments: mockSegments([2_454_931]),
       },
     },
     {
@@ -134,6 +151,7 @@ function buildSeeds(deviceId: string): MockRecordingSeed[] {
         hostname: 'workstation-23.acme.local',
         organization: { id: 'org-1', name: 'Acme Logistics Co. (HQ)' },
         loggedInUser: 'John Smith',
+        segments: mockSegments([5_424]),
       },
     },
   ];
@@ -188,14 +206,20 @@ class MockSessionRecordingsService implements ISessionRecordingsService {
     return { ...summary, ...detail, chat: MOCK_CHAT };
   }
 
-  async downloadRecording(recording: RecordingDetail): Promise<ArrayBuffer> {
+  async downloadRecording(recording: RecordingDetail): Promise<ArrayBuffer[]> {
     await delay(MOCK_LATENCY_MS);
-    if (recording.processing || !recording.downloadUrl) {
+    const urls = recording.segments.map(s => s.downloadUrl).filter((url): url is string => url != null);
+    // All or nothing: a session with a segment still missing plays as unavailable rather than with a hole.
+    if (recording.processing || urls.length === 0 || urls.length !== recording.segments.length) {
       throw new RecordingUnavailableError();
     }
-    const res = await fetch(recording.downloadUrl);
-    if (!res.ok) throw new RecordingUnavailableError();
-    return res.arrayBuffer();
+    return Promise.all(
+      urls.map(async url => {
+        const res = await fetch(url);
+        if (!res.ok) throw new RecordingUnavailableError();
+        return res.arrayBuffer();
+      }),
+    );
   }
 
   async delete(recordingId: string): Promise<void> {

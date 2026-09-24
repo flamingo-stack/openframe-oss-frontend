@@ -50,6 +50,8 @@ export interface ParsedRecording {
   durationMs: number;
   /** 1 = terminal, 2 = desktop. */
   protocol: 1 | 2;
+  /** Timeline positions where a later segment of a stitched session begins; empty or absent for one file. */
+  segmentStartsMs?: number[];
 }
 
 export type RecordingPlayerState = 'empty' | 'ready' | 'playing' | 'paused' | 'seeking' | 'ended';
