@@ -241,8 +241,12 @@ jobs:
     #  - everything else (the default branch's rebuild) keeps the repository group.
     # A dispatched build and the PR's own run may build the same head at once;
     # that is harmless: the hub upserts an overlay on (repo, pr, head, generator).
+    # A bot's own description edit (the hub writing its block) is excluded by the
+    # `if:` below, but a job may join its concurrency group before that `if:` is
+    # evaluated: it gets a group of its own (`-bot-<run id>`), so it can never
+    # cancel the PR's run that is building the overlay the same refresh asked for.
     concurrency:
-      group: flamingo-code-graph-${{ github.repository }}${{ github.event.client_payload.overlay_pr && format('-overlay-{0}', github.event.client_payload.overlay_pr) || github.event.pull_request.number && format('-pr-{0}', github.event.pull_request.number) || '' }}
+      group: flamingo-code-graph-${{ github.repository }}${{ github.event.client_payload.overlay_pr && format('-overlay-{0}', github.event.client_payload.overlay_pr) || github.event.pull_request.number && format('-pr-{0}', github.event.pull_request.number) || '' }}${{ (github.event.action == 'edited' && github.event.sender.type == 'Bot') && format('-bot-{0}', github.run_id) || '' }}
       cancel-in-progress: true
     if: >-
       (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
@@ -421,6 +425,8 @@ jobs:
           CODE_GRAPH_REFRESH_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # The event's action: the hub runs its job only for one that can change a set (CHANGE_SET_REFRESH_ACTIONS).
           CODE_GRAPH_REFRESH_ACTION: ${{ github.event.action }}
+          # The event's sender type: the hub refuses a bot's own description edit too, not only this job's `if:`.
+          CODE_GRAPH_REFRESH_SENDER_TYPE: ${{ github.event.sender.type }}
         run: node /tmp/code-graph-build.mjs
 
       # FULL history, blobless. `collectFileFacts` derives per-file ownership
