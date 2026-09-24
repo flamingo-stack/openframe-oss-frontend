@@ -3,7 +3,7 @@ import type {
   RemoteAccessRequest,
   RemoteAccessRequestStatus,
 } from '../types/remote-access';
-import { remoteAccessPolicyService } from './remote-access-policy-service';
+import { mockRemoteAccessPolicyService } from './remote-access-policy-service';
 
 /**
  * Remote-access approval backend surface (CU-86ajx03db). Two implementations:
@@ -87,7 +87,10 @@ class MockRemoteAccessApprovalService implements IRemoteAccessApprovalService {
     // first: APPROVAL_REQUIRED publishes to the machine and waits; NOTIFY_ONLY
     // and SILENT_ACCESS auto-approve immediately (the machine gets session
     // events, not an approval prompt); DENY_ACCESS returns DENIED outright.
-    const resolvedMode = await remoteAccessPolicyService.resolveDeviceMode(input.deviceId, input.organizationId);
+    const { effectiveMode: resolvedMode } = await mockRemoteAccessPolicyService.getDevicePolicy(
+      input.deviceId,
+      input.organizationId,
+    );
 
     const now = Date.now();
     const request: RemoteAccessRequest = {

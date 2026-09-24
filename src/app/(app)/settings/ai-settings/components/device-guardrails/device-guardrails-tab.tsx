@@ -52,9 +52,10 @@ interface DeviceGuardrailsTabProps {
  * The mode card follows the access-level designs.
  */
 export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTabProps) {
-  const { data: policy, isLoading, error, refetch } = useTenantRemoteAccessPolicy();
+  // isPending, not isLoading: the query waits for the feature flags to answer, and that wait is loading too.
+  const { data: policy, isPending, error, refetch } = useTenantRemoteAccessPolicy();
 
-  if (isLoading) {
+  if (isPending) {
     return <Skeleton className="h-20 w-full rounded-md" />;
   }
 

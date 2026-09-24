@@ -33,9 +33,10 @@ export const FEATURE_FLAG_NAMES = [
   // screen and the recording player's local .mcrec loader. On for dev / qa.
   'remote-access-mock-tools',
   // TEMPORARY - remove once the approval API (CU-86ajx02gz) runs on every
-  // environment. On = the approval-gated connect flow talks to the real
-  // /api/v1/remote-access/** service (dev, where the backend is deployed);
-  // off = the in-memory mock that the QA tooling above drives.
+  // environment. On = the approval-gated connect flow, the session lifecycle
+  // and the remote access policy screens talk to the real GraphQL API (dev,
+  // where the backend is deployed); off = the in-memory mocks that the QA
+  // tooling above drives.
   'remote-access-approval-api',
   // The next remote access cut (v2): surfaces built ahead of their backend
   // that must stay hidden when v1 (`remote-access-approval`) reaches every

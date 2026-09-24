@@ -170,6 +170,23 @@ export interface TenantRemoteAccessPolicy {
   mode: RemoteAccessMode;
 }
 
+export const REMOTE_ACCESS_POLICY_SCOPES = ['DEVICE', 'ORGANIZATION', 'TENANT', 'DEFAULTS'] as const;
+/** Where a device's effective mode came from; DEFAULTS = nothing saved at any scope. */
+export type RemoteAccessPolicyScope = (typeof REMOTE_ACCESS_POLICY_SCOPES)[number];
+
+/** Per-organization policy: the override (`null` = inherits the tenant default) and what applies. */
+export interface OrganizationRemoteAccessPolicy {
+  mode: RemoteAccessMode | null;
+  effectiveMode: RemoteAccessMode;
+}
+
+/** Per-device policy: the override (`null` = inherits), what applies, and the scope it came from. */
+export interface DeviceRemoteAccessPolicy {
+  mode: RemoteAccessMode | null;
+  effectiveMode: RemoteAccessMode;
+  effectiveScope: RemoteAccessPolicyScope;
+}
+
 // --------------------------------------------------------------------------
 // Remote session lifecycle
 // --------------------------------------------------------------------------
