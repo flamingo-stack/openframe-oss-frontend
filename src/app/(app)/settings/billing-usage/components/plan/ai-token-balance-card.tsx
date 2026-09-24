@@ -78,7 +78,7 @@ export function AiTokenBalanceCard({
         )}
       </div>
 
-      <AiTopUpFields topUp={topUp} label="Top up your balance" disabled={loading} />
+      <AiTopUpFields topUp={topUp} label="Top up your balance" disabled={loading} loading={loading} />
 
       <AutoTopUpCheckbox checked={autoTopUp} onCheckedChange={onAutoTopUpChange} disabled={loading} />
     </Card>

@@ -42,6 +42,12 @@ export interface AiTopUp extends TopUpChoice {
   amountUsd: number | null;
   /** What that buys at the catalog rate; `null` without a rate or an amount. */
   tokens: number | null;
+  /**
+   * The catalog states a rate, so an amount can be shown in tokens. False both
+   * while the catalog is on its way and when it answered without one — the
+   * fields tell the two apart by their own `loading`.
+   */
+  hasRate: boolean;
   /** A preset, or a custom figure in range — there is an amount to send. */
   isComplete: boolean;
   /**
@@ -64,7 +70,7 @@ export interface AiTopUp extends TopUpChoice {
 }
 
 interface UseAiTopUpOptions {
-  /** $ per token from the AI product's metered option. `null` until it loads. */
+  /** $ per token from the AI product's option; `null` while the catalog is on its way, or when it states no rate. */
   tokenPrice: number | null;
   /**
    * Whole dollars picked before the user touches anything; nothing by default.
@@ -123,6 +129,7 @@ export function useAiTopUp({ tokenPrice, initial = null }: UseAiTopUpOptions): A
     ...choice,
     amountUsd,
     tokens: amountUsd == null ? null : forUsd(amountUsd),
+    hasRate: tokenPrice != null && tokenPrice > 0,
     isComplete: problem == null,
     error: attempted ? problem : null,
     tokensForUsd: forUsd,

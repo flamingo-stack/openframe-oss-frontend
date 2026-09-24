@@ -139,6 +139,7 @@ export function ManageAiBalanceForm({ data, onClose }: ManageAiBalanceFormProps)
             topUp={topUp}
             label={autoTopUp ? 'Auto Top Up Amount' : 'One-Time Top Up'}
             disabled={loading || pending}
+            loading={loading}
           />
         )}
       </ModalV2Content>

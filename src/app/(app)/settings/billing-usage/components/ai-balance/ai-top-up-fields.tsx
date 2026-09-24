@@ -4,6 +4,7 @@ import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/compone
 import { Input, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useId } from 'react';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatWholeCurrency } from '@/lib/format-currency';
 import { formatCompactCount } from '@/lib/format-number';
 import { type AiTopUp, CUSTOM_TOP_UP, TOP_UP_PRESETS_USD } from './use-ai-top-up';
@@ -15,12 +16,26 @@ import { type AiTopUp, CUSTOM_TOP_UP, TOP_UP_PRESETS_USD } from './use-ai-top-up
  */
 export const AI_BALANCE_EXPLANATION = 'One unified balance powers AI assistants across all supported models.';
 
+/**
+ * The catalog answered without a rate for the AI product, so no amount here
+ * can be shown in tokens. Said as the error it is: a bar in its place used to
+ * promise a figure that was never coming, and read as a page still loading.
+ */
+const RATE_UNAVAILABLE_MESSAGE =
+  "Couldn't load the token rate: the plan catalog has no price for the AI product, so these amounts can't be shown in tokens. Contact support if this persists.";
+
 interface AiTopUpFieldsProps {
   topUp: AiTopUp;
   /** The uppercase label over the amounts — what this top-up is for on this surface. */
   label: string;
   /** Blocks every control — a purchase in flight, or a catalog that has not landed. */
   disabled?: boolean;
+  /**
+   * The catalog has not landed: a bar holds the line where each token figure
+   * goes. Once it has, a missing rate is an error, not a wait — see
+   * `RATE_UNAVAILABLE_MESSAGE`.
+   */
+  loading?: boolean;
 }
 
 /**
@@ -32,8 +47,9 @@ interface AiTopUpFieldsProps {
  * They differ only in what they do with the answer — everything the user sees
  * and does is here, once.
  */
-export function AiTopUpFields({ topUp, label, disabled = false }: AiTopUpFieldsProps) {
+export function AiTopUpFields({ topUp, label, disabled = false, loading = false }: AiTopUpFieldsProps) {
   const customInputId = useId();
+  const rateUnavailable = !loading && !topUp.hasRate;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
@@ -49,8 +65,17 @@ export function AiTopUpFields({ topUp, label, disabled = false }: AiTopUpFieldsP
                 disabled={disabled}
                 title={formatWholeCurrency(usd)}
                 // The count is a catalog figure: a bar holds its line until it
-                // lands rather than letting the tile grow a second row.
-                subtitle={tokens == null ? <Skeleton className="h-4 w-16" /> : `${formatCompactCount(tokens)} tokens`}
+                // lands rather than letting the tile grow a second row. Landed
+                // without a rate, the line says there is no figure.
+                subtitle={
+                  loading ? (
+                    <Skeleton className="h-4 w-16" />
+                  ) : tokens == null ? (
+                    EMPTY_VALUE
+                  ) : (
+                    `${formatCompactCount(tokens)} tokens`
+                  )
+                }
                 onSelect={() => topUp.selectPreset(usd)}
               />
             );
@@ -63,6 +88,7 @@ export function AiTopUpFields({ topUp, label, disabled = false }: AiTopUpFieldsP
             onSelect={topUp.selectCustom}
           />
         </div>
+        {rateUnavailable && <p className="text-ods-error text-h6">{RATE_UNAVAILABLE_MESSAGE}</p>}
         {/* Nothing picked yet, said once a submit has asked for it. A custom
             figure's problems go under its own field instead. */}
         {topUp.error != null && topUp.selection !== CUSTOM_TOP_UP && (
