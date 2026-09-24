@@ -265,6 +265,24 @@ describe('useDeviceLogsLiveTail', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('backs off on a rejected range instead of stopping: `from` can land on the server clock', () => {
+    // The resolver rejects `from` not strictly before `to` (its own "now" when no
+    // `to` is sent); with pod clocks a few ms apart, the newest line can do that.
+    render();
+    tick();
+    const rejected = Object.assign(new Error('No data'), {
+      source: { errors: [{ message: "'from' must be before 'to'", extensions: { code: 'VALIDATION_ERROR' } }] },
+    });
+    act(() => calls[0].sink.error(rejected));
+    expect(latest?.error).toBeNull();
+    tick(15_000);
+    expect(calls).toHaveLength(2);
+
+    // A second rejection in a row is no longer a clock blip: say so.
+    act(() => calls[1].sink.error(rejected));
+    expect(latest?.error?.kind).toBe('validation');
+  });
+
   it('cancels the request in flight and its timer when the tab goes away', () => {
     render();
     tick();

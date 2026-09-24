@@ -97,10 +97,11 @@ export function useDeviceLogsLiveTail({
         error: (error: Error) => {
           request = null;
           const info = describeDeviceLogError(error, { hasSearch: latest.current.hasSearch });
-          setFailure({ connectionId, error: info });
-          // A vanished device or a rejected filter cannot recover by waiting; the
-          // list's own error handling owns those. Everything else backs off.
-          if (info.kind === 'not-found' || info.kind === 'validation') return;
+          // Only a vanished device is final. The list already had this filter
+          // accepted, so a rejection here is the range (`from` at the server's
+          // "now" when pod clocks drift): silent once, since it passes on retry.
+          if (info.kind !== 'validation' || failuresRef.current > 0) setFailure({ connectionId, error: info });
+          if (info.kind === 'not-found') return;
           schedule(pollBackoffMs(failuresRef.current));
           failuresRef.current += 1;
         },
