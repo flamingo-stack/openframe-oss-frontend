@@ -36,6 +36,16 @@ export function pushSignupStarted(): void {
 }
 
 /**
+ * The user pressed Continue on the login screen to check their email. This is the
+ * only same-host signal for a login attempt: the SSO redirect and the tenant
+ * subdomains both break the session, so a success leaves no pageview to count.
+ * GTM must map `login_continue_clicked` to a PostHog tag.
+ */
+export function pushLoginContinueClicked(): void {
+  pushDataLayer({ event: 'login_continue_clicked' });
+}
+
+/**
  * Signup succeeded. `userId` is the OpenFrame `user.id` (from `/me`) — the id
  * the backend keys HubSpot on — so PostHog and CRM line up.
  */
