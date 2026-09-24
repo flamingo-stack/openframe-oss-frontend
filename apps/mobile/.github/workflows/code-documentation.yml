@@ -1298,7 +1298,7 @@ jobs:
           echo "Discovering source files in the repository (.) and its dependencies (../deps/)"
 
           # File paths (all in /tmp to avoid accidental commits)
-          SOURCE_FILES_LIST="/tmp/.doc-orchestrator-source-files.txt"
+          SOURCE_FILES_LIST="/tmp/.code-documentation-source-files.txt"
           ALL_SOURCE_TEMP="/tmp/all_source_files_discovered.txt"
           ALL_FILES_TEMP="/tmp/all_files_in_repo.txt"
           FILES_TO_DELETE="/tmp/files_to_delete.txt"
@@ -1334,7 +1334,7 @@ jobs:
             find . ../deps 2>/dev/null -type f \
               -not -path "*/.git/*" \
               -not -path "*/.git" \
-              -not -name ".doc-orchestrator-*" \
+              -not -name ".code-documentation-*" \
               -not -name ".doc-stage*" \
             | sort > "$ALL_FILES_TEMP"
 
@@ -1342,12 +1342,12 @@ jobs:
             echo "Files in the checkout: $TOTAL_FILES"
 
             # Build delete list: ALL files EXCEPT the ones we're keeping
-            # Also preserve workflow temp files (.doc-orchestrator-*, .doc-stage*)
+            # Also preserve workflow temp files (.code-documentation-*, .doc-stage*)
             > "$FILES_TO_DELETE"
             while IFS= read -r file; do
               # Skip workflow temp files we need to preserve
               case "$file" in
-                ./.doc-orchestrator-*|./.doc-stage*) continue ;;
+                ./.code-documentation-*|./.doc-stage*) continue ;;
               esac
               # Check if this file is in our keep list
               if ! grep -qxF "$file" "$SOURCE_FILES_LIST" 2>/dev/null; then
@@ -1377,7 +1377,7 @@ jobs:
             # First, delete all dotfiles except in .git and workflow temp files (they prevent dir deletion)
             find . -type f -name ".*" \
               -not -path "*/.git/*" \
-              -not -name ".doc-orchestrator-*" \
+              -not -name ".code-documentation-*" \
               -not -name ".doc-stage*" \
               -delete 2>/dev/null || true
 
@@ -2961,7 +2961,7 @@ jobs:
           cleanup_path ".flamingo-ai-technical-writer-status.md"
           cleanup_path ".doc-pipeline-status.md"
 
-          # Note: .doc-orchestrator-source-files.txt is now in /tmp/ (auto-cleanup)
+          # Note: .code-documentation-source-files.txt is now in /tmp/ (auto-cleanup)
 
           # Remove npm artifacts (installed for scripts)
           cleanup_path "node_modules"
