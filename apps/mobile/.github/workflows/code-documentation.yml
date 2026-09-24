@@ -419,6 +419,8 @@ jobs:
           CODE_GRAPH_REFRESH_PR: ${{ github.event.pull_request.number }}
           # The head of THIS event: the hub answers `build` only while it is still the PR's live head.
           CODE_GRAPH_REFRESH_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # The event's action: the hub runs its job only for one that can change a set (CHANGE_SET_REFRESH_ACTIONS).
+          CODE_GRAPH_REFRESH_ACTION: ${{ github.event.action }}
         run: node /tmp/code-graph-build.mjs
 
       # FULL history, blobless. `collectFileFacts` derives per-file ownership
