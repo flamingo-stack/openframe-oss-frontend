@@ -10,7 +10,8 @@ import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingBarsQuery as BillingBarsQueryType } from '@/__generated__/billingBarsQuery.graphql';
 import { SubscriptionStatus } from '@/generated/schema-enums';
-import { type AiBalanceTone, aiBalanceTone } from '@/lib/ai-balance-tone';
+import { type AiBalanceTone, aiBalanceTone, type AiPausedReason, aiPausedReason } from '@/lib/ai-balance-tone';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { pluralize } from '@/lib/pluralize';
 
 /**
@@ -133,9 +134,17 @@ export function TrialEndingBar({ daysLeft, onActivate, onDismiss }: TrialEndingB
   );
 }
 
-/** What the bars need to know, once the query has answered. */
+/** What the bars — and the Mingo composer — need to know, once the query has answered. */
 export interface BillingBarsState {
-  ai: { tone: AiBalanceTone };
+  ai: {
+    tone: AiBalanceTone;
+    /**
+     * The agents are not answering, and why. Set on a trial too, where `tone`
+     * stays quiet: the trial bar speaks for a trial, but a paused Mingo is
+     * paused whichever plan it is on.
+     */
+    paused: AiPausedReason | null;
+  };
   /**
    * The trial, once it is past halfway. `null` at every other moment — not on a
    * trial, no dates to place the midpoint with, or still in the first half.
@@ -150,7 +159,19 @@ export interface BillingBarsState {
   } | null;
 }
 
-const NO_BARS: BillingBarsState = { ai: { tone: 'default' }, trial: null };
+const NO_BARS: BillingBarsState = { ai: { tone: 'default', paused: null }, trial: null };
+
+/**
+ * What the locked Mingo composer says (Figma 954:28455). The remedy is named
+ * only where the build can offer it: the mobile builds show no payment surface
+ * at all (App Store Guideline 3.1.1), so there the sentence stops at the fact.
+ */
+export function mingoLockPlaceholder(reason: AiPausedReason): string {
+  if (isBillingHidden()) return 'Mingo chat unavailable.';
+  return reason === 'trial'
+    ? 'Mingo chat unavailable. Activate your subscription.'
+    : 'Mingo chat unavailable. Top up your balance.';
+}
 
 /**
  * The trial, if it is past its midpoint.
@@ -197,14 +218,14 @@ export function BillingBarsHydrator({ onResolved }: { onResolved: (state: Billin
   // balance bar has nothing to say about it: its own bar below is the one that
   // speaks for a trial, and the billing page states a spent grant on the card.
   // GraphQL `Long` arrives as a string or a number depending on its size.
-  const tone: AiBalanceTone =
-    subscription?.status === SubscriptionStatus.TRIAL
-      ? 'default'
-      : aiBalanceTone({
-          freeTokens: Number(usage?.aiTokensFree ?? 0),
-          freeUsed: Number(usage?.aiTokensFreeUsed ?? 0),
-          purchasedRemaining: Number(usage?.purchasedTokensRemaining ?? 0),
-        });
+  const isTrial = subscription?.status === SubscriptionStatus.TRIAL;
+  const balance = {
+    freeTokens: Number(usage?.aiTokensFree ?? 0),
+    freeUsed: Number(usage?.aiTokensFreeUsed ?? 0),
+    purchasedRemaining: Number(usage?.purchasedTokensRemaining ?? 0),
+  };
+  const tone: AiBalanceTone = isTrial ? 'default' : aiBalanceTone(balance);
+  const paused = aiPausedReason(balance, { isTrial });
   const trial = resolveTrial(
     subscription?.status,
     subscription?.startDate,
@@ -218,10 +239,10 @@ export function BillingBarsHydrator({ onResolved }: { onResolved: (state: Billin
   const trialToken = trial?.token ?? null;
   useEffect(() => {
     onResolved({
-      ai: { tone },
+      ai: { tone, paused },
       trial: trialDaysLeft != null && trialToken != null ? { daysLeft: trialDaysLeft, token: trialToken } : null,
     });
-  }, [tone, trialDaysLeft, trialToken, onResolved]);
+  }, [tone, paused, trialDaysLeft, trialToken, onResolved]);
 
   return null;
 }

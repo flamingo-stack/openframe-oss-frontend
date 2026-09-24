@@ -36,6 +36,24 @@ export function aiFreeTokensExhausted({
   return freeUsed >= freeTokens;
 }
 
+/** Why the agents have stopped: a trial's grant is spent, or a paid plan's grant and its balance both are. */
+export type AiPausedReason = 'trial' | 'balance';
+
+/**
+ * The agents have stopped answering, and why — `null` while they still can.
+ *
+ * A trial runs on its grant alone, so spending that is the end of it; a paid
+ * plan draws on the purchased balance next and stops only once that is gone
+ * too. One rule behind the red bar in the shell, the alert on the billing
+ * page and the locked Mingo composer, so the three can never disagree about
+ * whether Mingo is listening.
+ */
+export function aiPausedReason(input: AiBalanceInput, { isTrial }: { isTrial: boolean }): AiPausedReason | null {
+  if (!aiFreeTokensExhausted(input)) return null;
+  if (isTrial) return 'trial';
+  return input.purchasedRemaining <= 0 ? 'balance' : null;
+}
+
 export function aiBalanceTone(input: AiBalanceInput): AiBalanceTone {
   if (!aiFreeTokensExhausted(input)) return 'default';
   if (input.purchasedRemaining <= 0) return 'error';

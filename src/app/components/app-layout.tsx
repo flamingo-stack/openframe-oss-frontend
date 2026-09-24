@@ -38,7 +38,14 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
 import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
-import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
+import {
+  AiBalanceBar,
+  BillingBarsHydrator,
+  type BillingBarsState,
+  mingoLockPlaceholder,
+  NO_BARS,
+  TrialEndingBar,
+} from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { InitialSetupBar } from './initial-setup-bar';
@@ -299,13 +306,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     setTrialDismissed(isTrialBarDismissed(trialToken));
   }, [trialToken]);
   /**
+   * The balance is read on every build the app runs on — the hydrator's query
+   * carries counts, never a price — because the Mingo composer locks on it
+   * everywhere. The bars need more: a build that can act on them (below).
+   */
+  const billingStateWanted = billingsEnabled && sessionReady && !isLocked;
+  /**
    * Both bars exist for their action — top up the balance, activate the
    * subscription — so they need a build that can do it: the mobile builds hide
    * every payment surface (App Store Guideline 3.1.1) and the desktop build
    * shows billing read-only — see `billing-visibility.ts`. Neither page these
    * bars would send you to has a top-up or a checkout on them.
    */
-  const showBillingBars = billingsEnabled && !isBillingHidden() && !isBillingReadOnly() && sessionReady && !isLocked;
+  const showBillingBars = billingStateWanted && !isBillingHidden() && !isBillingReadOnly();
 
   // The Mingo sidebar (header launcher + in-layout chat drawer) is the only chat
   // surface there is. It is meaningful only inside the full, unlocked app shell
@@ -631,6 +644,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     [displayName, userEmail, avatarUrl, userRole, handleLogout],
   );
 
+  // The agents are paused — the balance is spent: the drawer still opens, the
+  // thread stays readable, but its composer takes nothing and says why.
+  const mingoComposerLock = billingBars.ai.paused ? { placeholder: mingoLockPlaceholder(billingBars.ai.paused) } : null;
+
   const chatDrawer = chatEnabled ? (
     // ChatIdentityProvider wraps the drawer (not the remounting panel content)
     // so chat identity resolves ONCE for the session and survives the drawer
@@ -666,7 +683,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           {/* No AppLayoutDrawerHeader/Title — EmbeddableChat renders its own
               header + X button; a wrapper header would double it up. */}
           <ChatDrawerErrorBoundary>
-            <OpenframeEmbeddableChatEntry open={chatOpen} onOpenChange={setChatOpen} />
+            <OpenframeEmbeddableChatEntry open={chatOpen} onOpenChange={setChatOpen} composerLock={mingoComposerLock} />
           </ChatDrawerErrorBoundary>
         </AppLayoutDrawerContent>
       </AppLayoutDrawer>
@@ -773,10 +790,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           <OnboardingCoachMark />
         </>
       )}
-      {/* Reports what the billing banners above need. Suspends, so it sits in
-          its own boundary and renders nothing either way — a shell that waited
-          on it would hold the whole app for a banner. */}
-      {showBillingBars && (
+      {/* Reports what the billing banners above and the Mingo composer need.
+          Suspends, so it sits in its own boundary and renders nothing either
+          way — a shell that waited on it would hold the whole app for a banner. */}
+      {billingStateWanted && (
         <Suspense fallback={null}>
           <BillingBarsHydrator onResolved={setBillingBars} />
         </Suspense>
