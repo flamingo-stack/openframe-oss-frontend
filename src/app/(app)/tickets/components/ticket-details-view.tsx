@@ -62,7 +62,7 @@ import { useDeviceDetails } from '../../devices/hooks/use-device-details';
 import { getDeviceName } from '../../devices/utils/device-name';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
-import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE, DIALOG_STATUS } from '../constants';
+import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE } from '../constants';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
 import { useDirectChat } from '../hooks/use-direct-chat';
@@ -77,9 +77,11 @@ import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-qu
 import { useTicketDetailsStore } from '../stores/ticket-details-store';
 import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
+import { lastClientMessageId } from '../utils/client-chat-read';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
+import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
 import { getTicketDeviceName } from '../utils/ticket-device-name';
 import { formatTicketRef } from '../utils/ticket-ref';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
@@ -188,6 +190,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
 
   const { messages: clientMessages, isTyping: isClientChatTyping } = client;
+  // Re-arms the shared unread-message mark (TicketNotificationsAutoReader) on every
+  // end-user row the chat shows; technician and assistant rows do not move it.
+  const newestClientMessageId = lastClientMessageId(clientMessages);
 
   const isClientCompacting = useMemo(() => {
     const lastMsg = clientMessages.at(-1);
@@ -365,7 +370,15 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const displayClientModel = currentClientModel ?? historyClientModel ?? orgClientModel;
 
   const clientInitialOptStartSeq = useMemo(() => maxPersistedStreamSeq(clientChat.rawPages), [clientChat.rawPages]);
-  const isInitialOptStartSeqReady = clientChat.isFetched;
+  // Fresh pages only (`isFetchedAfterMount`), not `isFetched`: on re-entry React Query
+  // serves the previous visit's cache first while `useTicketMessages` refetches, and
+  // `isFetched` is already true for it. A consumer created from that stale max seq
+  // replays every message that arrived while the user was away - and the refetch
+  // renders the same messages as persisted rows, so each shows twice (the replay
+  // lands after the history merge ran, so nothing dedupes it). Waiting for the
+  // post-mount fetch starts the consumer after the newest persisted seq instead;
+  // anything published in the meantime is still delivered from there.
+  const isInitialOptStartSeqReady = clientChat.isFetchedAfterMount;
 
   // NATS reconnect: JetStream replays only ~10 minutes of CHAT_CHUNKS, so an
   // outage longer than that leaves a gap the resume-by-seq cannot fill.
@@ -406,6 +419,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const handleTransition = useCallback(
     (toStatusId: string) => {
       if (!dialog || transitionTicket.isPending) return;
+      // Server-enforced lock (Tech Required + pending approval): the dropdown
+      // is disabled in this state, but guard the programmatic path too.
+      if (isStatusLockedByPendingApproval(dialog)) return;
       // Leaving a terminal status for a WORKING one is a REOPEN, not a plain
       // move: it goes through the confirmation modal (target status + assignee
       // + reason) instead of firing the transition directly. Gated on
@@ -454,6 +470,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       updateApprovalStatusInMessages('client', requestId, status);
       try {
         await mutate(requestId);
+        // Resolving the approval releases the status lock and changes the
+        // available transitions - refresh the cached ticket right away.
+        refetchDialog();
       } catch (error) {
         toast({
           title: approving ? 'Approval Failed' : 'Rejection Failed',
@@ -468,7 +487,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         });
       }
     },
-    [handleApproveRequest, handleRejectRequest, toast, updateApprovalStatusInMessages],
+    [handleApproveRequest, handleRejectRequest, toast, updateApprovalStatusInMessages, refetchDialog],
   );
 
   const handleApprove = useCallback(
@@ -535,7 +554,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {
     if (!dialog) return [];
 
-    const isArchived = dialog.status === DIALOG_STATUS.ARCHIVED;
+    const isArchived = dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED;
 
     const ticketItems: ActionsMenuItem[] = [];
     const infoItems: ActionsMenuItem[] = [];
@@ -591,8 +610,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   }
 
   const isAdminOwner = dialog.owner?.type === 'ADMIN';
-  const isResolved = dialog.status === DIALOG_STATUS.RESOLVED;
-  const isArchived = dialog.status === DIALOG_STATUS.ARCHIVED;
+  const isResolved = dialog.statusKind === TICKET_STATUS_KIND.RESOLVED;
+  const isArchived = dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED;
   const isClosed = isResolved || isArchived;
   const clientTokenUsage = dialog.tokenUsage?.find(t => t.chatType === CHAT_TYPE.CLIENT);
   const showTokenMemory = !isClosed;
@@ -602,11 +621,17 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // unified design (AI_ASSISTANCE/RESOLVED → canonical styling like the board;
   // TECH_REQUIRED and custom → backend color), shared with the chat surfaces.
   const statusTag = resolveStatusTagProps({
-    status: dialog.statusId ?? dialog.status,
+    status: dialog.statusId,
     statusKind: dialog.statusKind,
     statusName: dialog.statusName,
     statusColor: dialog.statusColor,
   });
+  // Tech Required + pending approval: the server rejects any transition, so
+  // the inline changer renders as a locked tag with the reason in a tooltip.
+  // Starting a direct chat stays available - it changes no status, and the
+  // handoff cancels the pending approval on the backend, which unlocks.
+  const isStatusLocked = isStatusLockedByPendingApproval(dialog);
+
   const hasClientChat = !isAdminOwner;
   const hasDescription = !!dialog.description?.trim();
   const hasAssignedItems = !!(
@@ -692,6 +717,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         options: dialog.availableTransitions,
         onSelect: handleTransition,
         isPending: transitionTicket.isPending,
+        disabled: isStatusLocked,
+        disabledReason: isStatusLocked ? STATUS_LOCKED_BY_APPROVAL_REASON : undefined,
       },
     },
   ];
@@ -878,6 +905,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         ticketId={ticketId}
         dialogId={messageDialogId}
         clientChatOnScreen={clientChatOnScreen}
+        lastClientMessageId={newestClientMessageId}
       />
       <PageLayout
         title={dialog.title || 'Untitled Dialog'}

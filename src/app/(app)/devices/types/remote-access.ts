@@ -148,15 +148,15 @@ export const REMOTE_ACCESS_MODE_META: Record<RemoteAccessMode, { label: string; 
   },
   NOTIFY_ONLY: {
     label: 'Notify Only',
-    description: 'No approval needed, user sees a notification.',
+    description: 'No approval prompt. The user sees the session block, can chat and can end the session.',
   },
   SILENT_ACCESS: {
     label: 'Silent Access',
-    description: 'No approval, no notification.',
+    description: 'No prompt, no indicator, no chat. The user cannot end the session.',
   },
   DENY_ACCESS: {
     label: 'Deny Access',
-    description: 'Remote connect is disabled for this device.',
+    description: 'Remote Control is blocked. Remote shell and file manager are not affected.',
   },
 };
 
@@ -168,4 +168,67 @@ export const REMOTE_ACCESS_MODE_META: Record<RemoteAccessMode, { label: string; 
  */
 export interface TenantRemoteAccessPolicy {
   mode: RemoteAccessMode;
+}
+
+// --------------------------------------------------------------------------
+// Remote session lifecycle
+// --------------------------------------------------------------------------
+
+export type RemoteSessionStatus = 'ACTIVE' | 'ENDED';
+
+/**
+ * Why a session is over: `client` - the end user pressed End Session, `admin`
+ * - the technician left, `timeout` - the session cap passed, `connection_lost`
+ * - the tunnel dropped (there is no rejoin: the technician opens a new
+ * session), `policy` - reserved, nothing produces it yet. Lower-case as on the
+ * NATS wire; the GraphQL enum arrives upper-case and is folded.
+ */
+export type RemoteSessionEndReason = 'admin' | 'client' | 'timeout' | 'connection_lost' | 'policy';
+
+/**
+ * The session record the backend creates when a request reaches APPROVED:
+ * the technician's handle for ending the session, and the source of the chat
+ * dialog id. Every lifecycle event carries the same payload.
+ */
+export interface RemoteSession {
+  /** A plain 26-char ULID. */
+  sessionId: string;
+  requestId: string;
+  deviceId?: string;
+  technicianId?: string;
+  sessionKind: RemoteSessionKind;
+  mode?: RemoteAccessMode;
+  status: RemoteSessionStatus;
+  startedAt: string;
+  endedAt?: string | null;
+  endReason?: RemoteSessionEndReason | null;
+  reason?: string;
+  ticketId?: string;
+  ticketNumber?: string;
+  recordingEnabled?: boolean;
+  /** The session chat dialog; null until the backend provisions it. */
+  dialogId: string | null;
+}
+
+/** How a session ended, as far as the page knows. */
+export interface RemoteSessionEnd {
+  endReason: RemoteSessionEndReason | null;
+  endedAt: string | null;
+}
+
+/**
+ * The transient technician-side lifecycle event on
+ * `user.<technicianUserId>.notification` (flat JSON, no notification id, so
+ * the notifications drawer ignores it): the session payload, plus `endReason`
+ * and `endedAt` on ENDED.
+ */
+export interface RemoteSessionEvent {
+  type: 'REMOTE_SESSION_STARTED' | 'REMOTE_SESSION_ENDED';
+  sessionId: string;
+  requestId?: string;
+  startedAt?: string;
+  dialogId: string | null;
+  recordingEnabled?: boolean;
+  endReason: RemoteSessionEndReason | null;
+  endedAt?: string | null;
 }

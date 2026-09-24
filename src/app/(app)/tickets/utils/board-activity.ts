@@ -42,7 +42,7 @@ export function resolveBoardActivity(
   if (dialog.activityState === 'AI_WORKING') return { kind: 'ai-working' };
   if (dialog.activityState === 'AWAITING_EXTERNAL') return { kind: 'waiting-external' };
 
-  const hasNewMessage = (dialog.unreadNotificationCount ?? 0) > 0;
+  const hasNewMessage = (dialog.unreadMessageCount ?? 0) > 0;
   if (dialog.pendingApproval || dialog.escalatedByUser || hasNewMessage) return undefined;
 
   const lastActivityAt = dialog.lastActivityAt ?? dialog.createdAt;

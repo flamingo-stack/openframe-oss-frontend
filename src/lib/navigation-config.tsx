@@ -30,6 +30,15 @@ const CATEGORY_BY_NAV_ID: Record<string, NotificationCategory> = {
   tickets: NotificationCategory.TICKETS,
 };
 
+/**
+ * The stamp on a module that is shipped but still behind its flag. The core sidebar
+ * draws it after the label as the warning `Tag` (the chip Settings stamps "Beta"
+ * with), as the bare word under the glyph in the minimized rail, and after the
+ * label on the mobile burger card; the row's accessible name becomes
+ * "Software (Beta)". Cased as read — the surfaces upper-case it.
+ */
+const BETA_BADGE = 'Beta';
+
 /** Onboarding chrome state used to conditionally show the "Onboarding" tab + badge. */
 export interface OnboardingNavState {
   /** User "Get Started" is in progress (not completed / skipped). */
@@ -109,6 +118,7 @@ export const getNavigationItems = (
             icon: <AlertTriangleIcon size={24} />,
             path: routes.incidents.list,
             isActive: pathname.startsWith('/incidents'),
+            badge: BETA_BADGE,
           } satisfies NavigationSidebarItem,
         ]
       : []),
@@ -149,6 +159,7 @@ export const getNavigationItems = (
             icon: <Parcel02Icon size={24} />,
             path: routes.software.list,
             isActive: pathname.startsWith('/software'),
+            badge: BETA_BADGE,
           },
         ]
       : []),

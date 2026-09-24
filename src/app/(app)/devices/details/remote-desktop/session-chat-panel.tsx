@@ -11,6 +11,8 @@ import type {
 
 interface SessionChatPanelProps {
   messages: RemoteSessionChatMessage[];
+  /** The dialog's history is still on its way; the empty state must not claim there is nothing. */
+  loading?: boolean;
   technician: RemoteSessionChatTechnician;
   sending: boolean;
   /** Resolves `false` to keep the draft in the input (nothing was sent). */
@@ -29,7 +31,7 @@ interface SessionChatPanelProps {
  * in openframe-chat; the "JOINED CHAT" badge is that side's indication only
  * and is not shown here.
  */
-export function SessionChatPanel({ messages, technician, sending, onSend, variant }: SessionChatPanelProps) {
+export function SessionChatPanel({ messages, loading, technician, sending, onSend, variant }: SessionChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keep the newest message in view as the stream grows.
@@ -51,7 +53,9 @@ export function SessionChatPanel({ messages, technician, sending, onSend, varian
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex min-h-full flex-col justify-end gap-[var(--spacing-system-xsf)]">
           {messages.length === 0 ? (
-            <p className="text-center text-ods-text-muted text-h6">No messages yet - say hello to the user.</p>
+            <p className="text-center text-ods-text-muted text-h6">
+              {loading ? 'Loading the chat...' : 'No messages yet - say hello to the user.'}
+            </p>
           ) : (
             messages.map(message => (
               <SessionChatMessageRow

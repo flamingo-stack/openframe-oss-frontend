@@ -20,6 +20,7 @@ import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNow } from '@/app/hooks/use-now';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
@@ -39,6 +40,7 @@ import type { Dialog, TicketActivityFilter } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { resolveBoardActivity } from '../utils/board-activity';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
+import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
 import { getTicketDeviceName } from '../utils/ticket-device-name';
 import { ActivityFilter } from './activity-filter';
 import { AssigneeFilter } from './assignee-filter';
@@ -136,7 +138,7 @@ interface TicketsBoardProps {
   onAssigneeIdsChange?: (ids: string[]) => void;
   tagIds?: string[];
   onTagIdsChange?: (ids: string[]) => void;
-  /** Only tickets the caller has unread notifications about. */
+  /** Only tickets with unread client-chat messages (the card badge). */
   unreadOnly?: boolean;
   onUnreadOnlyChange?: (value: boolean) => void;
   /** Server-side activity filter (active / stale / awaiting client); OR within the list. */
@@ -194,7 +196,7 @@ function dialogToBoardTicket(
     id: dialog.id,
     title: dialog.title,
     ticketNumber: dialog.ticketNumber !== undefined ? String(dialog.ticketNumber) : '',
-    status: dialog.statusName ?? dialog.status,
+    status: dialog.statusName ?? EMPTY_VALUE,
     // The lib prop is named deviceHostnames, but it is the card's device line — name the
     // device like the table and the details page do (nickname first), not by its hostname.
     deviceHostnames: deviceName ? [deviceName] : undefined,
@@ -217,8 +219,9 @@ function dialogToBoardTicket(
     createdAt: dialog.statusUpdatedAt ?? dialog.createdAt,
     // The card has no numeric affordance — `BoardTicket` carries a boolean, which
     // draws the column-coloured border and the "New Message" tag. The exact count
-    // lives on the table row; here any unread at all is the signal.
-    hasNewMessage: (dialog.unreadNotificationCount ?? 0) > 0,
+    // lives on the table row; here any unread at all is the signal. Shared by
+    // every technician: once one of them reads the chat the tag drops for all.
+    hasNewMessage: (dialog.unreadMessageCount ?? 0) > 0,
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
     activity,
@@ -606,6 +609,19 @@ export function TicketsBoard({
   const handleChange = useCallback(
     (change: BoardChange) => {
       if (change.fromColumnId !== change.toColumnId) {
+        // Tech Required + pending approval: the server rejects the transition,
+        // so block the drop up front - toast the reason and snap the card back.
+        const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
+        if (isStatusLockedByPendingApproval(dialogById.get(change.ticketId))) {
+          toast({
+            title: 'Status Locked',
+            description: STATUS_LOCKED_BY_APPROVAL_REASON,
+            variant: 'destructive',
+            duration: 5000,
+          });
+          setBoardResetNonce(nonce => nonce + 1);
+          return;
+        }
         // Dragging OUT of the Resolved lane is a REOPEN, not a plain move: it
         // goes through the confirmation modal (target status + assignee +
         // reason) instead of committing the drop. The card is HELD at the drop
@@ -613,7 +629,6 @@ export function TicketsBoard({
         // confirming keeps it there, cancelling releases it back. Gated on
         // `ai-resolution` — with the flag off the drop commits directly (legacy).
         if (featureFlags.aiResolution.enabled()) {
-          const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
           if (sourceKind === 'RESOLVED') {
             setHeldMove(change);
             setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
@@ -639,7 +654,7 @@ export function TicketsBoard({
         beforeTicketId: change.beforeTicketId,
       });
     },
-    [moveTicket, statuses, dialogById, setHeldMove],
+    [moveTicket, statuses, dialogById, toast, setHeldMove],
   );
 
   const showEmptyState =

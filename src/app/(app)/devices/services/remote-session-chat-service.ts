@@ -1,36 +1,39 @@
-// Remote session chat service.
-//
-// Backs the technician's session chat panel while the backend dialog
-// provisioning and the session lifecycle events are in design. The real
-// implementation talks to the dialogs API on `/chat/graphql`
-// for history + send and to NATS `chat.<dialogId>.message` for live delivery
-// (pattern: tickets/components/ticket-dialog-subscription.tsx); swapping is
-// one new implementation of `IRemoteSessionChatService`.
+// Remote session chat service surface, and the in-memory stand-in used on the
+// mock approval backend (no session record, no dialog). The real dialog is
+// served by remote-session-chat-api-service.ts; the hook picks by dialog id.
 
-import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
+import {
+  REMOTE_SESSION_END_USER_NAME,
+  type RemoteSessionChatMessage,
+  type RemoteSessionChatTechnician,
+} from '../types/remote-session-chat';
+
+export interface RemoteSessionChatHistory {
+  /** Oldest first. */
+  messages: RemoteSessionChatMessage[];
+  /** The highest JetStream sequence on the page; the live feed opens right after it. 0 = nothing stamped. */
+  lastSeq: number;
+}
 
 export interface IRemoteSessionChatService {
-  /** Messages already in the dialog, oldest first. */
-  history(dialogId: string): Promise<RemoteSessionChatMessage[]>;
-  /** Sends the technician's message; the stored message is also delivered to subscribers. */
-  send(dialogId: string, body: string, technician: RemoteSessionChatTechnician): Promise<RemoteSessionChatMessage>;
-  /** Live delivery of every message appended to the dialog (own ones included). */
-  subscribe(dialogId: string, listener: (message: RemoteSessionChatMessage) => void): () => void;
+  /** The messages already in the dialog. */
+  history(dialogId: string): Promise<RemoteSessionChatHistory>;
+  /** Sends the technician's message; it comes back through the dialog's feed like everything else. */
+  send(dialogId: string, body: string, technician: RemoteSessionChatTechnician): Promise<void>;
+}
+
+/** Mock dialogs are named after the approved request; the real ones are backend ids. */
+const MOCK_DIALOG_PREFIX = 'mock-dialog:';
+
+export function mockRemoteSessionDialogId(requestId: string): string {
+  return `${MOCK_DIALOG_PREFIX}${requestId}`;
+}
+
+export function isMockRemoteSessionDialog(dialogId: string | null): boolean {
+  return dialogId !== null && dialogId.startsWith(MOCK_DIALOG_PREFIX);
 }
 
 const MOCK_LATENCY_MS = 200;
-/** The scripted end user answers this long after a technician message. */
-const MOCK_REPLY_DELAY_MS = 2_000;
-/** The end user has no profile on the wire - the design shows a plain "User". */
-export const REMOTE_SESSION_END_USER_NAME = 'User';
-
-/** The end user's scripted replies, cycled per dialog. */
-const MOCK_USER_REPLIES = [
-  'Computer work slow',
-  'Since this morning. Everything freezes when I open Excel',
-  'Yes, go ahead',
-  'Ok, thanks!',
-];
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -39,71 +42,45 @@ function delay(ms: number): Promise<void> {
 interface MockDialog {
   messages: RemoteSessionChatMessage[];
   listeners: Set<(message: RemoteSessionChatMessage) => void>;
-  replyIndex: number;
-  timers: ReturnType<typeof setTimeout>[];
 }
 
 /**
- * In-memory mock. Dialogs live for the SPA session; every technician message
- * gets a scripted end-user reply a moment later so the panel can be exercised
- * end to end. A pending reply is dropped when the last subscriber leaves
- * (panel closed, session ended) - nothing answers into an abandoned dialog.
+ * In-memory mock. Dialogs live for the SPA session and hold exactly what was
+ * sent into them: nothing answers on the end user's behalf, so the panel shows
+ * the technician's own lines until a real dialog exists. Tests inject the
+ * end user's side through `simulateUserReply`.
  */
 class MockRemoteSessionChatService implements IRemoteSessionChatService {
   private readonly dialogs = new Map<string, MockDialog>();
   private seq = 0;
 
-  async history(dialogId: string): Promise<RemoteSessionChatMessage[]> {
+  async history(dialogId: string): Promise<RemoteSessionChatHistory> {
     await delay(MOCK_LATENCY_MS);
-    return [...this.dialog(dialogId).messages];
+    return { messages: [...this.dialog(dialogId).messages], lastSeq: 0 };
   }
 
-  async send(
-    dialogId: string,
-    body: string,
-    technician: RemoteSessionChatTechnician,
-  ): Promise<RemoteSessionChatMessage> {
+  async send(dialogId: string, body: string, technician: RemoteSessionChatTechnician): Promise<void> {
     await delay(MOCK_LATENCY_MS);
-    const message = this.append(dialogId, 'technician', technician.name, body);
-    const dialog = this.dialog(dialogId);
-    const timer = setTimeout(() => {
-      dialog.timers = dialog.timers.filter(t => t !== timer);
-      // A dialog dropped by `reset()` must not be revived by its own reply.
-      if (this.dialogs.get(dialogId) === dialog) this.replyFromUser(dialogId);
-    }, MOCK_REPLY_DELAY_MS);
-    dialog.timers.push(timer);
-    return message;
+    this.append(dialogId, 'technician', technician.name, body);
   }
 
+  /** Live delivery of every message appended to the dialog (own ones included). */
   subscribe(dialogId: string, listener: (message: RemoteSessionChatMessage) => void): () => void {
     const dialog = this.dialog(dialogId);
     dialog.listeners.add(listener);
     return () => {
       dialog.listeners.delete(listener);
-      if (dialog.listeners.size === 0) this.cancelPendingReplies(dialog);
     };
   }
 
-  /** Test helper - the end user sends `body` (or the next scripted reply) now. */
-  simulateUserReply(dialogId: string, body?: string): RemoteSessionChatMessage {
-    return this.replyFromUser(dialogId, body);
+  /** Test helper - the end user sends `body` now. */
+  simulateUserReply(dialogId: string, body: string): RemoteSessionChatMessage {
+    return this.append(dialogId, 'user', REMOTE_SESSION_END_USER_NAME, body);
   }
 
-  /** Test helper - drops every dialog and pending scripted reply. */
+  /** Test helper - drops every dialog. */
   reset(): void {
-    for (const dialog of this.dialogs.values()) this.cancelPendingReplies(dialog);
     this.dialogs.clear();
-  }
-
-  private cancelPendingReplies(dialog: MockDialog): void {
-    for (const timer of dialog.timers.splice(0)) clearTimeout(timer);
-  }
-
-  private replyFromUser(dialogId: string, body?: string): RemoteSessionChatMessage {
-    const dialog = this.dialog(dialogId);
-    const text = body ?? MOCK_USER_REPLIES[dialog.replyIndex % MOCK_USER_REPLIES.length];
-    if (body === undefined) dialog.replyIndex++;
-    return this.append(dialogId, 'user', REMOTE_SESSION_END_USER_NAME, text);
   }
 
   private append(
@@ -128,7 +105,7 @@ class MockRemoteSessionChatService implements IRemoteSessionChatService {
   private dialog(dialogId: string): MockDialog {
     let dialog = this.dialogs.get(dialogId);
     if (!dialog) {
-      dialog = { messages: [], listeners: new Set(), replyIndex: 0, timers: [] };
+      dialog = { messages: [], listeners: new Set() };
       this.dialogs.set(dialogId, dialog);
     }
     return dialog;
@@ -136,5 +113,3 @@ class MockRemoteSessionChatService implements IRemoteSessionChatService {
 }
 
 export const mockRemoteSessionChatService = new MockRemoteSessionChatService();
-
-export const remoteSessionChatService: IRemoteSessionChatService = mockRemoteSessionChatService;

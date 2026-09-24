@@ -82,7 +82,7 @@ import {
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { ATTENTION_IDLE_MS, isSessionActive, subscribeSessionActivity } from '@/lib/session-activity';
+import { ATTENTION_IDLE_MS, isSessionActive, subscribeAttention } from '@/lib/session-activity';
 import { withCategoryIcon } from './notification-category-icons';
 import {
   mingoDrawerDialogId,
@@ -462,10 +462,14 @@ function EntityViewAutoReader() {
   // The gate below is time-varying, but none of the effect's other deps change when
   // the session becomes active again — so without this a notification that arrived
   // while the user was idle on its entity would stay unread until some unrelated dep
-  // happened to re-run the effect. Hard edges only (focus / foreground), so this is
-  // a handful of re-renders per session on a component that renders null.
+  // happened to re-run the effect. Hard edges (focus / foreground) plus the first
+  // input after the attention window lapsed: a technician who sat reading a ticket
+  // chat through a client message and then moved is back, and that message is the
+  // one on screen — without the input edge it stayed unread until the board's next
+  // poll badged the very ticket they had just left. A few re-renders per session on
+  // a component that renders null.
   const [activityEdge, setActivityEdge] = useState(0);
-  useEffect(() => subscribeSessionActivity(() => setActivityEdge(edge => edge + 1)), []);
+  useEffect(() => subscribeAttention(() => setActivityEdge(edge => edge + 1)), []);
 
   // activityEdge is the re-run trigger, not read in the body.
   useEffect(() => {
