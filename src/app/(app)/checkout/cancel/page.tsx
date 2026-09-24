@@ -1,6 +1,6 @@
 'use client';
 
-import { XCircle } from 'lucide-react';
+import { XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { notFound } from 'next/navigation';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
@@ -18,7 +18,7 @@ export default function CheckoutCancelPage() {
 
   return (
     <CheckoutResultCard
-      icon={XCircle}
+      icon={XmarkCircleIcon}
       iconWrapperClassName="bg-ods-error-secondary text-ods-error"
       title="Payment Cancelled"
       description="No charges were made. You can pick a plan whenever you're ready."

@@ -1,4 +1,5 @@
 import { SubscriptionStatus } from '@/generated/schema-enums';
+import { pluralize } from '@/lib/pluralize';
 
 /**
  * The plan picker's header copy (web / desktop).
@@ -60,8 +61,7 @@ export function getPaywallCopy(status: SubscriptionStatus): PaywallCopy {
  */
 export function paywallDescription(copy: PaywallCopy, deviceCount: number | null): string {
   if (deviceCount == null) return copy.description;
-  const one = deviceCount === 1;
-  return `We've detected ${deviceCount.toLocaleString('en-US')} active device${one ? '' : 's'} in your OpenFrame instance that ${one ? 'requires' : 'require'} a subscription to continue management.`;
+  return `We've detected ${pluralize(deviceCount, 'active device')} in your OpenFrame instance that ${deviceCount === 1 ? 'requires' : 'require'} a subscription to continue management.`;
 }
 
 /** Shown in place of the plans when their catalog cannot be loaded at all. */

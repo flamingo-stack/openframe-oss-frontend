@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { queryState } from '@/lib/query-state';
 
 const DESKTOP_REPO = 'flamingo-stack/openframe-saas-desktop';
 
@@ -73,14 +74,24 @@ async function fetchDesktopInstallers(signal: AbortSignal): Promise<DesktopInsta
  * matches it so leaving and returning to the page reuses the answer instead of
  * refetching, and no retry: the failure this budget produces is a 403, which a
  * second immediate request cannot fix and would only bill twice.
+ *
+ * @param enabled - false where the Desktop App card is not rendered at all (the
+ *   desktop shell, which already runs what this resolves), so the page does not
+ *   call GitHub for links nothing will show.
  */
-export function useDesktopInstallers() {
+export function useDesktopInstallers(enabled = true) {
   const oneHour = 60 * 60 * 1000;
-  return useQuery({
+  const query = useQuery({
     queryKey: ['desktop-installers'],
     queryFn: ({ signal }) => fetchDesktopInstallers(signal),
     staleTime: oneHour,
     gcTime: oneHour,
     retry: false,
+    enabled,
   });
+
+  // `enabled` reaches `queryState` here rather than at the call site so the gate has one
+  // owner: a disabled query is `isPending` forever, and a caller that passed the flag to
+  // only one of the two would report a permanent spinner.
+  return { installers: query.data, ...queryState(query, enabled ? 'open' : 'closed') };
 }

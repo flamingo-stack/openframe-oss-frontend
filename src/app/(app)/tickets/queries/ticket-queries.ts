@@ -10,7 +10,6 @@ export const CREATE_TICKET_MUTATION = `
         ticketNumber
         title
         description
-        status
         owner {
           ... on ClientTicketOwner {
             type
@@ -100,7 +99,6 @@ export const GET_TICKET_QUERY = `
       ticketNumber
       title
       description
-      status
       statusDefinition {
         id
         name
@@ -215,7 +213,6 @@ export const GET_TICKETS_QUERY = `
           id
           ticketNumber
           title
-          status
           statusDefinition {
             id
             name
@@ -264,7 +261,7 @@ export const GET_TICKETS_QUERY = `
             color
           }
           # Unflagged, so it must not outrun the backend — see boardCardTicketFragment.
-          unreadNotificationCount
+          unreadMessageCount
           createdAt
           updatedAt
           resolvedAt
@@ -292,7 +289,8 @@ export const GET_TICKETS_QUERY = `
  * merely missing a badge. `resolvedBy` rides the `ai-resolution` flag for the
  * same reason.
  *
- * `unreadNotificationCount` is selected UNCONDITIONALLY and carries that same
+ * `unreadMessageCount` (the technicians' shared unread client-message counter,
+ * openframe-saas-tenant#3301) is selected UNCONDITIONALLY and carries that same
  * failure mode, because `ticket.graphqls` declares it with no feature flag —
  * there is no flag to ride, and borrowing an unrelated one (`notifications`
  * gates the notifications UI, not the ai-agent schema) would only move the
@@ -315,7 +313,6 @@ const boardCardTicketFragment = () => `
     id
     ticketNumber
     title
-    status
     statusDefinition {
       id
       name
@@ -368,7 +365,7 @@ const boardCardTicketFragment = () => `
       key
       color
     }
-    unreadNotificationCount
+    unreadMessageCount
     lastActivityAt
     activityState
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
@@ -441,7 +438,6 @@ export const TRANSITION_TICKET_MUTATION = `
     transitionTicket(input: $input) {
       ticket {
         id
-        status
         statusDefinition {
           id
         }
@@ -548,7 +544,6 @@ export const UPDATE_TICKET_MUTATION = `
         ticketNumber
         title
         description
-        status
         owner {
           ... on ClientTicketOwner {
             type
@@ -608,10 +603,25 @@ export const REQUEST_TICKET_REOPEN_MUTATION = `
   }
 `;
 
+/**
+ * Resets the caller's side of the dialog's unread client-message counter
+ * (`Dialog.unreadMessageCount`). For an admin token that is the side every
+ * technician shares, so one technician reading the chat clears the board's
+ * "New Message" badge for all of them. Idempotent; a reply resets it too.
+ */
+export const MARK_DIALOG_MESSAGES_READ_MUTATION = `
+  mutation MarkDialogMessagesRead($input: DialogIdInput!) {
+    markDialogMessagesRead(input: $input) {
+      dialog { id unreadMessageCount }
+      userErrors { field message }
+    }
+  }
+`;
+
 export const REORDER_TICKET_MUTATION = `
   mutation ReorderTicket($input: ReorderTicketInput!) {
     reorderTicket(input: $input) {
-      ticket { id status order }
+      ticket { id order }
       userErrors { field message }
     }
   }
@@ -634,7 +644,6 @@ export const TAKE_OVER_TICKET_MUTATION = `
     takeOverTicket(input: $input) {
       ticket {
         id
-        status
         statusDefinition { id name color kind }
         assignedTo
         assignedName
@@ -675,10 +684,6 @@ export const GET_TICKET_STATISTICS_QUERY = `
   query GetTicketStatistics {
     ticketStatistics {
       totalCount
-      statusCounts {
-        status
-        count
-      }
       statusDefinitionCounts {
         status {
           kind

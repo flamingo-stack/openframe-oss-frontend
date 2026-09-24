@@ -3,7 +3,7 @@
 /**
  * Relay-backed context items for the GraphQL sources on OUR endpoint
  * (`/api/graphql`): Device, Organization, Knowledge Article, Script, Script
- * Schedule, Incident.
+ * Schedule, Incident, Software, Vulnerability.
  *
  * Idiomatic Relay cursor pagination: a `@refetchable` fragment with
  * `@connection` + `useLazyLoadQuery` (suspends on initial load → the picker's
@@ -32,11 +32,18 @@ import type { relayItemsSchedulesPaginationQuery } from '@/__generated__/relayIt
 import type { relayItemsScripts_query$key } from '@/__generated__/relayItemsScripts_query.graphql';
 import type { relayItemsScriptsListQuery } from '@/__generated__/relayItemsScriptsListQuery.graphql';
 import type { relayItemsScriptsPaginationQuery } from '@/__generated__/relayItemsScriptsPaginationQuery.graphql';
+import type { relayItemsSoftware_query$key } from '@/__generated__/relayItemsSoftware_query.graphql';
+import type { relayItemsSoftwareListQuery } from '@/__generated__/relayItemsSoftwareListQuery.graphql';
+import type { relayItemsSoftwarePaginationQuery } from '@/__generated__/relayItemsSoftwarePaginationQuery.graphql';
+import type { relayItemsVulnerabilities_query$key } from '@/__generated__/relayItemsVulnerabilities_query.graphql';
+import type { relayItemsVulnerabilitiesListQuery } from '@/__generated__/relayItemsVulnerabilitiesListQuery.graphql';
+import type { relayItemsVulnerabilitiesPaginationQuery } from '@/__generated__/relayItemsVulnerabilitiesPaginationQuery.graphql';
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { INCIDENT_SEVERITY_LABELS, labelOf, WORKING_SET_STATUSES } from '@/app/(app)/incidents/utils/incident-labels';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
-import { decodeGlobalId } from '@/lib/relay-id';
+import { pluralize } from '@/lib/pluralize';
+import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared';
 
@@ -179,7 +186,7 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
                 type: CONTEXT_ENTITY_KIND.ORGANIZATION,
                 // Raw db id (organizationId), decoded from the global `id`
                 // (`base64("Organization:<rawId>")`); the chip re-encodes it.
-                id: decodeGlobalId(e.node.id)?.rawId ?? e.node.id,
+                id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
                 description: e.node.category ?? undefined,
               },
@@ -249,7 +256,7 @@ export function KnowledgeBaseItems({ query, selectedKeys, onToggle, atLimit }: C
                 type: CONTEXT_ENTITY_KIND.KB_ARTICLE,
                 // Raw db id, decoded from the global `id`
                 // (`base64("KnowledgeBaseItem:<rawId>")`); the chip re-encodes it.
-                id: decodeGlobalId(e.node.id)?.rawId ?? e.node.id,
+                id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
                 description: e.node.type ?? undefined,
               },
@@ -486,7 +493,7 @@ export function IncidentItems({ query, selectedKeys, onToggle, atLimit }: Contex
         return [
           {
             type: CONTEXT_ENTITY_KIND.INSIGHT,
-            id: e.node.id,
+            id: rawIdOf(e.node.id),
             label: e.node.title,
             description: [labelOf(INCIDENT_SEVERITY_LABELS, e.node.severity), device].filter(Boolean).join(' · '),
           },
@@ -504,6 +511,153 @@ export function IncidentItems({ query, selectedKeys, onToggle, atLimit }: Contex
       onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
       loadingMore={isLoadingNext}
       emptyLabel="No incidents"
+    />
+  );
+}
+
+// ───────────────────────────── Software ─────────────────────────────────────
+
+// The fleet inventory, one row per title, the same `softwares` connection the
+// Software page lists — searched on the server. `Software.id` is the inventory's
+// own id (NOT a Relay global id): `software(id:)` and the details route take it
+// as is, so it is stored as is, with no decode.
+const SOFTWARE_FRAGMENT = graphql`
+  fragment relayItemsSoftware_query on Query
+  @refetchable(queryName: "relayItemsSoftwarePaginationQuery")
+  @argumentDefinitions(
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
+    softwares(search: $search, first: $first, after: $after) @connection(key: "relayItemsSoftware_softwares") {
+      edges {
+        node {
+          id
+          name
+          publisher
+          currentVersion
+        }
+      }
+    }
+  }
+`;
+
+const SOFTWARE_LIST_QUERY = graphql`
+  query relayItemsSoftwareListQuery($search: String, $first: Int) {
+    ...relayItemsSoftware_query @arguments(search: $search, first: $first)
+  }
+`;
+
+export function SoftwareItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
+  const root = useLazyLoadQuery<relayItemsSoftwareListQuery>(SOFTWARE_LIST_QUERY, {
+    search: query || null,
+    first: MINGO_CONTEXT_PAGE_SIZE,
+  });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsSoftwarePaginationQuery,
+    relayItemsSoftware_query$key
+  >(SOFTWARE_FRAGMENT, root as relayItemsSoftware_query$key);
+  const items = useMemo(
+    () =>
+      (data.softwares?.edges ?? []).flatMap(e =>
+        e?.node
+          ? [
+              {
+                type: CONTEXT_ENTITY_KIND.SOFTWARE,
+                id: e.node.id,
+                label: e.node.name || e.node.id,
+                // The publisher and the version in use, as the Software list
+                // reads under a title.
+                description: [e.node.publisher, e.node.currentVersion].filter(Boolean).join(' · ') || undefined,
+              },
+            ]
+          : [],
+      ),
+    [data],
+  );
+  return (
+    <ContextItemsList
+      items={items}
+      selectedKeys={selectedKeys}
+      onToggle={onToggle}
+      atLimit={atLimit}
+      hasMore={hasNext}
+      onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
+      loadingMore={isLoadingNext}
+      emptyLabel="No software"
+    />
+  );
+}
+
+// ─────────────────────────── Vulnerability ──────────────────────────────────
+
+// Every CVE across the fleet, one row per CVE — the `vulnerabilities`
+// connection the Vulnerabilities page lists. A CVE has no id but its `cveId`,
+// which is also its name: `vulnerability(cveId:)` and the details route take
+// it, and the mention carries it verbatim. No severity, as nowhere in the
+// Software module: the scanner does not rate the CVEs it reports.
+const VULNERABILITIES_FRAGMENT = graphql`
+  fragment relayItemsVulnerabilities_query on Query
+  @refetchable(queryName: "relayItemsVulnerabilitiesPaginationQuery")
+  @argumentDefinitions(
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
+    vulnerabilities(search: $search, first: $first, after: $after)
+      @connection(key: "relayItemsVulnerabilities_vulnerabilities") {
+      edges {
+        node {
+          cveId
+          devicesCount
+        }
+      }
+    }
+  }
+`;
+
+const VULNERABILITIES_LIST_QUERY = graphql`
+  query relayItemsVulnerabilitiesListQuery($search: String, $first: Int) {
+    ...relayItemsVulnerabilities_query @arguments(search: $search, first: $first)
+  }
+`;
+
+export function VulnerabilityItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
+  const root = useLazyLoadQuery<relayItemsVulnerabilitiesListQuery>(VULNERABILITIES_LIST_QUERY, {
+    search: query || null,
+    first: MINGO_CONTEXT_PAGE_SIZE,
+  });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsVulnerabilitiesPaginationQuery,
+    relayItemsVulnerabilities_query$key
+  >(VULNERABILITIES_FRAGMENT, root as relayItemsVulnerabilities_query$key);
+  const items = useMemo(
+    () =>
+      (data.vulnerabilities?.edges ?? []).flatMap(e =>
+        e?.node
+          ? [
+              {
+                type: CONTEXT_ENTITY_KIND.VULNERABILITY,
+                id: e.node.cveId,
+                label: e.node.cveId,
+                // How far the CVE reaches — the one figure the list shows per row.
+                description: e.node.devicesCount != null ? pluralize(e.node.devicesCount, 'device') : undefined,
+              },
+            ]
+          : [],
+      ),
+    [data],
+  );
+  return (
+    <ContextItemsList
+      items={items}
+      selectedKeys={selectedKeys}
+      onToggle={onToggle}
+      atLimit={atLimit}
+      hasMore={hasNext}
+      onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
+      loadingMore={isLoadingNext}
+      emptyLabel="No vulnerabilities"
     />
   );
 }

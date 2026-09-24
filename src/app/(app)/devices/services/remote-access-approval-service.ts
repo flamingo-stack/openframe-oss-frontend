@@ -37,8 +37,8 @@ export interface IRemoteAccessApprovalService {
 const MOCK_LATENCY_MS = 350;
 /** Client ack arrives shortly after create - PENDING -> DELIVERED. */
 const MOCK_DELIVERY_MS = 1200;
-/** Matches the spec's default approval timeout. */
-const MOCK_TIMEOUT_MS = 60_000;
+/** Matches the fixed approval timeout (30 s, decision 2026-09-18). */
+const MOCK_TIMEOUT_MS = 30_000;
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));

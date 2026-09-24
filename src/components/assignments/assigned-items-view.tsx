@@ -7,7 +7,7 @@ import { DevicesAssignedTable } from './tables/devices-assigned-table';
 import { KnowledgeBaseAssignedTable } from './tables/knowledge-base-assigned-table';
 import { TicketsAssignedTable } from './tables/tickets-assigned-table';
 import { TARGET_CONFIG } from './target-config';
-import { ASSIGNMENT_TARGET_TYPES, type AssignmentItemType, type AssignmentTargetType } from './types';
+import { ASSIGNMENT_TARGET_TYPES, type AssignmentItemType, type ServerAssignmentTargetType } from './types';
 import { useAssignedItems } from './use-assigned-items';
 
 export interface AssignedItemsViewProps {
@@ -24,7 +24,7 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
 
   const activeTypes = useMemo(() => ASSIGNMENT_TARGET_TYPES.filter(type => (value[type]?.length ?? 0) > 0), [value]);
 
-  const [pinnedTab, setPinnedTab] = useState<AssignmentTargetType | null>(null);
+  const [pinnedTab, setPinnedTab] = useState<ServerAssignmentTargetType | null>(null);
   const activeTab = pinnedTab && activeTypes.includes(pinnedTab) ? pinnedTab : activeTypes[0];
 
   const tabs: TabItem[] = useMemo(
@@ -37,7 +37,7 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
     [activeTypes],
   );
 
-  const renderTabBody = (type: AssignmentTargetType) => {
+  const renderTabBody = (type: ServerAssignmentTargetType) => {
     switch (type) {
       case 'ORGANIZATION':
         return <CustomersAssignedTable customers={customers ?? []} isLoading={isLoading} />;
@@ -48,7 +48,7 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
       case 'TICKET':
         return <TicketsAssignedTable tickets={tickets ?? []} isLoading={isLoading} />;
       default: {
-        // `type` is `never` here because the cases above cover AssignmentTargetType.
+        // `type` is `never` here because the cases above cover ServerAssignmentTargetType.
         // Adding a member to that union makes this assignment fail to compile, which
         // is the point — a silent `undefined` tab body would just render nothing.
         const unreachable: never = type;
@@ -76,9 +76,13 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
         {activeTypes.length === 1 ? (
           <div className="p-[var(--spacing-system-mf)]">{renderTabBody(activeTypes[0])}</div>
         ) : (
-          <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={id => setPinnedTab(id as AssignmentTargetType)}>
+          <TabNavigation
+            tabs={tabs}
+            activeTab={activeTab}
+            onTabChange={id => setPinnedTab(id as ServerAssignmentTargetType)}
+          >
             {active => (
-              <div className="p-[var(--spacing-system-mf)]">{renderTabBody(active as AssignmentTargetType)}</div>
+              <div className="p-[var(--spacing-system-mf)]">{renderTabBody(active as ServerAssignmentTargetType)}</div>
             )}
           </TabNavigation>
         )}

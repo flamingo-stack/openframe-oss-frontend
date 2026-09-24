@@ -1,4 +1,13 @@
-import { apiClient } from '@/lib/api-client';
+import { commitMutation, fetchQuery, graphql } from 'react-relay';
+import { type GraphQLTaggedNode, type MutationParameters, readInlineData } from 'relay-runtime';
+import type {
+  remoteAccessApprovalApiService_request$data as WireRequest,
+  remoteAccessApprovalApiService_request$key as WireRequestKey,
+} from '@/__generated__/remoteAccessApprovalApiService_request.graphql';
+import type { remoteAccessApprovalApiServiceCreateMutation as CreateMutation } from '@/__generated__/remoteAccessApprovalApiServiceCreateMutation.graphql';
+import type { remoteAccessApprovalApiServiceRequestQuery as RequestQuery } from '@/__generated__/remoteAccessApprovalApiServiceRequestQuery.graphql';
+import type { remoteAccessApprovalApiServiceRevokeMutation as RevokeMutation } from '@/__generated__/remoteAccessApprovalApiServiceRevokeMutation.graphql';
+import { getRelayEnvironment } from '@/lib/relay';
 import {
   type CreateRemoteAccessRequestInput,
   type RemoteAccessCreateErrorCode,
@@ -10,24 +19,80 @@ import {
   type RemoteAccessRequestStatus,
 } from '../types/remote-access';
 import type { IRemoteAccessApprovalService } from './remote-access-approval-service';
+import { nullableTimestamp, oneOf, type RawWire, text, timestamp } from './remote-access-wire';
 
 /**
- * The real approval API (CU-86ajx02gz, saas-tenant PR #3241 + saas-lib PR
- * #885): technician endpoints on openframe-saas-api under
- * `/api/v1/remote-access/requests` with the admin session, through
- * `apiClient` like the rest of the REST surface. `deviceId` is the OpenFrame
+ * The real approval API (saas-tenant PR #3241 + saas-lib PR #885): the
+ * technician side is GraphQL on openframe-saas-api - `createRemoteAccessRequest`,
+ * `remoteAccessRequest(requestId)` for the 2 s poll and `revokeRemoteAccessRequest`
+ * - run imperatively on the app's Relay environment (admin session, the same
+ * `/api/graphql` endpoint as every other query). `deviceId` is the OpenFrame
  * machine id (the backend resolves the machine, its mesh node and organization
  * from it), which is what the device pages carry as `?id=`.
  *
- * Create answers 201 for a new request, 200 with the technician's own live
- * request (a page reload re-attaches without a second end-user prompt), 409
- * with an error code for another technician's request or session, 503 when the
- * request could not be published. The decision push is not part of this
- * service: it arrives as a flat REMOTE_ACCESS_DECISION event on the technician's
+ * Create returns `created: true` for a new request and `false` with the
+ * technician's own live request (a page reload re-attaches without a second
+ * end-user prompt) - both are the same answer here. Domain refusals come back
+ * as `userErrors[].code` (another technician's request or session, an
+ * undeliverable request, the feature switched off), mapped to
+ * `RemoteAccessCreateError`. The decision push is not part of this service: it
+ * arrives as a flat REMOTE_ACCESS_DECISION event on the technician's
  * notification subject, which `useRemoteAccessApproval` subscribes to
  * (see `parseRemoteAccessDecisionEvent`); `onDecision` is therefore a no-op here.
  */
-const REQUESTS_PATH = '/api/v1/remote-access/requests';
+
+/** Every operation reads the whole request; `@inline` because the reader is a service, not a component. */
+const requestFragment = graphql`
+  fragment remoteAccessApprovalApiService_request on RemoteAccessRequest @inline {
+    requestId
+    deviceId
+    technicianId
+    status
+    mode
+    decisionSource
+    reason
+    ticketId
+    ticketNumber
+    recordingEnabled
+    createdAt
+    deliveredAt
+    expiresAt
+    resolvedAt
+  }
+`;
+
+const createMutation = graphql`
+  mutation remoteAccessApprovalApiServiceCreateMutation($input: CreateRemoteAccessRequestInput!) {
+    createRemoteAccessRequest(input: $input) {
+      request {
+        ...remoteAccessApprovalApiService_request
+      }
+      userErrors {
+        code
+        message
+      }
+    }
+  }
+`;
+
+const requestQuery = graphql`
+  query remoteAccessApprovalApiServiceRequestQuery($requestId: String!) {
+    remoteAccessRequest(requestId: $requestId) {
+      ...remoteAccessApprovalApiService_request
+    }
+  }
+`;
+
+const revokeMutation = graphql`
+  mutation remoteAccessApprovalApiServiceRevokeMutation($requestId: String!) {
+    revokeRemoteAccessRequest(requestId: $requestId) {
+      userErrors {
+        code
+        message
+      }
+    }
+  }
+`;
 
 const STATUSES: ReadonlySet<string> = new Set([
   'PENDING',
@@ -47,72 +112,44 @@ const CREATE_ERROR_CODES: ReadonlySet<string> = new Set([
   'DEVICE_UNREACHABLE',
   'REMOTE_ACCESS_DISABLED',
 ]);
+/** A revoke of an already settled request: the outcome is the same, nothing left to cancel. */
+const REVOKE_SETTLED_CODE = 'REMOTE_ACCESS_REQUEST_SETTLED';
 
-type Raw = Record<string, unknown>;
-
-function text(raw: Raw, key: string): string | undefined {
-  const value = raw[key];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-/**
- * Timestamps come as ISO-8601 strings (Spring's default Instant serialization);
- * a numeric epoch (seconds, possibly fractional, or milliseconds) is accepted
- * too, so a Jackson setting on one host cannot silently break the countdown.
- */
-function timestamp(raw: Raw, key: string): string | undefined {
-  const value = raw[key];
-  if (typeof value === 'string' && value.length > 0) return value;
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    const millis = value < 1e12 ? value * 1000 : value;
-    return new Date(millis).toISOString();
-  }
-  return undefined;
-}
-
-function nullableTimestamp(raw: Raw, key: string): string | null | undefined {
-  return raw[key] === null ? null : timestamp(raw, key);
-}
-
-function oneOf<T extends string>(value: unknown, allowed: ReadonlySet<string>): T | undefined {
-  return typeof value === 'string' && allowed.has(value) ? (value as T) : undefined;
-}
-
-/** The wire request object -> the app's read model. Throws on a body without the required fields. */
-export function normalizeRemoteAccessRequest(data: unknown): RemoteAccessRequest {
-  const raw = (data ?? {}) as Raw;
-  const requestId = text(raw, 'requestId');
-  const status = oneOf<RemoteAccessRequestStatus>(raw.status, STATUSES);
-  if (!requestId || !status) {
+/** The wire request (the fragment's data) -> the app's read model. Throws on a body without the required fields. */
+export function fromWireRemoteAccessRequest(data: WireRequest): RemoteAccessRequest {
+  const status = oneOf<RemoteAccessRequestStatus>(data.status, STATUSES);
+  if (!data.requestId || !status) {
     throw new Error('Malformed remote access request from the server');
   }
-  const decisionSource =
-    raw.decisionSource === null ? null : oneOf<RemoteAccessDecisionSource>(raw.decisionSource, DECISION_SOURCES);
   return {
-    requestId,
-    deviceId: text(raw, 'deviceId') ?? '',
-    machineId: text(raw, 'machineId'),
+    requestId: data.requestId,
+    deviceId: data.deviceId,
+    // The wire kind is the enum `DESKTOP`; the app keeps its own lower-case kind.
     sessionKind: 'desktop',
     status,
-    reason: text(raw, 'reason'),
-    ticketId: text(raw, 'ticketId'),
-    ticketNumber: text(raw, 'ticketNumber'),
-    // `mode` on the wire; `resolvedMode` was the mock's name before the contract settled.
-    mode: oneOf<RemoteAccessMode>(raw.mode ?? raw.resolvedMode, MODES),
-    decisionSource,
-    technicianId: text(raw, 'technicianId'),
-    recordingEnabled: raw.recordingEnabled === true,
-    createdAt: timestamp(raw, 'createdAt') ?? new Date().toISOString(),
-    expiresAt: timestamp(raw, 'expiresAt') ?? new Date().toISOString(),
-    deliveredAt: nullableTimestamp(raw, 'deliveredAt'),
-    resolvedAt: nullableTimestamp(raw, 'resolvedAt'),
+    reason: data.reason ?? undefined,
+    ticketId: data.ticketId ?? undefined,
+    ticketNumber: data.ticketNumber ?? undefined,
+    mode: oneOf<RemoteAccessMode>(data.mode, MODES),
+    decisionSource:
+      data.decisionSource === null ? null : oneOf<RemoteAccessDecisionSource>(data.decisionSource, DECISION_SOURCES),
+    technicianId: data.technicianId,
+    recordingEnabled: data.recordingEnabled === true,
+    createdAt: timestamp(data.createdAt) ?? new Date().toISOString(),
+    expiresAt: timestamp(data.expiresAt) ?? new Date().toISOString(),
+    deliveredAt: nullableTimestamp(data.deliveredAt),
+    resolvedAt: nullableTimestamp(data.resolvedAt),
   };
+}
+
+function readRequest(ref: WireRequestKey): RemoteAccessRequest {
+  return fromWireRemoteAccessRequest(readInlineData(requestFragment, ref));
 }
 
 /** A notification-subject payload -> the decision event, or `null` for anything else. */
 export function parseRemoteAccessDecisionEvent(payload: unknown): RemoteAccessDecisionEvent | null {
   if (!payload || typeof payload !== 'object') return null;
-  const raw = payload as Raw;
+  const raw = payload as RawWire;
   if (raw.type !== 'REMOTE_ACCESS_DECISION') return null;
   const requestId = text(raw, 'requestId');
   const status = oneOf<RemoteAccessDecisionEvent['status']>(
@@ -126,8 +163,8 @@ export function parseRemoteAccessDecisionEvent(payload: unknown): RemoteAccessDe
     status,
     decisionSource: oneOf<RemoteAccessDecisionSource>(raw.decisionSource, DECISION_SOURCES) ?? null,
     mode: oneOf<RemoteAccessMode>(raw.mode, MODES) ?? null,
-    deliveredAt: nullableTimestamp(raw, 'deliveredAt'),
-    resolvedAt: nullableTimestamp(raw, 'resolvedAt'),
+    deliveredAt: nullableTimestamp(raw.deliveredAt),
+    resolvedAt: nullableTimestamp(raw.resolvedAt),
   };
 }
 
@@ -146,37 +183,66 @@ export function applyRemoteAccessDecisionEvent(
   };
 }
 
-function createErrorFrom(status: number, data: unknown, fallback: string | undefined): RemoteAccessCreateError {
-  const raw = (data ?? {}) as Raw;
-  const code = oneOf<RemoteAccessCreateErrorCode>(raw.code, CREATE_ERROR_CODES);
-  const message = text(raw, 'message') ?? fallback ?? `Request failed with status ${status}`;
-  if (code) return new RemoteAccessCreateError(code, message, status);
-  if (status === 503) return new RemoteAccessCreateError('DEVICE_UNREACHABLE', message, status);
-  return new RemoteAccessCreateError('UNKNOWN', message, status);
+interface WireUserError {
+  readonly code: string;
+  readonly message: string;
+}
+
+function createErrorFrom(errors: ReadonlyArray<WireUserError>): RemoteAccessCreateError {
+  const first = errors[0];
+  const code = oneOf<RemoteAccessCreateErrorCode>(first?.code, CREATE_ERROR_CODES);
+  const message = first?.message || 'Remote access request failed';
+  return new RemoteAccessCreateError(code ?? 'UNKNOWN', message);
+}
+
+/** `commitMutation` as a promise: GraphQL-level errors reject, the payload resolves. */
+function commit<TMutation extends MutationParameters>(
+  mutation: GraphQLTaggedNode,
+  variables: TMutation['variables'],
+): Promise<TMutation['response']> {
+  return new Promise((resolve, reject) => {
+    commitMutation<TMutation>(getRelayEnvironment(), {
+      mutation,
+      variables,
+      onCompleted: (response, errors) => {
+        if (errors?.length) reject(new Error(errors[0].message));
+        else resolve(response);
+      },
+      onError: reject,
+    });
+  });
 }
 
 export class RemoteAccessApprovalApiService implements IRemoteAccessApprovalService {
   async create(input: CreateRemoteAccessRequestInput): Promise<RemoteAccessRequest> {
-    const body: Record<string, unknown> = { deviceId: input.deviceId, sessionKind: input.sessionKind };
-    if (input.reason) body.reason = input.reason;
-    if (input.ticketId) body.ticketId = input.ticketId;
-    const response = await apiClient.post<unknown>(REQUESTS_PATH, body);
-    if (!response.ok) throw createErrorFrom(response.status, response.data, response.error);
-    return normalizeRemoteAccessRequest(response.data);
+    const payload = await commit<CreateMutation>(createMutation, {
+      input: {
+        deviceId: input.deviceId,
+        sessionKind: 'DESKTOP',
+        reason: input.reason || null,
+        ticketId: input.ticketId || null,
+      },
+    });
+    const { request, userErrors } = payload.createRemoteAccessRequest;
+    if (userErrors.length > 0 || !request) throw createErrorFrom(userErrors);
+    return readRequest(request);
   }
 
   async get(requestId: string): Promise<RemoteAccessRequest> {
-    const response = await apiClient.get<unknown>(`${REQUESTS_PATH}/${encodeURIComponent(requestId)}`);
-    if (!response.ok) throw new Error(response.error ?? `Request failed with status ${response.status}`);
-    return normalizeRemoteAccessRequest(response.data);
+    const data = await fetchQuery<RequestQuery>(
+      getRelayEnvironment(),
+      requestQuery,
+      { requestId },
+      { fetchPolicy: 'network-only' },
+    ).toPromise();
+    if (!data?.remoteAccessRequest) throw new Error('Remote access request not found');
+    return readRequest(data.remoteAccessRequest);
   }
 
   async revoke(requestId: string): Promise<void> {
-    const response = await apiClient.post<unknown>(`${REQUESTS_PATH}/${encodeURIComponent(requestId)}/revoke`);
-    // 409 = already settled; there is nothing left to cancel, the outcome is the same.
-    if (!response.ok && response.status !== 409) {
-      throw new Error(response.error ?? `Request failed with status ${response.status}`);
-    }
+    const payload = await commit<RevokeMutation>(revokeMutation, { requestId });
+    const blocking = payload.revokeRemoteAccessRequest.userErrors.filter(e => e.code !== REVOKE_SETTLED_CODE);
+    if (blocking.length > 0) throw new Error(blocking[0].message || 'Could not cancel the remote access request');
   }
 
   onDecision(): () => void {

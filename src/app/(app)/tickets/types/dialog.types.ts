@@ -1,7 +1,5 @@
 import type { BoardTicketPendingApproval } from '@flamingo-stack/openframe-frontend-core/components/features';
 
-export type DialogStatus = 'ACTIVE' | 'TECH_REQUIRED' | 'ON_HOLD' | 'RESOLVED' | 'ARCHIVED';
-
 // Live activity of a ticket (`Ticket.activityState`): AI_WORKING while the
 // dialog holds the AI processing lock, AWAITING_EXTERNAL after our side
 // messaged the client and until the client replies, IDLE otherwise.
@@ -43,7 +41,6 @@ export interface DialogRating {
 export interface Dialog {
   id: string;
   title: string;
-  status: DialogStatus;
   // Lifecycle (custom-status) board fields — populated from Ticket.statusDefinition.
   statusId?: string;
   statusName?: string;
@@ -79,10 +76,11 @@ export interface Dialog {
   assigneeImageUrl?: string;
   assigneeImageHash?: string;
   tags?: Array<{ id: string; key: string; color?: string }>;
-  // How many notifications about this ticket the caller has not read
-  // (`Ticket.unreadNotificationCount`). Drives the per-row count in the table
-  // and the "New Message" highlight on the board card.
-  unreadNotificationCount?: number;
+  // How many client-chat messages the technicians have not read
+  // (`Ticket.unreadMessageCount`): ONE counter shared by every technician, so a
+  // ticket one technician opened shows no badge to the others. Drives the
+  // per-row count in the table and the "New Message" highlight on the board card.
+  unreadMessageCount?: number;
   // Canonical "last conversation activity" stamp (`Ticket.lastActivityAt`,
   // served with a createdAt fallback so it is never null on the BE). Moves on
   // any chat message, AI action, or lifecycle transition — unlike

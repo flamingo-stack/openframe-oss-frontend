@@ -12,7 +12,9 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
+import { EmptyValue } from '@/app/components/shared/empty-value';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device } from '../../types/device.types';
 import { USER_COLUMNS } from './device-tab-columns';
@@ -88,11 +90,7 @@ export function UsersTab({ device }: UsersTabProps) {
       {
         accessorKey: 'uid',
         header: USER_COLUMNS.uid.header,
-        cell: ({ row }: { row: Row<UserRow> }) => (
-          <span className="text-ods-text-primary text-h4">
-            {row.original.uid !== undefined ? row.original.uid : '—'}
-          </span>
-        ),
+        cell: ({ row }: { row: Row<UserRow> }) => <ValueText value={row.original.uid} />,
         enableSorting: false,
         meta: liveColumnMeta(USER_COLUMNS.uid),
       },
@@ -100,7 +98,7 @@ export function UsersTab({ device }: UsersTabProps) {
         accessorKey: 'type',
         header: USER_COLUMNS.type.header,
         cell: ({ row }: { row: Row<UserRow> }) => (
-          <span className="capitalize text-ods-text-primary text-h4">{row.original.type || '—'}</span>
+          <span className="capitalize text-ods-text-primary text-h4">{row.original.type || <EmptyValue />}</span>
         ),
         enableSorting: false,
         meta: liveColumnMeta(USER_COLUMNS.type),
@@ -108,20 +106,14 @@ export function UsersTab({ device }: UsersTabProps) {
       {
         accessorKey: 'groupname',
         header: USER_COLUMNS.groupname.header,
-        cell: ({ row }: { row: Row<UserRow> }) => (
-          <TruncateText tone={row.original.groupname ? 'primary' : 'secondary'}>
-            {row.original.groupname || '—'}
-          </TruncateText>
-        ),
+        cell: ({ row }: { row: Row<UserRow> }) => <ValueText value={row.original.groupname} />,
         enableSorting: false,
         meta: liveColumnMeta(USER_COLUMNS.groupname),
       },
       {
         accessorKey: 'shell',
         header: USER_COLUMNS.shell.header,
-        cell: ({ row }: { row: Row<UserRow> }) => (
-          <TruncateText tone={row.original.shell ? 'primary' : 'secondary'}>{row.original.shell || '—'}</TruncateText>
-        ),
+        cell: ({ row }: { row: Row<UserRow> }) => <ValueText value={row.original.shell} />,
         enableSorting: false,
         meta: liveColumnMeta(USER_COLUMNS.shell),
       },
@@ -132,7 +124,7 @@ export function UsersTab({ device }: UsersTabProps) {
           row.original.isLoggedIn ? (
             <Tag label="ACTIVE" variant="success" className="w-fit" />
           ) : (
-            <span className="text-ods-text-secondary text-h4">—</span>
+            <ValueText value={null} />
           ),
         enableSorting: false,
         meta: liveColumnMeta(USER_COLUMNS.status),

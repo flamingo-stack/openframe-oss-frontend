@@ -14,8 +14,10 @@ import {
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { routes } from '@/lib/routes';
 import { getDeviceName } from '../../devices/utils/device-name';
 import { useLogs } from '../../logs-page/hooks/use-logs';
 import type { LogEntry } from '../../logs-page/types/log.types';
@@ -49,7 +51,12 @@ function severityVariant(severity: string): LogRow['status']['variant'] {
 }
 
 const logDetailsUrl = (log: LogEntry): string =>
-  `/log-details?id=${log.toolEventId}&ingestDay=${log.ingestDay}&toolType=${log.toolType}&eventType=${log.eventType}&timestamp=${encodeURIComponent(log.timestamp || '')}`;
+  routes.logs.details(log.toolEventId, {
+    ingestDay: log.ingestDay,
+    toolType: log.toolType,
+    eventType: log.eventType,
+    timestamp: log.timestamp,
+  });
 
 /**
  * Inner body of the "Logging" onboarding step — an activity-trail preview. It pulls
@@ -81,8 +88,8 @@ export function LoggingStep({
         status: { label: log.severity, variant: severityVariant(log.severity) },
         toolType: normalizeToolTypeWithFallback(log.toolType),
         device: {
-          name: getDeviceName(log.device) || log.hostname || log.deviceId || '-',
-          organization: log.device?.organization || log.organizationName || '-',
+          name: getDeviceName(log.device) || log.hostname || log.deviceId || EMPTY_VALUE,
+          organization: log.device?.organization || log.organizationName || EMPTY_VALUE,
         },
         summary: log.summary || 'No summary available',
         original: log,

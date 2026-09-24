@@ -2,11 +2,11 @@
 
 import { GiftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Card, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { formatCompactCount } from '@/lib/format-number';
 import { AI_BALANCE_EXPLANATION, AiTopUpFields } from '../../components/ai-top-up-fields';
 import { AutoTopUpCheckbox } from '../../components/auto-top-up-checkbox';
 import type { AiTopUp } from '../../hooks/use-ai-top-up';
 import { freeTokensForPlan } from '../../lib/ai-free-tokens';
-import { formatCompactCount } from '../../lib/format';
 import type { DevicePlanMode } from '../types/subscription.types';
 import { ModelTokenRatesPopover } from './model-token-rates';
 

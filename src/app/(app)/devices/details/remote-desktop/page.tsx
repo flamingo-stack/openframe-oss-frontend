@@ -10,22 +10,25 @@ import {
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
 import {
+  ChatOffIcon,
+  ChatTextIcon,
   Collapse02Icon,
   Expand02Icon,
+  Loading01Icon,
   MonitorIcon,
   MonitorOffIcon,
   ScanXmarkIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
-import { useApprovedRemoteAccessRequestId } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
+import { useRemoteAccessSession } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
-import { buildRemoteAccessRelayIdPrefix } from '@/app/(app)/devices/types/remote-access';
+import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devices/hooks/use-remote-session-chat';
+import { buildRemoteAccessRelayIdPrefix, type RemoteSessionEndReason } from '@/app/(app)/devices/types/remote-access';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -47,6 +50,7 @@ import {
   type RemoteShortcut,
   SHORTCUT_DESCRIPTIONS,
 } from './remote-shortcuts';
+import { SessionChatPanel } from './session-chat-panel';
 import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
 
 interface LegacyDeviceData {
@@ -109,6 +113,15 @@ export default function RemoteDesktopPage() {
 /** MeshCentral relay protocol number for the desktop (KVM) stream. */
 const DESKTOP_PROTOCOL = 2;
 
+/** The "Session ended" line per end reason; the dev lever plays the end user's end. */
+const SESSION_ENDED_COPY: Record<RemoteSessionEndReason, string> = {
+  client: 'The user ended the remote session',
+  admin: 'The remote session was ended',
+  timeout: 'The remote session reached its time limit',
+  connection_lost: 'The connection to the device was lost',
+  policy: 'Remote access to this device was disabled',
+};
+
 function RemoteDesktopSession() {
   const searchParams = useSearchParams();
   const deviceId = searchParams.get('id') ?? '';
@@ -116,7 +129,7 @@ function RemoteDesktopSession() {
   // the first token of every relay id, so the gateway gate can match the
   // tunnel against the grant. Read once into a ref - the session is mounted
   // only after approval and never re-approved while mounted.
-  const approvedRequestId = useApprovedRemoteAccessRequestId();
+  const { requestId: approvedRequestId, ended: remoteSessionEnd, endSession } = useRemoteAccessSession();
   const relayIdPrefixRef = useRef(
     approvedRequestId ? buildRemoteAccessRelayIdPrefix(approvedRequestId, DESKTOP_PROTOCOL) : undefined,
   );
@@ -208,11 +221,27 @@ function RemoteDesktopSession() {
     'connecting',
   );
   const [retryNonce, setRetryNonce] = useState(0);
-  // "The user ended the remote session" (mockup 1036-33339). Distinguishing a
-  // clean client-side end from a connection drop needs the session lifecycle
-  // events from the BE (CU-86ajx02qj) - until then only the dev lever below
-  // can set it, so the state ships dark with the UI ready.
-  const [sessionEnded, setSessionEnded] = useState(false);
+  // The session is over: the backend said so (the end user pressed End
+  // Session, the cap passed, the tunnel was lost), or the dev lever below did.
+  // The stream must stop here - nothing on the server side closes the relay.
+  const [devSessionEnded, setDevSessionEnded] = useState(false);
+  const sessionEnded = devSessionEnded || remoteSessionEnd !== null;
+  // Session chat: the dialog exists only for an approved session (null with
+  // the flag off), so the toggle stays hidden otherwise.
+  // The panel closes with the session.
+  const chatDialogId = useRemoteSessionDialogId();
+  const chat = useRemoteSessionChat(chatDialogId);
+  // "Open" is remembered per dialog: a different (or absent) dialog id reads
+  // as closed without any effect, so a panel can never carry over to the next
+  // dialog. `showChat` is the single source for the panel AND the toggle
+  // labels, so "Close Chat" never shows while nothing is open.
+  const [chatOpenFor, setChatOpenFor] = useState<string | null>(null);
+  const showChat = chatDialogId !== null && chatOpenFor === chatDialogId && !sessionEnded;
+  const toggleChat = () => setChatOpenFor(showChat ? null : chatDialogId);
+
+  useEffect(() => {
+    if (remoteSessionEnd) tunnelRef.current?.stop();
+  }, [remoteSessionEnd]);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return undefined;
@@ -220,7 +249,8 @@ function RemoteDesktopSession() {
     // window.dispatchEvent(new Event('openframe:dev-remote-session-ended'))
     const onEnded = () => {
       tunnelRef.current?.stop();
-      setSessionEnded(true);
+      setDevSessionEnded(true);
+      setChatOpenFor(null);
     };
     window.addEventListener('openframe:dev-remote-session-ended', onEnded);
     return () => window.removeEventListener('openframe:dev-remote-session-ended', onEnded);
@@ -465,6 +495,7 @@ function RemoteDesktopSession() {
   }, [clipboardEnabled, meshcentralAgentId, isPageReady]);
 
   const handleBack = () => {
+    endSession();
     tunnelRef.current?.stop();
     safeBackToDevice();
   };
@@ -652,6 +683,21 @@ function RemoteDesktopSession() {
             }
           />
         )}
+        {chatDialogId && !sessionEnded && (
+          <Button
+            variant="outline"
+            onClick={toggleChat}
+            leftIcon={
+              showChat ? (
+                <ChatOffIcon className="h-4 w-4 md:h-6 md:w-6" />
+              ) : (
+                <ChatTextIcon className="h-4 w-4 md:h-6 md:w-6" />
+              )
+            }
+          >
+            {showChat ? 'Close Chat' : 'Open Chat'}
+          </Button>
+        )}
         <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
         <Button
           variant="outline"
@@ -676,6 +722,18 @@ function RemoteDesktopSession() {
   // each display with known geometry (cmd 82) gets its own cropped view.
   const gridDisplays = displays.filter(d => d.id !== 0 && d.w > 0 && d.h > 0);
   const isGridActive = currentDisplay === 0 && gridDisplays.length > 1;
+
+  const chatPanel = (variant: 'side' | 'overlay') =>
+    showChat && chatDialogId ? (
+      <SessionChatPanel
+        messages={chat.messages}
+        loading={chat.isLoading}
+        technician={chat.technician}
+        sending={chat.sending}
+        onSend={chat.send}
+        variant={variant}
+      />
+    ) : null;
 
   const canvasContainer = (
     <div className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-black ${isFullscreen ? '' : 'rounded-lg'}`}>
@@ -725,7 +783,7 @@ function RemoteDesktopSession() {
       )}
       {connectionStatus === 'reconnecting' && !sessionEnded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
-          <Loader2 className="h-8 w-8 animate-spin text-ods-text-secondary" />
+          <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
           <span className="text-ods-text-primary text-h4">Connection lost</span>
           <span className="text-ods-text-secondary text-h6">Attempting to reconnect...</span>
         </div>
@@ -757,7 +815,7 @@ function RemoteDesktopSession() {
           <NoData
             icon={<MonitorOffIcon />}
             title="Session ended"
-            description="The user ended the remote session"
+            description={SESSION_ENDED_COPY[remoteSessionEnd?.endReason ?? 'client']}
             button={
               <Button variant="outline" onClick={handleBack}>
                 Back to Device Details
@@ -766,6 +824,7 @@ function RemoteDesktopSession() {
           />
         </div>
       )}
+      {isFullscreen && chatPanel('overlay')}
     </div>
   );
 
@@ -784,11 +843,19 @@ function RemoteDesktopSession() {
             actionsMenuGroups={actionsMenuGroups}
             onOpenSettings={() => setSettingsOpen(true)}
             onExitFullscreen={exitFullscreen}
+            chatOpen={chatDialogId && !sessionEnded ? showChat : undefined}
+            onToggleChat={chatDialogId && !sessionEnded ? toggleChat : undefined}
           />
         ) : (
           controlsBar
         )}
-        {canvasContainer}
+        {/* One wrapper in both modes: the canvas must keep its DOM node across
+            the fullscreen toggle (MeshDesktop is attached to it once), so the
+            tree shape never changes - only the side panel comes and goes. */}
+        <div className={`flex min-h-0 min-w-0 flex-1 ${isFullscreen ? '' : 'gap-[var(--spacing-system-mf)]'}`}>
+          {canvasContainer}
+          {!isFullscreen && chatPanel('side')}
+        </div>
       </div>
 
       <RemoteSettingsModal

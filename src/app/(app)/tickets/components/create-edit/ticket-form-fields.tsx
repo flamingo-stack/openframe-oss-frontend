@@ -348,7 +348,8 @@ export function TicketFormFields({
           <AssignmentsField
             value={field.value ?? {}}
             onChange={field.onChange}
-            enabledTypes={['ORGANIZATION', 'DEVICE', 'KNOWLEDGE_ARTICLE']}
+            // INSIGHT is not pickable: the row shows the incident the ticket is filed from (seeded from the prefill).
+            enabledTypes={['ORGANIZATION', 'DEVICE', 'KNOWLEDGE_ARTICLE', 'INSIGHT']}
           />
         )}
       />

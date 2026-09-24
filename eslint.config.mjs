@@ -188,12 +188,20 @@ export default defineConfig([
     //    DeviceManagementCard to the picker that reads them. Passing a fragment
     //    ref through an intermediate component is ordinary Relay; the rule only
     //    recognises a direct render.
+    //  - The software module's two `*-picker-lists` are colocated pickers: their
+    //    own fragments they read themselves, but the device rows inside them are
+    //    the `@inline` ladder step above, read by the shared picker's mapper — the
+    //    first shape again, in a component file rather than under `src/graphql`.
     //
     // Everywhere else the rule stays on, which is where it earns its place: a
     // component-owned fragment spread far from the component that reads it is how
     // Relay codebases rot.
     name: 'openframe-frontend/fragment-definitions-render-nothing',
-    files: ['src/graphql/**/*.ts', 'src/app/(app)/settings/billing-usage/subscription/hooks/use-plan-checkout.ts'],
+    files: [
+      'src/graphql/**/*.ts',
+      'src/app/(app)/settings/billing-usage/subscription/hooks/use-plan-checkout.ts',
+      'src/app/(app)/software/components/action-form/*-picker-lists.tsx',
+    ],
     rules: { 'relay/must-colocate-fragment-spreads': 'off' },
   },
 

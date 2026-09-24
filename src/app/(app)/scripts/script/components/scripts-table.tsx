@@ -51,6 +51,7 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -410,7 +411,7 @@ function ScriptsTableContent({
           if (!row.original.hasAuthor) {
             return (
               <div className="flex min-w-0 flex-1 items-center">
-                <TruncateText tone="secondary">—</TruncateText>
+                <ValueText value={null} />
               </div>
             );
           }

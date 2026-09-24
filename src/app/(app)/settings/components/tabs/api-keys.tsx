@@ -23,7 +23,9 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate, formatTime } from '@/lib/format-date';
+import { formatCount } from '@/lib/format-number';
 import { getErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { ApiKeyCreatedModal } from '../../components/api-key-created-modal';
@@ -140,7 +142,7 @@ export function ApiKeysTab() {
           <div className="flex min-w-0 flex-col">
             <TruncateText>{row.original.name}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
-              {row.original.description || '—'}
+              {row.original.description || EMPTY_VALUE}
             </TruncateText>
           </div>
         ),
@@ -168,7 +170,7 @@ export function ApiKeysTab() {
         accessorKey: 'totalRequests',
         header: 'Usage',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
-          <TruncateText>{row.original.totalRequests.toLocaleString()}</TruncateText>
+          <TruncateText>{formatCount(row.original.totalRequests)}</TruncateText>
         ),
         meta: { width: 'w-[100px] shrink-0', hideAt: 'lg' },
       },
@@ -190,9 +192,9 @@ export function ApiKeysTab() {
         header: 'Expires',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
           <div className="flex min-w-0 flex-col">
-            <TruncateText>{row.original.expiresAt ? formatDate(row.original.expiresAt) : '—'}</TruncateText>
+            <TruncateText>{formatDate(row.original.expiresAt)}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
-              {row.original.expiresAt ? formatTime(row.original.expiresAt) : '—'}
+              {formatTime(row.original.expiresAt)}
             </TruncateText>
           </div>
         ),

@@ -8,6 +8,7 @@ import {
   CompassIcon,
   IdCardIcon,
   MonitorIcon,
+  Parcel02Icon,
   QuestionCircleIcon,
   RadarIcon,
   Settings02Icon,
@@ -28,6 +29,15 @@ const CATEGORY_BY_NAV_ID: Record<string, NotificationCategory> = {
   logs: NotificationCategory.LOGS,
   tickets: NotificationCategory.TICKETS,
 };
+
+/**
+ * The stamp on a module that is shipped but still behind its flag. The core sidebar
+ * draws it after the label as the warning `Tag` (the chip Settings stamps "Beta"
+ * with), as the bare word under the glyph in the minimized rail, and after the
+ * label on the mobile burger card; the row's accessible name becomes
+ * "Software (Beta)". Cased as read — the surfaces upper-case it.
+ */
+const BETA_BADGE = 'Beta';
 
 /** Onboarding chrome state used to conditionally show the "Onboarding" tab + badge. */
 export interface OnboardingNavState {
@@ -60,6 +70,7 @@ export interface NavigationFlags {
   timeTracker: boolean;
   helpCenter: boolean;
   insights: boolean;
+  softwareManagement: boolean;
 }
 
 export const getNavigationItems = (
@@ -107,6 +118,7 @@ export const getNavigationItems = (
             icon: <AlertTriangleIcon size={24} />,
             path: routes.incidents.list,
             isActive: pathname.startsWith('/incidents'),
+            badge: BETA_BADGE,
           } satisfies NavigationSidebarItem,
         ]
       : []),
@@ -138,6 +150,19 @@ export const getNavigationItems = (
       path: routes.monitoring.root(),
       isActive: pathname.startsWith('/monitoring'),
     },
+    // The Software module — behind `software-management`, like its routes.
+    ...(flags.softwareManagement
+      ? [
+          {
+            id: 'software',
+            label: 'Software',
+            icon: <Parcel02Icon size={24} />,
+            path: routes.software.list,
+            isActive: pathname.startsWith('/software'),
+            badge: BETA_BADGE,
+          },
+        ]
+      : []),
     {
       id: 'logs',
       label: 'Logs',

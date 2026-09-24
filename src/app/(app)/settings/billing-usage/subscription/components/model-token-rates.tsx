@@ -20,6 +20,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ComponentType, Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { modelTokenRatesQuery as ModelTokenRatesQueryType } from '@/__generated__/modelTokenRatesQuery.graphql';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import type { AutoTopUpStatus } from '../../lib/auto-top-up';
 
 const PROVIDER_ICON: Record<string, ComponentType<{ className?: string }>> = {
@@ -43,7 +44,7 @@ const modelTokenRatesQuery = graphql`
 `;
 
 function formatRate(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return '—';
+  if (!Number.isFinite(value) || value <= 0) return EMPTY_VALUE;
   if (value >= 1) return `${Math.round(value)}:1`;
   return `1:${Math.round(1 / value)}`;
 }

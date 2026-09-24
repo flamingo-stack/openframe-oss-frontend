@@ -52,6 +52,7 @@ export const TAB_IDS = {
     'remote-sessions',
   ],
   scriptDetails: ['details', 'executions'],
+  softwareDetails: ['devices', 'vulnerabilities'],
   scheduleDetails: ['scripts', 'devices', 'runs', 'executions'],
   monitoring: ['policies', 'queries'],
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
@@ -66,6 +67,7 @@ export type CustomerDetailTab = (typeof TAB_IDS.customerDetails)[number];
 export type CustomerEditTab = (typeof TAB_IDS.customerEdit)[number];
 export type DeviceDetailTab = (typeof TAB_IDS.deviceDetails)[number];
 export type ScriptDetailTab = (typeof TAB_IDS.scriptDetails)[number];
+export type SoftwareDetailTab = (typeof TAB_IDS.softwareDetails)[number];
 export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
 export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
 export type QueryDetailTab = (typeof TAB_IDS.queryDetails)[number];
@@ -95,6 +97,8 @@ export type HelpCenterLegalDoc = 'privacy' | 'terms';
  * cannot be added to one and silently dropped by another. Ids are the raw ones
  * the form's pickers use (`Organization.organizationId`, `Machine.machineId`,
  * `User.id`); the names label those picks before the option lists have loaded.
+ * `insightId` is the STORED insight id (`CreateTicketInput.insightId`), which
+ * links the ticket to the incident it is filed from; `insightTitle` labels it.
  */
 export const TICKET_PREFILL_KEYS = [
   'title',
@@ -105,6 +109,8 @@ export const TICKET_PREFILL_KEYS = [
   'deviceName',
   'assigneeId',
   'assigneeName',
+  'insightId',
+  'insightTitle',
 ] as const;
 
 export type TicketPrefill = Partial<Record<(typeof TICKET_PREFILL_KEYS)[number], string>>;
@@ -223,6 +229,19 @@ export const routes = {
    */
   accountDeletion: '/account-deletion',
 
+  /**
+   * Landing page behind the mobile-app install QR code, and the fallback for
+   * everything the shared gateway's `User-Agent` predicates do not redirect to a
+   * store — desktop, crawlers, and iPadOS asking for the desktop site.
+   *
+   * Public and session-less for the same reason {@link routes.accountDeletion} is:
+   * it is scanned from a phone that has never signed in. The path is short and
+   * deliberately not `/get`, which would read as the desktop installer's
+   * `get.openframe.io`. Encoded in a QR that cannot be reprinted, so treat it as
+   * immovable — see `lib/mobile-app-links.ts`.
+   */
+  mobileApp: '/mobile',
+
   auth: {
     root: '/auth',
     login: '/auth/login',
@@ -294,6 +313,30 @@ export const routes = {
     execution: (id: string | number) => withQuery('/scripts/executions', { id }),
   },
 
+  /**
+   * Fleet software inventory. The three views are separate routes, not `?tab=`
+   * views of one page (like `/scripts` vs `/scripts/schedules`), so they have no
+   * `TAB_IDS` entry — `SoftwareTabNavigation` navigates between them.
+   */
+  software: {
+    list: '/software',
+    /** Software Actions — install/update runs, dispatched and scheduled. */
+    actions: '/software/actions',
+    vulnerabilities: '/software/vulnerabilities',
+    install: '/software/install',
+    update: '/software/update',
+    /**
+     * Software Update Details — one install or update run, by its Software
+     * Action id (the opaque one the Software Actions table links by; the run's
+     * executionId is accepted too).
+     */
+    action: (id: string | number) => withQuery('/software/actions/action', { id }),
+    /** A CVE id (`CVE-2024-38063`) rides as `id`, like every other detail page. */
+    vulnerability: (cveId: string) => withQuery('/software/vulnerability', { id: cveId }),
+    details: (id: string | number, o?: { tab?: SoftwareDetailTab }) =>
+      withQuery('/software/details', { id, tab: o?.tab }),
+  },
+
   monitoring: {
     root: (o?: { tab?: MonitoringTab }) => withQuery('/monitoring', { tab: o?.tab }),
     query: (id: string | number, o?: { tab?: QueryDetailTab }) => withQuery('/monitoring/query', { id, tab: o?.tab }),
@@ -315,7 +358,11 @@ export const routes = {
 
   logs: {
     page: '/logs-page',
-    details: '/log-details',
+    /** The page needs all five params — a missing one redirects to `logs.page`. */
+    details: (
+      id: string | number,
+      o: { ingestDay: string; toolType: string; eventType: string; timestamp?: string | null },
+    ) => withQuery('/log-details', { id, ...o }),
   },
 
   // UI says "incident"; the API says "insight". `id` is `Insight.id`, the opaque
@@ -327,7 +374,7 @@ export const routes = {
 
   knowledgeBase: {
     list: '/knowledge-base',
-    new: '/knowledge-base/new',
+    new: (o?: { folderId?: string | number }) => withQuery('/knowledge-base/new', { folderId: o?.folderId }),
     archive: '/knowledge-base/archive',
     details: (id: string | number) => withQuery('/knowledge-base/details', { id }),
     edit: (id: string | number) => withQuery('/knowledge-base/edit', { id }),

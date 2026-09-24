@@ -1,5 +1,12 @@
 import type { ActionsMenuGroup } from '@flamingo-stack/openframe-frontend-core';
-import { Keyboard, Moon, Power, RotateCcw, Settings, Sunrise } from 'lucide-react';
+import {
+  KeyboardIcon,
+  MoonIcon,
+  PowerIcon,
+  Refresh01LeftIcon,
+  Settings01Icon,
+  SunriseIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { comboLabel, type RemoteShortcut } from './remote-shortcuts';
 
 export interface ActionHandlers {
@@ -27,13 +34,13 @@ export const createActionsMenuGroups = (
       {
         id: 'apply-shortcut',
         label: 'Apply Shortcut',
-        icon: <Keyboard className="h-6 w-6" />,
+        icon: <KeyboardIcon className="h-6 w-6" />,
         type: 'submenu',
         submenu: [
           {
             id: 'manage-shortcuts',
             label: 'Manage Shortcuts',
-            icon: <Settings className="h-6 w-6" />,
+            icon: <Settings01Icon className="h-6 w-6" />,
             onClick: () => {
               handlers.openShortcutsManager();
             },
@@ -55,7 +62,7 @@ export const createActionsMenuGroups = (
       {
         id: 'wake-up',
         label: 'Wake up',
-        icon: <Sunrise className="h-6 w-6" />,
+        icon: <SunriseIcon className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('wake');
         },
@@ -63,7 +70,7 @@ export const createActionsMenuGroups = (
       {
         id: 'sleep',
         label: 'Sleep',
-        icon: <Moon className="h-6 w-6" />,
+        icon: <MoonIcon className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('sleep');
         },
@@ -71,7 +78,7 @@ export const createActionsMenuGroups = (
       {
         id: 'reboot',
         label: 'Reboot',
-        icon: <RotateCcw className="h-6 w-6" />,
+        icon: <Refresh01LeftIcon className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('reset');
         },
@@ -79,7 +86,7 @@ export const createActionsMenuGroups = (
       {
         id: 'shut-down',
         label: 'Shut Down',
-        icon: <Power className="h-6 w-6" />,
+        icon: <PowerIcon className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('poweroff');
         },

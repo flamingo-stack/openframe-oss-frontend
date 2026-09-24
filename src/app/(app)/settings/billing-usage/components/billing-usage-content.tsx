@@ -18,6 +18,8 @@ import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { isBillingReadOnly, openBillingInBrowser } from '@/lib/billing-visibility';
+import { formatDate } from '@/lib/format-date';
+import { formatCompactCount, formatCount } from '@/lib/format-number';
 import { MANAGE_AI_BALANCE_ACTION, routes } from '@/lib/routes';
 import { useBillingPortalSession } from '../hooks/use-billing-portal-session';
 import { type AiAlert, useBillingSummary } from '../hooks/use-billing-summary';
@@ -25,7 +27,7 @@ import { useCancelSubscription } from '../hooks/use-cancel-subscription';
 import { useCancellationImpact } from '../hooks/use-cancellation-impact';
 import { useResumeSubscription } from '../hooks/use-resume-subscription';
 import { AUTO_TOP_UP } from '../lib/auto-top-up';
-import { formatCompactCount, formatCount, formatCurrency, formatDateOrDash } from '../lib/format';
+import { formatCurrency } from '../lib/format';
 import { openExternalTab } from '../lib/stripe-window';
 import { ActivateSubscriptionModal } from '../subscription/components/activate-subscription-modal';
 import { ModelTokenRatesPopover } from '../subscription/components/model-token-rates';
@@ -476,7 +478,7 @@ export function BillingUsageContent() {
                   nothing: activation is what refills it. */}
               {ai.alert !== 'trial-exhausted' &&
                 billing.nextBillingDate &&
-                ` Free tokens reset on ${formatDateOrDash(billing.nextBillingDate)}.`}
+                ` Free tokens reset on ${formatDate(billing.nextBillingDate)}.`}
             </p>
           </div>
         </div>
@@ -516,7 +518,7 @@ export function BillingUsageContent() {
               <OverageStat value={formatCurrency(billing.estimatedOverage)} label="Overage Payment" />
             )}
             {billing.nextBillingDate && (
-              <OverageStat value={formatDateOrDash(billing.nextBillingDate)} label="Next Billing" />
+              <OverageStat value={formatDate(billing.nextBillingDate)} label="Next Billing" />
             )}
           </div>
         </div>
@@ -549,7 +551,7 @@ export function BillingUsageContent() {
                 of the paid period and stops there, which is two facts, not one
                 repeated. */}
             {billing.nextBillingDate && (
-              <BillingRow label="Next Billing Date" value={formatDateOrDash(billing.nextBillingDate)} />
+              <BillingRow label="Next Billing Date" value={formatDate(billing.nextBillingDate)} />
             )}
             {billing.cancellationEffectiveAt && (
               <BillingRow label="Plan ends on" warning value={<WarningDate iso={billing.cancellationEffectiveAt} />} />
@@ -694,7 +696,7 @@ function DeviceUsageCaption({ isTrial, trialEndsOn, prepaid, isAnnual }: DeviceU
     if (!trialEndsOn) return <>Included in trial</>;
     return (
       <>
-        Trial Period ends <StatEmphasis>{formatDateOrDash(trialEndsOn)}</StatEmphasis>
+        Trial Period ends <StatEmphasis>{formatDate(trialEndsOn)}</StatEmphasis>
       </>
     );
   }
@@ -736,7 +738,7 @@ function OverageStat({ value, label }: { value: string; label: string }) {
 function WarningDate({ iso }: { iso: string }) {
   return (
     <>
-      {formatDateOrDash(iso)}
+      {formatDate(iso)}
       <AlertTriangleIcon className="size-4 text-ods-warning" />
     </>
   );

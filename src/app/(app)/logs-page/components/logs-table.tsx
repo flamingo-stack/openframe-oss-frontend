@@ -56,9 +56,11 @@ import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { LogSortField, SortDirection } from '@/generated/schema-enums';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { transformOrganizationFilters } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { LogFilterInput } from '../types/log.types';
 import { logSourceLabels } from '../utils/log-source-labels';
@@ -353,8 +355,8 @@ function LogsTableContent({
         toolType: normalizeToolTypeWithFallback(log.toolType),
       },
       device: {
-        name: getDeviceName(log.device) || log.hostname || log.deviceId || '-',
-        organization: log.device?.organization || log.organizationName || '-',
+        name: getDeviceName(log.device) || log.hostname || log.deviceId || EMPTY_VALUE,
+        organization: log.device?.organization || log.organizationName || EMPTY_VALUE,
       },
       description: {
         title: log.summary || 'No summary available',
@@ -366,7 +368,12 @@ function LogsTableContent({
   const getLogDetailsUrl = useCallback((log: UiLogEntry): string => {
     const original = log.originalLogEntry;
     const id = log.id || log.logId;
-    return `/log-details?id=${id}&ingestDay=${original.ingestDay}&toolType=${original.toolType}&eventType=${original.eventType}&timestamp=${encodeURIComponent(original.timestamp || '')}`;
+    return routes.logs.details(id, {
+      ingestDay: original.ingestDay,
+      toolType: original.toolType,
+      eventType: original.eventType,
+      timestamp: original.timestamp,
+    });
   }, []);
 
   const columns = useMemo<ColumnDef<UiLogEntry>[]>(

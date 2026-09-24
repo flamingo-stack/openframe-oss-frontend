@@ -141,7 +141,7 @@ export function ScriptFormFields({
           name="name"
           control={control}
           render={({ field, fieldState }) => (
-            <div className="space-y-1">
+            <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
               <Label className="text-ods-text-primary text-h4">Name</Label>
               <Input
                 type="text"
@@ -160,7 +160,7 @@ export function ScriptFormFields({
           name="shell"
           control={control}
           render={({ field, fieldState }) => (
-            <div className="space-y-1">
+            <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
               <Label className="text-ods-text-primary text-h4">Shell Type</Label>
               <Select value={field.value} onValueChange={field.onChange} disabled={disabled}>
                 <SelectTrigger
@@ -189,7 +189,7 @@ export function ScriptFormFields({
             name="category"
             control={control}
             render={({ field, fieldState }) => (
-              <div className="space-y-1">
+              <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
                 <Label className="text-ods-text-primary text-h4">Category</Label>
                 <Select value={field.value} onValueChange={field.onChange} disabled={disabled}>
                   <SelectTrigger
@@ -215,7 +215,7 @@ export function ScriptFormFields({
           name="default_timeout"
           control={control}
           render={({ field, fieldState }) => (
-            <div className="space-y-1">
+            <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
               <Label className="text-ods-text-primary text-h4">Timeout</Label>
               <Input
                 type="number"

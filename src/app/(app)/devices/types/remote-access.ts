@@ -38,7 +38,6 @@ export interface RemoteAccessRequest {
   requestId: string;
   /** The OpenFrame machine id - what the device pages carry as `?id=` and what the backend resolves. */
   deviceId: string;
-  machineId?: string;
   sessionKind: RemoteSessionKind;
   status: RemoteAccessRequestStatus;
   /** Why the technician is connecting - shown to the end user in the prompt. */
@@ -162,26 +161,74 @@ export const REMOTE_ACCESS_MODE_META: Record<RemoteAccessMode, { label: string; 
 };
 
 /**
- * What happens when an approval request cannot be answered - either no client
- * is connected to ack delivery (`noClientFallback`) or the user never answered
- * before the approval timeout (`noAnswerFallback`).
+ * Tenant-wide remote access policy: the default mode only. The approval
+ * timeout (30 s), the delivery timeout and the no-client / no-answer fallbacks
+ * are fixed backend constants (decision 2026-09-18, CU-86akeqw6h) - not a
+ * tenant setting and not surfaced in the UI.
  */
-export const REMOTE_ACCESS_FALLBACKS = ['DENY', 'ALLOW_WITH_NOTIFICATION', 'ALLOW_SILENTLY'] as const;
-export type RemoteAccessFallback = (typeof REMOTE_ACCESS_FALLBACKS)[number];
-
-export const REMOTE_ACCESS_FALLBACK_META: Record<RemoteAccessFallback, { label: string }> = {
-  DENY: { label: 'Deny' },
-  ALLOW_WITH_NOTIFICATION: { label: 'Allow with Notification' },
-  ALLOW_SILENTLY: { label: 'Allow Silently' },
-};
-
-/** Tenant-wide remote access policy: the default mode plus approval tuning. */
 export interface TenantRemoteAccessPolicy {
   mode: RemoteAccessMode;
-  /** How long the end user has to answer an approval prompt. */
-  approvalTimeoutSeconds: number;
-  /** How long to wait for a client to ack delivery before `noClientFallback`. */
-  deliveryTimeoutSeconds: number;
-  noClientFallback: RemoteAccessFallback;
-  noAnswerFallback: RemoteAccessFallback;
+}
+
+// --------------------------------------------------------------------------
+// Remote session lifecycle
+// --------------------------------------------------------------------------
+
+export type RemoteSessionStatus = 'ACTIVE' | 'ENDED';
+
+/**
+ * Why a session is over: `client` - the end user pressed End Session, `admin`
+ * - the technician left, `timeout` - the session cap passed, `connection_lost`
+ * - the tunnel dropped (there is no rejoin: the technician opens a new
+ * session), `policy` - reserved, nothing produces it yet. Lower-case as on the
+ * NATS wire; the GraphQL enum arrives upper-case and is folded.
+ */
+export type RemoteSessionEndReason = 'admin' | 'client' | 'timeout' | 'connection_lost' | 'policy';
+
+/**
+ * The session record the backend creates when a request reaches APPROVED:
+ * the technician's handle for ending the session, and the source of the chat
+ * dialog id. Every lifecycle event carries the same payload.
+ */
+export interface RemoteSession {
+  /** A plain 26-char ULID. */
+  sessionId: string;
+  requestId: string;
+  deviceId?: string;
+  technicianId?: string;
+  sessionKind: RemoteSessionKind;
+  mode?: RemoteAccessMode;
+  status: RemoteSessionStatus;
+  startedAt: string;
+  endedAt?: string | null;
+  endReason?: RemoteSessionEndReason | null;
+  reason?: string;
+  ticketId?: string;
+  ticketNumber?: string;
+  recordingEnabled?: boolean;
+  /** The session chat dialog; null until the backend provisions it. */
+  dialogId: string | null;
+}
+
+/** How a session ended, as far as the page knows. */
+export interface RemoteSessionEnd {
+  endReason: RemoteSessionEndReason | null;
+  endedAt: string | null;
+}
+
+/**
+ * The transient technician-side lifecycle event on
+ * `user.<technicianUserId>.notification` (flat JSON, no notification id, so
+ * the notifications drawer ignores it): the session payload, plus `endReason`
+ * and `endedAt` on ENDED.
+ */
+export interface RemoteSessionEvent {
+  type: 'REMOTE_SESSION_STARTED' | 'REMOTE_SESSION_ENDED';
+  sessionId: string;
+  requestId?: string;
+  startedAt?: string;
+  dialogId: string | null;
+  recordingEnabled?: boolean;
+  endReason: RemoteSessionEndReason | null;
+  endedAt?: string | null;
 }

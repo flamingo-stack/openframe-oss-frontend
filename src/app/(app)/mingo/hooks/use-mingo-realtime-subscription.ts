@@ -14,6 +14,7 @@ import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
 import { bindMingoDialog, setMingoChatHandlers, useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogNode } from '../types/dialog.types';
+import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 const MINGO_JETSTREAM_TOPIC: NatsMessageType = 'admin-message';
 const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
@@ -243,7 +244,7 @@ export function DialogSubscription({
         if (chunk.streamSeq < lastAppliedStreamSeqRef.current) return;
         lastAppliedStreamSeqRef.current = chunk.streamSeq;
       }
-      queryClient.setQueryData<DialogNode | null | undefined>(['mingo-dialog', dialogId], prev =>
+      queryClient.setQueryData<DialogNode | null | undefined>(mingoDialogQueryKeys.detail(dialogId), prev =>
         prev ? { ...prev, streamState: next } : prev,
       );
     },
@@ -294,8 +295,8 @@ export function DialogSubscription({
   useEffect(() => {
     if (reconnectionCount <= lastHandledReconnectRef.current) return;
     lastHandledReconnectRef.current = reconnectionCount;
-    void queryClient.invalidateQueries({ queryKey: ['mingo-dialog-messages', dialogId] });
-    void queryClient.invalidateQueries({ queryKey: ['mingo-dialog', dialogId] });
+    void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.messages(dialogId) });
+    void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.detail(dialogId) });
   }, [reconnectionCount, queryClient, dialogId]);
 
   return null;

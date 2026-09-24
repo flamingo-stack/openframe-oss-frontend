@@ -10,19 +10,25 @@ import type { removeDevicesFromScheduleMutation as RemoveDevicesMutationType } f
 import type { setScheduleDeviceCriteriaMutation as SetCriteriaMutationType } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
+import {
+  assignmentUpdaters,
+  type ConnectionNarrowing,
+} from '@/app/components/shared/device-selector/assignment-updaters';
+import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
+import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { addAllDevicesToScheduleMutation } from '@/graphql/scripts/add-all-devices-to-schedule-mutation';
 import { addDevicesToScheduleMutation } from '@/graphql/scripts/add-devices-to-schedule-mutation';
 import { removeAllDevicesFromScheduleMutation } from '@/graphql/scripts/remove-all-devices-from-schedule-mutation';
 import { removeDevicesFromScheduleMutation } from '@/graphql/scripts/remove-devices-from-schedule-mutation';
 import {
+  SCHEDULE_PICKER_CONNECTION_KEYS,
   scheduleDevicePickerRelayAssignedQuery,
   scheduleDevicePickerRelayQuery,
 } from '@/graphql/scripts/schedule-device-picker-relay';
 import { setScheduleDeviceCriteriaMutation } from '@/graphql/scripts/set-schedule-device-criteria-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { assignmentUpdaters, type ConnectionNarrowing } from '../utils/schedule-assignment-updaters';
 import type { ScheduleCriteria } from '../utils/schedule-criteria';
-import { DEVICE_PICKER_PAGE_SIZE, toRelayCriteria, toRelayFilter } from '../utils/schedule-device-filters';
+import { toRelayCriteria } from '../utils/schedule-device-filters';
 
 interface UseScheduleDeviceAssignmentOptions {
   scheduleId: string;
@@ -96,7 +102,7 @@ export function useScheduleDeviceAssignment({
 
   const connectionNarrowing = useCallback((): ConnectionNarrowing => {
     const { filter: f, search: term } = queryVarsRef.current;
-    return { filter: toRelayFilter(f), search: term || null };
+    return { filter: toRelayDeviceFilter(f), search: term || null };
   }, []);
 
   const errorHandler = useCallback(
@@ -146,7 +152,12 @@ export function useScheduleDeviceAssignment({
     (device: Device) => {
       commitAdd({
         variables: { scheduleId, machineIds: [device.id] },
-        ...assignmentUpdaters(scheduleId, device.id, true, connectionNarrowing()),
+        ...assignmentUpdaters(
+          { id: scheduleId, keys: SCHEDULE_PICKER_CONNECTION_KEYS },
+          device.id,
+          true,
+          connectionNarrowing(),
+        ),
         onCompleted: () => {
           toast({
             title: 'Device assigned',
@@ -164,7 +175,12 @@ export function useScheduleDeviceAssignment({
     (device: Device) => {
       commitRemove({
         variables: { scheduleId, machineIds: [device.id] },
-        ...assignmentUpdaters(scheduleId, device.id, false, connectionNarrowing()),
+        ...assignmentUpdaters(
+          { id: scheduleId, keys: SCHEDULE_PICKER_CONNECTION_KEYS },
+          device.id,
+          false,
+          connectionNarrowing(),
+        ),
         onCompleted: () => {
           toast({
             title: 'Device unassigned',
@@ -181,7 +197,7 @@ export function useScheduleDeviceAssignment({
   const addAllDevices = useCallback(() => {
     const { filter: f, search: s } = narrowingRef.current;
     commitAddAll({
-      variables: { scheduleId, filter: toRelayFilter(f), search: s || null },
+      variables: { scheduleId, filter: toRelayDeviceFilter(f), search: s || null },
       onCompleted: response => {
         toast({
           title: 'Devices assigned',
@@ -197,7 +213,7 @@ export function useScheduleDeviceAssignment({
   const removeAllDevices = useCallback(() => {
     const { filter: f, search: s } = narrowingRef.current;
     commitRemoveAll({
-      variables: { scheduleId, filter: toRelayFilter(f), search: s || null },
+      variables: { scheduleId, filter: toRelayDeviceFilter(f), search: s || null },
       onCompleted: response => {
         toast({
           title: 'Devices unassigned',

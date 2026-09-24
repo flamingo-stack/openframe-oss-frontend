@@ -6,6 +6,7 @@ import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui
 import { useMemo } from 'react';
 import { EmptyState } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
+import { pluralize } from '@/lib/pluralize';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useCustomersOverview } from '../hooks/use-customers-overview';
@@ -58,7 +59,7 @@ export function CustomersOverviewSection() {
                 <div className="min-w-0">
                   <TruncateText variant="h3">{org.name}</TruncateText>
                 </div>
-                <span className="shrink-0 text-ods-text-secondary text-h4">({org.total.toLocaleString()} devices)</span>
+                <span className="shrink-0 text-ods-text-secondary text-h4">({pluralize(org.total, 'device')})</span>
               </div>
             }
             value={org.websiteUrl || 'Organization'}

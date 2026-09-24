@@ -10,6 +10,7 @@ import type { Dialog, TicketActivityFilter } from '../types/dialog.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import { dialogsQueryKeys, invalidateAllDialogs, ticketsQueryKeys } from '../utils/query-keys';
+import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 
 interface ArchiveResolvedPayload {
   archiveResolvedTickets: {
@@ -75,7 +76,7 @@ export function useArchiveResolvedMutation() {
             ...oldData,
             pages: oldData.pages.map(page => ({
               ...page,
-              dialogs: page.dialogs.filter((dialog: Dialog) => dialog.status !== 'RESOLVED'),
+              dialogs: page.dialogs.filter((dialog: Dialog) => dialog.statusKind !== TICKET_STATUS_KIND.RESOLVED),
             })),
           };
         },

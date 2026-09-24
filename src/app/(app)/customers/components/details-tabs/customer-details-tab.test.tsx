@@ -18,8 +18,8 @@ function customer(overrides: Partial<CustomerDetails> = {}): CustomerDetails {
     id: 'org-1',
     organizationId: 'techflow',
     name: 'TechFlow Solutions',
-    industry: '-',
-    website: '-',
+    industry: '',
+    website: '',
     employees: null,
     updatedAt: '2025-08-27T14:45:00Z',
     physicalAddress: '',
@@ -141,7 +141,7 @@ describe('CustomerDetailsTab cards', () => {
     render(customer({ website: 'techflow.com' }));
     expect(panels()[0].querySelector('a')?.getAttribute('href')).toBe('https://techflow.com');
 
-    render(customer({ website: '-' }));
+    render(customer({ website: '' }));
     expect(panels()[0].querySelector('a')).toBeNull();
     expect(panels()[0].textContent).toContain('—');
   });

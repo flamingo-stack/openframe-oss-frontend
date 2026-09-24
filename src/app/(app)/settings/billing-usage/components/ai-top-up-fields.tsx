@@ -4,8 +4,9 @@ import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/compone
 import { Input, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useId } from 'react';
+import { formatCompactCount } from '@/lib/format-number';
 import { type AiTopUp, CUSTOM_TOP_UP, TOP_UP_PRESETS_USD } from '../hooks/use-ai-top-up';
-import { formatCompactCount, formatWholeCurrency } from '../lib/format';
+import { formatWholeCurrency } from '../lib/format';
 
 /**
  * What the balance is. Stated wherever it is topped up — the billing page's
