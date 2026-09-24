@@ -53,6 +53,14 @@ on:
       - 'docs/**'
       - '**.md'
 
+  # Multi-repo change sets, LIVE: every pull request event (a `Depends-On:` line
+  # added, a push, a merge) asks the hub to refresh its change sets at once, and
+  # the same run builds the PR's overlay when the hub says it is a member whose
+  # overlay is missing or stale. ONLY the code-graph job runs on this event (see
+  # both jobs' `if:`); no path filter, because a description edit is the event.
+  pull_request:
+    types: [opened, reopened, edited, synchronize, ready_for_review, closed]
+
   repository_dispatch:
     # `doc-orchestrator` runs the documentation pipeline (the type keeps its
     # pre-rename spelling: it is a fleet contract). `flamingo-code-graph`
@@ -225,13 +233,21 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    # OVERLAY MODE (a multi-repo change set's member PR, dispatched by the hub's
+    # `code-change-sets` job with overlay_pr / overlay_head_sha in the payload)
+    # runs in its OWN group, per PR: an overlay build must never cancel the
+    # default branch's graph rebuild, nor the reverse.
     concurrency:
-      group: flamingo-code-graph-${{ github.repository }}
+      group: flamingo-code-graph-${{ github.repository }}${{ (github.event.client_payload.overlay_pr || github.event.pull_request.number) && format('-overlay-{0}', (github.event.client_payload.overlay_pr || github.event.pull_request.number)) || '' }}
       cancel-in-progress: true
     if: >-
       (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
       || github.event.action == 'flamingo-code-graph'
       || (github.event_name == 'workflow_dispatch' && github.event.inputs.graph_only == 'true')
+      || (github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && !startsWith(github.event.pull_request.head.ref, 'ai-fix/')
+          && !(github.event.action == 'edited' && github.event.sender.type == 'Bot'))
 
     steps:
       # Fail LOUD, not silent: a push on a repo whose org never set
@@ -387,6 +403,20 @@ jobs:
           # lib/config/ci-script-catalog.ts) and downloads what the hub lists for it.
           download_script_group "code-graph"
 
+      # LIVE change sets (a `pull_request` event): ask the hub to refresh NOW and
+      # whether this run builds the PR's overlay (`build`). Never fails the run.
+      # A fork has no secrets and is excluded by the job's `if:`; a bot's own
+      # description edit (the hub writing its block) is excluded too, or every
+      # hub write would start another run.
+      - name: Refresh the change set
+        id: refresh
+        if: github.event_name == 'pull_request'
+        env:
+          WEBHOOK_SECRET: ${{ secrets.DOC_ORCH_WEBHOOK_SECRET }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CODE_GRAPH_REFRESH_PR: ${{ github.event.pull_request.number }}
+        run: node /tmp/code-graph-build.mjs
+
       # FULL history, blobless. `collectFileFacts` derives per-file ownership
       # (last commit, recent commits, commits in the window) from one
       # `git log --no-merges --no-renames` walk, which a depth-1 checkout
@@ -396,14 +426,21 @@ jobs:
       # the walk passes `--no-renames` (rename detection would fetch blobs).
       # A shallow checkout still degrades gracefully: ownership is omitted and
       # `coverage.ownership` is false rather than the job failing.
+      # In overlay mode the checkout is the PR HEAD, with every blob: the
+      # overlay diffs it against the live snapshot commit with rename
+      # detection, which reads contents a blob:none clone cannot fetch here.
       - name: Check out repository
+        if: github.event_name != 'pull_request' || steps.refresh.outputs.build == 'true'
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: ${{ (github.event.client_payload.overlay_head_sha || github.event.pull_request.head.sha) || '' }}
           fetch-depth: 0
-          filter: blob:none
+          # `!x && 'blob:none' || ''` — never `x && '' || …`: '' is falsy in an expression, so that form always yields blob:none.
+          filter: ${{ !(github.event.client_payload.overlay_pr || github.event.pull_request.number) && 'blob:none' || '' }}
           persist-credentials: false
 
       - name: Set up Node.js
+        if: github.event_name != 'pull_request' || steps.refresh.outputs.build == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
@@ -412,14 +449,24 @@ jobs:
       # the one spelling both workflows use: pinned wasm tree-sitter + grammars +
       # yaml into an isolated tree under RUNNER_TEMP, exported as CODE_GRAPH_DEPS_DIR.
       - name: Install graph dependencies
+        if: github.event_name != 'pull_request' || steps.refresh.outputs.build == 'true'
         run: mkdir -p "$RUNNER_TEMP/code-graph-deps" && cd "$RUNNER_TEMP/code-graph-deps" && printf '%s' '{"name":"code-graph-deps","version":"1.0.0","private":true,"dependencies":{"web-tree-sitter":"0.27.0","@vscode/tree-sitter-wasm":"0.3.1","yaml":"2.9.1"}}' > package.json && printf '%s' '{"name":"code-graph-deps","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"code-graph-deps","version":"1.0.0","dependencies":{"web-tree-sitter":"0.27.0","@vscode/tree-sitter-wasm":"0.3.1","yaml":"2.9.1"}},"node_modules/web-tree-sitter":{"version":"0.27.0","resolved":"https://registry.npmjs.org/web-tree-sitter/-/web-tree-sitter-0.27.0.tgz","integrity":"sha512-XK08gj6RwTMQatAG7uVRP8MunqotL/XC19vHgkSPKmELgbGPBj4ECvB8haHOUnyj6ls2B8t42UTro14zxGgAHg=="},"node_modules/@vscode/tree-sitter-wasm":{"version":"0.3.1","resolved":"https://registry.npmjs.org/@vscode/tree-sitter-wasm/-/tree-sitter-wasm-0.3.1.tgz","integrity":"sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ=="},"node_modules/yaml":{"version":"2.9.1","resolved":"https://registry.npmjs.org/yaml/-/yaml-2.9.1.tgz","integrity":"sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw=="}}}' > package-lock.json && npm ci --ignore-scripts --no-audit --no-fund && echo "CODE_GRAPH_DEPS_DIR=$RUNNER_TEMP/code-graph-deps" >> "$GITHUB_ENV" || { echo "::warning::graph dependencies failed their lockfile-enforced install; continuing without them"; rm -rf "$RUNNER_TEMP/code-graph-deps"; exit 1; }
 
+      # Overlay mode posts the PR's overlay INSTEAD of a snapshot (code-graph-build.mjs `overlayMain`).
       - name: Build and upload the code graph
         id: graph
+        if: github.event_name != 'pull_request' || steps.refresh.outputs.build == 'true'
         env:
           WEBHOOK_SECRET: ${{ secrets.DOC_ORCH_WEBHOOK_SECRET }}
           CODE_GRAPH_DEPS_DIR: ${{ env.CODE_GRAPH_DEPS_DIR }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          # Overlay mode: the hub's dispatch payload, or this PR's own event after the refresh said `build`.
+          CODE_GRAPH_OVERLAY_PR: ${{ (github.event.client_payload.overlay_pr || github.event.pull_request.number) || '' }}
+          CODE_GRAPH_OVERLAY_HEAD_SHA: ${{ (github.event.client_payload.overlay_head_sha || github.event.pull_request.head.sha) || '' }}
+          # An overlay run names a NON-default branch, so a hub or builder that predates overlay mode lands
+          # the PR head as a `branch` snapshot, never as the repository's live graph (the e2e run found an
+          # older builder promoting an unmerged PR's head live). Empty outside overlay mode.
+          CODE_GRAPH_BRANCH: ${{ (github.event.client_payload.overlay_pr || github.event.pull_request.number) && format('overlay/pr-{0}', (github.event.client_payload.overlay_pr || github.event.pull_request.number)) || '' }}
         run: node /tmp/code-graph-build.mjs
 
   # ===========================================================================
@@ -441,7 +488,7 @@ jobs:
     # Never on push (a push registers the workflow and runs the code-graph job
     # only), never on the graph-only re-dispatch, never on a graph-only manual
     # run. This is what lets workflow_dispatch API calls work on feature branches.
-    if: github.event_name != 'push' && github.event.action != 'flamingo-code-graph' && github.event.inputs.graph_only != 'true'
+    if: github.event_name != 'push' && github.event_name != 'pull_request' && github.event.action != 'flamingo-code-graph' && github.event.inputs.graph_only != 'true'
 
     steps:
       # =========================================================================
@@ -1910,6 +1957,17 @@ jobs:
           HTTP_CODE=$(node /tmp/ci-hub.mjs get "${ECOSYSTEM_PATH}&format=agents" /tmp/ecosystem-agents.md) || HTTP_CODE="000"
           if [ "$HTTP_CODE" = "200" ]; then
             upsert_marker_block AGENTS.md /tmp/ecosystem-agents.md
+            # Claude Code reads CLAUDE.md, and AGENTS.md only when a folder has NO CLAUDE.md
+            # (native fallback since 2.1.277). A repository that keeps a CLAUDE.md therefore gets
+            # ONE marker-delimited `@AGENTS.md` import, so its agents load the block above (the
+            # ecosystem facts and the multi-repo change-set rule). Skipped when CLAUDE.md already
+            # imports AGENTS.md itself; never creates a CLAUDE.md.
+            IMPORT_START='<!-- flamingo-agents-import:start -->'
+            IMPORT_END='<!-- flamingo-agents-import:end -->'
+            if [ -f CLAUDE.md ] && { grep -qF "$IMPORT_START" CLAUDE.md || ! grep -qE '(^|[[:space:]])@AGENTS\.md' CLAUDE.md; }; then
+              printf '%s\n' "$IMPORT_START" '@AGENTS.md' "$IMPORT_END" > /tmp/claude-agents-import.md
+              upsert_marker_block CLAUDE.md /tmp/claude-agents-import.md "$IMPORT_START" "$IMPORT_END"
+            fi
           else
             echo "::warning title=AGENTS.md block unavailable::The hub answered HTTP $HTTP_CODE; AGENTS.md is left untouched."
             rm -f /tmp/ecosystem-agents.md
@@ -2370,6 +2428,11 @@ jobs:
             git add -f AGENTS.md
             echo "Staged AGENTS.md (ecosystem block)"
           fi
+          # CLAUDE.md carries the `@AGENTS.md` import the same step keeps (only when it changed).
+          if [ -f CLAUDE.md ] && ! git diff --quiet -- CLAUDE.md; then
+            git add -f CLAUDE.md
+            echo "   Added CLAUDE.md (@AGENTS.md import)"
+          fi
 
           # Check if there are changes
           STAGED_COUNT=$(git diff --cached --name-only | wc -l)
@@ -2763,8 +2826,8 @@ jobs:
           done
 
           # Stage repository documentation files
-          # AGENTS.md is here as the backstop for a run whose Stage 2 commit did not happen.
-          for f in README.md CONTRIBUTING.md LICENSE.md SECURITY.md AGENTS.md; do
+          # AGENTS.md (and CLAUDE.md's @AGENTS.md import) are here as the backstop for a run whose Stage 2 commit did not happen.
+          for f in README.md CONTRIBUTING.md LICENSE.md SECURITY.md AGENTS.md CLAUDE.md; do
             if [ -f "$f" ]; then
               git add -f "$f"
             fi
