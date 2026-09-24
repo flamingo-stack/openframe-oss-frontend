@@ -32,7 +32,9 @@ import { readInlineData } from 'relay-runtime';
 import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__generated__/executionFacets_filters.graphql';
 import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__generated__/executionFields_execution.graphql';
 import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import {
@@ -47,20 +49,18 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { executionFacetsFragment } from '@/graphql/scripts/execution-facets';
 import { executionFieldsFragment } from '@/graphql/scripts/execution-fields';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
+import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import {
-  executionResultText,
+  executionOutput,
   executionStatusLabel,
   executionStatusVariant,
-  formatExecutionTimestamp,
   initiatorInitials,
   initiatorName,
-  machineLabel,
-  organizationLabel,
 } from '../utils/execution-helpers';
 import { type FacetOption, facetToSortedOptions } from '../utils/facet-options';
 import { ExecutionSourceBadge } from './execution-source-badge';
@@ -160,10 +160,10 @@ export function toUiExecution(ref: ExecutionFieldsKey, scriptName?: string | nul
     id: node.id,
     executionId: node.executionId,
     status: node.status,
-    timestamp: formatExecutionTimestamp(node.dispatchedAt as string | null),
+    timestamp: formatDateTime(node.dispatchedAt),
     machineId: node.machine?.machineId ?? '',
-    machineName: machineLabel(node.machine),
-    organization: organizationLabel(node.machine),
+    machineName: getDeviceName(node.machine),
+    organization: node.machine?.organization?.name ?? '',
     initiatorId: node.initiator?.id ?? '',
     initiatorName: initiatorName(node.initiator),
     initiatorInitials: initiatorInitials(node.initiator),
@@ -171,7 +171,7 @@ export function toUiExecution(ref: ExecutionFieldsKey, scriptName?: string | nul
     initiatorDeleted: isDeletedUserStatus(node.initiator?.status),
     scriptName: scriptName ?? '',
     source: node.source,
-    result: executionResultText(node),
+    result: executionOutput({ stdout: node.stdout, stderr: node.stderr, error: node.error }),
   };
 }
 
@@ -223,7 +223,13 @@ export function useExecutionFacetOptions(ref: ExecutionFacetsKey | null | undefi
   const machines = facets?.machines;
 
   const statusOptions = useMemo(
-    () => (statuses ?? []).map(s => ({ id: s.value, label: executionStatusLabel(s.value), value: s.value })),
+    () =>
+      (statuses ?? []).map(s => ({
+        id: s.value,
+        label: executionStatusLabel(s.value),
+        value: s.value,
+        count: s.count,
+      })),
     [statuses],
   );
   const initiatorOptions = useMemo(() => facetToSortedOptions(initiators), [initiators]);
@@ -250,6 +256,13 @@ export interface ExecutionsTableProps {
   hasNext: boolean;
   isLoadingNext: boolean;
   onLoadMore: () => void;
+  /**
+   * Rows fetched so far, for a caller that narrows `executions` on the client
+   * (see `narrowExecutions`). A page can then arrive in full and add no visible
+   * row; without this the infinite footer reads that as a stalled fetch and
+   * stops pulling the remaining pages in.
+   */
+  loadedCount?: number;
   /** The search term the rows on screen were fetched with (for the empty copy). */
   search: string;
   /** Dispatched-date sort + range, hosted by the Execution column's header. */
@@ -278,6 +291,7 @@ export function ExecutionsTable({
   hasNext,
   isLoadingNext,
   onLoadMore,
+  loadedCount,
   search,
   dateFilter,
   emptyState,
@@ -300,7 +314,7 @@ export function ExecutionsTable({
             {
               id: 'copy-execution-id',
               label: 'Copy Execution ID',
-              icon: <Copy01Icon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <Copy01Icon className="h-6 w-6 text-ods-text-secondary" />,
               onClick: () => {
                 navigator.clipboard
                   ?.writeText(execution.executionId)
@@ -325,7 +339,7 @@ export function ExecutionsTable({
         // on a column of its own.
         header: () => <DateColumnHeader label={EXECUTION_COLUMNS.executionId.header} filter={dateFilter} />,
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div className="flex flex-col justify-center gap-1 min-w-0">
+          <div className="flex min-w-0 flex-col justify-center gap-1">
             <TruncateText>{row.original.timestamp}</TruncateText>
             <TruncateText variant="h6" tone="secondary">
               {row.original.executionId}
@@ -361,12 +375,12 @@ export function ExecutionsTable({
         // sits on its own line beneath, left-aligned to the icon (not indented
         // under the name) — matching the design.
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div className="flex flex-col justify-center gap-1 min-w-0">
-            <div className="flex items-center gap-1 min-w-0">
+          <div className="flex min-w-0 flex-col justify-center gap-1">
+            <div className="flex min-w-0 items-center gap-1">
               <MonitorIcon className="size-6 shrink-0 text-ods-text-secondary" />
               {/* min-w-0 flex-1 wrapper so the name can shrink and ellipsize next to the icon. */}
               <div className="min-w-0 flex-1">
-                <TruncateText>{row.original.machineName}</TruncateText>
+                <ValueText value={row.original.machineName} />
               </div>
             </div>
             {row.original.organization && (
@@ -397,7 +411,7 @@ export function ExecutionsTable({
           const isDeleted = row.original.initiatorDeleted;
 
           return (
-            <div className="flex flex-1 items-center gap-[var(--spacing-system-xsf)] min-w-0">
+            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
               {isDeleted ? (
                 <DeletedUserAvatar size="md" />
               ) : (
@@ -411,12 +425,12 @@ export function ExecutionsTable({
                 />
               )}
               {/* min-w-0 flex-1 so the FloatingTooltip's block div can shrink and the text ellipsizes. */}
-              <div className="flex flex-col justify-center min-w-0 flex-1">
+              <div className="flex min-w-0 flex-1 flex-col justify-center">
                 {/* Name and the source chip share the first line: a schedule or
                     Mingo dispatches on a technician's behalf, so the chip
                     qualifies the name instead of standing in for it. The name is
                     the part that ellipsizes — the chip keeps its width. */}
-                <div className="flex items-center gap-[var(--spacing-system-xxs)] min-w-0">
+                <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
                   {href ? (
                     // Only the NAME opts out of the row link — the rest of the cell
                     // still navigates to the execution, like every other cell.
@@ -424,7 +438,7 @@ export function ExecutionsTable({
                       data-no-row-click
                       type="button"
                       onClick={openInNewTab(href)}
-                      className="min-w-0 text-left pointer-events-auto"
+                      className="pointer-events-auto min-w-0 text-left"
                     >
                       <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
                         {row.original.initiatorName}
@@ -453,16 +467,19 @@ export function ExecutionsTable({
       {
         accessorKey: 'result',
         header: 'Result',
-        cell: ({ row }: { row: Row<UiExecution> }) => (
-          <TruncateText lines={2}>{row.original.result || '—'}</TruncateText>
-        ),
+        cell: ({ row }: { row: Row<UiExecution> }) =>
+          row.original.result ? (
+            <TruncateText lines={2}>{row.original.result}</TruncateText>
+          ) : (
+            <ValueText value={null} />
+          ),
         enableSorting: false,
         meta: liveColumnMeta(EXECUTION_COLUMNS.result),
       },
       {
         id: 'actions',
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
             {renderRowActions(row.original)}
           </div>
         ),
@@ -472,12 +489,12 @@ export function ExecutionsTable({
       {
         id: 'open',
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={() => router.push(executionHref(row.original))}
               variant="outline"
               size="icon"
-              leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
               aria-label="Open execution details"
               className="bg-ods-card"
             />
@@ -594,6 +611,7 @@ export function ExecutionsTable({
               isFetchingNextPage={isLoadingNext}
               onLoadMore={onLoadMore}
               skeletonRows={2}
+              loadedCount={loadedCount}
             />
           )}
         </DataTable>
@@ -707,8 +725,11 @@ export interface ExecutionsTabState {
 export function ExecutionsTabShell({
   children,
   clientSearch,
+  searchPlaceholder = 'Search for Executions',
 }: {
   children: (state: ExecutionsTabState) => ReactNode;
+  /** The search box's placeholder — the lists name their rows differently. */
+  searchPlaceholder?: string;
   /**
    * Says the query's `search` argument is already spoken for, so the typed term
    * comes back as `narrowSearch` instead of `querySearch`.
@@ -843,14 +864,14 @@ export function ExecutionsTabShell({
       {!isEmpty && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 flex items-center gap-[var(--spacing-system-m)] bg-ods-bg pt-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 flex items-center gap-[var(--spacing-system-m)] bg-ods-bg pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
         >
           <div className="flex-1">
             <Input
-              placeholder="Search for Executions"
+              placeholder={searchPlaceholder}
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+              startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
             />
           </div>
           <Button

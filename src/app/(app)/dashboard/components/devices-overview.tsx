@@ -2,6 +2,7 @@
 
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { SectionLoadError } from '@/app/components/shared';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { DEVICE_STATUS } from '../../devices/constants/device-statuses';
@@ -65,14 +66,14 @@ export function DevicesOverviewSection() {
         />
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-[var(--spacing-system-mf)]">
+      <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] lg:grid-cols-4">
         {statusCards.map(card => (
           <DashboardInfoCard
             key={card.status}
             title={card.title}
             // `—` rather than a number: the request failed, so any digit here
             // would be invented. See the null contract in `use-dashboard-stats`.
-            value={card.value ?? '—'}
+            value={card.value ?? EMPTY_VALUE}
             percentage={card.percentage ?? undefined}
             showProgress={card.percentage != null}
             progressVariant={card.progressVariant}

@@ -1,13 +1,15 @@
 'use client';
 
 import { Button, TestRunResults, TestRunStatusStat, TimingStat } from '@flamingo-stack/openframe-frontend-core';
-import { RotateCcw, Square } from 'lucide-react';
+import { Refresh01LeftIcon, StopIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useCallback, useState } from 'react';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { useQueryTestRun } from '../../components/query-test-run';
 
 export interface QuickQueryPanelProps {
   fleetHostId: number;
+  /** The row's device name (SSOT-resolved by the table); Fleet's own host name is the fallback. */
+  deviceName?: string;
   /** Policy osquery SQL copied into the editable draft when the panel opens. */
   initialQuery: string;
 }
@@ -19,9 +21,10 @@ export interface QuickQueryPanelProps {
  * The panel owns its own live campaign, so its state lives and dies with the
  * row it is opened on.
  */
-export function QuickQueryPanel({ fleetHostId, initialQuery }: QuickQueryPanelProps) {
+export function QuickQueryPanel({ fleetHostId, deviceName, initialQuery }: QuickQueryPanelProps) {
   const [query, setQuery] = useState(initialQuery);
-  const test = useQueryTestRun();
+  const hostName = useCallback(({ fleetName }: { fleetName: string }) => deviceName || fleetName, [deviceName]);
+  const test = useQueryTestRun({ hostName });
 
   const canRun = Boolean(query.trim()) && !test.isActive;
 
@@ -52,7 +55,7 @@ export function QuickQueryPanel({ fleetHostId, initialQuery }: QuickQueryPanelPr
               type="button"
               variant="outline"
               onClick={test.stop}
-              leftIcon={<Square size={16} />}
+              leftIcon={<StopIcon size={16} />}
               className="h-11 md:h-12 md:w-full"
             >
               Stop Test
@@ -63,7 +66,7 @@ export function QuickQueryPanel({ fleetHostId, initialQuery }: QuickQueryPanelPr
               variant="outline"
               onClick={handleRun}
               disabled={!canRun}
-              leftIcon={<RotateCcw size={16} />}
+              leftIcon={<Refresh01LeftIcon size={16} />}
               className="h-11 md:h-12 md:w-full"
             >
               Test Again

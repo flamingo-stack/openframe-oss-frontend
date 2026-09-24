@@ -1,4 +1,4 @@
-import type { Device } from '../../devices/types/device.types';
+import type { PartialNamedDevice } from '../../devices/types/device.types';
 
 export interface LogEntry {
   toolEventId: string;
@@ -12,15 +12,17 @@ export interface LogEntry {
   message?: string;
   timestamp: string;
   details?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   // Device-related fields from backend
   hostname?: string;
+  /** User-defined device name, stamped on the event when it was ingested; null when it had none. */
+  nickname?: string | null;
   organizationName?: string;
   organizationId?: string;
 
   // Transformed device object (follows Device type pattern)
-  device?: Partial<Device>;
+  device?: PartialNamedDevice;
 }
 
 export interface LogEdge {

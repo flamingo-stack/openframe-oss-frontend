@@ -1,24 +1,11 @@
-import {
-  ADMIN_APPROVAL_REQUEST_CONTEXT_TYPE,
-  type ApprovalToolCallMeta,
-  type Notification,
-  type NotificationVariant,
-} from '@flamingo-stack/openframe-frontend-core';
-import { ConnectionHandler, type RecordSourceSelectorProxy, readInlineData } from 'relay-runtime';
+import type { Notification, NotificationVariant } from '@flamingo-stack/openframe-frontend-core';
+import { ConnectionHandler, type RecordProxy, type RecordSourceSelectorProxy, readInlineData } from 'relay-runtime';
 import type {
   notificationFields_notification$data as NotificationFieldsData,
   notificationFields_notification$key as NotificationFieldsKey,
 } from '@/__generated__/notificationFields_notification.graphql';
 import type { NotificationSeverity } from '@/generated/schema-enums';
-import { featureFlags } from '@/lib/feature-flags';
-import {
-  isApprovalNotificationType,
-  NOTIFICATION_ATTR,
-  normalizeToolCalls,
-  parseAttributeToolCalls,
-  readNotificationAttributes,
-  toLegacyContextType,
-} from './notification-attributes';
+import { NOTIFICATION_ATTR, parseAttributeToolCalls, readNotificationAttributes } from './notification-attributes';
 import { notificationFieldsFragment } from './notification-fields';
 
 export {
@@ -26,11 +13,9 @@ export {
   isApprovalResolved,
   MINGO_APPROVAL_REQUEST_TYPE,
   NOTIFICATION_ATTR,
-  normalizeToolCalls,
   parseAttributeToolCalls,
   readNotificationAttributes,
   TICKET_APPROVAL_REQUEST_TYPE,
-  toLegacyContextType,
 } from './notification-attributes';
 
 export const NOTIFICATIONS_CONNECTION_KEY = 'NotificationsList_notifications';
@@ -91,6 +76,18 @@ export function clearUnreadCounts(store: RecordSourceSelectorProxy): void {
   for (const bucket of buckets) bucket?.setValue(0, 'count');
 }
 
+/** True when the connection already holds an edge for the node. */
+export function connectionHasNode(conn: RecordProxy, nodeId: string): boolean {
+  const edges = conn.getLinkedRecords('edges') ?? [];
+  return edges.some(edge => edge?.getLinkedRecord('node')?.getDataID() === nodeId);
+}
+
+/**
+ * Every updater below is idempotent: it may run for the same notification twice — the user's
+ * own mutation, then the READ / DELETED event the backend publishes for it, in either order
+ * and around the optimistic revert in between. A second pass finds nothing left to flip,
+ * remove or count, and inserts no duplicate edge.
+ */
 export function makeMarkReadUpdater(
   id: string,
   pairs: NotificationConnectionPair[],
@@ -118,6 +115,9 @@ export function makeMarkReadUpdater(
       const readConn = ConnectionHandler.getConnection(root, NOTIFICATIONS_CONNECTION_KEY, pair.read);
       if (readConn && !seen.has(readConn.getDataID())) {
         seen.add(readConn.getDataID());
+        // `insertEdgeBefore` does not dedupe, and the edge id is derived from the node's,
+        // so a second insert would list the same row twice in history.
+        if (connectionHasNode(readConn, id)) continue;
         const edge = ConnectionHandler.createEdge(store, readConn, node, NOTIFICATION_EDGE_TYPENAME);
         ConnectionHandler.insertEdgeBefore(readConn, edge);
       }
@@ -198,6 +198,10 @@ export function makeDeleteNotificationUpdater(id: string, pairs: NotificationCon
     const category = node?.getValue('category');
     const root = store.getRoot();
     const seen = new Set<string>();
+    // The record outlives its edges (nothing deletes it from the store), so `read === false`
+    // alone would decrement again on the second pass. The bucket mirrors the unread
+    // connection: it moves only when an unread edge actually goes.
+    let removedUnreadEdge = false;
     for (const pair of pairs) {
       for (const filters of [pair.unread, pair.read]) {
         const conn = ConnectionHandler.getConnection(root, NOTIFICATIONS_CONNECTION_KEY, filters);
@@ -205,10 +209,34 @@ export function makeDeleteNotificationUpdater(id: string, pairs: NotificationCon
         const connId = conn.getDataID();
         if (seen.has(connId)) continue;
         seen.add(connId);
+        if (!connectionHasNode(conn, id)) continue;
         ConnectionHandler.deleteNode(conn, id);
+        if (filters === pair.unread) removedUnreadEdge = true;
       }
     }
-    if (wasUnread) adjustUnreadCount(store, category, -1);
+    if (wasUnread && removedUnreadEdge) adjustUnreadCount(store, category, -1);
+  };
+}
+
+export type NotificationReadStateEvent = 'READ' | 'DELETED';
+
+/**
+ * Apply a READ / DELETED live event: the recipient's read-state changed elsewhere (another
+ * tab, another device, or this tab's own mutation echoing back), and the event carries the
+ * ids only — the cards are already in the store, so each is flipped or dropped in place.
+ * An id the store never loaded is skipped, which is why the caller still refetches the
+ * counts afterwards.
+ */
+export function makeReadStateUpdater(
+  eventType: NotificationReadStateEvent,
+  ids: readonly string[],
+  pairs: NotificationConnectionPair[],
+) {
+  return (store: RecordSourceSelectorProxy) => {
+    for (const id of ids) {
+      const apply = eventType === 'READ' ? makeMarkReadUpdater(id, pairs) : makeDeleteNotificationUpdater(id, pairs);
+      apply(store);
+    }
   };
 }
 
@@ -247,14 +275,13 @@ export function parseSeverity(
 }
 
 /**
- * Human label for a notification type discriminator: SNAKE_CASE → Title Case
+ * Human label for a notification `type`: SNAKE_CASE → Title Case
  * (e.g. TICKET_STATUS_CHANGED → "Ticket Status Changed"). Data-driven so new backend
- * types label themselves; the catch-all discriminators carry no meaning → undefined.
- * Fed the spec `type` when present, the legacy `context.type` otherwise.
+ * types label themselves.
  */
-export function contextTypeLabel(contextType: string | null | undefined): string | undefined {
-  if (!contextType || contextType === 'UNKNOWN' || contextType === 'GENERIC') return undefined;
-  return contextType
+export function notificationTypeLabel(type: string | null | undefined): string | undefined {
+  if (!type) return undefined;
+  return type
     .toLowerCase()
     .split('_')
     .filter(Boolean)
@@ -316,81 +343,35 @@ export function readNotificationNode(ref: NotificationFieldsKey): NotificationFi
  * data rather than the fragment reference, so a caller that also needs the raw
  * fields (the section table's own columns) reads the node once.
  *
- * Reads exactly ONE of the two contracts — the spec pair (`type` + `attributes`) by
- * default, the legacy typed `context` when the rollback lever is on — never a mix of
- * both. A row that carries only the other shape still maps: it keeps its title, body,
- * severity and timestamp, and offers no type or entity metadata (so: a plain tile, no
- * navigation). See the lever comment inside for why that is the intended outcome.
+ * Reads the `type` + `attributes` contract only. A row carrying neither (nothing the
+ * backfill migration has swept) still maps: it keeps its title, body, severity and
+ * timestamp, and offers no type or entity metadata — a plain tile, no navigation.
  */
 export function mapNotificationNode(node: NotificationFieldsData): Notification {
   const severity = normalizeSeverity(node.severity);
+  const attributes = readNotificationAttributes(node.attributes);
+  const notificationType = node.type ?? undefined;
 
-  /**
-   * Which contract this release reads. Normally the spec one; the `notifications-legacy-path`
-   * flag switches back to the typed `context` without a release, should attributes turn out
-   * wrong in production.
-   *
-   * The switch is EXCLUSIVE: the shape the lever does not select is not read on any field,
-   * and a row carrying only that shape maps with no type and no entity ids rather than
-   * quietly answering from the other contract. That is the point — what the UI shows is
-   * always the shape the lever names, so a rollback is a clean swap and never a per-row
-   * mixture nobody can reason about. The cost is real and expected: with the lever OFF,
-   * rows the backfill migration has not swept yet (no `attributes`) lose their navigation
-   * until it has, and with it ON, spec-path rows that carry no context lose theirs.
-   *
-   * Zeroing the unselected side ONCE, here, is what makes that hold for the whole map —
-   * the `...attributes` spread below included, so unknown spec keys cannot leak into `meta`
-   * behind the lever's back.
-   */
-  const readLegacy = featureFlags.notificationsLegacyPath.enabled();
-  const context = readLegacy ? node.context : null;
-  const attributes: Record<string, string> = readLegacy ? {} : readNotificationAttributes(node.attributes);
-  /** One fact, read off the selected shape only — there is no cross-shape fallback. */
-  const pick = <T>(spec: T | undefined | null, legacy: T | undefined | null): T | undefined =>
-    (readLegacy ? legacy : spec) ?? undefined;
-
-  const notificationType = pick(node.type, context?.type);
-
+  // Entity ids (`ticketId`, `dialogId`) drive navigation and auto-read uniformly across
+  // types (see resolveNotificationAction); they sit at fixed keys for every type, known or
+  // not, so the spread carries them into `meta` as-is.
   const meta: Record<string, unknown> = {
     // Every attribute the backend sent, including keys this release has no code for.
     ...attributes,
+    // The precise backend type — what the core lib's approval gate and the route mapping read.
     notificationType,
-    // What the core lib's approval gate reads — the approval split folded back onto one string.
-    contextType: toLegacyContextType(notificationType),
   };
 
-  // Entity ids drive navigation and auto-read uniformly across types (see
-  // resolveNotificationAction). Under `attributes` they sit at fixed keys for every type,
-  // known or not; the context aliases below are not a fallback across shapes — they are one
-  // shape's own spelling variants, since the union declares the same field with different
-  // nullability per member.
-  const ticketId = pick(
-    attributes[NOTIFICATION_ATTR.ticketId],
-    context?.ticketId ?? context?.approvalTicketId ?? context?.clientTicketId,
-  );
-  const dialogId = pick(attributes[NOTIFICATION_ATTR.dialogId], context?.dialogId);
-  if (dialogId) meta.dialogId = dialogId;
-  if (ticketId) meta.ticketId = ticketId;
-
-  const approvalRequestId = pick(attributes[NOTIFICATION_ATTR.approvalRequestId], context?.approvalRequestId);
-  if (approvalRequestId) {
-    meta.approvalRequestId = approvalRequestId;
-    meta.approvalType = pick(attributes[NOTIFICATION_ATTR.approvalType], context?.approvalType) ?? null;
-    meta.resolution = pick(attributes[NOTIFICATION_ATTR.resolution], context?.resolution) ?? null;
-    meta.resolvedByName = pick(attributes[NOTIFICATION_ATTR.resolvedByName], context?.resolvedByName) ?? null;
+  if (attributes[NOTIFICATION_ATTR.approvalRequestId]) {
     // Must end up an ARRAY: the core lib's `getApprovalMeta` bails on anything else, which
-    // would silently downgrade the approval tile to a plain one. On the spec path the spread
-    // above put the raw JSON string here, so this assignment is not optional. The two shapes
-    // need different readers (a JSON-encoded string vs. typed records), which is why this one
-    // fact branches instead of going through `pick`.
-    meta.toolCalls = readLegacy
-      ? normalizeToolCalls(context?.toolCalls)
-      : parseAttributeToolCalls(attributes[NOTIFICATION_ATTR.toolCalls]);
+    // would silently downgrade the approval tile to a plain one. The spread above put the
+    // raw JSON string here, so this assignment is not optional.
+    meta.toolCalls = parseAttributeToolCalls(attributes[NOTIFICATION_ATTR.toolCalls]);
   }
 
   return {
     id: node.id,
-    type: contextTypeLabel(notificationType),
+    type: notificationTypeLabel(notificationType),
     title: stripNotificationMarkup(node.title),
     description: node.description == null ? undefined : stripNotificationMarkup(node.description),
     createdAt: parseCreatedAt(node.createdAt),

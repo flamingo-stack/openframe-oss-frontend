@@ -1,27 +1,30 @@
 'use client';
 
-import { XCircle } from 'lucide-react';
+import { XmarkCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { notFound } from 'next/navigation';
-import { isPaymentUiEnabled } from '@/lib/billing-visibility';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
 import { CheckoutResultCard } from '../components/checkout-result-card';
 
 export default function CheckoutCancelPage() {
-  // Stripe Checkout can't be started unless the payment UI is available, so its
-  // result page must not exist otherwise either — that means the `billings` flag
-  // AND a build allowed to show payments (see `billing-visibility.ts`).
-  if (!isPaymentUiEnabled()) {
+  // Same gate, and the same reasoning, as `../success/page.tsx` — see the note
+  // there for why the `billings` flag may only 404 this page once it has actually
+  // answered.
+  const gate = useFeatureFlagGate('billings');
+  if (isBillingHidden() || isBillingReadOnly() || gate === 'off') {
     notFound();
   }
 
   return (
     <CheckoutResultCard
-      icon={XCircle}
+      icon={XmarkCircleIcon}
       iconWrapperClassName="bg-ods-error-secondary text-ods-error"
       title="Payment Cancelled"
       description="No charges were made. You can pick a plan whenever you're ready."
-      primaryCta={{ label: 'Back to Plans', href: routes.settings.billingSubscription }}
+      primaryCta={{ label: 'Back to Billing', href: routes.settings.billingUsage }}
       secondaryCta={{ label: 'Go to Dashboard', href: routes.dashboard }}
+      pending={gate === 'loading'}
     />
   );
 }

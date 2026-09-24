@@ -33,7 +33,7 @@ export function TagDeleteConfirmDialog({
       title="Delete Tag"
       description={
         <>
-          Delete the tag <span className="text-ods-text-primary font-medium">{tagName}</span>? This removes it from
+          Delete the tag <span className="font-medium text-ods-text-primary">{tagName}</span>? This removes it from
           every {entityLabel} and can't be undone.
         </>
       }

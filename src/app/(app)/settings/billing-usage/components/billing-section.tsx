@@ -7,7 +7,7 @@ export function TestModeBanner() {
   return (
     <div className="flex items-start gap-[var(--spacing-system-s)] rounded-md bg-[var(--ods-open-yellow-base)] p-[var(--spacing-system-s)] text-ods-text-on-accent">
       <AlertTriangleIcon className="size-6 shrink-0" />
-      <p className="flex-1 text-h3 font-bold">
+      <p className="flex-1 font-bold text-h3">
         Test mode — invoices and usage shown here are samples. No real charges are being made.
       </p>
     </div>
@@ -16,9 +16,9 @@ export function TestModeBanner() {
 
 export function SectionBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 h-full">
-      <p className="text-h5 text-ods-text-secondary uppercase tracking-[-0.02em]">{title}</p>
-      <div className="flex flex-col gap-3 bg-ods-card border border-ods-border rounded-md p-4 flex-1">{children}</div>
+    <div className="flex h-full flex-col gap-1">
+      <p className="uppercase tracking-[-0.02em] text-ods-text-secondary text-h5">{title}</p>
+      <div className="flex flex-1 flex-col gap-3 rounded-md border border-ods-border bg-ods-card p-4">{children}</div>
     </div>
   );
 }
@@ -36,10 +36,10 @@ export function BillingRow({
 }) {
   const valueClass = warning ? 'text-ods-warning' : muted ? 'text-ods-text-secondary' : 'text-ods-text-primary';
   return (
-    <div className="flex gap-2 items-center w-full">
-      <span className="text-h4 text-ods-text-primary whitespace-nowrap">{label}</span>
-      <div className="flex-1 h-px bg-ods-border min-w-4" />
-      <span className={cn('text-h4 whitespace-nowrap inline-flex items-center gap-1', valueClass)}>{value}</span>
+    <div className="flex w-full items-center gap-2">
+      <span className="whitespace-nowrap text-ods-text-primary text-h4">{label}</span>
+      <div className="h-px min-w-4 flex-1 bg-ods-border" />
+      <span className={cn('inline-flex items-center gap-1 whitespace-nowrap text-h4', valueClass)}>{value}</span>
     </div>
   );
 }

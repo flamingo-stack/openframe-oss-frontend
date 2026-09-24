@@ -4,6 +4,8 @@ import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
+import { ValueText } from '@/app/components/shared/value-text';
+import { displayValue } from '@/lib/empty-value';
 import { scriptShellLabel } from '../../shared/utils/shell-types';
 
 interface ScriptSummaryCardProps {
@@ -41,7 +43,7 @@ export type ScriptSummaryStat = keyof typeof STAT_LABELS;
 /** Shared cell wrapper of the metadata strip — used by the loaded card AND the skeleton so they never drift. */
 function MetaCell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-[1_0_0] min-w-[140px] flex-col justify-center gap-[var(--spacing-system-xxs)]">
+    <div className="flex min-w-[140px] flex-[1_0_0] flex-col justify-center gap-[var(--spacing-system-xxs)]">
       {children}
     </div>
   );
@@ -57,7 +59,7 @@ function MetaSpacer({ count }: { count: number }) {
 function MetaStat({ value, label }: { value: string; label: string }) {
   return (
     <MetaCell>
-      <TruncateText variant="h4">{value}</TruncateText>
+      <ValueText value={value} />
       <TruncateText variant="h6" tone="secondary">
         {label}
       </TruncateText>
@@ -84,17 +86,17 @@ export function ScriptSummaryCard({
   showTimeout = true,
   author,
 }: ScriptSummaryCardProps) {
-  const platformsText = platforms.map(getOSLabel).join(', ') || '—';
+  const platformsText = platforms.map(getOSLabel).join(', ');
 
   const stats = [
     { label: STAT_LABELS.shell, value: shellLabel(shellId) },
-    { label: STAT_LABELS.platforms, value: platformsText },
-    ...(showTimeout ? [{ label: STAT_LABELS.timeout, value: String(timeoutSeconds ?? '—') }] : []),
-    ...(author !== undefined ? [{ label: STAT_LABELS.author, value: author || '—' }] : []),
+    { label: STAT_LABELS.platforms, value: displayValue(platformsText) },
+    ...(showTimeout ? [{ label: STAT_LABELS.timeout, value: displayValue(timeoutSeconds) }] : []),
+    ...(author !== undefined ? [{ label: STAT_LABELS.author, value: displayValue(author) }] : []),
   ];
 
   return (
-    <div className="bg-ods-card border border-ods-border rounded-[8px] overflow-hidden">
+    <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
         <TruncateText variant="h4">{name}</TruncateText>
         {description && (
@@ -146,7 +148,7 @@ export function ScriptSummaryCardSkeleton({
   stats?: readonly ScriptSummaryStat[];
 }) {
   return (
-    <div className="bg-ods-card border border-ods-border rounded-[8px] overflow-hidden">
+    <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
         <Skeleton className="h-6 w-56" />
       </div>

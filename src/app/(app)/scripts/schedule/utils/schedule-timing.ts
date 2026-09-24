@@ -1,4 +1,5 @@
-import { ScheduleOfflineBehavior, ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { ScheduleOfflineBehavior, ScheduleTimeReference, ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate, formatTime } from '@/lib/format-date';
 
 /**
@@ -39,6 +40,46 @@ export function triggerToLabel(trigger: ScriptScheduleTrigger | string | null | 
 /** True when the schedule is event-driven and has no date/time/repeat. */
 export function isEventTrigger(trigger: ScriptScheduleTrigger | string | null | undefined): boolean {
   return trigger === ScriptScheduleTrigger.DEVICE_ONLINE;
+}
+
+/**
+ * Which clock the picked date + time mean — `timeReference`, the second half of
+ * what `startAt` says.
+ *
+ * - `SERVER` (the default, and what every schedule authored before the field
+ *   existed carries): `startAt` is an absolute instant. One moment, worldwide.
+ * - `DEVICE_LOCAL`: `startAt` carries the picked WALL CLOCK with no zone applied
+ *   — local 09:00 is stored as `…T09:00:00Z` — and the runner re-bases it into
+ *   each device's own timezone. One reading, many moments; a fleet across three
+ *   zones runs at 9 AM three times.
+ *
+ * The distinction reaches almost every function below, because it decides
+ * whether a stored instant is converted through the viewer's offset or read
+ * digit for digit: {@link toScheduleInstant}, {@link fromScheduleInstant},
+ * {@link getTimeSlotOptions} (the 30-minute grid is UTC's, and only the SERVER
+ * reading has to be shifted onto it) and {@link formatScheduleStartAt}.
+ *
+ * A predicate rather than `=== ENUM.X` at the call sites, for the same reason
+ * {@link isEventTrigger} is one: Relay types every schema enum with a
+ * `%future added value` member, so asking "is it the non-default arm" is what
+ * lets an unknown value fall back to SERVER — which is what the write side
+ * documents null as meaning.
+ */
+export function isDeviceLocalTime(timeReference: ScheduleTimeReference | string | null | undefined): boolean {
+  return timeReference === ScheduleTimeReference.DEVICE_LOCAL;
+}
+
+/**
+ * A stored `timeReference` narrowed to the two arms this client knows, anything
+ * else — including null — settling on SERVER. The counterpart of
+ * {@link resolveOfflineBehavior}, and needed for the same two reasons: the write
+ * side declares the field nullable with a documented default, and Relay's enum
+ * types carry a member the input cannot accept.
+ */
+export function resolveTimeReference(
+  timeReference: ScheduleTimeReference | string | null | undefined,
+): ScheduleTimeReference {
+  return isDeviceLocalTime(timeReference) ? ScheduleTimeReference.DEVICE_LOCAL : ScheduleTimeReference.SERVER;
 }
 
 /**
@@ -297,12 +338,34 @@ const SLOT_MINUTES = 30;
  * The picked date doesn't enter into it. Every DST transition moves the offset
  * by a whole hour (Lord Howe's 30 minutes is the outlier), so the remainder
  * mod 30 holds all year and the grid never has to be rebuilt per date.
+ *
+ * All of which is the SERVER reading's problem alone. A DEVICE_LOCAL start is
+ * stored as its wall clock verbatim (see {@link toScheduleInstant}), so the
+ * boundary applies to the picked digits themselves and the grid is the plain
+ * `xx:00` / `xx:30` — in Kathmandu too, where the two grids genuinely differ.
  */
-function slotBaseMinutes(): number {
+function slotBaseMinutes(timeReference: ScheduleTimeReference | string | null | undefined): number {
+  if (isDeviceLocalTime(timeReference)) return 0;
   // getTimezoneOffset() is (UTC − local) in minutes, so UTC lands on a boundary
   // exactly when (localMinutesOfDay + offset) % 30 === 0.
   const offset = new Date().getTimezoneOffset();
   return ((-offset % SLOT_MINUTES) + SLOT_MINUTES) % SLOT_MINUTES;
+}
+
+/**
+ * Whether an `HH:mm` the form already holds is a slot the given reading offers.
+ *
+ * Only ever false where the two grids differ — the 45-minute zones — which is
+ * exactly where switching the Timezone control leaves a picked time the new
+ * dropdown cannot show. Asked about the GRID and not about the option list, so
+ * a stored start that has simply gone by (which the list withholds, and which
+ * the form is allowed to keep) is not mistaken for one the grid rejects.
+ */
+export function isSlotOnGrid(slot: string, timeReference: ScheduleTimeReference | string | null | undefined): boolean {
+  if (!slot) return true;
+  const [hours, minutes] = slot.split(':').map(Number);
+  const offGrid = (hours * 60 + minutes - slotBaseMinutes(timeReference)) % SLOT_MINUTES;
+  return ((offGrid % SLOT_MINUTES) + SLOT_MINUTES) % SLOT_MINUTES === 0;
 }
 
 /** Minutes since local midnight → the `HH:mm` the form stores. */
@@ -339,10 +402,22 @@ function slotLabel(minutesOfDay: number): string {
  * tomorrow; picking today afterwards is what clears a time that has gone by).
  * A PAST day keeps them too: it can only be a stored start, and the value that
  * schedule already holds has to stay readable.
+ *
+ * **None of that narrowing applies to DEVICE_LOCAL**, which keeps all 48 slots
+ * always. The reading is not the viewer's clock, so "already gone by" is not the
+ * viewer's to judge: the fleet's own clocks span 26 hours (UTC−12 … UTC+14), so
+ * 8:00 AM at the author's noon is still hours ahead for every device west of
+ * them. Withholding it would hide a perfectly good schedule behind the accident
+ * of where the admin sits. See {@link earliestDeviceLocalDay} for the one bound
+ * that IS meaningful, and note the backend agrees — it validates no start
+ * against the past, for either reading.
  */
-export function getTimeSlotOptions(forDate?: Date | null): { value: string; label: string }[] {
-  const base = slotBaseMinutes();
-  const cutoff = forDate && isToday(forDate) ? nowMinutesOfDay() : -1;
+export function getTimeSlotOptions(
+  forDate?: Date | null,
+  timeReference?: ScheduleTimeReference | string | null,
+): { value: string; label: string }[] {
+  const base = slotBaseMinutes(timeReference);
+  const cutoff = !isDeviceLocalTime(timeReference) && forDate && isToday(forDate) ? nowMinutesOfDay() : -1;
   return Array.from({ length: SLOTS_PER_DAY }, (_, slot) => {
     const minutesOfDay = base + slot * SLOT_MINUTES;
     return { value: slotValue(minutesOfDay), label: slotLabel(minutesOfDay), minutesOfDay };
@@ -393,16 +468,78 @@ export function startOfToday(): Date {
 }
 
 /**
+ * The earliest day a DEVICE_LOCAL schedule may start: today **as read on the
+ * westernmost clock on Earth** (UTC−12), returned as a local `Date` the calendar
+ * can take as its `fromDate`.
+ *
+ * The viewer's own midnight is the wrong bound here. A wall clock is not an
+ * instant, so a day is "gone" only once it has gone everywhere — and the fleet's
+ * clocks span 26 hours, so for a viewer in Kyiv or Auckland the calendar day
+ * that already ended for THEM is still running for a device in Baker Island.
+ * Bounding by the viewer would refuse a date that is genuinely in the future for
+ * part of the fleet; bounding by UTC−12 refuses only what no device anywhere can
+ * still reach.
+ *
+ * In practice this is today, or yesterday for viewers far enough east — which is
+ * the whole of the correction, and it is deliberately the only one: within a day
+ * that is still live somewhere, WHICH devices are still ahead of the picked time
+ * is the runner's business (it fires each device at its own local reading and
+ * marks the ones that have gone past their catch-up window MISSED), not a rule
+ * the form can usefully pre-empt.
+ */
+export function earliestDeviceLocalDay(): Date {
+  const westernmostNow = new Date(Date.now() - 12 * 60 * 60 * 1000);
+  return new Date(westernmostNow.getUTCFullYear(), westernmostNow.getUTCMonth(), westernmostNow.getUTCDate());
+}
+
+/**
+ * The earliest day the picker may offer, for either reading — the calendar's
+ * `fromDate`, and the day the "start in the past" rules measure against.
+ */
+export function earliestScheduleDay(timeReference?: ScheduleTimeReference | string | null): Date {
+  return isDeviceLocalTime(timeReference) ? earliestDeviceLocalDay() : startOfToday();
+}
+
+/**
  * Whether a picked day + slot has already gone by. Compared as instants, so a
  * slot that is still minutes away passes.
+ *
+ * Always false for DEVICE_LOCAL: the pair is a wall clock every device reads on
+ * its own timezone, so there is no single instant to have gone by — see
+ * {@link getTimeSlotOptions}.
  */
-export function isScheduleStartInPast(date: Date | null | undefined, slot: string): boolean {
-  if (!date || !slot) return false;
+export function isScheduleStartInPast(
+  date: Date | null | undefined,
+  slot: string,
+  timeReference?: ScheduleTimeReference | string | null,
+): boolean {
+  if (!date || !slot || isDeviceLocalTime(timeReference)) return false;
   return applyTimeSlot(date, slot).getTime() < Date.now();
 }
 
 /** What both the field and the schema say about a start that has gone by. */
 export const PAST_START_MESSAGE = 'Start time must be in the future';
+
+/**
+ * How a DEVICE_LOCAL time is named wherever it is shown OUTSIDE the form, which
+ * is the only place its reading is otherwise invisible: the digits are each
+ * device's own wall clock, and a bare "6:00 PM" in a table reads as the viewer's.
+ */
+export const DEVICE_LOCAL_TIME_NOTE = 'Device local';
+
+/**
+ * What a picked TODAY says once its last 30-minute slot has gone by.
+ *
+ * The dead end this names: `getTimeSlotOptions` correctly withholds every slot,
+ * so the Time dropdown has nothing to offer — and an empty popup states no
+ * reason and offers no way on. It is the DATE that has to change, which is why
+ * the message says so and why the field showing it is the date's.
+ *
+ * Not a schema rule: a schedule with no time already fails the save on
+ * `scheduledTime` being required. This is the earlier, more useful half of the
+ * same fact, said while the user can still act on it.
+ */
+export const NO_SLOTS_TODAY_MESSAGE = 'No start times left today — pick another day';
 
 /**
  * The "no start in the past" rule as the FORM applies it — stated once, and read
@@ -414,14 +551,24 @@ export const PAST_START_MESSAGE = 'Start time must be in the future';
  * and without this, renaming one would demand re-picking its date. So the stored
  * instant stays legal for exactly as long as the form still shows it; moving
  * either half makes the choice a new one, held to the same rule as any other.
+ *
+ * The rule does not exist at all for DEVICE_LOCAL — `isScheduleStartInPast`
+ * answers false there — which is why the day bound
+ * ({@link earliestDeviceLocalDay}) is the only thing left holding that reading
+ * to a future the fleet can still reach.
  */
 export function isStartInPastAndChanged(
   date: Date | null | undefined,
   slot: string,
   storedIso: string | null | undefined,
+  timeReference?: ScheduleTimeReference | string | null,
 ): boolean {
-  if (!isScheduleStartInPast(date, slot) || !date) return false;
-  const stored = storedIso ? fromScheduleInstant(storedIso).getTime() : null;
+  if (!isScheduleStartInPast(date, slot, timeReference) || !date) return false;
+  // Read under the schedule's own reading, or the stored start of a DEVICE_LOCAL
+  // schedule would come back shifted by the viewer's offset and never match the
+  // pair on screen — the exemption would lapse and an untouched schedule would
+  // become unsaveable.
+  const stored = storedIso ? fromScheduleInstant(storedIso, timeReference).getTime() : null;
   return applyTimeSlot(date, slot).getTime() !== stored;
 }
 
@@ -432,9 +579,12 @@ export function isStartInPastAndChanged(
  * the same grid this builds from; the flooring is for values authored outside
  * this UI, and it keeps them on a slot the dropdown can actually show.
  */
-export function dateToTimeSlot(date: Date | null | undefined): string {
+export function dateToTimeSlot(
+  date: Date | null | undefined,
+  timeReference?: ScheduleTimeReference | string | null,
+): string {
   if (!date) return '';
-  const base = slotBaseMinutes();
+  const base = slotBaseMinutes(timeReference);
   const minutesOfDay = date.getHours() * 60 + date.getMinutes();
   const slot = Math.min(SLOTS_PER_DAY - 1, Math.max(0, Math.floor((minutesOfDay - base) / SLOT_MINUTES)));
   return slotValue(base + slot * SLOT_MINUTES);
@@ -467,9 +617,20 @@ export function applyTimeSlot(date: Date | null | undefined, slot: string): Date
  * slots are generated from that grid backwards through the local offset (see
  * {@link getTimeSlotOptions}), so a picked slot is on the boundary by
  * construction, in UTC, in any timezone.
+ *
+ * DEVICE_LOCAL asks for the opposite, and asks for it deliberately: there the
+ * user is not picking a moment at all, they are picking a reading of a clock
+ * each device owns, so the wall-clock digits ARE the payload and the `Z` is
+ * carrier, not meaning. The bug this looks like — stamping local digits as UTC —
+ * is what the field was added to express. Built from the local components rather
+ * than by shifting the instant, so a DST boundary between now and the picked day
+ * cannot move a digit.
  */
-export function toScheduleInstant(date: Date): string {
-  return date.toISOString().replace(/\.\d+Z$/, 'Z');
+export function toScheduleInstant(date: Date, timeReference?: ScheduleTimeReference | string | null): string {
+  if (!isDeviceLocalTime(timeReference)) return date.toISOString().replace(/\.\d+Z$/, 'Z');
+  const pad = (value: number, length = 2) => String(value).padStart(length, '0');
+  const wallClock = `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${wallClock}T${pad(date.getHours())}:${pad(date.getMinutes())}:00Z`;
 }
 
 /**
@@ -477,11 +638,23 @@ export function toScheduleInstant(date: Date): string {
  * that moment, which the picker and every formatter below then read through the
  * viewer's own clock.
  *
- * Trivial by design — it stays a named seam so the two directions of the
- * conversion remain findable together.
+ * A DEVICE_LOCAL start carries no moment to convert — its digits are a wall
+ * clock — so they are lifted back out of UTC and rebuilt as LOCAL components.
+ * The `Date` that comes back is therefore not the instant the string names; it
+ * is the reading, in the only form the pickers and formatters here can hold one.
+ * Passing the reference through is what keeps "9 AM on every device" from
+ * displaying as noon to the viewer who typed it.
  */
-export function fromScheduleInstant(iso: string): Date {
-  return new Date(iso);
+export function fromScheduleInstant(iso: string, timeReference?: ScheduleTimeReference | string | null): Date {
+  const instant = new Date(iso);
+  if (!isDeviceLocalTime(timeReference)) return instant;
+  return new Date(
+    instant.getUTCFullYear(),
+    instant.getUTCMonth(),
+    instant.getUTCDate(),
+    instant.getUTCHours(),
+    instant.getUTCMinutes(),
+  );
 }
 
 /**
@@ -495,9 +668,17 @@ export function fromScheduleInstant(iso: string): Date {
  * inline `toLocale*` options inherited from the pre-migration app, which is how
  * one column ended up spelling the same instant differently from the execution
  * row under it.
+ *
+ * A DEVICE_LOCAL start is the exception, and the one span here that is NOT the
+ * viewer's clock: it stores a wall clock, so it is shown as that reading, the
+ * same on every screen. Nothing in the row says so — the schedule's own form
+ * names the reading, and the columns beside it have no room to.
  */
-export function formatScheduleStartAt(iso: string | null | undefined): { date: string; time: string } {
-  if (!iso) return { date: '—', time: '—' };
-  const d = new Date(iso);
+export function formatScheduleStartAt(
+  iso: string | null | undefined,
+  timeReference?: ScheduleTimeReference | string | null,
+): { date: string; time: string } {
+  if (!iso) return { date: EMPTY_VALUE, time: EMPTY_VALUE };
+  const d = fromScheduleInstant(iso, timeReference);
   return { date: formatDate(d), time: formatTime(d) };
 }

@@ -31,7 +31,7 @@ function ScheduleScriptsTabContent({ scheduleId }: { scheduleId: string }) {
 
   if (schedule.scripts.length === 0) {
     return (
-      <div className="pt-[var(--spacing-system-l)] text-h6 text-ods-text-secondary">
+      <div className="pt-[var(--spacing-system-l)] text-ods-text-secondary text-h6">
         No scripts in this schedule yet.
       </div>
     );
@@ -82,10 +82,11 @@ export function ScheduleScriptsTabSkeleton() {
  *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
-export const ScheduleScriptsTab = memo(function ScheduleScriptsTab({ scheduleId }: { scheduleId: string }) {
+export const ScheduleScriptsTab = memo(function ScheduleScriptsTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
     <Suspense fallback={<ScheduleScriptsTabSkeleton />}>
       <ScheduleScriptsTabContent scheduleId={scheduleId} />
     </Suspense>
   );
 });
+ScheduleScriptsTab.displayName = 'ScheduleScriptsTab';

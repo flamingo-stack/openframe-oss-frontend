@@ -206,7 +206,7 @@ export function ScheduleCriteriaFieldsSkeleton() {
       <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-4">
         {['Customer', 'OS'].map(label => (
           <div key={label} className="flex w-full flex-col">
-            <span className="mb-1 text-h4 text-ods-text-primary">{label}</span>
+            <span className="mb-1 text-ods-text-primary text-h4">{label}</span>
             <Skeleton className="h-11 w-full rounded-[6px] md:h-12" />
           </div>
         ))}

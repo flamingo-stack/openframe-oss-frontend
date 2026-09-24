@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import {
   Autocomplete,
@@ -12,16 +13,25 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Controller, type UseFormReturn } from 'react-hook-form';
+import { Controller, type UseFormReturn, useWatch } from 'react-hook-form';
 import { AssignmentsField } from '@/components/assignments';
+import { getFullImageUrl } from '@/lib/image-url';
 import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
+import type { TicketPrefill } from '@/lib/routes';
 import type { useTempAttachments } from '../../hooks/use-temp-attachments';
-import { useDeviceOptions, useOrganizationOptions, useSelfFirstAssigneeOptions } from '../../hooks/use-ticket-options';
+import {
+  type AutocompleteOption,
+  type AvatarOption,
+  useDeviceOptions,
+  useOrganizationOptions,
+  useSelfFirstAssigneeOptions,
+} from '../../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../../statuses/hooks/use-ticket-statuses-query';
 import type { CreateTicketFormData } from '../../types/create-ticket.types';
 import type { Ticket } from '../../types/ticket.types';
 import { resolveCurrentStatus } from '../../utils/resolve-current-status';
 import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../../utils/status-lock';
+import { getTicketDeviceName } from '../../utils/ticket-device-name';
 import { TICKET_STATUS_KIND } from '../../utils/ticket-statistics';
 import { avatarStartAdornment, renderAvatarOption } from '../avatar-autocomplete';
 import { renderStatusOption, type StatusOption, statusStartAdornment } from '../status-autocomplete';
@@ -31,12 +41,27 @@ import { TicketTagsManager } from './ticket-tags-manager';
 const renderOrganizationOption = renderAvatarOption('square');
 const renderAssigneeOption = renderAvatarOption('round');
 
+/**
+ * Pins one option into a fetched list. An Autocomplete renders the raw id for a
+ * value its `options` lack, and every list here is a single page — the first 50
+ * customers for an empty search, the customer's first 50 devices, the first 100
+ * users — so the ticket's own customer/device/assignee, and whatever the user
+ * just picked through a search that has since reset, are only in the list if
+ * this puts them there.
+ */
+function withOption<T extends AutocompleteOption>(options: T[], extra: T | null): T[] {
+  if (!extra || options.some(o => o.value === extra.value)) return options;
+  return [extra, ...options];
+}
+
 interface TicketFormFieldsProps {
   form: UseFormReturn<CreateTicketFormData>;
   tempAttachments: ReturnType<typeof useTempAttachments>;
   isFaeForm?: boolean;
   isEditMode?: boolean;
   ticket?: Ticket;
+  /** Create-mode starting values — their customer/device get pinned into the pickers like the ticket's own. */
+  prefill?: TicketPrefill;
 }
 
 export function TicketFormFields({
@@ -45,30 +70,71 @@ export function TicketFormFields({
   isFaeForm = false,
   isEditMode = false,
   ticket,
+  prefill,
 }: TicketFormFieldsProps) {
-  const { control, watch, resetField, setValue } = form;
+  const { control, setValue } = form;
 
   const [orgSearch, setOrgSearch] = useState('');
   const [deviceSearch, setDeviceSearch] = useState('');
   const debouncedOrgSearch = useDebounce(orgSearch, 300);
   const debouncedDeviceSearch = useDebounce(deviceSearch, 300);
 
-  const selectedOrgId = watch('organizationId');
-  const selectedDeviceId = watch('deviceId');
+  // `useWatch`, not `form.watch`: a render-level `watch` re-renders the
+  // `useForm` owner (the whole page) on every change of the field.
+  const selectedOrgId = useWatch({ control, name: 'organizationId' });
+  const selectedDeviceId = useWatch({ control, name: 'deviceId' });
   const lockOrgAndDevice = isEditMode && !!selectedDeviceId;
   const organizationOptions = useOrganizationOptions(debouncedOrgSearch);
   const deviceOptions = useDeviceOptions(selectedOrgId ?? undefined, debouncedDeviceSearch);
   const assigneeOptions = useSelfFirstAssigneeOptions();
-  const assigneeOptionsList = assigneeOptions.options;
 
-  // The ticket's device may not be in the fetched page (large fleet / search), which would
-  // leave the Autocomplete rendering the raw id. Seed it from the ticket's known hostname.
-  const deviceOptionsList = useMemo(() => {
-    const options = deviceOptions.options;
-    const currentId = ticket?.deviceId;
-    if (!currentId || options.some(o => o.value === currentId)) return options;
-    return [{ label: ticket?.deviceHostname || currentId, value: currentId }, ...options];
-  }, [deviceOptions.options, ticket?.deviceId, ticket?.deviceHostname]);
+  // See `withOption`: the ticket's own selections, and the ones picked through a
+  // search, pinned into the page each list fetched.
+  const [pickedOrg, setPickedOrg] = useState<AvatarOption | null>(null);
+  const [pickedDevice, setPickedDevice] = useState<AutocompleteOption | null>(null);
+  const ticketOrg = useMemo<AvatarOption | null>(() => {
+    if (ticket?.organizationId) {
+      return {
+        value: ticket.organizationId,
+        label: ticket.organizationName || ticket.organizationId,
+        imageUrl: getFullImageUrl(ticket.organizationImage?.imageUrl, ticket.organizationImage?.hash),
+      };
+    }
+    if (prefill?.organizationId) {
+      return { value: prefill.organizationId, label: prefill.organizationName || prefill.organizationId };
+    }
+    return null;
+  }, [ticket, prefill]);
+  const ticketDevice = useMemo<AutocompleteOption | null>(() => {
+    if (ticket?.deviceId) return { value: ticket.deviceId, label: getTicketDeviceName(ticket) || ticket.deviceId };
+    if (prefill?.deviceId) return { value: prefill.deviceId, label: prefill.deviceName || prefill.deviceId };
+    return null;
+  }, [ticket, prefill]);
+  const ticketAssignee = useMemo<AvatarOption | null>(() => {
+    if (ticket?.assignedTo) {
+      return {
+        value: ticket.assignedTo,
+        label: ticket.assignedName || ticket.assignedTo,
+        imageUrl: getFullImageUrl(ticket.assigneeImage?.imageUrl, ticket.assigneeImage?.hash),
+      };
+    }
+    if (prefill?.assigneeId) {
+      return { value: prefill.assigneeId, label: prefill.assigneeName || prefill.assigneeId };
+    }
+    return null;
+  }, [ticket, prefill]);
+  const organizationOptionsList = useMemo(
+    () => withOption(withOption(organizationOptions.options, pickedOrg), ticketOrg),
+    [organizationOptions.options, pickedOrg, ticketOrg],
+  );
+  const deviceOptionsList = useMemo(
+    () => withOption(withOption(deviceOptions.options, pickedDevice), ticketDevice),
+    [deviceOptions.options, pickedDevice, ticketDevice],
+  );
+  const assigneeOptionsList = useMemo(
+    () => withOption(assigneeOptions.options, ticketAssignee),
+    [assigneeOptions.options, ticketAssignee],
+  );
 
   const statusesQuery = useTicketStatusesQuery({ enabled: true });
   const statusOptions = useMemo<StatusOption[]>(() => {
@@ -96,7 +162,7 @@ export function TicketFormFields({
       pendingApproval: ticket?.pendingApproval,
     });
 
-  const selectedStatusId = watch('statusId');
+  const selectedStatusId = useWatch({ control, name: 'statusId' });
   // New ticket: pre-select the first CUSTOM status once options load (Tech Required is
   // selectable but must not become the default).
   const defaultStatusId = statusesQuery.data?.customStatuses[0]?.id;
@@ -144,7 +210,7 @@ export function TicketFormFields({
         control={control}
         render={({ field, fieldState }) => (
           <div>
-            <Label className="text-h4 text-ods-text-primary">Title</Label>
+            <Label className="text-ods-text-primary text-h4">Title</Label>
             <Input
               type="text"
               value={field.value}
@@ -158,20 +224,24 @@ export function TicketFormFields({
       />
 
       {/* Organization, Device, Assigned, Status — 4-column grid (2 on mobile) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
         <Controller
           name="organizationId"
           control={control}
           render={({ field, fieldState }) => {
-            const selectedOrg = organizationOptions.options.find(o => o.value === field.value);
+            const selectedOrg = organizationOptionsList.find(o => o.value === field.value);
             return (
               <Autocomplete
                 label="Customer"
-                options={organizationOptions.options}
+                options={organizationOptionsList}
                 value={field.value ?? null}
                 onChange={val => {
+                  setPickedOrg(organizationOptionsList.find(o => o.value === val) ?? null);
                   field.onChange(val);
-                  resetField('deviceId');
+                  // Clear, not `resetField`: once the form is seeded from a
+                  // ticket, the field's default IS that ticket's device.
+                  setValue('deviceId', null);
+                  setPickedDevice(null);
                   setDeviceSearch('');
                 }}
                 onInputChange={setOrgSearch}
@@ -196,7 +266,10 @@ export function TicketFormFields({
               label="Device"
               options={deviceOptionsList}
               value={field.value ?? null}
-              onChange={val => field.onChange(val)}
+              onChange={val => {
+                setPickedDevice(deviceOptionsList.find(o => o.value === val) ?? null);
+                field.onChange(val);
+              }}
               onInputChange={setDeviceSearch}
               placeholder={selectedOrgId ? 'Select Device' : 'Select Customer first'}
               loading={deviceOptions.isLoading}
@@ -305,7 +378,8 @@ export function TicketFormFields({
           <AssignmentsField
             value={field.value ?? {}}
             onChange={field.onChange}
-            enabledTypes={['ORGANIZATION', 'DEVICE', 'KNOWLEDGE_ARTICLE']}
+            // INSIGHT is not pickable: the row shows the incident the ticket is filed from (seeded from the prefill).
+            enabledTypes={['ORGANIZATION', 'DEVICE', 'KNOWLEDGE_ARTICLE', 'INSIGHT']}
           />
         )}
       />

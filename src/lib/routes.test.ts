@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MINGO_CANONICAL_DIALOG_PARAM, MINGO_DIALOG_PARAM, mingoDialogLink, routes, withMingoDialog } from './routes';
+import { MINGO_DIALOG_PARAM, mingoDialogLink, routes, withMingoDialog } from './routes';
 
 /**
  * `withMingoDialog` writes the URL that `history.replaceState` puts in the address
@@ -42,21 +42,32 @@ describe('withMingoDialog', () => {
   });
 });
 
-describe('the canonical /mingo deep link', () => {
-  it('shares the destination, not the redirect', () => {
-    // The whole point of `mingoDialogLink`: a pasted link must adopt on arrival
-    // rather than render `/mingo` and bounce, which costs a paint of the legacy page.
+describe('the canonical Mingo dialog deep link', () => {
+  it('shares the drawer resting URL', () => {
+    // The chat has no route of its own, so the shareable shape is the drawer's own
+    // param on a fixed landing page — a pasted link adopts on arrival with nothing
+    // rendered in between.
     expect(mingoDialogLink('d-1')).toBe('/dashboard?mingoDialog=d-1');
     expect(mingoDialogLink('a b&c=1')).toBe('/dashboard?mingoDialog=a+b%26c%3D1');
+    expect(MINGO_DIALOG_PARAM).toBe('mingoDialog');
+  });
+});
+
+describe('settings.tenant* (CU-86akj8ajt)', () => {
+  it('builds the list and the create page as fixed paths', () => {
+    expect(routes.settings.tenantManagement).toBe('/settings/tenant-management');
+    expect(routes.settings.tenantNew).toBe('/settings/tenant-management/new');
   });
 
-  it('still resolves links already pasted elsewhere', () => {
-    // Nothing produces this shape any more, but copies of it exist in Slack threads
-    // and tickets, so `MingoPage` keeps redirecting it. Asserted as a literal because
-    // that is what those old copies actually contain.
-    expect(routes.mingo({ dialogId: 'd-1' })).toBe('/mingo?dialogId=d-1');
-    expect(routes.mingo()).toBe('/mingo');
-    expect(MINGO_CANONICAL_DIALOG_PARAM).toBe('dialogId');
-    expect(MINGO_DIALOG_PARAM).toBe('mingoDialog');
+  it('puts the connection id in `?id=` on the detail, edit and reconnect pages', () => {
+    // Static export forbids dynamic segments, see ROUTES.md.
+    expect(routes.settings.tenantDetails('tc-01')).toBe('/settings/tenant-management/details?id=tc-01');
+    expect(routes.settings.tenantEdit('tc-01')).toBe('/settings/tenant-management/edit?id=tc-01');
+    expect(routes.settings.tenantReconnect('tc-01')).toBe('/settings/tenant-management/reconnect?id=tc-01');
+  });
+
+  it('encodes the id and accepts a numeric one', () => {
+    expect(routes.settings.tenantDetails('a b&c=1')).toBe('/settings/tenant-management/details?id=a+b%26c%3D1');
+    expect(routes.settings.tenantDetails(7)).toBe('/settings/tenant-management/details?id=7');
   });
 });

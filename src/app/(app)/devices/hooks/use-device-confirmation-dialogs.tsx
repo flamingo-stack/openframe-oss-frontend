@@ -59,7 +59,7 @@ export function useDeviceConfirmationDialogs(
         title="Reboot Device"
         description={
           <>
-            Are you sure you want to reboot <span className="text-ods-accent font-medium">{deviceName}</span>? The
+            Are you sure you want to reboot <span className="font-medium text-ods-accent">{deviceName}</span>? The
             device will be temporarily unavailable while it restarts.
           </>
         }
@@ -75,7 +75,7 @@ export function useDeviceConfirmationDialogs(
         title="Delete Device"
         description={
           <>
-            OpenFrame will be uninstalled from <span className="text-ods-accent font-medium">{deviceName}</span> the
+            OpenFrame will be uninstalled from <span className="font-medium text-ods-accent">{deviceName}</span> the
             next time the device comes online. The device will then move to the archive as a read-only record - bringing
             it back requires a new installation.
           </>

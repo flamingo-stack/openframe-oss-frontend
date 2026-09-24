@@ -1,38 +1,50 @@
-import { featureFlags } from '@/lib/feature-flags';
-
 /**
  * Response name the ASK card's intro sentence is fetched under.
  *
- * `AskData.text` is `String` while `TextData`/`ThinkingData`/`GuideData.text`
- * are `String!`, and GraphQL refuses to merge same-named fields with different
- * nullability into one selection set (`FieldsConflict` — the whole query is
- * rejected, not just that fragment). Aliasing gives the ask intro its own
- * response name, which is not merged with the others.
+ * `AskData.text` is `String` while `TextData`/`ThinkingData`/`SystemData.text`
+ * are `String!`, and GraphQL's SameResponseShape rule refuses to merge
+ * same-named fields with different nullability into one selection set — the
+ * WHOLE query is rejected, not just that fragment. An alias gives the ask intro
+ * its own response name, which is never merged with the others.
  *
  * Everything downstream — the core lib's history decoder included — reads
  * `text`, so `normalizeAskMessageData` maps it back at the single parse point.
- * Change one of the two and you must change the other.
+ * Change one of the two and you must change the other; the pair is pinned
+ * together in `dialogs-queries.test.ts`.
  */
 export const ASK_INTRO_ALIAS = 'askIntro';
 
-type RawMessageData = Record<string, unknown>;
+/**
+ * Undo `ASK_INTRO_ALIAS` on one persisted `messageData` row, so an ASK reaches
+ * the core lib in the SAME shape the live NATS chunk carries
+ * (`{ type, text, question, options }`).
+ *
+ * Returns the row BY REFERENCE when there is nothing to rename — the caller
+ * uses that identity to avoid copying a page of history it did not change.
+ */
+function normalizeAskRow(row: unknown): unknown {
+  if (!row || typeof row !== 'object') return row;
+  const fields = row as Record<string, unknown>;
+  if (fields.type !== 'ASK' || !(ASK_INTRO_ALIAS in fields)) return row;
+
+  const { [ASK_INTRO_ALIAS]: intro, ...rest } = fields;
+  // A null intro is DROPPED rather than written back as `text: null`: the live
+  // chunk simply omits it, and the two shapes have to stay identical.
+  return typeof intro === 'string' && intro ? { ...rest, text: intro } : rest;
+}
 
 /**
- * Undo `ASK_INTRO_ALIAS` on a message's `messageData` list, so persisted ASK
- * rows reach the core lib in the SAME shape the live NATS chunk has
- * (`{ type, text, question, options }`). Non-ASK entries pass through by
- * reference — no copy, no reordering.
+ * `normalizeAskRow` over a message's `messageData`, which the chat service sends
+ * as either a single object or a list.
  */
 export function normalizeAskMessageData<T>(messageData: T): T {
-  if (!Array.isArray(messageData)) return messageData;
+  if (!Array.isArray(messageData)) return normalizeAskRow(messageData) as T;
+
   let changed = false;
-  const normalized = messageData.map(item => {
-    if (!item || typeof item !== 'object') return item;
-    const row = item as RawMessageData;
-    if (row.type !== 'ASK' || !(ASK_INTRO_ALIAS in row)) return item;
-    changed = true;
-    const { [ASK_INTRO_ALIAS]: intro, ...rest } = row;
-    return typeof intro === 'string' && intro ? { ...rest, text: intro } : rest;
+  const normalized = messageData.map(row => {
+    const next = normalizeAskRow(row);
+    if (next !== row) changed = true;
+    return next;
   });
   return (changed ? normalized : messageData) as T;
 }
@@ -144,27 +156,13 @@ export const GET_MINGO_DIALOG_QUERY = `
 `;
 
 export function getMingoDialogMessagesQuery() {
-  // The guide answer (GuideData) and its clarification card (AskData) ship as
-  // one backend feature, so they share the flag: a deployment without it has
-  // NEITHER type in its schema, and naming an unknown type fails the whole
-  // query rather than just that fragment.
-  //
-  // The ask intro is fetched under `ASK_INTRO_ALIAS`, not as `text` — see the
-  // alias' doc-comment. `normalizeAskMessageData` undoes it on the way in.
-  //
-  // `payload` carries a persisted Product Guide frame (an approval card, so it
-  // survives a reload) and is decoded by the core lib through the SAME mapper as
-  // the live chunk. No `FieldsConflict` risk — `payload` exists only on
-  // `GuideData`.
-  //
-  // NOTE for the producer side: `GuideData.text` is `String!` (see
-  // `ASK_INTRO_ALIAS` above). A persisted frame row must therefore carry an
-  // EMPTY STRING, never null — a null there does not blank one card, it
-  // nullifies the field and takes the whole `messages` query down with it, so
-  // the entire dialog history renders empty.
-  const guideFragment = featureFlags.guideChunks.enabled()
-    ? `... on GuideData {
-              text
+  // Guide Mode V3 persists an answer's source metadata (product-doc sources,
+  // video refs, card refs) in its own `GUIDE` row, separate from the answer
+  // text, and its clarification cards in `ASK` rows. Fetch both so a reloaded
+  // dialog renders exactly what the live turn did. `GuideData.text` is
+  // deliberately NOT selected: payload-only records persist it as an empty
+  // string, which would replay as an empty text segment.
+  const guideModeFragment = `... on GuideData {
               payload
             }
 
@@ -175,8 +173,7 @@ export function getMingoDialogMessagesQuery() {
                 label
                 description
               }
-            }`
-    : '';
+            }`;
 
   return `
   query GetAllMessages($dialogId: ID!, $cursor: String, $limit: Int, $sortField: String, $sortDirection: SortDirection) {
@@ -222,7 +219,7 @@ export function getMingoDialogMessagesQuery() {
               text
             }
 
-            ${guideFragment}
+            ${guideModeFragment}
 
             ... on ExecutingToolData {
               type

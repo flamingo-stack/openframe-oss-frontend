@@ -20,6 +20,18 @@ function isBoardQueryKey(key: QueryKey): boolean {
   return Array.isArray(key) && key.length >= 4 && key[0] === 'dialogs' && key[1] === 'boardColumn';
 }
 
+/**
+ * Invalidates every filter variant of these lanes and no other lane. By predicate,
+ * not by key: a mutation knows the statusIds but not the filters the board is
+ * rendering under, which make up the rest of the key.
+ */
+export function invalidateBoardColumns(queryClient: QueryClient, statusIds: readonly string[]): void {
+  const touched = new Set(statusIds);
+  queryClient.invalidateQueries({
+    predicate: query => isBoardQueryKey(query.queryKey) && touched.has(query.queryKey[2] as string),
+  });
+}
+
 function findDialogInCache(
   entries: ReadonlyArray<readonly [QueryKey, InfiniteData<TicketsPage> | undefined]>,
   ticketId: string,
@@ -100,8 +112,13 @@ export function applyOptimisticMove(queryClient: QueryClient, input: OptimisticM
   const detailKey = ticketsQueryKeys.detail(input.ticketId);
   const detailData = queryClient.getQueryData<Dialog | null>(detailKey);
 
+  // Only the lanes this move writes to. Each lane polls on its own timer, so
+  // restoring an untouched one would put back tickets it has since let go of.
+  const touchedStatusIds = new Set([input.sourceStatusId, input.targetStatusId]);
   const snapshot: OptimisticMoveSnapshot = {
-    entries: entries.map(([key, data]) => [key, data] as const),
+    entries: entries
+      .filter(([key]) => isBoardQueryKey(key) && touchedStatusIds.has(key[2] as string))
+      .map(([key, data]) => [key, data] as const),
     detail: { key: detailKey, data: detailData },
   };
 

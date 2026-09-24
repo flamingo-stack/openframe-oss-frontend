@@ -63,7 +63,7 @@ export function useTenantDomain() {
           }
 
           // Handle generic domain error from response body
-          const errorData = res.data as any;
+          const errorData = res.data as { code?: string; message?: string } | undefined;
           if (errorData?.code === 'BAD_REQUEST' && errorData?.message) {
             return {
               error: {
@@ -77,10 +77,8 @@ export function useTenantDomain() {
         }
 
         return { success: true };
-      } catch (err) {
-        // Re-throw to allow caller to handle
-        throw err;
       } finally {
+        // Errors propagate to the caller untouched; this only clears the flag.
         setIsUpdating(false);
       }
     },

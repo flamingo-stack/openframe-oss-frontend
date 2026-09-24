@@ -89,8 +89,9 @@ function ScriptExecutionsContent({ scriptId, state }: { scriptId: string; state:
  *
  * `memo` for the reason given in `script-detail-tabs.ts`.
  */
-export const ScriptExecutionsTab = memo(function ScriptExecutionsTab({ scriptId }: ScriptExecutionsTabProps) {
+export const ScriptExecutionsTab = memo(function ScriptExecutionsTabImpl({ scriptId }: ScriptExecutionsTabProps) {
   return (
     <ExecutionsTabShell>{state => <ScriptExecutionsContent scriptId={scriptId} state={state} />}</ExecutionsTabShell>
   );
 });
+ScriptExecutionsTab.displayName = 'ScriptExecutionsTab';

@@ -37,7 +37,7 @@ export function TicketTagsSection({ ticketId, tags }: TicketTagsSectionProps) {
 
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <p className="text-h5 text-ods-text-secondary">Tags</p>
+      <p className="text-ods-text-secondary text-h5">Tags</p>
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-[var(--spacing-system-xxs)]">
           {tags.map(t => (
@@ -47,7 +47,7 @@ export function TicketTagsSection({ ticketId, tags }: TicketTagsSectionProps) {
               variant="outline"
               onClose={() => removeTag(t.id)}
               disabled={setTags.isPending}
-              className="max-w-full min-w-0"
+              className="min-w-0 max-w-full"
               labelClassName="min-w-0"
             />
           ))}

@@ -45,6 +45,11 @@ export const scriptScheduleDetailRelayQuery = graphql`
       # at, and is null for SKIP.
       offlineBehavior
       reconnectWindowSeconds
+      # Which clock startAt is in: SERVER is one absolute instant, DEVICE_LOCAL
+      # is a wall clock re-based into each device's own timezone. Never null on
+      # the read side — a schedule stored before the field existed reads as
+      # SERVER — and it is what tells the display whether to convert.
+      timeReference
       startAt
       repeat
       nextRunAt

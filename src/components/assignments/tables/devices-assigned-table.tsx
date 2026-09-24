@@ -6,6 +6,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { DevicesTableBody } from '@/app/(app)/devices/components/devices-table-columns';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { matchesDeviceName } from '@/app/(app)/devices/utils/device-name';
 
 interface DevicesAssignedTableProps {
   devices: Device[];
@@ -20,9 +21,8 @@ export function DevicesAssignedTable({ devices, isLoading }: DevicesAssignedTabl
     const needle = debouncedSearch.trim().toLowerCase();
     if (!needle) return devices;
     return devices.filter(d => {
-      const name = (d.displayName || d.hostname || '').toLowerCase();
       const org = (d.organization || '').toLowerCase();
-      return name.includes(needle) || org.includes(needle);
+      return matchesDeviceName(d, needle) || org.includes(needle);
     });
   }, [devices, debouncedSearch]);
 
@@ -32,7 +32,7 @@ export function DevicesAssignedTable({ devices, isLoading }: DevicesAssignedTabl
         placeholder="Search for Device"
         value={search}
         onChange={e => setSearch(e.target.value)}
-        startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+        startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
       />
       <DevicesTableBody devices={filtered} isLoading={isLoading} emptyMessage="No devices assigned." skeletonRows={3} />
     </div>

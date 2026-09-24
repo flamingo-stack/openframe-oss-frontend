@@ -4,13 +4,13 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
 import { useMutation } from 'react-relay';
 import type { updateScriptScheduleMutation as UpdateScheduleMutationType } from '@/__generated__/updateScriptScheduleMutation.graphql';
-import { ScheduleDeviceSelectionMode, ScheduleOfflineBehavior, ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { ScheduleDeviceSelectionMode, ScriptScheduleTrigger } from '@/generated/schema-enums';
 import { updateScriptScheduleMutation } from '@/graphql/scripts/update-script-schedule-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import type { ScheduleDevicesSettingsData } from '../types/schedule-detail.types';
 import { toEnvVarInputs } from '../utils/schedule-script-params';
-import { isEventTrigger, resolveOfflineBehavior } from '../utils/schedule-timing';
+import { isEventTrigger, resolveOfflineBehavior, resolveTimeReference } from '../utils/schedule-timing';
 
 interface SaveSpecificModeCallbacks {
   onSaved?: () => void;
@@ -97,6 +97,12 @@ export function useScheduleSelectionMode(schedule: ScheduleDevicesSettingsData |
             offlineBehavior: resolveOfflineBehavior(schedule.offlineBehavior),
             reconnectWindowSeconds: schedule.reconnectWindowSeconds,
             startAt: schedule.startAt,
+            // The other field whose omission would not merely blank a value:
+            // the input reads null as SERVER, so dropping it would re-read a
+            // device-local schedule's wall clock as an absolute instant and
+            // move every run by the viewer's offset — from a page about device
+            // targeting that never mentions time at all.
+            timeReference: resolveTimeReference(schedule.timeReference),
             repeat: schedule.repeat,
           },
         },

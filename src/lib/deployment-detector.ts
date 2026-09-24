@@ -28,16 +28,16 @@ export function detectDeployment(): DeploymentInfo {
   const devPatterns = ['localhost', '127.0.0.1', '0.0.0.0', '.local'];
 
   // Check if hostname matches cloud patterns
-  const isCloud = cloudPatterns.some(pattern => hostname.includes(pattern));
+  const matchesCloud = cloudPatterns.some(pattern => hostname.includes(pattern));
 
   // Check if hostname matches development patterns
-  const isDevelopment = devPatterns.some(pattern => hostname.includes(pattern));
+  const matchesDevelopment = devPatterns.some(pattern => hostname.includes(pattern));
 
   // Determine type
   let type: DeploymentType;
-  if (isCloud) {
+  if (matchesCloud) {
     type = 'cloud';
-  } else if (isDevelopment) {
+  } else if (matchesDevelopment) {
     type = 'development';
   } else {
     // Default to self-hosted for custom domains
@@ -46,9 +46,9 @@ export function detectDeployment(): DeploymentInfo {
 
   return {
     type,
-    isCloud,
+    isCloud: matchesCloud,
     isSelfHosted: type === 'self-hosted',
-    isDevelopment,
+    isDevelopment: matchesDevelopment,
     hostname,
   };
 }

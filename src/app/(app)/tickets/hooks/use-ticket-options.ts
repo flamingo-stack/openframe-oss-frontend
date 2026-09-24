@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { GET_ORGANIZATIONS_MIN_QUERY } from '@/app/(app)/customers/queries/customers-queries';
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import type { Tag } from '@/app/components/shared/tags';
@@ -12,7 +13,7 @@ import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useAuthStore } from '@/stores';
 import { API_ENDPOINTS } from '../constants';
-import { GET_TICKET_TAGS_QUERY, GET_TICKETS_QUERY } from '../queries/ticket-queries';
+import { GET_TICKET_TAGS_QUERY, GET_TICKETS_QUERY, TICKETS_DEFAULT_SORT } from '../queries/ticket-queries';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
@@ -30,17 +31,49 @@ export interface AvatarOption extends AutocompleteOption {
 const EMPTY_AUTOCOMPLETE_OPTIONS: AutocompleteOption[] = [];
 const EMPTY_AVATAR_OPTIONS: AvatarOption[] = [];
 
+// Cache key builders for this hook's queries, so any surface that needs to
+// invalidate these caches imports the exact same shape.
+export const ticketOptionsQueryKeys = {
+  organizations: (search: string) => ['ticket-options', 'organizations', search] as const,
+  assignees: () => ['ticket-options', 'assignees'] as const,
+  tickets: (search: string, organizationId?: string, nonArchivedStatusIds?: string[]) =>
+    ['ticket-options', 'tickets', search, organizationId ?? null, nonArchivedStatusIds ?? null] as const,
+};
+
+/** An image reference as both the GraphQL and REST endpoints below return it. */
+interface OptionImage {
+  imageUrl?: string | null;
+  hash?: string | null;
+}
+
+interface OrganizationOptionNode {
+  name: string;
+  organizationId: string;
+  image?: OptionImage | null;
+}
+
+interface UserOption {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  email: string;
+  status?: string | null;
+  image?: OptionImage | null;
+}
+
 // --- Organizations (reuse existing query via /api/graphql) ---
 
 async function fetchCustomerOptions(search: string): Promise<AvatarOption[]> {
-  const response = await apiClient.post<any>('/api/graphql', {
+  const response = await apiClient.post<{
+    data?: { organizations?: { edges?: { node: OrganizationOptionNode }[] } };
+  }>('/api/graphql', {
     query: GET_ORGANIZATIONS_MIN_QUERY,
     variables: { search, first: 50 },
   });
   if (!response.ok) throw new Error(response.error || 'Failed to fetch customers');
 
   const edges = response.data?.data?.organizations?.edges ?? [];
-  return edges.map(({ node }: any) => ({
+  return edges.map(({ node }) => ({
     label: node.name,
     value: node.organizationId,
     imageUrl: getFullImageUrl(node.image?.imageUrl, node.image?.hash),
@@ -49,7 +82,7 @@ async function fetchCustomerOptions(search: string): Promise<AvatarOption[]> {
 
 export function useOrganizationOptions(search = '', enabled = true) {
   const query = useQuery({
-    queryKey: ['ticket-options', 'organizations', search],
+    queryKey: ticketOptionsQueryKeys.organizations(search),
     queryFn: () => fetchCustomerOptions(search),
     enabled,
   });
@@ -98,7 +131,7 @@ export function useDeviceOptions(organizationId?: string, search = '') {
   const options = useMemo<AutocompleteOption[]>(
     () =>
       (query.data?.devices ?? []).map(device => ({
-        label: device.displayName || device.hostname || device.machineId,
+        label: getDeviceName(device) || device.machineId,
         value: device.machineId,
       })),
     [query.data],
@@ -110,7 +143,7 @@ export function useDeviceOptions(organizationId?: string, search = '') {
 // --- Users / Assignees (REST via /api/users) ---
 
 async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
-  const response = await apiClient.get<any>('/api/users?page=0&size=100');
+  const response = await apiClient.get<{ items?: UserOption[] }>('/api/users?page=0&size=100');
   if (!response.ok) throw new Error(response.error || 'Failed to fetch users');
 
   const items = response.data?.items ?? [];
@@ -118,8 +151,8 @@ async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
   // of assignee pickers/filters; existing assignments still render (marked as
   // deleted) via useUserStatusMap on the display side.
   return items
-    .filter((user: any) => !isDeletedUserStatus(user.status))
-    .map((user: any) => ({
+    .filter(user => !isDeletedUserStatus(user.status))
+    .map(user => ({
       label: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
       value: user.id,
       imageUrl: getFullImageUrl(user.image?.imageUrl, user.image?.hash),
@@ -128,7 +161,7 @@ async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
 
 export function useAssigneeOptions(enabled = true) {
   const query = useQuery({
-    queryKey: ['ticket-options', 'assignees'],
+    queryKey: ticketOptionsQueryKeys.assignees(),
     queryFn: fetchAssigneeOptions,
     enabled,
   });
@@ -213,6 +246,7 @@ async function fetchTicketSearchOptions(
         search: search || undefined,
         filter: Object.keys(filter).length ? filter : undefined,
         pagination: { limit: 50 },
+        sort: TICKETS_DEFAULT_SORT,
       },
     },
   );
@@ -232,17 +266,17 @@ async function fetchTicketSearchOptions(
     });
 }
 
-export function useTicketSearchOptions(search = '', organizationId?: string) {
-  const statusesQuery = useTicketStatusesQuery({ enabled: true });
+export function useTicketSearchOptions(search = '', organizationId?: string, enabled = true) {
+  const statusesQuery = useTicketStatusesQuery({ enabled });
   const nonArchivedStatusIds = useMemo(
     () => statusesQuery.data?.snapshot.filter(status => status.kind !== 'ARCHIVED').map(status => status.id),
     [statusesQuery.data],
   );
 
   const query = useQuery({
-    queryKey: ['ticket-options', 'tickets', search, organizationId ?? null, nonArchivedStatusIds ?? null],
+    queryKey: ticketOptionsQueryKeys.tickets(search, organizationId, nonArchivedStatusIds),
     queryFn: () => fetchTicketSearchOptions(search, organizationId, nonArchivedStatusIds),
-    enabled: !statusesQuery.isLoading,
+    enabled: enabled && !statusesQuery.isLoading,
   });
 
   return {

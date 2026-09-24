@@ -3,8 +3,7 @@
  * Controls whether the app runs in auth-only mode or full application mode
  */
 
-import { isPaymentUiEnabled } from './billing-visibility';
-import { isAppShell } from './platform';
+import { isAppShell, isMobileShell } from './platform';
 import { routes } from './routes';
 import { runtimeEnv } from './runtime-config';
 
@@ -55,6 +54,25 @@ export function isSharedAuthUi(): boolean {
 }
 
 /**
+ * Whether mobile sign-in is login-only: no Sign Up tab, no organization setup, and an identity with
+ * no account gets the administrator-invitation notice. App Review rejected in-app organization
+ * registration as an external purchase mechanism (3.1.1/3.1.3, 2026-09-11);
+ * `NEXT_PUBLIC_MOBILE_AUTH_UI=legacy` switches back.
+ *
+ * Not a shell check on its own: the pages the auth server opens inside the login sheet are served by
+ * the web deployment and recognise a mobile flow only by their URL (`readMobileAuthReturn`). In-app
+ * screens ask {@link isLoginOnlyMobileShell}.
+ */
+export function isMobileAuthLoginOnly(): boolean {
+  return runtimeEnv.mobileAuthUi() === 'login-only';
+}
+
+/** The Capacitor shell running the login-only auth screens. Phone-only: the desktop shell keeps sign-up. */
+export function isLoginOnlyMobileShell(): boolean {
+  return isMobileShell() && isMobileAuthLoginOnly();
+}
+
+/**
  * Check if the app is running in full application mode
  * @returns True if in full application mode
  */
@@ -81,6 +99,19 @@ export function isAppEnabled(): boolean {
  * Check if a route is allowed in the current app mode
  * @param pathname The route path to check
  * @returns True if the route is allowed in current mode
+ *
+ * APP MODE ONLY. Everything this answers is decided by `NEXT_PUBLIC_APP_MODE`
+ * and the shell — facts that are true before the first paint. It used to also
+ * block the purchase surfaces on `!isPaymentUiEnabled()`, and that was the bug
+ * behind the "Access restricted" screen: `isPaymentUiEnabled()` reads the
+ * server-loaded `billings` flag, which is simply *unanswered* on a cold load, so
+ * the guard read "not yet" as "not allowed" and threw the refusal over billing
+ * routes until the flags query came back.
+ *
+ * Do NOT reintroduce a check here that depends on data still in flight. Pages
+ * whose existence depends on loaded state gate themselves, where a tri-state
+ * (`loading | on | off`) can be told apart — see `billing-usage/page.tsx` and
+ * the `/checkout/*` pages, which 404 on their own.
  */
 export function isRouteAllowedInCurrentMode(pathname: string): boolean {
   const mode = getAppMode();
@@ -107,21 +138,24 @@ export function isRouteAllowedInCurrentMode(pathname: string): boolean {
     return true;
   }
 
-  // Purchase surfaces exist only where the payment UI does — the `billings` flag
-  // AND a build allowed to show payments (App Store review; see
-  // billing-visibility.ts). The pages 404 on their own; this keeps them
-  // unreachable via a deep link or a restored history entry too.
-  if (
-    !isPaymentUiEnabled() &&
-    (pathname.startsWith('/settings/billing-usage/subscription') || pathname.startsWith('/checkout'))
-  ) {
-    return false;
+  // The mobile-app install page is reachable in EVERY mode, signed out, for the
+  // same reason: it is where a printed QR code lands, scanned from a phone with no
+  // session and no idea which tenant this is. Its canonical URL is the APEX
+  // `openframe.ai/mobile`, which the saas gateway routes to this app. Mirrors the
+  // allowlist in proxy.ts.
+  // Segment match: this `return true` sits ABOVE the mode and role gates below, so a
+  // prefix would hand any future `/mobile*` route a blanket exemption from all of them.
+  if (pathname === routes.mobileApp || pathname.startsWith(`${routes.mobileApp}/`)) {
+    return true;
   }
 
-  // The app-download page is a browser errand: it hands out the installers for the
-  // very shells it would be running inside. Same belt-and-braces as above — the page
-  // 404s on its own, this closes the deep-link and restored-history routes to it.
-  if (isAppShell() && pathname.startsWith(routes.settings.downloadApps)) {
+  // Hidden on the PHONE only. That build already is the app the page's mobile card
+  // hands out, and it cannot run a desktop installer either. The desktop shell keeps
+  // the page: the phone app is a different app from the one it is running, and the
+  // QR is most useful on the screen you are NOT holding. Same belt-and-braces as
+  // above — the page 404s on its own, this closes the deep-link and
+  // restored-history routes to it.
+  if (isMobileShell() && pathname.startsWith(routes.settings.downloadApps)) {
     return false;
   }
 
@@ -140,12 +174,6 @@ export function isRouteAllowedInCurrentMode(pathname: string): boolean {
     // the auth pages are the sign-in entry point (email → tenant discovery →
     // provider selection → system-browser OAuth).
     return isAppShell() || !pathname.startsWith('/auth');
-  }
-
-  if (mode === 'oss-tenant') {
-    if (pathname.startsWith('/mingo')) {
-      return false;
-    }
   }
 
   return true;

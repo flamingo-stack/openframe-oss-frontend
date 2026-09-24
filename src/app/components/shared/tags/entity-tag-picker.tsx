@@ -2,10 +2,11 @@
 
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { entityTagPickerQuery as EntityTagPickerQueryType } from '@/__generated__/entityTagPickerQuery.graphql';
 import type { TagEntityType } from '@/generated/schema-enums';
+import { OPTIMISTIC_TAG_ID_PREFIX } from './optimistic-tag-id';
 import { TagDeleteConfirmDialog } from './tag-delete-confirm-dialog';
 import { useCreateTagMutation, useDeleteTagMutation } from './use-tag-mutations';
 
@@ -134,7 +135,12 @@ export function EntityTagPicker({
   // latest value (not a stale snapshot) — otherwise concurrent tag creations
   // would overwrite each other. Assigning during render is safe for a ref.
   const selectedIdsRef = useRef(selectedIds);
-  selectedIdsRef.current = selectedIds;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  });
 
   const options = useMemo(() => {
     // Dedupe by id, merging vocabulary with assigned / created / in-flight tags.
@@ -170,7 +176,7 @@ export function EntityTagPicker({
       // `onChange`, so multiple tags created in a single change don't clobber each
       // other. Each create then swaps its own temp id for the real id against the
       // latest selection (via the ref), leaving concurrent additions intact.
-      const pending = newKeys.map(key => ({ key, tempId: `_optimistic_${crypto.randomUUID()}` }));
+      const pending = newKeys.map(key => ({ key, tempId: `${OPTIMISTIC_TAG_ID_PREFIX}${crypto.randomUUID()}` }));
       setOptimisticTags(prev => [...prev, ...pending]);
       onChange([...existingIds, ...pending.map(p => p.tempId)]);
 

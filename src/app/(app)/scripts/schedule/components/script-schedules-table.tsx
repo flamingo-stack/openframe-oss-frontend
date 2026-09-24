@@ -50,11 +50,12 @@ import {
   DateColumnHeader,
   EmptyState,
   liveColumnMeta,
+  onboardingGuideButton,
   skeletonColumnDefs,
   type TableDateFilter,
-  useOnboardingGuideButton,
   useRetryKey,
 } from '@/app/components/shared';
+import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -74,8 +75,15 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { SCHEDULE_COLUMNS, SCHEDULES_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
+import { facetToMappedOptions } from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
-import { formatScheduleStartAt, isEventTrigger, repeatToLabel } from '../utils/schedule-timing';
+import {
+  DEVICE_LOCAL_TIME_NOTE,
+  formatScheduleStartAt,
+  isDeviceLocalTime,
+  isEventTrigger,
+  repeatToLabel,
+} from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { RestoreScheduleModal } from './restore-schedule-modal';
 
@@ -96,6 +104,13 @@ const SORTABLE_COLUMN_IDS = ['repeat', 'startAt'] as const;
 /** Backend sort field behind the DATE & TIME calendar (`ScriptSchedule.startAt`). */
 const START_AT_SORT_FIELD = 'startAt';
 
+/**
+ * TanStack's column-filter state as `useDataTable` hands it back. Declared
+ * structurally rather than imported: @tanstack/react-table is the core library's
+ * dependency, not this app's, so importing it here would be an undeclared one.
+ */
+type ColumnFilterState = { id: string; value: unknown }[];
+
 interface UiScheduleEntry {
   id: string;
   name: string;
@@ -105,6 +120,8 @@ interface UiScheduleEntry {
   /** `DEVICE_ONLINE` schedules have no startAt/repeat at all — see `isEventTrigger`. */
   trigger: string;
   startAt: string | null;
+  /** Which clock `startAt` is in — the Date & Time cell converts only a SERVER one. */
+  timeReference: string;
   repeat: number | null;
 }
 
@@ -127,7 +144,7 @@ interface SchedulesTableContentProps {
    * guards the empty state so it never flashes on stale data.
    */
   isPending: boolean;
-  onFilterChange: (filters: Record<string, any[]>) => void;
+  onFilterChange: (filters: Record<string, string[]>) => void;
   /** First-run date sort + range, hosted by the DATE & TIME column header. */
   dateFilter: TableDateFilter;
   onEmptyChange: (isEmpty: boolean) => void;
@@ -203,6 +220,7 @@ function SchedulesTableContent({
           deviceCount: node.deviceCount,
           trigger: node.trigger,
           startAt: node.startAt ?? null,
+          timeReference: node.timeReference,
           repeat: node.repeat ?? null,
         },
       ];
@@ -218,13 +236,7 @@ function SchedulesTableContent({
   // Server-driven platform facet, mapped from the backend enum to the UI id the
   // column filter + `backendFilters` use (windows / darwin / linux).
   const platformOptions = useMemo(
-    () =>
-      (queryData.scriptScheduleFilters?.platforms ?? [])
-        .map(p => {
-          const id = platformsToIds([p.value])[0];
-          return id ? { id, label: p.label, value: id } : null;
-        })
-        .filter((o): o is { id: string; label: string; value: string } => o !== null),
+    () => facetToMappedOptions(queryData.scriptScheduleFilters?.platforms, value => platformsToIds([value])[0]),
     [queryData.scriptScheduleFilters?.platforms],
   );
 
@@ -232,7 +244,7 @@ function SchedulesTableContent({
     (schedule: UiScheduleEntry) => {
       const editHref = routes.scripts.schedules.edit(schedule.id);
       const devicesHref = routes.scripts.schedules.devices(schedule.id);
-      const newTabIcon = <ArrowRightUpIcon className="w-5 h-5 text-ods-text-secondary" />;
+      const newTabIcon = <ArrowRightUpIcon className="h-5 w-5 text-ods-text-secondary" />;
       const mutating = isArchiving || isUnarchiving;
 
       // An archived schedule has exactly one thing that can be done to it, so it
@@ -244,7 +256,7 @@ function SchedulesTableContent({
             onClick={() => setConfirmTarget(schedule)}
             variant="outline"
             size="icon"
-            leftIcon={<InboxArrowUpIcon className="w-5 h-5" />}
+            leftIcon={<InboxArrowUpIcon className="h-5 w-5" />}
             aria-label="Unarchive Schedule"
             disabled={mutating}
             className="bg-ods-card"
@@ -259,7 +271,7 @@ function SchedulesTableContent({
             {
               id: 'edit-schedule',
               label: 'Edit Schedule',
-              icon: <PenEditIcon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <PenEditIcon className="h-6 w-6 text-ods-text-secondary" />,
               href: editHref,
               iconAction: {
                 icon: newTabIcon,
@@ -271,7 +283,7 @@ function SchedulesTableContent({
             {
               id: 'edit-devices',
               label: 'Edit Devices',
-              icon: <LaptopIcon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <LaptopIcon className="h-6 w-6 text-ods-text-secondary" />,
               href: devicesHref,
               iconAction: {
                 icon: newTabIcon,
@@ -283,7 +295,7 @@ function SchedulesTableContent({
             {
               id: 'archive-schedule',
               label: 'Archive Schedule',
-              icon: <BoxArchiveIcon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <BoxArchiveIcon className="h-6 w-6 text-ods-text-secondary" />,
               disabled: mutating,
               onClick: () => setConfirmTarget(schedule),
             },
@@ -356,7 +368,7 @@ function SchedulesTableContent({
         accessorKey: 'name',
         header: SCHEDULE_COLUMNS.name.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <div className="flex flex-col justify-center gap-1 min-w-0">
+          <div className="flex min-w-0 flex-col justify-center gap-1">
             <TruncateText>{row.original.name}</TruncateText>
             {row.original.description && (
               <TruncateText variant="h6" tone="secondary">
@@ -389,15 +401,21 @@ function SchedulesTableContent({
           if (isEventTrigger(row.original.trigger)) {
             return <TruncateText tone="secondary">Device Online</TruncateText>;
           }
-          const { date, time } = formatScheduleStartAt(row.original.startAt);
+          const { date, time } = formatScheduleStartAt(row.original.startAt, row.original.timeReference);
           if (!row.original.startAt) {
-            return <span className="text-h4 text-ods-text-secondary">—</span>;
+            return <ValueText value={null} />;
           }
           return (
-            <div className="flex flex-col justify-center gap-1 min-w-0">
+            <div className="flex min-w-0 flex-col justify-center gap-1">
               <TruncateText>{date}</TruncateText>
+              {/* The reading rides the time, not a column of its own: a
+                  device-local row shows the wall clock each device reads on its
+                  own timezone, and an unmarked "6:00 PM" here reads as the
+                  viewer's. */}
               <TruncateText variant="h6" tone="secondary">
-                {time}
+                {isDeviceLocalTime(row.original.timeReference)
+                  ? `${time} · ${DEVICE_LOCAL_TIME_NOTE.toLowerCase()}`
+                  : time}
               </TruncateText>
             </div>
           );
@@ -410,9 +428,9 @@ function SchedulesTableContent({
         header: SCHEDULE_COLUMNS.repeat.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) =>
           isEventTrigger(row.original.trigger) ? (
-            <span className="text-h4 text-ods-text-secondary">—</span>
+            <ValueText value={null} />
           ) : (
-            <span className="text-h4 text-ods-text-primary">{repeatToLabel(row.original.repeat)}</span>
+            <span className="text-ods-text-primary text-h4">{repeatToLabel(row.original.repeat)}</span>
           ),
         enableSorting: false,
         meta: liveColumnMeta(SCHEDULE_COLUMNS.repeat),
@@ -421,7 +439,7 @@ function SchedulesTableContent({
         accessorKey: 'deviceCount',
         header: SCHEDULE_COLUMNS.deviceCount.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <span className="text-h4 text-ods-text-primary">{row.original.deviceCount}</span>
+          <span className="text-ods-text-primary text-h4">{row.original.deviceCount}</span>
         ),
         enableSorting: false,
         meta: liveColumnMeta(SCHEDULE_COLUMNS.deviceCount),
@@ -429,7 +447,7 @@ function SchedulesTableContent({
       {
         id: 'actions',
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <div data-no-row-click className="flex gap-2 items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
             {renderRowActions(row.original)}
           </div>
         ),
@@ -439,12 +457,12 @@ function SchedulesTableContent({
       {
         id: 'open',
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
               onClick={openInNewTab(routes.scripts.schedules.details(row.original.id))}
               variant="outline"
               size="icon"
-              leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
               aria-label="Open in new tab"
               className="bg-ods-card"
             />
@@ -471,11 +489,12 @@ function SchedulesTableContent({
   );
 
   const handleColumnFiltersChange = useCallback(
-    (updater: any) => {
+    // TanStack's updater signature: either the next state or a reducer over it.
+    (updater: ColumnFilterState | ((prev: ColumnFilterState) => ColumnFilterState)) => {
       const next = typeof updater === 'function' ? updater(columnFilters) : updater;
-      const nextFilters: Record<string, any[]> = {};
+      const nextFilters: Record<string, string[]> = {};
       for (const f of next) {
-        nextFilters[f.id] = Array.isArray(f.value) ? f.value : [f.value];
+        nextFilters[f.id] = Array.isArray(f.value) ? (f.value as string[]) : [String(f.value)];
       }
       onFilterChange(nextFilters);
     },
@@ -504,7 +523,7 @@ function SchedulesTableContent({
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
-  const guideButton = useOnboardingGuideButton('script-schedules');
+  const guideButton = onboardingGuideButton('script-schedules');
 
   if (showEmptyState && archived) {
     return (
@@ -760,7 +779,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
   const tableFilters = useMemo(() => ({ supportedPlatforms: params.supportedPlatforms }), [params.supportedPlatforms]);
 
   const handleFilterChange = useCallback(
-    (columnFilters: Record<string, any[]>) => {
+    (columnFilters: Record<string, string[]>) => {
       queueParamsWrite({ supportedPlatforms: columnFilters.supportedPlatforms || [] });
     },
     [queueParamsWrite],
@@ -809,7 +828,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
             {
               label: 'Archive',
               variant: 'outline' as const,
-              icon: <BoxArchiveIcon className="w-6 h-6 text-ods-text-secondary" />,
+              icon: <BoxArchiveIcon className="h-6 w-6 text-ods-text-secondary" />,
               onClick: handleOpenArchive,
             },
             {
@@ -846,14 +865,14 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
         {!isEmpty && (
           <div
             ref={toolbarRef}
-            className="sticky top-0 z-20 flex gap-[var(--spacing-system-m)] items-center bg-ods-bg -mx-[var(--spacing-system-l)] p-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]"
+            className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] bg-ods-bg p-[var(--spacing-system-l)]"
           >
             <Input
               placeholder="Search for Schedule"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               className="flex-1"
-              startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+              startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
             />
             {mobileFilterButton}
           </div>

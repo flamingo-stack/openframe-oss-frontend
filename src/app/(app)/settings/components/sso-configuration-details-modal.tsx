@@ -2,7 +2,7 @@
 
 import { EyeIcon, EyeOffIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, ModalV2Title, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 
 export interface SsoConfigurationDetails {
@@ -29,10 +29,10 @@ interface SsoConfigurationDetailsModalProps {
 /** Label ... leader line ... value — the key-value row treatment from the mockup. */
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-center gap-2 w-full min-w-0">
-      <span className="text-h4 text-ods-text-primary whitespace-nowrap">{label}</span>
-      <div className="flex-1 h-px bg-ods-border min-w-4" />
-      <span className="text-h4 text-ods-text-primary min-w-0 flex items-center gap-2 text-right">{value}</span>
+    <div className="flex w-full min-w-0 items-center gap-2">
+      <span className="whitespace-nowrap text-ods-text-primary text-h4">{label}</span>
+      <div className="h-px min-w-4 flex-1 bg-ods-border" />
+      <span className="flex min-w-0 items-center gap-2 text-right text-ods-text-primary text-h4">{value}</span>
     </div>
   );
 }
@@ -48,15 +48,21 @@ export function SsoConfigurationDetailsModal({
 }: SsoConfigurationDetailsModalProps) {
   const [showSecret, setShowSecret] = useState(false);
 
-  useEffect(() => {
+  // Seeded when the modal opens, during render rather than in an effect: an effect
+  // paints the field with the previous value once before correcting it. Keyed off
+  // the open transition alone, so a background refresh of the source value can no
+  // longer overwrite what the user has typed while the modal is up.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) setShowSecret(false);
-  }, [isOpen]);
+  }
 
   return (
     <SimpleModal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-[600px] w-full"
+      className="w-full max-w-[600px]"
       header={<ModalV2Title>Configuration Details</ModalV2Title>}
       footer={
         <div className="flex w-full gap-2">
@@ -77,7 +83,7 @@ export function SsoConfigurationDetailsModal({
       contentClassName="flex flex-col gap-6"
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-h3 text-ods-text-primary">{details?.displayName}</span>
+        <span className="text-ods-text-primary text-h3">{details?.displayName}</span>
         <Tag
           label={details?.isEnabled ? 'ACTIVE' : 'INACTIVE'}
           variant={details?.isEnabled ? 'success' : 'grey'}
@@ -85,7 +91,7 @@ export function SsoConfigurationDetailsModal({
         />
       </div>
 
-      <div className="bg-ods-card border border-ods-border rounded-lg p-4 flex flex-col gap-3">
+      <div className="flex flex-col gap-3 rounded-lg border border-ods-border bg-ods-card p-4">
         <DetailRow label="OAuth Provider" value={<span className="truncate">{details?.displayName}</span>} />
         <DetailRow label="OAuth Client ID" value={<span className="truncate">{details?.clientId || 'none'}</span>} />
         <DetailRow
@@ -98,7 +104,7 @@ export function SsoConfigurationDetailsModal({
                   type="button"
                   aria-label={showSecret ? 'Hide client secret' : 'Show client secret'}
                   onClick={() => setShowSecret(prev => !prev)}
-                  className="shrink-0 flex items-center text-ods-text-secondary"
+                  className="flex shrink-0 items-center text-ods-text-secondary"
                 >
                   {showSecret ? (
                     <EyeOffIcon className="h-4 w-4 md:h-6 md:w-6" />

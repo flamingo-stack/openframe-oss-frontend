@@ -14,13 +14,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to Release to Stage (x.y.z). Leave empty for auto patch bump."
+        description: 'Version to Release to Stage (x.y.z). Leave empty for auto patch bump.'
         required: false
         type: string
         default: ''
 
 env:
-  REGISTRY: "ghcr.io"
+  REGISTRY: 'ghcr.io'
   ORGANISATION: ${{ github.repository_owner }}
   REPOSITORY: ${{ github.event.repository.name }}
 
@@ -30,11 +30,16 @@ env:
 
 jobs:
   build_image:
-    name: "Build Frontend"
+    name: 'Build Frontend'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.NEW_VERSION }}
     steps:
+      # Nothing here pushes; the release and its tag are created in the release job.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Get Previous Version
         id: previous
@@ -118,3 +123,35 @@ jobs:
                   -f ./Dockerfile)
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" .
+
+  # Same as the forks: every released image gets a GitHub release of the same
+  # name, and its tag marks the commit the desktop shell builds its static export
+  # from. The only job holding a write token, no checkout, and it runs only after
+  # the image is actually pushed.
+  release:
+    name: 'Create Release'
+    needs: [build_image]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Generate release header
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.ORGANISATION }}/${{ env.REPOSITORY }}/${{ env.REPOSITORY }}
+          VERSION: ${{ needs.build_image.outputs.version }}
+        run: |
+          cat > RELEASE_HEADER.md <<EOF
+          ## Image
+          - \`${IMAGE}:${VERSION}\`
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build_image.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: "🦩 ${{ needs.build_image.outputs.version }}"
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+          body_path: RELEASE_HEADER.md

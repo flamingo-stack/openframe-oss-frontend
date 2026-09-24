@@ -92,10 +92,13 @@ function ScheduleExecutionsContent({ scheduleId, state }: { scheduleId: string; 
  *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
-export const ScheduleExecutionsTab = memo(function ScheduleExecutionsTab({ scheduleId }: ScheduleExecutionsTabProps) {
+export const ScheduleExecutionsTab = memo(function ScheduleExecutionsTabImpl({
+  scheduleId,
+}: ScheduleExecutionsTabProps) {
   return (
     <ExecutionsTabShell>
       {state => <ScheduleExecutionsContent scheduleId={scheduleId} state={state} />}
     </ExecutionsTabShell>
   );
 });
+ScheduleExecutionsTab.displayName = 'ScheduleExecutionsTab';

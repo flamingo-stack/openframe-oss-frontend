@@ -16,7 +16,16 @@ import type { ReactNode } from 'react';
 import { UserItems } from './batch-items';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import type { ContextItemsProps } from './items-shared';
-import { DeviceItems, KnowledgeBaseItems, OrganizationItems, ScheduleItems, ScriptItems } from './relay-items';
+import {
+  DeviceItems,
+  IncidentItems,
+  KnowledgeBaseItems,
+  OrganizationItems,
+  ScheduleItems,
+  ScriptItems,
+  SoftwareItems,
+  VulnerabilityItems,
+} from './relay-items';
 import { PolicyItems, QueryItems, TicketItems } from './rest-items';
 
 const COMPONENTS: Record<string, (p: ContextItemsProps) => ReactNode> = {
@@ -29,6 +38,9 @@ const COMPONENTS: Record<string, (p: ContextItemsProps) => ReactNode> = {
   [CONTEXT_ENTITY_KIND.USER]: UserItems,
   [CONTEXT_ENTITY_KIND.SCRIPT]: ScriptItems,
   [CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT]: ScheduleItems,
+  [CONTEXT_ENTITY_KIND.INSIGHT]: IncidentItems,
+  [CONTEXT_ENTITY_KIND.SOFTWARE]: SoftwareItems,
+  [CONTEXT_ENTITY_KIND.VULNERABILITY]: VulnerabilityItems,
 };
 
 export function renderMingoContextItems({

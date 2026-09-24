@@ -3,6 +3,9 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
 import { graphql, useMutation } from 'react-relay';
+import type { useTagMutations_CreateTagMutation as CreateTagMutationType } from '@/__generated__/useTagMutations_CreateTagMutation.graphql';
+import type { useTagMutations_DeleteTagMutation as DeleteTagMutationType } from '@/__generated__/useTagMutations_DeleteTagMutation.graphql';
+import type { useTagMutations_UpdateTagMutation as UpdateTagMutationType } from '@/__generated__/useTagMutations_UpdateTagMutation.graphql';
 
 const createTagMutation = graphql`
   mutation useTagMutations_CreateTagMutation(
@@ -23,12 +26,7 @@ const createTagMutation = graphql`
 `;
 
 const updateTagMutation = graphql`
-  mutation useTagMutations_UpdateTagMutation(
-    $id: ID!
-    $key: String
-    $description: String
-    $color: String
-  ) {
+  mutation useTagMutations_UpdateTagMutation($id: ID!, $key: String, $description: String, $color: String) {
     updateTag(id: $id, key: $key, description: $description, color: $color) {
       id
       key
@@ -48,7 +46,7 @@ const deleteTagMutation = graphql`
 
 export function useCreateTagMutation() {
   const { toast } = useToast();
-  const [commit, isInFlight] = useMutation(createTagMutation);
+  const [commit, isInFlight] = useMutation<CreateTagMutationType>(createTagMutation);
 
   const createTag = useCallback(
     (
@@ -58,8 +56,9 @@ export function useCreateTagMutation() {
     ) => {
       commit({
         variables,
-        onCompleted: (response: any) => {
-          onCompleted?.(response.createTag?.id);
+        onCompleted: response => {
+          const id = response.createTag?.id;
+          if (id) onCompleted?.(id);
         },
         onError: (error: Error) => {
           onError?.(error);
@@ -75,7 +74,7 @@ export function useCreateTagMutation() {
 
 export function useUpdateTagMutation() {
   const { toast } = useToast();
-  const [commit, isInFlight] = useMutation(updateTagMutation);
+  const [commit, isInFlight] = useMutation<UpdateTagMutationType>(updateTagMutation);
 
   const updateTag = useCallback(
     (variables: { id: string; key?: string; description?: string; color?: string }, onCompleted?: () => void) => {
@@ -97,7 +96,7 @@ export function useUpdateTagMutation() {
 
 export function useDeleteTagMutation() {
   const { toast } = useToast();
-  const [commit, isInFlight] = useMutation(deleteTagMutation);
+  const [commit, isInFlight] = useMutation<DeleteTagMutationType>(deleteTagMutation);
 
   const deleteTag = useCallback(
     (id: string, onCompleted?: () => void) => {

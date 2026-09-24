@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { useLayoutEffect, useRef } from 'react';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';

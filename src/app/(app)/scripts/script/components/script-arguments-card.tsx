@@ -31,9 +31,9 @@ export function ScriptArgumentsCard({ title, args, separator = '=' }: ScriptArgu
   const rows = separator === ' ' ? argsToParamRows(args) : envStringsToParamRows(args);
 
   return (
-    <div className="flex flex-col gap-1 w-full">
-      <Label className="text-h5 text-ods-text-secondary w-full">{title}</Label>
-      <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-m)] w-full">
+    <div className="flex w-full flex-col gap-1">
+      <Label className="w-full text-ods-text-secondary text-h5">{title}</Label>
+      <div className="w-full rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
         <ScriptParamRows rows={rows} />
       </div>
     </div>

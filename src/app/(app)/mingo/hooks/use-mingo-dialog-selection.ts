@@ -9,7 +9,7 @@ import {
   processHistoricalMessagesWithErrors,
 } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
@@ -17,6 +17,7 @@ import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
 import { featureFlags } from '@/lib/feature-flags';
 import type { ApprovalStatus } from '../../tickets/constants';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, MESSAGE_TYPE } from '../../tickets/constants';
+import { extractGraphQlData } from '../../tickets/utils/graphql';
 import {
   GET_MINGO_DIALOG_QUERY,
   getMingoDialogMessagesQuery,
@@ -25,7 +26,7 @@ import {
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage, MessagesResponse } from '../types';
-import { useGuideApproval } from './use-guide-approval';
+import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 /**
  * Thrown when the dialog id resolves to nothing this user can open — deleted, someone
@@ -35,8 +36,24 @@ import { useGuideApproval } from './use-guide-approval';
  */
 export const MINGO_DIALOG_NOT_FOUND = 'MINGO_DIALOG_NOT_FOUND';
 
+// The backend generates the dialog title asynchronously after the first
+// message, with no realtime event when it lands. Poll the open dialog while it
+// is still title-less so the provisional "New Chat" label is replaced without a
+// reload. Bounded by dialog age: an old dialog that never got a title (e.g. no
+// messages were ever sent) must not keep an idle drawer polling forever.
+const TITLE_POLL_INTERVAL_MS = 10_000;
+const TITLE_POLL_MAX_DIALOG_AGE_MS = 10 * 60 * 1000;
+
+export function isAwaitingGeneratedTitle(dialog: { title?: string | null; createdAt?: string | null }): boolean {
+  if (dialog.title) return false;
+  if (!dialog.createdAt) return false;
+  const ageMs = Date.now() - new Date(dialog.createdAt).getTime();
+  return Number.isFinite(ageMs) && ageMs >= 0 && ageMs < TITLE_POLL_MAX_DIALOG_AGE_MS;
+}
+
 export function useMingoDialogSelection() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [approvalStatuses, setApprovalStatuses] = useState<Record<string, ApprovalStatus>>({});
   const {
     activeDialogId,
@@ -56,27 +73,6 @@ export function useMingoDialogSelection() {
 
   const approveRequestMutation = useApproveRequestMutation();
   const rejectRequestMutation = useRejectRequestMutation();
-  const resolveGuideApproval = useGuideApproval();
-
-  /**
-   * Whether this request id belongs to a Product Guide card. Read off the
-   * SEGMENT (`data.origin`), which the chunk decoder stamps — not guessed from
-   * the id or the approval type, so a new hub tool needs no change here.
-   */
-  const isGuideApproval = useCallback(
-    (dialogId: string, requestId: string): boolean =>
-      getMessages(dialogId).some(
-        message =>
-          Array.isArray(message.content) &&
-          message.content.some(
-            segment =>
-              segment.type === 'approval_request' &&
-              segment.data?.requestId === requestId &&
-              segment.data?.origin === 'guide',
-          ),
-      ),
-    [getMessages],
-  );
 
   const handleApprove = useCallback(
     async (requestId?: string) => {
@@ -104,13 +100,7 @@ export function useMingoDialogSelection() {
       setTyping(activeDialogId, true);
 
       try {
-        // A Product Guide proposal is settled by the hub, not by the agent —
-        // same route the Guide chat uses. See `useGuideApproval`.
-        if (isGuideApproval(activeDialogId, requestId)) {
-          await resolveGuideApproval(activeDialogId, requestId, 'approve');
-        } else {
-          await approveRequestMutation.mutateAsync(requestId);
-        }
+        await approveRequestMutation.mutateAsync(requestId);
         trackDashboardActivity(EVENT_SUBTYPE.APPROVE_MINGO_COMMAND);
       } catch (error) {
         if (!wasTyping) setTyping(activeDialogId, false);
@@ -122,16 +112,7 @@ export function useMingoDialogSelection() {
         });
       }
     },
-    [
-      approveRequestMutation,
-      toast,
-      activeDialogId,
-      updateApprovalStatusInMessages,
-      setTyping,
-      getTyping,
-      isGuideApproval,
-      resolveGuideApproval,
-    ],
+    [approveRequestMutation, toast, activeDialogId, updateApprovalStatusInMessages, setTyping, getTyping],
   );
 
   const handleReject = useCallback(
@@ -153,11 +134,7 @@ export function useMingoDialogSelection() {
       setTyping(activeDialogId, true);
 
       try {
-        if (isGuideApproval(activeDialogId, requestId)) {
-          await resolveGuideApproval(activeDialogId, requestId, 'reject');
-        } else {
-          await rejectRequestMutation.mutateAsync(requestId);
-        }
+        await rejectRequestMutation.mutateAsync(requestId);
         trackDashboardActivity(EVENT_SUBTYPE.REJECT_MINGO_COMMAND);
       } catch (error) {
         if (!wasTyping) setTyping(activeDialogId, false);
@@ -169,24 +146,20 @@ export function useMingoDialogSelection() {
         });
       }
     },
-    [
-      rejectRequestMutation,
-      toast,
-      activeDialogId,
-      updateApprovalStatusInMessages,
-      setTyping,
-      getTyping,
-      isGuideApproval,
-      resolveGuideApproval,
-    ],
+    [rejectRequestMutation, toast, activeDialogId, updateApprovalStatusInMessages, setTyping, getTyping],
   );
 
   const handleApproveRef = useRef(handleApprove);
-  handleApproveRef.current = handleApprove;
   const handleRejectRef = useRef(handleReject);
-  handleRejectRef.current = handleReject;
   const approvalStatusesRef = useRef(approvalStatuses);
-  approvalStatusesRef.current = approvalStatuses;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    handleApproveRef.current = handleApprove;
+    handleRejectRef.current = handleReject;
+    approvalStatusesRef.current = approvalStatuses;
+  });
 
   // Composer-busy watchdog inputs. `typing without an open streaming message`
   // is the suspicious state: it is asserted by approve/reject clicks and by
@@ -204,7 +177,7 @@ export function useMingoDialogSelection() {
   const suspiciousBusyRef = useRef(false);
 
   const dialogQuery = useQuery({
-    queryKey: ['mingo-dialog', activeDialogId],
+    queryKey: mingoDialogQueryKeys.detail(activeDialogId),
     queryFn: async () => {
       if (!activeDialogId) return null;
 
@@ -213,18 +186,17 @@ export function useMingoDialogSelection() {
         variables: { id: activeDialogId },
       });
 
-      if (!response.ok) {
-        throw new Error(response.error || 'Failed to fetch dialog');
-      }
-      // HTTP 200 with `dialog: null` and no `errors` is the backend's ANSWER, not a
-      // failure: this id names nothing this user can open. Separated from the
-      // transport failure above because the two want opposite handling — this one
-      // must not be retried (see `retry`) and is safe to act on.
-      if (!response.data?.data?.dialog) {
-        throw new Error(MINGO_DIALOG_NOT_FOUND);
-      }
-
-      return response.data.data.dialog;
+      // A dialog beside a failed sub-resolver is still the dialog. Only a null
+      // asks `extractGraphQlData` to rule out every failure shape — each of
+      // those throws, is retried (see `retry`) and keeps the selection — before
+      // the null counts as the backend's answer: this id names nothing this
+      // user can open, settled and safe to act on. Before this split any null
+      // read as "deleted": a flaky sub-resolver dropped the open conversation
+      // and stripped its id from the URL.
+      const dialog = response.data?.data?.dialog;
+      if (dialog) return dialog;
+      extractGraphQlData(response);
+      throw new Error(MINGO_DIALOG_NOT_FOUND);
     },
     enabled: !!activeDialogId,
     // A missing dialog is settled; retrying it only delays the message by the length
@@ -234,12 +206,17 @@ export function useMingoDialogSelection() {
     // Self-heals if every chunk carrying streamState=IDLE is dropped; off while
     // idle. Also polls while the composer is busy WITHOUT an open stream (see
     // suspiciousBusyRef) so a stuck busy lock releases on server-IDLE proof.
-    refetchInterval: query =>
-      query.state.data?.streamState === 'STREAMING' || suspiciousBusyRef.current ? 15_000 : false,
+    // Additionally polls a fresh title-less dialog until the async-generated
+    // title lands (see isAwaitingGeneratedTitle).
+    refetchInterval: query => {
+      if (query.state.data?.streamState === 'STREAMING' || suspiciousBusyRef.current) return 15_000;
+      if (query.state.data && isAwaitingGeneratedTitle(query.state.data)) return TITLE_POLL_INTERVAL_MS;
+      return false;
+    },
   });
 
   const messagesQuery = useInfiniteQuery({
-    queryKey: ['mingo-dialog-messages', activeDialogId],
+    queryKey: mingoDialogQueryKeys.messages(activeDialogId),
     queryFn: async ({ pageParam }: { pageParam: string | undefined }): Promise<MessagePage> => {
       if (!activeDialogId) return { messages: [], pageInfo: { hasNextPage: false, hasPreviousPage: false } };
 
@@ -260,12 +237,16 @@ export function useMingoDialogSelection() {
 
       const { edges, pageInfo } = response.data.data.messages;
       const allMessages = edges.map(edge => edge.node);
+      // The ONE parse point, so the ask-intro alias is undone before any reader
+      // sees a row (see `ASK_INTRO_ALIAS`). `normalizeAskMessageData` returns its
+      // input by reference when there is nothing to rename, so a page without ASK
+      // rows is not copied.
       const adminMessages = allMessages
         .filter(msg => msg.chatType === CHAT_TYPE.ADMIN)
-        // THE parse point for this query: the ASK intro comes back under an
-        // alias (nullability clash with the other `text` fields — see
-        // `ASK_INTRO_ALIAS`), and everything downstream expects `text`.
-        .map(msg => ({ ...msg, messageData: normalizeAskMessageData(msg.messageData) }));
+        .map(msg => {
+          const messageData = normalizeAskMessageData(msg.messageData);
+          return messageData === msg.messageData ? msg : { ...msg, messageData };
+        });
 
       return { messages: adminMessages, pageInfo };
     },
@@ -276,6 +257,24 @@ export function useMingoDialogSelection() {
     enabled: !!activeDialogId,
     staleTime: 30 * 1000,
   });
+
+  // When the async-generated title arrives for the open dialog, push it into
+  // the Current Chats list immediately — the list's own 60s poll (and 5-minute
+  // staleTime across drawer reopens) would otherwise keep showing "New Chat"
+  // long after the header has the real title.
+  const dialogTitle = dialogQuery.data?.title ?? null;
+  const titleSeenRef = useRef<{ dialogId: string | null; hadTitle: boolean }>({ dialogId: null, hadTitle: false });
+  useEffect(() => {
+    if (!activeDialogId) return;
+    if (titleSeenRef.current.dialogId !== activeDialogId) {
+      titleSeenRef.current = { dialogId: activeDialogId, hadTitle: !!dialogTitle };
+      return;
+    }
+    if (dialogTitle && !titleSeenRef.current.hadTitle) {
+      titleSeenRef.current.hadTitle = true;
+      void queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
+    }
+  }, [activeDialogId, dialogTitle, queryClient]);
 
   const initialOptStartSeq = useMemo(
     () => maxPersistedStreamSeq(messagesQuery.data?.pages),
@@ -341,7 +340,12 @@ export function useMingoDialogSelection() {
 
   // Busy without an open stream → keep the dialog poll alive (read by
   // refetchInterval at poll time) so the branch-2 heal gets its fresh fetch.
-  suspiciousBusyRef.current = isActiveTyping && !streamingEntryId;
+  // Latest-value refs, written after the commit rather than during render:
+  // a render-phase ref write is what `react-hooks/refs` forbids, and every
+  // reader below runs in an effect, a timer or an event handler.
+  useEffect(() => {
+    suspiciousBusyRef.current = isActiveTyping && !streamingEntryId;
+  });
 
   const selectDialogMutation = useMutation({
     mutationFn: async (dialogId: string) => {
@@ -360,17 +364,22 @@ export function useMingoDialogSelection() {
 
   useEffect(() => {
     if (chronologicalMessages.length > 0 && activeDialogId) {
-      const extractedStatuses = chronologicalMessages.reduce<Record<string, ApprovalStatus>>((acc, msg) => {
-        const messageDataArray = Array.isArray(msg.messageData) ? msg.messageData : [msg.messageData];
+      // Only the three fields an approval result carries are read here; the rest
+      // of the (untyped) message payload is none of this hook's business.
+      type ApprovalResultPayload = { type?: string; approvalRequestId?: string; approved?: boolean };
 
-        messageDataArray.forEach((data: any) => {
+      const extractedStatuses: Record<string, ApprovalStatus> = {};
+      for (const msg of chronologicalMessages) {
+        const payloads: ApprovalResultPayload[] = Array.isArray(msg.messageData) ? msg.messageData : [msg.messageData];
+
+        for (const data of payloads) {
           if (data?.type === MESSAGE_TYPE.APPROVAL_RESULT && data.approvalRequestId) {
-            acc[data.approvalRequestId] = data.approved ? APPROVAL_STATUS.APPROVED : APPROVAL_STATUS.REJECTED;
+            extractedStatuses[data.approvalRequestId] = data.approved
+              ? APPROVAL_STATUS.APPROVED
+              : APPROVAL_STATUS.REJECTED;
           }
-        });
-
-        return acc;
-      }, {});
+        }
+      }
 
       if (Object.keys(extractedStatuses).length > 0) {
         setApprovalStatuses(prev => {
@@ -432,8 +441,7 @@ export function useMingoDialogSelection() {
       chatTypeFilter: CHAT_TYPE.ADMIN,
       onApprove: handleApproveRef.current,
       onReject: handleRejectRef.current,
-      approvalStatuses: Object.fromEntries(Object.entries(approvalStatusesRef.current).map(([k, v]) => [k, v as any])),
-      batchApprovalsEnabled: featureFlags.batchApproval.enabled(),
+      approvalStatuses: { ...approvalStatusesRef.current },
       // Must match the realtime processor (use-mingo-realtime-subscription):
       // an omitted option is not guaranteed to include ADMIN, and a history
       // reprocess (reopen, reconnect invalidation, pagination) would silently

@@ -3,7 +3,7 @@
 import { Button, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useRenameFolder } from '../hooks/use-rename-folder';
 
@@ -23,11 +23,15 @@ export function RenameFolderModal({ isOpen, onClose, folder }: RenameFolderModal
   const { renameFolder, isPending } = useRenameFolder();
   const [name, setName] = useState('');
 
-  useEffect(() => {
-    if (isOpen && folder) {
-      setName(folder.name);
-    }
-  }, [isOpen, folder]);
+  // Seeded when the modal opens, during render rather than in an effect: an effect
+  // paints the field with the previous value once before correcting it. Keyed off
+  // the open transition alone, so a background refresh of the source value can no
+  // longer overwrite what the user has typed while the modal is up.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen && folder) setName(folder.name);
+  }
 
   const trimmed = name.trim();
   const canSubmit = trimmed.length > 0 && trimmed !== folder?.name && !isPending;
@@ -69,7 +73,7 @@ export function RenameFolderModal({ isOpen, onClose, folder }: RenameFolderModal
         </>
       }
     >
-      <Label htmlFor="rename-folder-name" className="text-h4 text-ods-text-primary">
+      <Label htmlFor="rename-folder-name" className="text-ods-text-primary text-h4">
         Folder Name
       </Label>
       <Input

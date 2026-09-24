@@ -6,13 +6,14 @@ import { initNativePush } from '@/lib/native-push';
 import { isMobileShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { resolvePushNotificationRoute } from './notifications/notification-navigation';
+import { useSubscriptionOpen } from './subscription-lock/subscription-guard';
 
 /**
  * Mounted once the user is authenticated (app-layout): asks for notification
  * permission, obtains the FCM registration token, and deep-links notification
  * taps through the client router. Renders nothing; no-ops outside the native shell.
  *
- * The route comes from the payload's context type + entity ids, resolved by the
+ * The route comes from the payload's `type` + entity ids, resolved by the
  * same table the in-app drawer uses — the push payload carries no route, so the
  * backend stays ignorant of the frontend's URL structure (which it could not
  * know anyway: detail pages are query params on prerendered paths, and a Mingo
@@ -21,9 +22,15 @@ import { resolvePushNotificationRoute } from './notifications/notification-navig
  */
 export function NativePushInitializer() {
   const router = useRouter();
+  // `registerPushDevice` is a mutation, so it bypasses the subscription gate —
+  // see `useSubscriptionOpen`. A locked workspace registers nothing: the
+  // registration would fail, and there is no notification to deliver behind a
+  // lock screen anyway. `initNativePush` latches, so waiting for the answer
+  // costs nothing but the round-trip.
+  const subscriptionOpen = useSubscriptionOpen();
 
   useEffect(() => {
-    if (!isMobileShell()) return;
+    if (!isMobileShell() || !subscriptionOpen) return;
     initNativePush(data => {
       router.push(resolvePushNotificationRoute(data) ?? routes.notifications());
     }).catch(error => {
@@ -32,7 +39,7 @@ export function NativePushInitializer() {
       // than leaving an unhandled rejection as the only trace.
       console.error('[Native Push] initialisation failed:', error);
     });
-  }, [router]);
+  }, [router, subscriptionOpen]);
 
   return null;
 }

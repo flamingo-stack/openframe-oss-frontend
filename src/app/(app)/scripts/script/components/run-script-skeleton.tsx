@@ -37,7 +37,7 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
       {/* Same 3 stats as the loaded card (`showTimeout` is off on the run page). */}
       <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)] items-end">
+      <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] lg:grid-cols-2">
         <div>
           <Label className="text-ods-text-primary text-h3">Timeout</Label>
           <Input
@@ -52,7 +52,7 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
         <CheckboxBlock checked={false} onCheckedChange={noop} label="Run as User" disabled />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] lg:grid-cols-2">
         <ScriptArguments
           arguments={EMPTY_ARGUMENTS}
           onArgumentsChange={noop}
@@ -77,6 +77,11 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
         <DeviceSelector
           devices={NO_DEVICES}
           loading
+          // Same lock as `DeviceSelectorSkeleton` and `SchedulePickerSkeleton`:
+          // the search box, the tag filter and the tab strip render for real
+          // here, so without it they take input that the loaded picker throws
+          // away a moment later.
+          disabled
           selectedIds={EMPTY_SELECTION}
           getDeviceKey={() => ''}
           onSelectionChange={noop}

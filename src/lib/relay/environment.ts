@@ -1,6 +1,6 @@
 'use client';
 
-import type { FetchFunction, IEnvironment } from 'relay-runtime';
+import type { CacheConfig, FetchFunction, IEnvironment, RequestParameters } from 'relay-runtime';
 import { Environment, Network, RecordSource, Store } from 'relay-runtime';
 import { REQUEST_TIMEOUT_MS } from '../api-client';
 import { isOnline, subscribeConnectivity } from '../connectivity';
@@ -8,7 +8,8 @@ import { forceLogout } from '../force-logout';
 import { OfflineError } from '../query-state';
 import { runtimeEnv } from '../runtime-config';
 import { waitForSessionReady } from '../session-ready';
-import { detectTrialExpiredFromGraphqlErrors } from '../subscription-lock-signal';
+import { markSubscriptionLocked, waitForSubscriptionGate } from '../subscription-gate';
+import { detectTrialExpiredFromGraphqlErrors, hasTrialExpiredClassification } from '../subscription-lock-signal';
 import { refreshTokens } from '../token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '../token-store';
 
@@ -27,6 +28,24 @@ function getGraphqlUrl(): string {
   const tenantHost = runtimeEnv.tenantHostUrl();
   const baseUrl = tenantHost || (typeof window !== 'undefined' ? window.location.origin : '');
   return `${baseUrl}/api/graphql`;
+}
+
+/**
+ * Sends one GraphQL operation as the document goes away (`pagehide`), with the
+ * same endpoint and credentials every Relay request uses. `keepalive` is what
+ * lets the browser finish it after the page has unloaded; nothing can read
+ * the answer, so there is none — and none of the gates above apply, because
+ * by then there is no page to hold the request for.
+ */
+export function sendGraphqlKeepalive(request: { text: string | null }, variables: Record<string, unknown>): void {
+  if (!request.text || typeof window === 'undefined') return;
+  void fetch(getGraphqlUrl(), {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...getAuthHeaders() },
+    credentials: 'include',
+    keepalive: true,
+    body: JSON.stringify({ query: request.text, variables }),
+  }).catch(() => undefined);
 }
 
 /**
@@ -275,10 +294,19 @@ class BailoutToClientRenderError extends Error {
 }
 
 /**
+ * Whether this request skips the subscription gate — see `subscription-gate.ts`
+ * for what qualifies and why.
+ */
+function bypassesSubscriptionGate(request: RequestParameters, cacheConfig: CacheConfig | null | undefined): boolean {
+  if (request.operationKind === 'mutation') return true;
+  return cacheConfig?.metadata?.skipSubscriptionGate === true;
+}
+
+/**
  * Relay network fetch function.
  * Mirrors apiClient auth logic: cookie-based auth + 401 token refresh + force logout.
  */
-const fetchRelay: FetchFunction = async (request, variables) => {
+const fetchRelay: FetchFunction = async (request, variables, cacheConfig, uploadables) => {
   // No GraphQL during a server render. There is no user cookie in the Node
   // process, so the request would 401 — and the 401 path below calls
   // `refreshAccessToken`/`forceLogout`, which touch `window` and localStorage.
@@ -322,6 +350,20 @@ const fetchRelay: FetchFunction = async (request, variables) => {
   // answers: the request simply doesn't leave, Relay suspends, and the page shows
   // its own `<Suspense>` fallback instead of a central route skeleton.
   await waitForSessionReady();
+
+  // Then the subscription gate: nothing but the subscription query (and what the
+  // lock screen needs) leaves until that query has answered, and nothing at all
+  // leaves while the answer locks the workspace. See `subscription-gate.ts` —
+  // without this the chrome's queries raced the subscription query, came back
+  // empty with `SUBSCRIPTION_TRIAL_EXPIRED`, and threw into error boundaries a
+  // beat before the lock screen could replace them.
+  //
+  // After the session latch, because the gate is opened by a query that itself
+  // has to get out, and that query waits on the session.
+  const subjectToSubscriptionGate = !bypassesSubscriptionGate(request, cacheConfig);
+  if (subjectToSubscriptionGate) {
+    await waitForSubscriptionGate();
+  }
 
   // QUERIES retry; MUTATIONS get exactly one attempt.
   //
@@ -380,6 +422,26 @@ const fetchRelay: FetchFunction = async (request, variables) => {
   if (json.errors) {
     console.error('[Relay] GraphQL errors:', json.errors);
     detectTrialExpiredFromGraphqlErrors(json.errors);
+
+    // The gate can only be shut by an answer, and this response IS one — from a
+    // request that was already in flight when the trial lapsed, or one that
+    // bypasses the gate. Shut it so nothing else follows this one out.
+    if (hasTrialExpiredClassification(json.errors)) {
+      markSubscriptionLocked();
+
+      // Nothing usable came back, and no payload can be synthesised for a
+      // non-null field, so returning this guarantees a thrown error in a tree
+      // the lock screen is about to replace. Park on the gate and retry when the
+      // workspace is paid for — the same contract every other request goes
+      // through, rather than a special "swallow the error" path.
+      //
+      // Only for gated requests: parking a bypassing one would strand the very
+      // query that opens the gate, or the paywall the user needs to pay from.
+      if (json.data == null && subjectToSubscriptionGate) {
+        await waitForSubscriptionGate();
+        return fetchRelay(request, variables, cacheConfig, uploadables);
+      }
+    }
   }
 
   return json;
@@ -405,14 +467,27 @@ const fetchRelay: FetchFunction = async (request, variables) => {
  *   Normalizer warn about the conflicting `name`), after which
  *   `deduplicateFilterOptions` collapsed them to a single, possibly wrong,
  *   option.
+ * - `AffectedSoftware` — a CVE's view of a software title, and its `id` IS that
+ *   title's `Software.id` (the row links to the Software page by it). Merged,
+ *   the record carries one `devicesCount` for two different counts: the fleet's
+ *   installs of the title and the installs on an affected version.
+ * - `PackageSearchItem` / `PackageDetails` — the `id` is the catalog package
+ *   name, which Homebrew gives a formula and a cask alike (`docker`); merged,
+ *   the two results read as one package with one `packageType`.
  *
  * Returning `undefined` stores each list entry under a parent-scoped client id
  * (by field + index) instead, so colliding backend ids no longer merge. Safe
- * for both: neither is a `Node`, neither is fetched via `node(id:)`, and both
- * are only read inline through their parent. Everything else keeps the default
+ * for all of them: none is a `Node`, none is fetched via `node(id:)`, and each
+ * is only read inline through its parent. Everything else keeps the default
  * id-based normalization.
  */
-const UNNORMALIZED_TYPES = new Set(['SubscriptionOptionDetail', 'OrganizationFilterOption']);
+const UNNORMALIZED_TYPES = new Set([
+  'SubscriptionOptionDetail',
+  'OrganizationFilterOption',
+  'AffectedSoftware',
+  'PackageSearchItem',
+  'PackageDetails',
+]);
 
 function resolveDataId(value: { readonly id?: unknown }, typeName: string): string | undefined {
   if (UNNORMALIZED_TYPES.has(typeName)) return undefined;
@@ -430,7 +505,7 @@ export function getRelayEnvironment(): IEnvironment {
       network: Network.create(fetchRelay),
       store: new Store(new RecordSource()),
       isServer: true,
-      // biome-ignore lint/style/useNamingConvention: Relay's Environment option key is fixed.
+      // Relay's Environment option key is fixed.
       getDataID: resolveDataId,
     });
   }
@@ -443,7 +518,7 @@ export function getRelayEnvironment(): IEnvironment {
     relayEnvironment = new Environment({
       network: Network.create(fetchRelay),
       store,
-      // biome-ignore lint/style/useNamingConvention: Relay's Environment option key is fixed.
+      // Relay's Environment option key is fixed.
       getDataID: resolveDataId,
     });
   }

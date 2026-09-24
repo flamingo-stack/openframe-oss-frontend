@@ -11,7 +11,6 @@ const base: MingoUrlSyncInput = {
   navigated: false,
   urlDialogId: null,
   mirroredDialogId: null,
-  mingoGate: 'on',
   canOpenDrawer: true,
   drawerOpen: false,
   activeDialogId: null,
@@ -37,24 +36,10 @@ describe('resolveMingoUrlSync', () => {
     ).toEqual({ type: 'none' });
   });
 
-  it('holds an instruction until the flag answers, and adopts once it does', () => {
-    const loading = { ...base, urlDialogId: 'd-1', mingoGate: 'loading' as const };
-    expect(resolveMingoUrlSync(loading)).toEqual({ type: 'none' });
-    expect(resolveMingoUrlSync({ ...loading, mingoGate: 'on' })).toEqual({ type: 'adopt', dialogId: 'd-1' });
-  });
-
   it('holds an instruction while no drawer is mounted', () => {
     // Subscription lock, mid-boot chrome — the drawer comes back, so the link
     // must not be spent on a shell that cannot show it.
     expect(resolveMingoUrlSync({ ...base, urlDialogId: 'd-1', canOpenDrawer: false })).toEqual({ type: 'none' });
-  });
-
-  it('strips a param the tenant can never honour', () => {
-    // Flag definitively off: no drawer will ever exist here.
-    expect(resolveMingoUrlSync({ ...base, urlDialogId: 'd-1', mingoGate: 'off' })).toEqual({
-      type: 'write',
-      dialogId: null,
-    });
   });
 
   it('writes the open conversation into the URL', () => {
@@ -113,9 +98,9 @@ describe('resolveMingoUrlSync', () => {
   });
 
   it('adopts across a navigation that carries an instruction', () => {
-    // The `/mingo?dialogId=` -> `/dashboard?mingoDialog=` hop. A close living in
-    // its own effect would fire on this same commit and shut the drawer that this
-    // pass is opening.
+    // A deep link landing on `?mingoDialog=` on a route the user was not on. A close
+    // living in its own effect would fire on this same commit and shut the drawer
+    // that this pass is opening.
     expect(resolveMingoUrlSync({ ...base, navigated: true, urlDialogId: 'd-1' })).toEqual({
       type: 'adopt',
       dialogId: 'd-1',

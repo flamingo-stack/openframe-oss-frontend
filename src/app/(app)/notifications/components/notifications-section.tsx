@@ -73,7 +73,7 @@ export function NotificationsSection({
         {!(isEmpty && !searchValue.trim()) && (
           <div
             ref={toolbarRef}
-            className="sticky top-0 z-20 flex items-center bg-ods-bg -mx-[var(--spacing-system-l)] p-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)]"
+            className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex items-center bg-ods-bg p-[var(--spacing-system-l)]"
           >
             <Input
               placeholder="Search for Notification"
@@ -219,7 +219,7 @@ function SectionTable({
           stickyHeaderOffset={stickyHeaderOffset}
           rightSlot={<DataTable.RowCount itemName="result" />}
         />
-        <DataTable.Body rowClassName="mb-1" renderSubRow={renderSubRow} autoHeight />
+        <DataTable.Body rowClassName="mb-1" renderSubRow={renderSubRow} />
         <DataTable.InfiniteFooter
           hasNextPage={hasNext}
           isFetchingNextPage={isLoadingNext}
@@ -228,7 +228,7 @@ function SectionTable({
         />
       </DataTable>
       {rowVariant === 'read' && (
-        <p className="mt-[var(--spacing-system-l)] text-center text-h6 text-ods-text-secondary">
+        <p className="mt-[var(--spacing-system-l)] text-center text-ods-text-secondary text-h6">
           {HISTORY_RETENTION_NOTE}
         </p>
       )}
@@ -257,7 +257,7 @@ function SectionTableSkeleton({
         stickyHeaderOffset={stickyHeaderOffset}
         rightSlot={<DataTable.RowCount itemName="result" />}
       />
-      <DataTable.Body loading skeletonRows={4} />
+      <DataTable.Body loading skeletonRows={4} rowClassName="mb-1" />
     </DataTable>
   );
 }

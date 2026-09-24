@@ -4,19 +4,16 @@ import type { ChatType } from '../constants';
 import { API_ENDPOINTS } from '../constants';
 import { getDialogMessagesQuery, normalizeMessageDataAliases } from '../queries/dialogs-queries';
 import {
-  ARCHIVE_TICKET_MUTATION,
   GET_TICKET_QUERY,
   GET_TICKET_STATUS_TRANSITION_RULES_QUERY,
-  GET_TICKET_STATUS_TRANSITIONS_QUERY,
   GET_TICKETS_QUERY,
   getBoardColumnTicketsQuery,
-  PUT_TICKET_ON_HOLD_MUTATION,
-  REOPEN_TICKET_MUTATION,
+  MARK_DIALOG_MESSAGES_READ_MUTATION,
   REORDER_TICKET_MUTATION,
-  RESOLVE_TICKET_MUTATION,
+  TICKETS_DEFAULT_SORT,
   TRANSITION_TICKET_MUTATION,
 } from '../queries/ticket-queries';
-import type { Dialog, DialogStatus, Message } from '../types/dialog.types';
+import type { Dialog, DialogOwnerEnum, Message, TicketActivityState } from '../types/dialog.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import type {
@@ -26,7 +23,6 @@ import type {
   MessagePage,
   ReorderTicketParams,
   TicketService as TicketServiceInterface,
-  TicketStatusTransition,
   TicketStatusTransitionRule,
   TicketsPage,
 } from './ticket-service.types';
@@ -35,13 +31,12 @@ interface TicketNode {
   id: string;
   ticketNumber: number;
   title: string;
-  status: string;
   statusDefinition?: { id: string; name: string; color: string; kind?: string } | null;
   availableTransitions?: Array<{ id: string; name: string; color: string }> | null;
   owner: {
     type: 'CLIENT' | 'ADMIN';
     machineId?: string;
-    machine?: { id: string; machineId: string; hostname: string; organizationId?: string };
+    machine?: { id: string; machineId: string; hostname: string; nickname?: string | null; organizationId?: string };
     userId?: string;
     user?: { id: string; firstName: string; lastName: string };
   };
@@ -54,6 +49,9 @@ interface TicketNode {
   assignedName?: string;
   assigneeImage?: { imageUrl: string; hash?: string };
   tags?: Array<{ id: string; key: string; color?: string }>;
+  unreadMessageCount?: number;
+  lastActivityAt?: string;
+  activityState?: TicketActivityState;
   escalatedByUser?: boolean | null;
   resolvedBy?: string | null;
   pendingApproval?: {
@@ -70,7 +68,7 @@ interface TicketNode {
       toolType?: string;
       requiresApproval: boolean;
       approvalType?: string | null;
-      toolCallArguments?: Record<string, any> | null;
+      toolCallArguments?: Record<string, unknown> | null;
     }>;
   } | null;
   notes?: Array<{
@@ -123,39 +121,20 @@ interface TicketsResponse {
   };
 }
 
-const TICKET_TO_DIALOG_STATUS: Record<string, DialogStatus> = {
-  ACTIVE: 'ACTIVE',
-  TECH_REQUIRED: 'TECH_REQUIRED',
-  ON_HOLD: 'ON_HOLD',
-  RESOLVED: 'RESOLVED',
-  ARCHIVED: 'ARCHIVED',
-};
-
-const DIALOG_TO_TICKET_STATUS: Record<string, string> = {
-  ACTIVE: 'ACTIVE',
-  TECH_REQUIRED: 'TECH_REQUIRED',
-  ON_HOLD: 'ON_HOLD',
-  RESOLVED: 'RESOLVED',
-  ARCHIVED: 'ARCHIVED',
-};
-
 interface StatusMutationPayload {
-  ticket: { id: string; status: string } | null;
+  ticket: { id: string } | null;
   userErrors: Array<{ field?: string[]; message: string }>;
 }
 
-const STATUS_TO_MUTATION: Record<string, { mutation: string; key: string }> = {
-  ON_HOLD: { mutation: PUT_TICKET_ON_HOLD_MUTATION, key: 'putTicketOnHold' },
-  RESOLVED: { mutation: RESOLVE_TICKET_MUTATION, key: 'resolveTicket' },
-  ARCHIVED: { mutation: ARCHIVE_TICKET_MUTATION, key: 'archiveTicket' },
-  ACTIVE: { mutation: REOPEN_TICKET_MUTATION, key: 'reopenTicket' },
-};
+interface MarkDialogMessagesReadPayload {
+  dialog: { id: string; unreadMessageCount: number } | null;
+  userErrors: Array<{ field?: string[]; message: string }>;
+}
 
 function normalizeTicketToDialog(ticket: TicketNode): Dialog {
   return {
     id: ticket.id,
     title: ticket.title,
-    status: TICKET_TO_DIALOG_STATUS[ticket.status] || (ticket.status as DialogStatus),
     statusId: ticket.statusDefinition?.id,
     statusName: ticket.statusDefinition?.name,
     statusColor: ticket.statusDefinition?.color,
@@ -168,7 +147,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
             machineId: ticket.owner.machineId || '',
             machine: ticket.owner.machine,
           }
-        : { type: ticket.owner.type as any },
+        : { type: ticket.owner.type as DialogOwnerEnum },
     createdAt: ticket.createdAt,
     statusUpdatedAt: ticket.updatedAt || null,
     resolvedAt: ticket.resolvedAt || null,
@@ -193,6 +172,9 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     assigneeImageUrl: ticket.assigneeImage?.imageUrl,
     assigneeImageHash: ticket.assigneeImage?.hash,
     tags: ticket.tags,
+    unreadMessageCount: ticket.unreadMessageCount,
+    lastActivityAt: ticket.lastActivityAt ?? null,
+    activityState: ticket.activityState,
     escalatedByUser: ticket.escalatedByUser,
     pendingApproval: ticket.pendingApproval ?? undefined,
     attachments: ticket.attachments,
@@ -212,26 +194,6 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
 }
 
 export class TicketService implements TicketServiceInterface {
-  private async mutateTicketStatus(ticketId: string, mutation: string, responseKey: string): Promise<DialogStatus> {
-    const response = await apiClient.post<GraphQlResponse<Record<string, StatusMutationPayload>>>(
-      API_ENDPOINTS.GRAPHQL,
-      { query: mutation, variables: { input: { id: ticketId } } },
-    );
-
-    const data = extractGraphQlData(response);
-    const payload = data[responseKey];
-
-    if (payload.userErrors?.length) {
-      throw new Error(payload.userErrors[0].message);
-    }
-
-    if (!payload.ticket) {
-      throw new Error('Ticket status mutation returned no ticket');
-    }
-
-    return TICKET_TO_DIALOG_STATUS[payload.ticket.status] || (payload.ticket.status as DialogStatus);
-  }
-
   async fetchDialogs(params: FetchTicketsParams): Promise<TicketsPage> {
     const paginationVars: Record<string, unknown> = { limit: params.limit };
     if (params.cursor) {
@@ -239,10 +201,8 @@ export class TicketService implements TicketServiceInterface {
     }
 
     const filter: Record<string, unknown> = {};
-    if (params.statusIds?.length) {
+    if (params.statusIds.length) {
       filter.statusIds = params.statusIds;
-    } else {
-      filter.statuses = params.statuses.map(s => DIALOG_TO_TICKET_STATUS[s] || s);
     }
     if (params.organizationIds?.length) {
       filter.organizationIds = params.organizationIds;
@@ -253,6 +213,9 @@ export class TicketService implements TicketServiceInterface {
     if (params.tagIds?.length) {
       filter.tagIds = params.tagIds;
     }
+    if (params.unreadOnly) {
+      filter.hasUnreadNotifications = true;
+    }
 
     const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
       query: GET_TICKETS_QUERY,
@@ -260,6 +223,7 @@ export class TicketService implements TicketServiceInterface {
         filter,
         pagination: paginationVars,
         search: params.search || undefined,
+        sort: params.sort ?? TICKETS_DEFAULT_SORT,
       },
     });
 
@@ -289,6 +253,8 @@ export class TicketService implements TicketServiceInterface {
         organizationIds: params.organizationIds?.length ? params.organizationIds : undefined,
         assigneeIds: params.assigneeIds?.length ? params.assigneeIds : undefined,
         tagIds: params.tagIds?.length ? params.tagIds : undefined,
+        hasUnreadNotifications: params.unreadOnly || undefined,
+        activity: params.activity?.length ? params.activity : undefined,
       },
     });
 
@@ -350,19 +316,6 @@ export class TicketService implements TicketServiceInterface {
     };
   }
 
-  async updateStatus(ticketId: string, status: DialogStatus): Promise<boolean> {
-    await this.mutateStatus(ticketId, status);
-    return true;
-  }
-
-  async mutateStatus(ticketId: string, status: DialogStatus): Promise<DialogStatus> {
-    const mapped = STATUS_TO_MUTATION[status];
-    if (!mapped) {
-      throw new Error(`Unsupported status transition: ${status}`);
-    }
-    return this.mutateTicketStatus(ticketId, mapped.mutation, mapped.key);
-  }
-
   async transitionTicket(ticketId: string, toStatusId: string): Promise<void> {
     const response = await apiClient.post<GraphQlResponse<Record<'transitionTicket', StatusMutationPayload>>>(
       API_ENDPOINTS.GRAPHQL,
@@ -378,18 +331,6 @@ export class TicketService implements TicketServiceInterface {
     }
   }
 
-  async fetchTicketStatusTransitions(): Promise<TicketStatusTransition[]> {
-    const response = await apiClient.post<
-      GraphQlResponse<{ ticketStatusTransitions: Array<{ from: string; to: string[] }> }>
-    >(API_ENDPOINTS.GRAPHQL, { query: GET_TICKET_STATUS_TRANSITIONS_QUERY });
-
-    const data = extractGraphQlData(response);
-    return data.ticketStatusTransitions.map(t => ({
-      from: TICKET_TO_DIALOG_STATUS[t.from] || (t.from as DialogStatus),
-      to: t.to.map(s => TICKET_TO_DIALOG_STATUS[s] || (s as DialogStatus)),
-    }));
-  }
-
   async fetchTicketStatusTransitionRules(): Promise<TicketStatusTransitionRule[]> {
     const response = await apiClient.post<
       GraphQlResponse<{ ticketStatusTransitionRules: Array<{ from: { id: string }; to: Array<{ id: string }> }> }>
@@ -402,7 +343,7 @@ export class TicketService implements TicketServiceInterface {
     }));
   }
 
-  async reorderTicket(params: ReorderTicketParams): Promise<DialogStatus> {
+  async reorderTicket(params: ReorderTicketParams): Promise<void> {
     const input: Record<string, unknown> = {
       id: params.id,
       afterTicketId: params.afterTicketId,
@@ -410,8 +351,6 @@ export class TicketService implements TicketServiceInterface {
     };
     if (params.statusId) {
       input.statusId = params.statusId;
-    } else if (params.status) {
-      input.status = DIALOG_TO_TICKET_STATUS[params.status] ?? params.status;
     }
 
     const response = await apiClient.post<GraphQlResponse<Record<'reorderTicket', StatusMutationPayload>>>(
@@ -428,8 +367,20 @@ export class TicketService implements TicketServiceInterface {
     if (!payload.ticket) {
       throw new Error('reorderTicket returned no ticket');
     }
+  }
 
-    return TICKET_TO_DIALOG_STATUS[payload.ticket.status] || (payload.ticket.status as DialogStatus);
+  async markDialogMessagesRead(dialogId: string): Promise<number> {
+    const response = await apiClient.post<
+      GraphQlResponse<Record<'markDialogMessagesRead', MarkDialogMessagesReadPayload>>
+    >(API_ENDPOINTS.GRAPHQL, { query: MARK_DIALOG_MESSAGES_READ_MUTATION, variables: { input: { id: dialogId } } });
+
+    const payload = extractGraphQlData(response).markDialogMessagesRead;
+
+    if (payload.userErrors?.length) {
+      throw new Error(payload.userErrors[0].message);
+    }
+
+    return payload.dialog?.unreadMessageCount ?? 0;
   }
 
   async sendMessage(dialogId: string, content: string, chatType: ChatType): Promise<void> {
@@ -462,11 +413,6 @@ export class TicketService implements TicketServiceInterface {
     if (!response.ok) {
       throw new Error(response.error || `Failed to reject request (${response.status})`);
     }
-  }
-
-  async archiveDialog(ticketId: string): Promise<boolean> {
-    await this.mutateTicketStatus(ticketId, ARCHIVE_TICKET_MUTATION, 'archiveTicket');
-    return true;
   }
 
   async fetchChunks(dialogId: string, chatType: ChatType, fromSequenceId?: number | null): Promise<ChunkData[]> {

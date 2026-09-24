@@ -20,15 +20,15 @@ function Cell({ value, label, className }: { value: string; label: string; class
   return (
     <div
       className={cn(
-        'flex flex-col items-start justify-center min-w-0 px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] md:py-0 md:h-[80px]',
+        'flex min-w-0 flex-col items-start justify-center px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] md:h-[80px] md:py-0',
         className,
       )}
     >
       <div className="text-h4">
-        <Skeleton className={cn('inline-block h-3 md:h-4 max-w-full', value)} />
+        <Skeleton className={cn('inline-block h-3 max-w-full md:h-4', value)} />
       </div>
       <div className="text-h6">
-        <Skeleton className={cn('inline-block h-2.5 md:h-3 max-w-full', label)} />
+        <Skeleton className={cn('inline-block h-2.5 max-w-full md:h-3', label)} />
       </div>
     </div>
   );
@@ -53,19 +53,19 @@ function Cell({ value, label, className }: { value: string; label: string; class
  */
 export function ScheduleInfoBarSkeleton() {
   return (
-    <div className="flex flex-col gap-0 bg-ods-card border border-ods-border rounded-[6px] overflow-clip w-full">
-      <div className="grid grid-cols-2 md:grid-cols-4 border-b border-ods-border">
+    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+      <div className="grid grid-cols-2 border-b border-ods-border md:grid-cols-4">
         {CELLS.map(cell => (
           <Cell
             key={cell.key}
             value={cell.value}
             label={cell.label}
-            className={cell.divided ? 'border-b md:border-b-0 border-ods-border' : undefined}
+            className={cell.divided ? 'border-b border-ods-border md:border-b-0' : undefined}
           />
         ))}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2">
-        <Cell value="w-28" label="w-24" className="border-b md:border-b-0 border-ods-border" />
+        <Cell value="w-28" label="w-24" className="border-b border-ods-border md:border-b-0" />
         <Cell value="w-24" label="w-16" />
       </div>
     </div>

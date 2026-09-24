@@ -1,6 +1,5 @@
 'use client';
 
-import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import {
   ArrowRightUpIcon,
   BracketSquareCheckIcon,
@@ -16,14 +15,19 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { differenceInCalendarDays } from 'date-fns';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
+import { cveSeverityRank, resolveCveSeverity } from '@/app/components/shared/cve/cve-severity';
+import { CveSeverityTag } from '@/app/components/shared/cve/cve-severity-tag';
+import { DateWithAge } from '@/app/components/shared/date-with-age';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { formatDate } from '@/lib/format-date';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
+import { deviceQueryKeys } from '../../utils/query-keys';
+import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../../utils/vulnerabilities-empty-state';
+import { DataSyncBanner } from '../data-sync-banner';
 import { VULNERABILITY_COLUMNS } from './device-tab-columns';
-import { TabEmptyState } from './tab-empty-state';
+import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface VulnerabilitiesTabProps {
   device: Device | null;
@@ -37,43 +41,23 @@ interface VulnerabilityWithSoftware extends Vulnerability {
   unique_key: string; // Unique identifier for React keys
 }
 
-type Severity = 'critical' | 'high' | 'medium' | 'low';
-
-const SEVERITY_RANK: Record<Severity, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-const SEVERITY_VARIANT: Record<Severity, 'critical' | 'error' | 'warning' | 'grey'> = {
-  critical: 'critical',
-  high: 'error',
-  medium: 'warning',
-  low: 'grey',
-};
-
 const EMPTY_COLUMN_FILTERS: never[] = [];
-
-/** CVSS v3 band → severity. */
-function severityFromScore(score: number): Severity {
-  if (score >= 9) return 'critical';
-  if (score >= 7) return 'high';
-  if (score >= 4) return 'medium';
-  return 'low';
-}
 
 /** Affected package for the mobile fold — name and version are separate lines from `md`. */
 function softwareLabel(vuln: VulnerabilityWithSoftware): string {
   return vuln.software_version ? `${vuln.software_name} · ${vuln.software_version}` : vuln.software_name;
 }
 
-// Prefer the real Fleet CVSS score; fall back to a year-based heuristic when it's absent.
-function getSeverity(vuln: { cve: string; cvss_score?: number | null }): Severity {
-  if (typeof vuln.cvss_score === 'number') return severityFromScore(vuln.cvss_score);
-  const year = Number.parseInt(vuln.cve.match(/CVE-(\d{4})/)?.[1] || '0', 10);
-  const currentYear = new Date().getFullYear();
-  if (currentYear - year === 0) return 'critical';
-  if (currentYear - year <= 1) return 'high';
-  if (currentYear - year <= 3) return 'medium';
-  return 'low';
+/**
+ * The band a Fleet vulnerability rates by its CVSS score; null without one —
+ * unrated stays unrated rather than being guessed.
+ */
+function severityOf(vuln: { cvss_score?: number | null }) {
+  return resolveCveSeverity(null, vuln.cvss_score);
 }
 
 export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -113,7 +97,7 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         accessorKey: 'cve',
         header: VULNERABILITY_COLUMNS.cve.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
-          <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <TruncateText>{row.original.cve}</TruncateText>
             {/* SOFTWARE has a column of its own from `md` up; below that it is folded
                 in here, so a mobile row still says which package the CVE is in. */}
@@ -129,27 +113,20 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
       {
         id: VULNERABILITY_COLUMNS.severity.id,
         header: VULNERABILITY_COLUMNS.severity.header,
-        accessorFn: (row: VulnerabilityWithSoftware) => SEVERITY_RANK[getSeverity(row)],
-        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => {
-          const severity = getSeverity(row.original);
-          const score = row.original.cvss_score;
-          return (
-            <div className="flex flex-col gap-1 items-start min-w-0">
-              <Tag label={severity.toUpperCase()} variant={SEVERITY_VARIANT[severity]} />
-              {typeof score === 'number' && <span className="text-h6 text-ods-text-secondary">CVSS {score}</span>}
-            </div>
-          );
-        },
+        accessorFn: (row: VulnerabilityWithSoftware) => cveSeverityRank(severityOf(row)),
+        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
+          <CveSeverityTag severity={null} cvssScore={row.original.cvss_score} />
+        ),
         enableSorting: true,
         sortingFn: (a: Row<VulnerabilityWithSoftware>, b: Row<VulnerabilityWithSoftware>) =>
-          SEVERITY_RANK[getSeverity(a.original)] - SEVERITY_RANK[getSeverity(b.original)],
+          cveSeverityRank(severityOf(a.original)) - cveSeverityRank(severityOf(b.original)),
         meta: liveColumnMeta(VULNERABILITY_COLUMNS.severity),
       },
       {
         accessorKey: 'software_name',
         header: VULNERABILITY_COLUMNS.software.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
-          <div className="flex flex-col justify-center min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <TruncateText>{row.original.software_name}</TruncateText>
             {row.original.software_version && (
               <TruncateText variant="h6" tone="secondary">
@@ -163,21 +140,7 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
       {
         accessorKey: 'created_at',
         header: VULNERABILITY_COLUMNS.discovered.header,
-        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => {
-          const discovered = new Date(row.original.created_at);
-          if (Number.isNaN(discovered.getTime())) {
-            return <span className="text-h4 text-ods-text-secondary">—</span>;
-          }
-          const days = differenceInCalendarDays(new Date(), discovered);
-          return (
-            <div className="flex flex-col justify-center min-w-0">
-              <span className="text-h4 truncate">{formatDate(row.original.created_at)}</span>
-              <span className="text-h6 text-ods-text-secondary truncate">
-                {days} {days === 1 ? 'day' : 'days'}
-              </span>
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => <DateWithAge date={row.original.created_at} />,
         enableSorting: true,
         // Least-needed column for mobile triage — hidden below md, where the row keeps
         // CVE (+ the folded-in package), severity and the details button.
@@ -188,12 +151,12 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
         header: '',
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) =>
           row.original.details_link ? (
-            <div data-no-row-click className="flex items-center justify-end pointer-events-auto">
+            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
               <Button
                 onClick={() => window.open(row.original.details_link, '_blank', 'noopener,noreferrer')}
                 variant="outline"
                 size="icon"
-                leftIcon={<ArrowRightUpIcon className="w-5 h-5" />}
+                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
                 aria-label={`Open ${row.original.cve} details`}
                 className="bg-ods-card"
               />
@@ -235,6 +198,68 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
     );
   }
 
+  // An empty list is only "no vulnerabilities" once the pipeline actually ran —
+  // otherwise say which stage it is at. A non-empty list renders as usual (a
+  // stale scan alongside existing results is intentionally not flagged).
+  if (vulnerabilities.length === 0) {
+    const reason = getVulnerabilitiesEmptyReason(device);
+
+    if (reason === 'error') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Couldn't load vulnerability data"
+          description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
+          buttonLabel="Retry"
+          onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
+        />
+      );
+    }
+
+    if (reason === 'disconnected') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Fleet is not connected"
+          description="The Fleet agent for this device is disconnected, so vulnerability data is unavailable."
+        />
+      );
+    }
+
+    if (reason === 'collecting') {
+      // Agent still deploying → the design's connecting-state copy;
+      // agent live but the first inventory scan hasn't finished → collecting copy.
+      if (device.sources?.fleet === 'skipped-pending') {
+        return <TabDeployingEmptyState icon={<BracketSquareCheckIcon />} section="Vulnerabilities" />;
+      }
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Collecting software inventory"
+          description="This device hasn't reported its installed software yet. Vulnerabilities will appear once the inventory arrives."
+        />
+      );
+    }
+
+    if (reason === 'scan-pending') {
+      return (
+        <TabEmptyState
+          icon={<BracketSquareCheckIcon />}
+          title="Vulnerability scan pending"
+          description="The latest software inventory hasn't been checked for vulnerabilities yet. Check back shortly."
+        />
+      );
+    }
+
+    return (
+      <TabEmptyState
+        icon={<BracketSquareCheckIcon />}
+        title="No vulnerabilities found"
+        description="Detected vulnerabilities for this device will appear here."
+      />
+    );
+  }
+
   // Empty table → show only the centered empty state: hide the column header always, and
   // hide the search too (unless a search is active, so the user can still clear it).
   const hasSearch = search.trim().length > 0;
@@ -242,17 +267,22 @@ export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
+      {/* Results are on screen but the last matching run predates the current
+          software inventory — e.g. a patched CVE may still show as active until
+          the hourly run catches up. */}
+      {isVulnerabilityScanPending(device) && <DataSyncBanner />}
+
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
-          className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <Input
             placeholder="Search for Vulnerability"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full"
-            startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
           />
         </div>
       )}

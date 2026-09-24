@@ -10,7 +10,6 @@ export const CREATE_TICKET_MUTATION = `
         ticketNumber
         title
         description
-        status
         owner {
           ... on ClientTicketOwner {
             type
@@ -100,7 +99,6 @@ export const GET_TICKET_QUERY = `
       ticketNumber
       title
       description
-      status
       statusDefinition {
         id
         name
@@ -125,6 +123,7 @@ export const GET_TICKET_QUERY = `
             id
             machineId
             hostname
+            nickname
             organizationId
           }
         }
@@ -202,16 +201,22 @@ export const GET_TICKET_QUERY = `
   }
 `;
 
+/**
+ * The board position order. `GET_TICKETS_QUERY` takes its sort as a REQUIRED
+ * variable so no caller can forget it; every caller but the tickets table
+ * (which sorts by number, `FetchTicketsParams.sort`) passes this.
+ */
+export const TICKETS_DEFAULT_SORT = { field: 'order', direction: 'ASC' } as const;
+
 export const GET_TICKETS_QUERY = `
-  query GetTickets($filter: TicketFilterInput, $pagination: CursorPaginationInput, $search: String) {
-    tickets(filter: $filter, pagination: $pagination, search: $search, sort: { field: "order", direction: ASC }) {
+  query GetTickets($filter: TicketFilterInput, $pagination: CursorPaginationInput, $search: String, $sort: SortInput!) {
+    tickets(filter: $filter, pagination: $pagination, search: $search, sort: $sort) {
       edges {
         cursor
         node {
           id
           ticketNumber
           title
-          status
           statusDefinition {
             id
             name
@@ -226,6 +231,7 @@ export const GET_TICKETS_QUERY = `
                 id
                 machineId
                 hostname
+                nickname
                 organizationId
               }
             }
@@ -258,6 +264,8 @@ export const GET_TICKETS_QUERY = `
             key
             color
           }
+          # Unflagged, so it must not outrun the backend — see boardCardTicketFragment.
+          unreadMessageCount
           createdAt
           updatedAt
           resolvedAt
@@ -284,13 +292,31 @@ export const GET_TICKETS_QUERY = `
  * first GraphQL error — every board column would come back empty rather than
  * merely missing a badge. `resolvedBy` rides the `ai-resolution` flag for the
  * same reason.
+ *
+ * `unreadMessageCount` (the technicians' shared unread client-message counter,
+ * openframe-saas-tenant#3301) is selected UNCONDITIONALLY and carries that same
+ * failure mode, because `ticket.graphqls` declares it with no feature flag —
+ * there is no flag to ride, and borrowing an unrelated one (`notifications`
+ * gates the notifications UI, not the ai-agent schema) would only move the
+ * breakage. It is therefore a deploy-ordering requirement: the saas-ai-agent
+ * carrying the field must ship BEFORE this frontend, or the board columns, the
+ * tickets table and the ticket picker (`use-ticket-options.ts`, same document)
+ * all come back empty. Same constraint at the `GET_TICKETS_QUERY` selection.
+ *
+ * `lastActivityAt` / `activityState` (board activity indicators) are in the
+ * same unconditional, no-flag position: the saas-ai-agent build exposing them
+ * (openframe-saas-tenant#2938) must be deployed before this frontend.
+ *
+ * `machine.nickname` (every `ClientTicketOwner.machine` selection in this file)
+ * is the same case: `shared.graphqls` declares it unflagged, so the saas-ai-agent
+ * that added it (openframe-saas-tenant#3020) must be deployed before a frontend
+ * carrying this selection, or the same three surfaces come back empty.
  */
 const boardCardTicketFragment = () => `
   fragment BoardCardTicket on Ticket {
     id
     ticketNumber
     title
-    status
     statusDefinition {
       id
       name
@@ -314,6 +340,7 @@ const boardCardTicketFragment = () => `
           id
           machineId
           hostname
+          nickname
           organizationId
         }
       }
@@ -342,6 +369,9 @@ const boardCardTicketFragment = () => `
       key
       color
     }
+    unreadMessageCount
+    lastActivityAt
+    activityState
     ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
     ${featureFlags.aiResolution.enabled() ? 'resolvedBy' : ''}
     pendingApproval {
@@ -369,9 +399,9 @@ const boardCardTicketFragment = () => `
 `;
 
 export const getBoardColumnTicketsQuery = () => `
-  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!]) {
+  query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!], $hasUnreadNotifications: Boolean, $activity: [TicketActivityFilter!]) {
     tickets(
-      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds }
+      filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds, hasUnreadNotifications: $hasUnreadNotifications, activity: $activity }
       pagination: { limit: $limit, cursor: $cursor }
       search: $search
       sort: { field: "order", direction: ASC }
@@ -412,7 +442,6 @@ export const TRANSITION_TICKET_MUTATION = `
     transitionTicket(input: $input) {
       ticket {
         id
-        status
         statusDefinition {
           id
         }
@@ -519,7 +548,6 @@ export const UPDATE_TICKET_MUTATION = `
         ticketNumber
         title
         description
-        status
         owner {
           ... on ClientTicketOwner {
             type
@@ -561,42 +589,6 @@ export const UPDATE_TICKET_MUTATION = `
   }
 `;
 
-export const PUT_TICKET_ON_HOLD_MUTATION = `
-  mutation PutTicketOnHold($input: TicketIdInput!) {
-    putTicketOnHold(input: $input) {
-      ticket { id status }
-      userErrors { field message }
-    }
-  }
-`;
-
-export const RESOLVE_TICKET_MUTATION = `
-  mutation ResolveTicket($input: TicketIdInput!) {
-    resolveTicket(input: $input) {
-      ticket { id status resolvedAt }
-      userErrors { field message }
-    }
-  }
-`;
-
-export const ARCHIVE_TICKET_MUTATION = `
-  mutation ArchiveTicket($input: TicketIdInput!) {
-    archiveTicket(input: $input) {
-      ticket { id status }
-      userErrors { field message }
-    }
-  }
-`;
-
-export const REOPEN_TICKET_MUTATION = `
-  mutation ReopenTicket($input: TicketIdInput!) {
-    reopenTicket(input: $input) {
-      ticket { id status }
-      userErrors { field message }
-    }
-  }
-`;
-
 /**
  * The reopen verb (ClickUp 86ajnyctz): flips a Resolved/Archived ticket back
  * open, records the optional reason (backend trims, <=1000 chars), and fires
@@ -615,10 +607,25 @@ export const REQUEST_TICKET_REOPEN_MUTATION = `
   }
 `;
 
+/**
+ * Resets the caller's side of the dialog's unread client-message counter
+ * (`Dialog.unreadMessageCount`). For an admin token that is the side every
+ * technician shares, so one technician reading the chat clears the board's
+ * "New Message" badge for all of them. Idempotent; a reply resets it too.
+ */
+export const MARK_DIALOG_MESSAGES_READ_MUTATION = `
+  mutation MarkDialogMessagesRead($input: DialogIdInput!) {
+    markDialogMessagesRead(input: $input) {
+      dialog { id unreadMessageCount }
+      userErrors { field message }
+    }
+  }
+`;
+
 export const REORDER_TICKET_MUTATION = `
   mutation ReorderTicket($input: ReorderTicketInput!) {
     reorderTicket(input: $input) {
-      ticket { id status order }
+      ticket { id order }
       userErrors { field message }
     }
   }
@@ -641,7 +648,6 @@ export const TAKE_OVER_TICKET_MUTATION = `
     takeOverTicket(input: $input) {
       ticket {
         id
-        status
         statusDefinition { id name color kind }
         assignedTo
         assignedName
@@ -678,23 +684,10 @@ export const UNLINK_ORGANIZATION_FROM_TICKET_MUTATION = `
   }
 `;
 
-export const GET_TICKET_STATUS_TRANSITIONS_QUERY = `
-  query TicketStatusTransitions {
-    ticketStatusTransitions {
-      from
-      to
-    }
-  }
-`;
-
 export const GET_TICKET_STATISTICS_QUERY = `
   query GetTicketStatistics {
     ticketStatistics {
       totalCount
-      statusCounts {
-        status
-        count
-      }
       statusDefinitionCounts {
         status {
           kind

@@ -11,12 +11,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const clearStoredTokens = vi.fn();
 const setTokens = vi.fn(async (_tokens: { accessToken?: string | null; refreshToken?: string | null }) => undefined);
 const markTokenRotation = vi.fn();
+const adoptNativeTokens = vi.fn();
+/** A shell bridge exposing `refreshTokens`; null stands in for the web. */
+let shellPlugin: { refreshTokens: (options?: { rejectedAccessToken?: string }) => Promise<unknown> } | null = null;
 let tokenEpoch = 0;
 let accessToken: string | null = 'access-1';
 let bearerMode = true;
 
 vi.mock('./force-logout', () => ({ clearStoredTokens: () => clearStoredTokens() }));
-vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => null }));
+vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => shellPlugin }));
 vi.mock('./platform', () => ({ isAppShell: () => false }));
 vi.mock('./runtime-config', () => ({ runtimeEnv: { sharedHostUrl: () => 'https://auth.test' } }));
 vi.mock('./token-store', () => ({
@@ -30,6 +33,8 @@ vi.mock('./token-store', () => ({
     markTokenRotation();
   },
   setTokens: (tokens: { accessToken?: string | null; refreshToken?: string | null }) => setTokens(tokens),
+  adoptNativeTokens: (tokens: { accessToken?: string | null; refreshToken?: string | null }) =>
+    adoptNativeTokens(tokens),
 }));
 
 /**
@@ -73,6 +78,8 @@ beforeEach(() => {
   clearStoredTokens.mockClear();
   setTokens.mockClear();
   markTokenRotation.mockClear();
+  adoptNativeTokens.mockClear();
+  shellPlugin = null;
   vi.stubGlobal('localStorage', memoryStorage());
 });
 
@@ -221,5 +228,50 @@ describe('rotation deduplication', () => {
 
     expect(await refreshTokens()).toBe('refreshed');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('shell-owned refresh', () => {
+  it('delegates to the shell, names the refused bearer, and mirrors the answer without writing it back', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const plugin = { refreshTokens: vi.fn(async () => ({ accessToken: 'access-2', refreshToken: 'refresh-2' })) };
+    shellPlugin = plugin;
+    const { refreshTokens } = await loadManager();
+
+    expect(await refreshTokens()).toBe('refreshed');
+    // The webview never POSTs /oauth/refresh itself: rotating refresh tokens
+    // tolerate exactly one refresher.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(plugin.refreshTokens).toHaveBeenCalledWith({ rejectedAccessToken: 'access-1' });
+    // Mirrored into the cache, never written back through setTokens — the shell
+    // already stored it, and a write-back could land on top of a later rotation
+    // and restore a spent refresh token.
+    expect(adoptNativeTokens).toHaveBeenCalledWith({ accessToken: 'access-2', refreshToken: 'refresh-2' });
+    expect(setTokens).not.toHaveBeenCalled();
+  });
+
+  it('reports `terminal` and clears when the shell answers with an empty set', async () => {
+    shellPlugin = { refreshTokens: vi.fn(async () => ({})) };
+    const { refreshTokens } = await loadManager();
+
+    expect(await refreshTokens()).toBe('terminal');
+    expect(clearStoredTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports `transient` when the shell rejects, leaving the session alone', async () => {
+    // The shell rejects for everything that keeps the session intact — no
+    // network path, an unknown outcome, a locked device, a biometric-gated store
+    // it has not unlocked yet. None of those is a sign-out.
+    shellPlugin = {
+      refreshTokens: vi.fn(async () => {
+        throw Object.assign(new Error('the device is locked'), { code: 'DEVICE_LOCKED' });
+      }),
+    };
+    const { refreshTokens } = await loadManager();
+
+    expect(await refreshTokens()).toBe('transient');
+    expect(clearStoredTokens).not.toHaveBeenCalled();
+    expect(adoptNativeTokens).not.toHaveBeenCalled();
   });
 });

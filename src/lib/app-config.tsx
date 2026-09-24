@@ -1,6 +1,7 @@
-import React from 'react';
+import type React from 'react';
 import { openframeConfig } from './platform-configs/openframe.config';
 import { runtimeEnv } from './runtime-config';
+import { getAppUrl } from './utils';
 
 export type AppType = 'openframe-auth' | 'openframe-dashboard';
 
@@ -127,8 +128,8 @@ export interface AppConfig {
     headerBorder?: string;
     headerClassName?: string;
     getHeaderActions: (params: {
-      user: any;
-      router: any;
+      user: { id?: string; email?: string } | null | undefined;
+      router: { push: (href: string) => void };
       pathname?: string;
       onSignUp?: () => void;
       onToggleAdminSidebar?: () => void;
@@ -191,21 +192,10 @@ export function getCurrentPlatform(): 'openframe' {
   return 'openframe';
 }
 
-// Get metadata base URL function for client-side
-export function getMetadataBaseUrl(): string {
-  // Decide based on window presence rather than NODE_ENV to allow runtime
-  if (typeof window !== 'undefined') {
-    // In browser, prefer appUrl, else devUrl
-    return runtimeEnv.appUrl() || runtimeEnv.devUrl();
-  }
-  // In non-browser contexts, fall back similarly
-  return runtimeEnv.appUrl() || runtimeEnv.devUrl();
-}
-
 // Get platform-specific asset paths
 export function getPlatformAssetPaths(appType?: AppType) {
   const _currentAppType = appType || getCurrentAppType();
-  const baseUrl = getMetadataBaseUrl();
+  const baseUrl = getAppUrl();
 
   return {
     favicon: `${baseUrl}/assets/openframe/favicon.ico`,
@@ -218,7 +208,7 @@ export function getPlatformAssetPaths(appType?: AppType) {
 
 // Generate structured data for the app
 export function generateStructuredData(config: AppConfig) {
-  const baseUrl = getMetadataBaseUrl();
+  const baseUrl = getAppUrl();
 
   const schemaLd = {
     '@context': 'https://schema.org',

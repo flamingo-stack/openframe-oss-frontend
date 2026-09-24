@@ -33,10 +33,10 @@ export function FullInformationSection({ logDetails }: FullInformationSectionPro
 
   if (!logDetails) {
     return (
-      <div className="flex flex-col gap-1 flex-1 min-w-0">
-        <div className="text-h5 text-ods-text-secondary w-full">Full Information</div>
-        <div className="bg-ods-card border border-ods-border rounded-[6px] flex flex-col gap-3 items-center justify-center p-8 w-full">
-          <div className="text-ods-text-secondary text-center">No log details available</div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="w-full text-ods-text-secondary text-h5">Full Information</div>
+        <div className="flex w-full flex-col items-center justify-center gap-3 rounded-[6px] border border-ods-border bg-ods-card p-8">
+          <div className="text-center text-ods-text-secondary">No log details available</div>
         </div>
       </div>
     );
@@ -58,9 +58,9 @@ export function FullInformationSection({ logDetails }: FullInformationSectionPro
   ];
 
   return (
-    <div className="flex flex-col gap-3 w-full">
+    <div className="flex w-full flex-col gap-3">
       {/* Section Title */}
-      <div className="text-h5 text-ods-text-secondary w-full">Full Information</div>
+      <div className="w-full text-ods-text-secondary text-h5">Full Information</div>
 
       {/* Info Card */}
       <InfoCard data={{ items }} />

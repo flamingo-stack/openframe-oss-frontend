@@ -34,6 +34,7 @@ import type { deleteTimeEntryMutation as DeleteTimeEntryMutationType } from '@/_
 import type { employeeWorkTimeRelay_query$key } from '@/__generated__/employeeWorkTimeRelay_query.graphql';
 import type { employeeWorkTimeRelayPaginationQuery } from '@/__generated__/employeeWorkTimeRelayPaginationQuery.graphql';
 import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } from '@/__generated__/employeeWorkTimeRelayQuery.graphql';
+import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
 import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -156,10 +157,10 @@ const timeColumn: ColumnDef<WorkTimeRow> = {
   header: 'TIME',
   cell: ({ row }) => (
     <div className="flex flex-col">
-      <span className="font-mono text-h4 text-ods-text-primary">
+      <span className="font-mono text-ods-text-primary text-h4">
         {formatDurationLabel(row.original.durationSeconds)}
       </span>
-      <span className="text-h6 text-ods-text-secondary">{formatDate(parseInstant(row.original.startedAt))}</span>
+      <span className="text-ods-text-secondary text-h6">{formatDate(parseInstant(row.original.startedAt))}</span>
     </div>
   ),
   enableSorting: false,
@@ -171,7 +172,7 @@ const customerColumn: ColumnDef<WorkTimeRow> = {
   header: 'CUSTOMER',
   cell: ({ row }) => {
     const { organizationName, organizationEmail, organizationImageUrl } = row.original;
-    if (!organizationName) return <span className="text-h4 text-ods-text-secondary">–</span>;
+    if (!organizationName) return <span className="text-ods-text-secondary text-h4">–</span>;
     return (
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
         <EntityImage src={organizationImageUrl} alt={organizationName} className="size-12 md:size-12" />
@@ -342,7 +343,8 @@ function WorkTimeTableData({
             userImageUrl: getFullImageUrl(edge.node.user?.image?.imageUrl, edge.node.user?.image?.hash),
             organizationId: org?.organizationId ?? null,
             organizationName: org?.name ?? null,
-            organizationEmail: org?.contactInformation?.contacts?.[0]?.email ?? null,
+            organizationEmail:
+              customerContactEmail(org?.contactInformation?.contacts?.map(contact => contact?.email)) ?? null,
             organizationImageUrl: getFullImageUrl(org?.image?.imageUrl, org?.image?.hash),
           };
         }),
@@ -517,14 +519,16 @@ export function WorkTimeTable({
     },
     [setParams],
   );
-  useEffect(() => {
-    setRangeState(prev => {
-      if ((formatDayParam(prev?.from) ?? '') === params.from && (formatDayParam(prev?.to) ?? '') === params.to) {
-        return prev;
-      }
-      return rangeFromParams(params.from, params.to);
-    });
-  }, [params.from, params.to]);
+  // Adopt an externally-changed range (back/forward, a shared link) during render:
+  // the table below is keyed off `range`, so an effect would fetch and draw the
+  // previous window once before correcting itself.
+  const [lastParams, setLastParams] = useState({ from: params.from, to: params.to });
+  if (params.from !== lastParams.from || params.to !== lastParams.to) {
+    setLastParams({ from: params.from, to: params.to });
+    if ((formatDayParam(range?.from) ?? '') !== params.from || (formatDayParam(range?.to) ?? '') !== params.to) {
+      setRangeState(rangeFromParams(params.from, params.to));
+    }
+  }
 
   const [editTarget, setEditTarget] = useState<ManualEntryEditTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkTimeRow | null>(null);
@@ -636,7 +640,7 @@ export function WorkTimeTable({
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search for Work Time"
-          startAdornment={<SearchIcon className="w-4 h-4 md:w-6 md:h-6" />}
+          startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
           className="w-full md:flex-1"
         />
         <DatePicker

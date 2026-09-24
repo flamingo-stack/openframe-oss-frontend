@@ -23,7 +23,13 @@ export default function CheckEmailPage() {
   const [email, setEmail] = useState('');
 
   useEffect(() => {
-    const storedEmail = sessionStorage.getItem('auth:email');
+    let storedEmail: string | null = null;
+    try {
+      storedEmail = sessionStorage.getItem('auth:email');
+    } catch {
+      // Blocked site data / private mode throws on access rather than returning null. Treat it as
+      // a missing address so this lands on the bounce below instead of taking the page down.
+    }
     if (storedEmail) {
       setEmail(storedEmail);
     } else {
@@ -40,7 +46,7 @@ export default function CheckEmailPage() {
       const response = await authApiClient.resendVerificationEmail(email);
 
       if (!response.ok) {
-        const error = response.data as any;
+        const error = response.data as { code?: string; message?: string } | undefined;
         throw new Error(error?.message || response.error || 'Failed to resend the confirmation email');
       }
 
@@ -62,7 +68,7 @@ export default function CheckEmailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-ods-bg flex flex-col items-center justify-between p-[var(--spacing-system-xl)]">
+    <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-[var(--spacing-system-l)] md:p-[var(--spacing-system-xl)]">
       {/* Logo */}
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
         <OpenFrameLogo
@@ -74,26 +80,28 @@ export default function CheckEmailPage() {
       </div>
 
       {/* Content */}
-      <main className="flex flex-col items-center gap-[var(--spacing-system-xl)] max-w-[600px] text-center">
-        <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
-          <h1 className="text-h2 text-ods-text-primary">Check your Email</h1>
-          <p className="text-h4 text-ods-text-secondary">
-            We sent a confirmation link to <span className="text-ods-text-primary">{email}</span>. Click it to verify
-            your address and finish setting up your account.
-          </p>
+      <main className="flex max-w-[600px] flex-col items-center gap-[var(--spacing-system-xl)] text-center">
+        <div className="flex flex-col gap-[var(--spacing-system-xs)]">
+          <h1 className="text-ods-text-primary text-h2">Check your Email</h1>
+          <div className="text-ods-text-secondary text-h4">
+            <p>
+              We sent a confirmation link to <span className="text-ods-text-primary">{email}</span>.
+            </p>
+            <p>Click it to verify your address and finish setting up your account.</p>
+          </div>
         </div>
 
         {/* 200px per the mockup, shrinking evenly when the viewport is narrower than the design's 430px frame */}
         <div className="flex w-full justify-center gap-[var(--spacing-system-m)]">
-          <Button variant="outline" className="w-full max-w-[200px]" onClick={() => router.push(routes.auth.root)}>
-            Back to Sign Up
+          <Button variant="outline" className="w-full max-w-[200px]" onClick={() => router.push(routes.auth.login)}>
+            Back to Login
           </Button>
           <Button variant="outline" className="w-full max-w-[200px]" onClick={handleResend} disabled={isResending}>
             {isResending ? 'Sending...' : 'Resend Email'}
           </Button>
         </div>
 
-        <p className="text-h6 text-ods-text-secondary">
+        <p className="text-ods-text-secondary text-h6">
           Didn&apos;t get it? Check your spam folder. The link expires in 24 hours.
         </p>
       </main>
@@ -104,11 +112,11 @@ export default function CheckEmailPage() {
           href="https://flamingo.run"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-mf)] text-ods-text-secondary rounded-md bg-transparent hover:bg-ods-bg-hover transition-colors"
+          className="flex items-center gap-[var(--spacing-system-xsf)] rounded-md bg-transparent p-[var(--spacing-system-mf)] text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
         >
           <span className="text-h6">Powered by</span>
           <FlamingoLogo className="h-5 w-5" fill="currentColor" />
-          <span className="text-code font-semibold">Flamingo</span>
+          <span className="font-semibold text-code">Flamingo</span>
         </a>
       </footer>
     </div>

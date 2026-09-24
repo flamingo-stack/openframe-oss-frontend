@@ -26,31 +26,48 @@ interface DeleteAccountModalProps {
 
 interface NewOwnerSelectProps {
   currentUserId: string;
+  organizationName: string;
   value: string;
   onChange: (id: string) => void;
   disabled: boolean;
 }
+
+const SUPPORT_EMAIL = 'hello@openframe.ai';
 
 /**
  * "New Owner" picker for the owner variant. A separate component so the users
  * request fires only while the owner actually has the modal open — it mounts
  * conditionally from the parent. Candidates are ACTIVE users other than the
  * caller; DELETED users and pending invitations can't receive the OWNER role.
+ *
+ * With no candidate at all (a sole-member workspace) the picker is replaced by
+ * the two ways out — invite someone, or ask support to delete the workspace —
+ * rather than a select nothing can be chosen from: a confirm that stays disabled
+ * with no explanation is the dead end App Review reads as "no account deletion".
  */
-function NewOwnerSelect({ currentUserId, value, onChange, disabled }: NewOwnerSelectProps) {
+function NewOwnerSelect({ currentUserId, organizationName, value, onChange, disabled }: NewOwnerSelectProps) {
   const { users, isLoading } = useUsers(0, 1000);
   const candidates = users.filter(u => u.id !== currentUserId && u.status === UserStatus.Active);
 
-  const placeholder = isLoading
-    ? 'Loading users...'
-    : candidates.length === 0
-      ? 'No active users to transfer to'
-      : 'Select new owner';
+  if (!isLoading && candidates.length === 0) {
+    return (
+      <p className="text-ods-text-primary text-h4">
+        You&apos;re the only active member of {organizationName}, so there is no one to hand ownership to. Invite
+        another member and make them the owner, or email{' '}
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+          {SUPPORT_EMAIL}
+        </a>{' '}
+        to delete the workspace together with your account.
+      </p>
+    );
+  }
+
+  const placeholder = isLoading ? 'Loading users...' : 'Select new owner';
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xs)]">
       <Label htmlFor="new-owner-select">New Owner</Label>
-      <Select value={value} onValueChange={onChange} disabled={disabled || candidates.length === 0}>
+      <Select value={value} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger id="new-owner-select">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
@@ -139,10 +156,10 @@ export function DeleteAccountModal({ open, onOpenChange }: DeleteAccountModalPro
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)] text-left">
         <div className="flex flex-col gap-[var(--spacing-system-m)]">
-          <p className="text-h4 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h4">
             This will permanently delete your OpenFrame account and remove your access to {organizationName}.
           </p>
-          <p className="text-h4 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h4">
             Your personal information will be removed. Activity records stay in audit logs without your name.
           </p>
         </div>
@@ -150,13 +167,14 @@ export function DeleteAccountModal({ open, onOpenChange }: DeleteAccountModalPro
         {isOwner && (
           <>
             <div className="flex items-start gap-[var(--spacing-system-s)] rounded-md border border-ods-error p-[var(--spacing-system-m)]">
-              <AlertTriangleIcon className="w-5 h-5 shrink-0 text-ods-error" />
-              <p className="text-h5 text-ods-error">
+              <AlertTriangleIcon className="h-5 w-5 shrink-0 text-ods-error" />
+              <p className="text-ods-error text-h5">
                 You&apos;re the owner of organization. Choose who takes over ownership before your account is deleted.
               </p>
             </div>
             <NewOwnerSelect
               currentUserId={user?.id ?? ''}
+              organizationName={organizationName}
               value={newOwnerId}
               onChange={setNewOwnerId}
               disabled={isPending}

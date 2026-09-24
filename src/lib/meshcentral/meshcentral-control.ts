@@ -1,5 +1,11 @@
 type ControlAuthCookies = { authCookie: string; relayCookie?: string };
 
+type PendingRequest = {
+  resolve: (value: unknown) => void;
+  reject: (reason: Error) => void;
+  timeout: ReturnType<typeof setTimeout>;
+};
+
 import { getAccessTokenSync, isBearerAuthMode } from '../token-store';
 import { buildWsUrl, MESH_PASS, MESH_USER } from './meshcentral-config';
 import { WebSocketManager } from './websocket-manager';
@@ -8,7 +14,14 @@ export class MeshControlClient {
   private wsManager: WebSocketManager | null = null;
   private isOpen = false;
   private cookies: ControlAuthCookies | null = null;
-  private pendingRequests: Map<string, { resolve: Function; reject: Function; timeout: any }> = new Map();
+  /**
+   * In-flight requests keyed by their response id. The payload type differs per
+   * request kind (auth cookies, void, boolean, string), so the registry erases it
+   * to `unknown` and each `set` site adapts its own typed resolver — an honest
+   * signature, unlike the `Function` this used to hold, which accepted anything
+   * callable and told the reader nothing.
+   */
+  private pendingRequests: Map<string, PendingRequest> = new Map();
   private activeTunnels: Array<{
     nodeId: string;
     relayId: string;
@@ -85,7 +98,9 @@ export class MeshControlClient {
       if (msg?.action === 'ping') {
         try {
           this.wsManager?.send(JSON.stringify({ action: 'pong' }));
-        } catch {}
+        } catch {
+          // A pong the socket refuses to take means the socket is already going down, which the close handler deals with.
+        }
         return;
       }
       if (msg?.action === 'pong') return;
@@ -100,11 +115,15 @@ export class MeshControlClient {
               args: { auth: this.cookies.authCookie },
             }),
           );
-        } catch {}
+        } catch {
+          // The socket can close between the message arriving and this reply; the reconnect path re-sends the args on the next open.
+        }
 
         try {
           this.resendActiveTunnels();
-        } catch {}
+        } catch {
+          // One tunnel that refuses to be re-announced must not stop the others — each is re-established on demand anyway.
+        }
 
         const request = this.pendingRequests.get('authcookie');
         if (request) {
@@ -121,7 +140,7 @@ export class MeshControlClient {
           this.pendingRequests.delete(msg.responseid);
 
           if (msg.result === 'ok') {
-            request.resolve();
+            request.resolve(undefined);
           } else {
             request.reject(new Error(msg.result || 'Power action failed'));
           }
@@ -189,7 +208,11 @@ export class MeshControlClient {
         reject(new Error('Timed out waiting for authcookie'));
       }, timeoutMs);
 
-      this.pendingRequests.set('authcookie', { resolve, reject, timeout });
+      this.pendingRequests.set('authcookie', {
+        resolve: value => resolve(value as ControlAuthCookies),
+        reject,
+        timeout,
+      });
       this.requestAuthCookies();
     });
   }
@@ -220,7 +243,7 @@ export class MeshControlClient {
       return;
     }
 
-    const msg: Record<string, any> = { action: 'msg', type: 'tunnel', nodeid: nodeId, value: relayPathValue };
+    const msg: Record<string, unknown> = { action: 'msg', type: 'tunnel', nodeid: nodeId, value: relayPathValue };
     if (typeof usage === 'number') {
       msg.usage = usage;
     }
@@ -296,7 +319,7 @@ export class MeshControlClient {
         reject(new Error('Timed out waiting for poweraction response'));
       }, timeoutMs);
 
-      this.pendingRequests.set(responseid, { resolve, reject, timeout });
+      this.pendingRequests.set(responseid, { resolve: () => resolve(), reject, timeout });
 
       const payload = { action: 'poweraction', nodeids: [nodePath], actiontype, responseid };
       try {
@@ -320,7 +343,11 @@ export class MeshControlClient {
         resolve(false);
       }, timeoutMs);
 
-      this.pendingRequests.set(responseid, { resolve, reject: () => resolve(false), timeout });
+      this.pendingRequests.set(responseid, {
+        resolve: value => resolve(value as boolean),
+        reject: () => resolve(false),
+        timeout,
+      });
 
       try {
         this.wsManager?.send(JSON.stringify({ action: 'msg', type: 'setclip', nodeid: nodeId, data, responseid }));
@@ -343,7 +370,11 @@ export class MeshControlClient {
         resolve(null);
       }, timeoutMs);
 
-      this.pendingRequests.set(responseid, { resolve, reject: () => resolve(null), timeout });
+      this.pendingRequests.set(responseid, {
+        resolve: value => resolve(value as string | null),
+        reject: () => resolve(null),
+        timeout,
+      });
 
       try {
         this.wsManager?.send(JSON.stringify({ action: 'msg', type: 'getclip', nodeid: nodeId, responseid }));

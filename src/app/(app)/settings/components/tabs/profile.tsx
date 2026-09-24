@@ -1,13 +1,14 @@
 'use client';
 
 import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { AlertCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageError, SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { AlertCircle, Pencil } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { apiClient } from '@/lib/api-client';
 import { authApiClient } from '@/lib/auth-api-client';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { handleApiError } from '@/lib/handle-api-error';
 import { getFullImageUrl } from '@/lib/image-url';
 import { EditProfileModal } from '../edit-profile-modal';
@@ -31,12 +32,17 @@ export function ProfileTab() {
 
       setIsUpdating(true);
       try {
-        const res = await apiClient.put(`api/users/${encodeURIComponent(user.id)}`, data);
+        const res = await apiClient.put<{ firstName?: string; lastName?: string }>(
+          `api/users/${encodeURIComponent(user.id)}`,
+          data,
+        );
         if (!res.ok) {
           throw new Error(res.error || 'Failed to update profile');
         }
 
-        const updatedData = res.data;
+        // A 2xx with no body means the server accepted the change without echoing
+        // it back; keep the values that were just submitted.
+        const updatedData = res.data ?? data;
 
         // Update auth store with new data
         updateUser({
@@ -58,7 +64,7 @@ export function ProfileTab() {
         setIsUpdating(false);
       }
     },
-    [user?.id, updateUser, toast],
+    [user, updateUser, toast],
   );
 
   const handleResendVerification = async () => {
@@ -88,7 +94,7 @@ export function ProfileTab() {
   }, [fetchFullProfile]);
 
   // Get display name
-  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '—';
+  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : EMPTY_VALUE;
 
   if (isLoadingProfile && !user) {
     return (
@@ -109,7 +115,7 @@ export function ProfileTab() {
   return (
     <div className="pt-6">
       {/* Profile Card */}
-      <div className="bg-ods-card border border-ods-border rounded-md p-4 flex items-center gap-4">
+      <div className="flex items-center gap-4 rounded-md border border-ods-border bg-ods-card p-4">
         {/* Avatar */}
         <SquareAvatar
           src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
@@ -119,7 +125,7 @@ export function ProfileTab() {
         />
 
         {/* Name and Email */}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <div className="flex items-center gap-2">
             <div className="min-w-0">
               <TruncateText>{displayName}</TruncateText>
@@ -128,7 +134,7 @@ export function ProfileTab() {
             {user.roles?.map(role => (
               <span
                 key={role}
-                className="shrink-0 inline-flex items-center px-2 py-1 rounded-md text-h5 bg-ods-card border border-ods-border text-ods-text-primary"
+                className="inline-flex shrink-0 items-center rounded-md border border-ods-border bg-ods-card px-2 py-1 text-ods-text-primary text-h5"
               >
                 {role}
               </span>
@@ -143,10 +149,10 @@ export function ProfileTab() {
             {user.emailVerified === false && (
               <button
                 onClick={() => setIsVerificationModalOpen(true)}
-                className="flex items-center gap-1 text-ods-warning hover:text-ods-warning/80 transition-colors"
+                className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
                 title="Email not verified - click to resend verification"
               >
-                <AlertCircle className="w-4 h-4" />
+                <AlertCircleIcon className="h-4 w-4" />
                 <span className="text-h6">Not verified</span>
               </button>
             )}
@@ -161,7 +167,7 @@ export function ProfileTab() {
         </div> */}
 
         {/* Action buttons */}
-        <div className="shrink-0 flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           {/* <Button
             disabled={true}
             variant="outline"
@@ -169,7 +175,11 @@ export function ProfileTab() {
           >
             <span className="font-bold">User Logs</span>
           </Button> */}
-          <Button variant="outline" onClick={() => setIsEditModalOpen(true)} leftIcon={<Pencil className="w-5 h-5" />}>
+          <Button
+            variant="outline"
+            onClick={() => setIsEditModalOpen(true)}
+            leftIcon={<PenEditIcon className="h-5 w-5" />}
+          >
             <span className="font-bold">Edit Profile</span>
           </Button>
         </div>

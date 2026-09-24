@@ -3,9 +3,9 @@
  * Extends the base API client with Fleet-specific functionality
  */
 
-import { FleetHost, FleetHostResponse } from '@/app/(app)/devices/types/fleet.types';
-import { Policy } from '@/app/(app)/monitoring/types/policies.types';
-import {
+import type { FleetHostResponse } from '@/app/(app)/devices/types/fleet.types';
+import type { Policy } from '@/app/(app)/monitoring/types/policies.types';
+import type {
   HostQueriesResponse,
   Query,
   QueryReportParams,
@@ -66,17 +66,17 @@ class FleetApiClient {
     return `${this.baseUrl}${cleanPath}`;
   }
 
-  async request<T = any>(path: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
+  async request<T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
     const fleetUrl = this.buildFleetUrl(path);
 
     return apiClient.request<T>(fleetUrl, options);
   }
 
-  async get<T = any>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async get<T = unknown>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, { ...options, method: 'GET' });
   }
 
-  async post<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async post<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'POST',
@@ -84,7 +84,7 @@ class FleetApiClient {
     });
   }
 
-  async put<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async put<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'PUT',
@@ -92,7 +92,7 @@ class FleetApiClient {
     });
   }
 
-  async patch<T = any>(path: string, body?: any, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async patch<T = unknown>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, {
       ...options,
       method: 'PATCH',
@@ -100,7 +100,7 @@ class FleetApiClient {
     });
   }
 
-  async delete<T = any>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
+  async delete<T = unknown>(path: string, options?: ApiRequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
@@ -154,7 +154,7 @@ class FleetApiClient {
     return this.post('/api/latest/fleet/policies/delete', { ids: [policyId] });
   }
 
-  async runPolicyOnHost(policyId: number, hostId: number): Promise<ApiResponse<any>> {
+  async runPolicyOnHost(policyId: number, hostId: number): Promise<ApiResponse<unknown>> {
     return this.post(`/api/latest/fleet/policies/${policyId}/run`, { host_id: hostId });
   }
 
@@ -270,7 +270,7 @@ class FleetApiClient {
       label_ids?: number[];
       team_ids?: number[];
     },
-  ): Promise<ApiResponse<any>> {
+  ): Promise<ApiResponse<unknown>> {
     return this.post(`/api/latest/fleet/queries/${queryId}/run`, params);
   }
 
@@ -385,11 +385,11 @@ class FleetApiClient {
 
   // Fleet specific methods - Teams
 
-  async getTeams(): Promise<ApiResponse<any[]>> {
+  async getTeams(): Promise<ApiResponse<unknown[]>> {
     return this.get('/api/latest/fleet/teams');
   }
 
-  async getTeam(teamId: number): Promise<ApiResponse<any>> {
+  async getTeam(teamId: number): Promise<ApiResponse<unknown>> {
     return this.get(`/api/latest/fleet/teams/${teamId}`);
   }
 
@@ -458,11 +458,11 @@ class FleetApiClient {
 
   // Fleet specific methods - Packs
 
-  async getPacks(): Promise<ApiResponse<any[]>> {
+  async getPacks(): Promise<ApiResponse<unknown[]>> {
     return this.get('/api/latest/fleet/packs');
   }
 
-  async getPack(packId: number): Promise<ApiResponse<any>> {
+  async getPack(packId: number): Promise<ApiResponse<unknown>> {
     return this.get(`/api/latest/fleet/packs/${packId}`);
   }
 

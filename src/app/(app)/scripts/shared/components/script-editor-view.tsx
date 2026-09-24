@@ -20,7 +20,7 @@ import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/sea
 import { Annotation, Compartment, EditorState, type Extension, Transaction } from '@codemirror/state';
 import { EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  * The editor itself — everything that pulls CodeMirror in.
@@ -253,13 +253,18 @@ export default function ScriptEditorView({
   // push, which are the only places an ending is observable.
   const eolRef = useRef<Eol>(eolOf(value) ?? '\n');
 
-  const compartmentsRef = useRef<{ language: Compartment; editable: Compartment } | null>(null);
-  compartmentsRef.current ??= { language: new Compartment(), editable: new Compartment() };
-  const { language, editable } = compartmentsRef.current;
+  // Lazy `useState` rather than a `ref.current ??=` idiom: these two compartments
+  // are READ during render (the effects below list them as dependencies), and a
+  // ref read in render is invisible to React. A lazy initializer gives the same
+  // create-once, stable-for-the-component's-life value without that.
+  const [{ language, editable }] = useState(() => ({
+    language: new Compartment(),
+    editable: new Compartment(),
+  }));
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
+    if (!host) return undefined;
 
     const view = new EditorView({
       parent: host,

@@ -8,16 +8,15 @@ import type React from 'react';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
-import { formatDate, formatTimeWithSeconds } from '@/lib/format-date';
+import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import type { Device } from '../types/device.types';
 import { getDeviceName } from '../utils/device-name';
 
 function formatDateWithTime(iso?: string): React.ReactNode {
-  if (!iso) return 'Unknown';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'Unknown';
+  const d = toValidDate(iso);
+  if (!d) return null;
   return (
     <>
       {formatDate(d)} <span className="text-ods-text-secondary">{formatTimeWithSeconds(d)}</span>
@@ -36,15 +35,15 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
 
   if (!device) {
     return (
-      <div className="bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-lf)]">
+      <div className="rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-lf)]">
         <div className="text-center text-ods-text-secondary">No device data available</div>
       </div>
     );
   }
 
-  const deviceLabel = [device.manufacturer, device.model].filter(Boolean).join(', ') || 'Unknown';
-  const serialNumber = device.serialNumber || device.serial_number || 'Unknown';
-  const uuid = device.osUuid || device.machineId || device.id || 'Unknown';
+  const deviceLabel = [device.manufacturer, device.model].filter(Boolean).join(', ');
+  const serialNumber = device.serialNumber || device.serial_number;
+  const uuid = device.osUuid || device.machineId || device.id;
   // TEMP: assigned-user block is hidden until the backend returns a user entity
   const assignedUser = { username: null, imageUrl: null };
   const assignedUserImageUrl = getFullImageUrl(assignedUser?.imageUrl);
@@ -59,7 +58,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   // The original device name — with a nickname in the page title, this cell is
   // where the hostname stays visible alongside the custom name.
   const hostnameCell = <InfoCell value={device.hostname || getDeviceName(device)} label="Hostname" />;
-  const typeCell = <InfoCell value={device.type || 'Unknown'} label="Type" icon={typeIcon} />;
+  const typeCell = <InfoCell value={device.type} label="Type" icon={typeIcon} />;
   const deviceCell = (
     <InfoCell
       value={deviceLabel}
@@ -74,7 +73,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   const customerInner = device.organization && (
     <>
       <EntityImage src={customerImageUrl} alt={device.organization} className="size-10 md:size-10" />
-      <div className="flex flex-col justify-center min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
         {customerHref ? (
           <Link href={customerHref} className="min-w-0">
             <TruncateText className="text-ods-accent underline hover:opacity-80">{device.organization}</TruncateText>
@@ -82,25 +81,25 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
         ) : (
           <TruncateText>{device.organization}</TruncateText>
         )}
-        <p className="text-ods-text-secondary text-h6 truncate">Customer ID (Site)</p>
+        <p className="truncate text-ods-text-secondary text-h6">Customer ID (Site)</p>
       </div>
     </>
   );
 
   const assignedInner = assignedUser?.username && (
     <>
-      <EntityImage src={assignedUserImageUrl} alt={assignedUser.username} className="size-10 md:size-10 rounded-full" />
-      <div className="flex flex-col justify-center min-w-0 flex-1">
+      <EntityImage src={assignedUserImageUrl} alt={assignedUser.username} className="size-10 rounded-full md:size-10" />
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
         <TruncateText className="text-ods-accent underline">{assignedUser.username}</TruncateText>
-        <p className="text-ods-text-secondary text-h6 truncate">Assigned User</p>
+        <p className="truncate text-ods-text-secondary text-h6">Assigned User</p>
       </div>
     </>
   );
 
-  const canCopyUuid = uuid !== 'Unknown';
+  const canCopyUuid = Boolean(uuid);
   const uuidCell = (
     <InfoCell
-      value={<span className="break-all">{uuid}</span>}
+      value={uuid ? <span className="break-all">{uuid}</span> : null}
       label="UUID"
       icon={
         <button
@@ -108,7 +107,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
           onClick={() => canCopyUuid && copyUuid(uuid)}
           disabled={!canCopyUuid}
           aria-label="Copy UUID"
-          className="shrink-0 text-ods-text-secondary hover:text-ods-text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="shrink-0 text-ods-text-secondary transition-colors hover:text-ods-text-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           {uuidCopied ? <CheckIcon className={`${iconSize} text-ods-accent`} /> : <Copy02Icon className={iconSize} />}
         </button>
@@ -120,9 +119,9 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
     'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 md:min-h-20 border-b border-ods-border';
 
   return (
-    <div className="bg-ods-card border border-ods-border rounded-md flex flex-col">
+    <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
       {/* ===== Mobile + Tablet (< lg) ===== */}
-      <div className="lg:hidden flex flex-col">
+      <div className="flex flex-col lg:hidden">
         <div className={rowClass}>
           {hostnameCell}
           {deviceCell}
@@ -136,24 +135,24 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
             dividers reach the card edges (no horizontal padding constraining
             the border). */}
         {customerInner && (
-          <div className="md:hidden flex items-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-m)] min-h-14 border-b border-ods-border">
+          <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
             {customerInner}
           </div>
         )}
         {assignedInner && (
-          <div className="md:hidden flex items-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-m)] min-h-14 border-b border-ods-border">
+          <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
             {assignedInner}
           </div>
         )}
 
         {/* Tablet (md to lg): customer + assigned in one horizontal row. */}
         {(customerInner || assignedInner) && (
-          <div className="hidden md:flex md:items-center md:gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-20 border-b border-ods-border">
+          <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] md:flex md:items-center md:gap-[var(--spacing-system-m)]">
             {customerInner && (
-              <div className="flex items-center gap-[var(--spacing-system-xs)] flex-1 min-w-0">{customerInner}</div>
+              <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customerInner}</div>
             )}
             {assignedInner && (
-              <div className="flex items-center gap-[var(--spacing-system-xs)] flex-1 min-w-0">{assignedInner}</div>
+              <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{assignedInner}</div>
             )}
           </div>
         )}
@@ -162,7 +161,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
           {registeredCell}
           {updatedCell}
         </div>
-        <div className="flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 md:min-h-20">
+        <div className="flex min-h-14 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] md:min-h-20">
           {uuidCell}
         </div>
       </div>
@@ -175,13 +174,13 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
           {deviceCell}
           {typeCell}
           {customerInner ? (
-            <div className="flex items-center gap-[var(--spacing-system-xs)] flex-1 min-w-0">{customerInner}</div>
+            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customerInner}</div>
           ) : (
             <div className="flex-1" aria-hidden="true" />
           )}
         </div>
         {/* Row 2: UUID · Serial Number · Registered · Updated */}
-        <div className="flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-20">
+        <div className="flex min-h-20 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)]">
           {uuidCell}
           {serialCell}
           {registeredCell}

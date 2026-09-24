@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-statuses';
 import { useAllDevices } from '../../../devices/hooks/use-all-devices';
 import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
+import { getDeviceName } from '../../../devices/utils/device-name';
 import type { ComplianceStatus, PolicyDeviceRow } from '../types/policy-device-row';
 import { usePolicyResponseHosts } from './use-policy-response-hosts';
 
@@ -56,8 +57,7 @@ export function usePolicyDevicesTable(
       result.push({
         id: String(fleetId),
         hostname: device?.hostname || host?.hostname || `Host ${fleetId}`,
-        displayName:
-          device?.displayName || device?.hostname || host?.display_name || host?.hostname || `Host ${fleetId}`,
+        name: getDeviceName(device) || host?.display_name || host?.hostname || `Host ${fleetId}`,
         deviceType: device?.type,
         organization: device?.organization,
         organizationImageUrl: device?.organizationImageUrl,
@@ -74,7 +74,7 @@ export function usePolicyDevicesTable(
       if (a.complianceStatus !== b.complianceStatus) {
         return statusOrder[a.complianceStatus] - statusOrder[b.complianceStatus];
       }
-      return a.displayName.localeCompare(b.displayName);
+      return a.name.localeCompare(b.name);
     });
 
     return result;

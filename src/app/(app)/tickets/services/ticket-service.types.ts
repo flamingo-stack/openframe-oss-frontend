@@ -1,6 +1,6 @@
 import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
 import type { ChatType } from '../constants';
-import type { CursorPageInfo, Dialog, DialogStatus, Message } from '../types/dialog.types';
+import type { CursorPageInfo, Dialog, Message, TicketActivityFilter } from '../types/dialog.types';
 
 export interface TicketsPage {
   dialogs: Dialog[];
@@ -13,13 +13,35 @@ export interface MessagePage {
   pageInfo: CursorPageInfo;
 }
 
+/**
+ * Server sort of the tickets LIST: by ticket number, newest first by default,
+ * flipped from the TICKET column header (Figma tickets 8002-256659) or the
+ * filter modal. Callers that pass no sort (board columns, pickers, the device
+ * and customer tabs) get the board position (`order`) from the service.
+ */
+export type TicketListSortField = 'ticketNumber';
+
+export interface TicketListSort {
+  field: TicketListSortField;
+  direction: 'ASC' | 'DESC';
+}
+
 export interface FetchTicketsParams {
-  statuses: string[];
-  statusIds?: string[];
+  // Lifecycle status ids; callers resolve them from the status snapshot before
+  // firing (there is no enum fallback — an empty list sends no status filter).
+  statusIds: string[];
   search?: string;
   organizationIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
+  // Sent as `TicketFilterInput.hasUnreadNotifications: true`; the backend
+  // treats false and null alike (no filter), so only `true` is ever sent.
+  // Despite the name it keeps the tickets whose client chat has messages the
+  // technicians have not read (`unreadMessageCount > 0`, openframe-saas-tenant#3301),
+  // so the filter matches the row badge.
+  unreadOnly?: boolean;
+  /** List sort; null/undefined keeps the board position order. */
+  sort?: TicketListSort | null;
   cursor?: string;
   limit: number;
 }
@@ -30,24 +52,23 @@ export interface FetchBoardColumnByStatusIdParams {
   organizationIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
+  unreadOnly?: boolean;
+  // Sent as `TicketFilterInput.activity`; OR within the list, AND with the
+  // other params. Empty list sends no filter.
+  activity?: TicketActivityFilter[];
   cursor?: string;
   limit: number;
 }
-
-export type BoardStatus = 'ACTIVE' | 'TECH_REQUIRED' | 'ON_HOLD' | 'RESOLVED';
 
 export interface ReorderTicketParams {
   id: string;
   afterTicketId: string | null;
   beforeTicketId: string | null;
-  status?: BoardStatus;
-  // Lifecycle column id (custom statuses); forwarded as ReorderTicketInput.statusId.
+  // Lifecycle column id, forwarded as ReorderTicketInput.statusId. Always send it,
+  // on a same-column reorder too: the backend uses its presence to choose between
+  // the lifecycle ranking (statusId columns — what the board shows) and the legacy
+  // one (the deprecated `status` enum). See `moveTicketRequest`.
   statusId?: string;
-}
-
-export interface TicketStatusTransition {
-  from: DialogStatus;
-  to: DialogStatus[];
 }
 
 export interface TicketStatusTransitionRule {
@@ -69,14 +90,14 @@ export interface TicketService {
   fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage>;
   fetchDialog(id: string): Promise<Dialog | null>;
   fetchMessages(params: FetchMessagesParams): Promise<MessagePage>;
-  updateStatus(ticketId: string, status: DialogStatus): Promise<boolean>;
   transitionTicket(ticketId: string, toStatusId: string): Promise<void>;
-  reorderTicket(params: ReorderTicketParams): Promise<DialogStatus>;
-  fetchTicketStatusTransitions(): Promise<TicketStatusTransition[]>;
+  reorderTicket(params: ReorderTicketParams): Promise<void>;
+  /** Resets the technicians' shared unread client-message counter of one dialog;
+   *  resolves to the server's count after the reset (0), throws on `userErrors`. */
+  markDialogMessagesRead(dialogId: string): Promise<number>;
   fetchTicketStatusTransitionRules(): Promise<TicketStatusTransitionRule[]>;
   sendMessage(dialogId: string, content: string, chatType: ChatType): Promise<void>;
   approveRequest(requestId: string): Promise<void>;
   rejectRequest(requestId: string): Promise<void>;
-  archiveDialog(ticketId: string): Promise<boolean>;
   fetchChunks(dialogId: string, chatType: ChatType, fromSequenceId?: number | null): Promise<ChunkData[]>;
 }

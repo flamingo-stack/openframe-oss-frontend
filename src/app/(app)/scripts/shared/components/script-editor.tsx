@@ -191,7 +191,7 @@ export function ScriptEditor({
     <div
       style={{ height }}
       className={cn(
-        'relative rounded-md border overflow-hidden',
+        'relative overflow-hidden rounded-md border',
         invalid ? 'border-ods-error' : 'border-ods-border',
         className,
       )}

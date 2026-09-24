@@ -1,7 +1,7 @@
 'use client';
 
+import { TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Trash2 } from 'lucide-react';
 import { Suspense, useCallback, useMemo } from 'react';
 import type { tagsEditor_keySuggestions$key as KeySuggestionsFragmentKey } from '@/__generated__/tagsEditor_keySuggestions.graphql';
 import { TagValueAutocomplete } from './tag-value-autocomplete';
@@ -94,8 +94,8 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
   const valuesError = useMemo(() => validateTagValues(tag.values), [tag.values]);
 
   return (
-    <div className="flex flex-col md:flex-row gap-[var(--spacing-system-l)] md:gap-[var(--spacing-system-s)] items-start w-full">
-      <div className="w-full md:flex-1 min-w-0" ref={focusInputOnMount}>
+    <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] md:flex-row md:gap-[var(--spacing-system-s)]">
+      <div className="w-full min-w-0 md:flex-1" ref={focusInputOnMount}>
         <Autocomplete
           options={keyOptions}
           value={tag.key || null}
@@ -115,8 +115,8 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
         />
       </div>
 
-      <div className="w-full md:flex-1 flex gap-[var(--spacing-system-s)] items-end min-w-0">
-        <div className="flex-1 min-w-0">
+      <div className="flex w-full min-w-0 items-end gap-[var(--spacing-system-s)] md:flex-1">
+        <div className="min-w-0 flex-1">
           {tag.key ? (
             <Suspense fallback={disabledValueAutocomplete}>
               <div ref={focusInputOnMount}>
@@ -142,7 +142,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
           size="icon"
           onClick={onDelete}
           aria-label="Remove tag row"
-          leftIcon={<Trash2 className="size-4 md:size-6 text-ods-error" />}
+          leftIcon={<TrashIcon className="size-4 text-ods-error md:size-6" />}
         />
       </div>
     </div>

@@ -7,16 +7,16 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { buildPolicyGroups } from '@/app/(app)/settings/ai-settings/components/guardrails/build-policy-groups';
-import {
-  CUSTOM_POLICY_DESCRIPTION,
-  CUSTOM_POLICY_TYPE,
-} from '@/app/(app)/settings/ai-settings/components/guardrails/guardrails.types';
 import { GuardrailsPolicyGroups } from '@/app/(app)/settings/ai-settings/components/guardrails/guardrails-policy-groups';
 import { GuardrailsPresetCard } from '@/app/(app)/settings/ai-settings/components/guardrails/guardrails-preset-card';
 import {
   type GuardrailsTemplateOption,
   GuardrailsTemplatePicker,
 } from '@/app/(app)/settings/ai-settings/components/guardrails/guardrails-template-picker';
+import {
+  CUSTOM_POLICY_DESCRIPTION,
+  CUSTOM_POLICY_TYPE,
+} from '@/app/(app)/settings/ai-settings/components/guardrails/guardrails.types';
 import {
   applyEditsToRules,
   buildBaseLevels,
@@ -67,7 +67,7 @@ type OrgGuardrailsSelection =
  * approval overrides on top of one.
  */
 export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, CustomerGuardrailsSettingsProps>(
-  function CustomerGuardrailsSettings({ organizationId }, ref) {
+  function CustomerGuardrailsSettingsImpl({ organizationId }, ref) {
     const router = useRouter();
     const { toast } = useToast();
 
@@ -353,3 +353,4 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
     );
   },
 );
+CustomerGuardrailsSettings.displayName = 'CustomerGuardrailsSettings';

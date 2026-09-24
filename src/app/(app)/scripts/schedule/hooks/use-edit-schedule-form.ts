@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -78,12 +79,20 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
       // Day + time of day become one instant here. Both are guaranteed present
       // for a DATE_TIME schedule (schema `superRefine`), so a null start can only
       // mean "event-driven".
+      // Written under the reading the form holds: SERVER converts the local pair
+      // to the instant it names, DEVICE_LOCAL stores the wall clock itself for
+      // the runner to re-base per device (see `toScheduleInstant`).
       const startAt =
         !isEventDriven && data.scheduledDate && data.scheduledTime
-          ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime))
+          ? toScheduleInstant(applyTimeSlot(data.scheduledDate, data.scheduledTime), data.timeReference)
           : null;
+      // Nothing is forced for a device-local schedule — neither `offlineBehavior`
+      // nor `repeat`. The API may still refuse either beside DEVICE_LOCAL, but
+      // both sets of controls are offered, so what the user set is what gets
+      // sent and the refusal surfaces as the error toast.
+      //
       // The window is written only when the behavior that uses it is in force,
-      // and an event-driven schedule has neither.
+      // which an event-driven schedule never has.
       const retriesOnReconnect = !isEventDriven && isRetryOnReconnect(data.offlineBehavior);
       const input = {
         name: data.name,
@@ -105,6 +114,11 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // PUT semantics: null clears the timing / recurrence. `repeat` needs a
         // start to anchor it, which a DATE_TIME schedule always has by now.
         startAt,
+        // Which clock `startAt` is in. Sent explicitly rather than left to the
+        // input's null-means-SERVER default: this is a PUT, and the form holds
+        // the schedule's own reading even where the picker is hidden by its
+        // flag — omitting it would re-time a device-local schedule on any edit.
+        timeReference: data.timeReference,
         // `resolveDurationSeconds`, not the raw parts: a stored cadence the unit
         // dropdown can't express is displayed rounded, and writing that display
         // back would change how often the schedule runs on an edit that never
@@ -116,10 +130,10 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
           startAt && data.repeatEnabled && data.repeatInterval !== null
             ? resolveDurationSeconds(data.repeatInterval, data.repeatUnit, data.repeatSecondsStored)
             : null,
-        // "If device is offline at scheduled time" — meaningless without one, so
-        // an event-driven schedule is written back as the SKIP default rather
-        // than carrying whatever the collapsed block still holds. It fires ON
-        // the reconnect already; there is no offline moment to decide about.
+        // "If device is offline at scheduled time" — meaningless without such a
+        // moment, and an event-driven schedule fires ON the reconnect, so it is
+        // written back as the SKIP default instead of what the collapsed block
+        // holds.
         offlineBehavior: isEventDriven ? ScheduleOfflineBehavior.SKIP : data.offlineBehavior,
         // Only ever set alongside RETRY_ON_RECONNECT — the schema says the field
         // is "set only when offlineBehavior is RETRY_ON_RECONNECT; null/ignored

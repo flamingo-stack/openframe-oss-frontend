@@ -73,7 +73,11 @@ export function useTempAttachments() {
   const [files, setFiles] = useState<TempFileEntry[]>([]);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
 
-  const uploadMutation = useMutation({
+  // `mutate` is the stable half of a mutation result; the result object itself
+  // is rebuilt every render. Keying the callbacks below on the object made this
+  // hook's return a new object per render, which the ticket form's prefill
+  // effect once listed as a dependency.
+  const { mutate: uploadMutate, isPending: isUploading } = useMutation({
     mutationFn: createTempAttachment,
     onMutate: (source: UploadSource) => {
       const placeholder: TempFileEntry = {
@@ -98,7 +102,7 @@ export function useTempAttachments() {
     },
   });
 
-  const removeTempMutation = useMutation({
+  const { mutate: removeTempMutate } = useMutation({
     mutationFn: deleteTempAttachment,
     onSuccess: (_data, id) => {
       setFiles(prev => prev.filter(f => f.id !== id));
@@ -113,9 +117,9 @@ export function useTempAttachments() {
 
   const uploadFile = useCallback(
     (source: UploadSource) => {
-      uploadMutation.mutate(source);
+      uploadMutate(source);
     },
-    [uploadMutation],
+    [uploadMutate],
   );
 
   const removeFile = useCallback(
@@ -130,10 +134,10 @@ export function useTempAttachments() {
         setFiles(prev => prev.filter(f => f.id !== id));
         setPendingDeleteIds(prev => [...prev, id]);
       } else {
-        removeTempMutation.mutate(id);
+        removeTempMutate(id);
       }
     },
-    [files, removeTempMutation],
+    [files, removeTempMutate],
   );
 
   const initializeExisting = useCallback(
@@ -142,15 +146,13 @@ export function useTempAttachments() {
         const existingIds = new Set(prev.map(f => f.id));
         const newEntries = attachments
           .filter(a => !existingIds.has(a.id))
-          .map(
-            (a): TempFileEntry => ({
-              id: a.id,
-              fileName: a.fileName,
-              fileSize: a.fileSize ?? 0,
-              contentType: a.contentType,
-              status: 'existing',
-            }),
-          );
+          .map((a): TempFileEntry => ({
+            id: a.id,
+            fileName: a.fileName,
+            fileSize: a.fileSize ?? 0,
+            contentType: a.contentType,
+            status: 'existing',
+          }));
         return newEntries.length ? [...prev, ...newEntries] : prev;
       });
     },
@@ -192,7 +194,7 @@ export function useTempAttachments() {
     uploadFile,
     removeFile,
     initializeExisting,
-    isUploading: uploadMutation.isPending,
+    isUploading,
     getTempAttachmentIds,
     deleteRemovedAttachments,
     hasPendingDeletes,

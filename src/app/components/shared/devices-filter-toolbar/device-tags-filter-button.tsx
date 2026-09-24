@@ -28,7 +28,7 @@ export function DeviceTagsFilterButton({ onClick }: { onClick: () => void }) {
         variant="outline"
         onClick={onClick}
         leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
-        className="shrink-0 hidden md:inline-flex"
+        className="hidden shrink-0 md:inline-flex"
       >
         Device Tags
       </Button>

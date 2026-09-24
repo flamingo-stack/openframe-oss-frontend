@@ -12,6 +12,7 @@ import {
   UNARCHIVE_MINGO_DIALOG_MUTATION,
 } from '../queries/dialogs-queries';
 import type { DialogsResponse } from '../types';
+import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 interface DialogMutationPayload {
   dialog: { id: string } | null;
@@ -66,7 +67,7 @@ export function useMingoDialogActions() {
       try {
         await runDialogMutation(RENAME_MINGO_DIALOG_MUTATION, { input: { id, title } }, 'renameDialog');
         invalidateDialogs();
-        void queryClient.invalidateQueries({ queryKey: ['mingo-dialog', id] });
+        void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.detail(id) });
         toast({ title: 'Chat renamed', variant: 'success' });
       } catch (err) {
         toast({
@@ -133,7 +134,7 @@ export function useMingoDialogActions() {
         return {
           dialogs: edges.map(edge => ({
             id: edge.node.id,
-            title: edge.node.title || 'Untitled Dialog',
+            title: edge.node.title || 'New Chat',
             timestamp: new Date(edge.node.createdAt),
           })),
           nextCursor: pageInfo.hasNextPage ? (pageInfo.endCursor ?? null) : null,

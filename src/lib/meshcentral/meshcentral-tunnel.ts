@@ -16,7 +16,7 @@ type TunnelCallbacks = {
   onConsoleMessage?: (msg: string) => void;
   onStateChange?: (state: TunnelState) => void;
   onBinaryData?: (data: Uint8Array) => void;
-  onCtrlMessage?: (msg: any) => void;
+  onCtrlMessage?: (msg: Record<string, unknown>) => void;
   onRequestPairing?: (relayId: string) => void;
   getAuthCookie?: () => string | null;
   onBeforeReconnect?: () => Promise<void>;
@@ -26,7 +26,7 @@ export class MeshTunnel {
   private wsManager?: WebSocketManager;
   private state: TunnelState = 0;
   private id: string;
-  private latencyTimer: any;
+  private latencyTimer: ReturnType<typeof setInterval> | null = null;
   private isHandshakeComplete = false;
 
   constructor(
@@ -35,9 +35,17 @@ export class MeshTunnel {
       nodeId: string;
       protocol?: number;
       options?: TunnelOptions;
+      /**
+       * Prefix of the relay id, `<requestId>.<p>` for a session opened under a
+       * remote access approval (CU-86ajx02gz): the gateway gate matches the
+       * first token against the approval grant. The tunnel appends its own
+       * nonce, so every tunnel of the session stays unique.
+       */
+      relayIdPrefix?: string;
     } & TunnelCallbacks,
   ) {
-    this.id = Math.random().toString(36).slice(2);
+    const nonce = Math.random().toString(36).slice(2);
+    this.id = params.relayIdPrefix ? `${params.relayIdPrefix}.${nonce}` : nonce;
   }
 
   getRelayId(): string {
@@ -78,7 +86,9 @@ export class MeshTunnel {
       onBeforeReconnect: async () => {
         try {
           await this.params.onBeforeReconnect?.();
-        } catch {}
+        } catch {
+          // The pre-reconnect hook is an opportunity (refresh a cookie, re-open the control session), not a precondition: the reconnect must happen either way, or the tunnel never comes back.
+        }
       },
 
       onStateChange: wsState => {
@@ -212,7 +222,7 @@ export class MeshTunnel {
     this.sendRaw(text);
   }
 
-  sendCtrl(obj: any) {
+  sendCtrl(obj: unknown) {
     try {
       const data = JSON.stringify(obj);
       this.wsManager?.send(data);

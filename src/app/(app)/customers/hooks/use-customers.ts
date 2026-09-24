@@ -51,13 +51,13 @@ export function mapOrganizationNode(node: OrganizationNode): Customer {
   return {
     id: node.id,
     organizationId: node.organizationId,
-    name: node.name ?? '-',
+    name: node.name ?? '',
     websiteUrl: node.websiteUrl ?? '',
     contact: {
       name: primaryContact?.contactName ?? '',
       email: primaryContact?.email ?? '',
     },
-    industry: node.category ?? '-',
+    industry: node.category ?? '',
     mrrUsd: node.monthlyRevenue ?? 0,
     numberOfEmployees: node.numberOfEmployees ?? 0,
     contractDue: node.contractEndDate ?? '',
@@ -113,7 +113,7 @@ export function useCustomers(search = '', status?: string, dateQuery?: Customers
       const response = await apiClient.post<
         GraphQlResponse<{
           organizations: {
-            edges: Array<{ node: any; cursor: string }>;
+            edges: Array<{ node: OrganizationNode; cursor: string }>;
             pageInfo: {
               hasNextPage: boolean;
               hasPreviousPage: boolean;

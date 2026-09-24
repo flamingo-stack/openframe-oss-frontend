@@ -1,3 +1,6 @@
+import type { QueryClient } from '@tanstack/react-query';
+import type { TicketListSort } from '../services/ticket-service.types';
+
 /**
  * Query keys for tickets/dialogs React Query hooks
  */
@@ -10,6 +13,11 @@ export interface DialogsQueryParams {
   organizationIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
+  /** Only tickets with unread client-chat messages (the row badge). */
+  unreadOnly?: boolean;
+  /** User-chosen list sort; part of the key so a sort change restarts the
+   *  cursor from the first page instead of interleaving two orders. */
+  sort?: TicketListSort | null;
   /** Page size override (default 20). Part of the query key — lists fetched
    *  with different page sizes must not share a cache entry. */
   pageSize?: number;
@@ -34,6 +42,8 @@ export const dialogsQueryKeys = {
         organizationIds: params.organizationIds || [],
         assigneeIds: params.assigneeIds || [],
         tagIds: params.tagIds || [],
+        unreadOnly: params.unreadOnly ?? false,
+        sort: params.sort ? `${params.sort.field}:${params.sort.direction}` : '',
         pageSize: params.pageSize ?? 20,
       },
     ] as const,
@@ -44,7 +54,14 @@ export const dialogsQueryKeys = {
   // Specific board column keyed by statusId + search + filters
   boardColumn: (
     statusId: string,
-    params: { search?: string; organizationIds?: string[]; assigneeIds?: string[]; tagIds?: string[] },
+    params: {
+      search?: string;
+      organizationIds?: string[];
+      assigneeIds?: string[];
+      tagIds?: string[];
+      unreadOnly?: boolean;
+      activity?: string[];
+    },
   ) =>
     [
       ...dialogsQueryKeys.boardColumns(),
@@ -54,6 +71,8 @@ export const dialogsQueryKeys = {
         organizationIds: params.organizationIds || [],
         assigneeIds: params.assigneeIds || [],
         tagIds: params.tagIds || [],
+        unreadOnly: params.unreadOnly ?? false,
+        activity: params.activity || [],
       },
     ] as const,
 } as const;
@@ -61,7 +80,7 @@ export const dialogsQueryKeys = {
 /**
  * Utility to invalidate all dialogs queries
  */
-export const invalidateAllDialogs = (queryClient: any) => {
+export const invalidateAllDialogs = (queryClient: QueryClient) => {
   return queryClient.invalidateQueries({ queryKey: dialogsQueryKeys.all });
 };
 

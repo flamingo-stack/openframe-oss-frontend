@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 
 type AppMode = 'oss-tenant' | 'saas-tenant' | 'saas-shared';
 
@@ -29,6 +29,21 @@ function isAllowed(pathname: string): boolean {
   // (lib/app-mode.ts); the two allowlists are deliberately separate because this
   // one runs in the Edge runtime and must not pull in browser globals.
   if (pathname.startsWith('/account-deletion')) {
+    return true;
+  }
+
+  // Mobile-app install page: reachable in every mode, signed out, for the same
+  // reason — it is the target of a printed QR code scanned by a phone that has
+  // never signed in. Its canonical URL is the APEX `openframe.ai/mobile` (not the
+  // `auth.` shared host), which the saas gateway's `frontend_route` serves from this
+  // app — and saas-shared is the mode that otherwise redirects everything but
+  // `/auth` away. Mirrors `isRouteAllowedInCurrentMode` (lib/app-mode.ts).
+  // Segment match, not a prefix: `startsWith('/mobile')` would also exempt a future
+  // `/mobile-onboarding` from every mode rule. The literal rather than `routes.mobileApp`
+  // matches the `/account-deletion` block above, and ROUTES.md grants guards that compare
+  // path prefixes this exception explicitly — this allowlist is deliberately independent
+  // of the app-side one, which `app-mode.test.ts` pins separately.
+  if (pathname === '/mobile' || pathname.startsWith('/mobile/')) {
     return true;
   }
 

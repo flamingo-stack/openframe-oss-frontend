@@ -23,6 +23,7 @@ import {
   scheduleExecutionsRelayQuery,
 } from '@/graphql/scripts/schedule-executions-relay';
 import { scheduleRunDetailRelayQuery } from '@/graphql/scripts/schedule-run-detail-relay';
+import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
@@ -39,7 +40,6 @@ import {
 import {
   executionStatusLabel,
   executionStatusVariant,
-  formatExecutionTimestamp,
   initiatorInitials,
   initiatorName,
 } from '../../shared/utils/execution-helpers';
@@ -68,10 +68,10 @@ const EXECUTIONS_EMPTY_STATE = {
 function RunInfoCell({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={`flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px] ${className ?? ''}`}
+      className={`flex min-w-0 flex-col items-start justify-center px-4 py-3 md:h-[80px] md:py-0 ${className ?? ''}`}
     >
       {children}
-      <span className="text-h6 text-ods-text-secondary">{label}</span>
+      <span className="text-ods-text-secondary text-h6">{label}</span>
     </div>
   );
 }
@@ -93,18 +93,18 @@ function RunInfoBar({ run }: { run: RunNode }) {
   const isDeleted = isDeletedUserStatus(initiator?.status);
 
   return (
-    <div className="flex flex-col gap-0 bg-ods-card border border-ods-border rounded-[6px] overflow-clip w-full">
-      <div className="grid grid-cols-2 md:grid-cols-4 border-b border-ods-border">
+    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+      <div className="grid grid-cols-2 border-b border-ods-border md:grid-cols-4">
         {/* Design 310:33508 labels this cell "Script Name". A ScheduleRun has no
             script reference — a fire dispatches whatever scripts the schedule
             held — so the honest equivalent is how many devices answered it. */}
-        <RunInfoCell label="Devices Responded" className="border-b md:border-b-0 border-ods-border">
-          <span className="text-h4 text-ods-text-primary truncate">
+        <RunInfoCell label="Devices Responded" className="border-b border-ods-border md:border-b-0">
+          <span className="truncate text-ods-text-primary text-h4">
             {responded} / {total}
           </span>
         </RunInfoCell>
-        <RunInfoCell label="Executed by" className="border-b md:border-b-0 border-ods-border">
-          <div className="flex items-center gap-2 min-w-0">
+        <RunInfoCell label="Executed by" className="border-b border-ods-border md:border-b-0">
+          <div className="flex min-w-0 items-center gap-2">
             {isDeleted ? (
               <DeletedUserAvatar size="sm" />
             ) : (
@@ -145,10 +145,10 @@ function RunInfoBar({ run }: { run: RunNode }) {
       </div>
       <div className="grid grid-cols-2">
         <RunInfoCell label="Start Time">
-          <TruncateText>{formatExecutionTimestamp(dispatchedAt)}</TruncateText>
+          <TruncateText>{formatDateTime(dispatchedAt)}</TruncateText>
         </RunInfoCell>
         <RunInfoCell label="Finish Time">
-          <TruncateText>{formatExecutionTimestamp(finishedAt)}</TruncateText>
+          <TruncateText>{formatDateTime(finishedAt)}</TruncateText>
         </RunInfoCell>
       </div>
     </div>
@@ -158,27 +158,27 @@ function RunInfoBar({ run }: { run: RunNode }) {
 /** Mirrors `RunInfoBar`'s two rows so the header keeps its height while loading. */
 function RunInfoBarSkeleton() {
   return (
-    <div className="flex flex-col gap-0 bg-ods-card border border-ods-border rounded-[6px] overflow-clip w-full">
-      <div className="grid grid-cols-2 md:grid-cols-4 border-b border-ods-border">
+    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+      <div className="grid grid-cols-2 border-b border-ods-border md:grid-cols-4">
         {['responded', 'by', 'status', 'spacer'].map(cell => (
-          <div key={cell} className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px]">
+          <div key={cell} className="flex min-w-0 flex-col items-start justify-center px-4 py-3 md:h-[80px] md:py-0">
             <div className="text-h4">
-              <Skeleton className="inline-block h-3 md:h-4 w-20 max-w-full" />
+              <Skeleton className="inline-block h-3 w-20 max-w-full md:h-4" />
             </div>
             <div className="text-h6">
-              <Skeleton className="inline-block h-2.5 md:h-3 w-14 max-w-full" />
+              <Skeleton className="inline-block h-2.5 w-14 max-w-full md:h-3" />
             </div>
           </div>
         ))}
       </div>
       <div className="grid grid-cols-2">
         {['start', 'finish'].map(cell => (
-          <div key={cell} className="flex flex-col items-start justify-center min-w-0 px-4 py-3 md:py-0 md:h-[80px]">
+          <div key={cell} className="flex min-w-0 flex-col items-start justify-center px-4 py-3 md:h-[80px] md:py-0">
             <div className="text-h4">
-              <Skeleton className="inline-block h-3 md:h-4 w-32 max-w-full" />
+              <Skeleton className="inline-block h-3 w-32 max-w-full md:h-4" />
             </div>
             <div className="text-h6">
-              <Skeleton className="inline-block h-2.5 md:h-3 w-16 max-w-full" />
+              <Skeleton className="inline-block h-2.5 w-16 max-w-full md:h-3" />
             </div>
           </div>
         ))}
@@ -354,6 +354,7 @@ function RunExecutionRows({
       hasNext={hasNext}
       isLoadingNext={isLoadingNext}
       onLoadMore={fetchNextPage}
+      loadedCount={data.scheduleExecutions?.edges?.length ?? 0}
       {...tableState}
     />
   );
@@ -379,7 +380,7 @@ function RunExecutionRows({
  */
 export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
   return (
-    <div className="flex flex-col w-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+    <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
       <Suspense fallback={<RunHeaderSkeleton />}>
         <RunHeader runId={runId} />
       </Suspense>
@@ -387,7 +388,7 @@ export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
       {/* No gap: the executions block carries its own top padding (the sticky
           toolbar's `pt-l`), the same contract the details pages give their tab
           bodies. */}
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-1 flex-col">
         <Suspense fallback={<RunInfoBarSkeleton />}>
           <RunSummary runId={runId} />
         </Suspense>

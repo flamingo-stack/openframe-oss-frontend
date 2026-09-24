@@ -89,7 +89,7 @@ export function CompanyTeamStep({
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Invite your technicians to OpenFrame. They&apos;ll receive an email with a link to set up their account.
       </p>
 
@@ -151,7 +151,7 @@ export function CompanyTeamStep({
           className="flex flex-1 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary transition-colors hover:text-ods-text-primary"
         >
           <ExternalLinkIcon size={24} className="shrink-0" />
-          <span className="text-h4 underline">Manage Roles</span>
+          <span className="underline text-h4">Manage Roles</span>
         </Link>
         <div className="hidden flex-1 md:block" />
         {!completed ? (

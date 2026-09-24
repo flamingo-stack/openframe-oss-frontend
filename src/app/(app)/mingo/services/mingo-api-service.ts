@@ -1,6 +1,6 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from '@tanstack/react-query';
-import { type ApiResponse, apiClient } from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client';
 
 export interface CreateDialogResponse {
   id: string;
@@ -25,6 +25,8 @@ export interface ApprovalResponse {
 
 export interface CreateDialogRequest {
   agentType: 'ADMIN';
+  /** The STORED insight id when the chat is about an incident — the server lists the chat under it. */
+  insightId?: string;
 }
 
 /** Minimal entity ref carried in the message payload. */
@@ -57,10 +59,9 @@ export interface SendMessageRequest {
  */
 export function useCreateDialogMutation() {
   return useMutation({
-    mutationFn: async (): Promise<CreateDialogResponse> => {
-      const response = await apiClient.post<CreateDialogResponse>('/chat/api/v1/dialogs', {
-        agentType: 'ADMIN',
-      } as CreateDialogRequest);
+    mutationFn: async ({ insightId }: Pick<CreateDialogRequest, 'insightId'> = {}): Promise<CreateDialogResponse> => {
+      const request: CreateDialogRequest = { agentType: 'ADMIN', ...(insightId && { insightId }) };
+      const response = await apiClient.post<CreateDialogResponse>('/chat/api/v1/dialogs', request);
 
       if (!response.ok) {
         throw new Error(response.error || `Failed to create dialog with status ${response.status}`);

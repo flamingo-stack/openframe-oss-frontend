@@ -50,7 +50,7 @@ export function LogCopyButton({ log }: { log: LogCopyTarget }) {
       disabled={isLoading}
       variant="outline"
       size="icon"
-      leftIcon={copied ? <CheckIcon className="w-5 h-5 text-ods-success" /> : <Copy02Icon className="w-5 h-5" />}
+      leftIcon={copied ? <CheckIcon className="h-5 w-5 text-ods-success" /> : <Copy02Icon className="h-5 w-5" />}
       aria-label="Copy log details"
       className="bg-ods-card"
     />

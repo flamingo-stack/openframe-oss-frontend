@@ -4,6 +4,7 @@
  */
 
 import type { Device, ToolConnection } from '../types/device.types';
+import { getToolConnectionState } from './tool-connection-status';
 
 /**
  * Check if a device is online (case-insensitive)
@@ -50,12 +51,16 @@ export function getMeshCentralAgentId(device: Device): string | undefined {
 }
 
 /**
- * Get Fleet MDM host ID (numeric) from device tool connections
+ * Get Fleet MDM host ID (numeric) from device tool connections.
+ *
+ * Only a live connection yields an id: a DISCONNECTED row may carry a stale
+ * Fleet host id, and treating it as targetable would surface torn-down devices
+ * in the monitoring/onboarding pickers and live-query campaigns.
  */
 export function getFleetHostId(device: Device): number | undefined {
   const connection = getToolConnection(device.toolConnections, 'FLEET_MDM');
-  if (!connection?.agentToolId) return undefined;
-  const id = Number(connection.agentToolId);
+  if (getToolConnectionState(connection) !== 'live') return undefined;
+  const id = Number(connection?.agentToolId);
   return isNaN(id) ? undefined : id;
 }
 
@@ -117,7 +122,9 @@ export function getDeviceActionAvailability(device: Device): DeviceActionAvailab
   const meshcentralOffline = meshcentralConnection?.status?.toLowerCase() === 'offline';
   const isOnline = isDeviceOnline(device.status);
 
-  const meshcentralReady = Boolean(meshcentralAgentId) && isOnline && !meshcentralOffline;
+  // 'live' covers the id-presence check and additionally blocks DISCONNECTED/ERROR
+  // rows, whose stale agentToolId must not open tunnels.
+  const meshcentralReady = getToolConnectionState(meshcentralConnection) === 'live' && isOnline && !meshcentralOffline;
 
   return {
     remoteShellEnabled: meshcentralReady,

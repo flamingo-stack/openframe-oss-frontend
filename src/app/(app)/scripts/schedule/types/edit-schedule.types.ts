@@ -1,6 +1,6 @@
 import { OS_PLATFORMS } from '@flamingo-stack/openframe-frontend-core/utils';
 import { z } from 'zod';
-import { ScheduleOfflineBehavior, ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { ScheduleOfflineBehavior, ScheduleTimeReference, ScriptScheduleTrigger } from '@/generated/schema-enums';
 import { parseKeyValues, serializeKeyValues } from '../../shared/utils/script-key-values';
 import { envVarsToInput, envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
 import { customParamsByScriptId, effectiveScriptParams, toEnvVarInputs } from '../utils/schedule-script-params';
@@ -16,9 +16,10 @@ import {
   MIN_RECONNECT_MINUTES,
   MIN_REPEAT_MINUTES,
   PAST_START_MESSAGE,
+  earliestScheduleDay,
   resolveOfflineBehavior,
+  resolveTimeReference,
   secondsToDuration,
-  startOfToday,
 } from '../utils/schedule-timing';
 import type { ScheduleDetailData } from './schedule-detail.types';
 
@@ -72,6 +73,22 @@ export const editScheduleFormSchema = z
     scheduledDate: z.date().nullable(),
     /** `HH:mm` on the 30-minute grid; `''` = the user hasn't picked a time yet. */
     scheduledTime: z.string(),
+    /**
+     * Which clock the pair above means — the "Timezone" control.
+     *
+     * SERVER is one instant worldwide; DEVICE_LOCAL is one READING, re-based
+     * into each device's own timezone, so a fleet across three zones runs three
+     * times. It changes how `startAt` is written and read (see
+     * {@link toScheduleInstant}). The API does not accept a `repeat` beside it
+     * yet, but the controls stay offered — see `ScheduleTimingFields` — so the
+     * recurrence rules below apply to both readings alike.
+     *
+     * Held by the form even when the control is not rendered (the picker is
+     * behind the `script-schedule-device-time` flag): a schedule that already
+     * carries DEVICE_LOCAL is then displayed and saved as one, rather than
+     * silently re-timed by an edit made with the flag off.
+     */
+    timeReference: z.enum([ScheduleTimeReference.SERVER, ScheduleTimeReference.DEVICE_LOCAL]),
     repeatEnabled: z.boolean(),
     /**
      * `null` while the box is EMPTY — the user is mid-edit, not proposing zero.
@@ -216,6 +233,10 @@ export const editScheduleFormSchema = z
     // of one. Event-driven schedules carry no timing at all — their controls are
     // collapsed and both fields are submitted as null.
     if (isEventTrigger(data.trigger)) return;
+    // The device-local reading grades like any other: both its offline block and
+    // its recurrence controls are offered, so both rule sets keep applying.
+    const repeats = data.repeatEnabled;
+    const retries = isRetryOnReconnect(data.offlineBehavior);
     if (data.scheduledDate == null) {
       ctx.addIssue({ code: 'custom', message: 'Please select a start date', path: ['scheduledDate'] });
     }
@@ -229,23 +250,27 @@ export const editScheduleFormSchema = z
     // actually refuses the save, and it also catches what no control can: a form
     // left open long enough for its own slot to go by. Exempt while the pair
     // still reads exactly the stored `startAt` — see `isStartInPastAndChanged`.
-    if (isStartInPastAndChanged(data.scheduledDate, data.scheduledTime, data.startAtStored)) {
+    if (isStartInPastAndChanged(data.scheduledDate, data.scheduledTime, data.startAtStored, data.timeReference)) {
       ctx.addIssue({
         code: 'custom',
         message: PAST_START_MESSAGE,
         // On the field the user can act on: a past DAY is the date's problem,
         // a past slot of today is the time's.
-        path: [data.scheduledDate && data.scheduledDate < startOfToday() ? 'scheduledDate' : 'scheduledTime'],
+        path: [
+          data.scheduledDate && data.scheduledDate < earliestScheduleDay(data.timeReference)
+            ? 'scheduledDate'
+            : 'scheduledTime',
+        ],
       });
     }
 
     // An empty box is only a problem for the setting that is switched ON. Each
     // interval is nullable so it can be cleared while typing (see the field
     // docs); this is where "cleared" stops being allowed.
-    if (data.repeatEnabled && data.repeatInterval === null) {
+    if (repeats && data.repeatInterval === null) {
       ctx.addIssue({ code: 'custom', message: 'Enter an interval', path: ['repeatInterval'] });
     }
-    if (isRetryOnReconnect(data.offlineBehavior) && data.reconnectInterval === null) {
+    if (retries && data.reconnectInterval === null) {
       ctx.addIssue({ code: 'custom', message: 'Enter an interval', path: ['reconnectInterval'] });
     }
 
@@ -254,7 +279,7 @@ export const editScheduleFormSchema = z
     // an hour is already two slots — and the `.min(1)` above rules out zero, so
     // "a multiple of 30" is the whole rule, floor included.
     if (
-      data.repeatEnabled &&
+      repeats &&
       data.repeatUnit === 'minute' &&
       data.repeatInterval !== null &&
       data.repeatInterval % MIN_REPEAT_MINUTES !== 0
@@ -276,7 +301,7 @@ export const editScheduleFormSchema = z
     // The reconnect window has a floor but no grid — the backend accepts any
     // number of seconds — so unlike the cadence above this is a minimum only.
     if (
-      isRetryOnReconnect(data.offlineBehavior) &&
+      retries &&
       data.reconnectUnit === 'minute' &&
       data.reconnectInterval !== null &&
       data.reconnectInterval < MIN_RECONNECT_MINUTES
@@ -293,7 +318,7 @@ export const editScheduleFormSchema = z
     // the next one is dispatched, so a device coming back late could take both.
     // Only meaningful when there IS a next occurrence — a one-shot schedule can
     // hold its queued run for as long as it likes.
-    if (data.repeatEnabled && isRetryOnReconnect(data.offlineBehavior)) {
+    if (repeats && retries) {
       const repeatSeconds =
         data.repeatInterval === null ? null : durationToSeconds(data.repeatInterval, data.repeatUnit);
       const windowSeconds =
@@ -340,6 +365,19 @@ export const TRIGGER_OPTIONS = [
 ];
 
 /**
+ * The "Timezone" dropdown (design node 793:61340), in the designer's own
+ * wording: the account's clock, or each device's.
+ *
+ * SERVER first — it is the backend's documented default for a null
+ * `timeReference`, and it is what every schedule authored before the field
+ * existed already means.
+ */
+export const TIME_REFERENCE_OPTIONS = [
+  { value: ScheduleTimeReference.SERVER, label: 'Your account timezone' },
+  { value: ScheduleTimeReference.DEVICE_LOCAL, label: 'Device local timezone' },
+];
+
+/**
  * The two answers to "if device is offline at scheduled time" (design node
  * 460:63425). SKIP first, because it is both the design's default and the
  * behavior every schedule authored before this field existed already has — the
@@ -364,6 +402,7 @@ export const DEFAULT_SCHEDULE_VALUES: EditScheduleFormData = {
   trigger: ScriptScheduleTrigger.DATE_TIME,
   scheduledDate: null,
   scheduledTime: '',
+  timeReference: ScheduleTimeReference.SERVER,
   repeatEnabled: false,
   repeatInterval: 1,
   repeatUnit: 'day',
@@ -380,8 +419,12 @@ export const DEFAULT_SCHEDULE_VALUES: EditScheduleFormData = {
 /** The stored schedule, in the shape the edit form holds it. */
 export function scheduleToFormValues(schedule: ScheduleDetailData): EditScheduleFormData {
   const repeatParts = schedule.repeat ? secondsToDuration(schedule.repeat) : null;
+  // Read FIRST: it decides how the stored start is read at all — as an instant
+  // to convert through the viewer's offset, or as the wall clock it stores.
+  // Normalised, not cast, for the same reason `offlineBehavior` is below.
+  const timeReference = resolveTimeReference(schedule.timeReference);
   // The stored instant carries both halves; the form keeps them apart.
-  const startAt = schedule.startAt ? fromScheduleInstant(schedule.startAt) : null;
+  const startAt = schedule.startAt ? fromScheduleInstant(schedule.startAt, timeReference) : null;
   // A SKIP schedule has no window on file, so the pair falls back to the design
   // default — which is what the user will see the moment they pick RETRY, and
   // what they would have got creating the schedule from scratch.
@@ -396,7 +439,8 @@ export function scheduleToFormValues(schedule: ScheduleDetailData): EditSchedule
     description: schedule.description ?? '',
     trigger: isEventTrigger(schedule.trigger) ? ScriptScheduleTrigger.DEVICE_ONLINE : ScriptScheduleTrigger.DATE_TIME,
     scheduledDate: startAt,
-    scheduledTime: startAt ? dateToTimeSlot(startAt) : '',
+    scheduledTime: startAt ? dateToTimeSlot(startAt, timeReference) : '',
+    timeReference,
     repeatEnabled: Boolean(schedule.repeat),
     repeatInterval: repeatParts?.interval ?? 1,
     repeatUnit: repeatParts?.unit ?? 'day',

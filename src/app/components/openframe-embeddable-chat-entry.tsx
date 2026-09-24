@@ -42,11 +42,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { mingoDialogLink } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { MINGO_CONTEXT_ENTITY_TYPES } from '../(app)/mingo/context/context-sources';
+import { KNOWLEDGE_BASE_ROUTE } from '../(app)/help-center/endpoints';
+import { useMingoContextEntityTypes } from '../(app)/mingo/context/context-sources';
 import { CONTEXT_ITEMS_MAX } from '../(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoMention } from '../(app)/mingo/context/mention-chips/render-mention';
 import { renderMingoContextItems } from '../(app)/mingo/context/render-context-items';
@@ -201,24 +201,35 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     chatHandle.current?.startNewChat();
   }, [pendingNewChat, consumePendingNewChat]);
 
+  // Queued launcher draft (`draftToMingo` — e.g. "Fix with Mingo" on an incident):
+  // a fresh chat with the composer prefilled and nothing sent. Same one-shot
+  // drain as the prompt, but through the handle, since the composer's text is
+  // the panel's own state.
+  const pendingDraft = useMingoLauncherStore(s => s.pendingDraft);
+  const consumePendingDraft = useMingoLauncherStore(s => s.consumePendingDraft);
+
+  useEffect(() => {
+    if (!pendingDraft) return;
+    const draft = consumePendingDraft();
+    if (!draft) return;
+    chatHandle.current?.prefillDraft(draft);
+  }, [pendingDraft, consumePendingDraft]);
+
   // Entity-context picker config (the `+` "Assign Item" menu + `@` trigger).
-  // Stable so the lib's composer doesn't re-derive its icon map each render.
-  // `renderMingoContextItems` maps each entity type to its data component
-  // (Relay / TanStack hooks); the store-backed openView/recentViews are folded
-  // in at send time by the unified hook.
+  // Stable so the lib's composer doesn't re-derive its icon map each render:
+  // the hook's list is memoized on the module flags, so the memo moves only
+  // when a flag does. `renderMingoContextItems` maps each entity type to its data
+  // component (Relay / TanStack hooks); the store-backed openView/recentViews
+  // are folded in at send time by the unified hook.
+  const entityTypes = useMingoContextEntityTypes();
   const contextPicker = useMemo<ChatContextPickerConfig>(
     () => ({
-      entityTypes: MINGO_CONTEXT_ENTITY_TYPES,
+      entityTypes,
       renderItems: renderMingoContextItems,
       maxItems: CONTEXT_ITEMS_MAX,
     }),
-    [],
+    [entityTypes],
   );
-
-  // Entity-context picker (the `+` / `@`-mention flow + selected chips) is
-  // gated behind the `mingo-sidebar-context` flag. Passing `contextPicker`
-  // undefined makes the lib's composer inert (no `+`, no `@`, no chips).
-  const contextEnabled = useFeatureFlag('mingo-sidebar-context');
 
   // Context-memory strip above the composer: the navigation history Mingo
   // carries on every message (current page + previously viewed entities), each
@@ -299,6 +310,11 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         // the uncontrolled active mode defaults to 'mingo'.
         modes={{}}
         mingoState={state}
+        // Where an in-app doc chip navigates. Guide Mode V3 answers cite product
+        // documentation, and each cited source renders as a chip whose target is
+        // resolved against this route; without it the lib derives one from
+        // `runtime.source`, which is the hub's doc tree, not ours.
+        baseRoute={KNOWLEDGE_BASE_ROUTE}
         // PENDING approval cards are FILTERED OUT of their bubble by
         // `useMingoChat` (dedupe for interrupted retries), so a card that the
         // reducer built renders nowhere unless it is handed back here — the
@@ -327,21 +343,21 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         // empty state. Omitted when none are configured so the lib keeps its
         // default welcome content.
         mingoWelcome={mingoQuickActions.length > 0 ? { quickActions: mingoQuickActions } : undefined}
-        contextPicker={contextEnabled ? contextPicker : undefined}
+        contextPicker={contextPicker}
         // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
         // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`
         // for `[card://]`. Stable module-level fn so the message memo holds.
-        renderMention={contextEnabled ? renderMingoMention : undefined}
+        renderMention={renderMingoMention}
         // Renders a user's ATTACHED context chips (`contextItems`) as the SAME
         // self-fetching chips as inline mentions — so manually attached context
         // resolves its live name + link instead of the lib's label-only pill.
-        renderContextItem={contextEnabled ? renderMingoContextItem : undefined}
+        renderContextItem={renderMingoContextItem}
         // Context memory (Figma 271:38656): the strip at the top of the composer
         // card naming what Mingo remembers from this session's navigation — the
         // open entity page plus the recently viewed ones — with a `⋯` dropdown
         // to review and forget individual entries. Replaces the old under-the-
         // header page-context banner. The strip self-hides when memory is empty.
-        contextMemory={contextEnabled ? contextMemory : undefined}
+        contextMemory={contextMemory}
       />
     </>
   );

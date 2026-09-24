@@ -2,7 +2,7 @@
 //
 // The frontend repo has no test runner; these run on Node's built-in test module with its
 // native TypeScript stripping — `node --test src/lib/registration-attribution.test.mjs`, or
-// `npm test`. They mock the browser globals the module touches (cookies, sessionStorage, the
+// `npm test`. They mock the browser globals the module touches (cookies, localStorage, the
 // GTM dataLayer) and assert the observable payload, since the real cookies only exist in a
 // live browser.
 
@@ -20,7 +20,7 @@ function resetBrowser() {
     // `hostname`/`protocol` matter only to the referral cookie writer; the cookie-scope rules
     // themselves are covered in referral-cookie.test.mjs, so this mock keeps `name=value` only.
     location: { search: '', hostname: 'auth.openframe.ai', protocol: 'https:' },
-    sessionStorage: {
+    localStorage: {
       getItem: k => (k in store ? store[k] : null),
       setItem: (k, v) => {
         store[k] = String(v);
@@ -111,12 +111,69 @@ test('a partner link straight to the signup page captures and sends its referral
   assert.equal(A.collectRegistrationAttribution().ref, 'partner-456');
 });
 
-test('the referral also rides the SSO start URL', () => {
+test('the referral also rides the SSO continue URL', () => {
   cookies.push('of_ref=partner-123');
   const params = new URLSearchParams();
   A.appendAttributionQueryParams(params, A.collectRegistrationAttribution());
 
-  assert.equal(params.get('attribution.ref'), 'partner-123');
+  assert.equal(params.get('ref'), 'partner-123');
+});
+
+// HubSpot's cross-domain linker hands the marketing site's visitor token over in the URL; that
+// token, not the local cookie, is what ties the registration to the visitor's sessions there.
+const HANDOFF_UTK = 'f74d91effc2c2bf182c7210840fa38cb';
+const LOCAL_UTK = '0000000000000000000000000000aaaa';
+const HANDOFF_SEARCH = `?__hstc=221035399.${HANDOFF_UTK}.1757900000000.1757900000000.1757900000000.1&__hssc=221035399.1.1757900000000&__hsfp=7ce18d99cccb9504bc1eef62d4b5d5cd`;
+
+test('a HubSpot handoff in the URL beats the local hubspotutk cookie', () => {
+  cookies.push(`hubspotutk=${LOCAL_UTK}`);
+  window.location.search = HANDOFF_SEARCH;
+  A.captureAttributionFromUrl();
+
+  assert.equal(A.collectRegistrationAttribution().hutk, HANDOFF_UTK);
+});
+
+test('the handoff token survives the navigation from the landing page to signup', () => {
+  window.location.search = HANDOFF_SEARCH;
+  A.captureAttributionFromUrl(); // landing
+
+  window.location.search = ''; // /auth — the params are gone from the address bar
+  cookies.push(`hubspotutk=${LOCAL_UTK}`);
+  assert.equal(A.collectRegistrationAttribution().hutk, HANDOFF_UTK);
+});
+
+test('a handoff straight to the signup page counts before the capture effect ran', () => {
+  cookies.push(`hubspotutk=${LOCAL_UTK}`);
+  window.location.search = HANDOFF_SEARCH;
+  assert.equal(A.collectRegistrationAttribution().hutk, HANDOFF_UTK);
+});
+
+test('last handoff wins: HubSpot replaces the visitor identity on every merge, so does this', () => {
+  window.location.search = HANDOFF_SEARCH;
+  A.captureAttributionFromUrl();
+
+  const later = '0123456789abcdef0123456789abcdef';
+  window.location.search = HANDOFF_SEARCH.replace(HANDOFF_UTK, later);
+  A.captureAttributionFromUrl();
+
+  assert.equal(A.collectRegistrationAttribution().hutk, later);
+});
+
+test("a malformed __hstc, or one without the linker's __hsfp, falls back to the cookie", () => {
+  cookies.push(`hubspotutk=${LOCAL_UTK}`);
+  for (const search of ['?__hstc=not-a-hubspot-value&__hsfp=fp', `?__hstc=221035399.${HANDOFF_UTK}.1.1.1.1`]) {
+    window.location.search = search;
+    A.captureAttributionFromUrl();
+    assert.equal(A.collectRegistrationAttribution().hutk, LOCAL_UTK, search);
+  }
+  assert.deepEqual(Object.keys(store), [], 'a rejected handoff stores nothing');
+});
+
+test('hubspotUtkFromHstc reads the token slot and nothing else', () => {
+  assert.equal(A.hubspotUtkFromHstc(`221035399.${HANDOFF_UTK}.1.1.1.1`), HANDOFF_UTK);
+  assert.equal(A.hubspotUtkFromHstc(HANDOFF_UTK), undefined, 'a bare token is not a __hstc value');
+  assert.equal(A.hubspotUtkFromHstc('221035399.short.1.1.1.1'), undefined);
+  assert.equal(A.hubspotUtkFromHstc(undefined), undefined);
 });
 
 test('no signals present yields only the always-minted event id', () => {
@@ -125,7 +182,7 @@ test('no signals present yields only the always-minted event id', () => {
   assert.equal(typeof got.eventId, 'string');
 });
 
-// The SSO start URL must carry the same attribution set as the password-flow body — a field
+// The SSO continue URL must carry the same attribution set as the password-flow body — a field
 // collected but silently dropped from the query string is exactly the kind of gap behind the
 // low fbp coverage on one flow (see Meta CAPI follow-up task 86ajt9vye, F1/F2).
 test('SSO query params carry every collected field, matching the password body', () => {
@@ -135,21 +192,21 @@ test('SSO query params carry every collected field, matching the password body',
   A.captureAttributionFromUrl();
 
   const collected = A.collectRegistrationAttribution();
-  const params = new URLSearchParams({ tenantName: 'org', provider: 'google' });
+  const params = new URLSearchParams({ tenantName: 'org', tenantDomain: 'org.openframe.example' });
   A.appendAttributionQueryParams(params, collected);
 
-  // 3 cookies + 9 URL params + eventId = 13 fields, every one present as attribution.<field>.
-  const attributionKeys = [...params.keys()].filter(k => k.startsWith('attribution.'));
-  assert.equal(attributionKeys.length, 13);
+  // 3 cookies + 9 URL params + eventId = 13 fields, every one present as a bare key alongside the
+  // two tenant params the endpoint takes as @RequestParam.
+  assert.equal([...params.keys()].length, 13 + 2);
   for (const [field, value] of Object.entries(collected)) {
-    assert.equal(params.get(`attribution.${field}`), value, `attribution.${field} must ride the SSO start URL`);
+    assert.equal(params.get(field), value, `${field} must ride the SSO continue URL`);
   }
 });
 
 test('SSO query serialization skips blank values instead of sending empty strings', () => {
   const params = new URLSearchParams();
   A.appendAttributionQueryParams(params, { fbp: 'fb.1.170.999', fbc: '', utmSource: '   ' });
-  assert.deepEqual([...params.keys()], ['attribution.fbp']);
+  assert.deepEqual([...params.keys()], ['fbp']);
 });
 
 // The password-flow body runs explicit attribution through the same normalization, so a

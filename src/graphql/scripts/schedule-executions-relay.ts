@@ -35,15 +35,15 @@ export const scheduleExecutionsRelayQuery = graphql`
 
 export const scheduleExecutionsRelayFragment = graphql`
   fragment scheduleExecutionsRelay_query on Query
-    @refetchable(queryName: "scheduleExecutionsRelayPaginationQuery")
-    @argumentDefinitions(
-      scheduleId: { type: "ID!" }
-      filter: { type: "ScriptExecutionFilterInput" }
-      search: { type: "String" }
-      sort: { type: "SortInput" }
-      first: { type: "Int", defaultValue: 20 }
-      after: { type: "String" }
-    ) {
+  @refetchable(queryName: "scheduleExecutionsRelayPaginationQuery")
+  @argumentDefinitions(
+    scheduleId: { type: "ID!" }
+    filter: { type: "ScriptExecutionFilterInput" }
+    search: { type: "String" }
+    sort: { type: "SortInput" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
     scheduleExecutions(
       scheduleId: $scheduleId
       filter: $filter

@@ -91,19 +91,30 @@ import { DeviceCard } from './device-card';
 import type { Device } from '../types/device.types';
 ```
 
-### Formatting
+### Linting and formatting
 
-The project uses [Biome](https://biomejs.dev/) for all formatting:
+[ESLint](https://eslint.org/) owns the rules, [Prettier](https://prettier.io/) owns the formatting.
+Neither rule set lives in this repo: both come from the shared config shipped inside
+`@flamingo-stack/openframe-frontend-core` (`eslint-config/`), the same one every Flamingo frontend
+loads. Its README is the reference.
 
 ```bash
-# Auto-fix formatting
-npm run format:fix
-
-# Check without fixing
-npm run lint:biome
+npm run lint         # ESLint, the fast pass
+npm run lint:fix     # ESLint autofix
+npm run format:fix   # Prettier
+npm run format       # Prettier, check only
 ```
 
-Do not manually configure tab/space counts or line lengths — let Biome handle it.
+Do not manually configure tab/space counts or line lengths — let Prettier handle it. Two things to
+know before your first PR:
+
+- **`// eslint-disable` does nothing.** `noInlineConfig` is on and the comment is itself reported as
+  an error. Fix the finding, or add a named, `files:`-scoped block to `eslint.config.mjs` that says
+  why it cannot be fixed.
+- **CI and the pre-commit hook both run `eslint.ci.mjs`** (`npm run lint:ci`): the fast pass with
+  `relay/unused-fields` switched off — the one rule still carrying a backlog (543 findings, each a
+  real decision about a query's selections). It is green, so your PR is expected to keep it green.
+  `npm run lint` additionally reports that backlog, and so does the editor in the file you are in.
 
 ---
 
@@ -122,7 +133,7 @@ Use descriptive branch names following this convention:
 | `chore/` | Maintenance, deps, tooling | `chore/update-relay-to-v21` |
 | `refactor/` | Code refactoring without behavior change | `refactor/extract-api-client` |
 | `docs/` | Documentation updates | `docs/add-architecture-diagram` |
-| `style/` | Pure formatting/style changes | `style/biome-format-fix` |
+| `style/` | Pure formatting/style changes | `style/prettier-format-fix` |
 
 ### Examples
 
@@ -187,9 +198,9 @@ Run all quality checks locally:
 # Type check
 npm run type-check
 
-# Lint
+# Lint + formatting
 npm run lint
-npm run lint:biome
+npm run format
 
 # Relay compilation
 npm run relay
@@ -225,8 +236,8 @@ Include in your PR description:
 Before requesting review, verify:
 
 - [ ] `npm run type-check` passes with 0 errors
-- [ ] `npm run lint` passes with 0 errors
-- [ ] `npm run lint:biome` passes with 0 errors
+- [ ] `npm run lint` reports nothing new in the files you touched
+- [ ] `npm run format` passes
 - [ ] `npm run relay` compiles successfully
 - [ ] No hardcoded credentials, secrets, or tokens
 - [ ] No `console.log` statements (use proper error handling)
@@ -244,7 +255,9 @@ When reviewing a PR, check:
 - [ ] TypeScript types are accurate and not over-widened
 - [ ] No security issues (XSS, exposed secrets, unvalidated input)
 - [ ] Consistent with existing patterns in the codebase
-- [ ] Performance implications (unnecessary re-renders, missing `useMemo`/`useCallback`)
+- [ ] Performance implications — but NOT missing `useMemo`/`useCallback`: the React Compiler
+      (`reactCompiler: true`) memoizes automatically. What to look for instead is a
+      `react-hooks` lint finding, which means the compiler bailed out of that component
 - [ ] New queries use proper cache key arrays
 - [ ] Relay fragments follow the established pattern
 

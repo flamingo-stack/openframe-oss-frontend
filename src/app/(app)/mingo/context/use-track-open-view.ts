@@ -10,7 +10,7 @@
  * tracking until the data resolves.
  *
  * @example
- *   useTrackOpenView(device ? { type: 'DEVICE', id: device.id, label: device.hostname } : null);
+ *   useTrackOpenView(device ? { type: 'DEVICE', id: device.id, label: getDeviceName(device) || device.id } : null);
  */
 
 import { useEffect } from 'react';
@@ -37,7 +37,7 @@ export function useTrackOpenView(ref: TrackOpenViewInput | null | undefined): vo
   const description = ref?.description;
 
   useEffect(() => {
-    if (!type || !id) return;
+    if (!type || !id) return undefined;
     setOpenView({ type, id, label: label ?? id, description });
     // Clear only if THIS entity is still the open view — a newer detail page
     // mounting during a route transition may already have set its own.

@@ -7,16 +7,19 @@ import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { GET_MINGO_DIALOGS_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
+import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
 
 // TODO(unread-from-entity): re-enable per-dialog unread highlighting once the backend exposes
 // unread counts on the dialog entity itself. Matching unread notifications to dialogs by id is a
 // temporary workaround — disabled for now; flip this flag to restore it.
 const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
 
-// Statuses shown in the active "Current Chats" list — every DialogStatus except
-// ARCHIVED. The backend returns archived dialogs when no statuses are passed, so
-// list them explicitly; archived dialogs live in the separate Chat Archive page.
-const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
+/**
+ * The statuses the drawer's list shows. Sent explicitly because the backend
+ * returns ARCHIVED dialogs too when no statuses are passed — and a dialog
+ * outside this set cannot be opened in the drawer.
+ */
+export const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
 
 function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): DialogItem {
   // Admin owner → trailing avatar in the chat-history rows (Figma 113:63224).
@@ -25,7 +28,10 @@ function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): Dia
   const ownerName = [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(' ');
   return {
     id: dialog.id,
-    title: dialog.title || 'Untitled Dialog',
+    // The backend generates the title asynchronously after the first message;
+    // until it lands the dialog has no title — show a provisional name, not an
+    // error-looking "Untitled Dialog".
+    title: dialog.title || 'New Chat',
     timestamp: new Date(dialog.createdAt),
     unreadMessagesCount: unreadCount,
     owner: dialog.owner?.userId
@@ -107,7 +113,14 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     // realtime subscription, and mutation invalidations (rename/archive/new).
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
-    refetchInterval: 60 * 1000,
+    // Titles are generated asynchronously on the backend with no realtime
+    // event — while the list holds a fresh title-less dialog ("New Chat"),
+    // poll faster so the generated title replaces it promptly.
+    refetchInterval: liveQuery => {
+      const pages = liveQuery.state.data?.pages;
+      const awaitingTitle = pages?.some(page => page.dialogs.some(dialog => isAwaitingGeneratedTitle(dialog)));
+      return awaitingTitle ? 10 * 1000 : 60 * 1000;
+    },
     // Keep the current list visible while a new `search` term refetches, so
     // typing doesn't flash an empty list / "No chats found" between keystrokes.
     placeholderData: keepPreviousData,
@@ -118,7 +131,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
 
     const allDialogs = query.data.pages.flatMap(page => page.dialogs);
     return allDialogs.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.id) ?? 0));
-  }, [query.data?.pages, unreadByDialog]);
+  }, [query.data, unreadByDialog]);
 
   return {
     dialogs: dialogsWithUnread,

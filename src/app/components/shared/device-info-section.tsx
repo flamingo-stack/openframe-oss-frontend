@@ -3,17 +3,17 @@
 import { DeviceCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
-import type { Device } from '@/app/(app)/devices/types/device.types';
+import type { PartialNamedDevice } from '@/app/(app)/devices/types/device.types';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getDeviceOperatingSystem, getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { DeviceInfoSectionSkeleton } from './device-info-section-skeleton';
 
 interface DeviceInfoSectionProps {
   deviceId?: string;
-  userId?: string;
-  device?: Partial<Device>; // Accept device data from log or dialog
+  device?: PartialNamedDevice; // Accept device data from log or dialog
 }
 
-export function DeviceInfoSection({ deviceId, userId, device: deviceFromProps }: DeviceInfoSectionProps) {
+export function DeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceInfoSectionProps) {
   const { deviceDetails, isLoading } = useDeviceDetails(deviceId && !deviceFromProps ? deviceId : null, {
     polling: false,
   });
@@ -24,8 +24,8 @@ export function DeviceInfoSection({ deviceId, userId, device: deviceFromProps }:
   // Show loading state only if we're fetching and don't have data from props
   if (isLoading && !deviceFromProps) {
     return (
-      <div className="flex flex-col gap-1 w-full">
-        <div className="text-h5 text-ods-text-secondary w-full">Device Info</div>
+      <div className="flex w-full flex-col gap-1">
+        <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
         <DeviceInfoSectionSkeleton />
       </div>
     );
@@ -37,9 +37,9 @@ export function DeviceInfoSection({ deviceId, userId, device: deviceFromProps }:
   }
 
   return (
-    <div className="flex flex-col gap-1 w-full">
+    <div className="flex w-full flex-col gap-1">
       {/* Section Title */}
-      <div className="text-h5 text-ods-text-secondary w-full">Device Info</div>
+      <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
 
       {/* Use DeviceCard component - matching devices-grid.tsx pattern */}
       {device && (
@@ -47,7 +47,7 @@ export function DeviceInfoSection({ deviceId, userId, device: deviceFromProps }:
           device={{
             id: device.id || deviceId || '',
             machineId: device.machineId || deviceId || '',
-            name: device.displayName || device.hostname || device.description || device.machineId || deviceId || '',
+            name: getDeviceName(device) || deviceId || '',
             organization: device.organization || device.machineId || deviceId || '',
             lastSeen: device.lastSeen || device.last_seen,
             operatingSystem: getDeviceOperatingSystem(device.osType),

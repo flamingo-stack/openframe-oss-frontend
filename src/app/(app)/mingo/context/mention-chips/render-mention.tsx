@@ -11,26 +11,37 @@
  * stable identity falls out for free — the lib's per-message memo relies on
  * `renderMention` keeping reference equality across streaming chunks.
  *
- * Coverage = all nine markers the agent can emit. GraphQL types (device,
- * customer, kb, scheduled script) resolve via Relay; REST/ai-agent types (policy,
- * query, user, ticket) via `RestMentionChip`. SCRIPT is dual-sourced — a NEW
- * script (24-char ObjectId) resolves via Relay, a LEGACY Tactical script (numeric
- * id) via REST — so both kinds of script id render regardless of the flag. Every
- * chip falls back to a plain id chip (clickable where a route exists) if its
- * fetch can't resolve a name. Unknown marker → bare token.
+ * Coverage = all thirteen markers the agent can emit. GraphQL types (device,
+ * customer, kb article, kb folder, scheduled script, incident, software) resolve
+ * via Relay; REST/ai-agent types (policy, query, user, ticket) via
+ * `RestMentionChip`; a vulnerability needs no fetch at all — its CVE id IS its
+ * name. SCRIPT is dual-sourced — a NEW script (24-char ObjectId) resolves via
+ * Relay, a LEGACY Tactical script (numeric id) via REST — so both kinds of script
+ * id render regardless of the flag. Every chip falls back to a plain id chip
+ * (clickable where a route exists) if its fetch can't resolve a name. Unknown
+ * marker → bare token.
  */
 
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import type { ReactNode } from 'react';
+import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
+import { KnowledgeBaseItemType } from '@/generated/schema-enums';
+import { routes } from '@/lib/routes';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
 import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
+import { MentionTag } from './mention-tag';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
 
-/** marker → lead icon, taken from the picker's entity-type config. */
-const ICON_BY_MARKER = new Map<string, ReactNode>(
-  MINGO_CONTEXT_ENTITY_TYPES.flatMap(t => (t.marker ? [[t.marker, t.icon] as const] : [])),
-);
+const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
+const KB_FOLDER_ICON = <KbFolderIcon size={24} />;
+
+/** marker → lead icon, taken from the picker's entity-type config, plus the
+ *  mention-only kinds the picker doesn't offer. */
+const ICON_BY_MARKER = new Map<string, ReactNode>([
+  ...MINGO_CONTEXT_ENTITY_TYPES.flatMap(t => (t.marker ? [[t.marker, t.icon] as const] : [])),
+  [M.KB_FOLDER, KB_FOLDER_ICON],
+]);
 
 /**
  * New OpenFrame scripts carry a 24-char Mongo ObjectId raw db id; legacy Tactical
@@ -60,12 +71,22 @@ export function renderMingoMention({
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.ORGANIZATION} id={id} icon={icon} fallbackLabel={label} />;
     case M.KB_ARTICLE:
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_ARTICLE} id={id} icon={icon} fallbackLabel={label} />;
+    case M.KB_FOLDER:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_FOLDER} id={id} icon={icon} fallbackLabel={label} />;
     case M.SCHEDULED_SCRIPT:
       // Native-only (schedules never existed in Tactical), so — unlike SCRIPT
       // below — there is no id-shape dispatch: every id resolves through Relay.
       return (
         <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT} id={id} icon={icon} fallbackLabel={label} />
       );
+    case M.INSIGHT:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.INSIGHT} id={id} icon={icon} fallbackLabel={label} />;
+    case M.SOFTWARE:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SOFTWARE} id={id} icon={icon} fallbackLabel={label} />;
+    case M.VULNERABILITY:
+      // A CVE id is its own name: nothing to resolve, so no fetch and no
+      // skeleton — a linked chip straight away.
+      return <MentionTag icon={icon} label={label || id} href={routes.software.vulnerability(id)} />;
     case M.SCRIPT:
       // Dual-sourced: a 24-char ObjectId is a NATIVE script (Relay `script(id:)`);
       // anything else (numeric) is a LEGACY Tactical id, still reachable in old

@@ -8,25 +8,26 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
+import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { useRetryKey } from '@/app/components/shared';
+import { useRetryKey, ValueText } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execution-detail-relay';
+import { displayValue, EMPTY_VALUE } from '@/lib/empty-value';
+import { formatDateTime } from '@/lib/format-date';
+import { formatCount } from '@/lib/format-number';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { ExecutionSourceBadge } from '../../shared/components/execution-source-badge';
 import {
-  executionResultText,
+  executionOutput,
   executionStatusLabel,
   executionStatusVariant,
-  formatExecutionTimestamp,
   initiatorInitials,
   initiatorName,
   isExecutionInFlight,
-  machineLabel,
-  organizationLabel,
   privilegeLevelLabel,
 } from '../../shared/utils/execution-helpers';
 
@@ -44,8 +45,8 @@ const IN_FLIGHT_POLL_INTERVAL_MS = 5000;
 /** A value-over-label cell in the execution detail card (also the base of its skeleton — see {@link DetailCellSkeleton}). */
 function DetailCell({ value, label }: { value: ReactNode; label: string }) {
   return (
-    <div className="flex flex-[1_0_0] min-w-[140px] flex-col justify-center gap-[var(--spacing-system-xxs)]">
-      {typeof value === 'string' ? <TruncateText variant="h4">{value}</TruncateText> : value}
+    <div className="flex min-w-[140px] flex-[1_0_0] flex-col justify-center gap-[var(--spacing-system-xxs)]">
+      {typeof value === 'string' ? <ValueText value={value} /> : value}
       <TruncateText variant="h6" tone="secondary">
         {label}
       </TruncateText>
@@ -70,7 +71,7 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
   // re-renders from it; the interval stops itself once the status is final.
   const isInFlight = isExecutionInFlight(execution?.status);
   useEffect(() => {
-    if (!isInFlight) return;
+    if (!isInFlight) return undefined;
     const interval = setInterval(() => {
       fetchQuery(
         environment,
@@ -93,16 +94,16 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
     const copyDetails = () => {
       const lines = [
         `Execution ID: ${execution.executionId}`,
-        `Script Name: ${execution.scriptName ?? '—'}`,
-        `Machine ID: ${execution.machine?.machineId ?? '—'}`,
-        `Customer: ${organizationLabel(execution.machine) || '—'}`,
+        `Script Name: ${displayValue(execution.scriptName)}`,
+        `Machine ID: ${displayValue(execution.machine?.machineId)}`,
+        `Customer: ${displayValue(execution.machine?.organization?.name)}`,
         `Executed by: ${initiatorName(execution.initiator)}`,
         `Status: ${executionStatusLabel(execution.status)}`,
         `Privilege Level: ${privilegeLevelLabel(execution.privilegeLevel)}`,
-        `Start Time: ${formatExecutionTimestamp(execution.dispatchedAt)}`,
-        `Finish Time: ${formatExecutionTimestamp(execution.finishedAt)}`,
-        `Execution Time (ms): ${execution.executionTimeMs ?? '—'}`,
-        `Result: ${executionResultText(execution) || '—'}`,
+        `Start Time: ${formatDateTime(execution.dispatchedAt)}`,
+        `Finish Time: ${formatDateTime(execution.finishedAt)}`,
+        `Execution Time (ms): ${displayValue(execution.executionTimeMs)}`,
+        `Result: ${displayValue(executionOutput(execution))}`,
       ];
       navigator.clipboard
         ?.writeText(lines.join('\n'))
@@ -113,7 +114,7 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
       {
         label: 'Copy Execution Details',
         variant: 'outline' as const,
-        icon: <Copy01Icon className="w-6 h-6 text-ods-text-secondary" />,
+        icon: <Copy01Icon className="h-6 w-6 text-ods-text-secondary" />,
         onClick: copyDetails,
       },
     ];
@@ -123,8 +124,8 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
     return <NotFoundError message="Execution not found" />;
   }
 
-  const result = executionResultText(execution);
-  const org = organizationLabel(execution.machine);
+  const result = executionOutput(execution);
+  const org = execution.machine?.organization?.name;
 
   // The initiator id is a User global id; decode to the raw id the REST-backed
   // employee page expects, then link "Executed by" to that user (new tab).
@@ -142,17 +143,17 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
       actions={actions}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <div className="bg-ods-card border border-ods-border rounded-[8px] overflow-hidden">
+      <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
         {/* Row 1 — identity */}
         <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border p-[var(--spacing-system-m)]">
-          <DetailCell value={execution.scriptName ?? '—'} label="Script Name" />
+          <DetailCell value={displayValue(execution.scriptName)} label="Script Name" />
           <DetailCell
             value={
-              <div className="flex items-center gap-1 min-w-0">
+              <div className="flex min-w-0 items-center gap-1">
                 <MonitorIcon className="size-6 shrink-0 text-ods-text-secondary" />
                 {/* min-w-0 flex-1 wrapper so the name can shrink and ellipsize next to the icon. */}
                 <div className="min-w-0 flex-1">
-                  <TruncateText variant="h4">{machineLabel(execution.machine)}</TruncateText>
+                  <ValueText value={getDeviceName(execution.machine)} />
                 </div>
               </div>
             }
@@ -175,13 +176,13 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
               // The chip sits OUTSIDE the initiator link — inside it, clicking
               // "Mingo" would open the technician's employee page.
               return (
-                <div className="flex items-center gap-[var(--spacing-system-xxs)] min-w-0">
+                <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
                   {initiatorHref ? (
                     <a
                       href={initiatorHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 min-w-0 no-underline"
+                      className="flex min-w-0 items-center gap-2 no-underline"
                     >
                       {avatar}
                       <TruncateText
@@ -192,7 +193,7 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
                       </TruncateText>
                     </a>
                   ) : (
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
                       {avatar}
                       <TruncateText variant="h4" className={isDeletedInitiator ? 'text-ods-error' : undefined}>
                         {initiatorName(execution.initiator)}
@@ -221,23 +222,20 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
         {/* Row 2 — timing */}
         <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border p-[var(--spacing-system-m)]">
           <DetailCell value={privilegeLevelLabel(execution.privilegeLevel)} label="Privilege Level" />
-          <DetailCell value={formatExecutionTimestamp(execution.dispatchedAt)} label="Start Time" />
-          <DetailCell value={formatExecutionTimestamp(execution.finishedAt)} label="Finish Time" />
-          <DetailCell
-            value={execution.executionTimeMs != null ? String(execution.executionTimeMs) : '—'}
-            label="Execution Time (ms)"
-          />
+          <DetailCell value={formatDateTime(execution.dispatchedAt)} label="Start Time" />
+          <DetailCell value={formatDateTime(execution.finishedAt)} label="Finish Time" />
+          <DetailCell value={formatCount(execution.executionTimeMs)} label="Execution Time (ms)" />
         </div>
 
         {/* Result — an in-flight execution with no output yet says so (the page
             polls, so the output streams in) instead of a dead-end "—". */}
         <div className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-m)]">
           {result ? (
-            <div className="text-h4 text-ods-text-primary whitespace-pre-wrap break-words">{result}</div>
+            <div className="whitespace-pre-wrap break-words text-ods-text-primary text-h4">{result}</div>
           ) : (
-            <div className="text-h4 text-ods-text-secondary">{isInFlight ? 'Waiting for output…' : '—'}</div>
+            <div className="text-ods-text-secondary text-h4">{isInFlight ? 'Waiting for output…' : EMPTY_VALUE}</div>
           )}
-          <div className="text-h6 text-ods-text-secondary">Result</div>
+          <div className="text-ods-text-secondary text-h6">Result</div>
         </div>
       </div>
     </PageLayout>
@@ -266,7 +264,7 @@ function DetailCellSkeleton({ valueWidth = 'w-28', label }: { valueWidth?: strin
  */
 function ExecutionDetailsCardSkeleton() {
   return (
-    <div className="bg-ods-card border border-ods-border rounded-[8px] overflow-hidden">
+    <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border p-[var(--spacing-system-m)]">
         <DetailCellSkeleton valueWidth="w-40" label="Script Name" />
         <DetailCellSkeleton valueWidth="w-32" label="Device" />
@@ -274,7 +272,7 @@ function ExecutionDetailsCardSkeleton() {
         <DetailCell
           value={
             <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-              <Skeleton className="h-10 w-10 rounded-full shrink-0" />
+              <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
               <Skeleton className="h-6 w-28" />
             </div>
           }
@@ -290,7 +288,7 @@ function ExecutionDetailsCardSkeleton() {
       </div>
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-m)]">
         <Skeleton className="h-6 w-3/4 max-w-full" />
-        <div className="text-h6 text-ods-text-secondary">Result</div>
+        <div className="text-ods-text-secondary text-h6">Result</div>
       </div>
     </div>
   );
@@ -303,7 +301,7 @@ const LOADING_EXECUTION_ACTIONS: PageActionButton[] = [
   {
     label: 'Copy Execution Details',
     variant: 'outline',
-    icon: <Copy01Icon className="w-6 h-6 text-ods-text-secondary" />,
+    icon: <Copy01Icon className="h-6 w-6 text-ods-text-secondary" />,
     disabled: true,
     onClick: noop,
   },

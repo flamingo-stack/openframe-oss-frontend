@@ -2,6 +2,7 @@
 
 import {
   ReopenTicketModal as ReopenTicketModalView,
+  type ReopenTicketSelection,
   type TakeOverStatusOption,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo } from 'react';
@@ -9,6 +10,7 @@ import { useReopenTicket } from '../hooks/use-reopen-ticket';
 import { useTicketDetail } from '../hooks/use-ticket-detail';
 import { useAssigneeOptions } from '../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
+import { formatTicketRef } from '../utils/ticket-ref';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 
 /**
@@ -17,6 +19,8 @@ import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
  * detail cache — the board's card model doesn't carry `availableTransitions`,
  * and the details page has the same query warm already.
  */
+export type { ReopenTicketSelection };
+
 export interface ReopenTicketTarget {
   ticketId: string;
   /** Pre-selected status (e.g. the transition the user just picked or the lane
@@ -29,7 +33,13 @@ interface ReopenTicketModalProps {
   /** Non-null opens the modal. */
   target: ReopenTicketTarget | null;
   onClose: () => void;
-  onSuccess?: () => void;
+  /**
+   * Fires with the confirmed selection BEFORE `onClose`, so a host that held
+   * UI state for the pending reopen (the board's held drop) can convert it
+   * instead of discarding it when the close handler runs — same contract as
+   * `TakeOverTicketModal`.
+   */
+  onSuccess?: (selection: ReopenTicketSelection) => void;
 }
 
 /**
@@ -76,7 +86,7 @@ export function ReopenTicketModal({ target, onClose, onSuccess }: ReopenTicketMo
     return statusOptions.find(o => kindById.get(o.value) === TICKET_STATUS_KIND.TECH_REQUIRED)?.value ?? null;
   }, [target?.initialStatusId, statusOptions, kindById]);
 
-  const ticketRef = ticket ? [ticket.ticketNumber, ticket.title].filter(Boolean).join(': ') : '';
+  const ticketRef = ticket ? formatTicketRef(ticket) : '';
 
   return (
     <ReopenTicketModalView
@@ -104,8 +114,8 @@ export function ReopenTicketModal({ target, onClose, onSuccess }: ReopenTicketMo
           },
           {
             onSuccess: () => {
+              onSuccess?.(selection);
               onClose();
-              onSuccess?.();
             },
           },
         );

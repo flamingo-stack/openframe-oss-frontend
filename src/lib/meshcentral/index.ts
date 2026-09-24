@@ -28,11 +28,7 @@ export type {
 export { FileOperations } from './file-operations';
 export { FileUploader, type UploadTask } from './file-uploader';
 // Configuration and utilities
-export {
-  buildWsUrl,
-  MESH_PASS,
-  MESH_USER,
-} from './meshcentral-config';
+export { buildWsUrl, MESH_PASS, MESH_USER } from './meshcentral-config';
 export { MeshControlClient } from './meshcentral-control';
 export type { WebSocketManagerOptions, WebSocketState } from './websocket-manager';
 // Core components

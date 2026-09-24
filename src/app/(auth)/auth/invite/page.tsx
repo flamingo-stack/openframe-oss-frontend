@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  AuthShell,
   type AuthSsoProvider,
   BackToLoginLink,
   CompleteAccountForm,
@@ -10,6 +9,7 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import { useInviteProviders } from '@/app/(auth)/auth/hooks/use-invite-providers';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
@@ -66,7 +66,7 @@ export default function InvitePage() {
       });
 
       if (!response.ok) {
-        const errorData = response.data as any;
+        const errorData = response.data as { code?: string; message?: string } | undefined;
 
         // Already active elsewhere — confirm the tenant switch, then retry.
         if (errorData?.code === 'USER_IS_ACTIVE_IN_ANOTHER_TENANT') {
@@ -132,7 +132,7 @@ export default function InvitePage() {
   );
 
   return (
-    <AuthShell footer={<BackToLoginLink onClick={handleBack} />}>
+    <StandaloneAuthShell footer={<BackToLoginLink onClick={handleBack} />}>
       <CompleteAccountForm
         firstName={firstName}
         lastName={lastName}
@@ -165,6 +165,6 @@ export default function InvitePage() {
         variant="default"
         onConfirm={() => handleSubmit(true)}
       />
-    </AuthShell>
+    </StandaloneAuthShell>
   );
 }

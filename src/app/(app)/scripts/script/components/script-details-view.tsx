@@ -116,7 +116,7 @@ function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
             variant: 'accent' as const,
             // Split button: the divider + arrow half opens the run page in a new tab.
             iconAction: {
-              icon: <ArrowRightUpIcon className="w-5 h-5" />,
+              icon: <ArrowRightUpIcon className="h-5 w-5" />,
               'aria-label': 'Open Run Script in new tab',
               href: runHref,
               openInNewTab: true,
@@ -135,7 +135,7 @@ function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
                 {
                   id: 'edit-script',
                   label: 'Edit Script',
-                  icon: <PenEditIcon className="w-6 h-6 text-ods-text-secondary" />,
+                  icon: <PenEditIcon className="h-6 w-6 text-ods-text-secondary" />,
                   href: routes.scripts.edit(scriptId),
                 },
               ],
@@ -219,17 +219,17 @@ function ScriptSummary({ scriptId }: ScriptDetailsViewProps) {
  * only the pieces that actually read the record suspend — the container, the
  * page padding and the tab bar need no data and paint immediately.
  */
-export const ScriptDetailsView = memo(function ScriptDetailsView({ scriptId }: ScriptDetailsViewProps) {
+export const ScriptDetailsView = memo(function ScriptDetailsViewImpl({ scriptId }: ScriptDetailsViewProps) {
   return (
     // `PageLayout`'s own two boxes, with its own `gap-l` between the page's
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
-    <div className="flex flex-col w-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+    <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
       <Suspense fallback={<ScriptHeaderSkeleton />}>
         <ScriptHeader scriptId={scriptId} />
       </Suspense>
 
-      <div className="flex flex-col flex-1 gap-[var(--spacing-system-l)]">
+      <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
         <Suspense fallback={<ScriptSummarySkeleton />}>
           <ScriptSummary scriptId={scriptId} />
         </Suspense>
@@ -254,3 +254,4 @@ export const ScriptDetailsView = memo(function ScriptDetailsView({ scriptId }: S
     </div>
   );
 });
+ScriptDetailsView.displayName = 'ScriptDetailsView';

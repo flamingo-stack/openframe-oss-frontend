@@ -98,7 +98,7 @@ export function MingoStep({
       {/* Intro + quick actions (left) / demo video (right) */}
       <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] md:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
-          <p className="text-h4 text-ods-text-primary">
+          <p className="text-ods-text-primary text-h4">
             Mingo knows your entire OpenFrame workspace - devices, tickets, Customers, team. Mingo can both answer and
             act. What it&apos;s allowed to do on its own is controlled by your{' '}
             <Link href={GUARDRAILS_HREF} className="text-ods-accent underline">
@@ -109,7 +109,7 @@ export function MingoStep({
 
           {chips.length > 0 && (
             <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <p className="text-h5 text-ods-text-secondary">Try this quick actions:</p>
+              <p className="text-ods-text-secondary text-h5">Try this quick actions:</p>
               <QuickActionWall
                 chips={chips}
                 rows={wallRows}

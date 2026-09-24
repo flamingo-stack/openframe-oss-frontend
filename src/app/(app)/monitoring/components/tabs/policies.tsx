@@ -9,12 +9,13 @@ import {
   Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { formatDistanceToNow } from 'date-fns';
+import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { PoliciesTable, type PolicyTableRow, type PolicyTableStatus, SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
@@ -168,7 +169,7 @@ export function Policies() {
     >
       {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {isLoading ? (
           // `h-16 md:h-[104px]` is `DashboardInfoCard`'s own height — a plain h-20
           // placeholder is taller on mobile and much shorter on desktop, so the
@@ -188,18 +189,20 @@ export function Policies() {
           // reports "Total Policies 0 / Failed 0", an all-clear a compliance
           // console has not earned.
           <>
-            <DashboardInfoCard title="Total Policies" value={hasData ? summary.totalPolicies : '—'} />
+            <DashboardInfoCard title="Total Policies" value={hasData ? summary.totalPolicies : EMPTY_VALUE} />
             <DashboardInfoCard
               title="Compliance Rate"
               value={
-                hasData ? `${summary.compliantPolicies}/${summary.compliantPolicies + summary.failingPolicies}` : '—'
+                hasData
+                  ? `${summary.compliantPolicies}/${summary.compliantPolicies + summary.failingPolicies}`
+                  : EMPTY_VALUE
               }
               percentage={hasData ? summary.compliantPoliciesPercentage : undefined}
               showProgress={hasData}
             />
             <DashboardInfoCard
               title="Failed Policies"
-              value={hasData ? summary.failingPolicies : '—'}
+              value={hasData ? summary.failingPolicies : EMPTY_VALUE}
               percentage={hasData ? summary.failingPoliciesPercentage : undefined}
               showProgress={hasData}
               progressVariant="error"
@@ -207,11 +210,7 @@ export function Policies() {
             <DashboardInfoCard
               title="Updated"
               value={
-                !hasData
-                  ? '—'
-                  : summary.lastUpdatedAt
-                    ? formatDistanceToNow(new Date(summary.lastUpdatedAt), { addSuffix: true })
-                    : 'N/A'
+                !hasData ? EMPTY_VALUE : summary.lastUpdatedAt ? formatRelativeTime(summary.lastUpdatedAt) : EMPTY_VALUE
               }
               valueClassName="!text-h3"
               tooltip="Policy compliance stats are updated hourly. View a policy's devices for real-time status."
@@ -227,7 +226,7 @@ export function Policies() {
           {/* Sticky Search Bar */}
           <div
             ref={toolbarRef}
-            className="sticky top-0 z-20 bg-ods-bg py-[var(--spacing-system-l)] -my-[var(--spacing-system-l)]"
+            className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
           >
             <Input
               placeholder="Search for Policies"

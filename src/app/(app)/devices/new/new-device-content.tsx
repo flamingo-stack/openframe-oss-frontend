@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { CommandBox } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -25,6 +26,7 @@ import { OrgAvatar } from '@/app/components/shared';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { isValidTag, type TagEntryWithId, TagsEditor } from '@/app/components/shared/tags';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 import { routes } from '@/lib/routes';
@@ -33,10 +35,13 @@ import { AntivirusWarning } from '../components/antivirus-warning';
 import { DoctorModeWarning } from '../components/doctor-mode-warning';
 import { useDeviceOrganizations } from '../hooks/use-device-organizations';
 import { useInstallCommand } from '../hooks/use-install-command';
+import { useRemoteAccessApprovalGate } from '../hooks/use-remote-access-approval-gate';
+import { REMOTE_ACCESS_MODE_META, REMOTE_ACCESS_MODES, type RemoteAccessMode } from '../types/remote-access';
 import {
   type InstallMethod,
   installMethodLabel,
   installMethodsForPlatform,
+  isInstallMethodEnabled,
   PACKAGE_MANAGER_METHODS,
 } from '../utils/device-command-utils';
 
@@ -44,6 +49,7 @@ const newDeviceSchema = z.object({
   organizationId: z.string().min(1, 'Customer is required'),
   platform: z.custom<OSPlatformId>(),
   installMethod: z.custom<InstallMethod>(),
+  remoteAccessMode: z.enum(REMOTE_ACCESS_MODES),
 });
 
 type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
@@ -51,6 +57,11 @@ type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
 export function NewDeviceContent() {
   const handleBack = useSafeBack(routes.devices.list);
   const { toast } = useToast();
+  // The remote access permission selector belongs to the next remote access
+  // cut (v2): it needs the approval flow flag AND the v2 flag, so it stays
+  // hidden where only v1 is enabled.
+  const remoteAccessV2 = useFeatureFlag('remote-access-v2');
+  const showRemoteAccess = useRemoteAccessApprovalGate() === 'on' && remoteAccessV2;
 
   // Customer context passed by "Add Device" launched from a customer's section
   // (e.g. `/devices/new?organizationId=<id>`), used to pre-select the dropdown.
@@ -63,7 +74,12 @@ export function NewDeviceContent() {
 
   const form = useForm<NewDeviceFormValues>({
     resolver: zodResolver(newDeviceSchema),
-    defaultValues: { organizationId: '', platform: DEFAULT_OS_PLATFORM, installMethod: 'script' },
+    defaultValues: {
+      organizationId: '',
+      platform: DEFAULT_OS_PLATFORM,
+      installMethod: 'script',
+      remoteAccessMode: 'APPROVAL_REQUIRED',
+    },
   });
 
   const organizationId = useWatch({ control: form.control, name: 'organizationId' });
@@ -82,7 +98,11 @@ export function NewDeviceContent() {
     });
   }, [tags]);
 
-  const { command, registerCommand, initialKey } = useInstallCommand({ organizationId, platform, tags: validTags });
+  const { command, registerCommand, initialKey, rotateMachineId } = useInstallCommand({
+    organizationId,
+    platform,
+    tags: validTags,
+  });
 
   const orgOptions: AutocompleteOption[] = useMemo(
     () => orgs.map(o => ({ label: o.name, value: o.organizationId })),
@@ -143,6 +163,9 @@ export function NewDeviceContent() {
     if (!(await validateBeforeAction())) return;
     if (installMethod === 'script') {
       doCopy(command);
+      // The copied command carries this id; the one now on screen gets a
+      // fresh one so the next device enrolled from this tab is distinguishable.
+      rotateMachineId();
       return;
     }
     // Both steps in one paste: install through the package manager, then
@@ -151,7 +174,7 @@ export function NewDeviceContent() {
     // registration only runs after a successful install.
     const separator = platform === 'windows' ? '; ' : ' && ';
     doCopy(`${PACKAGE_MANAGER_METHODS[installMethod].installCommand}${separator}${registerCommand}`);
-  }, [command, registerCommand, installMethod, platform, doCopy, validateBeforeAction]);
+  }, [command, registerCommand, installMethod, platform, doCopy, validateBeforeAction, rotateMachineId]);
 
   // Corner copy buttons take their own clipboard hook so the main button's
   // "copied" checkmark doesn't light up for a box-level copy.
@@ -163,7 +186,8 @@ export function NewDeviceContent() {
   const copyInstallScript = useCallback(async () => {
     if (!(await validateBeforeAction())) return;
     copyBoxCommand(command);
-  }, [command, copyBoxCommand, validateBeforeAction]);
+    rotateMachineId();
+  }, [command, copyBoxCommand, validateBeforeAction, rotateMachineId]);
 
   const copyRegisterCommand = useCallback(async () => {
     if (!(await validateBeforeAction())) return;
@@ -177,7 +201,9 @@ export function NewDeviceContent() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col gap-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Mockups 504-46017/46069/46131: one column on mobile, two on tablet,
+            all four selectors in a single row on desktop. */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Controller
             name="organizationId"
             control={form.control}
@@ -201,7 +227,7 @@ export function NewDeviceContent() {
                 renderOption={option => {
                   const org = orgs.find(o => o.organizationId === option.value);
                   return (
-                    <div className="flex items-center gap-2 w-full min-w-0">
+                    <div className="flex w-full min-w-0 items-center gap-2">
                       <OrgAvatar imageUrl={org?.imageUrl} hash={org?.imageHash} name={org?.name ?? option.label} />
                       <div className="min-w-0 flex-1">
                         <TruncateText className="text-current">{option.label}</TruncateText>
@@ -212,6 +238,34 @@ export function NewDeviceContent() {
               />
             )}
           />
+          {showRemoteAccess && (
+            <Controller
+              name="remoteAccessMode"
+              control={form.control}
+              render={({ field }) => (
+                // UI only for now (mockup 378-8628): wiring the choice into the
+                // install/register command is deferred with the --unattended
+                // registration-flag tasks (CU-86akergdw / CU-86akergep).
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger label="Remote Access Permission" labelVariant="large">
+                    <SelectValue>{REMOTE_ACCESS_MODE_META[field.value as RemoteAccessMode].label}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REMOTE_ACCESS_MODES.map(mode => (
+                      <SelectItem key={mode} value={mode}>
+                        <span className="flex flex-col text-left">
+                          <span>{REMOTE_ACCESS_MODE_META[mode].label}</span>
+                          <span className="text-ods-text-secondary text-h6">
+                            {REMOTE_ACCESS_MODE_META[mode].description}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          )}
           <Controller
             name="platform"
             control={form.control}
@@ -241,7 +295,7 @@ export function NewDeviceContent() {
                 </SelectTrigger>
                 <SelectContent>
                   {installMethodsForPlatform(platform).map(method => (
-                    <SelectItem key={method} value={method}>
+                    <SelectItem key={method} value={method} disabled={!isInstallMethodEnabled(method)}>
                       {installMethodLabel(method)}
                     </SelectItem>
                   ))}
@@ -284,7 +338,7 @@ export function NewDeviceContent() {
             className="self-end"
             onClick={copyCommand}
             leftIcon={
-              commandCopied ? <CheckIcon className="w-5 h-5 text-ods-success" /> : <Copy02Icon className="w-5 h-5" />
+              commandCopied ? <CheckIcon className="h-5 w-5 text-ods-success" /> : <Copy02Icon className="h-5 w-5" />
             }
           >
             {installMethod === 'script' ? 'Copy Install Command' : 'Copy Install & Register Command'}

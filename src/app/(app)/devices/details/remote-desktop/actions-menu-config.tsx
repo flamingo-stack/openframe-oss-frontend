@@ -1,23 +1,17 @@
-import { ActionsMenuGroup } from '@flamingo-stack/openframe-frontend-core';
-import { Keyboard, Moon, Power, RotateCcw, Sunrise } from 'lucide-react';
-
-// Virtual key codes based on Windows Virtual-Key Codes
-export const VK = {
-  SHIFT: 0x10,
-  CONTROL: 0x11,
-  ALT: 0x12,
-  LWIN: 0x5b,
-  M: 0x4d,
-  L: 0x4c,
-  R: 0x52,
-  W: 0x57,
-  DOWN: 0x28,
-  UP: 0x26,
-} as const;
+import type { ActionsMenuGroup } from '@flamingo-stack/openframe-frontend-core';
+import {
+  KeyboardIcon,
+  MoonIcon,
+  PowerIcon,
+  Refresh01LeftIcon,
+  Settings01Icon,
+  SunriseIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { comboLabel, type RemoteShortcut } from './remote-shortcuts';
 
 export interface ActionHandlers {
-  sendCtrlAltDel: () => void;
-  sendKeyCombo: (keys: number[]) => void;
+  sendShortcut: (combo: string) => void;
+  openShortcutsManager: () => void;
   sendPower: (action: 'wake' | 'sleep' | 'reset' | 'poweroff') => void;
   setEnableInput: (enabled: boolean) => void;
   setClipboardEnabled: (enabled: boolean) => void;
@@ -33,113 +27,31 @@ export const createActionsMenuGroups = (
   handlers: ActionHandlers,
   enableInput: boolean,
   clipboardEnabled: boolean,
+  shortcuts: RemoteShortcut[],
 ): ActionsMenuGroup[] => [
   {
     items: [
       {
         id: 'apply-shortcut',
         label: 'Apply Shortcut',
-        icon: <Keyboard className="w-6 h-6" />,
+        icon: <KeyboardIcon className="h-6 w-6" />,
         type: 'submenu',
         submenu: [
           {
-            id: 'alt-ctrl-del',
-            label: 'Alt + Ctrl + Del',
+            id: 'manage-shortcuts',
+            label: 'Manage Shortcuts',
+            icon: <Settings01Icon className="h-6 w-6" />,
             onClick: () => {
-              handlers.sendCtrlAltDel();
+              handlers.openShortcutsManager();
             },
           },
-          {
-            id: 'win-m',
-            label: 'Win + M',
+          ...shortcuts.map(shortcut => ({
+            id: shortcut.id,
+            label: comboLabel(shortcut.combo),
             onClick: () => {
-              handlers.sendKeyCombo([VK.LWIN, VK.M]);
-              handlers.toast({
-                title: 'Win + M',
-                description: 'Minimize all windows',
-                variant: 'success',
-                duration: 2000,
-              });
+              handlers.sendShortcut(shortcut.combo);
             },
-          },
-          {
-            id: 'win-down',
-            label: 'Win + Down',
-            onClick: () => {
-              handlers.sendKeyCombo([VK.LWIN, VK.DOWN]);
-              handlers.toast({
-                title: 'Win + Down',
-                description: 'Minimize window',
-                variant: 'success',
-                duration: 2000,
-              });
-            },
-          },
-          {
-            id: 'win-up',
-            label: 'Win + Up',
-            onClick: () => {
-              handlers.sendKeyCombo([VK.LWIN, VK.UP]);
-              handlers.toast({
-                title: 'Win + Up',
-                description: 'Maximize window',
-                variant: 'success',
-                duration: 2000,
-              });
-            },
-          },
-          {
-            id: 'shift-win-m',
-            label: 'Shift + Win + M',
-            onClick: () => {
-              handlers.sendKeyCombo([VK.SHIFT, VK.LWIN, VK.M]);
-              handlers.toast({
-                title: 'Shift + Win + M',
-                description: 'Restore minimized windows',
-                variant: 'success',
-                duration: 2000,
-              });
-            },
-          },
-          {
-            id: 'win-l',
-            label: 'Win + L',
-            onClick: () => {
-              handlers.sendKeyCombo([VK.LWIN, VK.L]);
-              handlers.toast({
-                title: 'Win + L',
-                description: 'Lock workstation',
-                variant: 'success',
-                duration: 2000,
-              });
-            },
-          },
-          {
-            id: 'win-r',
-            label: 'Win + R',
-            onClick: () => {
-              handlers.sendKeyCombo([VK.LWIN, VK.R]);
-              handlers.toast({
-                title: 'Win + R',
-                description: 'Open Run dialog',
-                variant: 'success',
-                duration: 2000,
-              });
-            },
-          },
-          {
-            id: 'ctrl-w',
-            label: 'Ctrl + W',
-            onClick: () => {
-              handlers.sendKeyCombo([VK.CONTROL, VK.W]);
-              handlers.toast({
-                title: 'Ctrl + W',
-                description: 'Close window',
-                variant: 'success',
-                duration: 2000,
-              });
-            },
-          },
+          })),
         ],
       },
     ],
@@ -150,7 +62,7 @@ export const createActionsMenuGroups = (
       {
         id: 'wake-up',
         label: 'Wake up',
-        icon: <Sunrise className="w-6 h-6" />,
+        icon: <SunriseIcon className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('wake');
         },
@@ -158,7 +70,7 @@ export const createActionsMenuGroups = (
       {
         id: 'sleep',
         label: 'Sleep',
-        icon: <Moon className="w-6 h-6" />,
+        icon: <MoonIcon className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('sleep');
         },
@@ -166,7 +78,7 @@ export const createActionsMenuGroups = (
       {
         id: 'reboot',
         label: 'Reboot',
-        icon: <RotateCcw className="w-6 h-6" />,
+        icon: <Refresh01LeftIcon className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('reset');
         },
@@ -174,7 +86,7 @@ export const createActionsMenuGroups = (
       {
         id: 'shut-down',
         label: 'Shut Down',
-        icon: <Power className="w-6 h-6" />,
+        icon: <PowerIcon className="h-6 w-6" />,
         onClick: () => {
           handlers.sendPower('poweroff');
         },

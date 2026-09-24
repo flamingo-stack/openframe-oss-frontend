@@ -5,6 +5,7 @@ import {
   DataTable,
   type PageActionButton,
   PageLayout,
+  type PageLayoutProps,
   Skeleton,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -81,21 +82,21 @@ export function InfoCardSkeleton({
 }: InfoCardSkeletonProps) {
   return (
     <div className={cn(INFO_CARD_CLASS, className)}>
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-[var(--spacing-system-xxs)]">
-          {titleSlot ?? <p className="text-h5 text-ods-text-secondary truncate">{title}</p>}
+          {titleSlot ?? <p className="truncate text-ods-text-secondary text-h5">{title}</p>}
         </div>
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
-          <p className={cn('text-h3 md:text-h2 text-ods-text-primary truncate', valueClassName)}>
+          <p className={cn('truncate text-ods-text-primary text-h3 md:text-h2', valueClassName)}>
             <InlineSkeleton className="h-4 w-8 md:h-6" />
           </p>
           {showSubValue && (
-            <p className="text-h6 text-ods-text-secondary">
+            <p className="text-ods-text-secondary text-h6">
               <InlineSkeleton className="h-3 w-16" />
             </p>
           )}
           {showPercentage && (
-            <p className="text-h4 text-ods-text-secondary">
+            <p className="text-ods-text-secondary text-h4">
               <InlineSkeleton className="h-3 w-14" />
             </p>
           )}
@@ -138,6 +139,11 @@ export function skeletonColumnDefs<T>(columns: readonly TableSkeletonColumn[]): 
 interface TableSkeletonProps {
   columns: readonly TableSkeletonColumn[];
   rows?: number;
+  /**
+   * Set when the live table pins its header under a sticky toolbar — the
+   * skeleton pins at the same offset, so the header does not jump on load.
+   */
+  stickyHeaderOffset?: string;
 }
 
 /**
@@ -151,7 +157,7 @@ interface TableSkeletonProps {
  * `table`/`children`/`className`, so the attribute needs its own element. It
  * wraps a single child, so the flex-item count of the parent is unchanged.
  */
-export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
+export function TableSkeleton({ columns, rows = 10, stickyHeaderOffset }: TableSkeletonProps) {
   const columnDefs = useMemo<ColumnDef<unknown>[]>(() => skeletonColumnDefs<unknown>(columns), [columns]);
 
   const table = useDataTable<unknown>({
@@ -164,7 +170,7 @@ export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
   return (
     <div aria-busy>
       <DataTable table={table}>
-        <DataTable.Header />
+        <DataTable.Header stickyHeader={stickyHeaderOffset !== undefined} stickyHeaderOffset={stickyHeaderOffset} />
         <DataTable.Body loading skeletonRows={rows} emptyMessage="" rowClassName="mb-1" />
       </DataTable>
     </div>
@@ -179,10 +185,10 @@ export function TableSkeleton({ columns, rows = 10 }: TableSkeletonProps) {
  */
 export function TabBarSkeleton({ widths, className }: { widths: readonly string[]; className?: string }) {
   return (
-    <div className={cn('relative w-full h-14 border-b border-ods-border', className)}>
-      <div className="flex gap-1 items-center h-full overflow-hidden">
+    <div className={cn('relative h-14 w-full border-b border-ods-border', className)}>
+      <div className="flex h-full items-center gap-1 overflow-hidden">
         {widths.map((width, index) => (
-          <div key={index} className={cn('flex gap-2 items-center justify-center p-4 shrink-0 h-14', width)}>
+          <div key={index} className={cn('flex h-14 shrink-0 items-center justify-center gap-2 p-4', width)}>
             <Skeleton className="h-6 w-6 shrink-0" />
             <Skeleton className="h-5 flex-1" />
           </div>
@@ -200,6 +206,8 @@ export function SearchBarSkeleton() {
 export interface ListPageSkeletonProps {
   /** Real page title — static text, so it renders as-is instead of a bar. */
   title: string;
+  /** The page's Back link, when it has one — its row is part of the header height. */
+  backButton?: PageLayoutProps['backButton'];
   /** Real header buttons, rendered disabled so the header is pixel-identical. */
   actions?: PageActionButton[];
   /** Tab cell widths when the page renders a tab bar above its header. */
@@ -213,9 +221,9 @@ export interface ListPageSkeletonProps {
  * `PageLayout` header (title + disabled actions), a search toolbar and a table
  * in its loading state.
  */
-export function ListPageSkeleton({ title, actions, tabWidths, columns, rows }: ListPageSkeletonProps) {
+export function ListPageSkeleton({ title, backButton, actions, tabWidths, columns, rows }: ListPageSkeletonProps) {
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex w-full flex-col">
       {tabWidths && (
         <div className="px-[var(--spacing-system-l)]">
           <TabBarSkeleton widths={tabWidths} />
@@ -223,6 +231,7 @@ export function ListPageSkeleton({ title, actions, tabWidths, columns, rows }: L
       )}
       <PageLayout
         title={title}
+        backButton={backButton}
         actions={actions}
         actionsVariant="icon-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"

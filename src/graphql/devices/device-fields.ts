@@ -25,7 +25,6 @@ import { graphql } from 'react-relay';
 export const deviceFieldsFragment = graphql`
   fragment deviceFields_machine on Machine @inline {
     ...deviceSelectorFields_machine
-    nickname
     ip
     macAddress
     osUuid
@@ -43,7 +42,6 @@ export const deviceFieldsFragment = graphql`
       status
       metadata
       connectedAt
-      lastSyncAt
       disconnectedAt
     }
   }

@@ -13,7 +13,10 @@ export function GoogleTagManager({ containerId }: GoogleTagManagerProps) {
 
   useEffect(() => {
     if (!id) return;
-    (window as any).dataLayer = (window as any).dataLayer || [];
+    // GTM's queue: the snippet below pushes onto it, and this makes sure it
+    // exists before the tag script loads.
+    const w = window as unknown as { dataLayer?: unknown[] };
+    w.dataLayer = w.dataLayer || [];
   }, [id]);
 
   if (!id) return null;
@@ -24,7 +27,6 @@ export function GoogleTagManager({ containerId }: GoogleTagManagerProps) {
         id="gtm-script"
         strategy="afterInteractive"
         dangerouslySetInnerHTML={{
-          // biome-ignore lint/style/useNamingConvention: false
           __html: `
             (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
             new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],

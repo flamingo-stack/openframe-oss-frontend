@@ -99,7 +99,7 @@ export function MeetFaePreview({
           style={{ backgroundColor: accentColor }}
         />
 
-        <p className="max-w-[504px] text-center text-h3 text-ods-text-primary">
+        <p className="max-w-[504px] text-center text-ods-text-primary text-h3">
           Meet {assistantName}, your AI IT assistant. She fixes what she can right away — and hands off the rest to your
           technicians.
         </p>
@@ -120,7 +120,7 @@ export function MeetFaePreview({
                 <Icon className="size-6" />
               </span>
               <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
-                <span className="text-h3 text-ods-text-primary">{title}</span>
+                <span className="text-ods-text-primary text-h3">{title}</span>
                 {isThumbnail ? (
                   <TruncateText lines={2} variant="h6" tone="secondary">
                     {description}
@@ -128,7 +128,7 @@ export function MeetFaePreview({
                 ) : (
                   // 1:1 wraps to ~4 lines at phone width; clamping to 2 here would
                   // hide copy the real welcome screen shows.
-                  <span className="text-h6 text-ods-text-secondary">{description}</span>
+                  <span className="text-ods-text-secondary text-h6">{description}</span>
                 )}
               </div>
             </div>
@@ -155,7 +155,7 @@ export function MeetFaePreview({
       <div className="flex shrink-0 items-center justify-center gap-[var(--spacing-system-xs)] text-ods-text-secondary">
         <span className="text-h6">Powered by</span>
         <FlamingoLogo className="h-5 w-auto" fill="currentColor" />
-        <span className="font-heading text-h6 font-semibold">Flamingo</span>
+        <span className="font-heading font-semibold text-h6">Flamingo</span>
       </div>
     </div>
   );
@@ -163,7 +163,7 @@ export function MeetFaePreview({
   if (!isThumbnail) return <div className="h-full w-full overflow-y-auto">{body}</div>;
 
   return (
-    <div className="grid h-[250px] w-full place-items-center overflow-hidden rounded-md border border-ods-border bg-ods-bg md:h-[296px] lg:h-[380px] [--preview-scale:0.264] md:[--preview-scale:0.313] lg:[--preview-scale:0.402]">
+    <div className="grid h-[250px] w-full place-items-center overflow-hidden rounded-md border border-ods-border bg-ods-bg [--preview-scale:0.264] md:h-[296px] md:[--preview-scale:0.313] lg:h-[380px] lg:[--preview-scale:0.402]">
       {/* 1:1 content in a 945px slot, transform-scaled (not zoom) to the per-breakpoint card
           height. zoom mis-renders text in Safari, so we scale via transform instead; the
           wrapper reserves the post-scale footprint so the card still centers the content. */}

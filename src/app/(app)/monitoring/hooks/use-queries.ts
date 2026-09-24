@@ -40,7 +40,9 @@ const EMPTY_QUERIES: Query[] = [];
 export const queriesQueryKeys = {
   all: ['queries'] as const,
   list: (params?: ListQueriesParams) => [...queriesQueryKeys.all, 'list', params] as const,
-  detail: (id: number) => [...queriesQueryKeys.all, 'detail', id] as const,
+  // `null` is accepted so a hook whose id is not known yet can still build a key;
+  // that query is skipped, so the key it produces is never used to fetch anything.
+  detail: (id: number | null) => [...queriesQueryKeys.all, 'detail', id] as const,
 };
 
 // ============ API Functions ============

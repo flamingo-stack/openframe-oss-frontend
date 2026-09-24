@@ -3,7 +3,7 @@
 import { PageLayout, ServiceCard, Skeleton } from '@flamingo-stack/openframe-frontend-core';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { useIntegratedTools } from '../../hooks/use-integrated-tools';
@@ -41,19 +41,18 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
   }, [tools, searchTerm]);
 
   // Group by layer (after filtering)
-  const grouped = filteredTools.reduce<Record<string, typeof tools>>((acc, t) => {
+  const grouped: Record<string, typeof tools> = {};
+  for (const t of filteredTools) {
     const layer = (t.layer as unknown as string) || 'Other';
-    if (!acc[layer]) acc[layer] = [];
-    acc[layer].push(t);
-    return acc;
-  }, {});
+    (grouped[layer] ??= []).push(t);
+  }
 
   const layerOrder = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
   return (
     <PageLayout
       title={title}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] bg-ods-bg"
+      className="bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: handleBack }}
     >
       <div>
@@ -66,13 +65,13 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
         />
       </div>
       {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-ods-card border border-ods-border rounded-lg p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <Skeleton className="w-12 h-12 rounded-md" />
+            <div key={i} className="rounded-lg border border-ods-border bg-ods-card p-6">
+              <div className="mb-4 flex items-center gap-4">
+                <Skeleton className="h-12 w-12 rounded-md" />
                 <div className="flex-1">
-                  <Skeleton className="h-5 w-3/4 mb-2" />
+                  <Skeleton className="mb-2 h-5 w-3/4" />
                   <Skeleton className="h-4 w-1/2" />
                 </div>
               </div>
@@ -84,11 +83,16 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
 
       {layerOrder.map(layer => (
         <div key={layer} className="space-y-4">
-          <div className="text-h2 text-ods-text-primary">{layer}</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="text-ods-text-primary text-h2">{layer}</div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {grouped[layer].map(tool => {
-              const rows: Array<{ label?: string; value: string; href?: string; isSecret?: boolean; actions?: any }> =
-                [];
+              const rows: Array<{
+                label?: string;
+                value: string;
+                href?: string;
+                isSecret?: boolean;
+                actions?: { copy?: boolean; open?: boolean; reveal?: boolean };
+              }> = [];
               const urls = tool.toolUrls || [];
               urls.forEach(u => {
                 if (!u?.url) return;

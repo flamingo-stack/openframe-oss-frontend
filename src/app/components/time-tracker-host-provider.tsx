@@ -7,7 +7,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { cancelTimerMutation as CancelTimerMutationType } from '@/__generated__/cancelTimerMutation.graphql';
 import type { currentTimerRelayQuery as CurrentTimerRelayQueryType } from '@/__generated__/currentTimerRelayQuery.graphql';
@@ -46,12 +46,24 @@ import {
 } from '@/graphql/time-tracker/time-tracker-helpers';
 import { useAuthStore } from '@/stores';
 
+/**
+ * Host for the global time-tracker panel, mounted around the whole app shell.
+ *
+ * `enabled` (the feature flag + a resolved session + an unlocked workspace) is
+ * passed DOWN, never used to decide whether to mount: this used to return
+ * `<>{children}</>` when off, and the moment the flag answered mid-boot the
+ * element type at this position changed and React remounted the entire
+ * `CoreAppLayout` and the page inside it. See the comment at its call site in
+ * `app-layout.tsx`. Everything that costs anything — the two Relay hydrators,
+ * the modals, and the ticket/customer option queries — is gated on the flag
+ * instead, so a mounted-but-disabled host issues no requests, and the lib
+ * provider supplies NO context, exactly as when it was absent.
+ */
 export function TimeTrackerHostProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
-  if (!enabled) return <>{children}</>;
-  return <TimeTrackerHost>{children}</TimeTrackerHost>;
+  return <TimeTrackerHost enabled={enabled}>{children}</TimeTrackerHost>;
 }
 
-function TimeTrackerHost({ children }: { children: ReactNode }) {
+function TimeTrackerHost({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const { toast } = useToast();
   const router = useRouter();
   const currentUserId = useAuthStore(state => state.user?.id);
@@ -76,7 +88,7 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
     selectTicket,
     selectCustomer,
     reset: resetTicketCustomer,
-  } = useTicketCustomerSelection();
+  } = useTicketCustomerSelection({ enabled });
 
   const [startTimer, isStarting] = useMutation<StartTimerMutationType>(startTimerMutation);
   const [pauseTimer, isPausing] = useMutation<PauseTimerMutationType>(pauseTimerMutation);
@@ -86,9 +98,11 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
 
   const clock = useMemo(() => mapTimerToTrackerState(timerNode), [timerNode]);
 
-  const seededRef = useRef(false);
-  useEffect(() => {
-    if (seededRef.current || !timerNode) return;
+  // Seeded once from a timer that was already running when this mounted. Done
+  // during render, and latched in state rather than a ref, so the composer never
+  // draws one frame with an empty ticket/customer pair before adopting it.
+  const [seeded, setSeeded] = useState(false);
+  if (!seeded && timerNode) {
     if (timerNode.state === TimerState.RUNNING || timerNode.state === TimerState.PAUSED) {
       resetTicketCustomer({
         ticketId: timerNode.ticketId ?? null,
@@ -99,9 +113,9 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
         lockCustomer: !!(timerNode.ticketId && timerNode.organizationId),
       });
       if (timerNode.notes) setNotes(timerNode.notes);
-      seededRef.current = true;
+      setSeeded(true);
     }
-  }, [timerNode, resetTicketCustomer]);
+  }
 
   const ticketOptions = useMemo(
     () => ticketOptionsList.map(option => ({ id: option.value, label: option.label })),
@@ -118,7 +132,9 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
   const resetDraft = useCallback(() => {
     resetTicketCustomer();
     setNotes('');
-    seededRef.current = false;
+    // Re-arm the seed: a new timer started after this reset adopts its own
+    // ticket/customer pair.
+    setSeeded(false);
   }, [resetTicketCustomer]);
 
   const onError = useCallback(
@@ -285,35 +301,49 @@ function TimeTrackerHost({ children }: { children: ReactNode }) {
     ],
   );
 
+  // `children` keeps ONE position in this tree whatever `enabled` says; only the
+  // siblings around it come and go, and a sibling appearing costs the subtree
+  // nothing. The modals mount their own `useTicketCustomerSelection`, so they are
+  // part of "costs anything" and are gated too.
   return (
-    <TimeTrackerProvider {...trackerData}>
-      <Suspense fallback={null}>
-        <CurrentTimerHydrator onTimer={setTimerNode} />
-      </Suspense>
-      <Suspense fallback={null}>
-        <RecentEntriesHydrator onEntries={setRecentNodes} />
-      </Suspense>
+    <TimeTrackerProvider enabled={enabled} {...trackerData}>
+      {enabled && (
+        <>
+          <Suspense fallback={null}>
+            <CurrentTimerHydrator onTimer={setTimerNode} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <RecentEntriesHydrator onEntries={setRecentNodes} />
+          </Suspense>
+        </>
+      )}
       {children}
-      <ManualEntryModal
-        isOpen={manualEntryOpen}
-        onClose={() => setManualEntryOpen(false)}
-        onSuccess={onEntriesChanged}
-      />
-      <ManualEntryModal
-        isOpen={!!editTarget}
-        entry={editTarget}
-        onClose={() => setEditTarget(null)}
-        onSuccess={onEntriesChanged}
-      />
-      <ConfirmDialog
-        open={cancelConfirmOpen}
-        onOpenChange={setCancelConfirmOpen}
-        title="Cancel Entry"
-        description={<CancelEntryDescription runningSince={clock.runningSince} accumulatedMs={clock.accumulatedMs} />}
-        variant="destructive"
-        isPending={isCancelling}
-        onConfirm={confirmCancel}
-      />
+      {enabled && (
+        <>
+          <ManualEntryModal
+            isOpen={manualEntryOpen}
+            onClose={() => setManualEntryOpen(false)}
+            onSuccess={onEntriesChanged}
+          />
+          <ManualEntryModal
+            isOpen={!!editTarget}
+            entry={editTarget}
+            onClose={() => setEditTarget(null)}
+            onSuccess={onEntriesChanged}
+          />
+          <ConfirmDialog
+            open={cancelConfirmOpen}
+            onOpenChange={setCancelConfirmOpen}
+            title="Cancel Entry"
+            description={
+              <CancelEntryDescription runningSince={clock.runningSince} accumulatedMs={clock.accumulatedMs} />
+            }
+            variant="destructive"
+            isPending={isCancelling}
+            onConfirm={confirmCancel}
+          />
+        </>
+      )}
     </TimeTrackerProvider>
   );
 }
@@ -331,7 +361,7 @@ function CancelEntryDescription({
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (runningSince == null) return;
+    if (runningSince == null) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [runningSince]);

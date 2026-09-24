@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-statuses';
 import { useAllDevices } from '../../../devices/hooks/use-all-devices';
 import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
+import { getDeviceName } from '../../../devices/utils/device-name';
 import type { QueryDeviceRow } from '../types/query-device-row';
 
 const QUERY_HOSTS_PAGE_SIZE = 100;
@@ -36,8 +37,7 @@ export function useQueryDevicesTable(queryId: number | null) {
   // The Fleet hosts assigned to this query (id + hostname only).
   const hostsQuery = useQuery({
     queryKey: ['query-assigned-hosts', queryId],
-    queryFn: () => fetchQueryHosts(queryId!),
-    enabled: queryId !== null,
+    queryFn: queryId === null ? skipToken : () => fetchQueryHosts(queryId),
   });
 
   // The full device registry, used to enrich each assigned host with display,
@@ -61,7 +61,7 @@ export function useQueryDevicesTable(queryId: number | null) {
       return {
         id: String(host.id),
         hostname: device?.hostname || host.hostname || `Host ${host.id}`,
-        displayName: device?.displayName || device?.hostname || host.hostname || `Host ${host.id}`,
+        name: getDeviceName(device) || host.hostname || `Host ${host.id}`,
         deviceType: device?.type,
         organization: device?.organization,
         organizationImageUrl: device?.organizationImageUrl,
@@ -75,7 +75,7 @@ export function useQueryDevicesTable(queryId: number | null) {
       };
     });
 
-    result.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    result.sort((a, b) => a.name.localeCompare(b.name));
     return result;
   }, [hostsQuery.data, devices]);
 

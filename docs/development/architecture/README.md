@@ -222,7 +222,7 @@ Located in `src/lib/meshcentral/`.
 | **Relay for GraphQL streaming** | Optimal for logs/notifications with large datasets and cursor pagination |
 | **TanStack Query for REST** | Better DX for REST APIs, optimistic mutations, refetch controls |
 | **Zustand over Redux** | Minimal boilerplate, TypeScript-native, no provider nesting |
-| **Biome over Prettier** | Significantly faster, single tool for lint + format |
+| **ESLint + Prettier over Biome** | The rule set is shared across every Flamingo frontend by the core library; react-hooks v7 and the Relay rules have no Biome equivalent |
 | **Domain-based file organization** | Scales well, co-locates everything related to a feature |
 | **Single ApiClient** | Centralized auth, error handling, and base URL resolution |
 

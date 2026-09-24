@@ -40,7 +40,7 @@ export function ExecutionStartedModal({
         </>
       }
     >
-      <p className="text-h4 text-ods-text-primary">
+      <p className="text-ods-text-primary text-h4">
         Script <span className="text-ods-accent">{scriptName}</span> has been accepted for execution. You can track its
         progress and view the results in the {resultsLocation}.
       </p>

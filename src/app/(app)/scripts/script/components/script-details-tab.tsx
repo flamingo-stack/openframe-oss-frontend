@@ -63,7 +63,7 @@ function ScriptParamCards({ scriptId, onResolved }: { scriptId: string; onResolv
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--spacing-system-lf)]">
+    <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] lg:grid-cols-2">
       {args.length > 0 ? <ScriptArgumentsCard title="Default Script Arguments" args={args} separator=" " /> : <div />}
       {envVarStrings.length > 0 && <ScriptArgumentsCard title="Default Environment Vars" args={envVarStrings} />}
     </div>
@@ -97,7 +97,7 @@ function ScriptParamCards({ scriptId, onResolved }: { scriptId: string; onResolv
  *
  * `memo` for the reason given in `script-detail-tabs.ts`.
  */
-export const ScriptDetailsTab = memo(function ScriptDetailsTab({ scriptId }: { scriptId: string }) {
+export const ScriptDetailsTab = memo(function ScriptDetailsTabImpl({ scriptId }: { scriptId: string }) {
   const [state, setState] = useState<SourceState>(SOURCE_LOADING);
   const isLoading = state.status === 'loading';
   const source = state.status === 'ready' ? state.source : null;
@@ -110,10 +110,11 @@ export const ScriptDetailsTab = memo(function ScriptDetailsTab({ scriptId }: { s
 
       {(isLoading || source) && (
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <div className="text-h5 text-ods-text-secondary w-full">Syntax</div>
+          <div className="w-full text-ods-text-secondary text-h5">Syntax</div>
           <ScriptEditor value={source?.body ?? ''} shell={source?.shell} readOnly height="400px" loading={isLoading} />
         </div>
       )}
     </div>
   );
 });
+ScriptDetailsTab.displayName = 'ScriptDetailsTab';

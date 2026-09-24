@@ -4,7 +4,7 @@ import { KnowledgeBaseDocsView } from '../knowledge-base-docs-view';
 // Doc paths are runtime/CMS content (not build-enumerable). `output: 'export'`
 // rejects an empty param list, so we prerender a single placeholder shell; real
 // doc paths are served by the native shell's SPA fallback (the web/standalone
-// build serves them dynamically). See docs/static-export-migration.md.
+// build serves them dynamically).
 export function generateStaticParams(): { path: string[] }[] {
   return [{ path: ['index'] }];
 }

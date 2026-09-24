@@ -64,7 +64,7 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   const normalizedParams = useMemo(() => ({ ...params, statuses: selectedStatuses }), [params, selectedStatuses]);
 
   const setParamsNormalized = useCallback(
-    (next: Record<string, any>) =>
+    (next: Record<string, string[]>) =>
       setParams('statuses' in next ? { ...next, statuses: normalizeStatuses(next.statuses || []) } : next),
     [setParams, normalizeStatuses],
   );
@@ -103,7 +103,7 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
   );
 
   const handleFilterChange = useCallback(
-    (columnFilters: Record<string, any[]>) => {
+    (columnFilters: Record<string, string[]>) => {
       setParamsNormalized({
         statuses: columnFilters.status || [],
         osTypes: columnFilters.os || [],

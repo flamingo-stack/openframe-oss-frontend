@@ -1,4 +1,5 @@
 'use client';
+'use no memo';
 
 import {
   Label,
@@ -62,7 +63,7 @@ function ReconnectWindowFields({
   const controlWidth = fluid ? 'flex-1 min-w-0' : 'w-[120px]';
   return (
     <div className={cn('flex items-center gap-[var(--spacing-system-xsf)]', className)}>
-      <span className={cn('text-h4 shrink-0', disabled ? 'text-ods-text-disabled' : 'text-ods-text-secondary')}>
+      <span className={cn('shrink-0 text-h4', disabled ? 'text-ods-text-disabled' : 'text-ods-text-secondary')}>
         Stop Retry after
       </span>
       <ScheduleIntervalInput
@@ -110,18 +111,23 @@ function ReconnectWindowFields({
  * optional-meaning-forever: nothing in the contract says a null window queues a
  * run indefinitely, so the form never offers a reading it cannot back up.
  *
- * The whole block presupposes a scheduled time, so it collapses for the
- * DEVICE_ONLINE trigger exactly as the timing row above it does — same
- * `0fr → 1fr` grid-rows technique, same stays-MOUNTED contract (toggling the
- * trigger back restores what was picked), same `inert` to drop the collapsed
- * controls out of the tab order, and the same padding/negative-margin pair: the
- * bottom padding is the room the absolutely-positioned error renders into, and
- * the constant negative margin cancels it so a collapsed block leaves no hole.
+ * The block presupposes a scheduled time the device can be absent FOR, so it
+ * collapses for DEVICE_ONLINE — which fires on the reconnect already — and
+ * submits the SKIP default instead of what the collapsed controls hold.
+ * DEVICE_LOCAL keeps it: its scheduled moment is the device's own wall clock.
+ *
+ * It collapses with the `0fr → 1fr` grid-rows technique, staying MOUNTED so
+ * toggling the trigger back restores what was picked, `inert` to drop the
+ * collapsed controls out of the tab order, and a padding/negative-margin pair:
+ * the bottom padding is the room the absolutely-positioned error renders into,
+ * and the constant negative margin cancels it so a collapsed block leaves no
+ * hole.
  */
 export function ScheduleOfflineFields({ showErrors, disabled = false }: { showErrors: boolean; disabled?: boolean }) {
   const { control } = useFormContext<EditScheduleFormData>();
   const trigger = useWatch({ control, name: 'trigger' });
-  const eventDriven = isEventTrigger(trigger);
+  // The one reading with no offline moment to decide about — see the docstring.
+  const collapsed = isEventTrigger(trigger);
 
   const { field: behaviorField } = useController({ control, name: 'offlineBehavior' });
   const { field: intervalField, fieldState: intervalState } = useController({ control, name: 'reconnectInterval' });
@@ -169,14 +175,14 @@ export function ScheduleOfflineFields({ showErrors, disabled = false }: { showEr
 
   return (
     <div
-      inert={eventDriven}
+      inert={collapsed}
       style={{
-        gridTemplateRows: eventDriven ? '0fr' : '1fr',
-        opacity: eventDriven ? 0 : 1,
+        gridTemplateRows: collapsed ? '0fr' : '1fr',
+        opacity: collapsed ? 0 : 1,
       }}
-      className="grid mb-[calc(-1*var(--spacing-system-lf))] transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
+      className="mb-[calc(-1*var(--spacing-system-lf))] grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none"
     >
-      <div className="overflow-hidden min-h-0">
+      <div className="min-h-0 overflow-hidden">
         {/* The bottom padding is the room the error below renders into, and it
             sits on a wrapper INSIDE the clipping box rather than on the box
             itself: a box is never shorter than its own padding — border-box
@@ -202,7 +208,7 @@ export function ScheduleOfflineFields({ showErrors, disabled = false }: { showEr
               disabled={disabled}
               options={options}
             />
-            <div className="md:hidden pt-[var(--spacing-system-xs)]">{windowFieldsFor(true)}</div>
+            <div className="pt-[var(--spacing-system-xs)] md:hidden">{windowFieldsFor(true)}</div>
             {intervalError && (
               <div className="absolute bottom-0 left-0 right-0 translate-y-full">
                 <TruncateText variant="h6" className="text-ods-error">

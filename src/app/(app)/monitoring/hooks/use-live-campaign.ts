@@ -1,11 +1,12 @@
 'use client';
 
-import type { QueryResultRow } from '@flamingo-stack/openframe-frontend-core';
+import type { QueryResultRow, TestRunStopReason } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
+import { pluralize } from '@/lib/pluralize';
 import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -31,7 +32,21 @@ export interface CampaignTotals {
 
 interface CampaignMessage {
   type: 'totals' | 'result' | 'status' | 'error';
-  data: any;
+  /**
+   * Fleet's live-query envelope. One field set per `type` — totals counters, a
+   * host result, or an error — so every branch below reads what its own case
+   * carries and nothing is guaranteed across them.
+   */
+  data: {
+    count?: number;
+    online?: number;
+    offline?: number;
+    missing_in_action?: number;
+    error?: string | null;
+    host?: { id?: number; display_name?: string; osquery_version?: string };
+    rows?: Record<string, unknown>[];
+    status?: 'pending' | 'finished';
+  };
 }
 
 type SockJsConnectionState = 'disconnected' | 'connecting' | 'connected';
@@ -77,7 +92,10 @@ function parseSockJsFrame(raw: string): {
 export interface UseLiveCampaignReturn {
   /** Resolves true once the campaign is created and streaming starts; false on validation/setup failure. */
   startCampaign: (sql: string, hostIds: number[]) => Promise<boolean>;
+  /** User-initiated cancel (the Cancel Test button); internal finishes carry their own reason. */
   stopCampaign: () => void;
+  /** Why the last run ended; null while idle/running. Feeds the lib's Status tag. */
+  stopReason: TestRunStopReason | null;
   isRunning: boolean;
   startedAt: Date | null;
   results: QueryResultRow[];
@@ -92,6 +110,10 @@ export interface UseLiveCampaignReturn {
 
 const CAMPAIGN_LIMIT = 250_000;
 const CAMPAIGN_TIMEOUT_MS = 5 * 60 * 1000;
+
+// ── Query keys ──────────────────────────────────────────────────────
+
+export const FLEET_API_TOKEN_QUERY_KEY = ['fleet-api-token'] as const;
 
 // ── Cached "All Hosts" label lookup ────────────────────────────────
 
@@ -173,11 +195,20 @@ async function fetchFleetApiToken(): Promise<string> {
 
 // ── Hook ───────────────────────────────────────────────────────────
 
-export function useLiveCampaign(): UseLiveCampaignReturn {
+export interface UseLiveCampaignOptions {
+  /**
+   * Names a host in result, error and empty-result rows. Fleet only knows its own
+   * display name; the caller that has the device registry resolves the SSOT name
+   * (nickname first) and falls back to the Fleet name it is handed.
+   */
+  hostName?: (host: { id: number; fleetName: string }) => string;
+}
+
+export function useLiveCampaign({ hostName }: UseLiveCampaignOptions = {}): UseLiveCampaignReturn {
   const { toast } = useToast();
 
   const { data: fleetApiToken } = useQuery({
-    queryKey: ['fleet-api-token'],
+    queryKey: FLEET_API_TOKEN_QUERY_KEY,
     queryFn: fetchFleetApiToken,
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -192,6 +223,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
   const [hostsFailed, setHostsFailed] = useState(0);
   const [connectionState, setConnectionState] = useState<SockJsConnectionState>('disconnected');
   const [campaignStatus, setCampaignStatus] = useState<'' | 'pending' | 'finished'>('');
+  const [stopReason, setStopReason] = useState<TestRunStopReason | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const previousDataRef = useRef<string | null>(null);
@@ -223,14 +255,37 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
     };
   }, [cleanup]);
 
+  /**
+   * Terminal transition. Every path that ends a run goes through here with
+   * its own reason — only 'completed' (the server's `status: finished`
+   * message) may render as SUCCESS; a timeout, user cancel, or dropped
+   * connection must not (results never arrived, e.g. when osquery's result
+   * publish is blocked upstream).
+   */
+  const finishCampaign = useCallback(
+    (reason: TestRunStopReason) => {
+      cleanup();
+      if (isMountedRef.current) {
+        setIsRunning(false);
+        setCampaignStatus('finished');
+        setStopReason(reason);
+        setConnectionState('disconnected');
+      }
+    },
+    [cleanup],
+  );
+
   const stopCampaign = useCallback(() => {
-    cleanup();
-    if (isMountedRef.current) {
-      setIsRunning(false);
-      setCampaignStatus('finished');
-      setConnectionState('disconnected');
-    }
-  }, [cleanup]);
+    finishCampaign('canceled');
+  }, [finishCampaign]);
+
+  const nameHost = useCallback(
+    (host: CampaignMessage['data']['host']) => {
+      const fleetName = host?.display_name || 'Unknown';
+      return (host?.id !== undefined && hostName?.({ id: host.id, fleetName })) || fleetName;
+    },
+    [hostName],
+  );
 
   const handleCampaignMessage = useCallback(
     (msg: CampaignMessage) => {
@@ -239,10 +294,10 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
       switch (msg.type) {
         case 'totals': {
           setTotals({
-            count: msg.data.count,
-            online: msg.data.online,
-            offline: msg.data.offline,
-            missing_in_action: msg.data.missing_in_action,
+            count: msg.data.count ?? 0,
+            online: msg.data.online ?? 0,
+            offline: msg.data.offline ?? 0,
+            missing_in_action: msg.data.missing_in_action ?? 0,
           });
           break;
         }
@@ -253,18 +308,18 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
           if (count.results + count.errors >= CAMPAIGN_LIMIT) {
             toast({
               title: 'Campaign limit reached',
-              description: `Stopped after ${CAMPAIGN_LIMIT.toLocaleString()} results`,
+              description: `Stopped after ${pluralize(CAMPAIGN_LIMIT, 'result')}`,
               variant: 'destructive',
             });
-            stopCampaign();
+            finishCampaign('completed');
             return;
           }
 
           const hasError = msg.data.error != null;
           if (hasError) {
             const err: CampaignError = {
-              host_id: msg.data.host?.id,
-              host_display_name: msg.data.host?.display_name || 'Unknown',
+              host_id: msg.data.host?.id ?? 0,
+              host_display_name: nameHost(msg.data.host),
               osquery_version: msg.data.host?.osquery_version || '',
               error: msg.data.error || 'Error details require osquery 4.4.0+',
             };
@@ -273,15 +328,15 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
             count.errors++;
           } else {
             const rows: QueryResultRow[] = (msg.data.rows || []).map((row: Record<string, unknown>) => ({
-              host_display_name: msg.data.host?.display_name || 'Unknown',
+              host_display_name: nameHost(msg.data.host),
               ...row,
             }));
             if (rows.length === 0) {
               setEmptyResults(prev => [
                 ...prev,
                 {
-                  host_id: msg.data.host?.id,
-                  host_display_name: msg.data.host?.display_name || 'Unknown',
+                  host_id: msg.data.host?.id ?? 0,
+                  host_display_name: nameHost(msg.data.host),
                 },
               ]);
             }
@@ -293,9 +348,9 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         }
 
         case 'status': {
-          setCampaignStatus(msg.data.status);
+          setCampaignStatus(msg.data.status ?? '');
           if (msg.data.status === 'finished') {
-            stopCampaign();
+            finishCampaign('completed');
           }
           break;
         }
@@ -311,7 +366,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         }
       }
     },
-    [stopCampaign, toast],
+    [finishCampaign, nameHost, toast],
   );
 
   const startCampaign = useCallback(
@@ -335,6 +390,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
       setHostsResponded(0);
       setHostsFailed(0);
       setCampaignStatus('');
+      setStopReason(null);
       setConnectionState('disconnected');
       setStartedAt(null);
 
@@ -381,7 +437,7 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
               description: 'Live query stopped after 5 minutes',
               variant: 'destructive',
             });
-            stopCampaign();
+            finishCampaign('timeout');
           }
         }, CAMPAIGN_TIMEOUT_MS);
 
@@ -408,7 +464,9 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
               break;
             }
             case 'data':
-              frame.messages?.forEach(msg => handleCampaignMessage(msg));
+              frame.messages?.forEach(msg => {
+                handleCampaignMessage(msg);
+              });
               break;
             case 'heartbeat':
               break;
@@ -429,30 +487,31 @@ export function useLiveCampaign(): UseLiveCampaignReturn {
         };
 
         socket.onclose = () => {
-          // Connection closed — stop the campaign if it hasn't finished naturally
+          // Connection dropped before the server reported 'finished' (a
+          // natural finish cleans up first, clearing campaignIdRef) — the
+          // run's outcome is unknown, so it is an error, not a success.
           if (isMountedRef.current && campaignIdRef.current === campaignId) {
-            stopCampaign();
+            finishCampaign('error');
           }
         };
 
         return true;
       } catch (error) {
-        cleanup();
+        finishCampaign('error');
         if (isMountedRef.current) {
-          setIsRunning(false);
-          setCampaignStatus('finished');
           const message = error instanceof Error ? error.message : 'Failed to start campaign';
           toast({ title: 'Test Failed', description: message, variant: 'destructive' });
         }
         return false;
       }
     },
-    [cleanup, fleetApiToken, handleCampaignMessage, stopCampaign, toast],
+    [cleanup, fleetApiToken, handleCampaignMessage, finishCampaign, toast],
   );
 
   return {
     startCampaign,
     stopCampaign,
+    stopReason,
     isRunning,
     startedAt,
     results,
