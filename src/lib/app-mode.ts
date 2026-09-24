@@ -138,10 +138,24 @@ export function isRouteAllowedInCurrentMode(pathname: string): boolean {
     return true;
   }
 
-  // The app-download page is a browser errand: it hands out the installers for the
-  // very shells it would be running inside. Same belt-and-braces as above — the page
-  // 404s on its own, this closes the deep-link and restored-history routes to it.
-  if (isAppShell() && pathname.startsWith(routes.settings.downloadApps)) {
+  // The mobile-app install page is reachable in EVERY mode, signed out, for the
+  // same reason: it is where a printed QR code lands, scanned from a phone with no
+  // session and no idea which tenant this is. Its canonical URL is the APEX
+  // `openframe.ai/mobile`, which the saas gateway routes to this app. Mirrors the
+  // allowlist in proxy.ts.
+  // Segment match: this `return true` sits ABOVE the mode and role gates below, so a
+  // prefix would hand any future `/mobile*` route a blanket exemption from all of them.
+  if (pathname === routes.mobileApp || pathname.startsWith(`${routes.mobileApp}/`)) {
+    return true;
+  }
+
+  // Hidden on the PHONE only. That build already is the app the page's mobile card
+  // hands out, and it cannot run a desktop installer either. The desktop shell keeps
+  // the page: the phone app is a different app from the one it is running, and the
+  // QR is most useful on the screen you are NOT holding. Same belt-and-braces as
+  // above — the page 404s on its own, this closes the deep-link and
+  // restored-history routes to it.
+  if (isMobileShell() && pathname.startsWith(routes.settings.downloadApps)) {
     return false;
   }
 
