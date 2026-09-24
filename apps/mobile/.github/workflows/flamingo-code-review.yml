@@ -914,6 +914,10 @@ jobs:
           # zero findings under a green status while the pull request showed
           # them. A build gate now asserts the writer's step has it.
           WF_RUN_ID: ${{ github.run_id }}
+          # The pull request's HEAD commit, known here (the event's, or the comment
+          # command's resolved one). The change-set overlay is built at it; inferring
+          # it from the checkout's parents read main's tip when the head was itself a merge.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || needs.resolve_command.outputs.head_sha }}
           # Where "Install graph dependencies" put the graph library's runtime;
           # empty when that step failed, which the reviewer reads as "no graph".
           CODE_GRAPH_DEPS_DIR: ${{ env.CODE_GRAPH_DEPS_DIR }}
