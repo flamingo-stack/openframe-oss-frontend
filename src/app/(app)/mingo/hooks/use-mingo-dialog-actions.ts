@@ -43,40 +43,15 @@ async function runDialogMutation(query: string, variables: Record<string, unknow
   }
 }
 
-// The backend summarizes inside the request, so the default 30s ceiling would
-// report a failure for a compaction that is still running and then succeeds.
-const COMPACT_TIMEOUT_MS = 5 * 60_000;
-
-// Module-level, not a ref: the drawer unmounts on close, and a reopened drawer
-// must still see a compaction that is in flight.
-const compactingDialogIds = new Set<string>();
-
-async function compactDialogContext(id: string): Promise<void> {
-  const response = await apiClient.post(`/chat/api/v1/dialogs/${id}/compact`, undefined, {
-    timeoutMs: COMPACT_TIMEOUT_MS,
-  });
-  if (response.status === 409) {
-    throw new Error('Mingo is still working on this chat. Try again once it finishes.');
-  }
-  // No answer (timeout, dropped connection): the request may have reached the
-  // server, which keeps compacting regardless.
-  if (response.status === 0) {
-    throw new Error("Couldn't confirm the compaction finished. It may still complete — check the chat in a moment.");
-  }
-  if (!response.ok) {
-    throw new Error(response.error || 'Failed to compact chat memory');
-  }
-}
-
 /**
- * Dialog rename / archive / unarchive / compact actions + the archived-dialog fetcher,
+ * Dialog rename / archive / unarchive mutations + the archived-dialog fetcher,
  * wired to the saas-ai-agent `/chat/graphql` endpoint. Rename/archive feed the
  * embeddable chat's row menu (via `mingoState`); fetchArchived/unarchive feed
  * the archive page (via `mingoDialogCapabilities`). Each mutation invalidates
  * the active dialog list so the change shows immediately.
  */
 export function useMingoDialogActions() {
-  const { toast, dismiss } = useToast();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const invalidateDialogs = useCallback(() => {
@@ -141,32 +116,6 @@ export function useMingoDialogActions() {
     [invalidateDialogs, toast],
   );
 
-  // The request returns once the summary is written; meanwhile the compaction
-  // start/end chunks stream into the open thread over NATS. The messages cache is
-  // refreshed for a dialog compacted from the list without being open.
-  const compactDialog = useCallback(
-    async (id: string) => {
-      if (compactingDialogIds.has(id)) return;
-      compactingDialogIds.add(id);
-      const progressToastId = toast({ title: 'Compacting chat memory…', duration: Infinity });
-      try {
-        await compactDialogContext(id);
-        void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.messages(id) });
-        toast({ title: 'Chat memory compacted', variant: 'success' });
-      } catch (err) {
-        toast({
-          title: 'Error',
-          description: err instanceof Error ? err.message : 'Failed to compact chat memory',
-          variant: 'destructive',
-        });
-      } finally {
-        compactingDialogIds.delete(id);
-        dismiss(progressToastId);
-      }
-    },
-    [dismiss, queryClient, toast],
-  );
-
   const fetchArchivedDialogs = useCallback(
     async (params: FetchArchivedParams): Promise<FetchArchivedResult> => {
       const runFetch = async (): Promise<FetchArchivedResult> => {
@@ -209,5 +158,5 @@ export function useMingoDialogActions() {
     [queryClient],
   );
 
-  return { renameDialog, archiveDialog, unarchiveDialog, compactDialog, fetchArchivedDialogs };
+  return { renameDialog, archiveDialog, unarchiveDialog, fetchArchivedDialogs };
 }

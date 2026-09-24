@@ -42,6 +42,7 @@ import { AiSpendLimitBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, T
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { InitialSetupBar } from './initial-setup-bar';
+import { MingoCompactionWatchers } from './mingo-compaction-watchers';
 import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
 import { OnboardingCoachMark } from './onboarding-coach-mark';
@@ -670,6 +671,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           </ChatDrawerErrorBoundary>
         </AppLayoutDrawerContent>
       </AppLayoutDrawer>
+      <MingoCompactionWatchers />
     </ChatIdentityProvider>
   ) : null;
 
