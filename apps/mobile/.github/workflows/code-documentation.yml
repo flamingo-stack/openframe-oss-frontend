@@ -233,8 +233,13 @@ jobs:
     permissions:
       contents: read
     # THREE groups, so no two kinds of run ever cancel each other:
-    #  - a `pull_request` event runs in `-pr-<n>`: a newer event for the same PR
-    #    supersedes the older run (it refreshes and decides the build again);
+    #  - a `pull_request` event runs in `-pr-<n>`, and NEVER cancels a running one
+    #    (`cancel-in-progress` is false for it): a newer event QUEUES behind the run
+    #    in progress (GitHub keeps one pending run per group, replacing an older
+    #    pending one, so the newest event still runs). Cancelling would kill an
+    #    overlay build the hub already recorded as this PR's own (a description
+    #    edit or the merge seconds after a push), and nothing would rebuild that
+    #    head until the retry window passed;
     #  - an OVERLAY build the hub's `code-change-sets` job dispatches
     #    (overlay_pr / overlay_head_sha in the payload) runs in `-overlay-<n>`: a
     #    newer dispatch for the same PR supersedes the older one;
@@ -247,7 +252,7 @@ jobs:
     # cancel the PR's run that is building the overlay the same refresh asked for.
     concurrency:
       group: flamingo-code-graph-${{ github.repository }}${{ github.event.client_payload.overlay_pr && format('-overlay-{0}', github.event.client_payload.overlay_pr) || github.event.pull_request.number && format('-pr-{0}', github.event.pull_request.number) || '' }}${{ (github.event.action == 'edited' && github.event.sender.type == 'Bot') && format('-bot-{0}', github.run_id) || '' }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name != 'pull_request' }}
     if: >-
       (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
       || github.event.action == 'flamingo-code-graph'
