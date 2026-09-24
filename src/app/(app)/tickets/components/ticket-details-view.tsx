@@ -31,10 +31,6 @@ import {
   SimpleMarkdownRenderer,
   type TabItem,
   TabNavigation,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLgUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
@@ -232,20 +228,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const openTakeOver = useCallback(
     (prefill?: Omit<TakeOverTicketTarget, 'ticket'>) => {
       if (!dialog) return;
-      // Take-over is a status transition, so the pending-approval lock blocks
-      // it too (server-enforced). Safety net for every entry point.
-      if (isStatusLockedByPendingApproval(dialog)) {
-        toast({
-          title: 'Status Locked',
-          description: STATUS_LOCKED_BY_APPROVAL_REASON,
-          variant: 'destructive',
-          duration: 5000,
-        });
-        return;
-      }
       setTakeOverTarget({ ticket: dialog, ...prefill });
     },
-    [dialog, toast],
+    [dialog],
   );
 
   const handleAssign = useCallback(
@@ -643,10 +628,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   });
   // Tech Required + pending approval: the server rejects any transition, so
   // the inline changer renders as a locked tag with the reason in a tooltip.
+  // Starting a direct chat stays available - it changes no status, and the
+  // handoff cancels the pending approval on the backend, which unlocks.
   const isStatusLocked = isStatusLockedByPendingApproval(dialog);
-  // Take-over transitions the status, so the same lock blocks starting a
-  // direct chat while the AI still works the ticket.
-  const isTakeOverBlocked = isStatusLocked && hasActiveAiDialog(dialog);
 
   const hasClientChat = !isAdminOwner;
   const hasDescription = !!dialog.description?.trim();
@@ -826,24 +810,15 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           <p className="min-w-0 flex-1 text-ods-text-secondary text-h6">
             The AI assistant will be stopped and you will be able to communicate with the user directly.
           </p>
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className={isTakeOverBlocked ? 'shrink-0 cursor-not-allowed' : 'shrink-0'}>
-                  <Button
-                    variant="outline"
-                    onClick={handleStartDirectChat}
-                    disabled={isStartingDirectChat || isTakeOverBlocked}
-                    leftIcon={<ChatsIcon size={24} className="text-ods-text-secondary" />}
-                    className="shrink-0"
-                  >
-                    {isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {isTakeOverBlocked && <TooltipContent>{STATUS_LOCKED_BY_APPROVAL_REASON}</TooltipContent>}
-            </Tooltip>
-          </TooltipProvider>
+          <Button
+            variant="outline"
+            onClick={handleStartDirectChat}
+            disabled={isStartingDirectChat}
+            leftIcon={<ChatsIcon size={24} className="text-ods-text-secondary" />}
+            className="shrink-0"
+          >
+            {isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}
+          </Button>
         </div>
       )}
       {!isClosed && isDirectMode && (
