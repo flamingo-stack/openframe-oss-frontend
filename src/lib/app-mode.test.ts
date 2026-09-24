@@ -62,8 +62,10 @@ describe('mobile auth UI switch', () => {
  * hand every future `/mobile*` route the same blanket pass, above the saas-shared and
  * saas-tenant gates it sits in front of.
  *
- * Pins the APP-SIDE allowlist only. `proxy.ts` carries a deliberate second copy that is
- * module-private and unreachable from here, so it can still regress with this green.
+ * Pins the APP-SIDE allowlist. `proxy.ts` carries a deliberate second copy — the two
+ * cannot share code, since this module reaches into `platform.ts` for globals the Edge
+ * runtime lacks — and `proxy.test.ts` pins that one against the same cases, so the pair
+ * cannot drift in silence.
  */
 describe('the /mobile allowlist in saas-shared mode', () => {
   afterEach(() => {
