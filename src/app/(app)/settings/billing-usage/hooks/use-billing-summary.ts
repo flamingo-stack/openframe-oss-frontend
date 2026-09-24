@@ -1,6 +1,7 @@
 import type { billingUsageContentQuery$data } from '@/__generated__/billingUsageContentQuery.graphql';
 import { SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { BillingPeriod, OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
+import type { PendingInvoice } from '@/graphql/billing/pending-invoice-fields';
 import { aiBalanceTone, aiFreeTokensExhausted } from '@/lib/ai-balance-tone';
 import type { UsageStatTone } from '../components/usage-stat-card';
 import { freeTokensForPlan } from '../lib/ai-free-tokens';
@@ -12,7 +13,12 @@ export type AiAlert = 'trial-exhausted' | 'low' | 'empty' | null;
 type SubscriptionData = billingUsageContentQuery$data['subscription'];
 type BillingPlanData = billingUsageContentQuery$data['billingPlan'];
 
-export function useBillingSummary(subscription: SubscriptionData, billingPlan: BillingPlanData) {
+export function useBillingSummary(
+  subscription: SubscriptionData,
+  billingPlan: BillingPlanData,
+  /** The subscription's invoices, already read through their fragment (see the page). */
+  pendingInvoices: readonly PendingInvoice[],
+) {
   const subscriptionProducts = subscription?.products ?? [];
   /**
    * `null` means the tenant has no subscription record at all — NOT that it is
@@ -23,7 +29,6 @@ export function useBillingSummary(subscription: SubscriptionData, billingPlan: B
    * the absence instead of a plan (see `BillingUsageContent`).
    */
   const status = subscription?.status ?? null;
-  const pendingInvoices = subscription?.pendingInvoices ?? [];
   const latestPendingInvoice =
     [...pendingInvoices].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
 

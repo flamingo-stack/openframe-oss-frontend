@@ -24,30 +24,19 @@ import { useCallback, useMemo, useState } from 'react';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { InvoiceStatus } from '@/generated/schema-enums';
+import type { PendingInvoice } from '@/graphql/billing/pending-invoice-fields';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDate } from '@/lib/format-date';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { formatCurrency } from '../lib/format';
 import { INVOICE_COLUMNS } from '../lib/invoices-table-columns';
 
-interface InvoiceItem {
-  id: string;
-  /** Human-readable Stripe invoice number (e.g. "ABCD-0001"). Null for legacy entries. */
-  invoiceNumber?: string | null;
-  /**
-   * Lifecycle status mirrored from Stripe. Typed loosely (not `InvoiceStatus`) so
-   * the relay-generated shape — which widens with `"%future added value"` — assigns
-   * cleanly; `statusTag` narrows it against the `InvoiceStatus` values.
-   */
-  status?: string | null;
-  // Major currency units (e.g. 11.92 USD). No `currency` beside it: `formatCurrency`
-  // prints USD, so carrying the code without reading it only looked like support
-  // for others. Re-select the field when a non-USD tenant is real.
-  amountDue: number;
-  createdAt: string;
-  dueDate?: string | null;
-  hostedInvoiceUrl: string;
-}
+/**
+ * The row is the generated shape, not a hand-written mirror of it: an interface
+ * here used to promise `amountDue: number` for a store record the update
+ * mutation had left without one (see `pending-invoice-fields.ts`).
+ */
+type InvoiceItem = PendingInvoice;
 
 /** Amount in major units (dollars) — the backend already returns `amountDue` in major units. */
 function invoiceAmount(invoice: InvoiceItem): number {

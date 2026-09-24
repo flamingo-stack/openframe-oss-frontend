@@ -8,6 +8,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { unpaidInvoicesScreenQuery as UnpaidInvoicesScreenQueryType } from '@/__generated__/unpaidInvoicesScreenQuery.graphql';
 import { formatCurrency } from '@/app/(app)/settings/billing-usage/lib/format';
 import { InvoiceStatus } from '@/generated/schema-enums';
+import { type PendingInvoice, toPendingInvoice } from '@/graphql/billing/pending-invoice-fields';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate } from '@/lib/format-date';
 import { LockScreenActions } from './lock-screen-actions';
@@ -25,19 +26,11 @@ const unpaidInvoicesScreenQuery = graphql`
     subscription {
       id
       pendingInvoices {
-        id
-        invoiceNumber
-        status
-        amountDue
-        dueDate
-        createdAt
-        hostedInvoiceUrl
+        ...pendingInvoiceFields_invoice
       }
     }
   }
 `;
-
-type PendingInvoice = NonNullable<UnpaidInvoicesScreenQueryType['response']['subscription']>['pendingInvoices'][number];
 
 const TITLE = 'Your Organization Has Been Suspended';
 
@@ -128,8 +121,8 @@ function UnpaidInvoicesContent() {
   );
 
   const invoices = useMemo(() => {
-    const all = data.subscription?.pendingInvoices ?? [];
-    return all.filter(isOutstanding).slice().sort(byOldestFirst);
+    const all = (data.subscription?.pendingInvoices ?? []).map(toPendingInvoice);
+    return all.filter(isOutstanding).sort(byOldestFirst);
   }, [data]);
 
   return <SuspendedWorkspaceMain invoices={invoices} />;

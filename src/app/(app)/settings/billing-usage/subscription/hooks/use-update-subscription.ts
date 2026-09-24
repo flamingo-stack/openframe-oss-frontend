@@ -2,38 +2,15 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
-import { graphql, useMutation } from 'react-relay';
+import { useMutation } from 'react-relay';
 import type {
   PackageUpdateInput,
   UpdateSubscriptionInput,
-  useUpdateSubscriptionMutation as UseUpdateSubscriptionMutationType,
-} from '@/__generated__/useUpdateSubscriptionMutation.graphql';
+  updateSubscriptionMutation as UpdateSubscriptionMutationType,
+} from '@/__generated__/updateSubscriptionMutation.graphql';
+import { updateSubscriptionMutation } from '@/graphql/billing/update-subscription-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 export type { PackageUpdateInput, UpdateSubscriptionInput };
-
-const updateSubscriptionMutation = graphql`
-  mutation useUpdateSubscriptionMutation($input: UpdateSubscriptionInput!) {
-    updateSubscription(input: $input) {
-      subscription {
-        id
-        status
-        startDate
-        currentPeriodEnd
-        cancellationEffectiveAt
-        pendingInvoices {
-          id
-          hostedInvoiceUrl
-          createdAt
-        }
-      }
-      errors {
-        code
-        message
-        field
-      }
-    }
-  }
-`;
 
 /**
  * What to do once the change lands. The hook itself does NOT navigate: it used
@@ -49,7 +26,7 @@ interface UpdateSubscriptionOptions {
 
 export function useUpdateSubscription() {
   const { toast } = useToast();
-  const [commit, isInFlight] = useMutation<UseUpdateSubscriptionMutationType>(updateSubscriptionMutation);
+  const [commit, isInFlight] = useMutation<UpdateSubscriptionMutationType>(updateSubscriptionMutation);
 
   const mutate = useCallback(
     (input: UpdateSubscriptionInput, options?: UpdateSubscriptionOptions) => {

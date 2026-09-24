@@ -17,6 +17,7 @@ import { LockedScreen } from '@/app/components/shared/locked-screen';
 import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { toPendingInvoice } from '@/graphql/billing/pending-invoice-fields';
 import { isBillingReadOnly, openBillingInBrowser } from '@/lib/billing-visibility';
 import { formatDate } from '@/lib/format-date';
 import { formatCompactCount, formatCount } from '@/lib/format-number';
@@ -106,14 +107,10 @@ const billingUsageContentQuery = graphql`
           price
         }
       }
+      # The row shape the table, the summary and the update mutation share —
+      # see pending-invoice-fields.ts for why the mutation must match.
       pendingInvoices {
-        id
-        invoiceNumber
-        status
-        hostedInvoiceUrl
-        amountDue
-        createdAt
-        dueDate
+        ...pendingInvoiceFields_invoice
       }
       usage {
         devicesUsed
@@ -189,9 +186,12 @@ export function BillingUsageContent() {
   const [cancelReason, setCancelReason] = useState<CancelReason | null>(null);
   const [cancelComment, setCancelComment] = useState<string>('');
 
+  // Read once, for the summary's "latest pending" pick and the table alike.
+  const pendingInvoices = (data.subscription?.pendingInvoices ?? []).map(toPendingInvoice);
   const { status, flags, device, ai, plan, billing, updatedPlan } = useBillingSummary(
     data.subscription,
     data.billingPlan,
+    pendingInvoices,
   );
   const { impact, isLoading: isImpactLoading } = useCancellationImpact({ enabled: cancelStep === 'reason' });
 
@@ -582,7 +582,7 @@ export function BillingUsageContent() {
         </div>
       )}
 
-      <InvoicesHistory invoices={data.subscription?.pendingInvoices ?? []} />
+      <InvoicesHistory invoices={pendingInvoices} />
 
       {/* Raises an invoice and opens it; the balance moves once that is paid,
           which is when the page's next fetch reads it. Nothing to refetch here. */}
