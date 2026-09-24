@@ -55,6 +55,10 @@ export const FEATURE_FLAG_NAMES = [
   // VULNERABILITY). Off = no sidebar entry, every `/software` route 404s, the
   // picker offers neither kind; a mention already in a chat still renders.
   'software-management',
+  // "Compact Chat Memory" in the Mingo chat ⋯ menus (CU-86akn46dq): summarizes a
+  // dialog's AI context on demand. Off = the item is absent; auto-compaction is
+  // unaffected either way.
+  'mingo-compact-memory',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

@@ -118,6 +118,8 @@ export interface MingoUnifiedChat {
   }>;
   /** Restore an archived dialog back to the active list. */
   unarchiveDialog: (id: string) => Promise<void>;
+  /** Summarize a dialog's AI context on demand ("Compact Chat Memory"). */
+  compactDialog: (id: string) => Promise<void>;
   /**
    * Why the SELECTED dialog could not be fetched, or null. `UnifiedChatState` has no
    * field for it (`dialogsError` is about the LIST), and without it a dialog id that
@@ -265,7 +267,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     refetch: refetchDialogs,
   } = useMingoDialogs({ search: searchQuery || undefined, scope: deferredDialogScope });
 
-  const { renameDialog, archiveDialog, unarchiveDialog, fetchArchivedDialogs } = useMingoDialogActions();
+  const { renameDialog, archiveDialog, unarchiveDialog, compactDialog, fetchArchivedDialogs } = useMingoDialogActions();
 
   const {
     selectDialog: selectDialogMut,
@@ -709,6 +711,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     setSearchQuery,
     fetchArchivedDialogs,
     unarchiveDialog,
+    compactDialog,
     dialogError,
   };
 }

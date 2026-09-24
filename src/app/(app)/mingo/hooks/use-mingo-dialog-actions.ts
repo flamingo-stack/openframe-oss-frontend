@@ -43,8 +43,18 @@ async function runDialogMutation(query: string, variables: Record<string, unknow
   }
 }
 
+async function compactDialogContext(id: string): Promise<void> {
+  const response = await apiClient.post(`/chat/api/v1/dialogs/${id}/compact`);
+  if (response.status === 409) {
+    throw new Error('Mingo is still working on this chat. Try again once it finishes.');
+  }
+  if (!response.ok) {
+    throw new Error(response.error || 'Failed to compact chat memory');
+  }
+}
+
 /**
- * Dialog rename / archive / unarchive mutations + the archived-dialog fetcher,
+ * Dialog rename / archive / unarchive / compact actions + the archived-dialog fetcher,
  * wired to the saas-ai-agent `/chat/graphql` endpoint. Rename/archive feed the
  * embeddable chat's row menu (via `mingoState`); fetchArchived/unarchive feed
  * the archive page (via `mingoDialogCapabilities`). Each mutation invalidates
@@ -116,6 +126,26 @@ export function useMingoDialogActions() {
     [invalidateDialogs, toast],
   );
 
+  // The request returns once the summary is written; meanwhile the compaction
+  // start/end chunks stream into the open thread over NATS. The messages cache is
+  // refreshed for a dialog compacted from the list without being open.
+  const compactDialog = useCallback(
+    async (id: string) => {
+      try {
+        await compactDialogContext(id);
+        void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.messages(id) });
+        toast({ title: 'Chat memory compacted', variant: 'success' });
+      } catch (err) {
+        toast({
+          title: 'Error',
+          description: err instanceof Error ? err.message : 'Failed to compact chat memory',
+          variant: 'destructive',
+        });
+      }
+    },
+    [queryClient, toast],
+  );
+
   const fetchArchivedDialogs = useCallback(
     async (params: FetchArchivedParams): Promise<FetchArchivedResult> => {
       const runFetch = async (): Promise<FetchArchivedResult> => {
@@ -158,5 +188,5 @@ export function useMingoDialogActions() {
     [queryClient],
   );
 
-  return { renameDialog, archiveDialog, unarchiveDialog, fetchArchivedDialogs };
+  return { renameDialog, archiveDialog, unarchiveDialog, compactDialog, fetchArchivedDialogs };
 }
