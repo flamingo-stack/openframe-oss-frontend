@@ -3,7 +3,6 @@
 import {
   AlertTriangleIcon,
   CalendarDaysIcon,
-  PlusCircleIcon,
   XmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { AnnouncementBarView, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -11,7 +10,8 @@ import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { billingBarsQuery as BillingBarsQueryType } from '@/__generated__/billingBarsQuery.graphql';
 import { SubscriptionStatus } from '@/generated/schema-enums';
-import { type AiSpendTone, aiSpendPercent, aiSpendTone } from '@/lib/ai-spend-tone';
+import { type AiBalanceTone, aiBalanceTone, type AiPausedReason, aiPausedReason } from '@/lib/ai-balance-tone';
+import { isBillingHidden } from '@/lib/billing-visibility';
 import { pluralize } from '@/lib/pluralize';
 
 /**
@@ -30,69 +30,61 @@ const billingBarsQuery = graphql`
       status
       startDate
       trialExpirationDate
-      aiSpendCapUsd
       usage {
-        aiSpendUsd
+        aiTokensFree
+        aiTokensFreeUsed
+        purchasedTokensRemaining
       }
     }
   }
 `;
 
-/**
- * Stated only when the percentage cannot be computed — a cap of 0, where every
- * spend is already 100% of it and no ratio exists to round.
- */
-const AI_CAP_WARNING_FALLBACK_PERCENT = 100;
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-interface AiSpendLimitBarProps {
-  /** `warning` = close to the cap, `error` = reached it. Never `default` here. */
-  tone: Exclude<AiSpendTone, 'default'>;
-  /** How far into the cap the spend is, when it can be stated. */
-  percent: number | null;
-  onExpand: () => void;
+interface AiBalanceBarProps {
+  /** `warning` = running low, `error` = empty. Never `default` here. */
+  tone: Exclude<AiBalanceTone, 'default'>;
+  onManage: () => void;
 }
 
 /**
- * App-wide bar for a subscription running into its own AI spending cap.
+ * App-wide bar for a subscription running out of AI tokens.
  *
  * Takes the layout's single `topBar` slot ahead of every other bar (see
  * `AppLayout`): agents that are about to stop answering outrank a trial that
  * still has days on it and a setup tour that can wait, and the state is
  * invisible from every page except Billing & Usage — which is where the bar
- * sends you.
+ * sends you, with the top-up dialog already open.
+ *
+ * Not dismissible, by product decision: the agents are stopping (or have
+ * stopped), and hiding that would only make the silence unexplained. It goes
+ * away when the balance does — a top-up is the one thing that clears it.
  *
  * Colour follows the Paid AI Tokens card, from the same rule
- * (`lib/ai-spend-tone.ts`), so the bar and the card can never disagree about
- * whether AI is approaching its limit or past it.
+ * (`lib/ai-balance-tone.ts`), so the bar and the card can never disagree about
+ * whether AI is running low or has run out.
  *
  * Height, type scale and CTA size are `AnnouncementBarView`'s and are NOT
  * negotiable from a mockup — that component carries an explicit freeze notice
  * saying so. Only the surface colours and the slots below are ours.
  */
-export function AiSpendLimitBar({ tone, percent, onExpand }: AiSpendLimitBarProps) {
-  const reached = tone === 'error';
+export function AiBalanceBar({ tone, onManage }: AiBalanceBarProps) {
+  const empty = tone === 'error';
 
   return (
     <AnnouncementBarView
-      className={`app-top-bar shrink-0 text-ods-text-on-accent md:min-h-12 ${
-        reached ? 'bg-ods-error' : 'bg-ods-warning'
-      }`}
+      className={`app-top-bar shrink-0 text-ods-text-on-accent md:min-h-12 ${empty ? 'bg-ods-error' : 'bg-ods-warning'}`}
       contentClassName="cursor-pointer md:cursor-default"
-      onContentClick={onExpand}
+      onContentClick={onManage}
       startAdornment={<AlertTriangleIcon className="size-[var(--icon-size-icon-size)] shrink-0" />}
       title={
-        reached
-          ? 'AI spending limit reached. Agents are paused until the next cycle. Raise the limit in Billing & Usage to resume now.'
-          : // The figure is computed, not the mockup's fixed "80%": the threshold
-            // this bar appears at is the card's, and quoting a number the tenant
-            // is not actually at would be the one wrong thing a warning can say.
-            `AI usage is at ${percent ?? AI_CAP_WARNING_FALLBACK_PERCENT}% of your monthly limit. Agents pause at 100%. Adjust the limit in Billing & Usage.`
+        empty
+          ? 'Your AI balance is empty. AI agents are paused. Top up in Billing & Usage to continue.'
+          : 'Your AI balance is running low. AI agents pause at zero. Top up in Billing & Usage to continue.'
       }
       actionBlock={
-        <Button variant="outline" size="small" leftIcon={<PlusCircleIcon className="size-4" />} onClick={onExpand}>
-          Expand AI Limit
+        <Button variant="outline" size="small" onClick={onManage}>
+          Manage AI Balance
         </Button>
       }
     />
@@ -111,7 +103,7 @@ interface TrialEndingBarProps {
  *
  * The one bar here that can be dismissed, because it is the one that is not
  * about something breaking: the trial still works, and the tenant has days to
- * act. The AI bars above have no dismiss for the opposite reason — the agents
+ * act. The AI bar above has no dismiss for the opposite reason — the agents
  * are already stopping, and hiding that would only make the silence
  * unexplained.
  */
@@ -142,9 +134,17 @@ export function TrialEndingBar({ daysLeft, onActivate, onDismiss }: TrialEndingB
   );
 }
 
-/** What the bars need to know, once the query has answered. */
+/** What the bars — and the Mingo composer — need to know, once the query has answered. */
 export interface BillingBarsState {
-  ai: { tone: AiSpendTone; percent: number | null };
+  ai: {
+    tone: AiBalanceTone;
+    /**
+     * The agents are not answering, and why. Set on a trial too, where `tone`
+     * stays quiet: the trial bar speaks for a trial, but a paused Mingo is
+     * paused whichever plan it is on.
+     */
+    paused: AiPausedReason | null;
+  };
   /**
    * The trial, once it is past halfway. `null` at every other moment — not on a
    * trial, no dates to place the midpoint with, or still in the first half.
@@ -159,7 +159,19 @@ export interface BillingBarsState {
   } | null;
 }
 
-const NO_BARS: BillingBarsState = { ai: { tone: 'default', percent: null }, trial: null };
+const NO_BARS: BillingBarsState = { ai: { tone: 'default', paused: null }, trial: null };
+
+/**
+ * What the locked Mingo composer says (Figma 954:28455). The remedy is named
+ * only where the build can offer it: the mobile builds show no payment surface
+ * at all (App Store Guideline 3.1.1), so there the sentence stops at the fact.
+ */
+export function mingoLockPlaceholder(reason: AiPausedReason): string {
+  if (isBillingHidden()) return 'Mingo chat unavailable.';
+  return reason === 'trial'
+    ? 'Mingo chat unavailable. Activate your subscription.'
+    : 'Mingo chat unavailable. Top up your balance.';
+}
 
 /**
  * The trial, if it is past its midpoint.
@@ -201,10 +213,19 @@ export function BillingBarsHydrator({ onResolved }: { onResolved: (state: Billin
   const data = useLazyLoadQuery<BillingBarsQueryType>(billingBarsQuery, {}, { fetchPolicy: 'store-and-network' });
 
   const subscription = data.subscription;
-  const capUsd = subscription?.aiSpendCapUsd ?? null;
-  const spendUsd = subscription?.usage?.aiSpendUsd ?? 0;
-  const tone = aiSpendTone(spendUsd, capUsd);
-  const percent = aiSpendPercent(spendUsd, capUsd);
+  const usage = subscription?.usage;
+  // A trial runs on its free grant alone and has no balance to top up, so the
+  // balance bar has nothing to say about it: its own bar below is the one that
+  // speaks for a trial, and the billing page states a spent grant on the card.
+  // GraphQL `Long` arrives as a string or a number depending on its size.
+  const isTrial = subscription?.status === SubscriptionStatus.TRIAL;
+  const balance = {
+    freeTokens: Number(usage?.aiTokensFree ?? 0),
+    freeUsed: Number(usage?.aiTokensFreeUsed ?? 0),
+    purchasedRemaining: Number(usage?.purchasedTokensRemaining ?? 0),
+  };
+  const tone: AiBalanceTone = isTrial ? 'default' : aiBalanceTone(balance);
+  const paused = aiPausedReason(balance, { isTrial });
   const trial = resolveTrial(
     subscription?.status,
     subscription?.startDate,
@@ -218,10 +239,10 @@ export function BillingBarsHydrator({ onResolved }: { onResolved: (state: Billin
   const trialToken = trial?.token ?? null;
   useEffect(() => {
     onResolved({
-      ai: { tone, percent },
+      ai: { tone, paused },
       trial: trialDaysLeft != null && trialToken != null ? { daysLeft: trialDaysLeft, token: trialToken } : null,
     });
-  }, [tone, percent, trialDaysLeft, trialToken, onResolved]);
+  }, [tone, paused, trialDaysLeft, trialToken, onResolved]);
 
   return null;
 }

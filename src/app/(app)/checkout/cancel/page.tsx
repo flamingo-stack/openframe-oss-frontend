@@ -22,7 +22,7 @@ export default function CheckoutCancelPage() {
       iconWrapperClassName="bg-ods-error-secondary text-ods-error"
       title="Payment Cancelled"
       description="No charges were made. You can pick a plan whenever you're ready."
-      primaryCta={{ label: 'Back to Billing', href: routes.settings.billingUsage }}
+      primaryCta={{ label: 'Back to Billing', href: routes.settings.billingUsage() }}
       secondaryCta={{ label: 'Go to Dashboard', href: routes.dashboard }}
       pending={gate === 'loading'}
     />

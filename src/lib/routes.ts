@@ -73,6 +73,14 @@ export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
 export type QueryDetailTab = (typeof TAB_IDS.queryDetails)[number];
 export type SettingsTab = (typeof TAB_IDS.settings)[number];
 export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
+
+/**
+ * What `/settings/billing-usage` can be asked to open on arrival. The app-wide
+ * AI balance bar deep-links to the Manage AI Balance modal with it; the page
+ * reads the param as the modal's open state and clears it on close.
+ */
+export const MANAGE_AI_BALANCE_ACTION = 'manageAiBalance';
+export type BillingUsageAction = typeof MANAGE_AI_BALANCE_ACTION;
 export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
 
 /** Legal documents the Help Center `[docType]` route prerenders. */
@@ -383,7 +391,7 @@ export const routes = {
     sso: '/settings/sso',
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
-    billingUsage: '/settings/billing-usage',
+    billingUsage: (o?: { action?: BillingUsageAction }) => withQuery('/settings/billing-usage', { action: o?.action }),
     // Tenant Management (CU-86akj8ajt): Microsoft 365 / Google Workspace directory
     // connections. Sub-pages take the connection id as `?id=` like every other
     // detail page (static-export constraint, see ROUTES.md).
