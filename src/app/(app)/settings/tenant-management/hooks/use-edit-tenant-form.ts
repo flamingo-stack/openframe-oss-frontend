@@ -11,17 +11,13 @@ import { useSeedForm } from '@/app/hooks/use-seed-form';
 import { getErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import type { TenantConnection, UpdateTenantConnectionInput } from '../types/tenant-connection';
-import { TENANT_FORM_DEFAULT_VALUES, type TenantFormData, tenantFormSchema } from '../types/tenant-form.types';
+import { editTenantFormSchema, TENANT_FORM_DEFAULT_VALUES, type TenantFormData } from '../types/tenant-form.types';
 import { connectionToFormValues, invalidSubmitHandler } from '../utils/tenant-form-helpers';
 import { useUpdateTenantConnection } from './use-tenant-connections';
 
 /**
- * The Edit page's form (Figma 2097-123264): the real form from the first
- * paint, seeded from the record when it lands (`useSeedForm`, called here —
- * the `useForm` owner — so the reset reaches fields that have subscribed).
- * Provider and domain ride along in the values so one schema serves both
- * pages, but only the two editable fields are ever sent, and only when they
- * changed.
+ * The Edit page's form (Figma 2097-123264): real from the first paint, seeded by `useSeedForm` in the
+ * `useForm` owner. Provider and domain ride along hidden and unvalidated; only changed name/customer are sent.
  */
 export function useEditTenantForm(connection: TenantConnection | null) {
   const { toast } = useToast();
@@ -29,7 +25,7 @@ export function useEditTenantForm(connection: TenantConnection | null) {
   const update = useUpdateTenantConnection();
 
   const form = useForm<TenantFormData>({
-    resolver: zodResolver(tenantFormSchema),
+    resolver: zodResolver(editTenantFormSchema),
     defaultValues: TENANT_FORM_DEFAULT_VALUES,
     mode: 'onChange',
   });

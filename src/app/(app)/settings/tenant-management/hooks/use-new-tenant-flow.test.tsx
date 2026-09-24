@@ -11,8 +11,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  DirectoryAccessState,
+  DirectoryCapability,
+  DirectoryProvider,
+  DirectorySyncStatus,
+} from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { DirectoryAccessState, DirectoryProvider, DirectorySyncStatus } from '../types/directory-enums';
 import type { TenantAccess, TenantConnection } from '../types/tenant-connection';
 import type { TenantFormData } from '../types/tenant-form.types';
 import { useNewTenantFlow } from './use-new-tenant-flow';
@@ -54,10 +59,8 @@ const VALUES: TenantFormData = {
   organizationId: 'org-1',
 };
 
-const NOW = '2026-09-17T10:00:00.000Z';
-
 function access(state: DirectoryAccessState): TenantAccess {
-  return { state, checkedAt: NOW, capabilities: state === DirectoryAccessState.DISCONNECTED ? [] : ['USERS'] };
+  return { state, capabilities: state === DirectoryAccessState.DISCONNECTED ? [] : [DirectoryCapability.USERS] };
 }
 
 function connection(overrides: Partial<TenantConnection> = {}): TenantConnection {
@@ -140,7 +143,8 @@ async function generateAndLink(record = connection()) {
 
 describe('useNewTenantFlow', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Reset, not clear: a test that fails early must not hand its unconsumed `*Once` answers to the next.
+    vi.resetAllMocks();
     seen.commits = 0;
     seen.hook = null;
     mount();
@@ -190,10 +194,42 @@ describe('useNewTenantFlow', () => {
     expect(flow.editDomain).toBeTypeOf('function');
   });
 
-  it('enters the link phase even when the provider hands back no link (Microsoft on the real backend)', async () => {
+  it('retries the link once when create persisted the record but could not mint one', async () => {
+    const minted = connection({ consentUrl: 'https://login.microsoftonline.com/flamingo.cx/adminconsent?nonce=2' });
+    service.startConsent.mockResolvedValueOnce(minted);
     await generateAndLink(connection({ consentUrl: null }));
-    expect(hook().connection?.consentUrl).toBeNull();
+    expect(service.create).toHaveBeenCalledTimes(1);
+    expect(service.startConsent).toHaveBeenCalledWith('tc-99');
+    expect(hook().connection?.consentUrl).toBe(minted.consentUrl);
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: 'warning' }));
+  });
+
+  it('keeps the created record and says so when the retry fails too — never a second create', async () => {
+    service.startConsent.mockRejectedValueOnce(new Error('Provider unreachable'));
+    await generateAndLink(connection({ consentUrl: null }));
+    expect(service.create).toHaveBeenCalledTimes(1);
+    expect(hook().connection?.id).toBe('tc-99');
     expect(hook().canSave).toBe(true);
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'warning', title: 'No consent link yet' }));
+  });
+
+  it('Edit Domain with the domain unchanged mints a new link without resending the domain', async () => {
+    await generateAndLink();
+    act(() => {
+      hook().editDomain?.();
+    });
+    service.update.mockResolvedValueOnce(connection());
+    service.startConsent.mockResolvedValueOnce(connection());
+    await act(async () => {
+      await hook().generate(VALUES);
+    });
+    // The API refuses any domain once the admin consented — possibly outside this page.
+    expect(service.update).toHaveBeenCalledWith('tc-99', {
+      domain: undefined,
+      name: VALUES.name,
+      organizationId: VALUES.organizationId,
+    });
+    expect(hook().phase).toBe('link');
   });
 
   it('returns to filling with a toast when the create fails, keeping nothing locked', async () => {

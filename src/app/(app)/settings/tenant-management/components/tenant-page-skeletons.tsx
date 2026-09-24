@@ -54,7 +54,7 @@ const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant:
 function FieldSkeleton({ label, className }: { label: string; className?: string }) {
   return (
     <div className={cn('flex flex-col', className)}>
-      <Label className="mb-1" variant="large">
+      <Label className="mb-[var(--spacing-system-xxs)]" variant="large">
         {label}
       </Label>
       <Skeleton className="h-11 w-full rounded-[6px] md:h-12" />

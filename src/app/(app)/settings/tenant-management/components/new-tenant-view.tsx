@@ -2,11 +2,13 @@
 'use no memo';
 
 import { Button, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useEffect } from 'react';
 import { useFormState } from 'react-hook-form';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { useNewTenantForm } from '../hooks/use-new-tenant-form';
 import { useTenantConnectionOptions } from '../hooks/use-tenant-connections';
+import { PROVIDER_ORDER } from '../utils/tenant-presentation';
 import { ConsentBlock } from './consent/consent-block';
 import { TenantFormFields } from './tenant-form-fields';
 
@@ -26,6 +28,16 @@ export function NewTenantView() {
   const { connection } = flow;
   // Which providers this deployment has enabled; the full set until it answers.
   const options = useTenantConnectionOptions();
+  const offered = options.data?.providers;
+  const { providerLocked } = flow;
+  const { getValues, setValue } = form;
+
+  // A deployment may offer one provider only; the preselected Microsoft must follow what it offers.
+  useEffect(() => {
+    if (!offered || providerLocked || offered.includes(getValues('provider'))) return;
+    const first = PROVIDER_ORDER.find(provider => offered.includes(provider));
+    if (first) setValue('provider', first, { shouldValidate: true });
+  }, [offered, providerLocked, getValues, setValue]);
 
   const actions: PageActionButton[] = [
     {
@@ -50,11 +62,10 @@ export function NewTenantView() {
         disabled={flow.fieldsDisabled}
         providerLocked={flow.providerLocked}
         domainLocked={flow.domainLocked}
-        // Once the record exists its customer is bound, and the backend list of
-        // available customers no longer offers it — ask for it back or the
-        // picker goes blank under the user.
-        includeOrganizationId={connection?.organizationId}
-        providers={options.data?.providers}
+        // Once the record exists its customer is bound and drops out of the API's list of
+        // available customers; the picker puts it back, or it goes blank under the user.
+        includeOrganization={connection?.organization}
+        providers={offered}
       />
       {flow.phase === 'link' && connection ? (
         <ConsentBlock

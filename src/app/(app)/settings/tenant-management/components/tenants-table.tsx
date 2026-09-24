@@ -14,10 +14,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo } from 'react';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import type { TenantConnection } from '../types/tenant-connection';
+import type { TenantConnectionRow } from '../types/tenant-connection';
 import {
   accessStateTag,
   formatLastRead,
@@ -28,7 +29,7 @@ import {
 import { TENANT_COLUMNS } from './tenants-table-columns';
 
 /** Provider mark + name over the domain (the "Tenant" cell). */
-function TenantCell({ connection }: { connection: TenantConnection }) {
+function TenantCell({ connection }: { connection: TenantConnectionRow }) {
   const { Logo, label } = providerPresentation(connection.provider);
   return (
     <div className="flex min-w-0 flex-col justify-center">
@@ -37,20 +38,20 @@ function TenantCell({ connection }: { connection: TenantConnection }) {
         <TruncateText>{connection.name}</TruncateText>
       </div>
       <TruncateText variant="h6" tone="secondary">
-        {connection.domain}
+        {connection.domain ?? EMPTY_VALUE}
       </TruncateText>
     </div>
   );
 }
 
 /** Customer logo + name over the synced user count (the "Customers" cell). */
-function CustomerCell({ connection }: { connection: TenantConnection }) {
+function CustomerCell({ connection }: { connection: TenantConnectionRow }) {
   const { organization, userCount } = connection;
   return (
     <div className="flex min-w-0 flex-col justify-center">
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
         <SquareAvatar
-          src={getFullImageUrl(organization.imageUrl)}
+          src={getFullImageUrl(organization.imageUrl, organization.imageHash)}
           alt={organization.name}
           fallback={organization.name}
           size="xs"
@@ -66,7 +67,7 @@ function CustomerCell({ connection }: { connection: TenantConnection }) {
 }
 
 /** Access tag over "Last read: …" (the "Access" cell). */
-function AccessCell({ connection }: { connection: TenantConnection }) {
+function AccessCell({ connection }: { connection: TenantConnectionRow }) {
   return (
     <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
       <Tag {...accessStateTag(connection.access.state)} className="self-start" />
@@ -77,14 +78,14 @@ function AccessCell({ connection }: { connection: TenantConnection }) {
   );
 }
 
-const tenantRowHref = (connection: TenantConnection) => routes.settings.tenantDetails(connection.id);
+const tenantRowHref = (connection: TenantConnectionRow) => routes.settings.tenantDetails(connection.id);
 
-function buildColumns(hideCustomerColumn: boolean): ColumnDef<TenantConnection>[] {
-  const columns: ColumnDef<TenantConnection>[] = [
+function buildColumns(hideCustomerColumn: boolean): ColumnDef<TenantConnectionRow>[] {
+  const columns: ColumnDef<TenantConnectionRow>[] = [
     {
       id: TENANT_COLUMNS.tenant.id,
       header: TENANT_COLUMNS.tenant.header,
-      cell: ({ row }: { row: Row<TenantConnection> }) => <TenantCell connection={row.original} />,
+      cell: ({ row }: { row: Row<TenantConnectionRow> }) => <TenantCell connection={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(TENANT_COLUMNS.tenant),
     },
@@ -93,7 +94,7 @@ function buildColumns(hideCustomerColumn: boolean): ColumnDef<TenantConnection>[
     columns.push({
       id: TENANT_COLUMNS.customer.id,
       header: TENANT_COLUMNS.customer.header,
-      cell: ({ row }: { row: Row<TenantConnection> }) => <CustomerCell connection={row.original} />,
+      cell: ({ row }: { row: Row<TenantConnectionRow> }) => <CustomerCell connection={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(TENANT_COLUMNS.customer),
     });
@@ -102,13 +103,13 @@ function buildColumns(hideCustomerColumn: boolean): ColumnDef<TenantConnection>[
     {
       id: TENANT_COLUMNS.access.id,
       header: TENANT_COLUMNS.access.header,
-      cell: ({ row }: { row: Row<TenantConnection> }) => <AccessCell connection={row.original} />,
+      cell: ({ row }: { row: Row<TenantConnectionRow> }) => <AccessCell connection={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(TENANT_COLUMNS.access),
     },
     {
       id: TENANT_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<TenantConnection> }) => (
+      cell: ({ row }: { row: Row<TenantConnectionRow> }) => (
         // The row itself is the details link; a nested `<a>` is invalid, so the
         // new-tab affordance is a button that opens the same href programmatically.
         <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
@@ -130,10 +131,10 @@ function buildColumns(hideCustomerColumn: boolean): ColumnDef<TenantConnection>[
 }
 
 /** Referentially stable fallback so an absent list never hands the table a fresh array per render. */
-const NO_CONNECTIONS: TenantConnection[] = [];
+const NO_CONNECTIONS: TenantConnectionRow[] = [];
 
 interface TenantsTableProps {
-  connections: readonly TenantConnection[] | undefined;
+  connections: readonly TenantConnectionRow[] | undefined;
   isLoading: boolean;
   /** What the body shows with zero rows — the caller decides between "no match" and "couldn't load". */
   emptyState: NoDataProps;
@@ -151,9 +152,9 @@ export function TenantsTable({
   // Manual memos on purpose: TanStack compares `data`/`columns` by identity.
   const data = useMemo(() => (connections ? [...connections] : NO_CONNECTIONS), [connections]);
   const columns = useMemo(() => buildColumns(hideCustomerColumn), [hideCustomerColumn]);
-  const getRowId = useCallback((row: TenantConnection) => row.id, []);
+  const getRowId = useCallback((row: TenantConnectionRow) => row.id, []);
 
-  const table = useDataTable<TenantConnection>({ data, columns, getRowId, enableSorting: false });
+  const table = useDataTable<TenantConnectionRow>({ data, columns, getRowId, enableSorting: false });
 
   return (
     <DataTable table={table}>

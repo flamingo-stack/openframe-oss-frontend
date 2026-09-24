@@ -1,11 +1,17 @@
-// Pins the form contracts: the domain is normalised and validated the same way
-// the mock/backend compare it, required fields carry the messages the invalid
-// submit toast prints, and Edit reuses the same schema with provider/domain locked.
+// Pins the form contracts: the domain is normalised and validated as the consent URL
+// needs it, required fields carry the messages the invalid submit toast prints, and
+// Edit does not validate the domain it never sends.
 
 import { describe, expect, it } from 'vitest';
-import { TENANT_FORM_DEFAULT_VALUES, tenantFormSchema } from './tenant-form.types';
+import { DirectoryProvider } from '@/generated/schema-enums';
+import { editTenantFormSchema, TENANT_FORM_DEFAULT_VALUES, tenantFormSchema } from './tenant-form.types';
 
-const valid = { provider: 'MICROSOFT_365', domain: 'flamingo.cx', name: 'Flamingo Team', organizationId: 'org-1' };
+const valid = {
+  provider: DirectoryProvider.MICROSOFT_365,
+  domain: 'flamingo.cx',
+  name: 'Flamingo Team',
+  organizationId: 'org-1',
+};
 
 describe('tenantFormSchema', () => {
   it('trims and lowercases the domain', () => {
@@ -27,7 +33,7 @@ describe('tenantFormSchema', () => {
   });
 
   it('accepts multi-label domains with hyphens', () => {
-    for (const domain of ['sub.example.co.uk', 'brightline-mfg.com', 'acme.notauthorised.test']) {
+    for (const domain of ['sub.example.co.uk', 'contoso-mfg.com', 'acme.onmicrosoft.com']) {
       expect(tenantFormSchema.safeParse({ ...valid, domain }).success, domain).toBe(true);
     }
   });
@@ -43,5 +49,18 @@ describe('tenantFormSchema', () => {
     if (result.success) throw new Error('pristine defaults must not validate');
     const paths = [...new Set(result.error.issues.map(issue => issue.path.join('.')))].sort();
     expect(paths).toEqual(['domain', 'name', 'organizationId']);
+  });
+});
+
+describe('editTenantFormSchema', () => {
+  it('saves a connection whose stored domain is empty or not a hostname — Edit never sends it', () => {
+    expect(editTenantFormSchema.safeParse({ ...valid, domain: '' }).success).toBe(true);
+    expect(editTenantFormSchema.safeParse({ ...valid, domain: '0F6C0E7E-GUID' }).success).toBe(true);
+  });
+
+  it('still requires what Edit does send', () => {
+    const result = editTenantFormSchema.safeParse({ ...valid, name: ' ', organizationId: '' });
+    if (result.success) throw new Error('an empty name and customer must not validate');
+    expect(result.error.issues.map(issue => issue.path.join('.')).sort()).toEqual(['name', 'organizationId']);
   });
 });

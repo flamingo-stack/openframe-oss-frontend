@@ -1,23 +1,24 @@
-// Tenant Management domain model (CU-86akj8ajt).
-//
-// `TenantConnection` mirrors the backend `DirectoryConnection` type field for
-// field (branch `feature/directory-fe-integration`,
-// `schema-directory/directory-integrations.graphqls`) so the mock service, the
-// hooks and every component already speak the shape the Relay swap will deliver.
-// Keep it in sync with that SDL rather than with what a screen happens to need.
+// Tenant Management read model, mapped from `DirectoryConnection` by the service in three
+// steps (record ⊂ row ⊂ connection): each live provider probe is paid only where it is shown.
+// Enums are widened the way Relay delivers them, so a value from a newer backend renders raw.
 
 import type {
   DirectoryAccessState,
   DirectoryCapability,
   DirectoryProvider,
   DirectorySyncStatus,
-} from './directory-enums';
+} from '@/generated/schema-enums';
+
+/** An enum as it arrives from Relay: the named members plus `%future added value` (see `subscription.types.ts`). */
+type FromRelay<T extends string> = T | (string & {});
 
 /** The customer (OpenFrame organization) a connection belongs to. */
 export interface TenantOrganization {
+  /** The business `organizationId` — what the directory API takes and returns, NOT the Relay node id. */
   id: string;
   name: string;
   imageUrl?: string | null;
+  imageHash?: string | null;
 }
 
 /** A verified domain read live from the provider. */
@@ -31,51 +32,53 @@ export interface TenantDomain {
 
 /** `DirectoryConnectionAccess` — resolved live, never stored. */
 export interface TenantAccess {
-  state: DirectoryAccessState;
-  /** Raw provider status, for tooltips. */
-  reason?: string | null;
-  checkedAt: string;
+  state: FromRelay<DirectoryAccessState>;
   /** Empty when there is no grant to describe (never connected / revoked). */
-  capabilities: DirectoryCapability[];
+  capabilities: FromRelay<DirectoryCapability>[];
 }
 
-/** `DirectoryConnection` */
-export interface TenantConnection {
+/** The stored fields of a `DirectoryConnection` — no provider probe; what the writes return. */
+export interface TenantConnectionRecord {
   id: string;
-  provider: DirectoryProvider;
+  provider: FromRelay<DirectoryProvider>;
   /** User-facing connection label, unique per tenant+provider. */
   name: string;
-  /** Customer domain entered at creation; frozen after the first successful consent. */
-  domain: string;
+  /** The customer's primary domain; null only for a Microsoft 365 connection created from a directory GUID. */
+  domain: string | null;
   enabled: boolean;
-  /** Provider's own directory id — Entra tenant GUID / Google customerId. Null until first consent. */
-  directoryId?: string | null;
-  /** Account that granted consent. Null until first consent. */
-  grantedBy?: string | null;
-  /** Most recent successful consent; a reconnect moves it. Null while never connected. */
-  connectedAt?: string | null;
-  lastSyncStatus: DirectorySyncStatus;
-  lastSyncAt?: string | null;
-  lastSyncError?: string | null;
+  /** Entra tenant GUID / Google customerId. Null until the first consent. */
+  directoryId: string | null;
+  /** Account that granted consent. Microsoft 365 does not report it yet. */
+  grantedBy: string | null;
+  /** Most recent successful consent. Microsoft 365 does not report it yet. */
+  connectedAt: string | null;
+  lastSyncStatus: FromRelay<DirectorySyncStatus>;
+  lastSyncAt: string | null;
+  lastSyncError: string | null;
+  /** Business id of the bound customer (= `organization.id`). */
   organizationId: string;
   organization: TenantOrganization;
-  /** Users synced under this connection. Null before the first read. */
-  userCount?: number | null;
-  /**
-   * The consent link the customer's admin has to open. Null = no link
-   * outstanding (never minted, expired, already consented — or, on the current
-   * FE facade, any Microsoft 365 connection: the facade predates the provider's
-   * admin-consent API; see `consent/microsoft-consent-panel.tsx`).
-   */
-  consentUrl?: string | null;
+  /** Users synced under this connection; null until the first sync. */
+  userCount: number | null;
+  /** The outstanding consent link; null when none is (never minted, expired, or already consented). */
+  consentUrl: string | null;
+}
+
+/** A list row: the record plus its live access state (one provider probe). */
+export interface TenantConnectionRow extends TenantConnectionRecord {
   access: TenantAccess;
+}
+
+/** The details page: the row plus the verified domains (a second provider probe). */
+export interface TenantConnection extends TenantConnectionRow {
   domains: TenantDomain[];
 }
 
-/** `DirectoryConnectionFilterInput` plus the client-side narrowing the future Customer tab needs. */
+/** `DirectoryConnectionFilterInput` plus the client-side customer narrowing the Customer tab will need. */
 export interface TenantConnectionsFilter {
-  /** Case-insensitive substring over `name`, `domain` and the customer's name. */
+  /** Case-insensitive substring over the name, the stored domain and the customer's name. */
   search?: string;
+  /** Not a backend filter — applied to the fetched rows. */
   organizationId?: string;
 }
 
@@ -92,21 +95,4 @@ export interface UpdateTenantConnectionInput {
   name?: string;
   organizationId?: string;
   domain?: string;
-}
-
-/** One page of `directoryConnectionOrganizations`. */
-export interface TenantOrganizationsPage {
-  items: TenantOrganization[];
-  endCursor: string | null;
-  hasNextPage: boolean;
-}
-
-export interface TenantOrganizationsPageInput {
-  first: number;
-  after?: string | null;
-  /**
-   * The backend list excludes customers already bound to a connection; the Edit
-   * form still has to show its own customer, so it asks for it back explicitly.
-   */
-  includeOrganizationId?: string;
 }

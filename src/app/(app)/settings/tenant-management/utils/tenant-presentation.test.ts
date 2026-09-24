@@ -1,17 +1,17 @@
-// Pins the enum → label/variant/copy decisions the screens render from. The
-// tables are declared exhaustively over the local enum mirrors; these tests make
-// sure every value has a non-empty answer and that unknown values (a backend
-// ahead of the SDL) degrade to a neutral rendering instead of a crash.
+// Pins the enum → label/variant/copy decisions the screens render from: every generated
+// enum value has a non-empty answer, and an unknown value (a backend ahead of the SDL)
+// degrades to a neutral rendering instead of a crash.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DirectoryAccessState, DirectoryCapability, DirectoryProvider } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate } from '@/lib/format-date';
-import { DirectoryAccessState, DirectoryCapability, DirectoryProvider } from '../types/directory-enums';
 import type { TenantAccess } from '../types/tenant-connection';
 import {
+  accessStateHint,
   accessStateTag,
   capabilityLabels,
   checkResultTag,
-  EMPTY_VALUE,
   formatConnectedAt,
   formatLastRead,
   isReadable,
@@ -21,12 +21,7 @@ import {
   usersCountLabel,
 } from './tenant-presentation';
 
-const access = (state: DirectoryAccessState): TenantAccess => ({
-  state,
-  reason: null,
-  checkedAt: '2026-09-17T10:00:00.000Z',
-  capabilities: [],
-});
+const access = (state: DirectoryAccessState): TenantAccess => ({ state, capabilities: [] });
 
 describe('accessStateTag', () => {
   it('gives every access state a label and a variant', () => {
@@ -38,18 +33,18 @@ describe('accessStateTag', () => {
   });
 
   it('uses the colours of the Figma list', () => {
-    expect(accessStateTag('DISCONNECTED').variant).toBe('error');
-    expect(accessStateTag('CONSENT_REVOKED').variant).toBe('error');
-    expect(accessStateTag('READ_ONLY').variant).toBe('grey');
-    expect(accessStateTag('WRITE_AVAILABLE').variant).toBe('outline');
-    expect(accessStateTag('WRITE_ENABLED').variant).toBe('success');
+    expect(accessStateTag(DirectoryAccessState.DISCONNECTED).variant).toBe('error');
+    expect(accessStateTag(DirectoryAccessState.CONSENT_REVOKED).variant).toBe('error');
+    expect(accessStateTag(DirectoryAccessState.READ_ONLY).variant).toBe('grey');
+    expect(accessStateTag(DirectoryAccessState.WRITE_AVAILABLE).variant).toBe('outline');
+    expect(accessStateTag(DirectoryAccessState.WRITE_ENABLED).variant).toBe('success');
   });
 
   it('renders NOT_AUTHORISED as an error tag (no Figma frame)', () => {
-    expect(accessStateTag('NOT_AUTHORISED')).toEqual({ label: 'Not authorised', variant: 'error' });
+    expect(accessStateTag(DirectoryAccessState.NOT_AUTHORISED)).toEqual({ label: 'Not authorised', variant: 'error' });
   });
 
-  it('degrades an unknown value to its raw name in grey, and nothing to "-"', () => {
+  it('degrades an unknown value to its raw name in grey, and nothing to the empty mark', () => {
     expect(accessStateTag('SOMETHING_NEW')).toEqual({ label: 'SOMETHING_NEW', variant: 'grey' });
     expect(accessStateTag(null)).toEqual({ label: EMPTY_VALUE, variant: 'grey' });
     expect(accessStateTag(undefined)).toEqual({ label: EMPTY_VALUE, variant: 'grey' });
@@ -58,12 +53,12 @@ describe('accessStateTag', () => {
 
 describe('isReadable / checkResultTag', () => {
   it('treats the three states above DISCONNECTED as a live read', () => {
-    expect(isReadable('READ_ONLY')).toBe(true);
-    expect(isReadable('WRITE_AVAILABLE')).toBe(true);
-    expect(isReadable('WRITE_ENABLED')).toBe(true);
-    expect(isReadable('DISCONNECTED')).toBe(false);
-    expect(isReadable('NOT_AUTHORISED')).toBe(false);
-    expect(isReadable('CONSENT_REVOKED')).toBe(false);
+    expect(isReadable(DirectoryAccessState.READ_ONLY)).toBe(true);
+    expect(isReadable(DirectoryAccessState.WRITE_AVAILABLE)).toBe(true);
+    expect(isReadable(DirectoryAccessState.WRITE_ENABLED)).toBe(true);
+    expect(isReadable(DirectoryAccessState.DISCONNECTED)).toBe(false);
+    expect(isReadable(DirectoryAccessState.NOT_AUTHORISED)).toBe(false);
+    expect(isReadable(DirectoryAccessState.CONSENT_REVOKED)).toBe(false);
     expect(isReadable(null)).toBe(false);
   });
 
@@ -78,6 +73,19 @@ describe('isReadable / checkResultTag', () => {
   });
 });
 
+describe('accessStateHint', () => {
+  it('tells who has to act for every state that did not read the directory', () => {
+    for (const state of Object.values(DirectoryAccessState).filter(value => !isReadable(value))) {
+      expect(accessStateHint(state), state).not.toBe(accessStateTag(state).label);
+      expect(accessStateHint(state), state).toMatch(/admin/);
+    }
+  });
+
+  it('falls back to the tag label for a state this build does not know', () => {
+    expect(accessStateHint('SUSPENDED')).toBe('SUSPENDED');
+  });
+});
+
 describe('providerPresentation', () => {
   it('names both providers, with a logo and the consent copy the screens print', () => {
     for (const provider of Object.values(DirectoryProvider)) {
@@ -88,8 +96,8 @@ describe('providerPresentation', () => {
       expect(meta.consentInstruction, provider).not.toBe('');
       expect(meta.reapproveInstruction, provider).not.toBe('');
     }
-    expect(providerPresentation('MICROSOFT_365').label).toBe('Microsoft 365');
-    expect(providerPresentation('GOOGLE_WORKSPACE').label).toBe('Google Workspace');
+    expect(providerPresentation(DirectoryProvider.MICROSOFT_365).label).toBe('Microsoft 365');
+    expect(providerPresentation(DirectoryProvider.GOOGLE_WORKSPACE).label).toBe('Google Workspace');
   });
 
   it('keeps the raw name of an unknown provider and lists Microsoft first', () => {
@@ -126,7 +134,7 @@ describe('time formatting', () => {
     expect(lastReadAt({ lastSyncAt: null })).toBeNull();
   });
 
-  it('formats a fresh read relatively, an old one as a date, and no read as "-"', () => {
+  it('formats a fresh read relatively, an old one as a date, and no read as the empty mark', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-17T10:00:00.000Z'));
     const now = new Date();
@@ -148,7 +156,7 @@ describe('time formatting', () => {
 });
 
 describe('usersCountLabel', () => {
-  it('pluralises and renders "-" before the first read', () => {
+  it('pluralises and renders the empty mark before the first read', () => {
     expect(usersCountLabel(null)).toBe(EMPTY_VALUE);
     expect(usersCountLabel(undefined)).toBe(EMPTY_VALUE);
     expect(usersCountLabel(0)).toBe('0 Users');

@@ -17,12 +17,13 @@ import {
 import { useRouter } from 'next/navigation';
 import { useOwnerGate } from '@/app/hooks/use-owner-gate';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useTenantConnection } from '../hooks/use-tenant-connections';
 import { useTenantConsent } from '../hooks/use-tenant-consent';
 import type { TenantConnection } from '../types/tenant-connection';
-import { capabilityLabels, EMPTY_VALUE, isReadable, providerPresentation } from '../utils/tenant-presentation';
+import { capabilityLabels, isReadable, providerPresentation } from '../utils/tenant-presentation';
 import { ConsentBlock } from './consent/consent-block';
 import { TenantDetailsSkeleton } from './tenant-page-skeletons';
 import { TenantSummaryCard } from './tenant-summary-card';
@@ -44,7 +45,7 @@ function MultiLineValue({ lines }: { lines: string[] }) {
 function integrationRows(connection: TenantConnection): InfoSectionRow[] {
   const { directoryIdLabel, authorisedBy } = providerPresentation(connection.provider);
   const domainNames = connection.domains.map(domain => domain.name);
-  const primaryDomain = connection.domains.find(domain => domain.primary)?.name ?? connection.domain;
+  const primaryDomain = connection.domains.find(domain => domain.primary)?.name ?? connection.domain ?? EMPTY_VALUE;
   const scopes = capabilityLabels(connection.access.capabilities);
   return [
     { id: 'primary-domain', label: 'Primary domain', value: { text: primaryDomain } },
@@ -100,8 +101,7 @@ export function TenantDetailsView({ id }: TenantDetailsViewProps) {
   }
 
   const isOwner = ownerGate === 'owner';
-  // Reconnect and Edit change the tenant's grant and binding — owners only
-  // everyone else reads.
+  // Reconnect and Edit change the tenant's grant and binding — owners only; everyone else reads.
   const actions: PageActionButton[] | undefined = isOwner
     ? [
         {

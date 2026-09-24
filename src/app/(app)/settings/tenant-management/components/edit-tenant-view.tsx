@@ -1,5 +1,7 @@
 'use client';
 'use no memo';
+// Holds the live react-hook-form handle from `useEditTenantForm` — the case the lint rule
+// enforces this directive for, except that the rule matches imports and cannot see a hook's.
 
 import {
   LoadError,
@@ -71,7 +73,7 @@ export function EditTenantView({ id }: EditTenantViewProps) {
         disabled={!ready || isSubmitting}
         hideProvider
         hideDomain
-        includeOrganizationId={connection?.organizationId}
+        includeOrganization={connection?.organization}
         customersEnabled={ready}
       />
     </PageLayout>

@@ -14,13 +14,11 @@ import {
 import type { TagProps } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ComponentType, SVGProps } from 'react';
+import { DirectoryAccessState, DirectoryCapability, DirectoryProvider } from '@/generated/schema-enums';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDate, formatTimeWithSeconds } from '@/lib/format-date';
-import { DirectoryAccessState, type DirectoryCapability, DirectoryProvider } from '../types/directory-enums';
-import type { TenantAccess, TenantConnection } from '../types/tenant-connection';
-
-/** The grey "-" the design checks require wherever data is missing. */
-export const EMPTY_VALUE = '-';
+import type { TenantAccess, TenantConnectionRecord } from '../types/tenant-connection';
 
 type TagVariant = NonNullable<TagProps['variant']>;
 
@@ -47,15 +45,35 @@ export function accessStateTag(state: string | null | undefined): StatusTag {
   return presentationFor(ACCESS_STATE_PRESENTATION, state) ?? { label: state || EMPTY_VALUE, variant: 'grey' };
 }
 
-const READABLE_STATES: ReadonlySet<string> = new Set([
+const READABLE_STATES = [
   DirectoryAccessState.READ_ONLY,
   DirectoryAccessState.WRITE_AVAILABLE,
   DirectoryAccessState.WRITE_ENABLED,
-]);
+] as const;
+
+type ReadableAccessState = (typeof READABLE_STATES)[number];
+
+const READABLE_STATE_SET: ReadonlySet<string> = new Set(READABLE_STATES);
 
 /** A connection whose last probe actually read the directory — what "connected" means on every screen. */
 export function isReadable(state: string | null | undefined): boolean {
-  return state != null && READABLE_STATES.has(state);
+  return state != null && READABLE_STATE_SET.has(state);
+}
+
+// What to do about a probe that did not read the directory: the provider's raw code
+// (`NO_CREDENTIAL`, …) means nothing to an MSP, so the UI says who has to act.
+const ACCESS_STATE_HINT = {
+  [DirectoryAccessState.DISCONNECTED]:
+    "OpenFrame can't read this directory yet. Ask the customer's admin to open the consent link, then check again.",
+  [DirectoryAccessState.NOT_AUTHORISED]:
+    "The directory refused access. Ask the customer's admin to grant consent with the link, then check again.",
+  [DirectoryAccessState.CONSENT_REVOKED]:
+    "The customer's admin removed OpenFrame's access. Generate a new link and ask them to consent again.",
+} satisfies Record<Exclude<DirectoryAccessState, ReadableAccessState>, string>;
+
+/** The sentence under a failed "Check Connection"; an unknown state falls back to its tag label. */
+export function accessStateHint(state: string | null | undefined): string {
+  return presentationFor(ACCESS_STATE_HINT, state) ?? accessStateTag(state).label;
 }
 
 /** The tag beside "Check Connection" once a probe has answered (Figma 2097-122274). */
@@ -142,14 +160,14 @@ export const PROVIDER_ORDER: readonly DirectoryProvider[] = [
 ];
 
 const CAPABILITY_LABELS = {
-  USERS: 'Users',
-  GROUPS: 'Groups',
-  ORG_UNITS: 'Org units',
-  LICENSES: 'Licences',
-  DEVICES: 'Devices',
-  AUDIT_LOGS: 'Audit logs',
-  OAUTH_APPS: 'OAuth apps',
-  ADMIN_ROLES: 'Admin roles',
+  [DirectoryCapability.USERS]: 'Users',
+  [DirectoryCapability.GROUPS]: 'Groups',
+  [DirectoryCapability.ORG_UNITS]: 'Org units',
+  [DirectoryCapability.LICENSES]: 'Licences',
+  [DirectoryCapability.DEVICES]: 'Devices',
+  [DirectoryCapability.AUDIT_LOGS]: 'Audit logs',
+  [DirectoryCapability.OAUTH_APPS]: 'OAuth apps',
+  [DirectoryCapability.ADMIN_ROLES]: 'Admin roles',
 } satisfies Record<DirectoryCapability, string>;
 
 /** "Scopes held" — labels in declaration order; an unknown capability keeps its raw name. */
@@ -161,8 +179,8 @@ export function capabilityLabels(capabilities: readonly string[]): string[] {
  * The instant "Last read" reports: the directory sync, not the
  * access probe — a probe proves the link, a sync is when the data was read.
  */
-export function lastReadAt(connection: Pick<TenantConnection, 'lastSyncAt'>): string | null {
-  return connection.lastSyncAt ?? null;
+export function lastReadAt(connection: Pick<TenantConnectionRecord, 'lastSyncAt'>): string | null {
+  return connection.lastSyncAt;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -175,7 +193,7 @@ function parseInstant(iso: string | null | undefined): Date | null {
 
 /**
  * "41m ago" while fresh, the calendar date once a day old (the design shows
- * "Last read: 10/10/2016" on a stale row), "-" when there was never a read.
+ * "Last read: 10/10/2016" on a stale row), the empty mark when there was never a read.
  * `formatRelativeTime` is guarded because it answers "Unknown time" for an
  * invalid instant and warns on the console.
  */
@@ -191,7 +209,7 @@ export function formatConnectedAt(iso: string | null | undefined): { date: strin
   return date ? { date: formatDate(date), time: formatTimeWithSeconds(date) } : null;
 }
 
-/** "227 Users" under the customer, "-" before the first read. */
+/** "227 Users" under the customer, the empty mark before the first read. */
 export function usersCountLabel(count: number | null | undefined): string {
   if (count == null) return EMPTY_VALUE;
   return `${count} ${count === 1 ? 'User' : 'Users'}`;

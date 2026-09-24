@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
 import { getErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import type { TenantConnection } from '../types/tenant-connection';
+import type { TenantConnectionRecord } from '../types/tenant-connection';
 import type { TenantFormData } from '../types/tenant-form.types';
 import { useCreateTenantConnection, useStartTenantConsent, useUpdateTenantConnection } from './use-tenant-connections';
 import { useTenantConsent } from './use-tenant-consent';
@@ -25,9 +25,8 @@ export type NewTenantPhase = 'filling' | 'generating' | 'link';
  * The backend creates the record on the first Generate (`createDirectoryConnection`
  * returns the connection with its consent link), so from then on the page is
  * editing an existing connection: a second Generate after Edit Domain is an
- * update plus a fresh link, and Save only writes what changed since
- * The provider is locked once the record exists; the domain
- * is locked whenever a link stands for it.
+ * update plus a fresh link, and Save only writes what changed since then. The
+ * provider is locked once the record exists; the domain whenever a link stands for it.
  */
 export function useNewTenantFlow() {
   const { toast } = useToast();
@@ -37,7 +36,7 @@ export function useNewTenantFlow() {
   const startConsent = useStartTenantConsent();
 
   const [phase, setPhase] = useState<NewTenantPhase>('filling');
-  const [connection, setConnection] = useState<TenantConnection | null>(null);
+  const [connection, setConnection] = useState<TenantConnectionRecord | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   // Synchronous re-entry guard: two calls in one tick share the same `phase`
   // closure, so state alone cannot tell the second one to stand down. A second
@@ -61,26 +60,38 @@ export function useNewTenantFlow() {
       const run = async () => {
         setPhase('generating');
         try {
-          let next: TenantConnection;
+          let next: TenantConnectionRecord;
           if (connection) {
-            // Edit Domain re-run: the record exists — move it, then mint a link
-            // for the new domain (an unchanged domain still gets a fresh link).
+            // Edit Domain re-run: an unchanged domain is left out — the API refuses it once the
+            // admin has consented, which may have happened outside this page.
+            const domain = values.domain !== connection.domain ? values.domain : undefined;
             await updateAsync({
               id: connection.id,
-              input: { domain: values.domain, name: values.name, organizationId: values.organizationId },
+              input: { domain, name: values.name, organizationId: values.organizationId },
             });
             next = await startConsentAsync(connection.id);
           } else {
-            next = await createAsync({
+            const created = await createAsync({
               provider: values.provider,
               domain: values.domain,
               name: values.name,
               organizationId: values.organizationId,
             });
+            // Created but the link failed to mint (documented): retry once, and never lose the
+            // record to that retry's error, or the next Generate would create a second one.
+            next = created.consentUrl ? created : await startConsentAsync(created.id).catch(() => created);
           }
           resetConsent();
           setConnection(next);
           setPhase('link');
+          if (!next.consentUrl) {
+            toast({
+              title: 'No consent link yet',
+              description:
+                'The integration is saved, but no consent link was issued. Use Edit Domain and generate again.',
+              variant: 'warning',
+            });
+          }
         } catch (error) {
           toast({
             title: 'Could not generate the link',

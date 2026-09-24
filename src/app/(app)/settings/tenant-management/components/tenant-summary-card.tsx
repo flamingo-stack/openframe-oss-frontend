@@ -8,7 +8,6 @@ import { getFullImageUrl } from '@/lib/image-url';
 import type { TenantConnection } from '../types/tenant-connection';
 import {
   accessStateTag,
-  EMPTY_VALUE,
   formatConnectedAt,
   formatLastRead,
   isReadable,
@@ -49,7 +48,7 @@ function CustomerCell({ connection }: { connection: TenantConnection }) {
         <IconValue
           icon={
             <SquareAvatar
-              src={getFullImageUrl(organization.imageUrl)}
+              src={getFullImageUrl(organization.imageUrl, organization.imageHash)}
               alt={organization.name}
               fallback={organization.name}
               size="xs"
@@ -74,9 +73,7 @@ function ConnectedCell({ connectedAt }: { connectedAt: string | null | undefined
           <>
             {parts.date} <span className="text-ods-text-secondary">{parts.time}</span>
           </>
-        ) : (
-          EMPTY_VALUE
-        )
+        ) : null
       }
     />
   );
@@ -111,7 +108,7 @@ export function TenantSummaryCard({ connection, identityOnly = false }: TenantSu
       </div>
       <div className={cn(ROW_CLASSES, DIVIDED_ROW_CLASSES)}>
         {/* The card's caption already says "Users" (frame 2097-140910); the list cell is where the unit belongs. */}
-        <InfoCell label="Users" value={connection.userCount == null ? EMPTY_VALUE : String(connection.userCount)} />
+        <InfoCell label="Users" value={connection.userCount?.toString()} />
         <InfoCell label="Status" value={<Tag {...accessStateTag(connection.access.state)} />} />
         <ConnectedCell connectedAt={connection.connectedAt} />
         <InfoCell label="Last Read" value={formatLastRead(lastReadAt(connection))} />

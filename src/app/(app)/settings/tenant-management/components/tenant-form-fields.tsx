@@ -3,7 +3,8 @@
 
 import { Input, RadioGroupBlock } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type Control, Controller } from 'react-hook-form';
-import type { DirectoryProvider } from '../types/directory-enums';
+import type { DirectoryProvider } from '@/generated/schema-enums';
+import type { TenantOrganization } from '../types/tenant-connection';
 import type { TenantFormData } from '../types/tenant-form.types';
 import { PROVIDER_ORDER, providerPresentation } from '../utils/tenant-presentation';
 import { CustomerSelect } from './customer-select';
@@ -26,9 +27,9 @@ interface TenantFormFieldsProps {
   domainLocked?: boolean;
   hideProvider?: boolean;
   hideDomain?: boolean;
-  /** Edit: the customer already bound to this connection (see `CustomerSelect`). */
-  includeOrganizationId?: string;
-  /** Edit: hold the customer list until the record is known. */
+  /** The customer already bound to this connection (see `CustomerSelect`). */
+  includeOrganization?: TenantOrganization | null;
+  /** Edit: hold the customer list until the record is known (see `CustomerSelect.enabled`). */
   customersEnabled?: boolean;
   /**
    * Providers this deployment offers (`directoryConnectionOptions.providers`),
@@ -57,7 +58,7 @@ export function TenantFormFields({
   domainLocked = false,
   hideProvider = false,
   hideDomain = false,
-  includeOrganizationId,
+  includeOrganization,
   customersEnabled = true,
   providers = PROVIDER_ORDER,
 }: TenantFormFieldsProps) {
@@ -142,7 +143,7 @@ export function TenantFormFields({
               disabled={disabled}
               error={fieldState.error?.message}
               invalid={!!fieldState.error}
-              includeOrganizationId={includeOrganizationId}
+              includeOrganization={includeOrganization}
               enabled={customersEnabled}
             />
           )}

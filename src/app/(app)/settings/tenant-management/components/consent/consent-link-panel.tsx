@@ -12,7 +12,7 @@ import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import type { ConsentCheckState } from '../../hooks/use-tenant-consent';
 import type { TenantAccess } from '../../types/tenant-connection';
-import { checkResultTag, providerPresentation } from '../../utils/tenant-presentation';
+import { accessStateHint, checkResultTag, providerPresentation } from '../../utils/tenant-presentation';
 
 export type ConsentMode = 'new' | 'reconnect' | 'details';
 
@@ -152,9 +152,9 @@ export function ConsentLinkPanel({
             />
           )}
         </div>
-        {checkResult?.reason && checkState === 'failed' && (
+        {checkResult && checkState === 'failed' && (
           <p className="text-ods-text-secondary text-h6" role="status">
-            {checkResult.reason}
+            {accessStateHint(checkResult.state)}
           </p>
         )}
         {checkError && checkState === 'failed' && (

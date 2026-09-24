@@ -4,7 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getErrorMessage } from '@/lib/handle-api-error';
 import type { TenantAccess } from '../types/tenant-connection';
-import { accessStateTag, isReadable } from '../utils/tenant-presentation';
+import { accessStateHint, isReadable } from '../utils/tenant-presentation';
 import { useCheckTenantConnection } from './use-tenant-connections';
 
 export type ConsentCheckState = 'idle' | 'checking' | 'connected' | 'failed';
@@ -64,7 +64,7 @@ export function useTenantConsent(connectionId: string | null | undefined) {
       setCheck({ status: 'failed', result, error: null });
       toast({
         title: 'Connection check failed',
-        description: result.reason || accessStateTag(result.state).label,
+        description: accessStateHint(result.state),
         variant: 'destructive',
       });
     } catch (error) {

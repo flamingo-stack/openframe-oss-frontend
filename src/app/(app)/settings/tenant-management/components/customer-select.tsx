@@ -12,6 +12,7 @@ import {
 import { getFullImageUrl } from '@/lib/image-url';
 import { useTenantOrganizations } from '../hooks/use-tenant-connections';
 import type { TenantOrganization } from '../types/tenant-connection';
+import { withBoundOrganization } from '../utils/tenant-form-helpers';
 
 // The "Select Customer" field of the New / Edit forms (Figma 2097-122207 /
 // 2097-123264). A core `Select` — the one picker without a text box, which is
@@ -27,12 +28,11 @@ interface CustomerSelectProps {
   invalid?: boolean;
   disabled?: boolean;
   /**
-   * Edit only: the customer this connection is already bound to. The backend
-   * list excludes bound customers, so without this the current value would have
-   * no option to show.
+   * The customer this connection is already bound to (Edit, and New after Generate).
+   * The API lists only unbound customers, so without it the value would have no option.
    */
-  includeOrganizationId?: string;
-  /** Hold the request until the record it depends on is known (Edit), so the list is fetched once, with the right key. */
+  includeOrganization?: TenantOrganization | null;
+  /** Edit: hold the list until the bound customer is known, or a fully bound workspace reads "No customers available" meanwhile. */
   enabled?: boolean;
 }
 
@@ -40,7 +40,7 @@ function CustomerOption({ organization }: { organization: TenantOrganization }) 
   return (
     <span className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
       <SquareAvatar
-        src={getFullImageUrl(organization.imageUrl)}
+        src={getFullImageUrl(organization.imageUrl, organization.imageHash)}
         alt={organization.name}
         fallback={organization.name}
         size="sm"
@@ -59,11 +59,11 @@ export function CustomerSelect({
   error,
   invalid,
   disabled,
-  includeOrganizationId,
+  includeOrganization,
   enabled = true,
 }: CustomerSelectProps) {
-  const query = useTenantOrganizations({ includeOrganizationId, enabled });
-  const organizations = query.data ?? [];
+  const query = useTenantOrganizations({ enabled });
+  const organizations = query.data ? withBoundOrganization(query.data, includeOrganization) : [];
   const loadFailed = query.isError;
   // Nothing to pick from is a disabled field with the reason as its placeholder,
   // not an empty menu: Radix forbids an empty-valued item, and "no customers" is
