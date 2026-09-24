@@ -1,3 +1,5 @@
+// `level` is a free string on the wire; anything outside the four known levels
+// must still render (as INFO) rather than crash a row or pick a wrong colour.
 import { describe, expect, it } from 'vitest';
 import { getDeviceLogLevelVariant, normalizeDeviceLogLevel } from './device-log-level';
 

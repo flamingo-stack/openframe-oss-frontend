@@ -61,6 +61,24 @@ export function getRelayErrorMessage(error: unknown, fallback = 'Something went 
 }
 
 /**
+ * The first `extensions.code` on a Relay error's `source.errors` — the classified
+ * failure, for UI that branches on it rather than on message text. The
+ * graphql-java non-null follow-up carries no code, so the first CODED entry wins.
+ */
+export function getRelayErrorCode(error: unknown): { code: string; message: string } | null {
+  const source: unknown = (error as { source?: unknown } | null)?.source;
+  const errors: unknown = (source as { errors?: unknown } | null)?.errors;
+  if (!Array.isArray(errors)) return null;
+  for (const entry of errors as readonly unknown[]) {
+    const { message, extensions } = (entry ?? {}) as { message?: unknown; extensions?: { code?: unknown } | null };
+    if (typeof extensions?.code === 'string') {
+      return { code: extensions.code, message: typeof message === 'string' ? message : '' };
+    }
+  }
+  return null;
+}
+
+/**
  * Handles API errors and shows toast notification
  * Use this in React Query mutation onError callbacks
  */

@@ -1,3 +1,4 @@
+import { getRelayErrorCode } from '@/lib/handle-api-error';
 import { isOfflineError, loadErrorProps } from '@/lib/query-state';
 import { DEVICE_LOG_SEARCH_REJECTED_MESSAGE } from './device-log-search';
 
@@ -14,26 +15,6 @@ export interface DeviceLogErrorInfo {
 export const DEVICE_LOGS_UNAVAILABLE_MESSAGE = 'Logs are temporarily unavailable.';
 export const DEVICE_LOGS_GENERIC_MESSAGE = "Couldn't load agent logs.";
 
-interface GraphqlErrorLike {
-  message?: string;
-  extensions?: { code?: unknown } | null;
-}
-
-/**
- * The classified error rides in `error.source.errors` on Relay's thrown error
- * (the same place `getRelayErrorMessage` reads). The graphql-java non-null
- * follow-up carries no code, so the first CODED entry wins.
- */
-export function getGraphqlErrorCode(error: unknown): { code: string; message: string } | null {
-  const errors = (error as { source?: { errors?: ReadonlyArray<GraphqlErrorLike | null> } } | null)?.source?.errors;
-  if (!Array.isArray(errors)) return null;
-  for (const entry of errors) {
-    const code = entry?.extensions?.code;
-    if (typeof code === 'string') return { code, message: entry?.message ?? '' };
-  }
-  return null;
-}
-
 /** `fetchRelay` throws this prefix for any non-200 that carried no GraphQL body (the edge proxy's 502). */
 function isTransportFailure(error: unknown): boolean {
   return error instanceof Error && error.message.startsWith('Relay fetch failed:');
@@ -48,7 +29,7 @@ export function describeDeviceLogError(error: unknown, { hasSearch }: { hasSearc
   if (isOfflineError(error)) {
     return { kind: 'offline', message: loadErrorProps(true, '').message, code: null };
   }
-  const coded = getGraphqlErrorCode(error);
+  const coded = getRelayErrorCode(error);
   switch (coded?.code) {
     case 'DEVICE_NOT_FOUND':
       return { kind: 'not-found', message: 'This device no longer exists.', code: coded.code };

@@ -1,3 +1,5 @@
+// FE-7's `×N` chip: `count` is an unmapped `Long` that may arrive as a string,
+// and `null`, 0 and 1 all mean "not repeated" — a `×1` chip must never render.
 import { describe, expect, it } from 'vitest';
 import { toRepeatCount } from './device-log-count';
 

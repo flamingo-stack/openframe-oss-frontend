@@ -1,6 +1,6 @@
 // Pins the tri-state the tab, the menu entry and the Run Script CTA all read:
-// "not answered yet" must not render as "off", and an explicit server "off"
-// wins over the dev fallback. Mirrors use-tenant-management-gate.test.tsx.
+// "not answered yet" is not "off", and a name the server does not know stays
+// off — there is no dev fallback. Mirrors use-tenant-management-gate.test.tsx.
 
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -52,7 +52,7 @@ describe('useDeviceAgentLogsGate', () => {
     expect(latest).toBe('on');
   });
 
-  it('is off when the server explicitly disabled it — the dev fallback only covers an unknown name', () => {
+  it('is off when the server explicitly disabled it', () => {
     act(() => useFeatureFlagsStore.getState().setFlags([{ name: 'device-agent-logs', enabled: false }]));
     expect(latest).toBe('off');
   });

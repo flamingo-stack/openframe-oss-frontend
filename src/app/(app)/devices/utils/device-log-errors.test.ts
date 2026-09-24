@@ -1,6 +1,9 @@
+// The list's failed state is chosen by `extensions.code`, not by message text:
+// a vanished device, a rejected filter and a WAF-rejected search each need their
+// own UI, and an unknown failure must fall back to Retry, never to a blank list.
 import { describe, expect, it } from 'vitest';
 import { OfflineError } from '@/lib/query-state';
-import { describeDeviceLogError, getGraphqlErrorCode } from './device-log-errors';
+import { describeDeviceLogError } from './device-log-errors';
 
 /** Relay's thrown error: the classified entry first, then graphql-java's non-null follow-up. */
 function relayError(code: string, message: string) {
@@ -15,20 +18,6 @@ function relayError(code: string, message: string) {
   });
   return error;
 }
-
-describe('getGraphqlErrorCode', () => {
-  it('returns the first coded entry and ignores the non-null noise', () => {
-    expect(getGraphqlErrorCode(relayError('DEVICE_NOT_FOUND', 'Machine not found: x'))).toEqual({
-      code: 'DEVICE_NOT_FOUND',
-      message: 'Machine not found: x',
-    });
-  });
-
-  it('is null for errors without a GraphQL body', () => {
-    expect(getGraphqlErrorCode(new Error('Relay fetch failed: 502 Bad Gateway'))).toBeNull();
-    expect(getGraphqlErrorCode(null)).toBeNull();
-  });
-});
 
 describe('describeDeviceLogError', () => {
   it('maps the API codes to their states', () => {

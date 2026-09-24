@@ -178,12 +178,9 @@ export function withMingoDialog(url: string, dialogId: string | null): string {
 }
 
 /**
- * Reload stamp for the device-details log surfaces — Overview's logs table and
- * the Agent Logs tab both read it. An overlay param, not a `routes` entry: it
- * rides the URL already showing rather than producing one.
- *
- * Write-once, so it has one writer and no mirror: readers clamp the value and
- * never write back, which is why the one-owner rule has nothing to arbitrate.
+ * Reload stamp read by Overview's logs table and the Agent Logs tab: an overlay
+ * param riding the URL already showing. Write-once — one writer, readers only
+ * compare it (ROUTES.md § Cross-cutting overlay params).
  */
 export const DEVICE_LOGS_REFRESH_PARAM = 'refresh';
 

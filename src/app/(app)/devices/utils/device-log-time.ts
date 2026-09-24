@@ -1,4 +1,6 @@
-import { differenceInMilliseconds } from 'date-fns';
+import type { DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { format, subDays } from 'date-fns';
+import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 
 export const DEVICE_LOG_RANGE_PRESETS = ['1h', '24h', '7d', 'custom'] as const;
 export type DeviceLogRangePreset = (typeof DEVICE_LOG_RANGE_PRESETS)[number];
@@ -34,10 +36,6 @@ export function presetToFromInstant(preset: DeviceLogRangeWindow, now = new Date
   return new Date(now.getTime() - PRESET_DURATION_MS[preset]).toISOString();
 }
 
-export function isRangeWithinLimit(from: Date, to: Date): boolean {
-  return differenceInMilliseconds(to, from) <= MAX_DEVICE_LOG_RANGE_DAYS * 24 * HOUR_MS;
-}
-
 const INSTANT_PATTERN = /^(.+T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?Z$/;
 
 /**
@@ -71,56 +69,55 @@ export function isInstantAfter(candidate: string, reference: string): boolean {
   }
 }
 
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
-/**
- * The row's time column (spec §4). UTC like the instant itself and like
- * `agent_ts` beside it — a log viewer that mixes zones is a bug factory.
- * Unparseable values pass through whole rather than losing data.
- */
-export function formatDeviceLogTime(instant: string): string {
+/** The instant's whole seconds as epoch ms, and its 0–9 digit fraction verbatim. */
+function splitInstant(instant: string): { millis: number; fraction: string } | null {
   const match = INSTANT_PATTERN.exec(instant);
-  if (!match) return instant;
-  const time = match[1].slice(match[1].indexOf('T') + 1);
-  // Padded to nanoseconds because the API trims the fraction to 3, 6 or 9
-  // digits: unpadded, the column is ragged. `.036` IS `.036000000`.
-  return `${time}.${(match[2] ?? '').padEnd(9, '0')}`;
+  if (!match) return null;
+  const millis = Date.parse(`${match[1]}Z`);
+  return Number.isNaN(millis) ? null : { millis, fraction: (match[2] ?? '').padEnd(9, '0') };
 }
 
-/** Day the row belongs to, in UTC — the grouping key for the separators. */
+/**
+ * The row's time column (spec §4) in the viewer's zone, like every time in the
+ * app. The fraction is copied from the wire padded to nanoseconds — `Date` keeps
+ * only milliseconds, and an unpadded column is ragged. Unparseable passes through.
+ */
+export function formatDeviceLogTime(instant: string): string {
+  const parts = splitInstant(instant);
+  return parts ? `${format(parts.millis, 'HH:mm:ss')}.${parts.fraction}` : instant;
+}
+
+/** The local day a line belongs to — the grouping key for the separators. */
 export function deviceLogDay(instant: string): string {
-  return instant.slice(0, 10);
+  const parts = splitInstant(instant);
+  return parts ? format(parts.millis, 'yyyy-MM-dd') : instant.slice(0, 10);
 }
 
 /** `23 SEP 2026` for the separator between days. */
 export function formatDeviceLogDay(instant: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(instant);
-  if (!match) return instant;
-  const month = MONTHS[Number(match[2]) - 1] ?? match[2];
-  return `${match[3]} ${month} ${match[1]}`;
+  const parts = splitInstant(instant);
+  return parts ? format(parts.millis, 'dd MMM yyyy').toUpperCase() : instant;
+}
+
+/** The zone the times are shown in, as of that instant (`GMT+3`, `EDT`), so DST shows. */
+export function formatDeviceLogZone(instant: string): string {
+  const parts = splitInstant(instant);
+  const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
+    .formatToParts(parts?.millis ?? Date.now())
+    .find(part => part.type === 'timeZoneName');
+  return zone?.value ?? '';
 }
 
 /**
- * Inclusive UTC bounds for the day params the custom picker writes. Not the
- * shared local-day helper: every timestamp on this tab is rendered and grouped
- * in UTC, so local bounds would filter a different day than the one shown.
+ * The custom range's instants via the shared local-day helper. A lone end day
+ * stands for itself, a reversed pair is put in order, and a hand-edited URL
+ * wider than the API allows is clamped to its last 30 days.
  */
-export function deviceLogDayBounds(fromDay: string, toDay: string): { from?: string; to?: string } {
-  // Symmetric fallback: a URL carrying only `to` used to drop the whole range
-  // and land on the default window without saying so.
-  const lower = fromDay || toDay;
-  const upper = toDay || fromDay;
-  if (!lower || !upper) return { from: undefined, to: undefined };
-  const to = new Date(`${upper}T23:59:59.999Z`);
-  const from = new Date(`${lower}T00:00:00.000Z`);
-  // A hand-edited day param must never reach `toISOString()`, which throws on an
-  // invalid date — and this runs above the tab's error boundary.
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return { from: undefined, to: undefined };
-  // The picker cannot offer a wider range, but a hand-edited URL can, and the
-  // API answers VALIDATION_ERROR — clamp instead of sending a doomed request.
-  // `+1ms` lands exactly on a UTC day start, so the clamp stays day-aligned.
-  const capped = isRangeWithinLimit(from, to)
-    ? from
-    : new Date(to.getTime() - MAX_DEVICE_LOG_RANGE_DAYS * 24 * HOUR_MS + 1);
-  return { from: capped.toISOString(), to: to.toISOString() };
+export function deviceLogCustomBounds(range: DateRange | undefined): { from?: string; to?: string } {
+  const first = range?.from ?? range?.to;
+  const last = range?.to ?? range?.from;
+  if (!first || !last) return {};
+  const [lower, upper] = first <= last ? [first, last] : [last, first];
+  const earliest = subDays(upper, MAX_DEVICE_LOG_RANGE_DAYS - 1);
+  return dateRangeToInstantBounds({ from: lower < earliest ? earliest : lower, to: upper });
 }

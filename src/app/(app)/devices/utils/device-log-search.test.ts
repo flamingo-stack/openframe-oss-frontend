@@ -1,3 +1,5 @@
+// The API rejects over-limit searches with a server error, not VALIDATION — so
+// the client must reject them first, with the exact rule the user broke.
 import { describe, expect, it } from 'vitest';
 import { DEVICE_LOG_SEARCH_REJECTED_MESSAGE, parseDeviceLogSearch } from './device-log-search';
 

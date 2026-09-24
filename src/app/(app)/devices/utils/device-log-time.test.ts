@@ -1,14 +1,22 @@
+// The tab shows local wall-clock time while the wire carries UTC instants with
+// up to nine fraction digits. Pinned in a zone west of UTC with DST, where a
+// UTC-day or millisecond shortcut shows the wrong day, hour or line order.
 import { describe, expect, it } from 'vitest';
 import {
+  deviceLogCustomBounds,
   deviceLogDay,
-  deviceLogDayBounds,
   formatDeviceLogDay,
   formatDeviceLogTime,
+  formatDeviceLogZone,
   instantToNanos,
   isInstantAfter,
-  isRangeWithinLimit,
   presetToFromInstant,
 } from './device-log-time';
+
+// Before any test runs; Node re-reads the zone on assignment.
+process.env.TZ = 'America/New_York';
+
+const local = (y: number, m: number, d: number) => new Date(y, m - 1, d);
 
 describe('instantToNanos', () => {
   it('reads 3, 6 and 9 fraction digits onto one nanosecond scale', () => {
@@ -41,41 +49,36 @@ describe('isInstantAfter', () => {
   });
 });
 
-describe('range presets', () => {
+describe('presetToFromInstant', () => {
   it('computes the lower bound from a fixed clock', () => {
     const now = new Date('2026-09-21T12:00:00.000Z');
     expect(presetToFromInstant('1h', now)).toBe('2026-09-21T11:00:00.000Z');
     expect(presetToFromInstant('24h', now)).toBe('2026-09-20T12:00:00.000Z');
     expect(presetToFromInstant('7d', now)).toBe('2026-09-14T12:00:00.000Z');
   });
-
-  it('caps custom ranges at 30 days inclusive', () => {
-    const to = new Date('2026-09-21T23:59:59.999Z');
-    expect(isRangeWithinLimit(new Date('2026-08-22T23:59:59.999Z'), to)).toBe(true);
-    expect(isRangeWithinLimit(new Date('2026-08-22T00:00:00.000Z'), to)).toBe(false);
-  });
 });
 
-describe('row time and day', () => {
-  it('pads every fraction to nanoseconds so the column is not ragged', () => {
-    // The API trims to 3, 6 or 9 digits, which left stamps of three lengths
-    // stacked in one fixed-width column.
-    expect(formatDeviceLogTime('2026-09-23T09:04:26.847000044Z')).toBe('09:04:26.847000044');
-    expect(formatDeviceLogTime('2026-09-23T09:04:26.847Z')).toBe('09:04:26.847000000');
-    expect(formatDeviceLogTime('2026-09-23T09:04:26.847000Z')).toBe('09:04:26.847000000');
-    expect(formatDeviceLogTime('2026-09-23T09:04:26Z')).toBe('09:04:26.000000000');
+describe('row time', () => {
+  it('shows the local wall clock, not the UTC digits', () => {
+    // 09:04 UTC is 05:04 in New York (EDT, UTC−4).
+    expect(formatDeviceLogTime('2026-09-23T09:04:26.847000044Z')).toBe('05:04:26.847000044');
   });
 
-  it('gives every stamp the same width', () => {
+  it('follows DST: the same UTC hour is an hour apart across the switch', () => {
+    expect(formatDeviceLogTime('2026-01-15T12:00:00Z')).toBe('07:00:00.000000000');
+    expect(formatDeviceLogTime('2026-07-15T12:00:00Z')).toBe('08:00:00.000000000');
+  });
+
+  it('pads every fraction to nanoseconds so the column is not ragged', () => {
     const widths = ['2026-09-23T09:04:26Z', '2026-09-23T09:04:26.847Z', '2026-09-23T09:04:26.847000044Z'].map(
       instant => formatDeviceLogTime(instant).length,
     );
     expect(new Set(widths).size).toBe(1);
+    expect(formatDeviceLogTime('2026-09-23T09:04:26.847Z')).toBe('05:04:26.847000000');
   });
 
   it('keeps two lines inside one millisecond distinguishable', () => {
-    // Why the column shows the whole fraction: agents burst several lines into
-    // the same millisecond, and a truncated stamp made them look identical.
+    // Agents burst several lines into one millisecond; `Date` alone would print them identically.
     expect(formatDeviceLogTime('2026-09-23T12:04:35.731000019Z')).not.toBe(
       formatDeviceLogTime('2026-09-23T12:04:35.731000018Z'),
     );
@@ -85,65 +88,49 @@ describe('row time and day', () => {
     expect(formatDeviceLogTime('yesterday')).toBe('yesterday');
     expect(formatDeviceLogDay('yesterday')).toBe('yesterday');
   });
+});
 
-  it('groups by UTC day and labels the separator', () => {
-    expect(deviceLogDay('2026-09-23T09:04:26.847000044Z')).toBe('2026-09-23');
-    expect(formatDeviceLogDay('2026-09-23T00:00:00Z')).toBe('23 SEP 2026');
-    expect(formatDeviceLogDay('2026-01-05T23:59:59Z')).toBe('05 JAN 2026');
+describe('day separators', () => {
+  it('groups by the LOCAL day: just after UTC midnight is still yesterday here', () => {
+    expect(deviceLogDay('2026-09-24T02:30:00Z')).toBe('2026-09-23');
+    expect(deviceLogDay('2026-09-24T04:30:00Z')).toBe('2026-09-24');
+    expect(formatDeviceLogDay('2026-09-24T02:30:00Z')).toBe('23 SEP 2026');
+  });
+
+  it('names the zone as of that instant, so a DST switch shows', () => {
+    expect(formatDeviceLogZone('2026-01-15T12:00:00Z')).toBe('EST');
+    expect(formatDeviceLogZone('2026-07-15T12:00:00Z')).toBe('EDT');
   });
 });
 
-describe('deviceLogDayBounds', () => {
-  it('covers whole UTC days, so the filter matches the day the rows are grouped under', () => {
-    expect(deviceLogDayBounds('2026-09-23', '2026-09-23')).toEqual({
-      from: '2026-09-23T00:00:00.000Z',
-      to: '2026-09-23T23:59:59.999Z',
+describe('deviceLogCustomBounds', () => {
+  it('covers the picked local days, inclusive, as instants', () => {
+    expect(deviceLogCustomBounds({ from: local(2026, 9, 20), to: local(2026, 9, 23) })).toEqual({
+      from: '2026-09-20T04:00:00.000Z',
+      to: '2026-09-24T03:59:59.999Z',
     });
-    expect(deviceLogDayBounds('2026-09-20', '2026-09-23').to).toBe('2026-09-23T23:59:59.999Z');
   });
 
-  it('treats a single picked day as that whole day', () => {
-    expect(deviceLogDayBounds('2026-09-23', '')).toEqual({
-      from: '2026-09-23T00:00:00.000Z',
-      to: '2026-09-23T23:59:59.999Z',
-    });
+  it('treats a lone day — start or end — as that whole day', () => {
+    const day = { from: '2026-09-23T04:00:00.000Z', to: '2026-09-24T03:59:59.999Z' };
+    expect(deviceLogCustomBounds({ from: local(2026, 9, 23), to: undefined })).toEqual(day);
+    expect(deviceLogCustomBounds({ from: undefined, to: local(2026, 9, 23) })).toEqual(day);
+  });
+
+  it('puts a hand-edited reversed pair in order instead of sending an empty range', () => {
+    expect(deviceLogCustomBounds({ from: local(2026, 9, 23), to: local(2026, 9, 20) })).toEqual(
+      deviceLogCustomBounds({ from: local(2026, 9, 20), to: local(2026, 9, 23) }),
+    );
+  });
+
+  it('clamps a hand-edited range to the API limit of 30 days, day-aligned', () => {
+    const wide = deviceLogCustomBounds({ from: local(2026, 1, 1), to: local(2026, 9, 23) });
+    expect(wide.from).toBe('2026-08-25T04:00:00.000Z');
+    expect(wide.to).toBe('2026-09-24T03:59:59.999Z');
   });
 
   it('is empty when nothing is picked', () => {
-    expect(deviceLogDayBounds('', '')).toEqual({ from: undefined, to: undefined });
-  });
-
-  it('treats a lone end day as that whole day, the way a lone start day is treated', () => {
-    // A URL carrying only `logTo` used to drop the range and land on the
-    // default window without telling anyone.
-    expect(deviceLogDayBounds('', '2026-09-23')).toEqual({
-      from: '2026-09-23T00:00:00.000Z',
-      to: '2026-09-23T23:59:59.999Z',
-    });
-  });
-
-  it('clamps a hand-edited URL to the API limit instead of sending a doomed request', () => {
-    const wide = deviceLogDayBounds('2026-01-01', '2026-09-23');
-    expect(wide.to).toBe('2026-09-23T23:59:59.999Z');
-    expect(wide.from).toBe('2026-08-25T00:00:00.000Z');
-    expect(isRangeWithinLimit(new Date(wide.from as string), new Date(wide.to as string))).toBe(true);
-  });
-
-  it('leaves a range inside the limit untouched', () => {
-    expect(deviceLogDayBounds('2026-09-20', '2026-09-23').from).toBe('2026-09-20T00:00:00.000Z');
-  });
-
-  it('falls back instead of throwing on a hand-edited day param', () => {
-    // `toISOString()` on an invalid date throws, and this runs above the tab's
-    // error boundary — a junk URL would take the whole device page down.
-    for (const pair of [
-      ['garbage', ''],
-      ['', 'oops'],
-      ['2026-13-45', ''],
-      ['2026-09-23', 'not-a-day'],
-    ] as const) {
-      expect(() => deviceLogDayBounds(pair[0], pair[1])).not.toThrow();
-      expect(deviceLogDayBounds(pair[0], pair[1])).toEqual({ from: undefined, to: undefined });
-    }
+    expect(deviceLogCustomBounds(undefined)).toEqual({});
+    expect(deviceLogCustomBounds({ from: undefined, to: undefined })).toEqual({});
   });
 });

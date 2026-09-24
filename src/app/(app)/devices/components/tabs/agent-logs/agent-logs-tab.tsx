@@ -21,7 +21,7 @@ import {
 } from '../../../utils/device-log-search';
 import {
   DEFAULT_DEVICE_LOG_RANGE,
-  deviceLogDayBounds,
+  deviceLogCustomBounds,
   type DeviceLogRangePreset,
   isDeviceLogRangePreset,
   MAX_DEVICE_LOG_RANGE_DAYS,
@@ -71,11 +71,14 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   // reject, and the latch below only covers later edits (FE-12). The query
   // follows the debounced text only while it parses, so a rejection holds.
   const liveSearch = parseDeviceLogSearch(search);
-  const debouncedParsed = useMemo(() => parseDeviceLogSearch(debouncedSearch), [debouncedSearch]);
   // The latch holds the TEXT, not the parse: comparing parses by identity made
   // the render-phase update fire again on every render.
   const [validSearchText, setValidSearchText] = useState('');
-  if (debouncedParsed.error === null && debouncedSearch !== validSearchText) setValidSearchText(debouncedSearch);
+  if (parseDeviceLogSearch(debouncedSearch).error === null && debouncedSearch !== validSearchText) {
+    setValidSearchText(debouncedSearch);
+  }
+  // This memo and the ones feeding `filter` are for identity, not speed:
+  // `useDeferredQuery` tells a pending refetch apart by reference.
   const validSearch = useMemo<ParsedDeviceLogSearch>(
     () => (validSearchText === '' ? EMPTY_DEVICE_LOG_SEARCH : parseDeviceLogSearch(validSearchText)),
     [validSearchText],
@@ -105,7 +108,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
     if (selectedLevels.length > 0 && selectedLevels.length < DEVICE_LOG_LEVELS.length) next.levels = selectedLevels;
     if (validSearch.contains.length > 0) next.contains = validSearch.contains;
     if (validSearch.excludes.length > 0) next.excludes = validSearch.excludes;
-    const bounds = range === 'custom' ? deviceLogDayBounds(params.logFrom, params.logTo) : {};
+    const bounds = range === 'custom' ? deviceLogCustomBounds(customRange) : {};
     if (bounds.from) {
       next.from = bounds.from;
       if (bounds.to) next.to = bounds.to;
@@ -115,7 +118,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
       next.from = presetToFromInstant(preset, new Date(anchorNow));
     }
     return next;
-  }, [selectedLevels, validSearch, range, params.logFrom, params.logTo, anchorNow]);
+  }, [selectedLevels, validSearch, range, customRange, anchorNow]);
 
   const list = useMemo<AgentLogsList>(
     () => ({ filter, key: `${machineId}|${JSON.stringify(filter)}|${anchorNow}` }),
@@ -132,7 +135,8 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   const hasSearch = Boolean(filter.contains?.length || filter.excludes?.length);
   const hasActiveFilters =
     selectedLevels.length > 0 || search !== '' || range !== DEFAULT_DEVICE_LOG_RANGE || customRange !== undefined;
-  const beyondRetention = filter.from !== undefined && anchorNow - Date.parse(filter.from) > RETENTION_DAYS * DAY_MS;
+  const beyondRetention =
+    filter.from !== undefined && anchorNow - Date.parse(String(filter.from)) > RETENTION_DAYS * DAY_MS;
   const customBounds = useMemo(() => {
     const today = new Date(anchorNow);
     // 29 days back, so any pick (inclusive of both end days) stays under the cap.
