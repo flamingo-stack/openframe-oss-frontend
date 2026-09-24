@@ -148,15 +148,15 @@ export const REMOTE_ACCESS_MODE_META: Record<RemoteAccessMode, { label: string; 
   },
   NOTIFY_ONLY: {
     label: 'Notify Only',
-    description: 'No approval needed, user sees a notification.',
+    description: 'No approval prompt. The user sees the session block, can chat and can end the session.',
   },
   SILENT_ACCESS: {
     label: 'Silent Access',
-    description: 'No approval, no notification.',
+    description: 'No prompt, no indicator, no chat. The user cannot end the session.',
   },
   DENY_ACCESS: {
     label: 'Deny Access',
-    description: 'Remote connect is disabled for this device.',
+    description: 'Remote Control is blocked. Remote shell and file manager are not affected.',
   },
 };
 
