@@ -390,7 +390,7 @@ jobs:
         with:
           ref: ${{ github.event.client_payload.overlay_head_sha || '' }}
           fetch-depth: 0
-          filter: ${{ github.event.client_payload.overlay_pr && '' || 'blob:none' }}
+          filter: ${{ !github.event.client_payload.overlay_pr && 'blob:none' || '' }}
           persist-credentials: false
 
       - name: Setup Node.js (graph)
@@ -413,6 +413,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           CODE_GRAPH_OVERLAY_PR: ${{ github.event.client_payload.overlay_pr || '' }}
           CODE_GRAPH_OVERLAY_HEAD_SHA: ${{ github.event.client_payload.overlay_head_sha || '' }}
+          CODE_GRAPH_BRANCH: ${{ github.event.client_payload.overlay_pr && format('overlay/pr-{0}', github.event.client_payload.overlay_pr) || '' }}
         run: node /tmp/code-graph-build.mjs
 
   doc-pipeline:
