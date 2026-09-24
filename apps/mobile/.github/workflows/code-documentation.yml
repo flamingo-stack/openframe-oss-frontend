@@ -232,12 +232,17 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-    # OVERLAY MODE (a multi-repo change set's member PR, dispatched by the hub's
-    # `code-change-sets` job with overlay_pr / overlay_head_sha in the payload)
-    # runs in its OWN group, per PR: an overlay build must never cancel the
-    # default branch's graph rebuild, nor the reverse.
+    # THREE groups, so no two kinds of run ever cancel each other:
+    #  - a `pull_request` event runs in `-pr-<n>`: a newer event for the same PR
+    #    supersedes the older run (it refreshes and decides the build again);
+    #  - an OVERLAY build the hub's `code-change-sets` job dispatches
+    #    (overlay_pr / overlay_head_sha in the payload) runs in `-overlay-<n>`: a
+    #    newer dispatch for the same PR supersedes the older one;
+    #  - everything else (the default branch's rebuild) keeps the repository group.
+    # A dispatched build and the PR's own run may build the same head at once;
+    # that is harmless: the hub upserts an overlay on (repo, pr, head, generator).
     concurrency:
-      group: flamingo-code-graph-${{ github.repository }}${{ (github.event.client_payload.overlay_pr || github.event.pull_request.number) && format('-overlay-{0}', (github.event.client_payload.overlay_pr || github.event.pull_request.number)) || '' }}
+      group: flamingo-code-graph-${{ github.repository }}${{ github.event.client_payload.overlay_pr && format('-overlay-{0}', github.event.client_payload.overlay_pr) || github.event.pull_request.number && format('-pr-{0}', github.event.pull_request.number) || '' }}
       cancel-in-progress: true
     if: >-
       (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
@@ -246,6 +251,7 @@ jobs:
       || (github.event_name == 'pull_request'
           && github.event.pull_request.head.repo.full_name == github.repository
           && !startsWith(github.event.pull_request.head.ref, 'ai-fix/')
+          && !startsWith(github.event.pull_request.head.ref, 'setup/')
           && !(github.event.action == 'edited' && github.event.sender.type == 'Bot'))
 
     steps:
@@ -253,6 +259,11 @@ jobs:
       # FLAMINGO_HUB_BASE_URL would otherwise curl an empty origin and die with
       # an unrelated error. Also normalizes a trailing slash ONCE.
       - name: Validate configuration
+        id: config
+        # A pull_request event must never turn a PR check red: the refresh is advisory
+        # (the hub's webhook path and schedule are the net), so a missing hub URL or
+        # secret on a PR only skips it.
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         run: |
           if [ -z "$HUB_BASE_URL" ]; then
             echo "::error title=Hub URL missing::HUB_BASE_URL is empty. Set the organization Actions variable FLAMINGO_HUB_BASE_URL, or pass hub_base_url in the dispatch payload."
@@ -265,6 +276,9 @@ jobs:
       # asserted by the build gate). BOTH graph scripts are downloaded: the builder
       # imports ./code-graph-lib.mjs from its own directory.
       - name: Download graph scripts
+        id: scripts
+        if: github.event_name != 'pull_request' || steps.config.outcome == 'success'
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         env:
           WEBHOOK_SECRET: ${{ secrets.FLAMINGO_HUB_SECRET }}
         run: |
@@ -385,16 +399,21 @@ jobs:
 
       # LIVE change sets (a `pull_request` event): ask the hub to refresh NOW and
       # whether this run builds the PR's overlay (`build`). Never fails the run.
-      # A fork has no secrets and is excluded by the job's `if:`; a bot's own
-      # description edit (the hub writing its block) is excluded too, or every
-      # hub write would start another run.
+      # A fork has no secrets and is excluded by the job's `if:`, as are the hub
+      # tools' own branches (TOOL_BRANCH_PREFIXES); a bot's own description edit
+      # (the hub writing its block) is excluded too, or every hub write would
+      # start another run.
       - name: Refresh the change set
         id: refresh
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.scripts.outcome == 'success'
+        # A hub that cannot answer never fails the pull request's check: the schedule links the set.
+        continue-on-error: true
         env:
           WEBHOOK_SECRET: ${{ secrets.FLAMINGO_HUB_SECRET }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           CODE_GRAPH_REFRESH_PR: ${{ github.event.pull_request.number }}
+          # The head of THIS event: the hub answers `build` only while it is still the PR's live head.
+          CODE_GRAPH_REFRESH_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node /tmp/code-graph-build.mjs
 
       # FULL history, blobless. `collectFileFacts` derives per-file ownership
@@ -411,6 +430,8 @@ jobs:
       # detection, which reads contents a blob:none clone cannot fetch here.
       - name: Check out repository
         if: github.event_name != 'pull_request' || steps.refresh.outputs.build == 'true'
+        # A pull request's check never goes red on the overlay: the graph lane and the schedule rebuild it.
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ (github.event.client_payload.overlay_head_sha || github.event.pull_request.head.sha) || '' }}
@@ -421,6 +442,8 @@ jobs:
 
       - name: Set up Node.js
         if: github.event_name != 'pull_request' || steps.refresh.outputs.build == 'true'
+        # A pull request's check never goes red on the overlay: the graph lane and the schedule rebuild it.
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
@@ -430,12 +453,16 @@ jobs:
       # yaml into an isolated tree under RUNNER_TEMP, exported as CODE_GRAPH_DEPS_DIR.
       - name: Install graph dependencies
         if: github.event_name != 'pull_request' || steps.refresh.outputs.build == 'true'
+        # A pull request's check never goes red on the overlay: the graph lane and the schedule rebuild it.
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         run: mkdir -p "$RUNNER_TEMP/code-graph-deps" && cd "$RUNNER_TEMP/code-graph-deps" && printf '%s' '{"name":"code-graph-deps","version":"1.0.0","private":true,"dependencies":{"web-tree-sitter":"0.27.0","@vscode/tree-sitter-wasm":"0.3.1","yaml":"2.9.1"}}' > package.json && printf '%s' '{"name":"code-graph-deps","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"code-graph-deps","version":"1.0.0","dependencies":{"web-tree-sitter":"0.27.0","@vscode/tree-sitter-wasm":"0.3.1","yaml":"2.9.1"}},"node_modules/web-tree-sitter":{"version":"0.27.0","resolved":"https://registry.npmjs.org/web-tree-sitter/-/web-tree-sitter-0.27.0.tgz","integrity":"sha512-XK08gj6RwTMQatAG7uVRP8MunqotL/XC19vHgkSPKmELgbGPBj4ECvB8haHOUnyj6ls2B8t42UTro14zxGgAHg=="},"node_modules/@vscode/tree-sitter-wasm":{"version":"0.3.1","resolved":"https://registry.npmjs.org/@vscode/tree-sitter-wasm/-/tree-sitter-wasm-0.3.1.tgz","integrity":"sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ=="},"node_modules/yaml":{"version":"2.9.1","resolved":"https://registry.npmjs.org/yaml/-/yaml-2.9.1.tgz","integrity":"sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw=="}}}' > package-lock.json && npm ci --ignore-scripts --no-audit --no-fund && echo "CODE_GRAPH_DEPS_DIR=$RUNNER_TEMP/code-graph-deps" >> "$GITHUB_ENV" || { echo "::warning::graph dependencies failed their lockfile-enforced install; continuing without them"; rm -rf "$RUNNER_TEMP/code-graph-deps"; exit 1; }
 
       # Overlay mode posts the PR's overlay INSTEAD of a snapshot (code-graph-build.mjs `overlayMain`).
       - name: Build and upload the code graph
         id: graph
         if: github.event_name != 'pull_request' || steps.refresh.outputs.build == 'true'
+        # A pull request's check never goes red on the overlay: the graph lane and the schedule rebuild it.
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         env:
           WEBHOOK_SECRET: ${{ secrets.FLAMINGO_HUB_SECRET }}
           CODE_GRAPH_DEPS_DIR: ${{ env.CODE_GRAPH_DEPS_DIR }}
