@@ -1,7 +1,16 @@
 'use client';
 'use no memo';
 
-import { Autocomplete, FileUpload, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Autocomplete,
+  FileUpload,
+  Input,
+  Label,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn, useWatch } from 'react-hook-form';
@@ -21,6 +30,7 @@ import { useTicketStatusesQuery } from '../../statuses/hooks/use-ticket-statuses
 import type { CreateTicketFormData } from '../../types/create-ticket.types';
 import type { Ticket } from '../../types/ticket.types';
 import { resolveCurrentStatus } from '../../utils/resolve-current-status';
+import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../../utils/status-lock';
 import { getTicketDeviceName } from '../../utils/ticket-device-name';
 import { TICKET_STATUS_KIND } from '../../utils/ticket-statistics';
 import { avatarStartAdornment, renderAvatarOption } from '../avatar-autocomplete';
@@ -142,6 +152,15 @@ export function TicketFormFields({
       .filter(s => !s.isSystem || s.kind === TICKET_STATUS_KIND.TECH_REQUIRED)
       .map(s => ({ label: s.name, value: s.id, color: s.color }));
   }, [isEditMode, ticket, statusesQuery.data]);
+
+  // Tech Required + pending approval: the server rejects any transition, so
+  // the status field is locked with the reason in a tooltip.
+  const isStatusLocked =
+    isEditMode &&
+    isStatusLockedByPendingApproval({
+      statusKind: ticket?.statusDefinition?.kind,
+      pendingApproval: ticket?.pendingApproval,
+    });
 
   const selectedStatusId = useWatch({ control, name: 'statusId' });
   // New ticket: pre-select the first CUSTOM status once options load (Tech Required is
@@ -288,7 +307,7 @@ export function TicketFormFields({
           control={control}
           render={({ field, fieldState }) => {
             const selectedStatus = statusOptions.find(o => o.value === field.value);
-            return (
+            const statusField = (
               <Autocomplete
                 label="Status"
                 options={statusOptions}
@@ -296,12 +315,23 @@ export function TicketFormFields({
                 onChange={val => field.onChange(val)}
                 placeholder="Select Status"
                 loading={!isEditMode && statusesQuery.isLoading}
-                disabled={isFaeForm}
+                disabled={isFaeForm || isStatusLocked}
                 error={fieldState.error?.message}
                 invalid={!!fieldState.error}
                 startAdornment={statusStartAdornment(selectedStatus)}
                 renderOption={renderStatusOption}
               />
+            );
+            if (!isStatusLocked) return statusField;
+            return (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-not-allowed">{statusField}</div>
+                  </TooltipTrigger>
+                  <TooltipContent>{STATUS_LOCKED_BY_APPROVAL_REASON}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             );
           }}
         />

@@ -40,6 +40,7 @@ import type { Dialog, TicketActivityFilter } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { resolveBoardActivity } from '../utils/board-activity';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
+import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
 import { getTicketDeviceName } from '../utils/ticket-device-name';
 import { ActivityFilter } from './activity-filter';
 import { AssigneeFilter } from './assignee-filter';
@@ -608,6 +609,19 @@ export function TicketsBoard({
   const handleChange = useCallback(
     (change: BoardChange) => {
       if (change.fromColumnId !== change.toColumnId) {
+        // Tech Required + pending approval: the server rejects the transition,
+        // so block the drop up front - toast the reason and snap the card back.
+        const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
+        if (isStatusLockedByPendingApproval(dialogById.get(change.ticketId))) {
+          toast({
+            title: 'Status Locked',
+            description: STATUS_LOCKED_BY_APPROVAL_REASON,
+            variant: 'destructive',
+            duration: 5000,
+          });
+          setBoardResetNonce(nonce => nonce + 1);
+          return;
+        }
         // Dragging OUT of the Resolved lane is a REOPEN, not a plain move: it
         // goes through the confirmation modal (target status + assignee +
         // reason) instead of committing the drop. The card is HELD at the drop
@@ -615,7 +629,6 @@ export function TicketsBoard({
         // confirming keeps it there, cancelling releases it back. Gated on
         // `ai-resolution` — with the flag off the drop commits directly (legacy).
         if (featureFlags.aiResolution.enabled()) {
-          const sourceKind = statuses.find(s => s.id === change.fromColumnId)?.kind;
           if (sourceKind === 'RESOLVED') {
             setHeldMove(change);
             setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
@@ -641,7 +654,7 @@ export function TicketsBoard({
         beforeTicketId: change.beforeTicketId,
       });
     },
-    [moveTicket, statuses, dialogById, setHeldMove],
+    [moveTicket, statuses, dialogById, toast, setHeldMove],
   );
 
   const showEmptyState =
