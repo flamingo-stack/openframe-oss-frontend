@@ -81,6 +81,7 @@ import { lastClientMessageId } from '../utils/client-chat-read';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
 import { latestAssistantModel } from '../utils/latest-assistant-model';
 import { ticketsQueryKeys } from '../utils/query-keys';
+import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
 import { getTicketDeviceName } from '../utils/ticket-device-name';
 import { formatTicketRef } from '../utils/ticket-ref';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
@@ -418,6 +419,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const handleTransition = useCallback(
     (toStatusId: string) => {
       if (!dialog || transitionTicket.isPending) return;
+      // Server-enforced lock (Tech Required + pending approval): the dropdown
+      // is disabled in this state, but guard the programmatic path too.
+      if (isStatusLockedByPendingApproval(dialog)) return;
       // Leaving a terminal status for a WORKING one is a REOPEN, not a plain
       // move: it goes through the confirmation modal (target status + assignee
       // + reason) instead of firing the transition directly. Gated on
@@ -466,6 +470,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       updateApprovalStatusInMessages('client', requestId, status);
       try {
         await mutate(requestId);
+        // Resolving the approval releases the status lock and changes the
+        // available transitions - refresh the cached ticket right away.
+        refetchDialog();
       } catch (error) {
         toast({
           title: approving ? 'Approval Failed' : 'Rejection Failed',
@@ -480,7 +487,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         });
       }
     },
-    [handleApproveRequest, handleRejectRequest, toast, updateApprovalStatusInMessages],
+    [handleApproveRequest, handleRejectRequest, toast, updateApprovalStatusInMessages, refetchDialog],
   );
 
   const handleApprove = useCallback(
@@ -619,6 +626,12 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     statusName: dialog.statusName,
     statusColor: dialog.statusColor,
   });
+  // Tech Required + pending approval: the server rejects any transition, so
+  // the inline changer renders as a locked tag with the reason in a tooltip.
+  // Starting a direct chat stays available - it changes no status, and the
+  // handoff cancels the pending approval on the backend, which unlocks.
+  const isStatusLocked = isStatusLockedByPendingApproval(dialog);
+
   const hasClientChat = !isAdminOwner;
   const hasDescription = !!dialog.description?.trim();
   const hasAssignedItems = !!(
@@ -704,6 +717,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         options: dialog.availableTransitions,
         onSelect: handleTransition,
         isPending: transitionTicket.isPending,
+        disabled: isStatusLocked,
+        disabledReason: isStatusLocked ? STATUS_LOCKED_BY_APPROVAL_REASON : undefined,
       },
     },
   ];
