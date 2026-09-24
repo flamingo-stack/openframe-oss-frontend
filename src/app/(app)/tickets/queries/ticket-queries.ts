@@ -110,6 +110,10 @@ export const GET_TICKET_QUERY = `
         name
         color
       }
+      pendingApproval {
+        id
+        approvalType
+      }
       creationSource
       owner {
         ... on ClientTicketOwner {
