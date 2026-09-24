@@ -259,6 +259,14 @@ final class SecureTokenStore {
      * KeyPermanentlyInvalidatedException forever. Without this reset, re-enabling
      * after an enrollment change would gate the tokens behind a key that can
      * never decrypt again (an endless BIOMETRIC_INVALIDATED → re-login loop).
+     *
+     * Also clears any gated ciphertext/wrapped-key entries (COMBINED and the
+     * legacy accounts) that were wrapped under the now-deleted key: those blobs
+     * can never be unwrapped once the private key is gone, so leaving them in
+     * place would reintroduce the exact BIOMETRIC_INVALIDATED loop this method
+     * exists to prevent if a caller does not immediately re-write every gated
+     * account afterward. Also clears the enabled marker — it is only true again
+     * once the caller successfully re-writes the gated blob under the fresh key.
      */
     synchronized void resetBiometricKey() throws Exception {
         KeyStore keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER);
@@ -266,6 +274,10 @@ final class SecureTokenStore {
         if (keyStore.containsAlias(BIO_KEY_ALIAS)) {
             keyStore.deleteEntry(BIO_KEY_ALIAS);
         }
+        deleteGated(COMBINED);
+        deleteGated(LEGACY_ACCESS_TOKEN);
+        deleteGated(LEGACY_REFRESH_TOKEN);
+        setBiometricEnabled(false);
     }
 
     /**
