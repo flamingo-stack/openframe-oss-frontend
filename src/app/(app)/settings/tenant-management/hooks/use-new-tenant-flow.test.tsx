@@ -10,7 +10,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import {
   DirectoryAccessState,
   DirectoryCapability,
@@ -205,12 +205,17 @@ describe('useNewTenantFlow', () => {
   });
 
   it('keeps the created record and says so when the retry fails too — never a second create', async () => {
-    service.startConsent.mockRejectedValueOnce(new Error('Provider unreachable'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    onTestFinished(() => warn.mockRestore());
+    const failure = new Error('Provider unreachable');
+    service.startConsent.mockRejectedValueOnce(failure);
     await generateAndLink(connection({ consentUrl: null }));
     expect(service.create).toHaveBeenCalledTimes(1);
     expect(hook().connection?.id).toBe('tc-99');
     expect(hook().canSave).toBe(true);
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'warning', title: 'No consent link yet' }));
+    // The fallback keeps the record, but the retry's failure still leaves a trace.
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('[tenant-management]'), failure);
   });
 
   it('Edit Domain with the domain unchanged mints a new link without resending the domain', async () => {
@@ -223,12 +228,10 @@ describe('useNewTenantFlow', () => {
     await act(async () => {
       await hook().generate(VALUES);
     });
-    // The API refuses any domain once the admin consented — possibly outside this page.
-    expect(service.update).toHaveBeenCalledWith('tc-99', {
-      domain: undefined,
-      name: VALUES.name,
-      organizationId: VALUES.organizationId,
-    });
+    // The API refuses any domain once the admin consented — possibly outside this page — so
+    // the key must be absent, not undefined (`toHaveBeenCalledWith` would accept either).
+    expect(service.update).toHaveBeenCalledWith('tc-99', { name: VALUES.name, organizationId: VALUES.organizationId });
+    expect(service.update.mock.calls[0][1]).not.toHaveProperty('domain');
     expect(hook().phase).toBe('link');
   });
 

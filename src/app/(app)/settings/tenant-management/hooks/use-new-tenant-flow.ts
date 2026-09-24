@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
 import { getErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import type { TenantConnectionRecord } from '../types/tenant-connection';
+import type { TenantConnectionRecord, UpdateTenantConnectionInput } from '../types/tenant-connection';
 import type { TenantFormData } from '../types/tenant-form.types';
 import { useCreateTenantConnection, useStartTenantConsent, useUpdateTenantConnection } from './use-tenant-connections';
 import { useTenantConsent } from './use-tenant-consent';
@@ -64,11 +64,9 @@ export function useNewTenantFlow() {
           if (connection) {
             // Edit Domain re-run: an unchanged domain is left out — the API refuses it once the
             // admin has consented, which may have happened outside this page.
-            const domain = values.domain !== connection.domain ? values.domain : undefined;
-            await updateAsync({
-              id: connection.id,
-              input: { domain, name: values.name, organizationId: values.organizationId },
-            });
+            const input: UpdateTenantConnectionInput = { name: values.name, organizationId: values.organizationId };
+            if (values.domain !== connection.domain) input.domain = values.domain;
+            await updateAsync({ id: connection.id, input });
             next = await startConsentAsync(connection.id);
           } else {
             const created = await createAsync({
@@ -79,7 +77,12 @@ export function useNewTenantFlow() {
             });
             // Created but the link failed to mint (documented): retry once, and never lose the
             // record to that retry's error, or the next Generate would create a second one.
-            next = created.consentUrl ? created : await startConsentAsync(created.id).catch(() => created);
+            next = created.consentUrl
+              ? created
+              : await startConsentAsync(created.id).catch((error: unknown) => {
+                  console.warn('[tenant-management] consent link retry failed:', error);
+                  return created;
+                });
           }
           resetConsent();
           setConnection(next);
