@@ -2,7 +2,7 @@
 # Per-repo settings live in the hub admin (/admin/code-review); this file is
 # byte-identical across every reviewed repository AND every deployment, which
 # is what makes drift detectable by comparison. The hub's address arrives in
-# the dispatch payload (doc-orchestrator style) or, for pull_request runs, the
+# the dispatch payload (Code Documentation style) or, for pull_request runs, the
 # org Actions variable FLAMINGO_HUB_BASE_URL.
 # Named like its sibling pipeline ('🦩 Flamingo Code Documentation') so both
 # read as one product family in the Actions sidebar.
@@ -11,7 +11,7 @@ name: 🦩 Flamingo Code Review
 on:
   # Push trigger - registers workflow with GitHub Actions (required for
   # workflow_dispatch API). Only fires when this file itself changes; the job
-  # skips it — same pattern as the doc-orchestrator workflow.
+  # skips it — same pattern as the Code Documentation workflow.
   push:
     paths:
       - '.github/workflows/flamingo-code-review.yml'
@@ -130,7 +130,7 @@ on:
         required: false
         default: 'sweep'
       hub_base_url:
-        description: 'Absolute hub origin. Dispatches carry it doc-orchestrator style; pull_request runs fall back to the org/repo Actions variable FLAMINGO_HUB_BASE_URL (shipped by Sync Secrets).'
+        description: 'Absolute hub origin. Dispatches carry it Code Documentation style; pull_request runs fall back to the org/repo Actions variable FLAMINGO_HUB_BASE_URL (shipped by Sync Secrets).'
         required: false
         default: ''
       review_budget_chars:
@@ -142,7 +142,7 @@ on:
     # ═══════════════════════════════════════════════════════════════════════════
 
 # GENERATED FROM SINGLE SOURCE OF TRUTH: CODE_REVIEW_PARAMS (this module)
-# The doc-orchestrator's parameter chain for EVERY dispatch param: payload
+# The Code Documentation parameter chain for EVERY dispatch param: payload
 # first, workflow_dispatch input second, then the param's runtime fallback.
 # Workflow-level, so every dispatch var reaches every step and every
 # downloaded script. SECURITY: only NON-SENSITIVE values live here — secrets
@@ -628,7 +628,7 @@ jobs:
           # The review job must never hold a push credential.
           persist-credentials: false
 
-      # The SAME download_and_verify function as the doc-orchestrator workflow
+      # The SAME download_and_verify function as the Code Documentation workflow
       # (single source: lib/config/workflow-scripts-bootstrap.ts, parity with
       # the doc template asserted at build time), fetching from the SAME
       # scripts endpoint. This bootstrap (and the report-capability step above,
