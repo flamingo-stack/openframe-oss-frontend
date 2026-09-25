@@ -1,4 +1,4 @@
-// Tenant connections service (CU-86akj8ajt).
+// Tenant connections service.
 //
 // Backs the Tenant Management UI while the directory backend (branch
 // `feature/directory-fe-integration`, schema `directory-integrations.graphqls`)

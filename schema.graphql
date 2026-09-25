@@ -1417,6 +1417,8 @@ scalar Long
 type Machine implements Node & AssignableTarget {
   id: ID!
   machineId: String!
+  """Server-resolved: the device page and the Remote Control entry point read effectiveMode from here."""
+  remoteAccess: DeviceRemoteAccess!
   ip: String
   macAddress: String
   osUuid: String
@@ -1454,6 +1456,11 @@ type Mutation {
 
   """Back / leave: ends the caller's own session with endReason ADMIN and frees the device."""
   endRemoteSession(sessionId: String!): RemoteSessionPayload!
+  setTenantRemoteAccessMode(mode: RemoteAccessMode!): TenantRemoteAccessPolicyPayload!
+  """mode null clears the override; the organization inherits the tenant default again."""
+  setOrganizationRemoteAccessMode(organizationId: String!, mode: RemoteAccessMode): OrganizationRemoteAccessPolicyPayload!
+  """mode null clears the override. Returns the device so the modal re-renders remoteAccess from the same shape."""
+  setDeviceRemoteAccessMode(machineId: String!, mode: RemoteAccessMode): Machine!
 
   """new | snoozed -> acknowledged. Clears any snooze."""
   acknowledgeInsight(input: InsightIdInput!): Insight!
@@ -2319,6 +2326,8 @@ type Query {
   DEVICE_HAS_ACTIVE_SESSION refusal on createRemoteAccessRequest. The session indicator's reload path.
   """
   activeRemoteSession(deviceId: String!): RemoteSession
+  remoteAccessPolicy: TenantRemoteAccessPolicy!
+  organizationRemoteAccessPolicy(organizationId: String!): OrganizationRemoteAccessPolicy!
 
   """
   Cursor-paginated insights for the calling tenant (newest first unless sorted otherwise).
@@ -2784,6 +2793,51 @@ Remote screen (MeshCentral desktop) only; the enum exists so the wire shape does
 """
 enum RemoteSessionKind {
   DESKTOP
+}
+
+"""Where the effective mode came from; DEFAULTS means no document at any scope."""
+enum RemoteAccessPolicyScope {
+  DEVICE
+  ORGANIZATION
+  TENANT
+  DEFAULTS
+}
+
+type TenantRemoteAccessPolicy {
+  mode: RemoteAccessMode!
+  """True until the first save: the code default applies and updatedBy/updatedAt are null."""
+  usingDefault: Boolean!
+  updatedBy: String
+  updatedAt: Instant
+}
+
+type OrganizationRemoteAccessPolicy {
+  organizationId: String!
+  """The override, or null when the organization inherits the tenant default."""
+  mode: RemoteAccessMode
+  effectiveMode: RemoteAccessMode!
+  updatedBy: String
+  updatedAt: Instant
+}
+
+"""Mutation payload. Refusals come back as userErrors: REMOTE_ACCESS_DISABLED, ORGANIZATION_NOT_FOUND."""
+type TenantRemoteAccessPolicyPayload {
+  policy: TenantRemoteAccessPolicy
+  userErrors: [UserError!]!
+}
+
+type OrganizationRemoteAccessPolicyPayload {
+  policy: OrganizationRemoteAccessPolicy
+  userErrors: [UserError!]!
+}
+
+type DeviceRemoteAccess {
+  """The override, or null when the device inherits its organization, then the tenant."""
+  mode: RemoteAccessMode
+  effectiveMode: RemoteAccessMode!
+  effectiveScope: RemoteAccessPolicyScope!
+  updatedBy: String
+  updatedAt: Instant
 }
 
 " Remote session lifecycle, technician side. A session record is created when a request reaches APPROVED;\n the machine side (sessions/current, sessions/{id}/end) stays REST on openframe-saas-client. Lifecycle events\n reach the technician as REMOTE_SESSION_STARTED / REMOTE_SESSION_ENDED on user.<technicianId>.notification,\n with no drawer entry. A lost tunnel ends the session (endReason CONNECTION_LOST) instead of parking it."

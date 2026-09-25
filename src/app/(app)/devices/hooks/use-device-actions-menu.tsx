@@ -31,6 +31,12 @@ interface UseDeviceActionsMenuOptions {
   iconSize?: string;
   /** When true, after delete success also navigate to `/devices`. Composes with onActionComplete. */
   navigateOnDestructive?: boolean;
+  /**
+   * Where the menu renders. In a table row the remote access policy is not
+   * pre-read against the real API (one request per row until the field rides
+   * in the list query); the connect flow answers DENY_ACCESS on entry instead.
+   */
+  policyContext?: 'page' | 'row';
 }
 
 export interface DeviceActionsMenuItems {
@@ -58,6 +64,7 @@ export function useDeviceActionsMenu(
   {
     onRunScript,
     onActionComplete,
+    policyContext = 'page',
     deviceId: deviceIdOverride,
     iconSize = DEFAULT_ICON_SIZE,
     navigateOnDestructive,
@@ -81,13 +88,12 @@ export function useDeviceActionsMenu(
 
   const baseAvailability = device ? getDeviceActionAvailability(device) : null;
 
-  // Remote access policy (CU-86akeqw8b): DENY_ACCESS disables the Remote
-  // Control entry point in place - per the design decision, no separate
-  // screen. Remote shell and file manager are outside the epic's scope
-  // (decision 2026-09-16) and stay available. `undefined` (flag off / still
-  // resolving) leaves legacy behavior.
+  // Remote access policy: DENY_ACCESS disables the Remote Control entry point
+  // in place - per the design decision, no separate screen. Remote shell and
+  // file manager are outside the epic's scope and stay available. `undefined`
+  // (flag off / still resolving) leaves legacy behavior.
   const remoteAccessGate = useRemoteAccessApprovalGate();
-  const effectiveRemoteAccessMode = useEffectiveDeviceRemoteAccessMode(device);
+  const effectiveRemoteAccessMode = useEffectiveDeviceRemoteAccessMode(device, { context: policyContext });
   const remoteAccessDenied = effectiveRemoteAccessMode === 'DENY_ACCESS';
   const actionAvailability =
     baseAvailability && remoteAccessDenied ? { ...baseAvailability, remoteControlEnabled: false } : baseAvailability;
