@@ -16,17 +16,18 @@ const isStaticExport = process.env.OPENFRAME_BUILD_TARGET === 'export';
 // The Docker build is handed the release version as a build-arg: its context has
 // no .git. Everything else describes the checkout — the desktop release clones
 // the frontend at its release tag, and a mobile build from a local checkout
-// still traces back to a commit (`1.0.125-4-geae0416-dirty`).
+// still traces back to a commit (`1.0.125-4-geae0416-dirty`). No version at all
+// is '' and goes out as `bundle/-`.
 function resolveBundleVersion() {
   if (process.env.OPENFRAME_BUNDLE_VERSION) return process.env.OPENFRAME_BUNDLE_VERSION;
   try {
-    return execFileSync('git', ['describe', '--tags', '--always', '--dirty'], {
+    return execFileSync('git', ['describe', '--tags', '--always', '--dirty', '--abbrev=7'], {
       cwd: projectRoot,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
-    return 'unknown';
+    return '';
   }
 }
 

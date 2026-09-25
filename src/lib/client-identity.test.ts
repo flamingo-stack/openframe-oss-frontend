@@ -38,9 +38,14 @@ describe('X-OpenFrame-Client', () => {
     expect(clientIdentityHeaders()).toEqual({ 'X-OpenFrame-Client': 'web/- bundle/1.0.127' });
   });
 
-  it('says so when the build carried no version', async () => {
+  it('reports `-` when the build carried no version', async () => {
     const { clientIdentityValue } = await load(undefined);
-    expect(clientIdentityValue()).toBe('web/- bundle/unknown');
+    expect(clientIdentityValue()).toBe('web/- bundle/-');
+  });
+
+  it('reports `-` for a version the backend would reject', async () => {
+    const { clientIdentityValue } = await load('1.0.127-with-a-description-past-32-chars');
+    expect(clientIdentityValue()).toBe('web/- bundle/-');
   });
 
   it('names the phone OS and picks up the shell version once primed', async () => {
@@ -70,7 +75,10 @@ describe('X-OpenFrame-Client', () => {
     const { clientIdentityValue, primeShellVersion } = await load('1.0.127');
 
     primeShellVersion();
-    await vi.waitFor(() => expect(clientIdentityValue()).toBe('android/1.0_beta_2 bundle/1.0.127'));
+    // A rejected value reads the same `-` as not-yet-primed: flush the bridge promise first.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(clientIdentityValue()).toBe('android/- bundle/1.0.127');
     expect(() => new Headers({ 'X-OpenFrame-Client': clientIdentityValue() })).not.toThrow();
   });
 });

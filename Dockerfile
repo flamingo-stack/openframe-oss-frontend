@@ -22,7 +22,7 @@ COPY . .
 # no .git to describe, so CI hands in the release version or the PR image tag.
 # Declared here, not above: every RUN after an ARG is keyed on it, and a value
 # that changes per build would otherwise bust the `npm ci` layer too.
-ARG OPENFRAME_BUNDLE_VERSION=unknown
+ARG OPENFRAME_BUNDLE_VERSION
 
 RUN --mount=type=cache,target=/app/dist/cache \
     npm run build && \

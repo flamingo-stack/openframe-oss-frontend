@@ -510,7 +510,7 @@ The app is **gradually migrating GraphQL data fetching to react-relay**. The rul
 5. No Apollo Client anywhere.
 
 **Every first-party request to the tenant gateway carries `X-OpenFrame-Client`** (`src/lib/client-identity.ts`:
-`<kind>/<shellVersion|-> bundle/<bundleVersion>`), so the backend can tell which frozen shell bundles are still
+`<kind>/<shellVersion|-> bundle/<bundleVersion|->`, versions `[0-9A-Za-z.-]{1,32}` or `-`), so the backend can tell which frozen shell bundles are still
 live before a schema field is removed. `apiClient`, Relay, the upload helpers and the embedded chat already add it; a
 new raw `fetch` to the gateway spreads `clientIdentityHeaders()`. Never send it to the shared auth host (it would
 make CORS-simple login calls preflight), presigned storage URLs, or third parties. The bundle version is inlined

@@ -24,19 +24,23 @@ export const CLIENT_IDENTITY_HEADER = 'X-OpenFrame-Client';
 // Inlined by `next build` from next.config.mjs `env` — deliberately not a
 // runtime variable, so nothing injected into `window.__ENV` can make a bundle
 // report a version it is not.
-const BUNDLE_VERSION = process.env.OPENFRAME_BUNDLE_VERSION || 'unknown';
+const BUNDLE_VERSION = process.env.OPENFRAME_BUNDLE_VERSION ?? '';
 
 let shellVersion: string | null = null;
 let shellVersionRequested = false;
 
 /**
- * Header values reject control characters outright (`fetch` throws a TypeError),
- * and a space would break the header's own grammar. The shell version comes from
- * the native side, so it is reduced to version-string characters before it can
- * take every request down with it.
+ * The backend's own acceptance rule for a version, which it turns into a metric
+ * label and collapses to `unknown` when a value fails it. Applied here too, for a
+ * second reason: header values reject control characters outright (`fetch`
+ * throws a TypeError), and the shell version comes from the native side — one
+ * bad value would otherwise take every request down with it.
  */
-function token(value: string): string {
-  return value.replace(/[^\w.+-]/g, '_');
+const VERSION_PATTERN = /^[0-9A-Za-z.-]{1,32}$/;
+
+/** `-` is the contract's "version unknown", the same for the shell and the bundle. */
+function versionOrDash(value: string | null): string {
+  return value && VERSION_PATTERN.test(value) ? value : '-';
 }
 
 function clientKind(): string {
@@ -45,7 +49,7 @@ function clientKind(): string {
 }
 
 export function clientIdentityValue(): string {
-  return `${clientKind()}/${shellVersion ? token(shellVersion) : '-'} bundle/${token(BUNDLE_VERSION)}`;
+  return `${clientKind()}/${versionOrDash(shellVersion)} bundle/${versionOrDash(BUNDLE_VERSION)}`;
 }
 
 export function clientIdentityHeaders(): Record<string, string> {

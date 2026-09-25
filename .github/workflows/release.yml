@@ -112,6 +112,7 @@ jobs:
         uses: nick-fields/retry@v4
         env:
           META_TAGS: ${{ steps.meta.outputs.tags }}
+          RELEASE_VERSION: ${{ steps.version.outputs.NEW_VERSION }}
         with:
           max_attempts: 3
           retry_wait_seconds: 5
@@ -120,7 +121,7 @@ jobs:
           command: |
             args=(--platform linux/amd64,linux/arm64 --push --provenance=false --sbom=true
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
-                  --build-arg OPENFRAME_BUNDLE_VERSION=${{ steps.version.outputs.NEW_VERSION || format('main-{0}', github.sha) }}
+                  --build-arg OPENFRAME_BUNDLE_VERSION="${RELEASE_VERSION:-main-${GITHUB_SHA::7}}"
                   -f ./Dockerfile)
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" .

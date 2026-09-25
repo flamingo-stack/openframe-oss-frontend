@@ -117,6 +117,9 @@ jobs:
         uses: nick-fields/retry@v4
         env:
           META_TAGS: ${{ steps.meta.outputs.tags }}
+          # Short sha: the backend drops a reported version over 32 characters.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           max_attempts: 3
           retry_wait_seconds: 5
@@ -125,7 +128,7 @@ jobs:
           command: |
             args=(--platform linux/amd64,linux/arm64
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
-                  --build-arg OPENFRAME_BUNDLE_VERSION=pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+                  --build-arg OPENFRAME_BUNDLE_VERSION="pr-${PR_NUMBER}-${PR_SHA::7}"
                   -f "./Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" "."
@@ -143,6 +146,9 @@ jobs:
         uses: nick-fields/retry@v4
         env:
           META_TAGS: ${{ steps.meta.outputs.tags }}
+          # Short sha: the backend drops a reported version over 32 characters.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           max_attempts: 3
           retry_wait_seconds: 5
@@ -151,7 +157,7 @@ jobs:
           command: |
             args=(--platform linux/amd64,linux/arm64
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
-                  --build-arg OPENFRAME_BUNDLE_VERSION=pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+                  --build-arg OPENFRAME_BUNDLE_VERSION="pr-${PR_NUMBER}-${PR_SHA::7}"
                   -f "./Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" --push --provenance=false --sbom=true "."
