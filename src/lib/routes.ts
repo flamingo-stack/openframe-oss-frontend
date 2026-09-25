@@ -195,6 +195,7 @@ export const routes = {
     bugFixesAndEnhancements: '/help-center/bug-fixes-and-enhancements',
     tickets: '/help-center/tickets',
     faqs: '/help-center/faqs',
+    trustCenter: '/help-center/trust-center',
     knowledgeBase: '/help-center/knowledge-base',
     // `[docType]` is enumerable (see the route's `generateStaticParams`), so the
     // literal union is the typed guard ROUTES.md asks for over a bare `string`.

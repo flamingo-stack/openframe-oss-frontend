@@ -9,6 +9,7 @@ import {
   Rocket02Icon,
   RouteArrowIcon,
   ShieldCheckIcon,
+  ShieldLockIcon,
   WrenchScrewdiverIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ComponentType } from 'react';
@@ -58,6 +59,12 @@ const ITEMS: Item[] = [
     title: 'FAQs',
     description: 'Quick answers about OpenFrame and how we work.',
     Icon: QuestionCircleIcon,
+  },
+  {
+    href: routes.helpCenter.trustCenter,
+    title: 'Trust Center',
+    description: 'Security, compliance and AI governance, continuously monitored.',
+    Icon: ShieldLockIcon,
   },
   {
     href: routes.helpCenter.legal('privacy'),

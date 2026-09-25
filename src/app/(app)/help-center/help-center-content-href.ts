@@ -133,6 +133,8 @@ const composeLibContentUrl = makeComposeContentUrl({
     hubspot_ticket: helpCenterTicketHref,
     hubspot_ticket_self: helpCenterTicketHref,
     faq: id => ({ href: `${HELP_CENTER_BASE}/faqs#${faqItemAnchor(id)}`, targetPlatform: null }),
+    // The single trust-center card (`[card://trust_center:main]`) → our in-app page.
+    trust_center: () => ({ href: routes.helpCenter.trustCenter, targetPlatform: null }),
   },
 });
 

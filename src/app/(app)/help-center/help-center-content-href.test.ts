@@ -36,6 +36,7 @@ describe('composeOpenframeInAppContentUrl', () => {
   it('leaves the in-app overrides untouched — they already target prerendered routes', () => {
     expect(href({ type: 'roadmap_item', identifier: '86ad3qvv5' })).toBe('/help-center/roadmap?search=86ad3qvv5');
     expect(href({ type: 'faq', identifier: 'q1' })).toContain('/help-center/faqs#');
+    expect(href({ type: 'trust_center', identifier: 'main' })).toBe('/help-center/trust-center');
   });
 
   it('builds ticket deep links through the lib SSOT, on OUR tickets surface', () => {
