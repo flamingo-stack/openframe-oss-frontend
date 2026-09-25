@@ -177,6 +177,31 @@ const boardTicketCache = new WeakMap<
   { isUserDeleted?: IsUserDeleted; activityKey: string; ticket: BoardTicket }
 >();
 
+/**
+ * Cards that offer no assign control: everything in an AI Handling lane (kind
+ * AI_ASSISTANCE), plus Resolved-lane tickets closed without a technician -
+ * resolvedBy AI_AGENT (the AI closed it itself) or END_USER (the client closed
+ * it in the Fae chat; the BE attributes AI-driven chat closes this way). Null
+ * keeps the control: tickets resolved before the BE tracked resolvedBy may well
+ * have been closed by a technician. Assignment stays on the dialog page. Lanes
+ * are matched by kind, not by `BoardTicket.status`: that field is the
+ * tenant-defined display name.
+ */
+function isAiOwnedTicket(statusKind: string, dialog: Dialog): boolean {
+  if (statusKind === 'AI_ASSISTANCE') return true;
+  return statusKind === 'RESOLVED' && (dialog.resolvedBy === 'AI_AGENT' || dialog.resolvedBy === 'END_USER');
+}
+
+/**
+ * Marked on the card object itself, in the same pass that builds the lanes, so
+ * `renderAssignSlot` reads the answer while the card renders. It used to read
+ * a Set through a ref written after the commit: a card's first render saw the
+ * previous (empty) set and drew the picker, and the memoized card then kept it
+ * until something unrelated re-rendered it. Keyed by object, not id: the board
+ * hands `renderAssignSlot` the very `BoardTicket` it was given.
+ */
+const aiOwnedBoardTickets = new WeakSet<BoardTicket>();
+
 function toBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted, activity?: BoardTicketActivity): BoardTicket {
   const activityKey = activity ? `${activity.kind}|${activity.label ?? ''}` : '';
   const cached = boardTicketCache.get(dialog);
@@ -386,9 +411,12 @@ export function TicketsBoard({
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
-        tickets: (state?.tickets ?? []).map(ticket =>
-          toBoardTicket(ticket, isUserDeleted, resolveBoardActivity(ticket, status, now)),
-        ),
+        tickets: (state?.tickets ?? []).map(ticket => {
+          const boardTicket = toBoardTicket(ticket, isUserDeleted, resolveBoardActivity(ticket, status, now));
+          if (isAiOwnedTicket(status.kind, ticket)) aiOwnedBoardTickets.add(boardTicket);
+          else aiOwnedBoardTickets.delete(boardTicket);
+          return boardTicket;
+        }),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
@@ -455,41 +483,9 @@ export function TicketsBoard({
 
   const getTicketHref = useCallback((id: string) => routes.tickets.dialog(id), []);
 
-  // Tickets whose card offers no assign control: everything in an AI Handling
-  // lane (kind AI_ASSISTANCE), plus Resolved-lane tickets closed without a
-  // technician — resolvedBy AI_AGENT (the AI closed it itself) or END_USER
-  // (the client closed it in the Fae chat; the BE attributes AI-driven chat
-  // closes this way). Null keeps the control: tickets resolved before the BE
-  // tracked resolvedBy may well have been closed by a technician. Assignment
-  // stays on the dialog page. Lanes are matched by kind, not by
-  // `BoardTicket.status`: that field is the tenant-defined display name.
-  const aiOwnedTicketIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const status of statuses) {
-      if (status.kind === 'AI_ASSISTANCE') {
-        for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) ids.add(ticket.id);
-      } else if (status.kind === 'RESOLVED') {
-        for (const ticket of columnUpdates[status.id]?.state.tickets ?? []) {
-          if (ticket.resolvedBy === 'AI_AGENT' || ticket.resolvedBy === 'END_USER') ids.add(ticket.id);
-        }
-      }
-    }
-    return ids;
-  }, [statuses, columnUpdates]);
-
   // Stable identities for everything the board hands down to each card: an
   // inline arrow here re-renders every card (and its assignee picker) on every
   // drag frame, which is exactly what `TicketCard`'s memo is there to prevent.
-  // The AI-owned set is read through a ref for the same reason — a new Set lands
-  // on every column tick; written during render (not an effect) so a card
-  // mounting into a lane sees the membership computed in the same pass.
-  const aiOwnedTicketIdsRef = useRef(aiOwnedTicketIds);
-  // Latest-value refs, written after the commit rather than during render:
-  // a render-phase ref write is what `react-hooks/refs` forbids, and every
-  // reader below runs in an effect, a timer or an event handler.
-  useEffect(() => {
-    aiOwnedTicketIdsRef.current = aiOwnedTicketIds;
-  });
   const handleApprove = useCallback(
     (ticketId: string, requestId?: string) => handleApprovalAction(ticketId, requestId, true),
     [handleApprovalAction],
@@ -602,7 +598,7 @@ export function TicketsBoard({
   // else gets the plain picker: outside AI Handling the AI is already stopped
   // (`hasActiveAiDialog`), so assigning is a one-click change, not a take-over.
   const renderAssignSlot = useCallback((ticket: BoardTicket) => {
-    if (aiOwnedTicketIdsRef.current.has(ticket.id)) return null;
+    if (aiOwnedBoardTickets.has(ticket)) return null;
     return <BoardAssigneePicker ticket={ticket} />;
   }, []);
 
