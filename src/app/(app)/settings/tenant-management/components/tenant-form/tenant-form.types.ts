@@ -1,4 +1,4 @@
-// Form schema for New / Edit Tenant Integration (CU-86akj8ajt). The customer field
+// Form schema for New / Edit Tenant Integration. The customer field
 // is a separate fragment on purpose: phase 2 removes the customer ↔ connection
 // binding from these forms, so it must be deletable without touching the rest.
 

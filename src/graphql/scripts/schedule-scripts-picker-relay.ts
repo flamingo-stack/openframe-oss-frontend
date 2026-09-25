@@ -24,6 +24,7 @@ export const scheduleScriptsPickerRelayQuery = graphql`
           envVars {
             name
             value
+            secret
           }
         }
       }

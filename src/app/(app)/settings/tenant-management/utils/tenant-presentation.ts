@@ -1,4 +1,4 @@
-// Presentation tables for Tenant Management (CU-86akj8ajt).
+// Presentation tables for Tenant Management.
 //
 // Every enum → label/variant/copy decision lives here, declared with
 // `satisfies Record<Enum, …>` so a widened enum (after `generate-enums`) stops

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { clientIdentityHeaders } from './client-identity';
 import { runtimeEnv } from './runtime-config';
 import { getAccessTokenSync, isBearerAuthMode } from './token-store';
 
@@ -9,7 +10,7 @@ export async function uploadWithAuth(endpoint: string, file: File, fieldName: st
   const formData = new FormData();
   formData.append(fieldName, file);
 
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = clientIdentityHeaders();
 
   if (isBearerAuthMode()) {
     const accessToken = getAccessTokenSync();
@@ -59,6 +60,7 @@ export async function uploadWithAuth(endpoint: string, file: File, fieldName: st
 export async function deleteWithAuth(endpoint: string): Promise<void> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...clientIdentityHeaders(),
   };
 
   if (isBearerAuthMode()) {

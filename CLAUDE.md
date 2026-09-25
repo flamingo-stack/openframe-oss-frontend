@@ -1,6 +1,6 @@
 # OpenFrame Frontend - Claude Development Guide
 
-**Next.js 16 + React 19 + TypeScript 5.9 + @flamingo-stack/openframe-frontend-core (0.0.653)**
+**Next.js 16 + React 19 + TypeScript 5.9 + @flamingo-stack/openframe-frontend-core (0.0.657)**
 
 > Comprehensive instructions for Claude when working with the OpenFrame Frontend service.
 
@@ -142,7 +142,7 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 | UI Library | React | 19 (19.2.4) |
 | Auto-memoization | React Compiler (`reactCompiler: true` + babel-plugin-react-compiler) | 1.0 |
 | Type System | TypeScript | 5.9 (5.9.3) |
-| Component Library | @flamingo-stack/openframe-frontend-core | 0.0.653 (npm registry) |
+| Component Library | @flamingo-stack/openframe-frontend-core | 0.0.657 (npm registry) |
 | GraphQL Data Fetching | react-relay + relay-runtime + relay-compiler | 20.1 |
 | REST / Legacy Data Fetching | @tanstack/react-query | 5.90 |
 | Forms | react-hook-form + @hookform/resolvers | 7.71 + 5.2 |
@@ -184,7 +184,7 @@ to a full version tag for the same reason.
 **Key Facts:**
 - **Source repo**: `openframe-oss-lib/openframe-frontend-core/`
 - **Ownership**: Shared across Flamingo Stack projects (OpenFrame, OpenMSP, Flamingo, TMCG, hubs, openframe-chat)
-- **Normal state**: installed from the **npm registry** (`"@flamingo-stack/openframe-frontend-core": "0.0.653"`); the lib repo's own `package.json` version lags the registry (CI bumps at publish)
+- **Normal state**: installed from the **npm registry** (`"@flamingo-stack/openframe-frontend-core": "0.0.657"`); the lib repo's own `package.json` version lags the registry (CI bumps at publish)
 - **Local lib development**: link via **yalc** — `npm run core:link` here, and in the lib repo `npm run build && yalc push` after every change (consumers see `dist/`, not `src/`)
 - **Updates**: Changes affect ALL Flamingo Stack projects
 
@@ -508,6 +508,13 @@ The app is **gradually migrating GraphQL data fetching to react-relay**. The rul
 3. **Legacy GraphQL** (raw POST through `apiClient` or react-query wrappers) still exists — leave it working, but migrate it to Relay when touching it substantially. Do not add new code in that style.
 4. **Exception — the `/chat/graphql` domain (tickets, mingo, AI settings)**: it talks to the saas-ai-agent service whose schema is NOT in `schema.graphql`, so it stays on raw-POST permanently. Extending raw-POST there is correct, not a violation.
 5. No Apollo Client anywhere.
+
+**Every first-party request to the tenant gateway carries `X-OpenFrame-Client`** (format and the backend-agreed
+contract in `src/lib/client-identity.ts`), so the backend can tell which frozen shell bundles are still
+live before a schema field is removed. `apiClient`, Relay, the upload helpers and the embedded chat already add it; a
+new raw `fetch` to the gateway spreads `clientIdentityHeaders()`. Never send it to the shared auth host (it would
+make CORS-simple login calls preflight), presigned storage URLs, or third parties. The bundle version is inlined
+at build time from `OPENFRAME_BUNDLE_VERSION` (`next.config.mjs`) — the Docker build gets it as a build-arg.
 
 **Every request goes out BELOW `SubscriptionGuard`.** The guard (`src/app/components/subscription-lock/subscription-guard.tsx`) wraps the whole app tree in `app-layout.tsx`, and the network gate it feeds (`src/lib/subscription-gate.ts`) holds app *queries* until the subscription answers and while it locks. **Mutations bypass that gate by design** — they are user actions, and the paywall's own are what a locked workspace needs (`useMutation` takes no `cacheConfig`, so there is no per-call opt-out either). So a mutation fired by a timer/effect rather than by a click goes straight out on a locked workspace and fails on every interval — which `recordPresence` did, once every ten seconds behind the lock screen.
 

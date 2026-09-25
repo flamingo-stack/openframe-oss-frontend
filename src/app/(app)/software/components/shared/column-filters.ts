@@ -24,3 +24,29 @@ export function singleColumnFilter(columnId: string, values: readonly string[], 
 
   return { columnFilters, onColumnFiltersChange };
 }
+
+/**
+ * The same for a table with several funnels, keyed by column id: every
+ * column's selection in, and every column's selection out on any change — so
+ * the caller writes them all back at once instead of guessing which moved.
+ */
+export function multiColumnFilter<K extends string>(
+  selections: Readonly<Record<K, readonly string[]>>,
+  onChange: (next: Record<K, string[]>) => void,
+) {
+  const columnIds = Object.keys(selections) as K[];
+  const columnFilters: ColumnFilterState = columnIds.flatMap(id =>
+    selections[id].length > 0 ? [{ id, value: selections[id] }] : [],
+  );
+
+  const onColumnFiltersChange = (updater: ColumnFiltersUpdater) => {
+    const next = typeof updater === 'function' ? updater(columnFilters) : updater;
+    const pick = (id: K): string[] => {
+      const value = next.find(filter => filter.id === id)?.value;
+      return Array.isArray(value) ? (value as string[]) : typeof value === 'string' ? [value] : [];
+    };
+    onChange(Object.fromEntries(columnIds.map(id => [id, pick(id)])) as Record<K, string[]>);
+  };
+
+  return { columnFilters, onColumnFiltersChange };
+}

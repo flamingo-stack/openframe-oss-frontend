@@ -13,7 +13,7 @@ interface DevLocalFileLoaderProps {
 /**
  * Mock-tooling affordance: open a local `.mcrec` sample straight into the
  * player, so the engine is testable end-to-end before the storage backend
- * (CU-86akc3c5q) exists. Visibility is decided by the caller (the temporary
+ * exists. Visibility is decided by the caller (the temporary
  * `remote-access-mock-tools` flag plus `?dev=1`), not by the build type, so
  * QA can use it on a production build.
  */

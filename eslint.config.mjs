@@ -190,6 +190,9 @@ export default defineConfig([
     //    own fragments they read themselves, but the device rows inside them are
     //    the `@inline` ladder step above, read by the shared picker's mapper — the
     //    first shape again, in a component file rather than under `src/graphql`.
+    //  - `vulnerability-devices-table` is the same shape once more: its rows are
+    //    `Machine` nodes drawn by the shared devices table, so it spreads the
+    //    ladder's row step for `machineRowToDevice` and reads nothing itself.
     //
     // Everywhere else the rule stays on, which is where it earns its place: a
     // component-owned fragment spread far from the component that reads it is how
@@ -199,6 +202,7 @@ export default defineConfig([
       'src/graphql/**/*.ts',
       'src/app/(app)/settings/billing-usage/subscription/components/subscription-settings-view.tsx',
       'src/app/(app)/software/components/action-form/*-picker-lists.tsx',
+      'src/app/(app)/software/components/vulnerability-detail/vulnerability-devices-table.tsx',
     ],
     rules: { 'relay/must-colocate-fragment-spreads': 'off' },
   },
