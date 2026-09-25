@@ -4,6 +4,14 @@ export const scriptArgumentSchema = z.object({
   id: z.string(),
   key: z.string(),
   value: z.string(),
+  /** Env vars only: a lock on the key and a password field for the value. */
+  secret: z.boolean().optional(),
+  /**
+   * The server holds this secret's value and never sends it back, so the row
+   * is seeded with `value: ''` and shows a mask. Empty on submit means "keep
+   * what is stored"; anything typed replaces it.
+   */
+  hasStoredValue: z.boolean().optional(),
 });
 
 export const editScriptSchema = z.object({

@@ -67,7 +67,8 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
           onArgumentsChange={noop}
           keyPlaceholder="Key"
           valuePlaceholder="Enter Value"
-          addButtonLabel="Add Environment Var"
+          addButtonLabel="Add Variable"
+          addSecretButtonLabel="Add Secret"
           titleLabel="Environment Vars"
           disabled
         />
