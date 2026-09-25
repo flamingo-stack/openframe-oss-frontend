@@ -2,7 +2,7 @@
 
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, startTransition, useState } from 'react';
+import { startTransition, useId, useState } from 'react';
 import { fetchQuery, graphql, useLazyLoadQuery, usePaginationFragment, useRelayEnvironment } from 'react-relay';
 import type { agentLogsContent_query$key } from '@/__generated__/agentLogsContent_query.graphql';
 import type { agentLogsContentPaginationQuery } from '@/__generated__/agentLogsContentPaginationQuery.graphql';
@@ -20,10 +20,11 @@ import {
   isRetryableDeviceLogError,
 } from '../../../utils/device-log-errors';
 import type { PolledPage } from '../../../utils/device-log-tail';
-import { deviceLogDay, formatDeviceLogDay, formatDeviceLogZone } from '../../../utils/device-log-time';
+import { groupDeviceLogDays } from '../../../utils/device-log-time';
 import { TabEmptyState } from '../tab-empty-state';
 import { AGENT_LOG_ROW_PAINT } from './agent-log-columns';
 import { AgentLogRow } from './agent-log-row';
+import { AgentLogsDayHeader } from './agent-logs-day-header';
 import { AgentLogsRowsSkeleton } from './agent-logs-skeleton';
 
 /** The API maximum: a scroll page and a poll page both ask for it, so a busy device needs fewer round trips. */
@@ -114,6 +115,7 @@ export function AgentLogsContent({
   onResetFilters,
 }: AgentLogsContentProps) {
   const environment = useRelayEnvironment();
+  const dayIdPrefix = useId();
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<agentLogsContentQuery>(
     agentLogsContentQueryNode,
@@ -222,45 +224,41 @@ export function AgentLogsContent({
     );
   }
 
-  // The row shows a time only (spec §4), so the date lives in a separator per
-  // local day, labelled with the zone the times are read in.
-  const rows: ReactNode[] = [];
-  let lastDay = '';
-  for (const { node } of edges) {
-    const timestamp = String(node.timestamp);
-    const day = deviceLogDay(timestamp);
-    if (day !== lastDay) {
-      lastDay = day;
-      rows.push(
-        <div
-          key={`day:${day}`}
-          role="presentation"
-          className="flex items-center gap-[var(--spacing-system-xs)] pb-[var(--spacing-system-xxs)] pt-[var(--spacing-system-s)]"
-        >
-          <span className="text-ods-text-secondary text-h5">
-            {formatDeviceLogDay(timestamp)} · {formatDeviceLogZone(timestamp)}
-          </span>
-          <span className="h-px flex-1 bg-ods-border" />
-        </div>,
-      );
-    }
-    rows.push(
-      <div key={node.__id} role="listitem" style={AGENT_LOG_ROW_PAINT}>
-        <AgentLogRow entry={node} deviceHostname={deviceHostname} />
-      </div>,
-    );
-  }
+  // The row shows a time only (spec §4), so the date heads a group per local day;
+  // the header names the group, so each day is its own list.
+  const days = groupDeviceLogDays(
+    edges.map(edge => edge.node),
+    node => String(node.timestamp),
+  );
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
       {topSentinel}
       {pollErrorStrip}
       <div
-        role="list"
         aria-busy={isPending || isLoadingNext}
-        className={cn('flex flex-col gap-[var(--spacing-system-xxs)] transition-opacity', isPending && 'opacity-60')}
+        className={cn(
+          'flex flex-col gap-[var(--spacing-system-xxs)] transition-opacity motion-reduce:transition-none',
+          isPending && 'opacity-60',
+        )}
       >
-        {rows}
+        {days.map(({ key, label, items }) => (
+          <div
+            key={key}
+            role="group"
+            aria-labelledby={`${dayIdPrefix}-${key}`}
+            className="flex flex-col gap-[var(--spacing-system-xxs)]"
+          >
+            <AgentLogsDayHeader id={`${dayIdPrefix}-${key}`}>{label}</AgentLogsDayHeader>
+            <div role="list" className="flex flex-col gap-[var(--spacing-system-xxs)]">
+              {items.map(node => (
+                <div key={node.__id} role="listitem" className={AGENT_LOG_ROW_PAINT}>
+                  <AgentLogRow entry={node} deviceHostname={deviceHostname} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
       <div ref={bottomRef} aria-hidden="true" className="h-px" />
       {isLoadingNext && <AgentLogsRowsSkeleton rows={3} />}

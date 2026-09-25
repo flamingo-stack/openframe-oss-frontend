@@ -41,6 +41,8 @@ interface AgentLogsToolbarProps {
   onAutoUpdateChange: (enabled: boolean) => void;
   onRefresh: () => void;
   isRefreshing: boolean;
+  /** The device is still loading: the bar draws as it will, locked (the Software toolbar canon). */
+  disabled?: boolean;
 }
 
 /**
@@ -63,24 +65,28 @@ export function AgentLogsToolbar({
   onAutoUpdateChange,
   onRefresh,
   isRefreshing,
+  disabled = false,
 }: AgentLogsToolbarProps) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
-      <div className="flex flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-start">
-        <Input
-          placeholder="Search for Log"
-          aria-label="Search agent logs"
-          value={search}
-          onChange={event => onSearchChange(event.target.value)}
-          className="flex-1"
-          startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
-          error={searchError ?? undefined}
-        />
+      <div className="flex flex-col gap-[var(--spacing-system-mf)] md:flex-row md:items-start">
+        <div className="min-w-0 flex-1">
+          <Input
+            placeholder="Search for Log"
+            aria-label="Search agent logs"
+            value={search}
+            onChange={event => onSearchChange(event.target.value)}
+            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+            error={searchError ?? undefined}
+            disabled={disabled}
+          />
+        </div>
         <CheckboxBlock
           id="agent-logs-auto-update"
           label="Auto-Update"
           checked={autoUpdate}
           onCheckedChange={onAutoUpdateChange}
+          disabled={disabled}
           truncateLabel
           className="md:w-auto md:shrink-0"
         />
@@ -96,6 +102,7 @@ export function AgentLogsToolbar({
                 type="button"
                 aria-pressed={on}
                 onClick={() => onToggleLevel(level)}
+                disabled={disabled}
                 className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
               >
                 {/* `as="span"`: a button may only hold phrasing content, and
@@ -104,7 +111,8 @@ export function AgentLogsToolbar({
                   as="span"
                   label={level}
                   variant={on ? getDeviceLogLevelVariant(level) : 'outline'}
-                  className={cn('cursor-pointer', !on && 'text-ods-text-muted')}
+                  disabled={disabled}
+                  className={cn(!disabled && 'cursor-pointer', !on && 'text-ods-text-muted')}
                 />
               </button>
             );
@@ -112,7 +120,11 @@ export function AgentLogsToolbar({
         </div>
 
         <div className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
-          <Select value={range} onValueChange={value => onRangeChange(value as DeviceLogRangePreset)}>
+          <Select
+            value={range}
+            onValueChange={value => onRangeChange(value as DeviceLogRangePreset)}
+            disabled={disabled}
+          >
             <SelectTrigger aria-label="Time range" className="min-w-[180px] flex-1 md:w-[200px] md:flex-none">
               <SelectValue>{DEVICE_LOG_RANGE_LABELS[range]}</SelectValue>
             </SelectTrigger>
@@ -132,6 +144,7 @@ export function AgentLogsToolbar({
               fromDate={customBounds.min}
               toDate={customBounds.max}
               placeholder="Select dates"
+              disabled={disabled}
               className="min-w-[220px] flex-1 md:w-[290px] md:flex-none"
             />
           )}
@@ -140,7 +153,7 @@ export function AgentLogsToolbar({
             size="icon"
             aria-label="Refresh logs"
             onClick={onRefresh}
-            disabled={isRefreshing}
+            disabled={disabled || isRefreshing}
             leftIcon={<Refresh01RightIcon />}
             className="shrink-0"
           />

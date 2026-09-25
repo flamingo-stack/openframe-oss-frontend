@@ -1,6 +1,6 @@
 import type { DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { format, subDays } from 'date-fns';
-import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
+import { dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 
 export const DEVICE_LOG_RANGE_PRESETS = ['1h', '24h', '7d', 'custom'] as const;
 export type DeviceLogRangePreset = (typeof DEVICE_LOG_RANGE_PRESETS)[number];
@@ -56,16 +56,12 @@ const INSTANT_PATTERN = /^(.+T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?Z$/;
  * nanoseconds instead.
  */
 export function instantToNanos(instant: string): bigint {
-  const match = INSTANT_PATTERN.exec(instant);
-  if (!match) {
-    throw new Error(`Unexpected timestamp: ${instant}`);
-  }
-  const millis = Date.parse(`${match[1]}Z`);
-  if (Number.isNaN(millis)) {
+  const parts = splitInstant(instant);
+  if (!parts) {
     throw new Error(`Unexpected timestamp: ${instant}`);
   }
   // `BigInt()` calls, not `123n` literals: the TS target predates ES2020 syntax.
-  return BigInt(millis / 1000) * BigInt(1_000_000_000) + BigInt((match[2] ?? '').padEnd(9, '0'));
+  return BigInt(parts.millis / 1000) * BigInt(1_000_000_000) + BigInt(parts.fraction);
 }
 
 /**
@@ -102,7 +98,7 @@ export function formatDeviceLogTime(instant: string): string {
 /** The local day a line belongs to — the grouping key for the separators. */
 export function deviceLogDay(instant: string): string {
   const parts = splitInstant(instant);
-  return parts ? format(parts.millis, 'yyyy-MM-dd') : instant.slice(0, 10);
+  return parts ? toDayParam(new Date(parts.millis)) : instant.slice(0, 10);
 }
 
 /** `23 SEP 2026` for the separator between days. */
@@ -111,13 +107,33 @@ export function formatDeviceLogDay(instant: string): string {
   return parts ? format(parts.millis, 'dd MMM yyyy').toUpperCase() : instant;
 }
 
-/** The zone the times are shown in, as of that instant (`GMT+3`, `EDT`), so DST shows. */
-export function formatDeviceLogZone(instant: string): string {
-  const parts = splitInstant(instant);
-  const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
-    .formatToParts(parts?.millis ?? Date.now())
-    .find(part => part.type === 'timeZoneName');
-  return zone?.value ?? '';
+export interface DeviceLogDayGroup<T> {
+  key: string;
+  label: string;
+  items: T[];
+}
+
+/**
+ * Runs of lines from one local day, in list order. Keyed by day plus repeat, never
+ * by a line: the live tail prepends lines, so a group's first line keeps changing.
+ */
+export function groupDeviceLogDays<T>(items: readonly T[], timestampOf: (item: T) => string): DeviceLogDayGroup<T>[] {
+  const groups: DeviceLogDayGroup<T>[] = [];
+  const repeats = new Map<string, number>();
+  let lastDay: string | null = null;
+  for (const item of items) {
+    const timestamp = timestampOf(item);
+    const day = deviceLogDay(timestamp);
+    if (day === lastDay) {
+      groups[groups.length - 1].items.push(item);
+      continue;
+    }
+    lastDay = day;
+    const repeat = repeats.get(day) ?? 0;
+    repeats.set(day, repeat + 1);
+    groups.push({ key: repeat === 0 ? day : `${day}#${repeat}`, label: formatDeviceLogDay(timestamp), items: [item] });
+  }
+  return groups;
 }
 
 /**

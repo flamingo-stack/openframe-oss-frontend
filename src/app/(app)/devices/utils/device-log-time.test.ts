@@ -8,7 +8,7 @@ import {
   deviceLogDay,
   formatDeviceLogDay,
   formatDeviceLogTime,
-  formatDeviceLogZone,
+  groupDeviceLogDays,
   instantToNanos,
   isInstantAfter,
   presetToFromInstant,
@@ -97,10 +97,37 @@ describe('day separators', () => {
     expect(deviceLogDay('2026-09-24T04:30:00Z')).toBe('2026-09-24');
     expect(formatDeviceLogDay('2026-09-24T02:30:00Z')).toBe('23 SEP 2026');
   });
+});
 
-  it('names the zone as of that instant, so a DST switch shows', () => {
-    expect(formatDeviceLogZone('2026-01-15T12:00:00Z')).toBe('EST');
-    expect(formatDeviceLogZone('2026-07-15T12:00:00Z')).toBe('EDT');
+describe('groupDeviceLogDays', () => {
+  const keys = (stamps: string[]) => groupDeviceLogDays(stamps, stamp => stamp).map(group => group.key);
+
+  it('splits newest-first lines into runs per local day, labelled', () => {
+    const groups = groupDeviceLogDays(['2026-09-24T12:00:00Z', '2026-09-24T05:00:00Z', '2026-09-24T02:30:00Z'], s => s);
+    expect(groups.map(group => [group.key, group.label, group.items.length])).toEqual([
+      ['2026-09-24', '24 SEP 2026', 2],
+      ['2026-09-23', '23 SEP 2026', 1],
+    ]);
+  });
+
+  it('keeps every key when the live tail prepends a line of the same day', () => {
+    const before = keys(['2026-09-24T12:00:00Z', '2026-09-23T12:00:00Z']);
+    expect(keys(['2026-09-24T12:00:05Z', '2026-09-24T12:00:00Z', '2026-09-23T12:00:00Z'])).toEqual(before);
+  });
+
+  it('keeps every key when an older page is appended', () => {
+    const before = keys(['2026-09-24T12:00:00Z', '2026-09-23T12:00:00Z']);
+    expect(
+      keys(['2026-09-24T12:00:00Z', '2026-09-23T12:00:00Z', '2026-09-23T08:00:00Z', '2026-09-22T12:00:00Z']),
+    ).toEqual([...before, '2026-09-22']);
+  });
+
+  it('keys a day that recurs after an unparseable stamp apart from its first run', () => {
+    expect(keys(['2026-09-24T12:00:00Z', 'garbage', '2026-09-24T11:00:00Z'])).toEqual([
+      '2026-09-24',
+      'garbage'.slice(0, 10),
+      '2026-09-24#1',
+    ]);
   });
 });
 

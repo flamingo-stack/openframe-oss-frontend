@@ -1,6 +1,8 @@
 import type { TagProps } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { DeviceLogLevel } from '@/generated/schema-enums';
+import { knownValue } from '@/lib/exhaustive-map';
 
+/** Chip order in the toolbar, lowest severity first. */
 export const DEVICE_LOG_LEVELS: readonly DeviceLogLevel[] = [
   DeviceLogLevel.DEBUG,
   DeviceLogLevel.INFO,
@@ -8,24 +10,21 @@ export const DEVICE_LOG_LEVELS: readonly DeviceLogLevel[] = [
   DeviceLogLevel.ERROR,
 ];
 
-const KNOWN_LEVELS = new Set<string>(DEVICE_LOG_LEVELS);
+/** Colour AND text per FE-5 — the chip label stays the reported level, only the skin is mapped. */
+const DEVICE_LOG_LEVEL_VARIANT: Record<DeviceLogLevel, NonNullable<TagProps['variant']>> = {
+  [DeviceLogLevel.DEBUG]: 'outline',
+  [DeviceLogLevel.INFO]: 'grey',
+  [DeviceLogLevel.WARN]: 'warning',
+  [DeviceLogLevel.ERROR]: 'error',
+};
+
+export const isDeviceLogLevel = (value: string): value is DeviceLogLevel => knownValue(DeviceLogLevel, value) !== null;
 
 /** The API contract: `level` is a free string; anything outside the four is INFO. */
 export function normalizeDeviceLogLevel(level: string): DeviceLogLevel {
-  const upper = level.trim().toUpperCase();
-  return KNOWN_LEVELS.has(upper) ? (upper as DeviceLogLevel) : DeviceLogLevel.INFO;
+  return knownValue(DeviceLogLevel, level.trim().toUpperCase()) ?? DeviceLogLevel.INFO;
 }
 
-/** Colour AND text per FE-5 — the chip label stays the reported level, only the skin is mapped. */
 export function getDeviceLogLevelVariant(level: DeviceLogLevel): NonNullable<TagProps['variant']> {
-  switch (level) {
-    case DeviceLogLevel.ERROR:
-      return 'error';
-    case DeviceLogLevel.WARN:
-      return 'warning';
-    case DeviceLogLevel.DEBUG:
-      return 'outline';
-    default:
-      return 'grey';
-  }
+  return DEVICE_LOG_LEVEL_VARIANT[level];
 }

@@ -1,16 +1,18 @@
 'use client';
 
-import { Chevron01RightIcon, Copy01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { CheckIcon, Chevron01RightIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useState } from 'react';
+import { type MouseEvent, useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { agentLogRow_entry$key } from '@/__generated__/agentLogRow_entry.graphql';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
+import { formatCount } from '@/lib/format-number';
 import { toRepeatCount } from '../../../utils/device-log-count';
 import { getDeviceLogLevelVariant, normalizeDeviceLogLevel } from '../../../utils/device-log-level';
 import { formatDeviceLogTime } from '../../../utils/device-log-time';
 import {
+  AGENT_LOG_COLUMN_VARS,
   AGENT_LOG_LEVEL_COLUMN,
   AGENT_LOG_LINE_BOX,
   AGENT_LOG_MESSAGE_INDENT,
@@ -34,6 +36,23 @@ interface AgentLogRowProps {
   deviceHostname: string;
 }
 
+/** Mounted only in an open row, so collapsed rows hold no copy state. Icon swap as `LogCopyButton`. */
+function AgentLogCopyButton({ text }: { text: string }) {
+  const { copy, copied } = useCopyToClipboard({ successDescription: 'Log line copied' });
+  return (
+    <Button
+      variant="outline"
+      size="small"
+      leftIcon={copied ? <CheckIcon className="text-ods-success" /> : <Copy02Icon />}
+      onClick={() => {
+        void copy(text);
+      }}
+    >
+      Copy
+    </Button>
+  );
+}
+
 function MetaLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-[var(--spacing-system-xs)]">
@@ -51,7 +70,6 @@ function MetaLine({ label, value }: { label: string; value: string }) {
 export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
   const data = useFragment(agentLogRowFragment, entry);
   const [expanded, setExpanded] = useState(false);
-  const { copy } = useCopyToClipboard({ successDescription: 'Log line copied' });
 
   // `Instant` is an unmapped scalar (`any` in the artifact); the wire form is a string.
   const timestamp = String(data.timestamp);
@@ -61,19 +79,35 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
   const count = toRepeatCount(data.count);
   const foreignHostname = data.hostname && data.hostname !== deviceHostname ? data.hostname : null;
 
+  const toggle = () => setExpanded(open => !open);
+  // The core row-click protocol (`data-no-row-click`), plus: a click that ends a
+  // text selection inside the line selects — it does not fold the row.
+  const onLineClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.target instanceof Element && event.target.closest('[data-no-row-click]')) return;
+    const selection = window.getSelection();
+    if (selection?.type === 'Range' && event.currentTarget.contains(selection.anchorNode)) return;
+    toggle();
+  };
+
   // The border is always there, only its colour changes: `border-box` would
   // otherwise pull the content in by 1px at the moment the row opens.
   return (
-    <div className={cn('rounded-md border border-transparent', expanded && 'border-ods-border bg-ods-card')}>
-      <button
-        type="button"
-        aria-expanded={expanded}
-        onClick={() => setExpanded(open => !open)}
+    <div
+      className={cn(
+        'rounded-md border border-transparent',
+        AGENT_LOG_COLUMN_VARS,
+        expanded && 'border-ods-border bg-ods-card',
+      )}
+    >
+      {/* The line toggles for pointers; the chevron is the control keyboard and
+          assistive tech get, so the unfolded message stays selectable text. */}
+      <div
+        onClick={onLineClick}
         className={cn(
           // `items-start` in BOTH states: switching it on expand moved the first
           // line up. The line box below grows the text to the chip's 32px instead.
-          'flex w-full items-start gap-[var(--spacing-system-xs)] rounded-md px-[var(--spacing-system-xs)] py-[var(--spacing-system-xxs)] text-left',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent',
+          'flex w-full cursor-pointer items-start gap-[var(--spacing-system-xs)] rounded-md px-[var(--spacing-system-xs)] py-[var(--spacing-system-xxs)]',
+          'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ods-accent',
           // An open row already carries the card background; stacking hover on
           // top of it reads as a stuck highlight.
           !expanded && 'hover:bg-ods-bg-hover',
@@ -120,14 +154,26 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
             className="hidden shrink-0 md:inline-flex"
           />
         )}
-        {count !== null && <Tag as="span" variant="outline" label={<span>×{count}</span>} className="shrink-0" />}
-        {/* Decorative: `aria-expanded` on the button already states the state. */}
-        <span aria-hidden="true" className="flex h-8 shrink-0 items-center">
+        {count !== null && (
+          <Tag as="span" variant="outline" label={<span>×{formatCount(count)}</span>} className="shrink-0" />
+        )}
+        <button
+          type="button"
+          data-no-row-click
+          aria-expanded={expanded}
+          aria-label={`Details: ${formatDeviceLogTime(timestamp)} ${levelText}`}
+          onClick={toggle}
+          className="flex h-8 shrink-0 items-center rounded-md focus-visible:outline-none"
+        >
           <Chevron01RightIcon
-            className={cn('h-4 w-4 text-ods-text-tertiary transition-transform', expanded && 'rotate-90')}
+            aria-hidden="true"
+            className={cn(
+              'h-4 w-4 text-ods-text-tertiary transition-transform motion-reduce:transition-none',
+              expanded && 'rotate-90',
+            )}
           />
-        </span>
-      </button>
+        </button>
+      </div>
       {expanded && (
         <div
           className={cn(
@@ -151,16 +197,7 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
             {data.hostname && <MetaLine label="hostname" value={data.hostname} />}
           </dl>
           <div>
-            <Button
-              variant="outline"
-              size="small"
-              leftIcon={<Copy01Icon />}
-              onClick={() => {
-                void copy(data.message);
-              }}
-            >
-              Copy
-            </Button>
+            <AgentLogCopyButton text={data.message} />
           </div>
         </div>
       )}

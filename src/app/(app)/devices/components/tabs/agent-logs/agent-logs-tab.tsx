@@ -13,7 +13,7 @@ import { dateRangeFromParams, toDayParam } from '@/lib/date-filter-params';
 import { DEVICE_LOGS_REFRESH_PARAM } from '@/lib/routes';
 import type { DeviceLogFilter } from '../../../types/device-log.types';
 import type { Device } from '../../../types/device.types';
-import { DEVICE_LOG_LEVELS } from '../../../utils/device-log-level';
+import { DEVICE_LOG_LEVELS, isDeviceLogLevel } from '../../../utils/device-log-level';
 import {
   EMPTY_DEVICE_LOG_SEARCH,
   type ParsedDeviceLogSearch,
@@ -30,15 +30,12 @@ import {
 } from '../../../utils/device-log-time';
 import { AgentLogsContent, type AgentLogsList } from './agent-logs-content';
 import { AgentLogsErrorState } from './agent-logs-error-state';
-import { AgentLogsRowsSkeleton } from './agent-logs-skeleton';
+import { AgentLogsListSkeleton } from './agent-logs-skeleton';
 import { AgentLogsToolbar } from './agent-logs-toolbar';
 
 /** Production retention; the empty state mentions it for ranges that reach past it. */
 const RETENTION_DAYS = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-const isDeviceLogLevel = (value: string): value is DeviceLogLevel =>
-  (DEVICE_LOG_LEVELS as readonly string[]).includes(value);
 
 interface AgentLogsTabProps {
   device: Device;
@@ -63,18 +60,16 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
     logTo: { type: 'string', default: '' },
   });
 
-  const { search, setSearch, debouncedSearch } = useSearchParam(params.logSearch, value =>
-    setParam('logSearch', value),
-  );
-  // Seeded EMPTY, not from the URL: a shared link can carry a search the limits
-  // reject, and the latch below only covers later edits (FE-12). The query
-  // follows the debounced text only while it parses, so a rejection holds.
+  const { search, setSearch } = useSearchParam(params.logSearch, value => setParam('logSearch', value));
+  // Seeded EMPTY: a shared link can carry a search the limits reject (FE-12). The
+  // query follows the URL's (debounced) text only while it parses, so a rejection
+  // holds — and a reset clears it in the same render as the other filters.
   const liveSearch = parseDeviceLogSearch(search);
   // The latch holds the TEXT, not the parse: comparing parses by identity made
   // the render-phase update fire again on every render.
   const [validSearchText, setValidSearchText] = useState('');
-  if (parseDeviceLogSearch(debouncedSearch).error === null && debouncedSearch !== validSearchText) {
-    setValidSearchText(debouncedSearch);
+  if (parseDeviceLogSearch(params.logSearch).error === null && params.logSearch !== validSearchText) {
+    setValidSearchText(params.logSearch);
   }
   // This memo and the ones feeding `filter` are for identity, not speed:
   // `useDeferredQuery` tells a pending refetch apart by reference.
@@ -104,6 +99,13 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
     if (adopted !== null) setAnchorNow(adopted);
   }
   const refresh = () => setAnchorNow(Date.now());
+  // A preset's URL lands a router round trip after the click; moving the anchor
+  // only then keeps the change to one request, not a stale-range one first.
+  const [pendingAnchor, setPendingAnchor] = useState<{ range: DeviceLogRangePreset; at: number } | null>(null);
+  if (pendingAnchor !== null && pendingAnchor.range === range) {
+    setPendingAnchor(null);
+    setAnchorNow(pendingAnchor.at);
+  }
 
   const filter = useMemo<DeviceLogFilter>(() => {
     const next: DeviceLogFilter = {};
@@ -154,7 +156,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   };
 
   const changeRange = (next: DeviceLogRangePreset) => {
-    setAnchorNow(Date.now());
+    setPendingAnchor({ range: next, at: Date.now() });
     setParams({ logRange: next, ...(next === 'custom' ? {} : { logFrom: '', logTo: '' }) });
   };
 
@@ -202,7 +204,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
           />
         )}
       >
-        <Suspense fallback={<AgentLogsRowsSkeleton />}>
+        <Suspense fallback={<AgentLogsListSkeleton />}>
           <AgentLogsContent
             machineId={machineId}
             deviceHostname={device.hostname}

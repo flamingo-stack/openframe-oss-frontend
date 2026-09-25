@@ -1,5 +1,5 @@
-export const MAX_DEVICE_LOG_SEARCH_TERMS = 5;
-export const MAX_DEVICE_LOG_SEARCH_TERM_LENGTH = 256;
+const MAX_DEVICE_LOG_SEARCH_TERMS = 5;
+const MAX_DEVICE_LOG_SEARCH_TERM_LENGTH = 256;
 
 /**
  * The edge proxy answers these with a 502 before the API sees them (a WAF

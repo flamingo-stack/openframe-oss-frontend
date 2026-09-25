@@ -125,8 +125,6 @@ const REMOTE_SESSIONS_TAB: TabItem = {
   component: RemoteSessionsTab,
 };
 
-export { AGENT_LOGS_TAB_ID };
-
 // Last, as in Figma `696:38907`; the same glyph as the "Device Logs" menu entry.
 const AGENT_LOGS_TAB: TabItem = {
   id: AGENT_LOGS_TAB_ID,

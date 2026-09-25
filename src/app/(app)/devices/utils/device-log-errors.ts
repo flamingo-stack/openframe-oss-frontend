@@ -20,8 +20,8 @@ export function isRetryableDeviceLogError(kind: DeviceLogErrorKind): boolean {
   return kind === 'unavailable' || kind === 'generic';
 }
 
-export const DEVICE_LOGS_UNAVAILABLE_MESSAGE = 'Logs are temporarily unavailable.';
-export const DEVICE_LOGS_GENERIC_MESSAGE = "Couldn't load agent logs.";
+const DEVICE_LOGS_UNAVAILABLE_MESSAGE = 'Logs are temporarily unavailable.';
+const DEVICE_LOGS_GENERIC_MESSAGE = "Couldn't load agent logs.";
 
 /** The edge proxy's bodiless 502 only: other statuses and the auth blip share the prefix but are outages. */
 function isProxyRejection(error: unknown): boolean {

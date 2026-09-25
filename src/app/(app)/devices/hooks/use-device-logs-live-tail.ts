@@ -77,7 +77,13 @@ export function useDeviceLogsLiveTail({
 
     function tick() {
       const { fetchNewer: fetch, newestTimestamp: newest, windowStart: start, windowEnd: end } = latest.current;
-      if (request || document.visibilityState === 'hidden') return;
+      if (request) return;
+      // Hidden skips the request, not the clock: WKWebView does not reliably send
+      // the `visibilitychange` that would otherwise be the only way back.
+      if (document.visibilityState === 'hidden') {
+        schedule(DEVICE_LOGS_POLL_INTERVAL_MS);
+        return;
+      }
       if (end !== undefined && Date.parse(end) <= Date.now()) return;
 
       fetch(newest ?? start ?? fallbackFrom).subscribe({

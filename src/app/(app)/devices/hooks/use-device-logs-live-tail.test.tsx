@@ -233,6 +233,17 @@ describe('useDeviceLogsLiveTail', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('resumes after a hidden spell even when no visibilitychange arrives', () => {
+    visibility = 'hidden';
+    render();
+    tick(60_000);
+    expect(calls).toHaveLength(0);
+
+    visibility = 'visible';
+    tick();
+    expect(calls).toHaveLength(1);
+  });
+
   it('never polls a custom range that has already ended', () => {
     render({ windowEnd: '2020-01-01T00:00:00.000Z' });
     tick(60_000);
