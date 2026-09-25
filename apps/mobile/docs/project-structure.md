@@ -74,6 +74,12 @@ openframe-mobile/
 
 Everything runs through **`npm run build:web`** (`scripts/build-web.sh`):
 
+0. **Get the frontend** — by default the local checkout at `FRONTEND_DIR`
+   (`~/flamingo/openframe-frontend`), built as-is. For a store build set
+   `FRONTEND_REF=<release tag>` instead (e.g. `FRONTEND_REF=1.0.127`): the script
+   makes a fresh shallow clone of `openframe-oss-frontend` at that tag into
+   `.frontend/` (git-ignored) and runs `npm ci` there, so the shipped bundle is
+   exactly that release and reports it as its version (`X-OpenFrame-Client`).
 1. **Build the frontend as a static export** — in the frontend repo it runs
    `OPENFRAME_BUILD_TARGET=export npm run build`. That env flag flips
    `next.config.mjs` from `output: 'standalone'` (the web server build) to
