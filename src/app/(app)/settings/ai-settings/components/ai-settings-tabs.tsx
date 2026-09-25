@@ -35,7 +35,7 @@ const TAB_FEATURE_FLAG: Partial<Record<AiSettingsTabId, (flags: AiSettingsTabFla
   // `featureFlags.customerAiAssistantSettings` at its own call sites.
   customer: () => true,
   mingo: flags => flags.mingoAiChatSettings,
-  // Remote access policy (CU-86akeqw8b) ships dark with the approval flow flag.
+  // Remote access policy ships dark with the approval flow flag.
   'device-guardrails': flags => flags.remoteAccessApproval,
 };
 

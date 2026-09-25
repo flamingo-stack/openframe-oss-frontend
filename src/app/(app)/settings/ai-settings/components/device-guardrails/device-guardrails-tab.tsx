@@ -28,7 +28,7 @@ import { InfoCell } from '@/app/components/shared/info-cell';
 export const DEVICE_GUARDRAILS_FORM_ID = 'ai-settings-device-guardrails-form';
 
 // The approval timeout, the delivery timeout and the two fallback settings are
-// fixed backend constants (decision 2026-09-18, CU-86akeqw6h): the tenant
+// fixed backend constants: the tenant
 // policy carries the mode alone, so this form is the mode selector alone.
 const deviceGuardrailsSchema = z.object({
   mode: z.enum(REMOTE_ACCESS_MODES),
@@ -44,8 +44,8 @@ interface DeviceGuardrailsTabProps {
 }
 
 /**
- * "Device Guardrails" tab on AI Settings (CU-86akeqw8b): the tenant-default
- * remote access permission from the policy model on CU-86akeqw6h. Edit mode +
+ * "Device Guardrails" tab on AI Settings: the tenant-default remote access
+ * permission from the policy model. Edit mode +
  * Save are owned by the shared AiSettingsLayout actions; Save submits this
  * form via DEVICE_GUARDRAILS_FORM_ID.
  *

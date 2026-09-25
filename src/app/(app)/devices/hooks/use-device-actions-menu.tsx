@@ -88,11 +88,10 @@ export function useDeviceActionsMenu(
 
   const baseAvailability = device ? getDeviceActionAvailability(device) : null;
 
-  // Remote access policy (CU-86akeqw8b): DENY_ACCESS disables the Remote
-  // Control entry point in place - per the design decision, no separate
-  // screen. Remote shell and file manager are outside the epic's scope
-  // (decision 2026-09-16) and stay available. `undefined` (flag off / still
-  // resolving) leaves legacy behavior.
+  // Remote access policy: DENY_ACCESS disables the Remote Control entry point
+  // in place - per the design decision, no separate screen. Remote shell and
+  // file manager are outside the epic's scope and stay available. `undefined`
+  // (flag off / still resolving) leaves legacy behavior.
   const remoteAccessGate = useRemoteAccessApprovalGate();
   const effectiveRemoteAccessMode = useEffectiveDeviceRemoteAccessMode(device, { context: policyContext });
   const remoteAccessDenied = effectiveRemoteAccessMode === 'DENY_ACCESS';

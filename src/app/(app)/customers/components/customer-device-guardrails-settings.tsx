@@ -38,7 +38,7 @@ interface CustomerDeviceGuardrailsSettingsProps {
 
 /**
  * "Customer Device Guardrails" block on the customer edit page
- * (CU-86akeqw8b, mockups 505-13898 / 505-13814): the per-organization remote
+ * (mockups 505-13898 / 505-13814): the per-organization remote
  * access permission override. Follows the AI guardrails block pattern - a
  * "use default" checkbox with the mode select underneath, no Save button of
  * its own; the page-level "Save Customer" calls `commit()` through the ref.

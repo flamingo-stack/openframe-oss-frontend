@@ -31,7 +31,7 @@ interface EditDisplayNameModalProps {
  * "Edit Device" modal: sets or clears a device's user-defined name (the BE
  * `nickname`, labeled "Display Name" in the UI per the design) and - with the
  * remote-access-approval gate on - the per-device Remote Access Permission
- * override (CU-86akeqw8b). Clearing the name reverts the title to the
+ * override. Clearing the name reverts the title to the
  * agent-reported displayName/hostname.
  *
  * The permission select shows the device's EFFECTIVE mode (override, else the

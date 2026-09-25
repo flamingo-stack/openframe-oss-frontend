@@ -1,4 +1,4 @@
-// Tenant Management domain model (CU-86akj8ajt).
+// Tenant Management domain model.
 //
 // `TenantConnection` mirrors the backend `DirectoryConnection` type field for
 // field (branch `feature/directory-fe-integration`,

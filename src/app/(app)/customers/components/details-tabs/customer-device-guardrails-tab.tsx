@@ -14,8 +14,8 @@ interface CustomerDeviceGuardrailsTabProps {
 }
 
 /**
- * "Customer Device Guardrails" tab on the customer details page
- * (CU-86akeqw8b): the organization's remote access permission - the tenant
+ * "Customer Device Guardrails" tab on the customer details page: the
+ * organization's remote access permission - the tenant
  * default while the org inherits (with the "Using Default Settings" banner
  * per the design), the org's own mode otherwise. Read-only, like the AI
  * guardrails tab; a per-customer edit flow can build on

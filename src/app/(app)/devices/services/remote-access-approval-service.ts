@@ -6,9 +6,9 @@ import type {
 import { mockRemoteAccessPolicyService } from './remote-access-policy-service';
 
 /**
- * Remote-access approval backend surface (CU-86ajx03db). Two implementations:
+ * Remote-access approval backend surface. Two implementations:
  * `RemoteAccessApprovalApiService` (remote-access-approval-api-service.ts) for
- * the real approval API (CU-86ajx02gz) and the in-memory
+ * the real approval API and the in-memory
  * `MockRemoteAccessApprovalService` below; `useRemoteAccessApprovalService`
  * picks one by the `remote-access-approval-api` flag.
  *
@@ -37,7 +37,7 @@ export interface IRemoteAccessApprovalService {
 const MOCK_LATENCY_MS = 350;
 /** Client ack arrives shortly after create - PENDING -> DELIVERED. */
 const MOCK_DELIVERY_MS = 1200;
-/** Matches the fixed approval timeout (30 s, decision 2026-09-18). */
+/** Matches the fixed approval timeout (30 s). */
 const MOCK_TIMEOUT_MS = 30_000;
 
 function delay(ms: number): Promise<void> {
@@ -83,7 +83,7 @@ class MockRemoteAccessApprovalService implements IRemoteAccessApprovalService {
       if (open && !isSettledRequestStatus(open.request.status)) return { ...open.request };
     }
 
-    // Per the CU-86ajx02gz contract, request creation resolves the policy mode
+    // Per the approval contract, request creation resolves the policy mode
     // first: APPROVAL_REQUIRED publishes to the machine and waits; NOTIFY_ONLY
     // and SILENT_ACCESS auto-approve immediately (the machine gets session
     // events, not an approval prompt); DENY_ACCESS returns DENIED outright.

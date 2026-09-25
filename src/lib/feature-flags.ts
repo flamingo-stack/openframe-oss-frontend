@@ -23,16 +23,16 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   'test-clock',
   'download-apps',
-  // MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+  // MeshCentral attended remote access: the approval-gated
   // connect flow, the remote access policy UI and the session recordings
   // surfaces. Off = the legacy auto-start tunnel behavior, no policy UI.
   'remote-access-approval',
-  // TEMPORARY - remove together with the remote access backend (approval API
-  // CU-86ajx02gz, recordings storage CU-86akc3c5q). Shows the QA tooling that
+  // TEMPORARY - remove together with the remote access backend (approval API,
+  // recordings storage). Shows the QA tooling that
   // drives the mock services: the simulate-decision strip on the awaiting
   // screen and the recording player's local .mcrec loader. On for dev / qa.
   'remote-access-mock-tools',
-  // TEMPORARY - remove once the approval API (CU-86ajx02gz) runs on every
+  // TEMPORARY - remove once the approval API runs on every
   // environment. On = the approval-gated connect flow, the session lifecycle
   // and the remote access policy screens talk to the real GraphQL API (dev,
   // where the backend is deployed); off = the in-memory mocks that the QA
@@ -45,7 +45,7 @@ export const FEATURE_FLAG_NAMES = [
   'remote-access-v2',
   // The Incidents module (`/incidents`) over saas-api's `insights` API.
   'insights',
-  // Tenant Management (CU-86akj8ajt): the Settings module that connects
+  // Tenant Management: the Settings module that connects
   // Microsoft 365 / Google Workspace directories. The backend does not register
   // the name yet, so the module stays dark on qa/prod until it does; the dev
   // server treats the missing answer as "on" (`use-tenant-management-gate.ts`)
@@ -191,7 +191,7 @@ export const featureFlags = {
     },
   },
   /**
-   * MeshCentral attended remote access (CU-86agfp8w9): the approval-gated
+   * MeshCentral attended remote access: the approval-gated
    * connect flow, the policy UI and the session recordings surfaces. Off = the
    * legacy auto-start tunnel behavior. Route gating goes through
    * `useRemoteAccessApprovalGate` (tri-state); this accessor is for imperative
@@ -214,7 +214,7 @@ export const featureFlags = {
     },
   },
   /**
-   * Tenant Management (CU-86akj8ajt). Route/hub gating goes through
+   * Tenant Management. Route/hub gating goes through
    * `useTenantManagementGate` (tri-state, dev bypass); this accessor is for
    * imperative reads only.
    */

@@ -1,5 +1,5 @@
 /**
- * Pins how the install command carries its `x-machine-id` (CU-86aknaw57): a
+ * Pins how the install command carries its `x-machine-id`: a
  * fresh v4 UUID per mount that survives re-renders and selector changes,
  * rotates only when the page asks (after a copy), is never shared between two
  * mounts, and is held back on the prerender so hydration has nothing to

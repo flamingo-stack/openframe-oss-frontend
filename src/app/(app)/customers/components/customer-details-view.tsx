@@ -92,7 +92,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   // Effective per-org guardrails via /chat/graphql (saas-ai-agent), so
   // saas-tenant only; own release flag, independent of the appearance feature.
   const showGuardrails = useFeatureFlag('customer-guardrails') && isSaasTenant;
-  // Remote access policy (CU-86akeqw8b): not saas-gated - MeshCentral runs in
+  // Remote access policy: not saas-gated - MeshCentral runs in
   // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
   const showDeviceGuardrails = useRemoteAccessApprovalGate() === 'on';
   const tabs = useMemo(
