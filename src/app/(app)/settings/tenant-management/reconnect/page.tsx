@@ -4,10 +4,11 @@ import { notFound } from 'next/navigation';
 import { useOwnerGate } from '@/app/hooks/use-owner-gate';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
-import { ReconnectTenantView } from '../components/reconnect-tenant-view';
-import { TenantOwnersOnlyScreen } from '../components/tenant-owners-only-screen';
-import { TenantFormSkeleton } from '../components/tenant-page-skeletons';
-import { useTenantManagementGate } from '../hooks/use-tenant-management-gate';
+import { TenantOwnersOnlyScreen } from '../components/shared/tenant-owners-only-screen';
+import { TenantPageShell } from '../components/shared/tenant-page-shell';
+import { useTenantManagementGate } from '../components/shared/use-tenant-management-gate';
+import { TenantFormSkeleton } from '../components/tenant-form/tenant-form-skeleton';
+import { ReconnectTenantView } from '../components/tenant-reconnect/reconnect-tenant-view';
 
 export default function ReconnectTenantPage() {
   const gate = useTenantManagementGate();
@@ -19,11 +20,17 @@ export default function ReconnectTenantPage() {
   if (!id) {
     return null;
   }
-  if (gate === 'loading' || ownerGate === 'loading') {
-    return <TenantFormSkeleton variant="reconnect" />;
-  }
-  if (ownerGate === 'not-owner') {
+  if (gate === 'on' && ownerGate === 'not-owner') {
     return <TenantOwnersOnlyScreen />;
   }
-  return <ReconnectTenantView id={id} />;
+  return (
+    <TenantPageShell title="Reconnect Tenant Integration" errorMessage="Couldn't load this tenant." resetKey={id}>
+      {gate === 'loading' || ownerGate === 'loading' ? (
+        <TenantFormSkeleton variant="reconnect" />
+      ) : (
+        // Keyed by id: the mint guard and the probe verdict belong to one tenant.
+        <ReconnectTenantView key={id} id={id} />
+      )}
+    </TenantPageShell>
+  );
 }

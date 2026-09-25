@@ -27,7 +27,7 @@ import { isBillingHidden } from '@/lib/billing-visibility';
 import { handleApiError } from '@/lib/handle-api-error';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
-import { useTenantManagementGate } from '../tenant-management/hooks/use-tenant-management-gate';
+import { useTenantManagementGate } from '../tenant-management/components/shared/use-tenant-management-gate';
 import { AccountSettingsCard } from './account-settings-card';
 import { BiometricLoginCard } from './biometric-login-card';
 import { EditProfileModal } from './edit-profile-modal';

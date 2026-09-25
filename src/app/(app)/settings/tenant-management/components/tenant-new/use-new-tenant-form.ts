@@ -5,8 +5,8 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-import { TENANT_FORM_DEFAULT_VALUES, type TenantFormData, tenantFormSchema } from '../types/tenant-form.types';
-import { invalidSubmitHandler } from '../utils/tenant-form-helpers';
+import { invalidSubmitHandler } from '../tenant-form/tenant-form-helpers';
+import { TENANT_FORM_DEFAULT_VALUES, type TenantFormData, tenantFormSchema } from '../tenant-form/tenant-form.types';
 import { useNewTenantFlow } from './use-new-tenant-flow';
 
 /**

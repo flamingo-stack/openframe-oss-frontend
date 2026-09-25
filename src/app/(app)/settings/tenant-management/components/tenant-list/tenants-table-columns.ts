@@ -22,3 +22,5 @@ export const TENANTS_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
   TENANT_COLUMNS.access,
   TENANT_COLUMNS.open,
 ];
+
+export const TENANTS_PAGE_SIZE = 20;

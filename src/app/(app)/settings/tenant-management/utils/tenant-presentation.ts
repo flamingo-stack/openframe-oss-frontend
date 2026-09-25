@@ -18,7 +18,6 @@ import { DirectoryAccessState, DirectoryCapability, DirectoryProvider } from '@/
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDate, formatTimeWithSeconds } from '@/lib/format-date';
-import type { TenantAccess, TenantConnectionRecord } from '../types/tenant-connection';
 
 type TagVariant = NonNullable<TagProps['variant']>;
 
@@ -77,7 +76,7 @@ export function accessStateHint(state: string | null | undefined): string {
 }
 
 /** The tag beside "Check Connection" once a probe has answered (Figma 2097-122274). */
-export function checkResultTag(access: TenantAccess): StatusTag {
+export function checkResultTag(access: { readonly state: string }): StatusTag {
   return isReadable(access.state)
     ? { label: 'Connected and readable', variant: 'success' }
     : accessStateTag(access.state);
@@ -176,11 +175,11 @@ export function capabilityLabels(capabilities: readonly string[]): string[] {
 }
 
 /**
- * The instant "Last read" reports: the directory sync, not the
- * access probe — a probe proves the link, a sync is when the data was read.
+ * The instant "Last read" reports: the directory sync, not the access probe — a probe proves the
+ * link, a sync is when the data was read. `Instant` arrives untyped, so anything but text is absent.
  */
-export function lastReadAt(connection: Pick<TenantConnectionRecord, 'lastSyncAt'>): string | null {
-  return connection.lastSyncAt;
+export function lastReadAt(connection: { readonly lastSyncAt?: unknown }): string | null {
+  return typeof connection.lastSyncAt === 'string' && connection.lastSyncAt !== '' ? connection.lastSyncAt : null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

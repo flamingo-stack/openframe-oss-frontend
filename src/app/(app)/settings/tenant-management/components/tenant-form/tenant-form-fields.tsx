@@ -1,87 +1,48 @@
 'use client';
 'use no memo';
 
-import { Input, RadioGroupBlock } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ReactNode } from 'react';
 import { type Control, Controller } from 'react-hook-form';
-import type { DirectoryProvider } from '@/generated/schema-enums';
-import type { TenantOrganization } from '../types/tenant-connection';
-import type { TenantFormData } from '../types/tenant-form.types';
-import { PROVIDER_ORDER, providerPresentation } from '../utils/tenant-presentation';
+import type { CustomerOption } from './customer-option';
 import { CustomerSelect } from './customer-select';
+import type { TenantFormData } from './tenant-form.types';
 
-// The fields of the New and Edit Tenant Integration forms (Figma 2097-122192 …
-// 2097-123264), one file so the two pages cannot drift: the provider picker
-// (grouped radio rows, as drawn), then Domain Name · Connection Name · Select
-// Customer on a four-column grid — the domain spans two columns while it is
-// shown, and Edit hides the provider and the domain (they sit in the identity
-// card above). Field errors hang below their control out of flow (core
-// `FieldWrapper`), so every gap here is the 24px that keeps them off the next row.
+// The fields of the New and Edit forms, one file so the two pages cannot drift: the provider slot,
+// then Domain · Connection Name · Customer on the grid. Field errors hang below their control out of
+// flow (core `FieldWrapper`), so every gap is the 24px that keeps them off the next row.
 
 interface TenantFormFieldsProps {
   control: Control<TenantFormData>;
   /** Every control inert — a write in flight, or the record not loaded yet. */
   disabled?: boolean;
-  /** The provider is fixed once a connection exists (a record has one). */
-  providerLocked?: boolean;
   /** The domain is fixed once a consent link has been minted for it. */
   domainLocked?: boolean;
-  hideProvider?: boolean;
+  /** Edit shows the domain in the identity card above instead. */
   hideDomain?: boolean;
+  /** The New page's provider picker, above the grid. */
+  providerField?: ReactNode;
   /** The customer already bound to this connection (see `CustomerSelect`). */
-  includeOrganization?: TenantOrganization | null;
+  includeOrganization?: CustomerOption | null;
   /** Edit: hold the customer list until the record is known (see `CustomerSelect.enabled`). */
   customersEnabled?: boolean;
-  /**
-   * Providers this deployment offers (`directoryConnectionOptions.providers`),
-   * shown in `PROVIDER_ORDER`; the copy for each is a client constant.
-   */
-  providers?: readonly DirectoryProvider[];
 }
 
-function providerOptions(providers: readonly DirectoryProvider[]) {
-  return PROVIDER_ORDER.filter(provider => providers.includes(provider)).map(provider => {
-    const { label, radioDescription } = providerPresentation(provider);
-    return { value: provider, label, description: radioDescription };
-  });
-}
-
-/**
- * One column on a phone, two at md (800px: a four-way split leaves 156px per
- * field, too narrow for its placeholder), four at lg — the frames' proportions.
- */
+/** One column on a phone, two at md (a four-way split is too narrow there), four at lg — the frames' proportions. */
 export const FIELD_GRID = 'grid grid-cols-1 gap-[var(--spacing-system-lf)] md:grid-cols-2 lg:grid-cols-4';
 
 export function TenantFormFields({
   control,
   disabled = false,
-  providerLocked = false,
   domainLocked = false,
-  hideProvider = false,
   hideDomain = false,
+  providerField,
   includeOrganization,
   customersEnabled = true,
-  providers = PROVIDER_ORDER,
 }: TenantFormFieldsProps) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-lf)]">
-      {!hideProvider && (
-        <Controller
-          name="provider"
-          control={control}
-          render={({ field, fieldState }) => (
-            <RadioGroupBlock
-              name={field.name}
-              value={field.value}
-              onValueChange={field.onChange}
-              options={providerOptions(providers)}
-              variant="grouped"
-              disabled={disabled || providerLocked}
-              error={fieldState.error?.message}
-              aria-label="Provider"
-            />
-          )}
-        />
-      )}
+      {providerField}
       <div className={FIELD_GRID}>
         {!hideDomain && (
           <Controller
@@ -100,8 +61,7 @@ export function TenantFormFields({
                   placeholder="Enter Domain Name"
                   value={field.value}
                   onChange={field.onChange}
-                  // Show what will be sent: the schema trims and lowercases on
-                  // submit, so the field does the same the moment focus leaves.
+                  // Show what will be sent: the schema trims and lowercases on submit.
                   onBlur={() => {
                     const normalized = field.value.trim().toLowerCase();
                     if (normalized !== field.value) field.onChange(normalized);

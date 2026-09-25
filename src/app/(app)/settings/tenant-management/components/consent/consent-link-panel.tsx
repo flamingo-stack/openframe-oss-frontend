@@ -10,9 +10,8 @@ import { Button, Input, Tag } from '@flamingo-stack/openframe-frontend-core/comp
 import { useCallback } from 'react';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
-import type { ConsentCheckState } from '../../hooks/use-tenant-consent';
-import type { TenantAccess } from '../../types/tenant-connection';
 import { accessStateHint, checkResultTag, providerPresentation } from '../../utils/tenant-presentation';
+import type { ConsentCheckResult, ConsentCheckState } from './use-tenant-consent';
 
 export type ConsentMode = 'new' | 'reconnect' | 'details';
 
@@ -22,7 +21,7 @@ export interface ConsentPanelProps {
   consentUrl: string | null | undefined;
   mode: ConsentMode;
   checkState: ConsentCheckState;
-  checkResult: TenantAccess | null;
+  checkResult: ConsentCheckResult | null;
   checkError: string | null;
   onCheck: () => void;
   /** New page only: unlock the domain field (the link becomes void). */

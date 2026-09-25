@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DirectoryAccessState, DirectoryCapability, DirectoryProvider } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate } from '@/lib/format-date';
-import type { TenantAccess } from '../types/tenant-connection';
 import {
   accessStateHint,
   accessStateTag,
@@ -21,7 +20,7 @@ import {
   usersCountLabel,
 } from './tenant-presentation';
 
-const access = (state: DirectoryAccessState): TenantAccess => ({ state, capabilities: [] });
+const access = (state: DirectoryAccessState) => ({ state });
 
 describe('accessStateTag', () => {
   it('gives every access state a label and a variant', () => {

@@ -2,40 +2,35 @@
 'use no memo';
 
 import { Button, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useFormState } from 'react-hook-form';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import type { DirectoryProvider } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { useNewTenantForm } from '../hooks/use-new-tenant-form';
-import { useTenantConnectionOptions } from '../hooks/use-tenant-connections';
-import { PROVIDER_ORDER } from '../utils/tenant-presentation';
-import { ConsentBlock } from './consent/consent-block';
-import { TenantFormFields } from './tenant-form-fields';
+import { ConsentBlock } from '../consent/consent-block';
+import { ProviderField } from '../tenant-form/provider-field';
+import { TenantFormFields } from '../tenant-form/tenant-form-fields';
+import { useNewTenantForm } from './use-new-tenant-form';
 
 /**
- * `/settings/tenant-management/new` (Figma 2097-122192 → 2097-122274): the
- * provider picker and the three fields, "Generate Connection Link" while the
- * form is being filled, the consent card in its place once a link stands, Save
- * in the title bar throughout — enabled only from the link phase on. Copy is
- * the frames' own, "Back to Integrations" included.
+ * `/settings/tenant-management/new` (Figma 2097-122192 → 2097-122274): the provider picker and the
+ * three fields, "Generate Connection Link" while filling, the consent card once a link stands, Save
+ * in the title bar throughout — enabled only from the link phase on.
  */
 export function NewTenantView() {
   const handleBack = useSafeBack(routes.settings.tenantManagement);
   const { form, flow, generateLink, handleSave } = useNewTenantForm();
-  // The frames draw Generate disabled until the form is complete (2097-122192
-  // vs 2097-122207); `mode: 'onChange'` keeps this live.
+  // The frames draw Generate disabled until the form is complete; `mode: 'onChange'` keeps this live.
   const { isValid } = useFormState({ control: form.control });
-  const { connection } = flow;
-  // Which providers this deployment has enabled; the full set until it answers.
-  const options = useTenantConnectionOptions();
-  const offered = options.data?.providers;
-  const { providerLocked } = flow;
+  // The providers this deployment offers; unknown until the picker's query answers.
+  const [offered, setOffered] = useState<readonly DirectoryProvider[] | null>(null);
+  const { connection, providerLocked } = flow;
   const { getValues, setValue } = form;
 
   // A deployment may offer one provider only; the preselected Microsoft must follow what it offers.
   useEffect(() => {
     if (!offered || providerLocked || offered.includes(getValues('provider'))) return;
-    const first = PROVIDER_ORDER.find(provider => offered.includes(provider));
+    const first = offered[0];
     if (first) setValue('provider', first, { shouldValidate: true });
   }, [offered, providerLocked, getValues, setValue]);
 
@@ -55,17 +50,20 @@ export function NewTenantView() {
       backButton={{ label: 'Back to Integrations', onClick: handleBack }}
       actions={actions}
       actionsVariant="primary-buttons"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <TenantFormFields
         control={form.control}
         disabled={flow.fieldsDisabled}
-        providerLocked={flow.providerLocked}
         domainLocked={flow.domainLocked}
-        // Once the record exists its customer is bound and drops out of the API's list of
-        // available customers; the picker puts it back, or it goes blank under the user.
-        includeOrganization={connection?.organization}
-        providers={offered}
+        providerField={
+          <ProviderField
+            control={form.control}
+            disabled={flow.fieldsDisabled}
+            locked={providerLocked}
+            onOffered={setOffered}
+          />
+        }
+        includeOrganization={flow.boundOrganization}
       />
       {flow.phase === 'link' && connection ? (
         <ConsentBlock
@@ -84,7 +82,8 @@ export function NewTenantView() {
           <Button
             variant="accent"
             onClick={generateLink}
-            disabled={!isValid || !flow.canGenerate}
+            // No provider on offer (or not known yet) leaves nothing a Generate could create.
+            disabled={!isValid || !flow.canGenerate || !offered || offered.length === 0}
             loading={flow.isGenerating}
             className="w-full md:w-auto"
           >

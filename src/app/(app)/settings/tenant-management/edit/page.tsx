@@ -4,10 +4,11 @@ import { notFound } from 'next/navigation';
 import { useOwnerGate } from '@/app/hooks/use-owner-gate';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
-import { EditTenantView } from '../components/edit-tenant-view';
-import { TenantOwnersOnlyScreen } from '../components/tenant-owners-only-screen';
-import { TenantFormSkeleton } from '../components/tenant-page-skeletons';
-import { useTenantManagementGate } from '../hooks/use-tenant-management-gate';
+import { TenantOwnersOnlyScreen } from '../components/shared/tenant-owners-only-screen';
+import { TenantPageShell } from '../components/shared/tenant-page-shell';
+import { useTenantManagementGate } from '../components/shared/use-tenant-management-gate';
+import { EditTenantView } from '../components/tenant-edit/edit-tenant-view';
+import { TenantFormSkeleton } from '../components/tenant-form/tenant-form-skeleton';
 
 export default function EditTenantPage() {
   const gate = useTenantManagementGate();
@@ -19,11 +20,17 @@ export default function EditTenantPage() {
   if (!id) {
     return null;
   }
-  if (gate === 'loading' || ownerGate === 'loading') {
-    return <TenantFormSkeleton variant="edit" />;
-  }
-  if (ownerGate === 'not-owner') {
+  if (gate === 'on' && ownerGate === 'not-owner') {
     return <TenantOwnersOnlyScreen />;
   }
-  return <EditTenantView id={id} />;
+  return (
+    <TenantPageShell title="Edit Tenant Integration" errorMessage="Couldn't load this tenant." resetKey={id}>
+      {gate === 'loading' || ownerGate === 'loading' ? (
+        <TenantFormSkeleton variant="edit" />
+      ) : (
+        // Keyed by id: a hop from tenant A to B would otherwise keep A's form state.
+        <EditTenantView key={id} id={id} />
+      )}
+    </TenantPageShell>
+  );
 }

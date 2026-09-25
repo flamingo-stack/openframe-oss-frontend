@@ -8,47 +8,19 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { InlineSkeleton } from '@/app/components/shared';
+import { TenantSummaryCardSkeleton } from '../tenant-detail/tenant-summary-card';
 import { FIELD_GRID } from './tenant-form-fields';
-import { TenantSummaryCardSkeleton } from './tenant-summary-card';
-
-const PAGE_CLASSES = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
-
-// The list page uses the shared `ListPageSkeleton` directly; these two are the
-// module's own shapes. Each renders the REAL page chrome (`PageLayout` with the
-// title bar and placeholder actions) and skeletons only what the record decides,
-// so the loaded page lands on the same pixels (`billing-usage-skeleton.tsx` idiom).
-
-const NOOP = () => {};
-
-/** `/settings/tenant-management/details` while the record (and the role) are unknown. */
-export function TenantDetailsSkeleton() {
-  return (
-    <PageLayout
-      title="Tenant"
-      loading
-      loadingActions
-      backButton={{ label: 'Back', onClick: NOOP }}
-      actionsVariant="icon-buttons"
-      className={PAGE_CLASSES}
-    >
-      <TenantSummaryCardSkeleton />
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-        <InlineSkeleton className="h-4 w-24" />
-        <Skeleton className="h-[284px] w-full rounded-md" />
-      </div>
-    </PageLayout>
-  );
-}
 
 type TenantFormSkeletonVariant = 'new' | 'edit' | 'reconnect';
 
-const FORM_PAGES: Record<TenantFormSkeletonVariant, { title: string; backLabel: string }> = {
-  new: { title: 'New Tenant Integration', backLabel: 'Back to Integrations' },
-  edit: { title: 'Edit Tenant Integration', backLabel: 'Back to Integrations' },
-  reconnect: { title: 'Reconnect Tenant Integration', backLabel: 'Back to Integrations' },
+const FORM_TITLES: Record<TenantFormSkeletonVariant, string> = {
+  new: 'New Tenant Integration',
+  edit: 'Edit Tenant Integration',
+  reconnect: 'Reconnect Tenant Integration',
 };
 
 const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant: 'accent', disabled: true };
+const NOOP = () => {};
 
 /** A field placeholder under its real label, on the same grid cell the field will take. */
 function FieldSkeleton({ label, className }: { label: string; className?: string }) {
@@ -62,20 +34,14 @@ function FieldSkeleton({ label, className }: { label: string; className?: string
   );
 }
 
-/**
- * The New / Edit / Reconnect pages while the role gate (or the record) is
- * unresolved — the same chrome, grid and static labels as the loaded page, so
- * the record landing changes pixels inside the fields and nothing else.
- */
+/** The New / Edit / Reconnect pages while the flag or the role is unknown: the real chrome, grid and labels. */
 export function TenantFormSkeleton({ variant }: { variant: TenantFormSkeletonVariant }) {
-  const { title, backLabel } = FORM_PAGES[variant];
   return (
     <PageLayout
-      title={title}
-      backButton={{ label: backLabel, onClick: NOOP }}
+      title={FORM_TITLES[variant]}
+      backButton={{ label: 'Back to Integrations', onClick: NOOP }}
       actions={[SAVE_PLACEHOLDER]}
       actionsVariant="primary-buttons"
-      className={PAGE_CLASSES}
     >
       {variant === 'new' ? (
         <Skeleton className="h-[136px] w-full rounded-md" />

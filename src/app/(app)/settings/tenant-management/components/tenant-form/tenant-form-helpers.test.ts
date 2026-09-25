@@ -4,30 +4,18 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { DirectoryProvider, DirectorySyncStatus } from '@/generated/schema-enums';
-import type { TenantConnectionRecord, TenantOrganization } from '../types/tenant-connection';
-import { connectionToFormValues, withBoundOrganization } from './tenant-form-helpers';
+import { DirectoryProvider } from '@/generated/schema-enums';
+import { connectionToFormValues, type StoredConnectionFields, withBoundOrganization } from './tenant-form-helpers';
 
-const ACME: TenantOrganization = { id: 'org-acme', name: 'Acme' };
-const GLOBEX: TenantOrganization = { id: 'org-globex', name: 'Globex' };
+const ACME = { organizationId: 'org-acme', name: 'Acme' };
+const GLOBEX = { organizationId: 'org-globex', name: 'Globex' };
 
-function connection(overrides: Partial<TenantConnectionRecord> = {}): TenantConnectionRecord {
+function connection(overrides: Partial<StoredConnectionFields> = {}): StoredConnectionFields {
   return {
-    id: 'c-1',
     provider: DirectoryProvider.GOOGLE_WORKSPACE,
     name: 'Acme Workspace',
     domain: 'acme.com',
-    enabled: true,
-    directoryId: null,
-    grantedBy: null,
-    connectedAt: null,
-    lastSyncStatus: DirectorySyncStatus.NEVER,
-    lastSyncAt: null,
-    lastSyncError: null,
-    organizationId: ACME.id,
-    organization: ACME,
-    userCount: null,
-    consentUrl: null,
+    organizationId: ACME.organizationId,
     ...overrides,
   };
 }
@@ -38,7 +26,7 @@ describe('connectionToFormValues', () => {
       provider: DirectoryProvider.GOOGLE_WORKSPACE,
       domain: 'acme.com',
       name: 'Acme Workspace',
-      organizationId: ACME.id,
+      organizationId: ACME.organizationId,
     });
   });
 
@@ -47,7 +35,11 @@ describe('connectionToFormValues', () => {
   });
 
   it('seeds a provider the form can hold when the record carries one this build does not know', () => {
-    expect(connectionToFormValues(connection({ provider: 'OKTA' })).provider).toBe(DirectoryProvider.MICROSOFT_365);
+    // A backend ahead of this build's SDL: a value the generated type cannot name.
+    const unknownProvider = 'OKTA' as DirectoryProvider;
+    expect(connectionToFormValues(connection({ provider: unknownProvider })).provider).toBe(
+      DirectoryProvider.MICROSOFT_365,
+    );
   });
 });
 

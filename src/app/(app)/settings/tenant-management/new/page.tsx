@@ -2,10 +2,11 @@
 
 import { notFound } from 'next/navigation';
 import { useOwnerGate } from '@/app/hooks/use-owner-gate';
-import { NewTenantView } from '../components/new-tenant-view';
-import { TenantOwnersOnlyScreen } from '../components/tenant-owners-only-screen';
-import { TenantFormSkeleton } from '../components/tenant-page-skeletons';
-import { useTenantManagementGate } from '../hooks/use-tenant-management-gate';
+import { TenantOwnersOnlyScreen } from '../components/shared/tenant-owners-only-screen';
+import { TenantPageShell } from '../components/shared/tenant-page-shell';
+import { useTenantManagementGate } from '../components/shared/use-tenant-management-gate';
+import { TenantFormSkeleton } from '../components/tenant-form/tenant-form-skeleton';
+import { NewTenantView } from '../components/tenant-new/new-tenant-view';
 
 export default function NewTenantPage() {
   const gate = useTenantManagementGate();
@@ -13,13 +14,13 @@ export default function NewTenantPage() {
   if (gate === 'off') {
     notFound();
   }
-  // Both answers are tri-state: neither the flag nor the role may be read as
-  // "no" before it is known, so the real chrome waits for both.
-  if (gate === 'loading' || ownerGate === 'loading') {
-    return <TenantFormSkeleton variant="new" />;
-  }
-  if (ownerGate === 'not-owner') {
+  if (gate === 'on' && ownerGate === 'not-owner') {
     return <TenantOwnersOnlyScreen />;
   }
-  return <NewTenantView />;
+  return (
+    <TenantPageShell title="New Tenant Integration" errorMessage="Couldn't load the connection form.">
+      {/* Neither the flag nor the role may be read as "no" before it is known. */}
+      {gate === 'loading' || ownerGate === 'loading' ? <TenantFormSkeleton variant="new" /> : <NewTenantView />}
+    </TenantPageShell>
+  );
 }
