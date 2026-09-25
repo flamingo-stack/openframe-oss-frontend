@@ -20,7 +20,7 @@ export interface RemoteAccessApprovalServiceSelection {
 /**
  * Which approval backend the connect flow talks to. An environment decision,
  * so a server flag (TEMPORARY `remote-access-approval-api`, on where the
- * approval API of CU-86ajx02gz is deployed): the real client on, the mock off.
+ * approval API is deployed): the real client on, the mock off.
  * Before the flags answer the mock is reported, which is harmless: the gate
  * only fires a request once the `remote-access-approval` gate itself is on,
  * i.e. after the flags have loaded.

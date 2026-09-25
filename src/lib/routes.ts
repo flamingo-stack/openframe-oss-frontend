@@ -385,7 +385,7 @@ export const routes = {
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
     billingUsage: '/settings/billing-usage',
-    // Tenant Management (CU-86akj8ajt): Microsoft 365 / Google Workspace directory
+    // Tenant Management: Microsoft 365 / Google Workspace directory
     // connections. Sub-pages take the connection id as `?id=` like every other
     // detail page (static-export constraint, see ROUTES.md).
     tenantManagement: '/settings/tenant-management',

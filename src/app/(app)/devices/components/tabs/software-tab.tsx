@@ -1,260 +1,108 @@
 'use client';
 
-import { Tag } from '@flamingo-stack/openframe-frontend-core';
+import { WebDesignIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { SoftwareListFrame } from '@/app/(app)/software/components/shared/software-list-frame';
 import {
-  CodeIcon,
-  GridIcon,
-  PackageAltIcon,
-  PackageIcon,
-  Puzzle01Icon,
-  WebDesignIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  type ColumnDef,
-  DataTable,
-  type Row,
-  SearchInput,
-  type SortingState,
-  TruncateText,
-  useDataTable,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useQueryClient } from '@tanstack/react-query';
-import { type ComponentType, useMemo, useState } from 'react';
-import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
-import { ValueText } from '@/app/components/shared/value-text';
-import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { EMPTY_VALUE } from '@/lib/empty-value';
-import { toValidDate } from '@/lib/format-date';
-import type { Device, Software } from '../../types/device.types';
-import { fleetTimestampMs } from '../../utils/fleet-timestamp';
-import { deviceQueryKeys } from '../../utils/query-keys';
-import { SOFTWARE_COLUMNS } from './device-tab-columns';
+  SOFTWARE_LIST_FILTER_COLUMN_IDS,
+  SOFTWARE_LIST_SORTABLE_COLUMN_IDS,
+  SOFTWARE_LIST_TABLE_COLUMNS,
+} from '@/app/(app)/software/components/software-list/software-list-columns';
+import { ContentErrorBoundary } from '@/app/components/shared';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import type { Device } from '../../types/device.types';
+import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty-state';
+import { DeviceSoftwareTable } from './device-software-table';
+import { DEVICE_TAB_SKELETON_ROWS } from './device-tab-columns';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface SoftwareTabProps {
   device: Device | null;
 }
 
-const EMPTY_SOFTWARE: Software[] = [];
-const EMPTY_COLUMN_FILTERS: never[] = [];
+const NO_SOFTWARE = (
+  <TabEmptyState
+    icon={<WebDesignIcon />}
+    title="No software found"
+    description="Installed software for this device will appear here."
+  />
+);
 
-/** Software source → icons-v2 glyph + readable label for the SOURCE column. */
-const SOURCE_ICON: Record<string, { Icon: ComponentType<{ className?: string }>; label: string }> = {
-  apps: { Icon: GridIcon, label: 'Application' },
-  chrome_extensions: { Icon: Puzzle01Icon, label: 'Chrome Extension' },
-  vscode_extensions: { Icon: CodeIcon, label: 'VS Code Extension' },
-  homebrew_packages: { Icon: PackageIcon, label: 'Homebrew Package' },
-  python_packages: { Icon: PackageAltIcon, label: 'Python Package' },
-};
+/**
+ * What an empty inventory means, by the stage the pipeline is at — the same
+ * decision table the Vulnerabilities tab reads (`vulnerabilities-empty-state.ts`),
+ * stopping before the matching stages that only a CVE list cares about. A Fleet
+ * fan-out failure no longer earns a Retry here: the list is its own request
+ * now, and a failed one trips the tab's boundary with a Retry of its own.
+ */
+function softwareEmptyState(device: Device) {
+  const reason = getVulnerabilitiesEmptyReason(device);
 
-function getSourceIcon(source: string): { Icon: ComponentType<{ className?: string }>; label: string } {
-  return SOURCE_ICON[source] ?? { Icon: PackageIcon, label: source };
-}
-
-/** Fleet reports "never used" as the epoch, so a zero instant reads as empty too. */
-function formatLastUsed(dateString?: string): string {
-  const date = toValidDate(dateString);
-  return date && date.getTime() > 0 ? formatRelativeTime(date) : EMPTY_VALUE;
-}
-
-export function SoftwareTab({ device }: SoftwareTabProps) {
-  const queryClient = useQueryClient();
-  const allSoftware = device?.software || EMPTY_SOFTWARE;
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 300);
-  const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
-
-  const software = useMemo(() => {
-    const query = debouncedSearch.trim().toLowerCase();
-    if (!query) return allSoftware;
-    return allSoftware.filter(
-      item => item.name.toLowerCase().includes(query) || (item.vendor ?? '').toLowerCase().includes(query),
-    );
-  }, [allSoftware, debouncedSearch]);
-
-  const columns = useMemo<ColumnDef<Software>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: SOFTWARE_COLUMNS.name.header,
-        cell: ({ row }: { row: Row<Software> }) => (
-          <div className="flex min-w-0 flex-col justify-center">
-            <TruncateText>{row.original.name}</TruncateText>
-            {row.original.version && (
-              <TruncateText variant="h6" tone="secondary">
-                {row.original.version}
-              </TruncateText>
-            )}
-          </div>
-        ),
-        enableSorting: true,
-        meta: liveColumnMeta(SOFTWARE_COLUMNS.name),
-      },
-      {
-        accessorKey: 'source',
-        header: SOFTWARE_COLUMNS.source.header,
-        cell: ({ row }: { row: Row<Software> }) => {
-          const { Icon, label } = getSourceIcon(row.original.source);
-          return (
-            <div className="inline-flex min-w-0 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary">
-              <Icon className="h-4 w-4 shrink-0 md:h-6 md:w-6" />
-              <div className="min-w-0">
-                <TruncateText tone="secondary">{label}</TruncateText>
-              </div>
-            </div>
-          );
-        },
-        enableSorting: true,
-        meta: liveColumnMeta(SOFTWARE_COLUMNS.source),
-      },
-      {
-        id: SOFTWARE_COLUMNS.vulnerabilities.id,
-        header: SOFTWARE_COLUMNS.vulnerabilities.header,
-        accessorFn: (row: Software) => row.vulnerabilities.length,
-        cell: ({ row }: { row: Row<Software> }) => {
-          const vulnCount = row.original.vulnerabilities.length;
-          if (vulnCount === 0) {
-            return <Tag label="NO ISSUES" variant="success" className="w-fit" />;
-          }
-          return (
-            <Tag label={`${vulnCount} ${vulnCount === 1 ? 'ISSUE' : 'ISSUES'}`} variant="error" className="w-fit" />
-          );
-        },
-        enableSorting: true,
-        sortingFn: (rowA: Row<Software>, rowB: Row<Software>) => {
-          const a = rowA.original.vulnerabilities.length;
-          const b = rowB.original.vulnerabilities.length;
-          if (a === b) return 0;
-          return a > b ? 1 : -1;
-        },
-        meta: liveColumnMeta(SOFTWARE_COLUMNS.vulnerabilities),
-      },
-      {
-        id: SOFTWARE_COLUMNS.filePath.id,
-        header: SOFTWARE_COLUMNS.filePath.header,
-        accessorFn: (row: Software) => row.installed_paths?.[0] ?? '',
-        cell: ({ row }: { row: Row<Software> }) => {
-          const path = row.original.installed_paths?.[0];
-          return path ? <TruncateText>{path}</TruncateText> : <ValueText value={null} />;
-        },
-        enableSorting: false,
-        meta: liveColumnMeta(SOFTWARE_COLUMNS.filePath),
-      },
-      {
-        accessorKey: 'last_opened_at',
-        header: SOFTWARE_COLUMNS.lastUsed.header,
-        cell: ({ row }: { row: Row<Software> }) => (
-          <div className="text-ods-text-primary text-h6">{formatLastUsed(row.original.last_opened_at)}</div>
-        ),
-        enableSorting: true,
-        meta: liveColumnMeta(SOFTWARE_COLUMNS.lastUsed),
-      },
-    ],
-    [],
-  );
-
-  const table = useDataTable<Software>({
-    data: software,
-    columns,
-    getRowId: (row: Software) => String(row.id),
-    clientSideSorting: true,
-    state: { sorting, columnFilters: EMPTY_COLUMN_FILTERS },
-    onSortingChange: setSorting,
-  });
-
-  if (!device) {
+  if (reason === 'disconnected') {
     return (
       <TabEmptyState
         icon={<WebDesignIcon />}
-        title="No software found"
-        description="Installed software for this device will appear here."
+        title="Fleet is not connected"
+        description="The Fleet agent for this device is disconnected, so its software inventory is unavailable."
       />
     );
   }
 
-  if (allSoftware.length === 0) {
-    const fleetSource = device.sources?.fleet;
-
-    if (fleetSource === 'error') {
-      return (
-        <TabEmptyState
-          icon={<WebDesignIcon />}
-          title="Couldn't load software data"
-          description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
-          buttonLabel="Retry"
-          onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
-        />
-      );
-    }
-
-    if (fleetSource === 'skipped-disconnected') {
-      return (
-        <TabEmptyState
-          icon={<WebDesignIcon />}
-          title="Fleet is not connected"
-          description="The Fleet agent for this device is disconnected, so its software inventory is unavailable."
-        />
-      );
-    }
-
-    // Agent still deploying → the design's connecting-state copy.
-    if (fleetSource === 'skipped-pending') {
+  if (reason === 'collecting') {
+    // Agent still deploying → the design's connecting-state copy; agent live
+    // but the first inventory scan hasn't finished → collecting copy.
+    if (device.sources?.fleet === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<WebDesignIcon />} section="Software" />;
     }
-
-    // Not yet collected: the host has never completed a software inventory scan
-    // (software_updated_at unset/sentinel).
-    if (fleetTimestampMs(device.software_updated_at) === null) {
-      return (
-        <TabEmptyState
-          icon={<WebDesignIcon />}
-          title="Collecting software inventory"
-          description="This device hasn't reported its installed software yet. It will appear here once the inventory arrives."
-        />
-      );
-    }
-
     return (
       <TabEmptyState
         icon={<WebDesignIcon />}
-        title="No software found"
-        description="Installed software for this device will appear here."
+        title="Collecting software inventory"
+        description="This device hasn't reported its installed software yet. It will appear here once the inventory arrives."
       />
     );
   }
 
-  // Empty table → show only the centered empty state: hide the column header always, and
-  // hide the search too (unless a search is active, so the user can still clear it).
-  const hasSearch = debouncedSearch.trim().length > 0;
-  const isEmpty = software.length === 0;
+  return NO_SOFTWARE;
+}
+
+/**
+ * Device → Software: the titles installed on this machine, from the
+ * `deviceSoftware` connection. The Software page is the reference — the same
+ * frame, table, search, sort toggles and funnels over this device's rows — so nothing
+ * here decides how a list of `Software` looks. What the tab adds is its own:
+ * the boundary that keeps a failed list from taking the page down, the
+ * pipeline-stage copy for an empty one, and the link gate for a tenant without
+ * the Software module.
+ */
+export function SoftwareTab({ device }: SoftwareTabProps) {
+  // Rows link into the Software module's pages; without the module there is
+  // nothing to open, so they stay plain rows.
+  const linksEnabled = useFeatureFlag('software-management');
+
+  // No agent id, no inventory to ask for.
+  if (!device?.machineId) {
+    return NO_SOFTWARE;
+  }
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
-      {(!isEmpty || hasSearch) && (
-        <div
-          ref={toolbarRef}
-          className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
-        >
-          <SearchInput value={search} onChange={setSearch} placeholder="Search for Software" />
-        </div>
+    <SoftwareListFrame
+      paramPrefix="software"
+      placeholder="Search for Software"
+      sortableIds={SOFTWARE_LIST_SORTABLE_COLUMN_IDS}
+      filterKeys={SOFTWARE_LIST_FILTER_COLUMN_IDS}
+      skeletonColumns={SOFTWARE_LIST_TABLE_COLUMNS}
+      skeletonRows={DEVICE_TAB_SKELETON_ROWS}
+    >
+      {list => (
+        <ContentErrorBoundary label="SoftwareTab" message="Couldn't load this device's software.">
+          <DeviceSoftwareTable
+            {...list}
+            machineId={device.machineId}
+            linksEnabled={linksEnabled}
+            emptyState={softwareEmptyState(device)}
+          />
+        </ContentErrorBoundary>
       )}
-
-      <DataTable table={table}>
-        {!isEmpty && <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />}
-        <DataTable.Body
-          rowClassName="mb-1"
-          emptyState={{
-            icon: <WebDesignIcon />,
-            title: 'No software found',
-            description: debouncedSearch
-              ? `No results for "${debouncedSearch}".`
-              : 'Installed software for this device will appear here.',
-          }}
-        />
-      </DataTable>
-    </div>
+    </SoftwareListFrame>
   );
 }

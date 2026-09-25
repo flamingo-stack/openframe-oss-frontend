@@ -1,17 +1,17 @@
-// Remote-access approval read models (CU-86ajx03db).
+// Remote-access approval read models.
 //
-// Shapes follow the BE contract on CU-86ajx02gz (OpenAPI 1.0.0-draft, decisions
-// of 2026-09-16/17): requests move PENDING -> DELIVERED -> APPROVED | DENIED |
-// TIMED_OUT | REVOKED; the technician learns the decision from the
-// REMOTE_ACCESS_DECISION event on `user.<technicianUserId>.notification` with a
-// status-GET poll every 2 s as the fallback. The real client
+// Shapes follow the BE approval contract (OpenAPI 1.0.0-draft): requests move
+// PENDING -> DELIVERED -> APPROVED | DENIED | TIMED_OUT | REVOKED; the
+// technician learns the decision from the REMOTE_ACCESS_DECISION event on
+// `user.<technicianUserId>.notification` with a status-GET poll every 2 s as
+// the fallback. The real client
 // (remote-access-approval-api-service.ts) and the in-memory mock both produce
 // these shapes.
 
 /** Which MeshCentral surface the technician is trying to open. */
-// The approval flow covers remote screen (MeshCentral desktop) sessions only
-// (decision 2026-09-16): remote shell and file manager are out of the epic's
-// scope and keep their legacy auto-start. The wire value is always 'desktop'.
+// The approval flow covers remote screen (MeshCentral desktop) sessions only:
+// remote shell and file manager are out of the epic's scope and keep their
+// legacy auto-start. The wire value is always 'desktop'.
 export type RemoteSessionKind = 'desktop';
 
 export type RemoteAccessRequestStatus =
@@ -46,7 +46,7 @@ export interface RemoteAccessRequest {
   ticketNumber?: string;
   /**
    * The policy mode the server resolved at creation (recorded for audit per
-   * the CU-86ajx02gz contract). DENY_ACCESS arrives already DENIED; NOTIFY_ONLY
+   * the approval contract). DENY_ACCESS arrives already DENIED; NOTIFY_ONLY
    * and SILENT_ACCESS arrive already APPROVED.
    */
   mode?: RemoteAccessMode;
@@ -76,7 +76,7 @@ export interface CreateRemoteAccessRequestInput {
 }
 
 /**
- * Why a create was refused (CU-86ajx02gz): `DEVICE_HAS_LIVE_REQUEST` and
+ * Why a create was refused: `DEVICE_HAS_LIVE_REQUEST` and
  * `DEVICE_HAS_ACTIVE_SESSION` are the 409s for another technician's request or
  * session (one technician per device at a time; the body carries no
  * identifiers), `DEVICE_UNREACHABLE` is the 503 when the request could not be
@@ -119,23 +119,23 @@ export interface RemoteAccessDecisionEvent {
 
 /**
  * The MeshCentral relay id of a session opened under an approval:
- * `<requestId>.<p>.<nonce>` (CU-86ajx02gz) - the gateway gate (CU-86ajx02x3)
- * matches the first token against the approval grant. `p` is the Mesh
- * protocol number (2 = desktop); the nonce keeps every tunnel of the session
- * (multi-monitor "Show All") unique.
+ * `<requestId>.<p>.<nonce>` - the gateway gate matches the first token
+ * against the approval grant. `p` is the Mesh protocol number (2 = desktop);
+ * the nonce keeps every tunnel of the session (multi-monitor "Show All")
+ * unique.
  */
 export function buildRemoteAccessRelayIdPrefix(requestId: string, protocol: number): string {
   return `${requestId}.${protocol}`;
 }
 
 // --------------------------------------------------------------------------
-// Remote access policy (CU-86akeqw8b / CU-86akeqw6h)
+// Remote access policy
 // --------------------------------------------------------------------------
 
 /**
  * How a remote connection to a device is admitted. One mode per scope
  * (tenant default -> per-organization -> per-device override), no split by
- * session kind - per the product decision on CU-86akeqw6h.
+ * session kind - a product decision.
  */
 export const REMOTE_ACCESS_MODES = ['APPROVAL_REQUIRED', 'NOTIFY_ONLY', 'SILENT_ACCESS', 'DENY_ACCESS'] as const;
 export type RemoteAccessMode = (typeof REMOTE_ACCESS_MODES)[number];
@@ -163,11 +163,27 @@ export const REMOTE_ACCESS_MODE_META: Record<RemoteAccessMode, { label: string; 
 /**
  * Tenant-wide remote access policy: the default mode only. The approval
  * timeout (30 s), the delivery timeout and the no-client / no-answer fallbacks
- * are fixed backend constants (decision 2026-09-18, CU-86akeqw6h) - not a
- * tenant setting and not surfaced in the UI.
+ * are fixed backend constants - not a tenant setting and not surfaced in the UI.
  */
 export interface TenantRemoteAccessPolicy {
   mode: RemoteAccessMode;
+}
+
+export const REMOTE_ACCESS_POLICY_SCOPES = ['DEVICE', 'ORGANIZATION', 'TENANT', 'DEFAULTS'] as const;
+/** Where a device's effective mode came from; DEFAULTS = nothing saved at any scope. */
+export type RemoteAccessPolicyScope = (typeof REMOTE_ACCESS_POLICY_SCOPES)[number];
+
+/** Per-organization policy: the override (`null` = inherits the tenant default) and what applies. */
+export interface OrganizationRemoteAccessPolicy {
+  mode: RemoteAccessMode | null;
+  effectiveMode: RemoteAccessMode;
+}
+
+/** Per-device policy: the override (`null` = inherits), what applies, and the scope it came from. */
+export interface DeviceRemoteAccessPolicy {
+  mode: RemoteAccessMode | null;
+  effectiveMode: RemoteAccessMode;
+  effectiveScope: RemoteAccessPolicyScope;
 }
 
 // --------------------------------------------------------------------------

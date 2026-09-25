@@ -3,43 +3,6 @@
  * All fields at root level, no nesting
  */
 
-/**
- * Unified Software type
- */
-export interface Software {
-  id: number;
-  name: string;
-  version: string;
-  source: 'apps' | 'chrome_extensions' | 'vscode_extensions' | 'homebrew_packages' | 'python_packages';
-  vendor?: string;
-  bundle_identifier?: string;
-  vulnerabilities: Vulnerability[];
-  installed_paths: string[];
-  last_opened_at?: string;
-  /** From Fleet `signature_information` — true when the binary carries a code-signing identity. */
-  signed?: boolean;
-  /** First non-empty `team_identifier` from Fleet `signature_information`. */
-  signature_team_id?: string;
-  generated_cpe?: string;
-  browser?: string;
-  extension_id?: string;
-}
-
-/**
- * Unified Vulnerability type
- */
-export interface Vulnerability {
-  cve: string;
-  details_link: string;
-  created_at: string;
-  // Fleet Premium severity fields — optional (present only on Premium instances).
-  cvss_score?: number | null;
-  epss_probability?: number | null;
-  cisa_known_exploit?: boolean | null;
-  cve_published?: string | null;
-  resolved_in_version?: string | null;
-}
-
 /** A compliance policy evaluated against this specific device (from Fleet MDM). */
 export interface DevicePolicy {
   id: number;
@@ -223,7 +186,6 @@ export interface Device {
   agentVersion?: string;
 
   // Unified Arrays (NO NESTING)
-  software?: Software[];
   batteries?: Battery[];
   users?: User[];
   policies?: DevicePolicy[];

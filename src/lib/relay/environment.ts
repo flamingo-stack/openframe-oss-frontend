@@ -3,6 +3,7 @@
 import type { CacheConfig, FetchFunction, IEnvironment, RequestParameters } from 'relay-runtime';
 import { Environment, Network, RecordSource, Store } from 'relay-runtime';
 import { REQUEST_TIMEOUT_MS } from '../api-client';
+import { clientIdentityHeaders } from '../client-identity';
 import { isOnline, subscribeConnectivity } from '../connectivity';
 import { forceLogout } from '../force-logout';
 import { OfflineError } from '../query-state';
@@ -41,7 +42,12 @@ export function sendGraphqlKeepalive(request: { text: string | null }, variables
   if (!request.text || typeof window === 'undefined') return;
   void fetch(getGraphqlUrl(), {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...getAuthHeaders() },
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...clientIdentityHeaders(),
+      ...getAuthHeaders(),
+    },
     credentials: 'include',
     keepalive: true,
     body: JSON.stringify({ query: request.text, variables }),
@@ -78,6 +84,7 @@ async function executeFetch(
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        ...clientIdentityHeaders(),
         ...headers,
       },
       credentials: 'include',

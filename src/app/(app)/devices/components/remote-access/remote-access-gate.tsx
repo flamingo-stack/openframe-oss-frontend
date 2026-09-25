@@ -23,8 +23,8 @@ interface RemoteAccessGateProps {
    */
   organizationId?: string;
   /**
-   * Optional context for the request (decision 2026-09-16: a reason is never
-   * required) - e.g. prefilled when the technician connects from a ticket.
+   * Optional context for the request (a reason is never required) - e.g.
+   * prefilled when the technician connects from a ticket.
    */
   reason?: string;
   /** Leave the flow entirely (the pages' safe-back). */
@@ -42,12 +42,12 @@ function formatRemaining(expiresAt: string, nowMs: number): string {
 }
 
 /**
- * Approval gate for the remote screen (MeshCentral desktop) page
- * (CU-86ajx03db): the session component in `children` mounts only after the
+ * Approval gate for the remote screen (MeshCentral desktop) page: the
+ * session component in `children` mounts only after the
  * end user approves, so no tunnel effect can fire early. Until then this
  * renders the flow's own page - awaiting (with countdown + cancel), denied /
  * timed out / error. The request fires as soon as the policy is known: there
- * is no reason step (decision 2026-09-16, a reason is never required).
+ * is no reason step (a reason is never required).
  *
  * Remote shell and file manager are outside the epic's scope and are not
  * gated - the wire `sessionKind` is always 'desktop'.
@@ -76,7 +76,7 @@ export function RemoteAccessGate({
   // Temporary QA tooling for the mock service; appearing late is fine here.
   const showMockTools = useRemoteAccessMockTools();
 
-  // Policy sync (CU-86akeqw8b): the effective mode decides the flow shape -
+  // Policy sync: the effective mode decides the flow shape -
   // DENY_ACCESS never requests, NOTIFY_ONLY / SILENT_ACCESS auto-approve on
   // the service side. The pre-read exists for the mock only: the real API
   // resolves the policy inside create and answers DENIED with the mode
