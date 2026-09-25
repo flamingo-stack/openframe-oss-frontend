@@ -35,13 +35,7 @@ import {
   type TableSkeletonColumn,
 } from '@/app/components/shared';
 import { AgentLogsTabSkeleton } from './tabs/agent-logs/agent-logs-skeleton';
-import {
-  REMOTE_SESSIONS_TAB_COLUMNS,
-  SOFTWARE_TAB_COLUMNS,
-  USERS_TAB_COLUMNS,
-  VULNERABILITIES_TAB_COLUMNS,
-  DEVICE_TAB_SKELETON_ROWS,
-} from './tabs/device-tab-columns';
+import { REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS, DEVICE_TAB_SKELETON_ROWS } from './tabs/device-tab-columns';
 import { useDeviceTabs } from './tabs/device-tabs';
 
 const noop = () => {};
