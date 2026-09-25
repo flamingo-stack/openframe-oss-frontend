@@ -63,6 +63,8 @@ function ReconnectTenantContent({ id }: { id: string }) {
   const [commitStartConsent, isMinting] = useMutation<StartConsentMutationType>(startConsentMutation);
   const [mintFailed, setMintFailed] = useState(false);
   const mintStartedRef = useRef(false);
+  // Set on the click: `isMinting` flips only after a re-render, and a second mint voids the first link.
+  const mintInFlightRef = useRef(false);
   const subscriptionOpen = useSubscriptionOpen();
   const consent = useTenantConsent(connection?.id);
   const connectionId = connection?.id ?? null;
@@ -71,6 +73,7 @@ function ReconnectTenantContent({ id }: { id: string }) {
   // Stable: the mount effect depends on it, and Retry reuses it.
   const mint = useCallback(
     (target: string) => {
+      mintInFlightRef.current = true;
       const fail = (message: string) => {
         setMintFailed(true);
         toast({ title: MINT_FAILED, description: message, variant: 'destructive' });
@@ -78,10 +81,14 @@ function ReconnectTenantContent({ id }: { id: string }) {
       commitStartConsent({
         variables: { connectionId: target },
         onCompleted: ({ startDirectoryConsent: { connection: minted, userErrors } }) => {
+          mintInFlightRef.current = false;
           const [refusal] = userErrors;
           if (refusal || !minted?.consentUrl) fail(refusal?.message || 'Try again in a moment.');
         },
-        onError: error => fail(getRelayErrorMessage(error, 'Try again in a moment.')),
+        onError: error => {
+          mintInFlightRef.current = false;
+          fail(getRelayErrorMessage(error, 'Try again in a moment.'));
+        },
       });
     },
     [commitStartConsent, toast],
@@ -96,7 +103,7 @@ function ReconnectTenantContent({ id }: { id: string }) {
   }, [connectionId, outstandingUrl, subscriptionOpen, mint]);
 
   const retryMint = () => {
-    if (!connectionId || isMinting) return;
+    if (!connectionId || mintInFlightRef.current) return;
     setMintFailed(false);
     mint(connectionId);
   };

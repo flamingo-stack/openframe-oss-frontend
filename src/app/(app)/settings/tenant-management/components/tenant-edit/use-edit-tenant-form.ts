@@ -4,6 +4,7 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
+import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { graphql, useMutation } from 'react-relay';
 import type { useEditTenantFormUpdateMutation as UpdateMutationType } from '@/__generated__/useEditTenantFormUpdateMutation.graphql';
@@ -11,6 +12,7 @@ import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { useSeedForm } from '@/app/hooks/use-seed-form';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
+import { useMountedRef } from '../shared/use-mounted-ref';
 import { changedFields, invalidSubmitHandler } from '../tenant-form/tenant-form-helpers';
 import {
   editTenantFormSchema,
@@ -54,6 +56,9 @@ export function useEditTenantForm(id: string, stored: TenantFormData | null) {
   const { toast } = useToast();
   const router = useRouter();
   const [commitUpdate, isInFlight] = useMutation<UpdateMutationType>(updateMutation);
+  // Set on the click: the in-flight flag disables Save only after a re-render (canon `use-customer-form`).
+  const inFlightRef = useRef(false);
+  const mountedRef = useMountedRef();
 
   const form = useForm<TenantFormData>({
     resolver: zodResolver(editTenantFormSchema),
@@ -63,19 +68,25 @@ export function useEditTenantForm(id: string, stored: TenantFormData | null) {
   useSeedForm(form, stored);
 
   const onValid = (values: TenantFormData) => {
-    if (!stored) return;
+    if (!stored) {
+      inFlightRef.current = false;
+      return;
+    }
     const saved = () => {
       toast({ title: 'Integration saved', description: `${values.name} was updated.`, variant: 'success' });
-      safeBackOrReplace(router, routes.settings.tenantDetails(id));
+      // The update outlives the page: a user who already left must not be sent one more step back.
+      if (mountedRef.current) safeBackOrReplace(router, routes.settings.tenantDetails(id));
     };
     const input = changedFields(values, stored, ['name', 'organizationId']);
     if (Object.keys(input).length === 0) {
+      inFlightRef.current = false;
       saved();
       return;
     }
     commitUpdate({
       variables: { connectionId: id, input },
       onCompleted: ({ updateDirectoryConnection: { userErrors } }) => {
+        inFlightRef.current = false;
         const [refusal] = userErrors;
         if (refusal) {
           toast({
@@ -88,6 +99,7 @@ export function useEditTenantForm(id: string, stored: TenantFormData | null) {
         saved();
       },
       onError: error => {
+        inFlightRef.current = false;
         toast({
           title: SAVE_FAILED,
           description: getRelayErrorMessage(error, 'Try again in a moment.'),
@@ -98,7 +110,13 @@ export function useEditTenantForm(id: string, stored: TenantFormData | null) {
   };
 
   const handleSave = () => {
-    void form.handleSubmit(onValid, invalidSubmitHandler(toast, 'Cannot save yet'))();
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    const onInvalid = invalidSubmitHandler(toast, 'Cannot save yet');
+    void form.handleSubmit(onValid, errors => {
+      inFlightRef.current = false;
+      onInvalid(errors);
+    })();
   };
 
   return { form, isSubmitting: isInFlight, handleSave };

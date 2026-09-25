@@ -11,6 +11,7 @@ import type { useNewTenantFlowUpdateMutation as UpdateMutationType } from '@/__g
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { useTenantConsent } from '../consent/use-tenant-consent';
+import { useMountedRef } from '../shared/use-mounted-ref';
 import { toCustomerOption } from '../tenant-form/customer-option';
 import { changedFields } from '../tenant-form/tenant-form-helpers';
 import type { TenantFormData } from '../tenant-form/tenant-form.types';
@@ -103,6 +104,7 @@ export function useNewTenantFlow() {
   const [isSaving, setIsSaving] = useState(false);
   // Two calls in one tick share the same `phase`; the second joins the running write instead of starting one.
   const inFlightRef = useRef<Promise<void> | null>(null);
+  const mountedRef = useMountedRef();
   const consent = useTenantConsent(connection?.id);
   const connected = consent.status === 'connected';
 
@@ -231,7 +233,8 @@ export function useNewTenantFlow() {
               : `${values.name} stays disconnected until the customer's admin grants consent — check the connection from its page.`,
             variant: 'success',
           });
-          router.replace(routes.settings.tenantDetails(id));
+          // The update outlives the page: a user who already left is not pulled back to the details.
+          if (mountedRef.current) router.replace(routes.settings.tenantDetails(id));
         },
         (error: unknown) => {
           toast({

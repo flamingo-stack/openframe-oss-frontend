@@ -17,10 +17,12 @@ const tenantAccessCellFragment = graphql`
 
 /** ACCESS column: the access tag over "Last read: …". */
 export function TenantAccessCell({ connection }: { connection: tenantAccessCell_connection$key }) {
-  const { access, lastSyncAt } = useFragment(tenantAccessCellFragment, connection);
+  const data = useFragment(tenantAccessCellFragment, connection);
+  // `Instant` scalars are untyped (`any`); `unknown` keeps them out of the rest of the render.
+  const lastSyncAt: unknown = data.lastSyncAt;
   return (
     <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-      <Tag {...accessStateTag(access.state)} className="self-start" />
+      <Tag {...accessStateTag(data.access.state)} className="self-start" />
       <TruncateText variant="h6" tone="secondary">
         {`Last read: ${formatLastRead(lastReadAt({ lastSyncAt }))}`}
       </TruncateText>

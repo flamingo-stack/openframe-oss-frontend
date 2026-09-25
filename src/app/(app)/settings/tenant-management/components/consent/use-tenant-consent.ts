@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { graphql, useMutation } from 'react-relay';
 import type {
   useTenantConsentCheckMutation as CheckMutationType,
@@ -9,6 +9,7 @@ import type {
 } from '@/__generated__/useTenantConsentCheckMutation.graphql';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { accessStateHint, isReadable } from '../../utils/tenant-presentation';
+import { useMountedRef } from '../shared/use-mounted-ref';
 
 // Selects the connection's `access` with its id, so the row tag and the details card update in the store.
 const checkMutation = graphql`
@@ -61,14 +62,7 @@ export function useTenantConsent(
   const attemptRef = useRef(0);
   // Set in the click itself: two clicks in one tick both still see the pre-click `status`.
   const inFlightRef = useRef(false);
-  const mountedRef = useRef(false);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  const mountedRef = useMountedRef();
 
   // Whether this answer is still the one to show; the current attempt's answer also frees the guard.
   const settle = (attempt: number) => {

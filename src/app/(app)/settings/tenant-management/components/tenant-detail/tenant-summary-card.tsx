@@ -97,7 +97,10 @@ export function TenantIdentityCard({ connection }: { connection: tenantSummaryCa
 
 export function TenantSummaryCard({ connection }: { connection: tenantSummaryCard_connection$key }) {
   const data = useFragment(tenantSummaryCardFragment, connection);
-  const { organization, lastSyncAt } = data;
+  const { organization } = data;
+  // `Instant` scalars are untyped (`any`); `unknown` keeps them out of the rest of the render.
+  const connectedAt: unknown = data.connectedAt;
+  const lastSyncAt: unknown = data.lastSyncAt;
   const connected = isReadable(data.access.state);
   return (
     <div className={CARD_CLASSES}>
@@ -127,7 +130,7 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
       <div className={cn(ROW_CLASSES, DIVIDED_ROW_CLASSES)}>
         <InfoCell label="Users" value={data.userCount?.toString()} />
         <InfoCell label="Status" value={<Tag {...accessStateTag(data.access.state)} />} />
-        <ConnectedCell connectedAt={data.connectedAt} />
+        <ConnectedCell connectedAt={connectedAt} />
         <InfoCell label="Last Read" value={formatLastRead(lastReadAt({ lastSyncAt }))} />
       </div>
     </div>
