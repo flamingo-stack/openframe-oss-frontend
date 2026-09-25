@@ -1,6 +1,7 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DEVICES_PAGE_SIZE } from '../queries/devices-api';
 import type { Device } from '../types/device.types';
 import type {
   DeviceRemoteAccessPolicy,
@@ -23,6 +24,8 @@ export const remoteAccessPolicyKeys = {
     [...remoteAccessPolicyKeys.backend(isMock), 'organization', organizationId] as const,
   device: (isMock: boolean, deviceId: string) =>
     [...remoteAccessPolicyKeys.backend(isMock), 'device', deviceId] as const,
+  rows: (isMock: boolean, deviceIds: readonly string[]) =>
+    [...remoteAccessPolicyKeys.backend(isMock), 'rows', ...deviceIds] as const,
 };
 
 export function useTenantRemoteAccessPolicy(options: { enabled?: boolean } = {}) {
@@ -112,27 +115,66 @@ export function useSetDeviceRemoteAccessMode() {
 }
 
 /**
+ * Reads the policy of a device table's rows, one request per page of rows, and
+ * files each answer under that device's own key - where the row menus below
+ * and the Edit Device modal already look. Pages are cut at the list's own page
+ * size: the list only ever grows at the end, so loading the next page adds a
+ * request instead of re-reading the ones above it.
+ */
+export function useRowRemoteAccessPolicies(
+  devices: ReadonlyArray<Pick<Device, 'machineId' | 'id' | 'organizationId'>>,
+) {
+  const gate = useRemoteAccessApprovalGate();
+  const queryClient = useQueryClient();
+  const { service, isMock, ready } = useRemoteAccessPolicyService();
+
+  // Only rows with a machine id: the read addresses them as `Machine:<machineId>`.
+  const refs = devices
+    .filter(device => !!device.machineId)
+    .map(device => ({ deviceId: device.machineId, organizationId: device.organizationId }));
+  const pages: (typeof refs)[] = [];
+  for (let start = 0; start < refs.length; start += DEVICES_PAGE_SIZE) {
+    pages.push(refs.slice(start, start + DEVICES_PAGE_SIZE));
+  }
+
+  useQueries({
+    queries: pages.map(page => ({
+      queryKey: remoteAccessPolicyKeys.rows(
+        isMock,
+        page.map(ref => ref.deviceId),
+      ),
+      queryFn: async () => {
+        const policies = await service.getDevicePolicies(page);
+        for (const [deviceId, policy] of policies) {
+          queryClient.setQueryData(remoteAccessPolicyKeys.device(isMock, deviceId), policy);
+        }
+        return policies.size;
+      },
+      enabled: ready && gate === 'on',
+    })),
+  });
+}
+
+/**
  * Effective remote access mode for a device (device -> organization -> tenant),
  * gated on the `remote-access-approval` feature flag. Returns `undefined`
  * while the gate/query is loading or when the feature is off - callers treat
  * that as "no policy restriction" so the legacy behavior is untouched.
  *
- * `context: 'row'` (a device table row) skips the read against the real API:
- * that would be one request per row until the field rides in the list query
- * itself, and the connect flow answers DENY_ACCESS on entry anyway. The mock
- * reads it everywhere, as it always did.
+ * `context: 'row'` (a device table row) never reads on its own: the table
+ * reads its rows a page at a time (`useRowRemoteAccessPolicies`) into the same
+ * cache entry this watches. A row the table has not read yet stays
+ * unrestricted, and the connect flow still answers DENY_ACCESS on entry.
  */
 export function useEffectiveDeviceRemoteAccessMode(
   device: Pick<Device, 'machineId' | 'id' | 'organizationId'> | null | undefined,
   options: { context?: 'page' | 'row' } = {},
 ): RemoteAccessMode | undefined {
   const gate = useRemoteAccessApprovalGate();
-  const { isMock } = useRemoteAccessPolicyService();
   const deviceId = device?.machineId || device?.id || '';
-  const perRowOnApi = !isMock && options.context === 'row';
 
   const { data } = useDeviceRemoteAccessPolicy(deviceId, {
-    enabled: gate === 'on' && !perRowOnApi,
+    enabled: gate === 'on' && options.context !== 'row',
     organizationId: device?.organizationId,
   });
 

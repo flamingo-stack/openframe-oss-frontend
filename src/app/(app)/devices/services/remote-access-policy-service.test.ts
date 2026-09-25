@@ -74,4 +74,28 @@ describe('MockRemoteAccessPolicyService', () => {
     const tenant = await settle(service.getTenantPolicy());
     expect(cleared).toEqual({ mode: null, effectiveMode: tenant.mode, effectiveScope: 'TENANT' });
   });
+
+  it('reads a page of devices in one call, each resolved through its own scopes', async () => {
+    const orgId = nextId('org');
+    const denied = nextId('dev');
+    const inheriting = nextId('dev');
+    await settle(service.setOrganizationMode(orgId, 'NOTIFY_ONLY'));
+    await settle(service.setDeviceMode(denied, 'DENY_ACCESS', orgId));
+    const policies = await settle(
+      service.getDevicePolicies([
+        { deviceId: denied, organizationId: orgId },
+        { deviceId: inheriting, organizationId: orgId },
+      ]),
+    );
+    expect(policies.get(denied)).toEqual({
+      mode: 'DENY_ACCESS',
+      effectiveMode: 'DENY_ACCESS',
+      effectiveScope: 'DEVICE',
+    });
+    expect(policies.get(inheriting)).toEqual({
+      mode: null,
+      effectiveMode: 'NOTIFY_ONLY',
+      effectiveScope: 'ORGANIZATION',
+    });
+  });
 });
