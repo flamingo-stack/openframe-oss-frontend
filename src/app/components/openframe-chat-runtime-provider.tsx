@@ -111,9 +111,10 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
     // copy outside bearer mode would ship a stale/expired Bearer that the
     // gateway prefers over the fresh cookie. Omit it and let
     // `credentials: 'include'` carry the cookie.
-    if (!isBearerAuthMode()) return clientIdentityHeaders();
+    const identity = clientIdentityHeaders();
+    if (!isBearerAuthMode()) return identity;
     const token = getAccessTokenSync();
-    return token ? { ...clientIdentityHeaders(), Authorization: `Bearer ${token}` } : clientIdentityHeaders();
+    return token ? { ...identity, Authorization: `Bearer ${token}` } : identity;
   },
   // Send openframe cookies cross-origin to the gateway; CORS +
   // `SameSite=None` on cookies must be configured server-side. (Harmless

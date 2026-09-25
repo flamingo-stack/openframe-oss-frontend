@@ -15,6 +15,11 @@ vi.mock('./native-shell', () => ({
   nativeShellVersion: () => Promise.resolve(shell.version),
 }));
 
+/** The bridge answer is a mocked, already-resolved promise: one macrotask hop lets it land (see native-safe-areas.test.ts). */
+function flushBridge(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
 /** Fresh module per test: the bundle version is read, and the shell version cached, at module scope. */
 async function load(bundleVersion: string | undefined) {
   vi.stubEnv('OPENFRAME_BUNDLE_VERSION', bundleVersion);
@@ -34,8 +39,9 @@ describe('X-OpenFrame-Client', () => {
   });
 
   it('reports the web with no shell version', async () => {
-    const { clientIdentityHeaders } = await load('1.0.127');
-    expect(clientIdentityHeaders()).toEqual({ 'X-OpenFrame-Client': 'web/- bundle/1.0.127' });
+    const { CLIENT_IDENTITY_HEADER, clientIdentityHeaders } = await load('1.0.127');
+    expect(CLIENT_IDENTITY_HEADER).toBe('X-OpenFrame-Client');
+    expect(clientIdentityHeaders()).toEqual({ [CLIENT_IDENTITY_HEADER]: 'web/- bundle/1.0.127' });
   });
 
   it('reports `-` when the build carried no version', async () => {
@@ -56,7 +62,8 @@ describe('X-OpenFrame-Client', () => {
 
     expect(clientIdentityValue()).toBe('ios/- bundle/1.0.127');
     primeShellVersion();
-    await vi.waitFor(() => expect(clientIdentityValue()).toBe('ios/1.0.1 bundle/1.0.127'));
+    await flushBridge();
+    expect(clientIdentityValue()).toBe('ios/1.0.1 bundle/1.0.127');
   });
 
   it('reports the desktop shell', async () => {
@@ -65,7 +72,8 @@ describe('X-OpenFrame-Client', () => {
     const { clientIdentityValue, primeShellVersion } = await load('1.0.125-4-geae0416-dirty');
 
     primeShellVersion();
-    await vi.waitFor(() => expect(clientIdentityValue()).toBe('desktop/0.4.2 bundle/1.0.125-4-geae0416-dirty'));
+    await flushBridge();
+    expect(clientIdentityValue()).toBe('desktop/0.4.2 bundle/1.0.125-4-geae0416-dirty');
   });
 
   it('keeps a malformed native version from producing an invalid header', async () => {
@@ -75,10 +83,8 @@ describe('X-OpenFrame-Client', () => {
     const { clientIdentityValue, primeShellVersion } = await load('1.0.127');
 
     primeShellVersion();
-    // A rejected value reads the same `-` as not-yet-primed: flush the bridge promise first.
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushBridge();
     expect(clientIdentityValue()).toBe('android/- bundle/1.0.127');
-    expect(() => new Headers({ 'X-OpenFrame-Client': clientIdentityValue() })).not.toThrow();
+    expect(() => new Headers({ 'X-Test': clientIdentityValue() })).not.toThrow();
   });
 });

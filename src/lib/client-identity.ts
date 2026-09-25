@@ -26,9 +26,6 @@ export const CLIENT_IDENTITY_HEADER = 'X-OpenFrame-Client';
 // report a version it is not.
 const BUNDLE_VERSION = process.env.OPENFRAME_BUNDLE_VERSION ?? '';
 
-let shellVersion: string | null = null;
-let shellVersionRequested = false;
-
 /**
  * The backend's own acceptance rule for a version, which it turns into a metric
  * label and collapses to `unknown` when a value fails it. Applied here too, for a
@@ -38,12 +35,19 @@ let shellVersionRequested = false;
  */
 const VERSION_PATTERN = /^[0-9A-Za-z.-]{1,32}$/;
 
+let shellVersion: string | null = null;
+let shellVersionRequested = false;
+
 /** `-` is the contract's "version unknown", the same for the shell and the bundle. */
 function versionOrDash(value: string | null): string {
   return value && VERSION_PATTERN.test(value) ? value : '-';
 }
 
-function clientKind(): string {
+/**
+ * `mobile` only if Capacitor reports a platform other than ios/android, which it
+ * does not today; the backend folds anything outside its kind list into `unknown`.
+ */
+function clientKind() {
   const kind = shellKind();
   return kind === 'mobile' ? (mobilePlatform() ?? 'mobile') : kind;
 }
