@@ -76,7 +76,13 @@ export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
 export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
 
 /** Legal documents the Help Center `[docType]` route prerenders. */
-export type HelpCenterLegalDoc = 'privacy' | 'terms';
+export const HELP_CENTER_LEGAL_DOCS = ['privacy', 'terms'] as const;
+export type HelpCenterLegalDoc = (typeof HELP_CENTER_LEGAL_DOCS)[number];
+
+/** Narrow a wire value (e.g. a trust-center document's `legalDocType`) to a routable legal doc. */
+export function isHelpCenterLegalDoc(value: string | null | undefined): value is HelpCenterLegalDoc {
+  return (HELP_CENTER_LEGAL_DOCS as readonly string[]).includes(value ?? '');
+}
 
 // --------------------------------------------------------------------------
 // Ticket prefill keys (shared with the ticket form and its page)

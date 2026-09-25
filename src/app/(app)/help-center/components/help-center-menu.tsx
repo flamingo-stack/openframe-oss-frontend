@@ -12,6 +12,7 @@ import {
   ShieldLockIcon,
   WrenchScrewdiverIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { TRUST_CENTER_TITLE } from '@flamingo-stack/openframe-frontend-core/types';
 import type { ComponentType } from 'react';
 import { routes } from '@/lib/routes';
 import { SettingMenuItem } from '../../settings/components/setting-menu-item';
@@ -62,7 +63,7 @@ const ITEMS: Item[] = [
   },
   {
     href: routes.helpCenter.trustCenter,
-    title: 'Trust Center',
+    title: TRUST_CENTER_TITLE,
     description: 'Security, compliance and AI governance, continuously monitored.',
     Icon: ShieldLockIcon,
   },
