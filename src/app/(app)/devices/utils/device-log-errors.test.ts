@@ -2,7 +2,7 @@
 // a vanished device, a rejected filter and a WAF-rejected search each need their
 // own UI, and an unknown failure must fall back to Retry, never to a blank list.
 import { describe, expect, it } from 'vitest';
-import { OfflineError } from '@/lib/query-state';
+import { HttpStatusError, OfflineError } from '@/lib/query-state';
 import { describeDeviceLogError, isRetryableDeviceLogError } from './device-log-errors';
 
 /** Relay's thrown error: the classified entry first, then graphql-java's non-null follow-up. */
@@ -35,19 +35,19 @@ describe('describeDeviceLogError', () => {
     expect(describeDeviceLogError(relayError('INTERNAL_ERROR', 'boom'), { hasSearch: true }).kind).toBe('generic');
   });
 
-  it('reads a bodiless non-200 during a search as rejected search text, never as a crash', () => {
-    const transport = new Error('Relay fetch failed: 502 Bad Gateway');
+  it('reads a bodiless 502 during a search as rejected search text, never as a crash', () => {
+    const transport = new HttpStatusError(502, 'Bad Gateway');
     expect(describeDeviceLogError(transport, { hasSearch: true }).kind).toBe('search-rejected');
     expect(describeDeviceLogError(transport, { hasSearch: false }).kind).toBe('generic');
   });
 
   it('keeps other bodiless failures during a search retryable: an outage is not the text', () => {
-    for (const message of [
-      'Relay fetch failed: 503 Service Unavailable',
-      'Relay fetch failed: 5020 Odd',
-      'Relay fetch failed: authentication temporarily unavailable (agentLogsContentQuery)',
+    for (const error of [
+      new HttpStatusError(503, 'Service Unavailable'),
+      new Error('Relay fetch failed: authentication temporarily unavailable (agentLogsContentQuery)'),
+      new Error('Relay fetch failed: 502 Bad Gateway'),
     ]) {
-      expect(describeDeviceLogError(new Error(message), { hasSearch: true }).kind).toBe('generic');
+      expect(describeDeviceLogError(error, { hasSearch: true }).kind).toBe('generic');
     }
   });
 

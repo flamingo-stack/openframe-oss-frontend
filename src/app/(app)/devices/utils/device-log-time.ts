@@ -1,5 +1,5 @@
 import type { DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { format, subDays } from 'date-fns';
+import { format, startOfDay, subDays } from 'date-fns';
 import { dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 
 export const DEVICE_LOG_RANGE_PRESETS = ['1h', '24h', '7d', 'custom'] as const;
@@ -20,11 +20,31 @@ export const DEFAULT_DEVICE_LOG_RANGE: DeviceLogRangeWindow = '24h';
 /** The API rejects wider ranges with VALIDATION_ERROR; the picker never offers one. */
 export const MAX_DEVICE_LOG_RANGE_DAYS = 30;
 
+/** Production retention; the empty state names it for ranges that reach past it. */
+export const DEVICE_LOG_RETENTION_DAYS = 10;
+
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+/** True when the window starts before production retention, measured from its anchor. */
+export function isBeyondDeviceLogRetention(from: string | undefined, anchorMs: number): boolean {
+  return from !== undefined && anchorMs - Date.parse(from) > DEVICE_LOG_RETENTION_DAYS * DAY_MS;
+}
+
+/** The first day a range ending on `last` may start on: both end days count toward the cap. */
+function earliestDeviceLogDay(last: Date): Date {
+  return subDays(last, MAX_DEVICE_LOG_RANGE_DAYS - 1);
+}
+
+/** The custom picker's selectable days, so any pick stays under the cap. */
+export function deviceLogPickerBounds(anchorMs: number): { min: Date; max: Date } {
+  const today = new Date(anchorMs);
+  return { min: startOfDay(earliestDeviceLogDay(today)), max: today };
+}
 const PRESET_DURATION_MS: Record<DeviceLogRangeWindow, number> = {
   '1h': HOUR_MS,
-  '24h': 24 * HOUR_MS,
-  '7d': 7 * 24 * HOUR_MS,
+  '24h': DAY_MS,
+  '7d': 7 * DAY_MS,
 };
 
 export function isDeviceLogRangePreset(value: string): value is DeviceLogRangePreset {
@@ -146,6 +166,6 @@ export function deviceLogCustomBounds(range: DateRange | undefined): { from?: st
   const last = range?.to ?? range?.from;
   if (!first || !last) return {};
   const [lower, upper] = first <= last ? [first, last] : [last, first];
-  const earliest = subDays(upper, MAX_DEVICE_LOG_RANGE_DAYS - 1);
+  const earliest = earliestDeviceLogDay(upper);
   return dateRangeToInstantBounds({ from: lower < earliest ? earliest : lower, to: upper });
 }

@@ -4,7 +4,12 @@ import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui'
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { InlineSkeleton } from '@/app/components/shared/page-skeleton-primitives';
 import { DEFAULT_DEVICE_LOG_RANGE } from '../../../utils/device-log-time';
-import { AGENT_LOG_COLUMN_VARS, AGENT_LOG_LEVEL_COLUMN, AGENT_LOG_TIME_COLUMN } from './agent-log-columns';
+import {
+  AGENT_LOG_LEVEL_COLUMN,
+  AGENT_LOG_LINE_SPACING,
+  AGENT_LOG_ROW_FRAME,
+  AGENT_LOG_TIME_COLUMN,
+} from './agent-log-columns';
 import { AgentLogsDayHeader } from './agent-logs-day-header';
 import { AgentLogsToolbar } from './agent-logs-toolbar';
 
@@ -14,13 +19,7 @@ export function AgentLogsRowsSkeleton({ rows = 12 }: { rows?: number }) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-hidden="true">
       {Array.from({ length: rows }, (_, index) => (
-        <div
-          key={index}
-          className={cn(
-            'flex items-center gap-[var(--spacing-system-xs)] rounded-md border border-transparent px-[var(--spacing-system-xs)] py-[var(--spacing-system-xxs)]',
-            AGENT_LOG_COLUMN_VARS,
-          )}
-        >
+        <div key={index} className={cn('flex items-center', AGENT_LOG_ROW_FRAME, AGENT_LOG_LINE_SPACING)}>
           <Skeleton className={cn('h-5 shrink-0', AGENT_LOG_TIME_COLUMN)} />
           <Skeleton className={cn('h-8 shrink-0', AGENT_LOG_LEVEL_COLUMN)} />
           <Skeleton className="h-5 flex-1" />

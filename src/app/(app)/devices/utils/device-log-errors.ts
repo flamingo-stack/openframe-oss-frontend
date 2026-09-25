@@ -1,5 +1,5 @@
 import { getRelayErrorCode } from '@/lib/handle-api-error';
-import { isOfflineError, loadErrorProps } from '@/lib/query-state';
+import { httpStatusOf, isOfflineError, loadErrorProps } from '@/lib/query-state';
 import { DEVICE_LOG_SEARCH_REJECTED_MESSAGE } from './device-log-search';
 
 export type DeviceLogErrorKind = 'offline' | 'not-found' | 'validation' | 'unavailable' | 'search-rejected' | 'generic';
@@ -23,9 +23,9 @@ export function isRetryableDeviceLogError(kind: DeviceLogErrorKind): boolean {
 const DEVICE_LOGS_UNAVAILABLE_MESSAGE = 'Logs are temporarily unavailable.';
 const DEVICE_LOGS_GENERIC_MESSAGE = "Couldn't load agent logs.";
 
-/** The edge proxy's bodiless 502 only: other statuses and the auth blip share the prefix but are outages. */
+/** The edge proxy's bodiless 502 only: other statuses and the auth blip are outages. */
 function isProxyRejection(error: unknown): boolean {
-  return error instanceof Error && /^Relay fetch failed: 502\b/.test(error.message);
+  return httpStatusOf(error) === 502;
 }
 
 /**

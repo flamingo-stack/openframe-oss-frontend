@@ -25,7 +25,7 @@ vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({
   useSubscriptionOpen: () => subscriptionOpen,
 }));
 
-import { OfflineError } from '@/lib/query-state';
+import { HttpStatusError, OfflineError } from '@/lib/query-state';
 import type { DeviceLogErrorInfo } from '../utils/device-log-errors';
 import { DEVICE_LOGS_TAIL_LIMIT, type PolledPage } from '../utils/device-log-tail';
 import { DEVICE_LOGS_POLL_INTERVAL_MS, useDeviceLogsLiveTail } from './use-device-logs-live-tail';
@@ -358,7 +358,7 @@ describe('useDeviceLogsLiveTail', () => {
   it('stops on a rejected search: the same text is rejected the same way every tick', () => {
     render({ hasSearch: true });
     tick();
-    act(() => calls[0].sink.error(new Error('Relay fetch failed: 502 Bad Gateway')));
+    act(() => calls[0].sink.error(new HttpStatusError(502, 'Bad Gateway')));
     expect(latest?.error?.kind).toBe('search-rejected');
     tick(120_000);
     expect(calls).toHaveLength(1);

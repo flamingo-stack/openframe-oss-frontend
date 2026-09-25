@@ -20,7 +20,9 @@ export function useIsAtTop<T extends HTMLElement>(
         const entry = entries[0];
         if (entry) setAtTop(entry.isIntersecting);
       },
-      { rootMargin },
+      // Rooted on the app's scroller: `rootMargin` grows only the root, and `<main>`
+      // would clip a viewport-rooted margin away (shared/empty-state does the same).
+      { root: node.closest('main'), rootMargin },
     );
     observer.observe(node);
     return () => observer.disconnect();

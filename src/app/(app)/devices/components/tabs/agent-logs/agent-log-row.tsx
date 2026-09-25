@@ -12,10 +12,11 @@ import { toRepeatCount } from '../../../utils/device-log-count';
 import { getDeviceLogLevelVariant, normalizeDeviceLogLevel } from '../../../utils/device-log-level';
 import { formatDeviceLogTime } from '../../../utils/device-log-time';
 import {
-  AGENT_LOG_COLUMN_VARS,
   AGENT_LOG_LEVEL_COLUMN,
   AGENT_LOG_LINE_BOX,
+  AGENT_LOG_LINE_SPACING,
   AGENT_LOG_MESSAGE_INDENT,
+  AGENT_LOG_ROW_FRAME,
   AGENT_LOG_TIME_COLUMN,
 } from './agent-log-columns';
 
@@ -89,16 +90,8 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
     toggle();
   };
 
-  // The border is always there, only its colour changes: `border-box` would
-  // otherwise pull the content in by 1px at the moment the row opens.
   return (
-    <div
-      className={cn(
-        'rounded-md border border-transparent',
-        AGENT_LOG_COLUMN_VARS,
-        expanded && 'border-ods-border bg-ods-card',
-      )}
-    >
+    <div className={cn(AGENT_LOG_ROW_FRAME, expanded && 'border-ods-border bg-ods-card')}>
       {/* The line toggles for pointers; the chevron is the control keyboard and
           assistive tech get, so the unfolded message stays selectable text. */}
       <div
@@ -106,8 +99,8 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
         className={cn(
           // `items-start` in BOTH states: switching it on expand moved the first
           // line up. The line box below grows the text to the chip's 32px instead.
-          'flex w-full cursor-pointer items-start gap-[var(--spacing-system-xs)] rounded-md px-[var(--spacing-system-xs)] py-[var(--spacing-system-xxs)]',
-          'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ods-accent',
+          'flex w-full cursor-pointer items-start rounded-md',
+          AGENT_LOG_LINE_SPACING,
           // An open row already carries the card background; stacking hover on
           // top of it reads as a stuck highlight.
           !expanded && 'hover:bg-ods-bg-hover',
@@ -157,22 +150,23 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
         {count !== null && (
           <Tag as="span" variant="outline" label={<span>×{formatCount(count)}</span>} className="shrink-0" />
         )}
-        <button
+        <Button
           type="button"
+          variant="glyph"
+          size="icon-sm"
           data-no-row-click
           aria-expanded={expanded}
           aria-label={`Details: ${formatDeviceLogTime(timestamp)} ${levelText}`}
           onClick={toggle}
-          className="flex h-8 shrink-0 items-center rounded-md focus-visible:outline-none"
         >
           <Chevron01RightIcon
             aria-hidden="true"
             className={cn(
-              'h-4 w-4 text-ods-text-tertiary transition-transform motion-reduce:transition-none',
+              'text-ods-text-tertiary transition-transform motion-reduce:transition-none',
               expanded && 'rotate-90',
             )}
           />
-        </button>
+        </Button>
       </div>
       {expanded && (
         <div

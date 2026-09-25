@@ -11,6 +11,13 @@
  */
 export const AGENT_LOG_COLUMN_VARS = '[--agent-log-time:144px] md:[--agent-log-time:168px] [--agent-log-level:64px]';
 
+/** The row's outer box. The border is always drawn and only recoloured, so opening a row never shifts it. */
+export const AGENT_LOG_ROW_FRAME = `rounded-md border border-transparent ${AGENT_LOG_COLUMN_VARS}`;
+
+/** The line's padding and column gap, which the skeleton row repeats. */
+export const AGENT_LOG_LINE_SPACING =
+  'gap-[var(--spacing-system-xs)] px-[var(--spacing-system-xs)] py-[var(--spacing-system-xxs)]';
+
 export const AGENT_LOG_TIME_COLUMN = 'w-[var(--agent-log-time)]';
 
 /** A slot, not the chip's width: `INFO` and `ERROR` differ, the message must not. */

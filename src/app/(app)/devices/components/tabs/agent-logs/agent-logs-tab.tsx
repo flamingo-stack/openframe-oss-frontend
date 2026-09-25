@@ -2,7 +2,6 @@
 
 import type { DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { startOfDay, subDays } from 'date-fns';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
@@ -23,9 +22,10 @@ import { emptyListPollFrom } from '../../../utils/device-log-tail';
 import {
   DEFAULT_DEVICE_LOG_RANGE,
   deviceLogCustomBounds,
+  deviceLogPickerBounds,
   type DeviceLogRangePreset,
+  isBeyondDeviceLogRetention,
   isDeviceLogRangePreset,
-  MAX_DEVICE_LOG_RANGE_DAYS,
   adoptRefreshStamp,
   presetToFromInstant,
 } from '../../../utils/device-log-time';
@@ -33,10 +33,6 @@ import { AgentLogsContent, type AgentLogsList } from './agent-logs-content';
 import { AgentLogsErrorState } from './agent-logs-error-state';
 import { AgentLogsListSkeleton } from './agent-logs-skeleton';
 import { AgentLogsToolbar } from './agent-logs-toolbar';
-
-/** Production retention; the empty state mentions it for ranges that reach past it. */
-const RETENTION_DAYS = 10;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface AgentLogsTabProps {
   device: Device;
@@ -146,13 +142,8 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   const hasSearch = Boolean(deferredList.filter.contains?.length || deferredList.filter.excludes?.length);
   const hasActiveFilters =
     selectedLevels.length > 0 || search !== '' || range !== DEFAULT_DEVICE_LOG_RANGE || customRange !== undefined;
-  const beyondRetention =
-    filter.from !== undefined && anchorNow - Date.parse(String(filter.from)) > RETENTION_DAYS * DAY_MS;
-  const customBounds = useMemo(() => {
-    const today = new Date(anchorNow);
-    // 29 days back, so any pick (inclusive of both end days) stays under the cap.
-    return { min: startOfDay(subDays(today, MAX_DEVICE_LOG_RANGE_DAYS - 1)), max: today };
-  }, [anchorNow]);
+  const beyondRetention = isBeyondDeviceLogRetention(filter.from == null ? undefined : String(filter.from), anchorNow);
+  const customBounds = useMemo(() => deviceLogPickerBounds(anchorNow), [anchorNow]);
 
   const toggleLevel = (level: DeviceLogLevel) => {
     const on = selectedLevels.length === 0 ? [...DEVICE_LOG_LEVELS] : selectedLevels;

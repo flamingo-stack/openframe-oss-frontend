@@ -20,7 +20,7 @@ import {
   isRetryableDeviceLogError,
 } from '../../../utils/device-log-errors';
 import { deviceLogRowKey, type PolledPage } from '../../../utils/device-log-tail';
-import { groupDeviceLogDays } from '../../../utils/device-log-time';
+import { DEVICE_LOG_RETENTION_DAYS, groupDeviceLogDays } from '../../../utils/device-log-time';
 import { TabEmptyState } from '../tab-empty-state';
 import { AGENT_LOG_ROW_PAINT } from './agent-log-columns';
 import { AgentLogRow } from './agent-log-row';
@@ -215,7 +215,7 @@ export function AgentLogsContent({
             title="No logs in this range"
             description={
               beyondRetention
-                ? 'Agent logs are kept for 10 days. Try a narrower range or different filters.'
+                ? `Agent logs are kept for ${DEVICE_LOG_RETENTION_DAYS} days. Try a narrower range or different filters.`
                 : 'Nothing matched the current range and filters.'
             }
             buttonLabel={hasActiveFilters ? 'Reset filters' : undefined}

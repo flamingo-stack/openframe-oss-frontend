@@ -4,12 +4,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   adoptRefreshStamp,
+  DEVICE_LOG_RETENTION_DAYS,
   deviceLogCustomBounds,
   deviceLogDay,
+  deviceLogPickerBounds,
   formatDeviceLogDay,
   formatDeviceLogTime,
   groupDeviceLogDays,
   instantToNanos,
+  isBeyondDeviceLogRetention,
   isInstantAfter,
   presetToFromInstant,
 } from './device-log-time';
@@ -183,5 +186,31 @@ describe('adoptRefreshStamp', () => {
   it('rejects an empty or hand-edited non-number stamp', () => {
     expect(adoptRefreshStamp('', anchor)).toBeNull();
     expect(adoptRefreshStamp('yesterday', anchor)).toBeNull();
+  });
+});
+
+describe('isBeyondDeviceLogRetention', () => {
+  const anchor = Date.parse('2026-09-23T12:00:00.000Z');
+  const daysBack = (days: number) => new Date(anchor - days * 86_400_000).toISOString();
+
+  it('flags a window that starts before retention, measured from its own anchor', () => {
+    expect(isBeyondDeviceLogRetention(daysBack(DEVICE_LOG_RETENTION_DAYS + 1), anchor)).toBe(true);
+    expect(isBeyondDeviceLogRetention(daysBack(DEVICE_LOG_RETENTION_DAYS), anchor)).toBe(false);
+    expect(isBeyondDeviceLogRetention(daysBack(7), anchor)).toBe(false);
+  });
+
+  it('never flags a window with no start', () => {
+    expect(isBeyondDeviceLogRetention(undefined, anchor)).toBe(false);
+  });
+});
+
+describe('deviceLogPickerBounds', () => {
+  it('offers the anchor day back to the local start of the 30th day, the cap custom bounds clamp to', () => {
+    const anchor = new Date(2026, 8, 23, 15, 30).getTime();
+    const { min, max } = deviceLogPickerBounds(anchor);
+    expect(max.getTime()).toBe(anchor);
+    expect(min).toEqual(local(2026, 8, 25));
+    const clamped = deviceLogCustomBounds({ from: local(2026, 1, 1), to: new Date(anchor) });
+    expect(clamped.from).toBe(min.toISOString());
   });
 });

@@ -157,3 +157,20 @@ export class OfflineError extends Error {
 export function isOfflineError(error: unknown): error is OfflineError {
   return (error as { isOfflineError?: unknown } | null)?.isOfflineError === true;
 }
+
+/** A non-OK HTTP answer with no GraphQL body; the status is data, so callers never parse `message`. */
+export class HttpStatusError extends Error {
+  readonly httpStatus: number;
+
+  constructor(status: number, statusText: string) {
+    super(`Relay fetch failed: ${status} ${statusText}`);
+    this.name = 'HttpStatusError';
+    this.httpStatus = status;
+  }
+}
+
+/** The status of an `HttpStatusError`, duck-typed like `isOfflineError`; null for anything else. */
+export function httpStatusOf(error: unknown): number | null {
+  const status = (error as { httpStatus?: unknown } | null)?.httpStatus;
+  return typeof status === 'number' ? status : null;
+}
