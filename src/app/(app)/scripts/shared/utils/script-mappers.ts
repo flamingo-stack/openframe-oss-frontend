@@ -77,29 +77,59 @@ export function platformsToIds(enums: ReadonlyArray<OsType | string> | null | un
 
 export interface ScriptEnvVarInput {
   name: string;
-  value: string;
+  /**
+   * `null` on a stored secret the user left alone — "keep what you hold". The
+   * server masks a secret's value on every read, so the form has nothing else
+   * to send back; on a write it resolves null against the stored secret of the
+   * same name (400 when there is none, e.g. the first override a schedule
+   * writes for a script), and a run merges over the stored vars and skips it.
+   * `''` is a real value, legal for a plain variable and never sent for an
+   * untouched secret. Null on a plain variable is rejected.
+   */
+  value: string | null;
   secret: boolean;
 }
 
-/** Form key/value pairs -> GraphQL ScriptEnvVarInput[] (secret defaults to false). */
+/** Env vars as the schema returns them: a secret comes back with `value: null`. */
+export type StoredEnvVar = { readonly name: string; readonly value?: string | null; readonly secret?: boolean | null };
+
+/** A stored secret the user has not replaced: the mask is showing, nothing was typed. */
+function isUntouchedStoredSecret(pair: ScriptArgument): boolean {
+  return Boolean(pair.secret && pair.hasStoredValue && !pair.value);
+}
+
+/**
+ * Form key/value pairs -> GraphQL ScriptEnvVarInput[].
+ *
+ * An untouched stored secret goes out as `value: null` (keep), never as `''`.
+ * Clearing a typed replacement brings the mask back and sends null again. A
+ * secret the user just added goes out as typed, blank included.
+ */
 export function envVarsToInput(pairs: ScriptArgument[]): ScriptEnvVarInput[] {
-  return pairs.filter(p => p.key.trim() !== '').map(p => ({ name: p.key, value: p.value ?? '', secret: false }));
+  return pairs
+    .filter(p => p.key.trim() !== '')
+    .map(p => ({
+      name: p.key,
+      value: isUntouchedStoredSecret(p) ? null : (p.value ?? ''),
+      secret: p.secret ?? false,
+    }));
 }
 
-/** GraphQL env vars -> "name=value" strings (consumed by ScriptArgumentsCard). */
-export function envVarsToStrings(
-  envVars: ReadonlyArray<{ name: string; value?: string | null }> | null | undefined,
-): string[] {
+/**
+ * GraphQL env vars -> form key/value pairs.
+ *
+ * A secret's `value` arrives as null (masked server-side) and seeds an empty
+ * field flagged `hasStoredValue`, which is what makes the editor show a mask
+ * instead of an empty prompt and {@link envVarsToInput} send null back.
+ */
+export function envVarsToPairs(envVars: ReadonlyArray<StoredEnvVar> | null | undefined): ScriptArgument[] {
   if (!envVars) return [];
-  return envVars.map(e => (e.value ? `${e.name}=${e.value}` : e.name));
-}
-
-/** GraphQL env vars -> form key/value pairs. */
-export function envVarsToPairs(
-  envVars: ReadonlyArray<{ name: string; value?: string | null }> | null | undefined,
-): ScriptArgument[] {
-  if (!envVars) return [];
-  return envVars.map((e, i) => ({ id: `env-${i}`, key: e.name, value: e.value ?? '' }));
+  return envVars.map((e, i) => ({
+    id: `env-${i}`,
+    key: e.name,
+    value: e.value ?? '',
+    ...(e.secret && { secret: true, hasStoredValue: e.value == null }),
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +183,7 @@ export interface ScriptDetailNode {
   supportedPlatforms?: ReadonlyArray<OsType | string> | null;
   defaultTimeoutSeconds?: number | null;
   defaultArgs?: ReadonlyArray<string> | null;
-  envVars?: ReadonlyArray<{ name: string; value?: string | null; secret?: boolean }> | null;
+  envVars?: ReadonlyArray<StoredEnvVar> | null;
 }
 
 export function relayScriptToForm(node: ScriptDetailNode): EditScriptFormData {

@@ -1,6 +1,6 @@
 import type { ScriptArgument } from '@flamingo-stack/openframe-frontend-core';
 import { serializeKeyValues } from '../../shared/utils/script-key-values';
-import { envVarsToInput, type ScriptEnvVarInput } from '../../shared/utils/script-mappers';
+import { envVarsToInput, type ScriptEnvVarInput, type StoredEnvVar } from '../../shared/utils/script-mappers';
 
 /**
  * "Custom scripts" — the per-script arguments / environment variables a schedule
@@ -27,11 +27,7 @@ import { envVarsToInput, type ScriptEnvVarInput } from '../../shared/utils/scrip
  */
 
 /** Env vars as the schema returns them — `secret` included, `value` nullable. */
-type StoredEnvVars = ReadonlyArray<{
-  readonly name: string;
-  readonly value?: string | null;
-  readonly secret?: boolean | null;
-}> | null;
+type StoredEnvVars = ReadonlyArray<StoredEnvVar> | null;
 
 /** One stored override, as the detail query and both mutations return it. */
 export interface StoredScriptCustomParams {
@@ -41,11 +37,19 @@ export interface StoredScriptCustomParams {
 }
 
 /**
- * Stored env vars → the write shape. `secret` survives the round trip even
- * though nothing in the form displays it; see {@link withDefaultSecrets}.
+ * Stored env vars → the write shape.
+ *
+ * A secret arrives masked (`value: null`) and stays null here — it is what
+ * the form sends for a secret it never saw, so the two compare equal in
+ * {@link collectScriptCustomParams} and an untouched secret writes no
+ * override. Only a plain variable's null collapses to `''`.
  */
 export function toEnvVarInputs(envVars: StoredEnvVars | undefined): ScriptEnvVarInput[] {
-  return (envVars ?? []).map(e => ({ name: e.name, value: e.value ?? '', secret: e.secret ?? false }));
+  return (envVars ?? []).map(e => ({
+    name: e.name,
+    value: e.value ?? (e.secret ? null : ''),
+    secret: e.secret ?? false,
+  }));
 }
 
 /** One override, in the shape `ScheduledScriptCustomParamsInput` expects. */
@@ -97,13 +101,11 @@ function sameArgs(a: string[], b: ReadonlyArray<string>): boolean {
   return a.length === b.length && a.every((value, i) => value === b[i]);
 }
 
-/**
- * Env vars compared on name + value only. `secret` has no control in the form —
- * it is carried over from the default below rather than compared, so a schedule
- * never turns a secret variable into a plain one just by being saved.
- */
 function sameEnvVars(a: ScriptEnvVarInput[], b: ReadonlyArray<ScriptEnvVarInput>): boolean {
-  return a.length === b.length && a.every((entry, i) => entry.name === b[i].name && entry.value === b[i].value);
+  return (
+    a.length === b.length &&
+    a.every((entry, i) => entry.name === b[i].name && entry.value === b[i].value && entry.secret === b[i].secret)
+  );
 }
 
 /**
@@ -121,7 +123,7 @@ export function collectScriptCustomParams(entries: ReadonlyArray<ScriptParamsEnt
     if (!entry.scriptId || byScriptId.has(entry.scriptId)) continue;
 
     const args = serializeKeyValues(entry.args, ' ');
-    const envVars = withDefaultSecrets(envVarsToInput(entry.envVars), entry.defaultEnvVars);
+    const envVars = envVarsToInput(entry.envVars);
     const argsChanged = !sameArgs(args, entry.defaultArgs);
     const envChanged = !sameEnvVars(envVars, entry.defaultEnvVars);
 
@@ -134,21 +136,4 @@ export function collectScriptCustomParams(entries: ReadonlyArray<ScriptParamsEnt
   }
 
   return [...byScriptId.values()];
-}
-
-/**
- * Restores the `secret` flag the form cannot hold, by name.
- *
- * `ScriptEnvVarInput.secret` is non-null and the key/value editor has no control
- * for it, so every pair would otherwise go out as `secret: false` — and editing
- * one variable of a schedule would quietly declassify the secret one next to it.
- * A variable the user renamed or added has no default to inherit from and stays
- * non-secret, which is the safe direction.
- */
-function withDefaultSecrets(
-  envVars: ScriptEnvVarInput[],
-  defaults: ReadonlyArray<ScriptEnvVarInput>,
-): ScriptEnvVarInput[] {
-  const secretByName = new Map(defaults.map(e => [e.name, e.secret]));
-  return envVars.map(entry => ({ ...entry, secret: secretByName.get(entry.name) ?? entry.secret }));
 }
