@@ -7,10 +7,11 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
+import { useMingoMessagesStore } from '../(app)/mingo/stores/mingo-messages-store';
 import {
   COMPACTION_STREAM_START_TIMEOUT_MS,
   COMPACTION_WATCH_TIMEOUT_MS,
@@ -19,18 +20,22 @@ import {
 
 interface StreamOptions {
   dialogId: string;
+  enabled: boolean;
   optStartSeq: number | null;
   onEvent: (payload: unknown) => void;
   onSubscribed: () => void;
 }
 
-const { streams, toast, dismiss, post } = vi.hoisted(() => {
+const { streams, toast, dismiss, post, fetchMessages } = vi.hoisted(() => {
   let toastCount = 0;
   return {
     streams: new Map<string, StreamOptions>(),
     toast: vi.fn((_options: Record<string, unknown>) => `toast-${++toastCount}`),
     dismiss: vi.fn(),
+    /** The compact request. */
     post: vi.fn(),
+    /** The latest-messages fetch the watcher takes its start sequence from. */
+    fetchMessages: vi.fn(),
   };
 });
 
@@ -47,7 +52,20 @@ vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal =>
   useToast: () => ({ toast, dismiss }),
 }));
 
-vi.mock('@/lib/api-client', () => ({ apiClient: { post } }));
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    post: (path: string, ...rest: unknown[]) =>
+      path === '/chat/graphql' ? fetchMessages(...rest) : post(path, ...rest),
+  },
+}));
+
+function messagesWithSeqs(...seqs: number[]) {
+  return {
+    ok: true,
+    status: 200,
+    data: { data: { messages: { edges: seqs.map(seq => ({ node: { lastChunkStreamSeq: seq } })) } } },
+  };
+}
 
 vi.mock('@/lib/nats/nats-app-config', () => ({
   useNatsAppConfig: () => ({ getWsUrl: () => 'ws://nats', onBeforeReconnect: vi.fn() }),
@@ -74,10 +92,20 @@ function emit(dialogId: string, chunk: Record<string, unknown>) {
   });
 }
 
-function start(dialogId: string) {
+/** Starts a compaction and lets the watcher create its progress toast, which it does a tick late. */
+async function start(dialogId: string) {
   act(() => {
     useMingoCompactionStore.getState().startCompaction(dialogId);
   });
+  if (vi.isFakeTimers()) {
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+  } else {
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+  }
 }
 
 /** Holds the compact request open until the test answers it. */
@@ -104,6 +132,8 @@ describe('MingoCompactionWatchers', () => {
     vi.clearAllMocks();
     streams.clear();
     post.mockResolvedValue({ ok: true, status: 202 });
+    fetchMessages.mockResolvedValue(messagesWithSeqs(40, 42, 41));
+    useMingoMessagesStore.setState({ highestStreamSeqByDialog: new Map() });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -122,10 +152,36 @@ describe('MingoCompactionWatchers', () => {
     vi.useRealTimers();
   });
 
-  it('live-tails the dialog and sends the request only once the consumer exists', async () => {
-    start('d-1');
+  it('leaves no progress toast behind after a StrictMode double mount', async () => {
+    act(() => {
+      root.render(
+        <StrictMode>
+          <QueryClientProvider client={new QueryClient()}>
+            <MingoCompactionWatchers />
+          </QueryClientProvider>
+        </StrictMode>,
+      );
+    });
+    await start('d-1');
 
-    expect(stream('d-1').optStartSeq).toBeNull();
+    const progressCalls = () => toast.mock.calls.filter(([options]) => options.title === 'Compacting chat memory…');
+    expect(progressCalls()).toHaveLength(1);
+
+    await subscribe('d-1');
+    emit('d-1', { type: 'CONTEXT_COMPACTION_START' });
+    emit('d-1', { type: 'CONTEXT_COMPACTION_END' });
+    emit('d-1', { type: 'MESSAGE_END' });
+
+    const progressIds = toast.mock.results
+      .filter((_, index) => toast.mock.calls[index][0].title === 'Compacting chat memory…')
+      .map(result => result.value);
+    expect(dismiss.mock.calls.map(([id]) => id)).toEqual(progressIds);
+  });
+
+  it('live-tails the dialog and sends the request only once the consumer exists', async () => {
+    await start('d-1');
+
+    expect(stream('d-1')).toMatchObject({ enabled: true, optStartSeq: 42 });
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Compacting chat memory…' }));
     expect(post).not.toHaveBeenCalled();
 
@@ -137,7 +193,7 @@ describe('MingoCompactionWatchers', () => {
   });
 
   it('reports success on MESSAGE_END after CONTEXT_COMPACTION_END, not on the 202', async () => {
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
     expect(lastToast()?.title).toBe('Compacting chat memory…');
 
@@ -154,7 +210,7 @@ describe('MingoCompactionWatchers', () => {
   });
 
   it('reports the ERROR chunk details when the compaction fails', async () => {
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     emit('d-1', { type: 'CONTEXT_COMPACTION_START' });
@@ -166,7 +222,7 @@ describe('MingoCompactionWatchers', () => {
   });
 
   it('falls back to its own message when the ERROR chunk carries no text', async () => {
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     emit('d-1', { type: 'CONTEXT_COMPACTION_START' });
@@ -178,7 +234,7 @@ describe('MingoCompactionWatchers', () => {
 
   it('says there is nothing to compact when the backend refuses with 422', async () => {
     post.mockResolvedValue({ ok: false, status: 422, error: 'Dialog context has no assistant messages to compact' });
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     expect(lastToast()).toMatchObject({ title: 'Nothing to compact yet' });
@@ -188,7 +244,7 @@ describe('MingoCompactionWatchers', () => {
   });
 
   it('does not take a MESSAGE_END without a START as the end of the compaction, even after the 202', async () => {
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     emit('d-1', { type: 'MESSAGE_END' });
@@ -203,7 +259,7 @@ describe('MingoCompactionWatchers', () => {
 
   it('ends at once when the backend refuses a dialog that is mid-turn', async () => {
     post.mockResolvedValue({ ok: false, status: 409, error: 'Conflict' });
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     expect(lastToast()).toMatchObject({
@@ -215,7 +271,7 @@ describe('MingoCompactionWatchers', () => {
 
   it("ignores the finishing turn's ERROR and MESSAGE_END that arrive before the 409", async () => {
     const answer = deferPost();
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     emit('d-1', { type: 'ERROR', details: 'the previous turn failed' });
@@ -229,7 +285,7 @@ describe('MingoCompactionWatchers', () => {
 
   it("ignores the finishing turn's MESSAGE_END and reports the compaction that follows", async () => {
     const answer = deferPost();
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     emit('d-1', { type: 'MESSAGE_END' });
@@ -245,7 +301,7 @@ describe('MingoCompactionWatchers', () => {
 
   it('keeps watching when the request gets no answer, and reports what the stream says', async () => {
     post.mockResolvedValue({ ok: false, status: 0, error: 'Request timed out after 30000ms' });
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
     emit('d-1', { type: 'MESSAGE_END' });
     expect(compacting()).toEqual(['d-1']);
@@ -259,7 +315,7 @@ describe('MingoCompactionWatchers', () => {
 
   it('reports a request that throws as a failure', async () => {
     post.mockRejectedValue(new Error('boom'));
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     expect(lastToast()).toMatchObject({ description: 'Failed to compact chat memory', variant: 'destructive' });
@@ -268,7 +324,7 @@ describe('MingoCompactionWatchers', () => {
 
   it('shows nothing for a request answered after its watcher is gone', async () => {
     const answer = deferPost();
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     act(() => root.unmount());
@@ -280,9 +336,32 @@ describe('MingoCompactionWatchers', () => {
     root = createRoot(container);
   });
 
-  it('gives up without sending anything when the stream never goes live', () => {
+  it('keeps the stream off until it knows where to resume', async () => {
+    fetchMessages.mockReturnValue(new Promise(() => {}));
+    await start('d-1');
+
+    expect(stream('d-1').enabled).toBe(false);
+  });
+
+  it("resumes after the open dialog's live sequence when it is ahead of the persisted history", async () => {
+    useMingoMessagesStore.setState({ highestStreamSeqByDialog: new Map([['d-1', 57]]) });
+    await start('d-1');
+
+    expect(stream('d-1').optStartSeq).toBe(57);
+  });
+
+  it('gives up without sending anything when the history cannot be read', async () => {
+    fetchMessages.mockResolvedValue({ ok: false, status: 500, error: 'boom' });
+    await start('d-1');
+
+    expect(post).not.toHaveBeenCalled();
+    expect(lastToast()?.description).toBe("Couldn't start compacting this chat. Try again in a moment.");
+    expect(compacting()).toEqual([]);
+  });
+
+  it('gives up without sending anything when the stream never goes live', async () => {
     vi.useFakeTimers();
-    start('d-1');
+    await start('d-1');
 
     act(() => {
       vi.advanceTimersByTime(COMPACTION_STREAM_START_TIMEOUT_MS);
@@ -295,7 +374,7 @@ describe('MingoCompactionWatchers', () => {
 
   it('gives up on a stream that never ends the turn', async () => {
     vi.useFakeTimers();
-    start('d-1');
+    await start('d-1');
     await subscribe('d-1');
 
     act(() => {

@@ -1,13 +1,21 @@
 'use client';
 
-import { type ChunkData, MESSAGE_TYPE, useJetStreamDialogSubscription } from '@flamingo-stack/openframe-frontend-core';
+import {
+  type ChunkData,
+  MESSAGE_TYPE,
+  maxPersistedStreamSeq,
+  useJetStreamDialogSubscription,
+} from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { CHAT_CHUNKS_STREAM, MINGO_JETSTREAM_TOPIC } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
+import { getMingoDialogMessagesQuery } from '../(app)/mingo/queries/dialogs-queries';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
+import { useMingoMessagesStore } from '../(app)/mingo/stores/mingo-messages-store';
+import type { MessagesResponse } from '../(app)/mingo/types/message.types';
 import { mingoDialogQueryKeys } from '../(app)/mingo/utils/query-keys';
 
 // Nothing has been sent while the stream is not live, so this bound can be short.
@@ -17,6 +25,7 @@ export const COMPACTION_STREAM_START_TIMEOUT_MS = 30_000;
 export const COMPACTION_WATCH_TIMEOUT_MS = 5 * 60_000;
 
 const COMPACTION_FAILED_MESSAGE = 'Failed to compact chat memory';
+const COMPACTION_START_FAILED_MESSAGE = "Couldn't start compacting this chat. Try again in a moment.";
 
 type CompactionOutcome = { kind: 'compacted' } | { kind: 'failed'; reason?: string };
 
@@ -39,6 +48,29 @@ async function requestCompaction(dialogId: string): Promise<CompactionRequestRes
   return { kind: 'refused', message: response.error || COMPACTION_FAILED_MESSAGE };
 }
 
+// Enough of the newest history to hold the highest persisted stream sequence.
+const LATEST_MESSAGES_LIMIT = 10;
+
+/**
+ * The stream sequence the watcher resumes after. Without one the lib's JetStream
+ * client replays everything the stream still holds for the dialog (it ignores
+ * the live-tail policy), which would hand the watcher the chunks of an earlier
+ * compaction. The open dialog's live tail knows the newest sequence; otherwise
+ * the newest persisted message does, and CONTEXT_COMPACTION_START/END are
+ * persisted, so none can come before it.
+ */
+async function latestStreamSeq(dialogId: string): Promise<number> {
+  const response = await apiClient.post<MessagesResponse>('/chat/graphql', {
+    query: getMingoDialogMessagesQuery(),
+    variables: { dialogId, limit: LATEST_MESSAGES_LIMIT, sortField: 'createdAt', sortDirection: 'DESC' },
+  });
+  if (!response.ok || !response.data?.data?.messages) {
+    throw new Error(response.error || 'Failed to fetch messages');
+  }
+  const persisted = maxPersistedStreamSeq([{ messages: response.data.data.messages.edges.map(edge => edge.node) }]);
+  return Math.max(persisted, useMingoMessagesStore.getState().getHighestStreamSeq(dialogId));
+}
+
 const stringField = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
 
 /**
@@ -48,8 +80,9 @@ const stringField = (value: unknown) => (typeof value === 'string' && value ? va
  * dialog's chunk stream: CONTEXT_COMPACTION_START, then CONTEXT_COMPACTION_END
  * or an ERROR chunk, then MESSAGE_END in every case.
  *
- * The request waits for the stream: it goes out once the live-tail consumer
- * exists, so no chunk of this compaction can be published before it.
+ * The request waits for the stream: the consumer resumes after the dialog's
+ * newest known sequence (see `latestStreamSeq`), and the request goes out once
+ * it exists, so no chunk of this compaction can be published before it.
  *
  * The stream can still carry the tail of the turn the dialog was busy with when
  * the request went out, and the lock that orders publishing does not order
@@ -70,6 +103,8 @@ function CompactionWatcher({ dialogId }: { dialogId: string }) {
   // State drives the timer; the ref guards the request, which a second
   // `onSubscribed` before the re-render must not send twice.
   const [requested, setRequested] = useState(false);
+  // Undefined until known; the consumer is not created before it is.
+  const [startSeq, setStartSeq] = useState<number | undefined>(undefined);
   const requestedRef = useRef(false);
   const mountedRef = useRef(false);
   const settledRef = useRef(false);
@@ -122,10 +157,17 @@ function CompactionWatcher({ dialogId }: { dialogId: string }) {
     }
   }, [dialogId, queryClient, settle, settleError, toast]);
 
+  // Created a tick late: the Toaster adds a toast on a deferred tick, so a
+  // dismiss issued in the same tick as the create (StrictMode's throwaway mount)
+  // finds nothing and the never-expiring toast would stay forever.
   useEffect(() => {
-    const progressToastId = toast({ title: 'Compacting chat memory…', duration: Infinity });
+    let progressToastId: number | string | undefined;
+    const createTimer = setTimeout(() => {
+      progressToastId = toast({ title: 'Compacting chat memory…', duration: Infinity });
+    });
     return () => {
-      dismiss(progressToastId);
+      clearTimeout(createTimer);
+      if (progressToastId !== undefined) dismiss(progressToastId);
     };
   }, [dismiss, toast]);
 
@@ -138,12 +180,23 @@ function CompactionWatcher({ dialogId }: { dialogId: string }) {
             ),
           COMPACTION_WATCH_TIMEOUT_MS,
         )
-      : setTimeout(
-          () => settleError("Couldn't start compacting this chat. Try again in a moment."),
-          COMPACTION_STREAM_START_TIMEOUT_MS,
-        );
+      : setTimeout(() => settleError(COMPACTION_START_FAILED_MESSAGE), COMPACTION_STREAM_START_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [requested, settleError]);
+
+  useEffect(() => {
+    let cancelled = false;
+    latestStreamSeq(dialogId)
+      .then(seq => {
+        if (!cancelled) setStartSeq(seq);
+      })
+      .catch(() => {
+        if (!cancelled) settleError(COMPACTION_START_FAILED_MESSAGE);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogId, settleError]);
 
   const handleSubscribed = useCallback(() => {
     if (requestedRef.current) return;
@@ -177,11 +230,11 @@ function CompactionWatcher({ dialogId }: { dialogId: string }) {
   );
 
   useJetStreamDialogSubscription({
-    enabled: true,
+    enabled: startSeq !== undefined,
     dialogId,
     streamName: CHAT_CHUNKS_STREAM,
     topic: MINGO_JETSTREAM_TOPIC,
-    optStartSeq: null,
+    optStartSeq: startSeq ?? null,
     onEvent: handleEvent,
     onSubscribed: handleSubscribed,
     onBeforeReconnect,
