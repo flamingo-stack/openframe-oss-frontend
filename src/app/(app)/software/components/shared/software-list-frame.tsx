@@ -27,7 +27,8 @@ export interface SoftwareListFrameRenderProps {
   onSortChange: (columnId: string) => void;
   /** Live — what the funnels draw as ticked, so a tick lands instantly. */
   selections: ListSelections;
-  onSelectionsChange: (next: Record<string, string[]>) => void;
+  /** A partial `next` keeps the funnels it does not name. */
+  onSelectionsChange: (next: Partial<Record<string, string[]>>) => void;
   /** A refetch is in flight and the rows on screen are the previous result. */
   isPending: boolean;
   /** Nothing in the list at all (not a search or funnel miss) — the frame drops its toolbar. */
@@ -138,8 +139,15 @@ export function SoftwareListFrame({
     () => Object.fromEntries(filterKeys.map(key => [key, readArray(params, paramName(paramPrefix, key))])),
     [filterKeys, paramPrefix, params],
   );
-  const onSelectionsChange = (next: Record<string, string[]>) =>
-    setParams(Object.fromEntries(filterKeys.map(key => [paramName(paramPrefix, key), next[key] ?? []])));
+  // Every funnel is written back at once, so the URL never holds a stale one —
+  // but from the CURRENT selection, not from empty: a caller that names one
+  // funnel must not wipe the others.
+  const onSelectionsChange = (next: Partial<Record<string, string[]>>) =>
+    setParams(
+      Object.fromEntries(
+        filterKeys.map(key => [paramName(paramPrefix, key), next[key] ?? [...(selections[key] ?? [])]]),
+      ),
+    );
 
   // Sort and the funnels travel as one deferred object so the query lags in
   // lockstep with the search and `isPending` covers all three.
