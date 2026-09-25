@@ -113,7 +113,7 @@ interface CustomerTabsVisibility {
   showCustomAiAssistant: boolean;
   /** Read-only guardrails defaults view (saas-tenant, flag-gated). */
   showGuardrails: boolean;
-  /** Remote access policy view (CU-86akeqw8b, `remote-access-approval` gate). */
+  /** Remote access policy view (`remote-access-approval` gate). */
   showDeviceGuardrails: boolean;
 }
 

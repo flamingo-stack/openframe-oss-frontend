@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_TENANT_REMOTE_ACCESS_POLICY, remoteAccessPolicyService } from './remote-access-policy-service';
+import {
+  DEFAULT_TENANT_REMOTE_ACCESS_POLICY,
+  mockRemoteAccessPolicyService as service,
+} from './remote-access-policy-service';
 
 // The mock is a module singleton, so each test works on its own ids to stay
 // independent of overrides other tests left behind.
@@ -22,46 +25,53 @@ describe('MockRemoteAccessPolicyService', () => {
   });
 
   it('returns the default tenant policy', async () => {
-    const policy = await settle(remoteAccessPolicyService.getTenantPolicy());
+    const policy = await settle(service.getTenantPolicy());
     expect(policy).toEqual(DEFAULT_TENANT_REMOTE_ACCESS_POLICY);
   });
 
   it('persists a tenant policy update', async () => {
-    const before = await settle(remoteAccessPolicyService.getTenantPolicy());
-    await settle(remoteAccessPolicyService.updateTenantPolicy({ ...before, mode: 'NOTIFY_ONLY' }));
-    const after = await settle(remoteAccessPolicyService.getTenantPolicy());
+    const before = await settle(service.getTenantPolicy());
+    await settle(service.updateTenantPolicy({ ...before, mode: 'NOTIFY_ONLY' }));
+    const after = await settle(service.getTenantPolicy());
     expect(after.mode).toBe('NOTIFY_ONLY');
     // Restore the shared singleton for the other tests.
-    await settle(remoteAccessPolicyService.updateTenantPolicy(before));
+    await settle(service.updateTenantPolicy(before));
   });
 
-  it('resolves the tenant mode when no override exists', async () => {
-    const mode = await settle(remoteAccessPolicyService.resolveDeviceMode(nextId('dev'), nextId('org')));
-    const tenant = await settle(remoteAccessPolicyService.getTenantPolicy());
-    expect(mode).toBe(tenant.mode);
+  it('an organization without an override inherits the tenant default', async () => {
+    const tenant = await settle(service.getTenantPolicy());
+    const policy = await settle(service.getOrganizationPolicy(nextId('org')));
+    expect(policy).toEqual({ mode: null, effectiveMode: tenant.mode });
+  });
+
+  it('a device without overrides resolves to the tenant scope', async () => {
+    const tenant = await settle(service.getTenantPolicy());
+    const policy = await settle(service.getDevicePolicy(nextId('dev'), nextId('org')));
+    expect(policy).toEqual({ mode: null, effectiveMode: tenant.mode, effectiveScope: 'TENANT' });
   });
 
   it('organization override wins over the tenant default', async () => {
     const orgId = nextId('org');
-    await settle(remoteAccessPolicyService.setOrganizationMode(orgId, 'NOTIFY_ONLY'));
-    expect(await settle(remoteAccessPolicyService.resolveDeviceMode(nextId('dev'), orgId))).toBe('NOTIFY_ONLY');
+    const saved = await settle(service.setOrganizationMode(orgId, 'NOTIFY_ONLY'));
+    expect(saved).toEqual({ mode: 'NOTIFY_ONLY', effectiveMode: 'NOTIFY_ONLY' });
+    const device = await settle(service.getDevicePolicy(nextId('dev'), orgId));
+    expect(device).toEqual({ mode: null, effectiveMode: 'NOTIFY_ONLY', effectiveScope: 'ORGANIZATION' });
   });
 
   it('device override wins over the organization override', async () => {
     const orgId = nextId('org');
     const deviceId = nextId('dev');
-    await settle(remoteAccessPolicyService.setOrganizationMode(orgId, 'NOTIFY_ONLY'));
-    await settle(remoteAccessPolicyService.setDeviceMode(deviceId, 'DENY_ACCESS'));
-    expect(await settle(remoteAccessPolicyService.resolveDeviceMode(deviceId, orgId))).toBe('DENY_ACCESS');
+    await settle(service.setOrganizationMode(orgId, 'NOTIFY_ONLY'));
+    const saved = await settle(service.setDeviceMode(deviceId, 'DENY_ACCESS', orgId));
+    expect(saved).toEqual({ mode: 'DENY_ACCESS', effectiveMode: 'DENY_ACCESS', effectiveScope: 'DEVICE' });
   });
 
   it('clearing a device override falls back to inheritance', async () => {
     const deviceId = nextId('dev');
-    await settle(remoteAccessPolicyService.setDeviceMode(deviceId, 'SILENT_ACCESS'));
-    expect(await settle(remoteAccessPolicyService.getDeviceMode(deviceId))).toBe('SILENT_ACCESS');
-    await settle(remoteAccessPolicyService.setDeviceMode(deviceId, null));
-    expect(await settle(remoteAccessPolicyService.getDeviceMode(deviceId))).toBeNull();
-    const tenant = await settle(remoteAccessPolicyService.getTenantPolicy());
-    expect(await settle(remoteAccessPolicyService.resolveDeviceMode(deviceId))).toBe(tenant.mode);
+    await settle(service.setDeviceMode(deviceId, 'SILENT_ACCESS'));
+    expect((await settle(service.getDevicePolicy(deviceId))).mode).toBe('SILENT_ACCESS');
+    const cleared = await settle(service.setDeviceMode(deviceId, null));
+    const tenant = await settle(service.getTenantPolicy());
+    expect(cleared).toEqual({ mode: null, effectiveMode: tenant.mode, effectiveScope: 'TENANT' });
   });
 });

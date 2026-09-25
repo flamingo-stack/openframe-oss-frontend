@@ -37,7 +37,7 @@ export class MeshTunnel {
       options?: TunnelOptions;
       /**
        * Prefix of the relay id, `<requestId>.<p>` for a session opened under a
-       * remote access approval (CU-86ajx02gz): the gateway gate matches the
+       * remote access approval: the gateway gate matches the
        * first token against the approval grant. The tunnel appends its own
        * nonce, so every tunnel of the session stays unique.
        */

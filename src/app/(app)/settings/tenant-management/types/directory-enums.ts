@@ -1,4 +1,4 @@
-// TEMPORARY mirrors of the directory-integration enums (CU-86akj8ajt).
+// TEMPORARY mirrors of the directory-integration enums.
 //
 // The backend contract lives on `openframe-saas-tenant` branch
 // `feature/directory-fe-integration` (`schema-directory/directory-integrations.graphqls`)

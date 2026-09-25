@@ -92,7 +92,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   // Effective per-org guardrails via /chat/graphql (saas-ai-agent), so
   // saas-tenant only; own release flag, independent of the appearance feature.
   const showGuardrails = useFeatureFlag('customer-guardrails') && isSaasTenant;
-  // Remote access policy (CU-86akeqw8b): not saas-gated - MeshCentral runs in
+  // Remote access policy: not saas-gated - MeshCentral runs in
   // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
   const showDeviceGuardrails = useRemoteAccessApprovalGate() === 'on';
   const tabs = useMemo(
@@ -194,15 +194,20 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
     // Land on the edit tab matching the currently open details tab; tabs
     // without an edit counterpart fall back to the edit page's default.
     const editHref = routes.customers.edit(id, { tab: DETAIL_TO_EDIT_TAB[activeTab] });
+    // A client-side push, not `href`: the save on the edit page returns with
+    // `router.back()`, and only an in-document navigation keeps the details
+    // page on the query cache the save has just updated. A link that opens a
+    // new document comes back from the browser's back-forward cache instead,
+    // with the values from before the save.
     const editAction: PageActionButton = {
       label: 'Edit Customer',
       variant: 'outline',
       icon: <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />,
-      href: editHref,
+      onClick: () => router.push(editHref),
     };
 
     return [archiveAction, editAction];
-  }, [organization, isArchived, isChecking, handleArchiveClick, id, activeTab]);
+  }, [organization, isArchived, isChecking, handleArchiveClick, id, activeTab, router]);
 
   if (isLoading) {
     return <CustomerDetailsSkeleton activeTab={activeTab} />;

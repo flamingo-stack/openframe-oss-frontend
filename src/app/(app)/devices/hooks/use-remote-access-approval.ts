@@ -21,7 +21,7 @@ import {
 /**
  * The technician-side view of one approval attempt:
  * idle -> requesting -> awaiting -> approved | denied | timed_out | error,
- * plus the two refusals of the create call itself (CU-86ajx02gz):
+ * plus the two refusals of the create call itself:
  * `busy` - another technician holds a live request or an active session on the
  * device (409, no identifiers in the body); `unreachable` - the request could
  * not be published (503, the request is deleted, a retry is safe).
@@ -39,7 +39,7 @@ export interface UseRemoteAccessApprovalResult {
   errorCode: RemoteAccessCreateErrorCode | null;
   /** True while the in-memory mock stands in for the backend (see useRemoteAccessApprovalService). */
   isMock: boolean;
-  /** `reason` is optional (decision 2026-09-16) - passed through when known, e.g. from a ticket. */
+  /** `reason` is optional - passed through when known, e.g. from a ticket. */
   requestAccess: (reason?: string) => void;
   /** Revoke the open request (technician cancel) and go back to idle. */
   cancel: () => void;
@@ -85,8 +85,8 @@ const NOTIFICATION_SUBJECT_PREFIX = 'user';
 const NOTIFICATION_SUBJECT_SUFFIX = 'notification';
 
 /**
- * The approval flow covers remote screen sessions only (decision 2026-09-16),
- * so the wire `sessionKind` is a constant rather than a parameter.
+ * The approval flow covers remote screen sessions only, so the wire
+ * `sessionKind` is a constant rather than a parameter.
  */
 export function useRemoteAccessApproval(
   deviceId: string,

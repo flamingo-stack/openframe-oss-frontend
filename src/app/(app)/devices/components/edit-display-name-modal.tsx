@@ -16,12 +16,7 @@ import { useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useDeviceActions } from '../hooks/use-device-actions';
 import { useRemoteAccessApprovalGate } from '../hooks/use-remote-access-approval-gate';
-import {
-  useDeviceRemoteAccessMode,
-  useOrganizationRemoteAccessMode,
-  useSetDeviceRemoteAccessMode,
-  useTenantRemoteAccessPolicy,
-} from '../hooks/use-remote-access-policy';
+import { useDeviceRemoteAccessPolicy, useSetDeviceRemoteAccessMode } from '../hooks/use-remote-access-policy';
 import type { Device } from '../types/device.types';
 import { REMOTE_ACCESS_MODE_META, REMOTE_ACCESS_MODES, type RemoteAccessMode } from '../types/remote-access';
 
@@ -36,7 +31,7 @@ interface EditDisplayNameModalProps {
  * "Edit Device" modal: sets or clears a device's user-defined name (the BE
  * `nickname`, labeled "Display Name" in the UI per the design) and - with the
  * remote-access-approval gate on - the per-device Remote Access Permission
- * override (CU-86akeqw8b). Clearing the name reverts the title to the
+ * override. Clearing the name reverts the title to the
  * agent-reported displayName/hostname.
  *
  * The permission select shows the device's EFFECTIVE mode (override, else the
@@ -53,11 +48,10 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
   const deviceId = device?.machineId || device?.id || '';
 
   const showRemoteAccess = useRemoteAccessApprovalGate() === 'on';
-  const deviceMode = useDeviceRemoteAccessMode(deviceId, { enabled: isOpen && showRemoteAccess });
-  const organizationMode = useOrganizationRemoteAccessMode(device?.organizationId ?? '', {
+  const devicePolicy = useDeviceRemoteAccessPolicy(deviceId, {
     enabled: isOpen && showRemoteAccess,
+    organizationId: device?.organizationId,
   });
-  const tenantPolicy = useTenantRemoteAccessPolicy({ enabled: isOpen && showRemoteAccess });
   const { mutateAsync: setDeviceMode, isPending: isSavingMode } = useSetDeviceRemoteAccessMode();
 
   // The select shows the loaded mode until the user picks something, so a
@@ -77,11 +71,10 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
     }
   }
 
-  // Effective mode: device override -> org override -> tenant default.
-  const savedModeValue: RemoteAccessMode | undefined =
-    deviceMode.data ?? organizationMode.data ?? tenantPolicy.data?.mode ?? undefined;
+  // The effective mode as the policy service resolves it: device override -> org override -> tenant default.
+  const savedModeValue: RemoteAccessMode | undefined = devicePolicy.data?.effectiveMode;
   const selectedModeValue = pickedMode ?? savedModeValue;
-  const modeLoading = deviceMode.isLoading || organizationMode.isLoading || tenantPolicy.isLoading;
+  const modeLoading = devicePolicy.isPending;
   const modeChanged =
     showRemoteAccess &&
     !modeLoading &&
@@ -100,7 +93,7 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
 
     if (modeChanged && selectedModeValue) {
       try {
-        await setDeviceMode({ deviceId, mode: selectedModeValue });
+        await setDeviceMode({ deviceId, mode: selectedModeValue, organizationId: device?.organizationId });
       } catch (err) {
         toast({
           title: 'Save failed',

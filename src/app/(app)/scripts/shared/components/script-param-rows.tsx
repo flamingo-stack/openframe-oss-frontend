@@ -1,6 +1,7 @@
 'use client';
 
 import type { ScriptArgument } from '@flamingo-stack/openframe-frontend-core';
+import { LockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { FloatingTooltip, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { parseKeyValues } from '../utils/script-key-values';
@@ -13,6 +14,8 @@ export interface ScriptParamRow {
   muted?: boolean;
   /** Tooltip for the value; falls back to the value itself (truncation aid). */
   hint?: string;
+  /** A secret env var: a lock on the key, a mask where the value would be. */
+  secret?: boolean;
 }
 
 /**
@@ -27,7 +30,17 @@ export interface ScriptParamRow {
 const NO_ARG_VALUE = { value: 'flag', hint: 'Passed as a flag — no value' } as const;
 const NO_ENV_VALUE = { value: 'empty', hint: 'Set to an empty value' } as const;
 
+/**
+ * A secret is masked whether or not a value came along: the server never
+ * returns one, and a value that did reach here must not be printed either.
+ * Same mask as the editor's, so the two surfaces read as one thing.
+ */
+const SECRET_VALUE = { value: '**********', hint: 'Secret — the value is never shown' } as const;
+
 function toRow(pair: ScriptArgument, noValue: { value: string; hint: string }): ScriptParamRow {
+  if (pair.secret) {
+    return { id: pair.id, label: pair.key, value: SECRET_VALUE.value, hint: SECRET_VALUE.hint, secret: true };
+  }
   return pair.value
     ? { id: pair.id, label: pair.key, value: pair.value }
     : { id: pair.id, label: pair.key, value: noValue.value, hint: noValue.hint, muted: true };
@@ -38,12 +51,7 @@ export function argsToParamRows(args: ReadonlyArray<string>): ScriptParamRow[] {
   return parseKeyValues([...args], ' ').map(arg => toRow(arg, NO_ARG_VALUE));
 }
 
-/** "name=value" strings → rows (an empty value is legal: `FOO=`). */
-export function envStringsToParamRows(envVars: ReadonlyArray<string>): ScriptParamRow[] {
-  return parseKeyValues([...envVars], '=').map(env => toRow(env, NO_ENV_VALUE));
-}
-
-/** Already-parsed env pairs (e.g. from GraphQL `envVars`) → rows. */
+/** Env pairs (GraphQL `envVars` through `envVarsToPairs`) → rows. */
 export function envPairsToParamRows(pairs: ReadonlyArray<ScriptArgument>): ScriptParamRow[] {
   return pairs.map(env => toRow(env, NO_ENV_VALUE));
 }
@@ -71,15 +79,25 @@ export function ScriptParamRows({ rows, emptyText, className }: ScriptParamRowsP
         ? emptyText && <span className="text-ods-text-secondary text-h6">{emptyText}</span>
         : rows.map(row => (
             <div key={row.id} className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-              <div className="min-w-0 max-w-[50%]">
+              <div className="flex min-w-0 max-w-[50%] items-center gap-[var(--spacing-system-xxs)]">
+                {row.secret && (
+                  <LockIcon size={16} className="shrink-0 text-ods-text-secondary" role="img" aria-label="Secret" />
+                )}
                 <TruncateText>{row.label}</TruncateText>
               </div>
               <span className="h-px min-w-4 flex-1 bg-ods-divider" />
               <div className="min-w-0">
                 {row.hint ? (
-                  /* The hint explains the muted mark ("flag"/"empty"), so it must show even when nothing overflows. */
+                  /* The hint explains the mark ("flag"/"empty"/mask), so it must show even when nothing overflows. */
                   <FloatingTooltip content={row.hint} className="max-w-xs">
-                    <span className="block truncate text-ods-text-secondary text-h4">{row.value}</span>
+                    <span
+                      className={cn(
+                        'block truncate text-h4',
+                        row.secret ? 'text-ods-text-primary' : 'text-ods-text-secondary',
+                      )}
+                    >
+                      {row.value}
+                    </span>
                   </FloatingTooltip>
                 ) : (
                   <TruncateText tone={row.muted ? 'secondary' : 'primary'}>{row.value}</TruncateText>

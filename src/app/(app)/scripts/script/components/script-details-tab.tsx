@@ -6,7 +6,8 @@ import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__genera
 import { useRetryKey } from '@/app/components/shared';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
 import { ScriptEditor } from '../../shared/components/script-editor';
-import { envVarsToStrings, shellToId } from '../../shared/utils/script-mappers';
+import { argsToParamRows, envPairsToParamRows } from '../../shared/components/script-param-rows';
+import { envVarsToPairs, shellToId } from '../../shared/utils/script-mappers';
 import { ScriptArgumentsCard } from './script-arguments-card';
 
 /** The script's source, once the query has answered. `null` — it carries none. */
@@ -56,16 +57,16 @@ function ScriptParamCards({ scriptId, onResolved }: { scriptId: string; onResolv
     return null;
   }
 
-  const args = script.defaultArgs ? [...script.defaultArgs] : [];
-  const envVarStrings = envVarsToStrings(script.envVars);
-  if (args.length === 0 && envVarStrings.length === 0) {
+  const argRows = argsToParamRows(script.defaultArgs ?? []);
+  const envRows = envPairsToParamRows(envVarsToPairs(script.envVars));
+  if (argRows.length === 0 && envRows.length === 0) {
     return null;
   }
 
   return (
     <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] lg:grid-cols-2">
-      {args.length > 0 ? <ScriptArgumentsCard title="Default Script Arguments" args={args} separator=" " /> : <div />}
-      {envVarStrings.length > 0 && <ScriptArgumentsCard title="Default Environment Vars" args={envVarStrings} />}
+      {argRows.length > 0 ? <ScriptArgumentsCard title="Default Script Arguments" rows={argRows} /> : <div />}
+      {envRows.length > 0 && <ScriptArgumentsCard title="Default Environment Vars" rows={envRows} />}
     </div>
   );
 }

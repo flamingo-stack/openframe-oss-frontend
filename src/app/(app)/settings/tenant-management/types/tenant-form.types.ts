@@ -1,4 +1,4 @@
-// Form schema for New / Edit Tenant Integration (CU-86akj8ajt).
+// Form schema for New / Edit Tenant Integration.
 //
 // One schema for both pages: Edit renders the same fields with provider and
 // domain locked (they are seeded from the record and never sent), so a second
