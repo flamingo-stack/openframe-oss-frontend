@@ -172,9 +172,19 @@ type IsUserDeleted = (id?: string | null) => boolean;
  * activity indicator is keyed by value (kind + label): it shifts without the
  * dialog changing — staleness crosses its threshold on the minute tick.
  */
+/**
+ * The card as this page builds it: the lib's `BoardTicket` plus whether it offers
+ * an assign control. The flag rides on the card object, set in the same pass
+ * that builds the lanes, so `renderAssignSlot` reads it while the card renders.
+ * It used to read a Set through a ref written after the commit: a card's first
+ * render saw the previous (empty) set and drew the picker, and the memoized card
+ * then kept it until something unrelated re-rendered it.
+ */
+type TicketsBoardTicket = BoardTicket & { hideAssign: boolean };
+
 const boardTicketCache = new WeakMap<
   Dialog,
-  { isUserDeleted?: IsUserDeleted; activityKey: string; ticket: BoardTicket }
+  { isUserDeleted?: IsUserDeleted; activityKey: string; hideAssign: boolean; ticket: TicketsBoardTicket }
 >();
 
 /**
@@ -192,30 +202,33 @@ function isAiOwnedTicket(statusKind: string, dialog: Dialog): boolean {
   return statusKind === 'RESOLVED' && (dialog.resolvedBy === 'AI_AGENT' || dialog.resolvedBy === 'END_USER');
 }
 
-/**
- * Marked on the card object itself, in the same pass that builds the lanes, so
- * `renderAssignSlot` reads the answer while the card renders. It used to read
- * a Set through a ref written after the commit: a card's first render saw the
- * previous (empty) set and drew the picker, and the memoized card then kept it
- * until something unrelated re-rendered it. Keyed by object, not id: the board
- * hands `renderAssignSlot` the very `BoardTicket` it was given.
- */
-const aiOwnedBoardTickets = new WeakSet<BoardTicket>();
-
-function toBoardTicket(dialog: Dialog, isUserDeleted?: IsUserDeleted, activity?: BoardTicketActivity): BoardTicket {
+function toBoardTicket(
+  dialog: Dialog,
+  hideAssign: boolean,
+  isUserDeleted?: IsUserDeleted,
+  activity?: BoardTicketActivity,
+): TicketsBoardTicket {
   const activityKey = activity ? `${activity.kind}|${activity.label ?? ''}` : '';
   const cached = boardTicketCache.get(dialog);
-  if (cached && cached.isUserDeleted === isUserDeleted && cached.activityKey === activityKey) return cached.ticket;
-  const ticket = dialogToBoardTicket(dialog, isUserDeleted, activity);
-  boardTicketCache.set(dialog, { isUserDeleted, activityKey, ticket });
+  if (
+    cached &&
+    cached.isUserDeleted === isUserDeleted &&
+    cached.activityKey === activityKey &&
+    cached.hideAssign === hideAssign
+  ) {
+    return cached.ticket;
+  }
+  const ticket = dialogToBoardTicket(dialog, hideAssign, isUserDeleted, activity);
+  boardTicketCache.set(dialog, { isUserDeleted, activityKey, hideAssign, ticket });
   return ticket;
 }
 
 function dialogToBoardTicket(
   dialog: Dialog,
+  hideAssign: boolean,
   isUserDeleted?: IsUserDeleted,
   activity?: BoardTicketActivity,
-): BoardTicket {
+): TicketsBoardTicket {
   const deviceName = getTicketDeviceName(dialog);
   return {
     id: dialog.id,
@@ -250,6 +263,7 @@ function dialogToBoardTicket(
     pendingApproval: dialog.pendingApproval,
     escalatedByUser: dialog.escalatedByUser === true,
     activity,
+    hideAssign,
   };
 }
 
@@ -411,12 +425,14 @@ export function TicketsBoard({
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
-        tickets: (state?.tickets ?? []).map(ticket => {
-          const boardTicket = toBoardTicket(ticket, isUserDeleted, resolveBoardActivity(ticket, status, now));
-          if (isAiOwnedTicket(status.kind, ticket)) aiOwnedBoardTickets.add(boardTicket);
-          else aiOwnedBoardTickets.delete(boardTicket);
-          return boardTicket;
-        }),
+        tickets: (state?.tickets ?? []).map(ticket =>
+          toBoardTicket(
+            ticket,
+            isAiOwnedTicket(status.kind, ticket),
+            isUserDeleted,
+            resolveBoardActivity(ticket, status, now),
+          ),
+        ),
         total: state?.total,
         hasMore: state?.hasMore,
         isLoading,
@@ -598,7 +614,8 @@ export function TicketsBoard({
   // else gets the plain picker: outside AI Handling the AI is already stopped
   // (`hasActiveAiDialog`), so assigning is a one-click change, not a take-over.
   const renderAssignSlot = useCallback((ticket: BoardTicket) => {
-    if (aiOwnedBoardTickets.has(ticket)) return null;
+    // The board hands back the card object it was given, so the flag is there.
+    if ('hideAssign' in ticket && ticket.hideAssign === true) return null;
     return <BoardAssigneePicker ticket={ticket} />;
   }, []);
 
