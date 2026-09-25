@@ -42,6 +42,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { mingoDialogLink } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -55,6 +56,7 @@ import { MINGO_DIALOG_NOT_FOUND } from '../(app)/mingo/hooks/use-mingo-dialog-se
 import { useMingoQuickActions } from '../(app)/mingo/hooks/use-mingo-quick-actions';
 import { DialogSubscription } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
 import { useMingoUnifiedChatState } from '../(app)/mingo/hooks/use-mingo-unified-chat-state';
+import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoLauncherStore } from '../(app)/mingo/stores/mingo-launcher-store';
 import { useAuthStore } from '../(auth)/auth/stores/auth-store';
 
@@ -78,6 +80,8 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     unarchiveDialog,
     dialogError,
   } = useMingoUnifiedChatState();
+  const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
+  const startCompaction = useMingoCompactionStore(s => s.startCompaction);
 
   // A dialog that won't load is otherwise indistinguishable from an empty one — the
   // panel renders a thread with no messages, which for a conversation reached by link
@@ -328,6 +332,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         //    `setSearchQuery`, which rides the `useMingoDialogs` query key.
         //  - rename/archive: enable the row + header ⋯ menu (mutations live on
         //    `mingoState` via `useMingoDialogActions`).
+        //  - compact: "Compact Chat Memory" in the same menus, flag-gated.
         //  - archive page: `fetchArchivedDialogs` gates the clock-history button;
         //    `unarchiveDialog` enables restore.
         mingoDialogCapabilities={{
@@ -338,6 +343,12 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
           fetchArchivedDialogs,
           unarchiveDialog,
           onCopyLink: copyDialogLink,
+          compactDialog: compactMemoryEnabled
+            ? dialog => {
+                // The result is reported by `MingoCompactionWatchers` when the compaction ends.
+                if (!startCompaction(dialog.id)) toast({ title: 'Already compacting this chat' });
+              }
+            : undefined,
         }}
         // Admin-configured Mingo quick actions rendered as chips in the Mingo
         // empty state. Omitted when none are configured so the lib keeps its

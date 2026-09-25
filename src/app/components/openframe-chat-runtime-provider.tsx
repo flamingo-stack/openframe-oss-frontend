@@ -52,6 +52,7 @@ import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
+import { clientIdentityHeaders } from '@/lib/client-identity';
 import { refreshAccessToken } from '@/lib/token-refresh-manager';
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
@@ -110,9 +111,10 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
     // copy outside bearer mode would ship a stale/expired Bearer that the
     // gateway prefers over the fresh cookie. Omit it and let
     // `credentials: 'include'` carry the cookie.
-    if (!isBearerAuthMode()) return {};
+    const identity = clientIdentityHeaders();
+    if (!isBearerAuthMode()) return identity;
     const token = getAccessTokenSync();
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return token ? { ...identity, Authorization: `Bearer ${token}` } : identity;
   },
   // Send openframe cookies cross-origin to the gateway; CORS +
   // `SameSite=None` on cookies must be configured server-side. (Harmless

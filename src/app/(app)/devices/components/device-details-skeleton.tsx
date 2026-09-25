@@ -23,6 +23,8 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
+import { SOFTWARE_LIST_TABLE_COLUMNS } from '@/app/(app)/software/components/software-list/software-list-columns';
+import { VULNERABILITY_LIST_TABLE_COLUMNS } from '@/app/(app)/software/components/vulnerability-list/vulnerability-list-columns';
 import { DEVICE_TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
 import {
   PoliciesTable,
@@ -38,6 +40,7 @@ import {
   SOFTWARE_TAB_COLUMNS,
   USERS_TAB_COLUMNS,
   VULNERABILITIES_TAB_COLUMNS,
+  DEVICE_TAB_SKELETON_ROWS,
 } from './tabs/device-tab-columns';
 import { useDeviceTabs } from './tabs/device-tabs';
 
@@ -241,7 +244,7 @@ function TableTabSkeleton({ columns, placeholder }: { columns: readonly TableSke
       <SearchInputSkeleton placeholder={placeholder} />
       <DataTable table={table}>
         <DataTable.Header />
-        <DataTable.Body loading skeletonRows={10} emptyMessage="" rowClassName="mb-1" />
+        <DataTable.Body loading skeletonRows={DEVICE_TAB_SKELETON_ROWS} emptyMessage="" rowClassName="mb-1" />
       </DataTable>
     </div>
   );
@@ -547,11 +550,11 @@ function UsersTabSkeleton() {
 }
 
 function SoftwareTabSkeleton() {
-  return <TableTabSkeleton columns={SOFTWARE_TAB_COLUMNS} placeholder="Search for Software" />;
+  return <TableTabSkeleton columns={SOFTWARE_LIST_TABLE_COLUMNS} placeholder="Search for Software" />;
 }
 
 function VulnerabilitiesTabSkeleton() {
-  return <TableTabSkeleton columns={VULNERABILITIES_TAB_COLUMNS} placeholder="Search for Vulnerability" />;
+  return <TableTabSkeleton columns={VULNERABILITY_LIST_TABLE_COLUMNS} placeholder="Search for Vulnerability" />;
 }
 
 /**

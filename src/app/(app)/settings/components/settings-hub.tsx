@@ -20,12 +20,12 @@ import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { apiClient } from '@/lib/api-client';
 import { isOssTenantMode } from '@/lib/app-mode';
 import { authApiClient } from '@/lib/auth-api-client';
 import { isBillingHidden } from '@/lib/billing-visibility';
 import { handleApiError } from '@/lib/handle-api-error';
-import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { useTenantManagementGate } from '../tenant-management/hooks/use-tenant-management-gate';
 import { AccountSettingsCard } from './account-settings-card';
@@ -119,6 +119,7 @@ export function SettingsHub() {
   const billingAccessGate = useBillingAccessGate();
   const downloadAppsGate = useFeatureFlagGate('download-apps');
   const tenantManagementGate = useTenantManagementGate();
+  const mobileShell = useIsMobileShell();
 
   // The app mode and the shell are build constants, so this list — every card this build
   // can ever show — is known on the first render. It is what the loading grid draws, which
@@ -128,9 +129,11 @@ export function SettingsHub() {
     if (item.href === routes.settings.architecture) {
       return isOssTenantMode();
     }
-    // Browser-only — a native build already IS the app the page hands out.
+    // Phone-only exclusion — that build already IS the app the page's mobile card
+    // hands out. The desktop shell keeps the tile; see the page for why. Through the
+    // hook because this list drives rendered output, including the loading grid.
     if (item.href === routes.settings.downloadApps) {
-      return !isAppShell();
+      return !mobileShell;
     }
     return true;
   });

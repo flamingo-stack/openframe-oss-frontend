@@ -60,7 +60,7 @@ describe('the canonical Mingo dialog deep link', () => {
   });
 });
 
-describe('settings.tenant* (CU-86akj8ajt)', () => {
+describe('settings.tenant*', () => {
   it('builds the list and the create page as fixed paths', () => {
     expect(routes.settings.tenantManagement).toBe('/settings/tenant-management');
     expect(routes.settings.tenantNew).toBe('/settings/tenant-management/new');

@@ -15,30 +15,33 @@ import type {
   softwareActionsTable_query$key,
 } from '@/__generated__/softwareActionsTable_query.graphql';
 import type { softwareActionsTablePaginationQuery as SoftwareActionsTablePaginationQueryType } from '@/__generated__/softwareActionsTablePaginationQuery.graphql';
-import type { softwareActionsTableQuery as SoftwareActionsTableQueryType } from '@/__generated__/softwareActionsTableQuery.graphql';
+import type {
+  SoftwareActionFilterInput,
+  softwareActionsTableQuery as SoftwareActionsTableQueryType,
+} from '@/__generated__/softwareActionsTableQuery.graphql';
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { SoftwareActionStatus } from '@/generated/schema-enums';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { multiSelectFilterFn } from '@/lib/table-filters';
+import { multiColumnFilter } from '../shared/column-filters';
 import { OpenRowButton } from '../shared/open-row-button';
 import { SoftwareActionEngineCell } from './software-action-engine-cell';
 import { SoftwareActionProcessedCell } from './software-action-processed-cell';
 import { SoftwareActionStatusCell } from './software-action-status-cell';
 import { SoftwareActionTypeCell } from './software-action-type-cell';
 import { SOFTWARE_ACTION_COLUMNS, SOFTWARE_ACTIONS_PAGE_SIZE } from './software-actions-columns';
+import { type SoftwareActionFilterOptions, useSoftwareActionFilters } from './use-software-action-filters';
 
 /**
  * Software → Software Actions: one row per install/update of one package across
  * its target devices — the runs already dispatched plus the ones a schedule has
- * yet to fire (the backend lists those first).
- *
- * No `filter` or `sort` argument yet: the design's Action / Engine funnels wait
- * for server facets rather than narrowing the loaded page client-side, and the
- * list keeps the backend's own order, newest first.
+ * yet to fire (the backend lists those first). Search and the three funnels go
+ * to the server; the list keeps the backend's own order, newest first.
  */
 const softwareActionsTableQuery = graphql`
-  query softwareActionsTableQuery($search: String, $first: Int!, $after: String) {
-    ...softwareActionsTable_query @arguments(search: $search, first: $first, after: $after)
+  query softwareActionsTableQuery($filter: SoftwareActionFilterInput, $search: String, $first: Int!, $after: String) {
+    ...softwareActionsTable_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
   }
 `;
 
@@ -46,11 +49,12 @@ const softwareActionsTableFragment = graphql`
   fragment softwareActionsTable_query on Query
   @refetchable(queryName: "softwareActionsTablePaginationQuery")
   @argumentDefinitions(
+    filter: { type: "SoftwareActionFilterInput" }
     search: { type: "String" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    softwareActions(search: $search, first: $first, after: $after)
+    softwareActions(filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "softwareActionsTable_softwareActions") {
       filteredCount
       edges {
@@ -58,7 +62,11 @@ const softwareActionsTableFragment = graphql`
           id
           # Package name — the backend has no display name for a run.
           software
-          # A still-scheduled row has nothing to open yet (see detailsHref).
+          # What the funnels narrow the rows on screen by, while the refetch
+          # they triggered is still in flight. status also says whether a row
+          # has anything to open yet (see detailsHref).
+          action
+          engine
           status
           ...softwareActionTypeCell_action
           ...softwareActionEngineCell_action
@@ -76,6 +84,13 @@ const softwareActionsTableFragment = graphql`
 
 type SoftwareActionRow = NonNullable<softwareActionsTable_query$data['softwareActions']>['edges'][number]['node'];
 
+/** The selection of each funnel, keyed by its column id — the shape the URL keeps. */
+export interface SoftwareActionSelections {
+  action: string[];
+  engine: string[];
+  status: string[];
+}
+
 /**
  * Software Update Details of this one run — or null for a row still waiting on
  * its schedule: its id is synthetic until it fires, with no run behind it to
@@ -85,67 +100,85 @@ function detailsHref(row: SoftwareActionRow): string | null {
   return row.status === SoftwareActionStatus.SCHEDULED ? null : routes.software.action(row.id);
 }
 
-const COLUMNS: ColumnDef<SoftwareActionRow>[] = [
-  {
-    id: SOFTWARE_ACTION_COLUMNS.software.id,
-    header: SOFTWARE_ACTION_COLUMNS.software.header,
-    cell: ({ row }: { row: Row<SoftwareActionRow> }) => <TruncateText>{row.original.software}</TruncateText>,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.software),
-  },
-  {
-    id: SOFTWARE_ACTION_COLUMNS.action.id,
-    header: SOFTWARE_ACTION_COLUMNS.action.header,
-    cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionTypeCell action={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.action),
-  },
-  {
-    id: SOFTWARE_ACTION_COLUMNS.engine.id,
-    header: SOFTWARE_ACTION_COLUMNS.engine.header,
-    cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionEngineCell action={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.engine),
-  },
-  {
-    id: SOFTWARE_ACTION_COLUMNS.status.id,
-    header: SOFTWARE_ACTION_COLUMNS.status.header,
-    cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionStatusCell action={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.status),
-  },
-  {
-    id: SOFTWARE_ACTION_COLUMNS.processedDevices.id,
-    header: SOFTWARE_ACTION_COLUMNS.processedDevices.header,
-    cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionProcessedCell action={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.processedDevices),
-  },
-  {
-    id: SOFTWARE_ACTION_COLUMNS.open.id,
-    cell: ({ row }: { row: Row<SoftwareActionRow> }) => {
-      const href = detailsHref(row.original);
-      if (!href) return null;
-      return <OpenRowButton label={`Open ${row.original.software} in new tab`} onClick={openInNewTab(href)} />;
+/** The columns, with each funnel offering exactly the values the tenant's runs have. */
+function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareActionRow>[] {
+  return [
+    {
+      id: SOFTWARE_ACTION_COLUMNS.software.id,
+      header: SOFTWARE_ACTION_COLUMNS.software.header,
+      cell: ({ row }: { row: Row<SoftwareActionRow> }) => <TruncateText>{row.original.software}</TruncateText>,
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.software),
     },
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.open),
-  },
-];
+    {
+      id: SOFTWARE_ACTION_COLUMNS.action.id,
+      header: SOFTWARE_ACTION_COLUMNS.action.header,
+      accessorFn: (row: SoftwareActionRow) => row.action,
+      cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionTypeCell action={row.original} />,
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.action, { filter: { options: options.actions } }),
+    },
+    {
+      id: SOFTWARE_ACTION_COLUMNS.engine.id,
+      header: SOFTWARE_ACTION_COLUMNS.engine.header,
+      accessorFn: (row: SoftwareActionRow) => row.engine,
+      cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionEngineCell action={row.original} />,
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.engine, { filter: { options: options.engines } }),
+    },
+    {
+      id: SOFTWARE_ACTION_COLUMNS.status.id,
+      header: SOFTWARE_ACTION_COLUMNS.status.header,
+      accessorFn: (row: SoftwareActionRow) => row.status,
+      cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionStatusCell action={row.original} />,
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.status, { filter: { options: options.statuses } }),
+    },
+    {
+      id: SOFTWARE_ACTION_COLUMNS.processedDevices.id,
+      header: SOFTWARE_ACTION_COLUMNS.processedDevices.header,
+      cell: ({ row }: { row: Row<SoftwareActionRow> }) => <SoftwareActionProcessedCell action={row.original} />,
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.processedDevices),
+    },
+    {
+      id: SOFTWARE_ACTION_COLUMNS.open.id,
+      cell: ({ row }: { row: Row<SoftwareActionRow> }) => {
+        const href = detailsHref(row.original);
+        if (!href) return null;
+        return <OpenRowButton label={`Open ${row.original.software} in new tab`} onClick={openInNewTab(href)} />;
+      },
+      enableSorting: false,
+      meta: liveColumnMeta(SOFTWARE_ACTION_COLUMNS.open),
+    },
+  ];
+}
 
 const getRowId = (row: SoftwareActionRow) => row.id;
 
 interface SoftwareActionsTableProps {
+  /** Deferred funnel selection — feeds the query (lags the live funnels during a refetch). */
+  backendFilters: SoftwareActionFilterInput | null;
   debouncedSearch: string;
+  /** Live funnel selection — what the headers draw as ticked, so a tick lands instantly. */
+  selections: SoftwareActionSelections;
+  onSelectionsChange: (next: SoftwareActionSelections) => void;
   /** A refetch is in flight and the rows on screen are the previous result. */
   isPending: boolean;
+  /** No run at all (not a search or funnel miss) — the view drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
 }
 
 /** The Software Actions rows — suspends on the query, so it lives under the view's `<Suspense>`. */
 export function SoftwareActionsTable({
+  backendFilters,
   debouncedSearch,
+  selections,
+  onSelectionsChange,
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
@@ -153,7 +186,7 @@ export function SoftwareActionsTable({
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareActionsTableQueryType>(
     softwareActionsTableQuery,
-    { search: debouncedSearch || null, first: SOFTWARE_ACTIONS_PAGE_SIZE, after: null },
+    { filter: backendFilters, search: debouncedSearch || null, first: SOFTWARE_ACTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
@@ -169,9 +202,24 @@ export function SoftwareActionsTable({
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_ACTIONS_PAGE_SIZE);
   };
 
-  const table = useDataTable<SoftwareActionRow>({ data: rows, columns: COLUMNS, getRowId, enableSorting: false });
+  // The funnels' options: what actually occurs across the tenant's runs, from
+  // the server, so a value no run has is never offered.
+  const filterOptions = useSoftwareActionFilters();
 
-  const showEmptyState = !debouncedSearch && !isPending && rows.length === 0;
+  const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
+
+  const table = useDataTable<SoftwareActionRow>({
+    data: rows,
+    columns: buildColumns(filterOptions),
+    getRowId,
+    enableSorting: false,
+    state: { columnFilters },
+    onColumnFiltersChange,
+  });
+
+  // A search or a funnel that finds nothing keeps the table (its own "no match"
+  // row); a tenant with no run at all gets the page's empty state instead.
+  const showEmptyState = !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -198,11 +246,11 @@ export function SoftwareActionsTable({
         />
         <DataTable.Body
           skeletonRows={SOFTWARE_ACTIONS_PAGE_SIZE}
-          emptyMessage={
-            debouncedSearch
+          emptyState={{
+            title: debouncedSearch
               ? `No software actions found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No software actions found.'
-          }
+              : 'No software actions match the selected filters. Try adjusting your filters.',
+          }}
           rowClassName="mb-1"
           rowHref={detailsHref}
         />

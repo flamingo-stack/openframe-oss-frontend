@@ -233,6 +233,19 @@ export const routes = {
    */
   accountDeletion: '/account-deletion',
 
+  /**
+   * Landing page behind the mobile-app install QR code, and the fallback for
+   * everything the shared gateway's `User-Agent` predicates do not redirect to a
+   * store — desktop, crawlers, and iPadOS asking for the desktop site.
+   *
+   * Public and session-less for the same reason {@link routes.accountDeletion} is:
+   * it is scanned from a phone that has never signed in. The path is short and
+   * deliberately not `/get`, which would read as the desktop installer's
+   * `get.openframe.io`. Encoded in a QR that cannot be reprinted, so treat it as
+   * immovable — see `lib/mobile-app-links.ts`.
+   */
+  mobileApp: '/mobile',
+
   auth: {
     root: '/auth',
     login: '/auth/login',
@@ -383,7 +396,7 @@ export const routes = {
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
     billingUsage: '/settings/billing-usage',
-    // Tenant Management (CU-86akj8ajt): Microsoft 365 / Google Workspace directory
+    // Tenant Management: Microsoft 365 / Google Workspace directory
     // connections. Sub-pages take the connection id as `?id=` like every other
     // detail page (static-export constraint, see ROUTES.md).
     tenantManagement: '/settings/tenant-management',
