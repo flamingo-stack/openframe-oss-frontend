@@ -11,6 +11,37 @@ export function pollBackoffMs(failures: number): number {
   return BACKOFF_STEPS_MS[step] ?? BACKOFF_STEPS_MS[BACKOFF_STEPS_MS.length - 1];
 }
 
+/** Past this many rows a growing list reloads its head instead: the tail must not grow it for the life of the tab. */
+export const DEVICE_LOGS_TAIL_LIMIT = 2_000;
+
+/** How far the client clock may run ahead of the server's before an empty list's poll misses a line. */
+export const DEVICE_LOGS_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+/**
+ * Where an empty list's poll starts: its first page already covered the window up
+ * to the anchor it was asked at, so the poll only re-reads the skew allowance —
+ * never the whole window, and never before the window itself.
+ */
+export function emptyListPollFrom(anchorMs: number, windowFrom: string | undefined): string {
+  const covered = anchorMs - DEVICE_LOGS_CLOCK_SKEW_MS;
+  const start = windowFrom === undefined ? Number.NaN : Date.parse(windowFrom);
+  return windowFrom !== undefined && start > covered ? windowFrom : new Date(covered).toISOString();
+}
+
+/** True once the list holds more rows than the tail may keep. */
+export function exceedsTailLimit(store: RecordSourceProxy, connectionId: string): boolean {
+  return (store.get(connectionId)?.getLinkedRecords('edges')?.length ?? 0) > DEVICE_LOGS_TAIL_LIMIT;
+}
+
+/**
+ * The row key: the edge cursor is unique per line within one answer (FE-24) and the
+ * tail only adds strictly newer instants, so the pair is unique across the merged
+ * list. A reload that writes another line into the same record changes it.
+ */
+export function deviceLogRowKey(edge: { readonly cursor: string; readonly node: { readonly timestamp: unknown } }) {
+  return `${String(edge.node.timestamp)}|${edge.cursor}`;
+}
+
 /** One line of a poll answer: its normalized record, edge cursor and instant. */
 export interface PolledLine {
   nodeId: string;

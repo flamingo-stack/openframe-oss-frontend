@@ -5,7 +5,7 @@ import { commitLocalUpdate, useRelayEnvironment } from 'react-relay';
 import type { Observable, Subscription } from 'relay-runtime';
 import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscription-guard';
 import { describeDeviceLogError, type DeviceLogErrorInfo, isRetryableDeviceLogError } from '../utils/device-log-errors';
-import { pollBackoffMs, type PolledPage, prependNewerLines } from '../utils/device-log-tail';
+import { exceedsTailLimit, pollBackoffMs, type PolledPage, prependNewerLines } from '../utils/device-log-tail';
 
 /** New lines reach the platform about once a minute; polling faster shows nothing sooner. */
 export const DEVICE_LOGS_POLL_INTERVAL_MS = 5_000;
@@ -17,8 +17,8 @@ interface UseDeviceLogsLiveTailOptions {
   fetchNewer: (from: string) => Observable<PolledPage>;
   /** Newest line in the list — the poll's inclusive `from`. Null while the list is empty. */
   newestTimestamp: string | null;
-  /** The filter's lower bound, for a list that holds nothing yet. */
-  windowStart: string | undefined;
+  /** Where the poll starts while the list holds nothing yet (`emptyListPollFrom`). */
+  emptyFrom: string;
   /** A custom range that has ended cannot grow, so its tail stops. */
   windowEnd: string | undefined;
   hasSearch: boolean;
@@ -26,8 +26,8 @@ interface UseDeviceLogsLiveTailOptions {
   enabled: boolean;
   /** Polling pauses while the user has scrolled away from the top. */
   atTop: boolean;
-  /** A poll that filled its page leaves a hole below it; the list reloads its head. */
-  onGap: () => void;
+  /** A poll that filled its page, or grew the list past the tail limit: the list reloads its head. */
+  onReloadHead: () => void;
 }
 
 /**
@@ -39,12 +39,12 @@ export function useDeviceLogsLiveTail({
   connectionId,
   fetchNewer,
   newestTimestamp,
-  windowStart,
+  emptyFrom,
   windowEnd,
   hasSearch,
   enabled,
   atTop,
-  onGap,
+  onReloadHead,
 }: UseDeviceLogsLiveTailOptions): { error: DeviceLogErrorInfo | null } {
   const environment = useRelayEnvironment();
   const subscriptionOpen = useSubscriptionOpen();
@@ -54,9 +54,9 @@ export function useDeviceLogsLiveTail({
   const failuresRef = useRef({ connectionId, count: 0 });
 
   // Latest values for the timer, written after the commit; the effect keys on identity only.
-  const latest = useRef({ fetchNewer, newestTimestamp, windowStart, windowEnd, hasSearch, onGap });
+  const latest = useRef({ fetchNewer, newestTimestamp, emptyFrom, windowEnd, hasSearch, onReloadHead });
   useEffect(() => {
-    latest.current = { fetchNewer, newestTimestamp, windowStart, windowEnd, hasSearch, onGap };
+    latest.current = { fetchNewer, newestTimestamp, emptyFrom, windowEnd, hasSearch, onReloadHead };
   });
 
   const active = enabled && atTop && subscriptionOpen;
@@ -67,8 +67,6 @@ export function useDeviceLogsLiveTail({
     const failures = failuresRef.current;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let request: Subscription | null = null;
-    // "Now", not the API's 7-day default, for an empty list with an open-ended filter.
-    const fallbackFrom = new Date().toISOString();
 
     const schedule = (delay: number) => {
       clearTimeout(timer);
@@ -76,7 +74,7 @@ export function useDeviceLogsLiveTail({
     };
 
     function tick() {
-      const { fetchNewer: fetch, newestTimestamp: newest, windowStart: start, windowEnd: end } = latest.current;
+      const { fetchNewer: fetch, newestTimestamp: newest, emptyFrom: since, windowEnd: end } = latest.current;
       if (request) return;
       // Hidden skips the request, not the clock: WKWebView does not reliably send
       // the `visibilitychange` that would otherwise be the only way back.
@@ -86,15 +84,20 @@ export function useDeviceLogsLiveTail({
       }
       if (end !== undefined && Date.parse(end) <= Date.now()) return;
 
-      fetch(newest ?? start ?? fallbackFrom).subscribe({
+      fetch(newest ?? since).subscribe({
         // Held from `start`, which runs before any event: a synchronous answer
         // must not leave a finished request marked as in flight.
         start: subscription => {
           request = subscription;
         },
         next: page => {
-          if (page.gap) latest.current.onGap();
-          else commitLocalUpdate(environment, store => prependNewerLines(store, connectionId, page.lines));
+          let reload = page.gap;
+          if (!page.gap) {
+            commitLocalUpdate(environment, store => {
+              reload = prependNewerLines(store, connectionId, page.lines) > 0 && exceedsTailLimit(store, connectionId);
+            });
+          }
+          if (reload) latest.current.onReloadHead();
         },
         complete: () => {
           request = null;

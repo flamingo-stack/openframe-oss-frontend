@@ -19,7 +19,7 @@ import {
   type DeviceLogErrorInfo,
   isRetryableDeviceLogError,
 } from '../../../utils/device-log-errors';
-import type { PolledPage } from '../../../utils/device-log-tail';
+import { deviceLogRowKey, type PolledPage } from '../../../utils/device-log-tail';
 import { groupDeviceLogDays } from '../../../utils/device-log-time';
 import { TabEmptyState } from '../tab-empty-state';
 import { AGENT_LOG_ROW_PAINT } from './agent-log-columns';
@@ -51,8 +51,8 @@ const agentLogsContentFragment = graphql`
       @connection(key: "agentLogsContent_deviceLogs", filters: ["machineId", "filter"]) {
       __id
       edges {
+        cursor
         node {
-          __id
           timestamp
           ...agentLogRow_entry
         }
@@ -85,6 +85,8 @@ const agentLogsContentPollQueryNode = graphql`
 export interface AgentLogsList {
   filter: DeviceLogFilter;
   key: string;
+  /** Where auto-update starts while the list is empty (`emptyListPollFrom`). */
+  emptyFrom: string;
 }
 
 interface AgentLogsContentProps {
@@ -151,13 +153,13 @@ export function AgentLogsContent({
         })),
       })),
     newestTimestamp,
-    windowStart: list.filter.from == null ? undefined : String(list.filter.from),
+    emptyFrom: list.emptyFrom,
     windowEnd: list.filter.to == null ? undefined : String(list.filter.to),
     hasSearch,
     enabled: autoUpdate && !isPending,
     atTop,
     // A transition, so the rows stay on screen while the head reloads.
-    onGap: () =>
+    onReloadHead: () =>
       startTransition(() => {
         refetch({}, { fetchPolicy: 'network-only' });
       }),
@@ -226,10 +228,7 @@ export function AgentLogsContent({
 
   // The row shows a time only (spec §4), so the date heads a group per local day;
   // the header names the group, so each day is its own list.
-  const days = groupDeviceLogDays(
-    edges.map(edge => edge.node),
-    node => String(node.timestamp),
-  );
+  const days = groupDeviceLogDays(edges, edge => String(edge.node.timestamp));
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
@@ -251,9 +250,9 @@ export function AgentLogsContent({
           >
             <AgentLogsDayHeader id={`${dayIdPrefix}-${key}`}>{label}</AgentLogsDayHeader>
             <div role="list" className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              {items.map(node => (
-                <div key={node.__id} role="listitem" className={AGENT_LOG_ROW_PAINT}>
-                  <AgentLogRow entry={node} deviceHostname={deviceHostname} />
+              {items.map(edge => (
+                <div key={deviceLogRowKey(edge)} role="listitem" className={AGENT_LOG_ROW_PAINT}>
+                  <AgentLogRow entry={edge.node} deviceHostname={deviceHostname} />
                 </div>
               ))}
             </div>

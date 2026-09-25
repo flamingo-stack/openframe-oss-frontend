@@ -27,7 +27,7 @@ vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({
 
 import { OfflineError } from '@/lib/query-state';
 import type { DeviceLogErrorInfo } from '../utils/device-log-errors';
-import type { PolledPage } from '../utils/device-log-tail';
+import { DEVICE_LOGS_TAIL_LIMIT, type PolledPage } from '../utils/device-log-tail';
 import { DEVICE_LOGS_POLL_INTERVAL_MS, useDeviceLogsLiveTail } from './use-device-logs-live-tail';
 
 /**
@@ -53,7 +53,8 @@ let container: HTMLDivElement;
 let root: Root;
 let latest: { error: DeviceLogErrorInfo | null } | null;
 let visibility: DocumentVisibilityState;
-const onGap = vi.fn();
+const onReloadHead = vi.fn();
+const EMPTY_FROM = '2026-09-23T09:55:00.000Z';
 
 const fetchNewer = (from: string) =>
   Observable.create<PolledPage>(sink => {
@@ -70,7 +71,7 @@ interface ProbeProps {
   enabled?: boolean;
   atTop?: boolean;
   newestTimestamp?: string | null;
-  windowStart?: string;
+  emptyFrom?: string;
   windowEnd?: string;
 }
 
@@ -80,19 +81,19 @@ function Probe({
   enabled = true,
   atTop = true,
   newestTimestamp = null,
-  windowStart,
+  emptyFrom = EMPTY_FROM,
   windowEnd,
 }: ProbeProps) {
   const result = useDeviceLogsLiveTail({
     connectionId,
     fetchNewer,
     newestTimestamp,
-    windowStart,
+    emptyFrom,
     windowEnd,
     hasSearch,
     enabled,
     atTop,
-    onGap,
+    onReloadHead,
   });
   // Recorded after the commit, never during render (react-hooks/globals).
   useEffect(() => {
@@ -157,7 +158,7 @@ beforeEach(() => {
   subscriptionOpen = true;
   visibility = 'visible';
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
-  onGap.mockReset();
+  onReloadHead.mockReset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -182,10 +183,12 @@ describe('useDeviceLogsLiveTail', () => {
     expect(listIds()).toEqual(['b', 'a']);
   });
 
-  it('starts an empty list from the window start, not the API default', () => {
-    render({ windowStart: '2026-09-23T09:00:00.000Z' });
+  it('polls an empty list from where its first page left off, not from the window start', () => {
+    render();
     tick();
-    expect(calls[0]?.from).toBe('2026-09-23T09:00:00.000Z');
+    answer(calls[0], []);
+    tick();
+    expect(calls.map(call => call.from)).toEqual([EMPTY_FROM, EMPTY_FROM]);
   });
 
   it('never has two requests in flight, even when the tab is re-shown mid-request', () => {
@@ -254,8 +257,42 @@ describe('useDeviceLogsLiveTail', () => {
     render({ newestTimestamp: '2026-09-23T10:00:00Z' });
     tick();
     answer(calls[0], [['b', '2026-09-23T10:00:01Z']], true);
-    expect(onGap).toHaveBeenCalledTimes(1);
+    expect(onReloadHead).toHaveBeenCalledTimes(1);
     expect(listIds()).toEqual(['a']);
+  });
+
+  it('reloads the head once the tail grows the list past its limit, and not before', () => {
+    commitLocalUpdate(environment, store => {
+      const connection = store.get(CONNECTION);
+      const edges = Array.from({ length: DEVICE_LOGS_TAIL_LIMIT - 2 }, (_, index) =>
+        store.create(`old-${index}:edge`, 'DeviceLogEdge'),
+      );
+      connection?.setLinkedRecords([...(connection.getLinkedRecords('edges') ?? []), ...edges], 'edges');
+    });
+    render({ newestTimestamp: '2026-09-23T10:00:00Z' });
+    tick();
+    answer(calls[0], [['b', '2026-09-23T10:00:01Z']]);
+    expect(onReloadHead).not.toHaveBeenCalled();
+
+    render({ newestTimestamp: '2026-09-23T10:00:01Z' });
+    tick();
+    answer(calls[1], [['c', '2026-09-23T10:00:02Z']]);
+    expect(onReloadHead).toHaveBeenCalledTimes(1);
+    expect(listIds().slice(0, 2)).toEqual(['c', 'b']);
+  });
+
+  it('never reloads a long list for a poll that brought nothing new', () => {
+    commitLocalUpdate(environment, store => {
+      const connection = store.get(CONNECTION);
+      const edges = Array.from({ length: DEVICE_LOGS_TAIL_LIMIT + 1 }, (_, index) =>
+        store.create(`old-${index}:edge`, 'DeviceLogEdge'),
+      );
+      connection?.setLinkedRecords([...(connection.getLinkedRecords('edges') ?? []), ...edges], 'edges');
+    });
+    render({ newestTimestamp: '2026-09-23T10:00:00Z' });
+    tick();
+    answer(calls[0], [['a-again', '2026-09-23T10:00:00Z']]);
+    expect(onReloadHead).not.toHaveBeenCalled();
   });
 
   it('reports a failure, backs off 15 s then 30 s, and clears it on recovery', () => {

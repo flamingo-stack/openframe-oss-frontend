@@ -9,7 +9,15 @@ vi.mock('react-relay', async importOriginal => ({
   graphql: () => ({}),
 }));
 
-import { BACKOFF_STEPS_MS, type PolledLine, pollBackoffMs, prependNewerLines } from './device-log-tail';
+import {
+  BACKOFF_STEPS_MS,
+  DEVICE_LOGS_CLOCK_SKEW_MS,
+  deviceLogRowKey,
+  emptyListPollFrom,
+  type PolledLine,
+  pollBackoffMs,
+  prependNewerLines,
+} from './device-log-tail';
 
 /**
  * A poll's `from` is inclusive and its answer can repeat, so the updater must drop
@@ -167,5 +175,41 @@ describe('pollBackoffMs', () => {
 
   it('treats a negative counter as the first failure instead of indexing backwards', () => {
     expect(pollBackoffMs(-1)).toBe(BACKOFF_STEPS_MS[0]);
+  });
+});
+
+describe('emptyListPollFrom', () => {
+  const anchor = Date.parse('2026-09-23T10:00:00.000Z');
+  const covered = new Date(anchor - DEVICE_LOGS_CLOCK_SKEW_MS).toISOString();
+
+  it('re-reads only the skew allowance before the anchor, not the whole window', () => {
+    expect(emptyListPollFrom(anchor, '2026-09-16T10:00:00.000Z')).toBe(covered);
+  });
+
+  it('never starts before the window itself', () => {
+    expect(emptyListPollFrom(anchor, '2026-09-23T09:59:00.000Z')).toBe('2026-09-23T09:59:00.000Z');
+  });
+
+  it('keeps a window that begins after an old anchor: a custom day picked on a tab open since yesterday', () => {
+    expect(emptyListPollFrom(anchor - 86_400_000, '2026-09-23T00:00:00.000Z')).toBe('2026-09-23T00:00:00.000Z');
+  });
+
+  it('falls back to the anchor for a missing or unreadable window start', () => {
+    expect(emptyListPollFrom(anchor, undefined)).toBe(covered);
+    expect(emptyListPollFrom(anchor, 'not-a-date')).toBe(covered);
+  });
+});
+
+describe('deviceLogRowKey', () => {
+  it('changes when a reload writes another line into the same record', () => {
+    const before = deviceLogRowKey({ cursor: 'c-0', node: { timestamp: '2026-09-23T10:00:00Z' } });
+    const after = deviceLogRowKey({ cursor: 'c-0', node: { timestamp: '2026-09-23T10:00:07Z' } });
+    expect(after).not.toBe(before);
+  });
+
+  it('tells apart lines that share an instant by their cursor', () => {
+    const first = deviceLogRowKey({ cursor: 'c-0', node: { timestamp: '2026-09-23T10:00:00Z' } });
+    const second = deviceLogRowKey({ cursor: 'c-1', node: { timestamp: '2026-09-23T10:00:00Z' } });
+    expect(first).not.toBe(second);
   });
 });

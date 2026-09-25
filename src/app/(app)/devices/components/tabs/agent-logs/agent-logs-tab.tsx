@@ -19,6 +19,7 @@ import {
   type ParsedDeviceLogSearch,
   parseDeviceLogSearch,
 } from '../../../utils/device-log-search';
+import { emptyListPollFrom } from '../../../utils/device-log-tail';
 import {
   DEFAULT_DEVICE_LOG_RANGE,
   deviceLogCustomBounds,
@@ -126,7 +127,11 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   }, [selectedLevels, validSearch, range, customRange, anchorNow]);
 
   const list = useMemo<AgentLogsList>(
-    () => ({ filter, key: `${machineId}|${JSON.stringify(filter)}|${anchorNow}` }),
+    () => ({
+      filter,
+      key: `${machineId}|${JSON.stringify(filter)}|${anchorNow}`,
+      emptyFrom: emptyListPollFrom(anchorNow, filter.from == null ? undefined : String(filter.from)),
+    }),
     [machineId, filter, anchorNow],
   );
   // Same contract every other list here uses: the rows lag the controls, so a
