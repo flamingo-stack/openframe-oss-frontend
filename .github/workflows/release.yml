@@ -120,6 +120,7 @@ jobs:
           command: |
             args=(--platform linux/amd64,linux/arm64 --push --provenance=false --sbom=true
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
+                  --build-arg OPENFRAME_BUNDLE_VERSION=${{ steps.version.outputs.NEW_VERSION || format('main-{0}', github.sha) }}
                   -f ./Dockerfile)
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" .

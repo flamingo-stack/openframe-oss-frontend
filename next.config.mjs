@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import withBundleAnalyzer from '@next/bundle-analyzer';
@@ -10,6 +11,24 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 // codebase serve browser + desktop + mobile.
 // Build-time only (not NEXT_PUBLIC_): never shipped to the client bundle.
 const isStaticExport = process.env.OPENFRAME_BUILD_TARGET === 'export';
+
+// The version this bundle reports in `X-OpenFrame-Client` (src/lib/client-identity.ts).
+// The Docker build is handed the release version as a build-arg: its context has
+// no .git. Everything else describes the checkout — the desktop release clones
+// the frontend at its release tag, and a mobile build from a local checkout
+// still traces back to a commit (`1.0.125-4-geae0416-dirty`).
+function resolveBundleVersion() {
+  if (process.env.OPENFRAME_BUNDLE_VERSION) return process.env.OPENFRAME_BUNDLE_VERSION;
+  try {
+    return execFileSync('git', ['describe', '--tags', '--always', '--dirty'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -29,6 +48,9 @@ const nextConfig = {
   // build uses the canonical `/dashboard/` form the webview can serve.
   ...(isStaticExport ? {} : { skipTrailingSlashRedirect: true }),
   distDir: 'dist',
+  env: {
+    OPENFRAME_BUNDLE_VERSION: resolveBundleVersion(),
+  },
   images: {
     unoptimized: true,
   },

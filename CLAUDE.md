@@ -509,6 +509,13 @@ The app is **gradually migrating GraphQL data fetching to react-relay**. The rul
 4. **Exception — the `/chat/graphql` domain (tickets, mingo, AI settings)**: it talks to the saas-ai-agent service whose schema is NOT in `schema.graphql`, so it stays on raw-POST permanently. Extending raw-POST there is correct, not a violation.
 5. No Apollo Client anywhere.
 
+**Every first-party request to the tenant gateway carries `X-OpenFrame-Client`** (`src/lib/client-identity.ts`:
+`<kind>/<shellVersion|-> bundle/<bundleVersion>`), so the backend can tell which frozen shell bundles are still
+live before a schema field is removed. `apiClient`, Relay, the upload helpers and the embedded chat already add it; a
+new raw `fetch` to the gateway spreads `clientIdentityHeaders()`. Never send it to the shared auth host (it would
+make CORS-simple login calls preflight), presigned storage URLs, or third parties. The bundle version is inlined
+at build time from `OPENFRAME_BUNDLE_VERSION` (`next.config.mjs`) — the Docker build gets it as a build-arg.
+
 **Every request goes out BELOW `SubscriptionGuard`.** The guard (`src/app/components/subscription-lock/subscription-guard.tsx`) wraps the whole app tree in `app-layout.tsx`, and the network gate it feeds (`src/lib/subscription-gate.ts`) holds app *queries* until the subscription answers and while it locks. **Mutations bypass that gate by design** — they are user actions, and the paywall's own are what a locked workspace needs (`useMutation` takes no `cacheConfig`, so there is no per-call opt-out either). So a mutation fired by a timer/effect rather than by a click goes straight out on a locked workspace and fails on every interval — which `recordPresence` did, once every ten seconds behind the lock screen.
 
 Rules for anything automatic (heartbeats, registrations, telemetry, hydrators):

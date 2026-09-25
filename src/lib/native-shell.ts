@@ -392,6 +392,24 @@ export function networkPlugin(): NetworkPlugin | null {
   return isMobileShell() ? ((capacitorPlugins()?.Network as NetworkPlugin | undefined) ?? null) : null;
 }
 
+/**
+ * The hosting shell binary's own version — mobile `MARKETING_VERSION` / `versionName`, desktop
+ * `tauri.conf.json` `version` via Tauri's built-in `plugin:app|version` (granted by `core:default`).
+ * Null on the web, and when the shell cannot say.
+ */
+export async function nativeShellVersion(): Promise<string | null> {
+  try {
+    if (isMobileShell()) return (await appPlugin()?.getInfo())?.version || null;
+    if (isDesktopShell()) {
+      const version = await tauriInvoke()?.('plugin:app|version');
+      return typeof version === 'string' && version ? version : null;
+    }
+  } catch (error) {
+    console.warn('[Native Shell] shell version unavailable:', error);
+  }
+  return null;
+}
+
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';
 
 /**
