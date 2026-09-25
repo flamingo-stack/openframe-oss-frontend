@@ -144,4 +144,35 @@ describe('RemoteAccessPolicyApiService', () => {
     });
     expect(lastMutationVariables()).toEqual({ machineId: 'machine-1', mode: 'SILENT_ACCESS' });
   });
+
+  it('reads a page of devices through nodes by global id, skipping the ones the server no longer knows', async () => {
+    queryAnswers({
+      nodes: [
+        {
+          machineId: 'machine-1',
+          remoteAccess: { mode: 'DENY_ACCESS', effectiveMode: 'DENY_ACCESS', effectiveScope: 'DEVICE' },
+        },
+        null,
+        {
+          machineId: 'machine-3',
+          remoteAccess: { mode: null, effectiveMode: 'NOTIFY_ONLY', effectiveScope: 'TENANT' },
+        },
+      ],
+    });
+    const policies = await service.getDevicePolicies([
+      { deviceId: 'machine-1' },
+      { deviceId: 'machine-2' },
+      { deviceId: 'machine-3' },
+    ]);
+    expect(relay.fetchQuery.mock.calls[0]?.[2]).toEqual({
+      ids: ['TWFjaGluZTptYWNoaW5lLTE', 'TWFjaGluZTptYWNoaW5lLTI', 'TWFjaGluZTptYWNoaW5lLTM'],
+    });
+    expect([...policies.keys()]).toEqual(['machine-1', 'machine-3']);
+    expect(policies.get('machine-1')?.effectiveMode).toBe('DENY_ACCESS');
+  });
+
+  it('does not query for an empty page', async () => {
+    expect((await service.getDevicePolicies([])).size).toBe(0);
+    expect(relay.fetchQuery).not.toHaveBeenCalled();
+  });
 });

@@ -13,12 +13,14 @@ import type {
   remoteAccessPolicyApiService_tenant$key as WireTenantPolicyKey,
 } from '@/__generated__/remoteAccessPolicyApiService_tenant.graphql';
 import type { remoteAccessPolicyApiServiceDeviceQuery as DeviceQuery } from '@/__generated__/remoteAccessPolicyApiServiceDeviceQuery.graphql';
+import type { remoteAccessPolicyApiServiceDevicesQuery as DevicesQuery } from '@/__generated__/remoteAccessPolicyApiServiceDevicesQuery.graphql';
 import type { remoteAccessPolicyApiServiceOrganizationQuery as OrganizationQuery } from '@/__generated__/remoteAccessPolicyApiServiceOrganizationQuery.graphql';
 import type { remoteAccessPolicyApiServiceSetDeviceMutation as SetDeviceMutation } from '@/__generated__/remoteAccessPolicyApiServiceSetDeviceMutation.graphql';
 import type { remoteAccessPolicyApiServiceSetOrganizationMutation as SetOrganizationMutation } from '@/__generated__/remoteAccessPolicyApiServiceSetOrganizationMutation.graphql';
 import type { remoteAccessPolicyApiServiceSetTenantMutation as SetTenantMutation } from '@/__generated__/remoteAccessPolicyApiServiceSetTenantMutation.graphql';
 import type { remoteAccessPolicyApiServiceTenantQuery as TenantQuery } from '@/__generated__/remoteAccessPolicyApiServiceTenantQuery.graphql';
 import { getRelayEnvironment } from '@/lib/relay';
+import { toGlobalId } from '@/lib/relay-id';
 import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import {
   type DeviceRemoteAccessPolicy,
@@ -29,7 +31,7 @@ import {
   type RemoteAccessPolicyScope,
   type TenantRemoteAccessPolicy,
 } from '../types/remote-access';
-import type { IRemoteAccessPolicyService } from './remote-access-policy-service';
+import type { DevicePolicyRef, IRemoteAccessPolicyService } from './remote-access-policy-service';
 import { oneOf } from './remote-access-wire';
 
 /**
@@ -37,8 +39,11 @@ import { oneOf } from './remote-access-wire';
  * and session clients. Tenant and organization scopes have their own
  * operations; the device scope is a field on `Machine`, resolved on the server
  * (device -> organization -> tenant -> defaults), read here through its own
- * small query so the shared device queries stay untouched until the field
- * exists on every environment.
+ * small queries rather than the shared device queries: the same bundle also
+ * talks to the OSS backend, where `Machine.remoteAccess` does not exist, and a
+ * query naming a field the schema lacks fails validation whole, `@include` or
+ * not. Table rows read it a page at a time through `nodes`, and only where the
+ * feature flag is on.
  */
 
 const tenantFragment = graphql`
@@ -83,6 +88,19 @@ const deviceQuery = graphql`
     device(machineId: $machineId) {
       remoteAccess {
         ...remoteAccessPolicyApiService_device
+      }
+    }
+  }
+`;
+
+const devicesQuery = graphql`
+  query remoteAccessPolicyApiServiceDevicesQuery($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Machine {
+        machineId
+        remoteAccess {
+          ...remoteAccessPolicyApiService_device
+        }
       }
     }
   }
@@ -229,6 +247,21 @@ export class RemoteAccessPolicyApiService implements IRemoteAccessPolicyService 
     ).toPromise();
     if (!data?.device) throw new Error('Device not found');
     return readDevice(data.device.remoteAccess);
+  }
+
+  async getDevicePolicies(devices: ReadonlyArray<DevicePolicyRef>): Promise<Map<string, DeviceRemoteAccessPolicy>> {
+    const policies = new Map<string, DeviceRemoteAccessPolicy>();
+    if (devices.length === 0) return policies;
+    const data = await fetchQuery<DevicesQuery>(
+      getRelayEnvironment(),
+      devicesQuery,
+      { ids: devices.map(({ deviceId }) => toGlobalId('Machine', deviceId)) },
+      { fetchPolicy: 'network-only' },
+    ).toPromise();
+    for (const node of data?.nodes ?? []) {
+      if (node?.machineId && node.remoteAccess) policies.set(node.machineId, readDevice(node.remoteAccess));
+    }
+    return policies;
   }
 
   /** Refusals (unknown device, feature off) arrive as GraphQL errors and reject through the promise. */

@@ -27,6 +27,7 @@ import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import { useDevices } from '@/app/(app)/devices/hooks/use-devices';
 import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-params';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
+import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { useTagFilterModal } from '@/app/(app)/devices/hooks/use-tag-filter-modal';
 import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
 import { bumpDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
@@ -178,6 +179,8 @@ function DevicesPanelContent({
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
   const renderRowActions = useMemo(() => getDeviceTableRowActions(), []);
+  // The row menus disable Remote Control on DENY_ACCESS; only the table has them.
+  useRowRemoteAccessPolicies(readOnlyRows || params.viewMode !== 'table' ? [] : devices);
 
   // The status column reflects only the user's explicit selection — the default
   // statuses are a query-side fallback and must not render as checked filters.
