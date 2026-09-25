@@ -67,7 +67,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const guardrailsEnabled = useFeatureFlag('customer-guardrails');
   const showAiConfig = !!organizationId && isSaasTenant && (isFullAiConfig || customizationEnabled);
   const showGuardrails = !!organizationId && isSaasTenant && guardrailsEnabled;
-  // Remote access policy (CU-86akeqw8b): not saas-gated - MeshCentral runs in
+  // Remote access policy: not saas-gated - MeshCentral runs in
   // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
   const remoteAccessGate = useRemoteAccessApprovalGate();
   const showDeviceGuardrails = !!organizationId && remoteAccessGate === 'on';

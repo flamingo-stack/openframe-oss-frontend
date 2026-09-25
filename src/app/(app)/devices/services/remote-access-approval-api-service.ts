@@ -1,5 +1,5 @@
-import { commitMutation, fetchQuery, graphql } from 'react-relay';
-import { type GraphQLTaggedNode, type MutationParameters, readInlineData } from 'relay-runtime';
+import { fetchQuery, graphql } from 'react-relay';
+import { readInlineData } from 'relay-runtime';
 import type {
   remoteAccessApprovalApiService_request$data as WireRequest,
   remoteAccessApprovalApiService_request$key as WireRequestKey,
@@ -8,6 +8,7 @@ import type { remoteAccessApprovalApiServiceCreateMutation as CreateMutation } f
 import type { remoteAccessApprovalApiServiceRequestQuery as RequestQuery } from '@/__generated__/remoteAccessApprovalApiServiceRequestQuery.graphql';
 import type { remoteAccessApprovalApiServiceRevokeMutation as RevokeMutation } from '@/__generated__/remoteAccessApprovalApiServiceRevokeMutation.graphql';
 import { getRelayEnvironment } from '@/lib/relay';
+import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import {
   type CreateRemoteAccessRequestInput,
   type RemoteAccessCreateErrorCode,
@@ -195,27 +196,9 @@ function createErrorFrom(errors: ReadonlyArray<WireUserError>): RemoteAccessCrea
   return new RemoteAccessCreateError(code ?? 'UNKNOWN', message);
 }
 
-/** `commitMutation` as a promise: GraphQL-level errors reject, the payload resolves. */
-function commit<TMutation extends MutationParameters>(
-  mutation: GraphQLTaggedNode,
-  variables: TMutation['variables'],
-): Promise<TMutation['response']> {
-  return new Promise((resolve, reject) => {
-    commitMutation<TMutation>(getRelayEnvironment(), {
-      mutation,
-      variables,
-      onCompleted: (response, errors) => {
-        if (errors?.length) reject(new Error(errors[0].message));
-        else resolve(response);
-      },
-      onError: reject,
-    });
-  });
-}
-
 export class RemoteAccessApprovalApiService implements IRemoteAccessApprovalService {
   async create(input: CreateRemoteAccessRequestInput): Promise<RemoteAccessRequest> {
-    const payload = await commit<CreateMutation>(createMutation, {
+    const payload = await commitMutationPromise<CreateMutation>(createMutation, {
       input: {
         deviceId: input.deviceId,
         sessionKind: 'DESKTOP',
@@ -240,7 +223,7 @@ export class RemoteAccessApprovalApiService implements IRemoteAccessApprovalServ
   }
 
   async revoke(requestId: string): Promise<void> {
-    const payload = await commit<RevokeMutation>(revokeMutation, { requestId });
+    const payload = await commitMutationPromise<RevokeMutation>(revokeMutation, { requestId });
     const blocking = payload.revokeRemoteAccessRequest.userErrors.filter(e => e.code !== REVOKE_SETTLED_CODE);
     if (blocking.length > 0) throw new Error(blocking[0].message || 'Could not cancel the remote access request');
   }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteAccessRequest } from '../types/remote-access';
 import { mockRemoteAccessApprovalService, mockRemoteAccessDecision } from './remote-access-approval-service';
-import { remoteAccessPolicyService } from './remote-access-policy-service';
+import { mockRemoteAccessPolicyService } from './remote-access-policy-service';
 
 // The mock is a module singleton, so each test works on its own deviceId to
 // stay independent of requests other tests left behind.
@@ -91,7 +91,7 @@ describe('MockRemoteAccessApprovalService', () => {
 
   it('auto-approves immediately under a NOTIFY_ONLY policy', async () => {
     const deviceId = nextDeviceId();
-    const overridePromise = remoteAccessPolicyService.setDeviceMode(deviceId, 'NOTIFY_ONLY');
+    const overridePromise = mockRemoteAccessPolicyService.setDeviceMode(deviceId, 'NOTIFY_ONLY');
     await vi.advanceTimersByTimeAsync(300);
     await overridePromise;
 
@@ -107,7 +107,7 @@ describe('MockRemoteAccessApprovalService', () => {
 
   it('returns DENIED outright under a DENY_ACCESS policy', async () => {
     const deviceId = nextDeviceId();
-    const overridePromise = remoteAccessPolicyService.setDeviceMode(deviceId, 'DENY_ACCESS');
+    const overridePromise = mockRemoteAccessPolicyService.setDeviceMode(deviceId, 'DENY_ACCESS');
     await vi.advanceTimersByTimeAsync(300);
     await overridePromise;
 

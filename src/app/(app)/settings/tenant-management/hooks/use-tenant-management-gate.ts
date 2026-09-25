@@ -12,7 +12,7 @@ import type { FeatureFlagGate } from '@/lib/feature-flags';
 const DEV_FALLBACK = process.env.NODE_ENV === 'development';
 
 /**
- * The one gate for the Tenant Management module (CU-86akj8ajt): the hub card
+ * The one gate for the Tenant Management module: the hub card
  * and every page under `/settings/tenant-management`. Tri-state on purpose —
  * `'loading'` renders a skeleton, never a 404 or a missing card (see
  * `use-feature-flag.ts`).

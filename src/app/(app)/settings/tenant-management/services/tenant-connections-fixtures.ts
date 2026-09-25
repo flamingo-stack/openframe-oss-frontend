@@ -1,4 +1,4 @@
-// Seed data for the Tenant Management mock service (CU-86akj8ajt).
+// Seed data for the Tenant Management mock service.
 //
 // The eight connections are the rows of the Figma list (node 1699-8249) in
 // display order, with the details of the connected ones drawn from the phase-1
