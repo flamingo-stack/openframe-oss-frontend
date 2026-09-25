@@ -21,11 +21,11 @@ import { TENANTS_PAGE_SIZE, TENANTS_TABLE_COLUMNS } from './tenants-table-column
 export const CONNECT_TENANT_ACTION: PageActionButton = {
   label: 'Connect Tenant',
   variant: 'outline',
-  href: routes.settings.tenantNew,
+  href: routes.settings.tenantNew(),
   iconAction: {
     icon: <ArrowRightUpIcon className="h-5 w-5" />,
     'aria-label': 'Open Connect Tenant in a new tab',
-    href: routes.settings.tenantNew,
+    href: routes.settings.tenantNew(),
     openInNewTab: true,
   },
 };

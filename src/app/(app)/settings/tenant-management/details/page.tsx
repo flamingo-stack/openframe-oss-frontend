@@ -11,7 +11,7 @@ import { TenantDetailView } from '../components/tenant-detail/tenant-detail-view
 export default function TenantDetailsPage() {
   const gate = useTenantManagementGate();
   // `?id=` missing → the list; `?id=new` → the create page. Null while redirecting.
-  const id = useRequiredIdParam(routes.settings.tenantManagement, routes.settings.tenantNew);
+  const id = useRequiredIdParam(routes.settings.tenantManagement, routes.settings.tenantNew());
   if (gate === 'off') {
     notFound();
   }

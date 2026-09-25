@@ -142,7 +142,7 @@ export function TenantsTable({ search, isPending, onEmptyChange, stickyHeaderOff
         title="No tenants connected yet"
         description="Connect a Microsoft 365 or Google Workspace tenant to see its users and access state here."
         buttonLabel={canConnect ? 'Connect Tenant' : undefined}
-        buttonProps={{ href: routes.settings.tenantNew }}
+        buttonProps={{ href: routes.settings.tenantNew() }}
       />
     );
   }

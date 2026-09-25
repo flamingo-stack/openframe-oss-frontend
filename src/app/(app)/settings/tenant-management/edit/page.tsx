@@ -13,7 +13,7 @@ import { TenantFormSkeleton } from '../components/tenant-form/tenant-form-skelet
 export default function EditTenantPage() {
   const gate = useTenantManagementGate();
   const ownerGate = useOwnerGate();
-  const id = useRequiredIdParam(routes.settings.tenantManagement, routes.settings.tenantNew);
+  const id = useRequiredIdParam(routes.settings.tenantManagement, routes.settings.tenantNew());
   if (gate === 'off') {
     notFound();
   }

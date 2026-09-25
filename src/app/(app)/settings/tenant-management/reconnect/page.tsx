@@ -13,7 +13,7 @@ import { ReconnectTenantView } from '../components/tenant-reconnect/reconnect-te
 export default function ReconnectTenantPage() {
   const gate = useTenantManagementGate();
   const ownerGate = useOwnerGate();
-  const id = useRequiredIdParam(routes.settings.tenantManagement, routes.settings.tenantNew);
+  const id = useRequiredIdParam(routes.settings.tenantManagement, routes.settings.tenantNew());
   if (gate === 'off') {
     notFound();
   }
