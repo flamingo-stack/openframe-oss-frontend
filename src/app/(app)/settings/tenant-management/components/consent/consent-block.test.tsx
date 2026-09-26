@@ -9,7 +9,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DirectoryAccessState, DirectoryProvider } from '../../types/directory-enums';
+import { DirectoryAccessState, DirectoryCapability, DirectoryProvider } from '@/generated/schema-enums';
 import { ConsentBlock, type ConsentBlockProps } from './consent-block';
 
 const { platform, toast } = vi.hoisted(() => ({ platform: { appShell: false }, toast: vi.fn() }));
@@ -87,7 +87,7 @@ describe('ConsentBlock', () => {
     expect(button('Edit Domain').disabled).toBe(false);
   });
 
-  it('is inert with a placeholder when no link exists (Microsoft on the real backend)', () => {
+  it('is inert with a placeholder when no link is outstanding', () => {
     render({ consentUrl: null });
     expect(container.querySelector('input')?.placeholder).toBe('No consent link is available yet.');
     expect(button('Copy consent link').disabled).toBe(true);
@@ -111,24 +111,16 @@ describe('ConsentBlock', () => {
   });
 
   it('names the outcome once the probe answered', () => {
-    const checkedAt = '2026-09-17T10:00:00.000Z';
     render({
       checkState: 'connected',
-      checkResult: { state: DirectoryAccessState.READ_ONLY, checkedAt, capabilities: ['USERS'] },
+      checkResult: { state: DirectoryAccessState.READ_ONLY, capabilities: [DirectoryCapability.USERS] },
     });
     expect(container.textContent).toContain('Connected and readable');
 
-    render({
-      checkState: 'failed',
-      checkResult: {
-        state: DirectoryAccessState.CONSENT_REVOKED,
-        reason: 'Admin consent was revoked.',
-        checkedAt,
-        capabilities: [],
-      },
-    });
+    render({ checkState: 'failed', checkResult: { state: DirectoryAccessState.CONSENT_REVOKED, capabilities: [] } });
     expect(container.textContent).toContain('Consent revoked');
-    expect(container.textContent).toContain('Admin consent was revoked.');
+    // Beside the tag, the hint says who has to act.
+    expect(container.textContent).toContain('ask them to consent again');
 
     render({ checkState: 'failed', checkResult: null, checkError: 'The provider returned an error.' });
     expect(container.textContent).toContain('The provider returned an error.');
