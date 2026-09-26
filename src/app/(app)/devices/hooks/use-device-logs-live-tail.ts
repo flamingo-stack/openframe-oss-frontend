@@ -1,0 +1,139 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { commitLocalUpdate, useRelayEnvironment } from 'react-relay';
+import type { Observable, Subscription } from 'relay-runtime';
+import { useSubscriptionOpen } from '@/app/components/subscription-lock/subscription-guard';
+import { describeDeviceLogError, type DeviceLogErrorInfo, isRetryableDeviceLogError } from '../utils/device-log-errors';
+import { exceedsTailLimit, pollBackoffMs, type PolledPage, prependNewerLines } from '../utils/device-log-tail';
+
+/** New lines reach the platform about once a minute; polling faster shows nothing sooner. */
+export const DEVICE_LOGS_POLL_INTERVAL_MS = 5_000;
+
+interface UseDeviceLogsLiveTailOptions {
+  /** The list's connection record (`__id`); new lines are written into it. */
+  connectionId: string;
+  /** The poll itself, owned by the component that owns its document. */
+  fetchNewer: (from: string) => Observable<PolledPage>;
+  /** Newest line in the list — the poll's inclusive `from`. Null while the list is empty. */
+  newestTimestamp: string | null;
+  /** Where the poll starts while the list holds nothing yet (`emptyListPollFrom`). */
+  emptyFrom: string;
+  /** A custom range that has ended cannot grow, so its tail stops. */
+  windowEnd: string | undefined;
+  hasSearch: boolean;
+  /** The toggle, AND "not while the list itself is loading". */
+  enabled: boolean;
+  /** Polling pauses while the user has scrolled away from the top. */
+  atTop: boolean;
+  /** A poll that filled its page, or grew the list past the tail limit: the list reloads its head. */
+  onReloadHead: () => void;
+}
+
+/**
+ * The 5-second auto-update (FE-17…FE-21): one request at a time, paused while
+ * hidden, scrolled away or locked, backing off after failures. What it finds
+ * goes into the list's own connection, so the Relay store stays the one source.
+ */
+export function useDeviceLogsLiveTail({
+  connectionId,
+  fetchNewer,
+  newestTimestamp,
+  emptyFrom,
+  windowEnd,
+  hasSearch,
+  enabled,
+  atTop,
+  onReloadHead,
+}: UseDeviceLogsLiveTailOptions): { error: DeviceLogErrorInfo | null } {
+  const environment = useRelayEnvironment();
+  const subscriptionOpen = useSubscriptionOpen();
+  const [failure, setFailure] = useState<{ connectionId: string; error: DeviceLogErrorInfo } | null>(null);
+  // Outside the effect: `atTop` restarts it, and a ladder that resets on every
+  // scroll is no ladder at all. Keyed to the list, so a new one starts at step one.
+  const failuresRef = useRef({ connectionId, count: 0 });
+
+  // Latest values for the timer, written after the commit; the effect keys on identity only.
+  const latest = useRef({ fetchNewer, newestTimestamp, emptyFrom, windowEnd, hasSearch, onReloadHead });
+  useEffect(() => {
+    latest.current = { fetchNewer, newestTimestamp, emptyFrom, windowEnd, hasSearch, onReloadHead };
+  });
+
+  const active = enabled && atTop && subscriptionOpen;
+
+  useEffect(() => {
+    if (!active) return undefined;
+    if (failuresRef.current.connectionId !== connectionId) failuresRef.current = { connectionId, count: 0 };
+    const failures = failuresRef.current;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let request: Subscription | null = null;
+
+    const schedule = (delay: number) => {
+      clearTimeout(timer);
+      timer = setTimeout(tick, delay);
+    };
+
+    function tick() {
+      const { fetchNewer: fetch, newestTimestamp: newest, emptyFrom: since, windowEnd: end } = latest.current;
+      if (request) return;
+      // Hidden skips the request, not the clock: WKWebView does not reliably send
+      // the `visibilitychange` that would otherwise be the only way back.
+      if (document.visibilityState === 'hidden') {
+        schedule(DEVICE_LOGS_POLL_INTERVAL_MS);
+        return;
+      }
+      if (end !== undefined && Date.parse(end) <= Date.now()) return;
+
+      fetch(newest ?? since).subscribe({
+        // Held from `start`, which runs before any event: a synchronous answer
+        // must not leave a finished request marked as in flight.
+        start: subscription => {
+          request = subscription;
+        },
+        next: page => {
+          let reload = page.gap;
+          if (!page.gap) {
+            commitLocalUpdate(environment, store => {
+              reload = prependNewerLines(store, connectionId, page.lines) > 0 && exceedsTailLimit(store, connectionId);
+            });
+          }
+          if (reload) latest.current.onReloadHead();
+        },
+        complete: () => {
+          request = null;
+          failures.count = 0;
+          setFailure(null);
+          schedule(DEVICE_LOGS_POLL_INTERVAL_MS);
+        },
+        error: (error: Error) => {
+          request = null;
+          const info = describeDeviceLogError(error, { hasSearch: latest.current.hasSearch });
+          // Beyond the shared rule, two kinds pass with time here: offline, and a
+          // rejected range — the list had this filter accepted, so it is `from` at the
+          // server's "now" when pod clocks drift. That one is silent the first time.
+          if (info.kind !== 'validation' || failures.count > 0) setFailure({ connectionId, error: info });
+          const passesWithTime = info.kind === 'offline' || info.kind === 'validation';
+          if (!isRetryableDeviceLogError(info.kind) && !passesWithTime) return;
+          schedule(pollBackoffMs(failures.count));
+          failures.count += 1;
+        },
+      });
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') schedule(DEVICE_LOGS_POLL_INTERVAL_MS);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    schedule(DEVICE_LOGS_POLL_INTERVAL_MS);
+
+    return () => {
+      clearTimeout(timer);
+      request?.unsubscribe();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [active, environment, connectionId]);
+
+  // A stopped tail reports no failure: the strip would name a poll that is no
+  // longer being attempted.
+  return { error: active && failure?.connectionId === connectionId ? failure.error : null };
+}

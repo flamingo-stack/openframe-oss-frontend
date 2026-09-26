@@ -16,6 +16,7 @@ import { EditDisplayNameModal } from '../components/edit-display-name-modal';
 import type { Device } from '../types/device.types';
 import { type DeviceActionAvailability, getDeviceActionAvailability } from '../utils/device-action-utils';
 import { buildDeviceMenuItems } from '../utils/device-menu-items';
+import { useDeviceAgentLogsGate } from './use-device-agent-logs-gate';
 import { useDeviceConfirmationDialogs } from './use-device-confirmation-dialogs';
 import { useRemoteAccessApprovalGate } from './use-remote-access-approval-gate';
 import { useEffectiveDeviceRemoteAccessMode } from './use-remote-access-policy';
@@ -112,12 +113,14 @@ export function useDeviceActionsMenu(
     }
   };
 
+  const agentLogsGate = useDeviceAgentLogsGate();
   const base = buildDeviceMenuItems({
     deviceId,
     availability: actionAvailability,
     iconSize: iconSize,
     isWindows,
     withNewTabAction: true,
+    agentLogsEnabled: agentLogsGate === 'on',
   });
 
   const runScriptDisabled = !actionAvailability?.runScriptEnabled;

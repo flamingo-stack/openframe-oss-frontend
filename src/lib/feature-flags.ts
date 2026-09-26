@@ -56,6 +56,10 @@ export const FEATURE_FLAG_NAMES = [
   // VULNERABILITY). Off = no sidebar entry, every `/software` route 404s, the
   // picker offers neither kind; a mention already in a chat still renders.
   'software-management',
+  // The Agent Logs tab on device details (CU-86agb21qt); off, "Device Logs" keeps
+  // leading to Overview. The `deviceLogs` query exists only on tenants running
+  // oss-lib >= #2188, so the tab stays dark until the backend registers the name.
+  'device-agent-logs',
   // "Compact Chat Memory" in the Mingo chat ⋯ menus: summarizes a
   // dialog's AI context on demand. Off = the item is absent; auto-compaction is
   // unaffected either way.

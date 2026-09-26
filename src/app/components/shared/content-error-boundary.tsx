@@ -55,19 +55,11 @@ interface ContentErrorBoundaryProps {
    */
   title?: string;
   /**
-   * Renders the failed state instead of the default inline `LoadError`.
-   *
-   * For surfaces whose page chrome lives INSIDE the subtree that throws and so
-   * disappears with it — `DevicesPanel` is the case: its header, back button and
-   * view switch are rendered by the content component, so the fallback has to
-   * redraw that `PageLayout` or the user loses the page's identity along with
-   * its rows. Presentation is the only thing this changes; catching, reset and
-   * the retry key stay here.
-   *
-   * `state.isOffline` says the failure was a dead link rather than a bad answer;
-   * pass it to `loadErrorProps` like every other surface does.
+   * Replaces the default `LoadError` (e.g. to redraw chrome thrown away with the subtree); catching,
+   * reset and the retry key stay here. Pass `isOffline` to `loadErrorProps`; `error` is for branching
+   * on its classification (an API `extensions.code`), never for showing its message raw.
    */
-  fallback?: (retry: () => void, state: { isOffline: boolean }) => ReactNode;
+  fallback?: (retry: () => void, state: { isOffline: boolean; error: unknown }) => ReactNode;
 }
 
 interface ContentErrorBoundaryState {
@@ -247,7 +239,7 @@ export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, C
       // Passed the phase rather than skipped when offline: the fallback exists to
       // redraw page chrome, and losing that chrome precisely when the network is
       // down would be the worst moment for it.
-      const custom = this.props.fallback?.(this.retry, { isOffline: offline });
+      const custom = this.props.fallback?.(this.retry, { isOffline: offline, error: this.state.error });
       if (custom) return custom;
 
       const body = (

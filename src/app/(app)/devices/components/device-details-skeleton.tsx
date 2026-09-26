@@ -34,7 +34,8 @@ import {
   skeletonColumnDefs,
   type TableSkeletonColumn,
 } from '@/app/components/shared';
-import { DEVICE_TAB_SKELETON_ROWS, REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS } from './tabs/device-tab-columns';
+import { AgentLogsTabSkeleton } from './tabs/agent-logs/agent-logs-skeleton';
+import { REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS, DEVICE_TAB_SKELETON_ROWS } from './tabs/device-tab-columns';
 import { useDeviceTabs } from './tabs/device-tabs';
 
 const noop = () => {};
@@ -637,6 +638,8 @@ function getTabSkeleton(activeTab: string) {
       return <TicketsTabSkeleton />;
     case 'remote-sessions':
       return <TableTabSkeleton columns={REMOTE_SESSIONS_TAB_COLUMNS} placeholder="Search for Remote Session" />;
+    case 'agent-logs':
+      return <AgentLogsTabSkeleton />;
     default:
       return <OverviewTabSkeleton />;
   }
@@ -657,7 +660,7 @@ interface DeviceDetailsSkeletonProps {
  */
 export function DeviceDetailsSkeleton({ activeTab = 'overview' }: DeviceDetailsSkeletonProps) {
   // The gated tab set, so the loading tab bar matches the loaded one exactly.
-  const deviceTabs = useDeviceTabs();
+  const deviceTabs = useDeviceTabs(activeTab);
   return (
     <PageLayout
       loading

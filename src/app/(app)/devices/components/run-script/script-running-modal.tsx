@@ -6,7 +6,7 @@ import { SimpleModal } from '@/app/components/shared/simple-modal';
 interface ScriptRunningModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Navigates to the device's logs (Overview tab) and closes the flow. */
+  /** Navigates to the device's logs and closes the flow. */
   onViewDeviceLogs: () => void;
 }
 

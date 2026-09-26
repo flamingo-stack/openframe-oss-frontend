@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { LogsTable, type LogsTableRef } from '@/app/(app)/logs-page/components/logs-table';
+import { DEVICE_LOGS_REFRESH_PARAM } from '@/lib/routes';
 import type { Device } from '../../types/device.types';
 import { DeviceInfoSection } from '../device-info-section';
 import { DeviceTagsSection } from '../device-tags-section';
@@ -18,15 +19,19 @@ interface OverviewTabProps {
  */
 export function OverviewTab({ device }: OverviewTabProps) {
   const searchParams = useSearchParams();
-  const refreshParam = searchParams?.get('refresh');
+  const refreshParam = searchParams?.get(DEVICE_LOGS_REFRESH_PARAM);
   const logsTableRef = useRef<LogsTableRef>(null);
 
   // Use machineId as the primary device identifier for filtering logs.
   const deviceId = device?.machineId || device?.id;
 
+  // A stamp already in the URL at mount is served by the table's own mount fetch;
+  // it outlives its jump while the user is on Agent Logs.
+  const mountStampRef = useRef(refreshParam);
+
   // Trigger a logs refresh when the `refresh` param changes (e.g. after running a script).
   useEffect(() => {
-    if (refreshParam && logsTableRef.current) {
+    if (refreshParam && refreshParam !== mountStampRef.current && logsTableRef.current) {
       const timer = setTimeout(() => {
         logsTableRef.current?.refresh();
       }, 100);

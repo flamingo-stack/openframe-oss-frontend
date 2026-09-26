@@ -6,7 +6,7 @@ import { REQUEST_TIMEOUT_MS } from '../api-client';
 import { clientIdentityHeaders } from '../client-identity';
 import { isOnline, subscribeConnectivity } from '../connectivity';
 import { forceLogout } from '../force-logout';
-import { OfflineError } from '../query-state';
+import { HttpStatusError, OfflineError } from '../query-state';
 import { runtimeEnv } from '../runtime-config';
 import { waitForSessionReady } from '../session-ready';
 import { markSubscriptionLocked, waitForSubscriptionGate } from '../subscription-gate';
@@ -421,7 +421,7 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
   }
 
   if (!response.ok) {
-    throw new Error(`Relay fetch failed: ${response.status} ${response.statusText}`);
+    throw new HttpStatusError(response.status, response.statusText);
   }
 
   const json = await response.json();

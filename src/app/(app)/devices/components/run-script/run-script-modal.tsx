@@ -12,7 +12,7 @@ interface RunScriptModalProps {
   onClose: () => void;
   /** Machine id of the device the script runs on (batchRunScript target). */
   machineId: string;
-  /** Navigate to the device's logs (Overview tab) — the "Device Logs" CTA. */
+  /** Navigate to the device's logs (Agent Logs tab, or Overview while that flag is off) — the "Device Logs" CTA. */
   onViewDeviceLogs: () => void;
 }
 

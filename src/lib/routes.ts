@@ -50,6 +50,7 @@ export const TAB_IDS = {
     'users',
     'software',
     'remote-sessions',
+    'agent-logs',
   ],
   scriptDetails: ['details', 'executions'],
   softwareDetails: ['devices', 'vulnerabilities'],
@@ -129,7 +130,7 @@ function withQuery(base: string, query?: Record<string, QueryValue>): string {
 }
 
 // --------------------------------------------------------------------------
-// Mingo dialog params
+// Cross-cutting overlay params (ROUTES.md § Cross-cutting overlay params)
 // --------------------------------------------------------------------------
 
 /**
@@ -142,17 +143,11 @@ function withQuery(base: string, query?: Record<string, QueryValue>): string {
 export const MINGO_DIALOG_PARAM = 'mingoDialog';
 
 /**
- * Add (or, with `null`, remove) {@link MINGO_DIALOG_PARAM} on an app-relative URL,
- * preserving the path, the fragment, and the values of other params (which are
- * re-serialized through `URLSearchParams`, so their encoding may be normalized).
- *
- * A caller writing the result straight through `history.replaceState` must feed it
- * the LIVE location (`pathname + search + hash`), never a `routes.*` constant:
- * nothing normalizes it afterwards, and `trailingSlash: true` means a slash-less path
- * is one the static export's file host cannot resolve on reload. Passing a `routes.*`
- * value is fine when the result goes through `router.replace`, which does normalize.
+ * Set (or, with `null`, delete) param `name`, keeping the path, fragment and other params. Feed
+ * `history.replaceState` the LIVE location: nothing normalizes it, and a slash-less path breaks the
+ * static export on reload (`trailingSlash: true`); `router.push`/`replace` normalize a `routes.*` value.
  */
-export function withMingoDialog(url: string, dialogId: string | null): string {
+function withOverlayParam(url: string, name: string, value: string | null): string {
   const hashAt = url.indexOf('#');
   const hash = hashAt === -1 ? '' : url.slice(hashAt);
   const withoutHash = hashAt === -1 ? url : url.slice(0, hashAt);
@@ -161,14 +156,31 @@ export function withMingoDialog(url: string, dialogId: string | null): string {
   const path = queryAt === -1 ? withoutHash : withoutHash.slice(0, queryAt);
   const params = new URLSearchParams(queryAt === -1 ? '' : withoutHash.slice(queryAt + 1));
 
-  if (dialogId === null) {
-    params.delete(MINGO_DIALOG_PARAM);
+  if (value === null) {
+    params.delete(name);
   } else {
-    params.set(MINGO_DIALOG_PARAM, dialogId);
+    params.set(name, value);
   }
 
   const serialized = params.toString();
   return `${path}${serialized ? `?${serialized}` : ''}${hash}`;
+}
+
+/** Add (or, with `null`, remove) {@link MINGO_DIALOG_PARAM}; see {@link withOverlayParam}. */
+export function withMingoDialog(url: string, dialogId: string | null): string {
+  return withOverlayParam(url, MINGO_DIALOG_PARAM, dialogId);
+}
+
+/**
+ * Reload stamp read by Overview's logs table and the Agent Logs tab: an overlay
+ * param riding the URL already showing. Write-once — one writer, readers only
+ * compare it (ROUTES.md § Cross-cutting overlay params).
+ */
+export const DEVICE_LOGS_REFRESH_PARAM = 'refresh';
+
+/** Stamp (or, with `null`, clear) {@link DEVICE_LOGS_REFRESH_PARAM}; see {@link withOverlayParam}. */
+export function withDeviceLogsRefresh(url: string, stamp: number | null): string {
+  return withOverlayParam(url, DEVICE_LOGS_REFRESH_PARAM, stamp === null ? null : String(stamp));
 }
 
 // --------------------------------------------------------------------------
