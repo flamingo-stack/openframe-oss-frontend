@@ -183,6 +183,7 @@ function InitialSetupCardContent() {
             completing={completing}
             onComplete={onComplete}
             onCompleteBackground={() => completeTenantStepInBackground(TenantOnboardingStep.MEET_MINGO)}
+            expanded={expandedOf(step)}
           />
         );
       default:

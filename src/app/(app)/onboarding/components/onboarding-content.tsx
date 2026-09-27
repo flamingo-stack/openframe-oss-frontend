@@ -43,6 +43,9 @@ type StepBodyProps = {
   completing?: boolean;
   onComplete?: () => void;
   onCompleteBackground?: () => void;
+  /** The row is open. Bodies stay mounted while collapsed (the accordion
+   *  animates height), so a demo video plays only while this is true. */
+  expanded?: boolean;
 };
 
 /**
@@ -265,6 +268,7 @@ function LoadedOnboardingContent() {
                   completing={completingOf(item.step)}
                   onComplete={completeOf(item.step)}
                   onCompleteBackground={completeBackgroundOf(item.step)}
+                  expanded={expandedOf(item.step)}
                 />
               </OnboardingAccordionItem>
             );
