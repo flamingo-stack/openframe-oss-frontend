@@ -11,6 +11,7 @@ import {
 import { BenefitCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useState } from 'react';
+import { HUB_PUBLIC_API } from '@/lib/hub-public-api';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 import { clearStoredRedditClickId, getStoredRedditClickId } from '@/lib/reddit-click-id';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -26,7 +27,7 @@ export function AuthBenefitsSection() {
       setIsSubmitting(true);
       try {
         const rdtCid = getStoredRedditClickId();
-        const response = await fetch('https://content-api.openframe.ai/api/waitlist', {
+        const response = await fetch(`${HUB_PUBLIC_API}/waitlist`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -25,7 +25,7 @@ import {
 import { notFound } from 'next/navigation';
 import { type ReactNode, useContext, useMemo } from 'react';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { HELP_CENTER_ENDPOINTS } from './endpoints';
+import { CONTENT_ENDPOINTS } from './endpoints';
 import { composeOpenframeInAppContentUrl } from './help-center-content-href';
 
 // NOTE: the lib `PageShell`'s padding is overridden with OpenFrame's host grid
@@ -94,9 +94,9 @@ export function HelpCenterRuntimeProvider({ children }: { children: ReactNode })
   // EndpointsRuntime: the authed ticket create form wraps the lib `<ContactForm>`,
   // which calls `useRequiredEndpointsRuntime()` unconditionally — so this provider
   // must wrap the subtree or the form throws once identity resolves to a session.
-  // (`HELP_CENTER_ENDPOINTS` is a stable module constant; no memo needed.)
+  // (`CONTENT_ENDPOINTS` is a stable module constant; no memo needed.)
   return (
-    <EndpointsRuntimeContext.Provider value={HELP_CENTER_ENDPOINTS}>
+    <EndpointsRuntimeContext.Provider value={CONTENT_ENDPOINTS}>
       <ChatRuntimeContext.Provider value={runtime}>{children}</ChatRuntimeContext.Provider>
     </EndpointsRuntimeContext.Provider>
   );

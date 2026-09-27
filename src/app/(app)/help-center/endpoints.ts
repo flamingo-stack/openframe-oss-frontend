@@ -112,6 +112,9 @@ export const EP = {
 /**
  * EndpointsRuntime for the lib's contact / access-code / announcement surfaces.
  *
+ * `announcementsUrl` feeds the app shell's `<AnnouncementTopBar>` (the lib
+ * `<AnnouncementBar>` self-fetches the platform's active announcement from it).
+ *
  * Help Center mounts only ONE of these: the authed ticket create form, which
  * wraps the lib `<ContactForm>`. `<ContactForm>` calls `useContactSubmission`
  * (→ `useRequiredEndpointsRuntime()`) UNCONDITIONALLY at the top of render —
@@ -125,8 +128,8 @@ export const EP = {
  * module constant (not rebuilt per render) — safe to pass straight to the
  * provider with no `useMemo`.
  */
-export const HELP_CENTER_ENDPOINTS: EndpointsRuntime = {
-  announcementsUrl: `${CONTENT}/announcements`,
+export const CONTENT_ENDPOINTS: EndpointsRuntime = {
+  announcementsUrl: `${CONTENT}/announcements/active`,
   accessCode: {
     validateUrl: `${CONTENT}/validate-access-code`,
     consumeUrl: `${CONTENT}/consume-access-code`,
