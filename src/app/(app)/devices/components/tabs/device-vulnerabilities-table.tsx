@@ -51,8 +51,6 @@ interface DeviceVulnerabilitiesTableProps {
   debouncedSearch: string;
   /** True while a refetch is in flight — guards the empty state so it never flashes on stale data. */
   isPending: boolean;
-  /** Rows lead into the CVE's page in the Software module — only when the tenant has the module. */
-  linksEnabled: boolean;
   /** Drawn for a device with no CVE; the tab picks the copy from the pipeline's stage. */
   emptyState: ReactNode;
   /** No CVE at all (not a search miss) — the tab drops its toolbar and banner. */
@@ -65,7 +63,6 @@ export function DeviceVulnerabilitiesTable({
   machineId,
   debouncedSearch,
   isPending,
-  linksEnabled,
   emptyState,
   onEmptyChange,
   stickyHeaderOffset,
@@ -94,7 +91,6 @@ export function DeviceVulnerabilitiesTable({
       totalCount={data.deviceVulnerabilities.filteredCount}
       debouncedSearch={debouncedSearch}
       isPending={isPending}
-      linksEnabled={linksEnabled}
       emptyState={emptyState}
       onEmptyChange={onEmptyChange}
       stickyHeaderOffset={stickyHeaderOffset}
