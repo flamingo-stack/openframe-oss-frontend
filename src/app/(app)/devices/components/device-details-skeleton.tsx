@@ -2,7 +2,6 @@
 
 import {
   type ActionsMenuGroup,
-  Input,
   type PageActionButton,
   PageLayout,
   TabNavigation,
@@ -11,31 +10,18 @@ import {
   ArrowRightUpIcon,
   BracketCurlyIcon,
   ComputerMouseIcon,
-  SearchIcon,
   TerminalIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  type ColumnDef,
-  DataTable,
-  Skeleton,
-  useDataTable,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useMemo } from 'react';
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
-import { SOFTWARE_LIST_TABLE_COLUMNS } from '@/app/(app)/software/components/software-list/software-list-columns';
-import { VULNERABILITY_LIST_TABLE_COLUMNS } from '@/app/(app)/software/components/vulnerability-list/vulnerability-list-columns';
 import { DEVICE_TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
-import {
-  PoliciesTable,
-  type PolicyTableRow,
-  QueriesTable,
-  type QueryTableRow,
-  skeletonColumnDefs,
-  type TableSkeletonColumn,
-} from '@/app/components/shared';
-import { DEVICE_TAB_SKELETON_ROWS, REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS } from './tabs/device-tab-columns';
+import { PoliciesTable, type PolicyTableRow, QueriesTable, type QueryTableRow } from '@/app/components/shared';
+import { REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS } from './tabs/device-tab-columns';
 import { useDeviceTabs } from './tabs/device-tabs';
+import { SoftwareTabSkeleton } from './tabs/software-tab';
+import { SearchInputSkeleton, TableTabSkeleton } from './tabs/table-tab-skeleton';
+import { VulnerabilitiesTabSkeleton } from './tabs/vulnerabilities-tab';
 
 const noop = () => {};
 
@@ -196,49 +182,6 @@ function InfoCardSkeleton({
         ))}
         {showProgress && <Skeleton className="h-1.5 w-full rounded-full" />}
       </div>
-    </div>
-  );
-}
-
-/**
- * The REAL search input — fixed chrome, so we render the actual core `Input` (enabled, icon +
- * placeholder) during load instead of a grey bar, matching the tab's live search field.
- */
-function SearchInputSkeleton({ placeholder }: { placeholder: string }) {
-  return (
-    <Input
-      placeholder={placeholder}
-      className="w-full"
-      startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
-    />
-  );
-}
-
-const EMPTY_TABLE_ROWS: unknown[] = [];
-
-/**
- * Standard table-tab skeleton — the app-wide loading pattern (see `customer-details-skeleton`):
- * a search bar + an empty real `DataTable` with `loading`, which renders the real
- * `DataTableSkeleton` (all columns, correct header height, responsive condensing). Headers are
- * rendered for real; the search input is a plain bar (not a disabled input).
- */
-function TableTabSkeleton({ columns, placeholder }: { columns: readonly TableSkeletonColumn[]; placeholder: string }) {
-  const colDefs = useMemo<ColumnDef<unknown>[]>(() => skeletonColumnDefs<unknown>(columns), [columns]);
-
-  const table = useDataTable<unknown>({
-    data: EMPTY_TABLE_ROWS,
-    columns: colDefs,
-    getRowId: () => '',
-    enableSorting: false,
-  });
-
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <SearchInputSkeleton placeholder={placeholder} />
-      <DataTable table={table}>
-        <DataTable.Header />
-        <DataTable.Body loading skeletonRows={DEVICE_TAB_SKELETON_ROWS} emptyMessage="" rowClassName="mb-1" />
-      </DataTable>
     </div>
   );
 }
@@ -540,14 +483,6 @@ function AgentsTabSkeleton() {
 
 function UsersTabSkeleton() {
   return <TableTabSkeleton columns={USERS_TAB_COLUMNS} placeholder="Search for User" />;
-}
-
-function SoftwareTabSkeleton() {
-  return <TableTabSkeleton columns={SOFTWARE_LIST_TABLE_COLUMNS} placeholder="Search for Software" />;
-}
-
-function VulnerabilitiesTabSkeleton() {
-  return <TableTabSkeleton columns={VULNERABILITY_LIST_TABLE_COLUMNS} placeholder="Search for Vulnerability" />;
 }
 
 /**

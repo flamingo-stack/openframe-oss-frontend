@@ -55,6 +55,9 @@ export const FEATURE_FLAG_NAMES = [
   // install / update runs) and its two Mingo context kinds (SOFTWARE and
   // VULNERABILITY). Off = no sidebar entry, every `/software` route 404s, the
   // picker offers neither kind; a mention already in a chat still renders.
+  // Also which list a device's Software / Vulnerabilities tabs draw: the
+  // module's tables over `deviceSoftware` / `deviceVulnerabilities` when on,
+  // the Fleet host payload when off (`devices/components/tabs/software-tab.tsx`).
   'software-management',
   // "Compact Chat Memory" in the Mingo chat ⋯ menus: summarizes a
   // dialog's AI context on demand. Off = the item is absent; auto-compaction is
