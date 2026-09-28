@@ -117,10 +117,6 @@ function payloadDialogId(payload: NatsNotificationPayload): string | null {
   return payloadAttributes(payload)[NOTIFICATION_ATTR.dialogId] ?? null;
 }
 
-function payloadTicketId(payload: NatsNotificationPayload): string | null {
-  return payloadAttributes(payload)[NOTIFICATION_ATTR.ticketId] ?? null;
-}
-
 /**
  * Write the notification's `type` + `attributes` onto the store record.
  *
@@ -594,11 +590,9 @@ function maybeShowDesktopNotification(
     title,
     createdAt: Date.now(),
     category: payload.category,
-    meta: {
-      notificationType: payload.type,
-      dialogId: payloadDialogId(payload) ?? undefined,
-      ticketId: payloadTicketId(payload) ?? undefined,
-    },
+    // Every attribute, as `mapNotificationNode` does — the route mapping picks the ids it
+    // knows, and a hand-picked subset here silently drops any entity added later.
+    meta: { ...payloadAttributes(payload), notificationType: payload.type },
   });
 
   try {

@@ -4,24 +4,15 @@ import { Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-c
 import { Loading01Icon, ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
-import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
-import { useEffectiveDeviceRemoteAccessMode } from '../../hooks/use-remote-access-policy';
 import { useRemoteSession } from '../../hooks/use-remote-session';
-import { mockRemoteAccessDecision } from '../../services/remote-access-approval-service';
 import { RemoteAccessSessionProvider } from './remote-access-session-context';
 
 interface RemoteAccessGateProps {
   deviceId: string;
   /** Hostname when known - used in the copy; falls back to "this device". */
   deviceName?: string;
-  /**
-   * Pass when known: the mock policy resolution needs it for the per-customer
-   * override to apply (the real API derives it server-side).
-   */
-  organizationId?: string;
   /**
    * Optional context for the request (a reason is never required) - e.g.
    * prefilled when the technician connects from a ticket.
@@ -46,8 +37,8 @@ function formatRemaining(expiresAt: string, nowMs: number): string {
  * session component in `children` mounts only after the
  * end user approves, so no tunnel effect can fire early. Until then this
  * renders the flow's own page - awaiting (with countdown + cancel), denied /
- * timed out / error. The request fires as soon as the policy is known: there
- * is no reason step (a reason is never required).
+ * timed out / error. The request fires on mount: there is no reason step (a
+ * reason is never required), and the server resolves the policy inside create.
  *
  * Remote shell and file manager are outside the epic's scope and are not
  * gated - the wire `sessionKind` is always 'desktop'.
@@ -59,39 +50,16 @@ function formatRemaining(expiresAt: string, nowMs: number): string {
  * the app's existing overlay/empty-state patterns; the designer pass can
  * restyle without touching the flow.
  */
-export function RemoteAccessGate({
-  deviceId,
-  deviceName,
-  organizationId,
-  reason,
-  onBack,
-  children,
-}: RemoteAccessGateProps) {
+export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, children }: RemoteAccessGateProps) {
   const gate = useRemoteAccessApprovalGate();
-  // The dev server forces the gate on before the flags answer; the request
-  // must still wait for them, because `remote-access-approval-api` decides
-  // which backend it is created on.
-  const flagsReady = useFeatureFlagsReady();
-  const approval = useRemoteAccessApproval(deviceId, organizationId);
-  // Temporary QA tooling for the mock service; appearing late is fine here.
-  const showMockTools = useRemoteAccessMockTools();
+  const approval = useRemoteAccessApproval(deviceId);
 
-  // Policy sync: the effective mode decides the flow shape -
-  // DENY_ACCESS never requests, NOTIFY_ONLY / SILENT_ACCESS auto-approve on
-  // the service side. The pre-read exists for the mock only: the real API
-  // resolves the policy inside create and answers DENIED with the mode
-  // recorded, so against it the response is the only source of truth.
-  const effectiveMode = useEffectiveDeviceRemoteAccessMode(
-    approval.isMock ? { machineId: deviceId, id: deviceId, organizationId } : null,
-  );
-  const policyLoading = gate === 'on' && (!flagsReady || (approval.isMock && effectiveMode === undefined));
-  // Either the mock policy read says DENY up front, or create came back
-  // DENIED by policy (DENY_ACCESS recorded as the resolved mode).
-  const policyDenied =
-    (approval.isMock && effectiveMode === 'DENY_ACCESS') ||
-    (approval.request?.status === 'DENIED' && approval.request.mode === 'DENY_ACCESS');
+  // The policy decides the flow shape on the server: DENY_ACCESS answers
+  // DENIED with the mode recorded, NOTIFY_ONLY / SILENT_ACCESS approve at
+  // once, APPROVAL_REQUIRED waits for the end user.
+  const policyDenied = approval.request?.status === 'DENIED' && approval.request.mode === 'DENY_ACCESS';
 
-  // Nothing to type - fire the request as soon as the policy is known. Keyed
+  // Nothing to type - fire the request as soon as the gate is on. Keyed
   // off `state === 'idle'` rather than a one-shot flag: StrictMode's dev
   // effect replay aborts the first in-flight create (the hook's attempt
   // guard), and a flag would then block the retry forever. The
@@ -100,10 +68,10 @@ export function RemoteAccessGate({
   // (the awaiting screen navigates back right after).
   const suppressAutoRef = useRef(false);
   useEffect(() => {
-    if (gate !== 'on' || policyLoading || policyDenied) return;
+    if (gate !== 'on' || policyDenied) return;
     if (approval.state !== 'idle' || suppressAutoRef.current) return;
     approval.requestAccess(reason);
-  }, [gate, policyLoading, policyDenied, reason, approval]);
+  }, [gate, policyDenied, reason, approval]);
 
   // One ticking clock for the awaiting countdown.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -118,7 +86,7 @@ export function RemoteAccessGate({
   if (gate === 'loading') return <CompactPageLoader />;
   if (approval.state === 'approved') {
     return (
-      <ApprovedSessionScope deviceId={deviceId} requestId={approval.request?.requestId ?? null} live={!approval.isMock}>
+      <ApprovedSessionScope deviceId={deviceId} requestId={approval.request?.requestId ?? null}>
         {children}
       </ApprovedSessionScope>
     );
@@ -132,9 +100,7 @@ export function RemoteAccessGate({
   };
 
   let body: ReactNode;
-  if (policyLoading) {
-    body = <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />;
-  } else if (policyDenied) {
+  if (policyDenied) {
     // Designer decision: DENY_ACCESS disables the entry points in place; this
     // screen only exists for direct URLs, which never passed through a menu.
     body = (
@@ -183,40 +149,6 @@ export function RemoteAccessGate({
         >
           Cancel Request
         </Button>
-        {approval.isMock && showMockTools && request && (
-          <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)] rounded-md border border-dashed border-ods-border p-[var(--spacing-system-sf)]">
-            <span className="text-ods-text-muted text-h6">Mock service - simulate the end user's decision</span>
-            <div className="flex items-stretch gap-[var(--spacing-system-xsf)]">
-              <Button
-                type="button"
-                variant="outline"
-                size="small"
-                fullWidth
-                onClick={() => mockRemoteAccessDecision(request.requestId, 'APPROVED')}
-              >
-                Approve
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="small"
-                fullWidth
-                onClick={() => mockRemoteAccessDecision(request.requestId, 'DENIED')}
-              >
-                Deny
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="small"
-                fullWidth
-                onClick={() => mockRemoteAccessDecision(request.requestId, 'TIMED_OUT')}
-              >
-                Timeout
-              </Button>
-            </div>
-          </div>
-        )}
       </>
     );
   } else if (approval.state === 'denied') {
@@ -307,24 +239,18 @@ export function RemoteAccessGate({
 /**
  * Mounted for the approved session only: resolves the backend session record
  * behind the request (its id ends the session, its dialog id feeds the chat)
- * and hands it to the surface. On the mock there is no record; the surface
- * then runs without lifecycle events, as before.
+ * and hands it to the surface.
  */
 function ApprovedSessionScope({
   deviceId,
   requestId,
-  live,
   children,
 }: {
   deviceId: string;
   requestId: string | null;
-  live: boolean;
   children: ReactNode;
 }) {
-  const { session, ended, endSession } = useRemoteSession(deviceId, requestId, live);
-  const value = useMemo(
-    () => ({ requestId, live, session, ended, endSession }),
-    [requestId, live, session, ended, endSession],
-  );
+  const { session, ended, endSession } = useRemoteSession(deviceId, requestId);
+  const value = useMemo(() => ({ requestId, session, ended, endSession }), [requestId, session, ended, endSession]);
   return <RemoteAccessSessionProvider value={value}>{children}</RemoteAccessSessionProvider>;
 }

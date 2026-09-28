@@ -32,9 +32,9 @@ interface UseDeviceActionsMenuOptions {
   /** When true, after delete success also navigate to `/devices`. Composes with onActionComplete. */
   navigateOnDestructive?: boolean;
   /**
-   * Where the menu renders. In a table row the remote access policy is not
-   * pre-read against the real API (one request per row until the field rides
-   * in the list query); the connect flow answers DENY_ACCESS on entry instead.
+   * Where the menu renders. A table row does not read the remote access policy
+   * itself: the table reads it for a page of rows at a time
+   * (`useRowRemoteAccessPolicies`), and the row watches the result.
    */
   policyContext?: 'page' | 'row';
 }

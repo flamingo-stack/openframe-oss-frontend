@@ -4,8 +4,7 @@
 // PENDING -> DELIVERED -> APPROVED | DENIED | TIMED_OUT | REVOKED; the
 // technician learns the decision from the REMOTE_ACCESS_DECISION event on
 // `user.<technicianUserId>.notification` with a status-GET poll every 2 s as
-// the fallback. The real client
-// (remote-access-approval-api-service.ts) and the in-memory mock both produce
+// the fallback. The client (remote-access-approval-api-service.ts) produces
 // these shapes.
 
 /** Which MeshCentral surface the technician is trying to open. */
@@ -67,12 +66,6 @@ export interface CreateRemoteAccessRequestInput {
   reason?: string;
   /** When the technician connects from a ticket; the backend resolves the number. */
   ticketId?: string;
-  /**
-   * Mock-only resolution hint: the real API derives the device's organization
-   * server-side; the in-memory mock has no device registry, so callers that
-   * know the organization pass it for the org-level override to apply.
-   */
-  organizationId?: string;
 }
 
 /**
