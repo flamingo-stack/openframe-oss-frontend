@@ -19,7 +19,7 @@ import {
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import type { DeviceDetailTab } from '@/lib/routes';
-import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
+import { useSessionRecordingsGate } from '../../hooks/use-session-recordings-gate';
 import { AgentsTab } from './agents-tab';
 import { HardwareTab } from './hardware-tab';
 import { IncidentsTab } from './incidents-tab';
@@ -132,13 +132,13 @@ export const ALL_DEVICE_TABS: TabItem[] = [
 ];
 
 /**
- * Tabs shown for a device. Remote Sessions is gated on the 'remote-access-approval'
- * flag (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
+ * Tabs shown for a device. Remote Sessions is gated on the session recordings
+ * gate (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
  * 'loading' and 'off' both hide a tab, so it only ever appears when the feature
  * is actually on.
  */
 export function useDeviceTabs(): TabItem[] {
-  const recordingsGate = useRemoteAccessApprovalGate();
+  const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
   return ALL_DEVICE_TABS.filter(
     tab =>

@@ -23,21 +23,17 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   'test-clock',
   'download-apps',
-  // MeshCentral attended remote access: the approval-gated
-  // connect flow, the remote access policy UI and the session recordings
-  // surfaces. Off = the legacy auto-start tunnel behavior, no policy UI.
+  // MeshCentral attended remote access: the approval-gated connect flow and
+  // the remote access policy UI, both on the real API. Off = the legacy
+  // auto-start tunnel behavior, no policy UI.
   'remote-access-approval',
-  // TEMPORARY - remove together with the remote access backend (approval API,
-  // recordings storage). Shows the QA tooling that
-  // drives the mock services: the simulate-decision strip on the awaiting
-  // screen and the recording player's local .mcrec loader. On for dev / qa.
+  // The session recordings surfaces (the device's Remote Sessions tab and the
+  // recording page), on top of `remote-access-approval`. On for dev / qa,
+  // absent elsewhere until the recordings storage ships there.
+  'session-recordings',
+  // TEMPORARY - remove together with the recordings mock. Shows the recording
+  // player's local .mcrec loader (`?dev=1`). On for dev / qa.
   'remote-access-mock-tools',
-  // TEMPORARY - remove once the approval API runs on every
-  // environment. On = the approval-gated connect flow, the session lifecycle
-  // and the remote access policy screens talk to the real GraphQL API (dev,
-  // where the backend is deployed); off = the in-memory mocks that the QA
-  // tooling above drives.
-  'remote-access-approval-api',
   // The next remote access cut (v2): surfaces built ahead of their backend
   // that must stay hidden when v1 (`remote-access-approval`) reaches every
   // environment. On for dev / qa, absent elsewhere. Today: the "Remote Access
