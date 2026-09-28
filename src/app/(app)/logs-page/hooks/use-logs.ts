@@ -25,6 +25,12 @@ interface GraphQlResponse<T> {
   errors?: Array<{ message: string }>;
 }
 
+/**
+ * Centralized query key factory for logs-related queries.
+ * Other modules invalidating or referencing logs caches should import
+ * this constant instead of declaring ad-hoc literal array keys, to avoid
+ * cache invalidation drift across call sites.
+ */
 export const logsQueryKeys = {
   all: ['logs'] as const,
   list: (filters: LogFilterInput, search: string) => ['logs', 'list', filters, search] as const,
