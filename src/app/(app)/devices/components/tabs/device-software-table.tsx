@@ -82,8 +82,6 @@ interface DeviceSoftwareTableProps {
   onSelectionsChange: (next: Record<string, string[]>) => void;
   /** True while a refetch is in flight — guards the empty state so it never flashes on stale data. */
   isPending: boolean;
-  /** Rows lead into the Software module's detail page — only when the tenant has the module. */
-  linksEnabled: boolean;
   /** Drawn for a device with nothing installed; the tab picks the copy from the pipeline's stage. */
   emptyState: ReactNode;
   /** Nothing installed at all (not a search or funnel miss) — the tab drops its toolbar. */
@@ -102,7 +100,6 @@ export function DeviceSoftwareTable({
   selections,
   onSelectionsChange,
   isPending,
-  linksEnabled,
   emptyState,
   onEmptyChange,
   stickyHeaderOffset,
@@ -144,7 +141,6 @@ export function DeviceSoftwareTable({
       onSelectionsChange={onSelectionsChange}
       isFiltered={filter !== null}
       isPending={isPending}
-      linksEnabled={linksEnabled}
       emptyState={emptyState}
       onEmptyChange={onEmptyChange}
       stickyHeaderOffset={stickyHeaderOffset}

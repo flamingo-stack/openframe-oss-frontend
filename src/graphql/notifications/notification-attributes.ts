@@ -29,6 +29,7 @@ export { isApprovalNotificationType, MINGO_APPROVAL_REQUEST_TYPE, TICKET_APPROVA
 export const NOTIFICATION_ATTR = {
   ticketId: 'ticketId',
   dialogId: 'dialogId',
+  insightId: 'insightId',
   approvalRequestId: 'approvalRequestId',
   approvalType: 'approvalType',
   resolution: 'resolution',
