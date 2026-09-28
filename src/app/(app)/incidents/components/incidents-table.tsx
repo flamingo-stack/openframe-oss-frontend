@@ -21,7 +21,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchQuery, readInlineData, useLazyLoadQuery, usePaginationFragment, useRelayEnvironment } from 'react-relay';
 import type { incidentFiltersRefreshRelayQuery as IncidentFiltersRefreshQueryType } from '@/__generated__/incidentFiltersRefreshRelayQuery.graphql';
 import type { incidentsTableRelay_query$key as IncidentsFragmentKey } from '@/__generated__/incidentsTableRelay_query.graphql';
@@ -33,6 +33,7 @@ import type {
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
 import { EmptyState, liveColumnMeta, skeletonColumnDefs, useRetryKey } from '@/app/components/shared';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
+import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -59,7 +60,7 @@ import {
 } from '../utils/incident-labels';
 import { type IncidentRow, toIncidentRow, toTransitionTable } from '../utils/incident-transform';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
-import { INCIDENT_COLUMNS, INCIDENTS_TABLE_COLUMNS } from './incidents-table-columns';
+import { DEVICE_INCIDENTS_TABLE_COLUMNS, INCIDENT_COLUMNS, INCIDENTS_TABLE_COLUMNS } from './incidents-table-columns';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
 
@@ -126,6 +127,14 @@ interface IncidentsTableContentProps {
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
   stickyHeaderOffset: string;
+  /**
+   * The list is one device's (the device page's Incidents tab): the Device
+   * column and its Customer filter go, since every row names the same machine
+   * and so the same customer.
+   */
+  deviceScoped: boolean;
+  /** What a list with no incidents at all shows in place of the table. */
+  emptyState: ReactNode;
 }
 
 function IncidentsTableContent({
@@ -138,6 +147,8 @@ function IncidentsTableContent({
   mobileFilterOpen,
   onMobileFilterClose,
   stickyHeaderOffset,
+  deviceScoped,
+  emptyState,
 }: IncidentsTableContentProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
@@ -242,6 +253,30 @@ function IncidentsTableContent({
       const items = transitionMenuItems(row, transitionTable, transition, isMutating);
       return items.length > 0 ? <ActionsMenuDropdown groups={[{ items }]} /> : null;
     };
+    // The Device column filters by CUSTOMER (its second line): the API has no
+    // device facet, and a customer narrows the fleet the way a technician does.
+    const deviceColumn: ColumnDef<IncidentTableRow> = {
+      accessorKey: 'organizationId',
+      header: INCIDENT_COLUMNS.device.header,
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+        <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
+          <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+            {renderDeviceTypeIcon(row.original.deviceType ?? undefined, 'size-6 shrink-0 text-ods-text-secondary')}
+            <div className="min-w-0 flex-1">
+              <TruncateText>{row.original.deviceName}</TruncateText>
+            </div>
+          </div>
+          {row.original.organizationName && (
+            <TruncateText variant="h6" tone="secondary">
+              {row.original.organizationName}
+            </TruncateText>
+          )}
+        </div>
+      ),
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.device, { filter: { options: customerOptions } }),
+    };
     return [
       {
         accessorKey: 'type',
@@ -266,30 +301,7 @@ function IncidentsTableContent({
         filterFn: multiSelectFilterFn,
         meta: liveColumnMeta(INCIDENT_COLUMNS.incident, { filter: { options: typeOptions } }),
       },
-      {
-        // The Device column filters by CUSTOMER (its second line): the API has no
-        // device facet, and a customer narrows the fleet the way a technician does.
-        accessorKey: 'organizationId',
-        header: INCIDENT_COLUMNS.device.header,
-        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-          <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-            <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-              {renderDeviceTypeIcon(row.original.deviceType ?? undefined, 'size-6 shrink-0 text-ods-text-secondary')}
-              <div className="min-w-0 flex-1">
-                <TruncateText>{row.original.deviceName}</TruncateText>
-              </div>
-            </div>
-            {row.original.organizationName && (
-              <TruncateText variant="h6" tone="secondary">
-                {row.original.organizationName}
-              </TruncateText>
-            )}
-          </div>
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(INCIDENT_COLUMNS.device, { filter: { options: customerOptions } }),
-      },
+      ...(deviceScoped ? [] : [deviceColumn]),
       {
         accessorKey: 'severity',
         header: INCIDENT_COLUMNS.severity.header,
@@ -382,11 +394,20 @@ function IncidentsTableContent({
         meta: liveColumnMeta(INCIDENT_COLUMNS.open),
       },
     ];
-  }, [transition, transitionTable, isMutating, typeOptions, customerOptions, severityOptions, statusOptions]);
+  }, [
+    transition,
+    transitionTable,
+    isMutating,
+    typeOptions,
+    customerOptions,
+    severityOptions,
+    statusOptions,
+    deviceScoped,
+  ]);
 
   const filterGroups = [
     { id: INCIDENT_COLUMNS.incident.id, title: 'Category', options: typeOptions },
-    { id: INCIDENT_COLUMNS.device.id, title: 'Customer', options: customerOptions },
+    ...(deviceScoped ? [] : [{ id: INCIDENT_COLUMNS.device.id, title: 'Customer', options: customerOptions }]),
     { id: INCIDENT_COLUMNS.severity.id, title: 'Severity', options: severityOptions },
     { id: INCIDENT_COLUMNS.status.id, title: 'Status', options: statusOptions },
   ];
@@ -429,13 +450,7 @@ function IncidentsTableContent({
   }, [showEmptyState, onEmptyChange]);
 
   if (showEmptyState) {
-    return (
-      <EmptyState
-        icon={<AlertTriangleIcon />}
-        title="No incidents detected"
-        description="Your monitored devices are all clear"
-      />
-    );
+    return emptyState;
   }
 
   return (
@@ -494,10 +509,15 @@ function IncidentsTableContent({
 
 const EMPTY_ROWS: IncidentRow[] = [];
 
-function IncidentsTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
+interface IncidentsTableSkeletonProps {
+  layout: readonly TableSkeletonColumn[];
+  stickyHeaderOffset: string;
+}
+
+function IncidentsTableSkeleton({ layout, stickyHeaderOffset }: IncidentsTableSkeletonProps) {
   // Same layout the live table renders, trailing action columns included, so
   // the loading header reserves the same widths and stays aligned.
-  const columns = useMemo<ColumnDef<IncidentRow>[]>(() => skeletonColumnDefs<IncidentRow>(INCIDENTS_TABLE_COLUMNS), []);
+  const columns = useMemo<ColumnDef<IncidentRow>[]>(() => skeletonColumnDefs<IncidentRow>(layout), [layout]);
 
   const table = useDataTable<IncidentRow>({
     data: EMPTY_ROWS,
@@ -515,9 +535,143 @@ function IncidentsTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: st
 }
 
 // ----------------------------------------------------------------
-// Outer shell — layout + URL state + Suspense boundary
+// Outer shells — layout + URL state + Suspense boundary
 // ----------------------------------------------------------------
 
+/** The filter selections as they sit in the URL, whatever each shell names the params. */
+interface IncidentSelections {
+  type: string[];
+  organizationId: string[];
+  severity: string[];
+  status: string[];
+}
+
+interface IncidentsListProps {
+  selections: IncidentSelections;
+  search: string;
+  onSearchChange: (value: string) => void;
+  onSelectionsChange: (selections: IncidentSelections) => void;
+  machineId?: string;
+  emptyState: ReactNode;
+}
+
+/** Toolbar + table over URL state the caller owns — what the page and the device tab share. */
+function IncidentsList({
+  selections,
+  search,
+  onSearchChange,
+  onSelectionsChange,
+  machineId,
+  emptyState,
+}: IncidentsListProps) {
+  // Local search input keeps typing responsive; the shared hook debounces it to
+  // the URL param and guards the back/forward sync-down against clobbering typing.
+  const {
+    search: searchInput,
+    setSearch: setSearchInput,
+    debouncedSearch,
+  } = useSearchParam(search, onSearchChange, 300);
+
+  const [isEmpty, setIsEmpty] = useState(false);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+
+  const deviceScoped = machineId !== undefined;
+
+  // URL params are untyped strings — keep only real enum members, and hand the
+  // SAME narrowed arrays to the server filter and to the table's column state,
+  // so a stray `?status=BOGUS` cannot empty the table client-side. With no
+  // status chosen the list is the working set: everything but ARCHIVED.
+  // One memo for both: `useDeferredQuery` compares `backendFilters` by identity.
+  // The deps are the arrays, not `selections`, which the caller rebuilds every render.
+  const { type, organizationId, severity, status } = selections;
+  const { backendFilters, tableFilters } = useMemo(() => {
+    const types = enumMembers(type, InsightType);
+    const severities = enumMembers(severity, InsightSeverity);
+    const statuses = enumMembers(status, InsightStatus);
+    const filter: InsightFilter = {
+      statuses: statuses.length > 0 ? statuses : [...WORKING_SET_STATUSES],
+      ...(types.length > 0 && { types }),
+      ...(severities.length > 0 && { severities }),
+      ...(organizationId.length > 0 && { organizationIds: organizationId }),
+      ...(machineId !== undefined && { machineIds: [machineId] }),
+    };
+    return {
+      backendFilters: filter,
+      tableFilters: { type: types, organizationId, severity: severities, status: statuses },
+    };
+  }, [type, organizationId, severity, status, machineId]);
+
+  // Deferred query variables: on a filter/search interaction the table keeps
+  // rendering the current rows while the refetch is in flight, instead of
+  // dropping to the Suspense skeleton. The dropdown state (`tableFilters`) stays
+  // live so the checkboxes respond instantly.
+  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(backendFilters, debouncedSearch);
+
+  const handleFilterChange = (columnFilters: Record<string, string[]>) => {
+    onSelectionsChange({
+      type: columnFilters.type || [],
+      organizationId: columnFilters.organizationId || [],
+      severity: columnFilters.severity || [],
+      status: columnFilters.status || [],
+    });
+    // In the device tab the top of `main` is the device header, above the filter just changed.
+    if (!deviceScoped) {
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  };
+
+  return (
+    <div className="flex flex-col" style={containerStyle}>
+      {!isEmpty && (
+        <div
+          ref={toolbarRef}
+          className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex gap-[var(--spacing-system-xs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
+        >
+          <Input
+            placeholder="Search for Incidents"
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            startAdornment={<SearchIcon className="size-4 md:size-6" />}
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setMobileFilterOpen(true)}
+            aria-label="Open filters"
+            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+          />
+        </div>
+      )}
+
+      <Suspense
+        fallback={
+          <IncidentsTableSkeleton
+            layout={deviceScoped ? DEVICE_INCIDENTS_TABLE_COLUMNS : INCIDENTS_TABLE_COLUMNS}
+            stickyHeaderOffset={stickyHeaderOffset}
+          />
+        }
+      >
+        <IncidentsTableContent
+          backendFilters={deferredFilters}
+          debouncedSearch={deferredSearch}
+          tableFilters={tableFilters}
+          isPending={isPending}
+          onFilterChange={handleFilterChange}
+          onEmptyChange={setIsEmpty}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+          stickyHeaderOffset={stickyHeaderOffset}
+          deviceScoped={deviceScoped}
+          emptyState={emptyState}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+/** The Incidents page: every device's incidents. */
 export function IncidentsTable() {
   const { params, setParam, setParams } = useApiParams({
     search: { type: 'string', default: '' },
@@ -527,98 +681,66 @@ export function IncidentsTable() {
     status: { type: 'array', default: [] },
   });
 
-  // Local search input keeps typing responsive; the shared hook debounces it to
-  // the URL param and guards the back/forward sync-down against clobbering typing.
-  const {
-    search: searchInput,
-    setSearch: setSearchInput,
-    debouncedSearch,
-  } = useSearchParam(params.search, value => setParam('search', value), 300);
-
-  const [isEmpty, setIsEmpty] = useState(false);
-  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-  const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
-
-  // URL params are untyped strings — keep only real enum members, and hand the
-  // SAME narrowed arrays to the server filter and to the table's column state,
-  // so a stray `?status=BOGUS` cannot empty the table client-side. With no
-  // status chosen the list is the working set: everything but ARCHIVED.
-  // One memo for both: `useDeferredQuery` compares `backendFilters` by identity.
-  const { backendFilters, tableFilters } = useMemo(() => {
-    const types = enumMembers(params.type, InsightType);
-    const severities = enumMembers(params.severity, InsightSeverity);
-    const statuses = enumMembers(params.status, InsightStatus);
-    const filter: InsightFilter = {
-      statuses: statuses.length > 0 ? statuses : [...WORKING_SET_STATUSES],
-      ...(types.length > 0 && { types }),
-      ...(severities.length > 0 && { severities }),
-      ...(params.organizationId.length > 0 && { organizationIds: params.organizationId }),
-    };
-    return {
-      backendFilters: filter,
-      tableFilters: { type: types, organizationId: params.organizationId, severity: severities, status: statuses },
-    };
-  }, [params.type, params.severity, params.status, params.organizationId]);
-
-  // Deferred query variables: on a filter/search interaction the table keeps
-  // rendering the current rows while the refetch is in flight, instead of
-  // dropping to the Suspense skeleton. The dropdown state (`tableFilters`) stays
-  // live so the checkboxes respond instantly.
-  const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(backendFilters, debouncedSearch);
-
-  const handleFilterChange = (columnFilters: Record<string, string[]>) => {
-    setParams({
-      type: columnFilters.type || [],
-      organizationId: columnFilters.organizationId || [],
-      severity: columnFilters.severity || [],
-      status: columnFilters.status || [],
-    });
-    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' });
-  };
-
-  const mobileFilterButton = (
-    <Button
-      variant="outline"
-      size="icon"
-      className="md:hidden"
-      onClick={() => setMobileFilterOpen(true)}
-      aria-label="Open filters"
-      leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-    />
-  );
-
   return (
     <PageLayout title="Incidents" className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <div className="flex flex-col" style={containerStyle}>
-        {!isEmpty && (
-          <div
-            ref={toolbarRef}
-            className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex gap-[var(--spacing-system-xs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
-          >
-            <Input
-              placeholder="Search for Incidents"
-              value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
-              startAdornment={<SearchIcon className="size-4 md:size-6" />}
-            />
-            {mobileFilterButton}
-          </div>
-        )}
-
-        <Suspense fallback={<IncidentsTableSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
-          <IncidentsTableContent
-            backendFilters={deferredFilters}
-            debouncedSearch={deferredSearch}
-            tableFilters={tableFilters}
-            isPending={isPending}
-            onFilterChange={handleFilterChange}
-            onEmptyChange={setIsEmpty}
-            mobileFilterOpen={mobileFilterOpen}
-            onMobileFilterClose={() => setMobileFilterOpen(false)}
-            stickyHeaderOffset={stickyHeaderOffset}
+      <IncidentsList
+        selections={params}
+        search={params.search}
+        onSearchChange={value => setParam('search', value)}
+        onSelectionsChange={setParams}
+        emptyState={
+          <EmptyState
+            icon={<AlertTriangleIcon />}
+            title="No incidents detected"
+            description="Your monitored devices are all clear"
           />
-        </Suspense>
-      </div>
+        }
+      />
     </PageLayout>
+  );
+}
+
+// The device tab has no Customer filter; a stable empty list keeps the filter memo quiet.
+const NO_ORGANIZATIONS: string[] = [];
+
+interface DeviceIncidentsTableProps {
+  /** Raw `Machine.machineId` — what `InsightFilter.machineIds` takes. */
+  machineId: string;
+  emptyState: ReactNode;
+}
+
+/**
+ * One device's incidents, for the device page's Incidents tab. Its URL params
+ * carry an `incidents` prefix: they share the query string with the device
+ * page's own (`id`, `tab`) and with the other tabs' lists.
+ */
+export function DeviceIncidentsTable({ machineId, emptyState }: DeviceIncidentsTableProps) {
+  const { params, setParam, setParams } = useApiParams({
+    incidentsSearch: { type: 'string', default: '' },
+    incidentsType: { type: 'array', default: [] },
+    incidentsSeverity: { type: 'array', default: [] },
+    incidentsStatus: { type: 'array', default: [] },
+  });
+
+  return (
+    <IncidentsList
+      selections={{
+        type: params.incidentsType,
+        organizationId: NO_ORGANIZATIONS,
+        severity: params.incidentsSeverity,
+        status: params.incidentsStatus,
+      }}
+      search={params.incidentsSearch}
+      onSearchChange={value => setParam('incidentsSearch', value)}
+      onSelectionsChange={selections =>
+        setParams({
+          incidentsType: selections.type,
+          incidentsSeverity: selections.severity,
+          incidentsStatus: selections.status,
+        })
+      }
+      machineId={machineId}
+      emptyState={emptyState}
+    />
   );
 }
