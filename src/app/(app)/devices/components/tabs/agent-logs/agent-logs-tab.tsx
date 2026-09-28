@@ -39,7 +39,7 @@ interface AgentLogsTabProps {
 }
 
 /**
- * Device details → Agent Logs (CU-86agb21qt), newest first. Filter state rides
+ * Device details → Agent Logs, newest first. Filter state rides
  * the URL under `log*` keys so it never collides with the Overview tab's own
  * logs table.
  */
@@ -58,7 +58,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   });
 
   const { search, setSearch } = useSearchParam(params.logSearch, value => setParam('logSearch', value));
-  // Seeded EMPTY: a shared link can carry a search the limits reject (FE-12). The
+  // Seeded EMPTY: a shared link can carry a search the limits reject. The
   // query follows the URL's (debounced) text only while it parses, so a rejection
   // holds — and a reset clears it in the same render as the other filters.
   const liveSearch = parseDeviceLogSearch(search);
@@ -135,7 +135,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   const { deferredFilters: deferredList, isPending } = useDeferredQuery(list, '');
 
   // Published by the boundary's fallback: a search the WAF rejected belongs at
-  // the box, not over the list (spec §8).
+  // the box, not over the list.
   const [serverSearchError, setServerSearchError] = useState<string | null>(null);
   const [autoUpdate, setAutoUpdate] = useState(true);
   // From the DEFERRED list: its errors are the ones being classified.

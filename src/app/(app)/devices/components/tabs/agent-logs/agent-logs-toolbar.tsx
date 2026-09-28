@@ -26,7 +26,7 @@ import {
 interface AgentLogsToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
-  /** Why the typed text will not be sent — shown under the box (spec FE-12). */
+  /** Why the typed text will not be sent — shown under the box. */
   searchError: string | null;
   /** Empty = every level (the chips all read "on"). */
   selectedLevels: ReadonlyArray<DeviceLogLevel>;
@@ -46,7 +46,7 @@ interface AgentLogsToolbarProps {
 }
 
 /**
- * Figma `696:38908` (search + Auto-Update) plus the spec's level chips and
+ * The search box and Auto-Update toggle, plus the level chips and
  * time-range presets on a second row. Lives outside the list's Suspense so the
  * search box keeps focus across re-queries.
  */

@@ -34,7 +34,7 @@ export function exceedsTailLimit(store: RecordSourceProxy, connectionId: string)
 }
 
 /**
- * The row key: the edge cursor is unique per line within one answer (FE-24) and the
+ * The row key: the edge cursor is unique per line within one answer and the
  * tail only adds strictly newer instants, so the pair is unique across the merged
  * list. A reload that writes another line into the same record changes it.
  */

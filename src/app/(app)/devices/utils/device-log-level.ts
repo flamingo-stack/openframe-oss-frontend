@@ -10,7 +10,7 @@ export const DEVICE_LOG_LEVELS: readonly DeviceLogLevel[] = [
   DeviceLogLevel.ERROR,
 ];
 
-/** Colour AND text per FE-5 — the chip label stays the reported level, only the skin is mapped. */
+/** Colour AND text, never colour alone — the chip label stays the reported level, only the skin is mapped. */
 const DEVICE_LOG_LEVEL_VARIANT: Record<DeviceLogLevel, NonNullable<TagProps['variant']>> = {
   [DeviceLogLevel.DEBUG]: 'outline',
   [DeviceLogLevel.INFO]: 'grey',

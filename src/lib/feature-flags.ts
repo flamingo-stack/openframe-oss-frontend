@@ -57,7 +57,7 @@ export const FEATURE_FLAG_NAMES = [
   // module's tables over `deviceSoftware` / `deviceVulnerabilities` when on,
   // the Fleet host payload when off (`devices/components/tabs/software-tab.tsx`).
   'software-management',
-  // The Agent Logs tab on device details (CU-86agb21qt); off, "Device Logs" keeps
+  // The Agent Logs tab on device details; off, "Device Logs" keeps
   // leading to Overview. The `deviceLogs` query exists only on tenants running
   // oss-lib >= #2188, so the tab stays dark until the backend registers the name.
   'device-agent-logs',

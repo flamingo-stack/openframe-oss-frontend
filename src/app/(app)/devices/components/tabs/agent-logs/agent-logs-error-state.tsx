@@ -11,12 +11,12 @@ interface AgentLogsErrorStateProps {
   error: unknown;
   hasSearch: boolean;
   retry: () => void;
-  /** Lifts a server-rejected search to the box that caused it (spec §8). */
+  /** Lifts a server-rejected search to the box that caused it. */
   onSearchRejected?: (message: string | null) => void;
 }
 
 /**
- * The list's failed state, chosen by `extensions.code` (spec §8): a vanished
+ * The list's failed state, chosen by `extensions.code`: a vanished
  * device is an empty state without Retry, a rejected filter or search text is
  * a message the user fixes at the control, everything else offers Retry.
  */
@@ -39,7 +39,7 @@ export function AgentLogsErrorState({ error, hasSearch, retry, onSearchRejected 
           description="This device no longer exists or belongs to another workspace."
         />
       );
-    // §8 forbids a blank list here: the message now sits at the search box, so
+    // Never a blank list here: the message now sits at the search box, so
     // the list says what to do next instead of showing the failure twice.
     case 'search-rejected':
       return (

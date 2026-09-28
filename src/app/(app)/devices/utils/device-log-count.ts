@@ -1,5 +1,5 @@
 /**
- * FE-7's rule, and the `Long` coercion with it: the scalar is unmapped (`any`
+ * The repeat-badge rule, and the `Long` coercion with it: the scalar is unmapped (`any`
  * in the Relay artifact) and a 64-bit int may arrive as a string. Below 2 is
  * null, so a `×1` chip can never render.
  */

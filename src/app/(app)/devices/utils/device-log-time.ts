@@ -110,7 +110,7 @@ function splitInstant(instant: string): { millis: number; fraction: string } | n
 }
 
 /**
- * The row's time column (spec §4) in the viewer's zone, like every time in the
+ * The row's time column in the viewer's zone, like every time in the
  * app. The fraction is copied from the wire padded to nanoseconds — `Date` keeps
  * only milliseconds, and an unpadded column is ragged. Unparseable passes through.
  */

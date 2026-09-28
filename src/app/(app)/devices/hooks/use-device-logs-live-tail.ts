@@ -31,7 +31,7 @@ interface UseDeviceLogsLiveTailOptions {
 }
 
 /**
- * The 5-second auto-update (FE-17…FE-21): one request at a time, paused while
+ * The 5-second auto-update: one request at a time, paused while
  * hidden, scrolled away or locked, backing off after failures. What it finds
  * goes into the list's own connection, so the Relay store stays the one source.
  */

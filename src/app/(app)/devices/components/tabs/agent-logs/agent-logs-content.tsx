@@ -98,7 +98,7 @@ export interface AgentLogsList {
 
 interface AgentLogsContentProps {
   machineId: string;
-  /** FE-6 compares the line's hostname against this before showing it inline. */
+  /** A line's hostname is shown inline only when it differs from this. */
   deviceHostname: string;
   /** The DEFERRED list — the rows on screen lag the controls while a change is in flight. */
   list: AgentLogsList;
@@ -233,7 +233,7 @@ export function AgentLogsContent({
     );
   }
 
-  // The row shows a time only (spec §4), so the date heads a group per local day;
+  // The row shows a time only, so the date heads a group per local day;
   // the header names the group, so each day is its own list.
   const days = groupDeviceLogDays(edges, edge => String(edge.node.timestamp));
 

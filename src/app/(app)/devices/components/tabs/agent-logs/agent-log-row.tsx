@@ -33,7 +33,7 @@ const agentLogRowFragment = graphql`
 
 interface AgentLogRowProps {
   entry: agentLogRow_entry$key;
-  /** The device's own hostname; FE-6 shows the line's only when it differs. */
+  /** The device's own hostname; the line's is shown inline only when it differs. */
   deviceHostname: string;
 }
 
@@ -64,7 +64,7 @@ function MetaLine({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * One log line, spec §4 in the log-viewer shape: time · level · message,
+ * One log line in the log-viewer shape: time · level · message,
  * monospace throughout, truncated until the row is opened. Opening unfolds the
  * message in place on `md+`, and appends it full width below on a phone.
  */

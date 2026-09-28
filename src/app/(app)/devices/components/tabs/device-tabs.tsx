@@ -134,7 +134,7 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     component: RemoteSessionsTab,
   },
   {
-    // Last, as in Figma `696:38907`; the same glyph as the "Device Logs" menu entry.
+    // Last in the bar; the same glyph as the "Device Logs" menu entry.
     id: AGENT_LOGS_TAB_ID,
     label: 'Agent Logs',
     icon: ClipboardListIcon,
