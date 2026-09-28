@@ -12,6 +12,14 @@ import { routes } from '@/lib/routes';
 import { useCustomersOverview } from '../hooks/use-customers-overview';
 import { CustomersOverviewSkeleton } from './dashboard-skeletons';
 
+function devicesHref(organizationId: string, status?: 'ONLINE' | 'OFFLINE') {
+  const params = new URLSearchParams({ organizationIds: organizationId });
+  if (status) {
+    params.set('statuses', status);
+  }
+  return `/devices?${params.toString()}`;
+}
+
 /**
  * Organizations Overview Section
  */
@@ -75,11 +83,7 @@ export function CustomersOverviewSection() {
             showProgress
             progressVariant="success"
             percentageDisplay="plain"
-            href={
-              org.active > 0
-                ? `/devices?organizationIds=${org.organizationId}&statuses=ONLINE`
-                : `/devices?organizationIds=${org.organizationId}`
-            }
+            href={devicesHref(org.organizationId, org.active > 0 ? 'ONLINE' : undefined)}
           />
 
           {/* Inactive devices */}
@@ -90,11 +94,7 @@ export function CustomersOverviewSection() {
             showProgress
             progressVariant="error"
             percentageDisplay="plain"
-            href={
-              org.inactive > 0
-                ? `/devices?organizationIds=${org.organizationId}&statuses=OFFLINE`
-                : `/devices?organizationIds=${org.organizationId}`
-            }
+            href={devicesHref(org.organizationId, org.inactive > 0 ? 'OFFLINE' : undefined)}
           />
         </div>
       );
