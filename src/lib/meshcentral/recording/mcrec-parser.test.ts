@@ -64,6 +64,18 @@ describe('parseMcrec', () => {
     expect(parsed.baseTimeMs).toBe(T0 + 200);
   });
 
+  it('keeps the control JSON the relay writes on the desktop channel out of the replay stream', () => {
+    const control = new TextEncoder().encode(JSON.stringify({ ctrlChannel: '102938', type: 'metadata' }));
+    const parsed = parseMcrec(
+      concat([
+        metadataRecord(T0),
+        record(MCREC_RECORD_TYPE.NETWORK_DATA, 0, T0 + 10, control),
+        record(MCREC_RECORD_TYPE.NETWORK_DATA, MCREC_FLAG_BINARY, T0 + 20, new Uint8Array([0, 7, 0, 8])),
+      ]),
+    );
+    expect(parsed.agentRecords.map(r => r.timeMs - T0)).toEqual([20]);
+  });
+
   it('keeps complete records when the file is truncated mid-record', () => {
     const full = concat([
       metadataRecord(T0),

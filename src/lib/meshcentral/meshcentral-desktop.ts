@@ -875,6 +875,16 @@ export class MeshDesktop implements DesktopInputHandlers {
           // Normal: ensure full frame present
           if (view.length < totalSize) break;
         }
+        // A frame shorter than its own 4-byte header is not a frame: the stream
+        // lost alignment (a torn tail, a desynced join). Advancing by it would
+        // spin this loop forever on a size of 0, so drop what is buffered and
+        // wait for the next clean frame instead.
+        if (totalSize < 4) {
+          this.accum = new Uint8Array(0);
+          this.accumOffset = 0;
+          this.kickDecoders();
+          return;
+        }
 
         const frame = view.subarray(headerSkip, headerSkip + totalSize);
         // Now frame has a standard header at [0..3]
