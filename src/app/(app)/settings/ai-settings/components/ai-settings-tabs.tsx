@@ -9,7 +9,7 @@ import {
 import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useMemo } from 'react';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { featureFlags } from '@/lib/feature-flags';
 
 export const AI_SETTINGS_TAB_IDS = ['mingo', 'customer', 'guardrails', 'device-guardrails'] as const;
 export type AiSettingsTabId = (typeof AI_SETTINGS_TAB_IDS)[number];
@@ -47,7 +47,7 @@ const TAB_FEATURE_FLAG: Partial<Record<AiSettingsTabId, (flags: AiSettingsTabFla
  * tab set to the env defaults with nothing to recompute it.
  */
 export function useVisibleAiSettingsTabs(): TabItem[] {
-  const mingoAiChatSettings = useFeatureFlag('mingo-ai-chat-settings');
+  const mingoAiChatSettings = featureFlags.mingoAiChatSettings.enabled();
   // Tri-state gate (dev builds bypass the flag); `loading` keeps the tab hidden.
   const remoteAccessApproval = useRemoteAccessApprovalGate() === 'on';
 
