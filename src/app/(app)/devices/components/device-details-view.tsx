@@ -98,8 +98,9 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     // Clear the action param to avoid re-triggering
     const newParams = new URLSearchParams(searchParams.toString());
     newParams.delete('action');
-    router.replace(`/devices/details${newParams.toString() ? `?${newParams.toString()}` : ''}`);
-  }, [runScriptRequested, searchParams, router]);
+    const query = newParams.toString();
+    router.replace(query ? `${routes.devices.details(deviceId)}?${query}` : routes.devices.details(deviceId));
+  }, [runScriptRequested, searchParams, router, deviceId]);
 
   const normalizedDevice = deviceDetails;
 
@@ -154,7 +155,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     params.set('tab', 'overview');
     // Add timestamp to force logs refresh
     params.set('refresh', Date.now().toString());
-    router.push(`${window.location.pathname}?${params.toString()}`);
+    router.push(`${routes.devices.details(deviceId)}?${params.toString()}`);
   };
 
   if (isLoading) {
