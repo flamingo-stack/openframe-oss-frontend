@@ -2197,9 +2197,9 @@ type Mutation {
   seedTestUsage(metricType: BillingMetricType!, value: Int!): TestUsageResult!
 
   """
-  Advance this tenant's Stripe test clock by N days (dev/stage only). Attaches a clock to the customer on first call, flushes current metered usage to Stripe, then advances.
+  Advance this tenant's Stripe test clock (dev/stage only). Days and hours add up, and either may be omitted, so the clock can be stepped to either side of a Stripe cycle boundary. Attaches a clock to the customer on first call, flushes current metered usage to Stripe, then advances.
   """
-  advanceTestClock(days: Int!): TestClockResult
+  advanceTestClock(days: Int, hours: Int): TestClockResult
 
   """
   Delete this tenant's Stripe test clock (dev/stage only). Cascades to delete the customer, resetting the tenant to trial.
