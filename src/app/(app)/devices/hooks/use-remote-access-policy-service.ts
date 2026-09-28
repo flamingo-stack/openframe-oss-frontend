@@ -1,6 +1,6 @@
 'use client';
 
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { featureFlags } from '@/lib/feature-flags';
 import { remoteAccessPolicyApiService } from '../services/remote-access-policy-api-service';
 import {
   type IRemoteAccessPolicyService,
@@ -25,8 +25,9 @@ export interface RemoteAccessPolicyServiceSelection {
  * so the screens must show the same source it decides from.
  */
 export function useRemoteAccessPolicyService(): RemoteAccessPolicyServiceSelection {
-  const api = useFeatureFlagGate('remote-access-approval-api');
-  return api === 'on'
+  const api = featureFlags.remoteAccessApprovalApi.enabled();
+  return api === true
     ? { service: remoteAccessPolicyApiService, isMock: false, ready: true }
-    : { service: mockRemoteAccessPolicyService, isMock: true, ready: api === 'off' };
+    : { service: mockRemoteAccessPolicyService, isMock: true, ready: api === false };
 }
+

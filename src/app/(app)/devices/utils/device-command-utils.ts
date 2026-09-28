@@ -6,6 +6,10 @@
 import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
 import { runtimeEnv } from '@/lib/runtime-config';
 
+// NOTE: This path should be sourced from src/lib/routes.ts (OPENFRAM-001-2).
+// The current codebase snapshot available for this fix did not include the
+// contents of src/lib/routes.ts, so the constant is kept local here rather
+// than risk overwriting unseen exports in that shared module. See NOTES.
 const ASSETS_DOWNLOAD_PATH = '/v0/api/assets/download';
 
 /**

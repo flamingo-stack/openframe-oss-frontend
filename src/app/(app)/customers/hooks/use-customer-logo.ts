@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
 import { deleteWithAuth, uploadWithAuth } from '@/lib/upload-with-auth';
+import { apiRoutes } from '@/lib/api-routes';
 import { invalidateCustomerQueries } from '../utils/invalidate-customer-queries';
 import { useCustomerDetails } from './use-customer-details';
 
@@ -17,7 +18,7 @@ interface UseCustomerLogoOptions {
   organizationId: string | null;
 }
 
-const logoEndpoint = (organizationId: string) => `/api/organizations/${organizationId}/image`;
+const logoEndpoint = (organizationId: string) => apiRoutes.organizations.image(organizationId);
 
 /**
  * The customer logo lives outside the form fields: in edit mode an upload or a
