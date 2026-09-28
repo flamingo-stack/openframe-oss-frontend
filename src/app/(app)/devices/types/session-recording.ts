@@ -38,6 +38,14 @@ export interface RecordingChatMessage {
   body: string;
 }
 
+/** One `.mcrec` file of a session; a tunnel that re-pairs produces several, oldest first. */
+export interface RecordingSegment {
+  id: string;
+  /** Where the file's bytes come from; absent while it is still being stored. */
+  downloadUrl?: string;
+  sizeBytes: number | null;
+}
+
 export interface RecordingDetail extends RecordingSummary {
   /** Unknown while the device lookup has not answered or the device is gone. */
   hostname?: string;
@@ -46,7 +54,7 @@ export interface RecordingDetail extends RecordingSummary {
   /** e.g. "1280 × 720" - may be unknown until the file is decoded. */
   resolution?: string;
   loggedInUser?: string;
-  /** Where the .mcrec bytes of `recordingId` come from; absent while processing. */
-  downloadUrl?: string;
+  /** Every file of the session, oldest first; the player joins them into one timeline. */
+  segments: RecordingSegment[];
   chat: RecordingChatMessage[];
 }

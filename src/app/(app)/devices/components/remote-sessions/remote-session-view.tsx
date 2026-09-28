@@ -2,6 +2,7 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -12,7 +13,6 @@ import { routes } from '@/lib/routes';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import { useSessionRecording } from '../../hooks/use-session-recordings';
 import { useSessionRecordingsService } from '../../hooks/use-session-recordings-service';
-import { RecordingUnavailableError } from '../../services/session-recordings-service';
 import { DevLocalFileLoader } from './dev-local-file-loader';
 import { PlayerControls } from './player-controls';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
@@ -35,11 +35,14 @@ interface RemoteSessionViewProps {
  */
 export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const handleBack = useSafeBack(routes.devices.list);
+  const { toast } = useToast();
   const recordingQuery = useSessionRecording(recordingId);
   const recording = recordingQuery.data;
   const { isLoading, isOffline, error: loadError } = queryState(recordingQuery);
   const { service } = useSessionRecordingsService();
   const player = useRecordingPlayer();
+  // Nothing to show but the error - unless local files were loaded in the meantime.
+  const failedToLoad = (!!loadError || isOffline) && player.state === 'empty';
   const searchParams = useSearchParams();
   // The local-file loader is not part of the design - it exists purely to test
   // the engine before the storage backend ships, so it hides behind the
@@ -66,26 +69,36 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     }
   };
 
-  // Fetch the .mcrec once the detail arrives. A file that cannot be fetched
-  // (still processing, no storage, or the mock, which has none) throws
-  // RecordingUnavailableError - the page then shows the processing empty
-  // state, and in dev the local-file loader can feed the player instead.
-  const { loadBuffer } = player;
+  // Load the session's files once the detail arrives, oldest first: playback
+  // starts on the first while the rest download one by one. When no file can
+  // be fetched (still processing, no storage, or the mock, which has none) the
+  // page shows the processing empty state, and in dev the local-file loader
+  // can feed the player instead; a session missing only some files plays the
+  // rest and says so.
+  const { loadSegments } = player;
   useEffect(() => {
     if (!recording) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const buffer = await service.downloadRecording(recording);
-        if (!cancelled) await loadBuffer(buffer);
-      } catch (error) {
-        if (!cancelled && error instanceof RecordingUnavailableError) setUnavailable(true);
+        const { failed } = await loadSegments(
+          recording.segments.map(segment => () => service.downloadSegment(segment)),
+        );
+        if (!cancelled && failed > 0) {
+          toast({
+            title: 'Part of the recording is missing',
+            description: `${failed} of ${recording.segments.length} files of this session could not be loaded.`,
+            variant: 'warning',
+          });
+        }
+      } catch {
+        if (!cancelled) setUnavailable(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [recording, service, loadBuffer]);
+  }, [recording, service, loadSegments, toast]);
 
   return (
     <PageLayout
@@ -97,8 +110,18 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       subtitleRow="while-loading"
       showHeader={!isFullscreen}
     >
+      {/* Outside the player wrapper so it stays usable when the recording itself
+          failed to load - local files are how that case gets tested. */}
+      {showDevLoader && !isFullscreen && (
+        <DevLocalFileLoader
+          onLoad={async buffers => {
+            await player.loadSegments(buffers.map(buffer => () => Promise.resolve(buffer)));
+            setUnavailable(false);
+          }}
+        />
+      )}
       {/* An unknown or hidden recording, or a failed read: the page has nothing to play. */}
-      {(loadError || isOffline) && (
+      {failedToLoad && (
         <LoadError
           {...loadErrorProps(isOffline, "Couldn't load this recording.", () => void recordingQuery.refetch())}
         />
@@ -106,17 +129,9 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       <div
         className={cn(
           isFullscreen ? 'fixed inset-0 z-50 flex flex-col gap-0 bg-black' : 'contents',
-          (loadError || isOffline) && 'hidden',
+          failedToLoad && 'hidden',
         )}
       >
-        {showDevLoader && !isFullscreen && (
-          <DevLocalFileLoader
-            onLoad={async buffer => {
-              await player.loadBuffer(buffer);
-              setUnavailable(false);
-            }}
-          />
-        )}
         {!isFullscreen &&
           (isLoading ? <RecordingMetaCardSkeleton /> : recording && <RecordingMetaCard recording={recording} />)}
         {/* The player is ONE element per the mockup: the playback screen and

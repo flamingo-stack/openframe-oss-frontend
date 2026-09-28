@@ -50,6 +50,13 @@ export interface ParsedRecording {
   durationMs: number;
   /** 1 = terminal, 2 = desktop. */
   protocol: 1 | 2;
+  /**
+   * Indexes into `agentRecords` a replay may start from on a freshly reset
+   * renderer, ascending, always starting with 0. Every file of a session opens
+   * with its own screen size and full redraw, so a stitched session lists the
+   * first record of each segment; a single file has only 0 (absent = [0]).
+   */
+  restartIndices?: number[];
 }
 
 export type RecordingPlayerState = 'empty' | 'ready' | 'playing' | 'paused' | 'seeking' | 'ended';
@@ -58,7 +65,7 @@ export type RecordingPlaybackSpeed = 0.5 | 1 | 2 | 4;
 
 /**
  * Rendering backend for one protocol. `reset()` returns the surface to the
- * pre-first-record state (the player replays from zero on every seek);
+ * pre-first-record state (a seek replays from the nearest restart point);
  * `feed()` consumes one agent-record payload; `waitForIdle()` resolves when
  * everything fed so far is fully decoded and presented.
  */

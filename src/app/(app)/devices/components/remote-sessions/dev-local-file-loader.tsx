@@ -7,7 +7,8 @@ import { getErrorMessage } from '@/lib/handle-api-error';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 
 interface DevLocalFileLoaderProps {
-  onLoad: (buffer: ArrayBuffer) => Promise<void>;
+  /** The picked `.mcrec` files - one session's segments, oldest first. */
+  onLoad: (buffers: ArrayBuffer[]) => Promise<void>;
 }
 
 /**
@@ -27,11 +28,14 @@ export function DevLocalFileLoader({ onLoad }: DevLocalFileLoaderProps) {
 
   if (!mockToolsEnabled) return null;
 
-  const handleFile = async (file: File | undefined) => {
-    if (!file) return;
+  const handleFiles = async (picked: File[]) => {
+    if (picked.length === 0) return;
+    // Mesh names each file after its start time, so the name order is the session order.
+    const files = [...picked].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     try {
-      await onLoad(await file.arrayBuffer());
-      toast({ title: 'Recording Loaded', description: file.name, variant: 'success', duration: 2000 });
+      await onLoad(await Promise.all(files.map(file => file.arrayBuffer())));
+      const description = files.length === 1 ? files[0].name : `${files.length} segments joined`;
+      toast({ title: 'Recording Loaded', description, variant: 'success', duration: 2000 });
     } catch (error) {
       toast({ title: 'Failed to load recording', description: getErrorMessage(error), variant: 'destructive' });
     }
@@ -43,15 +47,16 @@ export function DevLocalFileLoader({ onLoad }: DevLocalFileLoaderProps) {
         ref={inputRef}
         type="file"
         accept=".mcrec"
+        multiple
         className="hidden"
         onChange={e => {
           const input = e.currentTarget;
-          void handleFile(input.files?.[0]);
+          void handleFiles(Array.from(input.files ?? []));
           input.value = '';
         }}
       />
       <Button variant="outline" size="small" onClick={() => inputRef.current?.click()}>
-        Open local .mcrec (mock)
+        Open local .mcrec files (mock)
       </Button>
     </>
   );

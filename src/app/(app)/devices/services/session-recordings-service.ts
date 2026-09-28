@@ -1,10 +1,14 @@
-import type { RecordingChatMessage, RecordingDetail, RecordingSummary } from '../types/session-recording';
+import type {
+  RecordingChatMessage,
+  RecordingDetail,
+  RecordingSegment,
+  RecordingSummary,
+} from '../types/session-recording';
 
 /**
- * Thrown by `downloadRecording` when the bytes cannot be fetched - the
- * recording is still processing, has no download URL yet, or the storage
- * request failed. The player page renders its "Session recording unavailable"
- * state on this error specifically.
+ * Thrown by `downloadSegment` when a file's bytes cannot be fetched - it has
+ * no download URL yet, or the storage request failed. The player page renders
+ * its "Session recording unavailable" state when no file of the session loads.
  */
 export class RecordingUnavailableError extends Error {
   constructor(message = 'Session recording unavailable') {
@@ -24,8 +28,8 @@ export interface ISessionRecordingsService {
   /** The device's remote sessions, newest first. */
   list(deviceId: string): Promise<RecordingSummary[]>;
   get(recordingId: string): Promise<RecordingDetail>;
-  /** Fetch the raw `.mcrec` bytes. Throws {@link RecordingUnavailableError}. */
-  downloadRecording(recording: RecordingDetail): Promise<ArrayBuffer>;
+  /** Fetch one file's raw `.mcrec` bytes. Throws {@link RecordingUnavailableError}. */
+  downloadSegment(segment: RecordingSegment): Promise<ArrayBuffer>;
   delete(recordingId: string): Promise<void>;
 }
 
@@ -101,7 +105,8 @@ const MOCK_CHAT: RecordingChatMessage[] = [
 ];
 
 interface MockRecordingSeed extends RecordingSummary {
-  detail: Omit<RecordingDetail, keyof RecordingSummary | 'chat'>;
+  /** The session's files come from `recordingId` in `get`; the mock stores none. */
+  detail: Omit<RecordingDetail, keyof RecordingSummary | 'chat' | 'segments'>;
 }
 
 /**
@@ -128,7 +133,6 @@ function buildSeeds(deviceId: string): MockRecordingSeed[] {
         organization: { id: 'org-1', name: 'Acme Logistics Co. (HQ)' },
         resolution: '1280 × 720',
         loggedInUser: 'John Smith',
-        downloadUrl: undefined,
       },
     },
     {
@@ -207,15 +211,16 @@ class MockSessionRecordingsService implements ISessionRecordingsService {
     const seed = this.findById(recordingId) ?? this.forDevice('mock-device').find(s => !s.processing);
     if (!seed) throw new Error('Recording not found');
     const { detail, ...summary } = seed;
-    return { ...summary, ...detail, chat: MOCK_CHAT };
+    // No storage behind the mock: its files have no URL, so the page shows the
+    // unavailable state and the dev loader can feed local files instead.
+    const segments = summary.recordingId ? [{ id: summary.recordingId, sizeBytes: summary.sizeBytes }] : [];
+    return { ...summary, ...detail, segments, chat: MOCK_CHAT };
   }
 
-  async downloadRecording(recording: RecordingDetail): Promise<ArrayBuffer> {
+  async downloadSegment(segment: RecordingSegment): Promise<ArrayBuffer> {
     await delay(MOCK_LATENCY_MS);
-    if (recording.processing || !recording.downloadUrl) {
-      throw new RecordingUnavailableError();
-    }
-    const res = await fetch(recording.downloadUrl);
+    if (!segment.downloadUrl) throw new RecordingUnavailableError();
+    const res = await fetch(segment.downloadUrl);
     if (!res.ok) throw new RecordingUnavailableError();
     return res.arrayBuffer();
   }

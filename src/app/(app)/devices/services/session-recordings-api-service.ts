@@ -12,7 +12,12 @@ import { clientIdentityHeaders } from '@/lib/client-identity';
 import { getRelayEnvironment } from '@/lib/relay';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
-import type { RecordingChatMessage, RecordingDetail, RecordingSummary } from '../types/session-recording';
+import type {
+  RecordingChatMessage,
+  RecordingDetail,
+  RecordingSegment,
+  RecordingSummary,
+} from '../types/session-recording';
 import { remoteSessionChatApiService } from './remote-session-chat-api-service';
 import { type ISessionRecordingsService, RecordingUnavailableError } from './session-recordings-service';
 
@@ -44,6 +49,7 @@ const sessionFragment = graphql`
       recordingId
       sizeBytes
       protocol
+      downloadUrl
     }
   }
 `;
@@ -68,7 +74,6 @@ const detailQuery = graphql`
   query sessionRecordingsApiServiceDetailQuery($recordingId: String!) {
     remoteSessionRecording(recordingId: $recordingId) {
       recordingId
-      downloadUrl
       session {
         ...sessionRecordingsApiService_session
       }
@@ -199,12 +204,11 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
       { fetchPolicy: 'network-only' },
     ).toPromise();
     if (!data?.remoteSessionRecording) throw new Error('Recording not found');
-    const { downloadUrl, session: sessionRef } = data.remoteSessionRecording;
-    const session = readSession(sessionRef);
+    const session = readSession(data.remoteSessionRecording.session);
     const [hostname, chat] = await Promise.all([readHostname(session.deviceId), readTranscript(session.dialogId)]);
     return {
       ...fromWireSession(session),
-      // The page shows the file it was opened on, not the session's first.
+      // The file the page was opened on; it plays the whole session regardless.
       recordingId: data.remoteSessionRecording.recordingId,
       hostname,
       organization: {
@@ -212,15 +216,19 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
         name: session.organization?.name ?? '',
         logoUrl: session.organization?.logoUrl ?? undefined,
       },
-      downloadUrl: downloadUrl ?? undefined,
+      segments: session.recordings.map((file): RecordingSegment => ({
+        id: file.recordingId,
+        downloadUrl: file.downloadUrl ?? undefined,
+        sizeBytes: file.sizeBytes != null ? Number(file.sizeBytes) : null,
+      })),
       chat,
     };
   }
 
-  async downloadRecording(recording: RecordingDetail): Promise<ArrayBuffer> {
-    if (!recording.downloadUrl) throw new RecordingUnavailableError();
+  async downloadSegment(segment: RecordingSegment): Promise<ArrayBuffer> {
+    if (!segment.downloadUrl) throw new RecordingUnavailableError();
     try {
-      return await fetchRecordingBytes(recording.downloadUrl);
+      return await fetchRecordingBytes(segment.downloadUrl);
     } catch (error) {
       // A CORS or network failure is a TypeError; the page treats every miss the same way.
       if (error instanceof RecordingUnavailableError) throw error;

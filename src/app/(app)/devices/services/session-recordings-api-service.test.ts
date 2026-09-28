@@ -32,8 +32,18 @@ function session(overrides: Partial<Record<keyof WireSession, unknown>> = {}): W
     technician: { name: 'Roman Smith', avatarUrl: null },
     organization: { organizationId: 'org-1', name: 'Acme', logoUrl: null },
     recordings: [
-      { recordingId: 'rec-1', sizeBytes: 100, protocol: 2 },
-      { recordingId: 'rec-2', sizeBytes: 50, protocol: 2 },
+      {
+        recordingId: 'rec-1',
+        sizeBytes: 100,
+        protocol: 2,
+        downloadUrl: '/api/v1/remote-access/recordings/rec-1/download',
+      },
+      {
+        recordingId: 'rec-2',
+        sizeBytes: 50,
+        protocol: 2,
+        downloadUrl: '/api/v1/remote-access/recordings/rec-2/download',
+      },
     ],
     ...overrides,
   } as unknown as WireSession;
@@ -103,15 +113,9 @@ describe('SessionRecordingsApiService', () => {
     expect(relay.fetchQuery.mock.calls.map(call => (call[2] as { after: string | null }).after)).toEqual([null, 'c1']);
   });
 
-  it('opens the requested file with its session, hostname and transcript', async () => {
+  it('opens the requested file with its session, every file of it, hostname and transcript', async () => {
     queriesAnswer(
-      {
-        remoteSessionRecording: {
-          recordingId: 'rec-2',
-          downloadUrl: 'https://storage.example/rec-2',
-          session: session(),
-        },
-      },
+      { remoteSessionRecording: { recordingId: 'rec-2', session: session() } },
       { device: { hostname: 'Romans-MacBook-Pro.local' } },
     );
     chat.history.mockResolvedValue({
@@ -128,7 +132,10 @@ describe('SessionRecordingsApiService', () => {
       recordingId: 'rec-2',
       hostname: 'Romans-MacBook-Pro.local',
       organization: { id: 'org-1', name: 'Acme' },
-      downloadUrl: 'https://storage.example/rec-2',
+      segments: [
+        { id: 'rec-1', downloadUrl: '/api/v1/remote-access/recordings/rec-1/download', sizeBytes: 100 },
+        { id: 'rec-2', downloadUrl: '/api/v1/remote-access/recordings/rec-2/download', sizeBytes: 50 },
+      ],
     });
     expect(detail.chat.map(message => [message.author, message.fromTechnician])).toEqual([
       ['Roman Smith', true],
@@ -138,10 +145,7 @@ describe('SessionRecordingsApiService', () => {
   });
 
   it('still opens the page when the transcript cannot be read', async () => {
-    queriesAnswer(
-      { remoteSessionRecording: { recordingId: 'rec-1', downloadUrl: null, session: session() } },
-      { device: null },
-    );
+    queriesAnswer({ remoteSessionRecording: { recordingId: 'rec-1', session: session() } }, { device: null });
     chat.history.mockRejectedValue(new Error('chat down'));
     const detail = await service.get('rec-1');
     expect(detail.chat).toEqual([]);
@@ -150,18 +154,18 @@ describe('SessionRecordingsApiService', () => {
 
   it('fetches a signed storage URL without cookies', async () => {
     fetchMock.mockResolvedValue({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) });
-    const bytes = await service.downloadRecording({
+    const bytes = await service.downloadSegment({
       downloadUrl: 'https://storage.example/rec-1?sig=1',
-    } as Parameters<typeof service.downloadRecording>[0]);
+    } as Parameters<typeof service.downloadSegment>[0]);
     expect(bytes.byteLength).toBe(4);
     expect(fetchMock).toHaveBeenCalledWith('https://storage.example/rec-1?sig=1', { credentials: 'omit' });
   });
 
   it('sends cookies to the gateway only, so the redirect to storage goes without them', async () => {
     fetchMock.mockResolvedValue({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(1)) });
-    await service.downloadRecording({
+    await service.downloadSegment({
       downloadUrl: '/api/v1/remote-access/recordings/rec-1/download',
-    } as Parameters<typeof service.downloadRecording>[0]);
+    } as Parameters<typeof service.downloadSegment>[0]);
     expect(fetchMock).toHaveBeenCalledWith('https://tenant.example/api/v1/remote-access/recordings/rec-1/download', {
       credentials: 'same-origin',
       headers: { 'X-OpenFrame-Client': 'web/test' },
@@ -171,9 +175,9 @@ describe('SessionRecordingsApiService', () => {
   it('fetches a gateway path on the tenant host with the bearer token', async () => {
     auth.bearer = 'token-1';
     fetchMock.mockResolvedValue({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(1)) });
-    await service.downloadRecording({
+    await service.downloadSegment({
       downloadUrl: '/api/v1/remote-access/recordings/rec-1/download',
-    } as Parameters<typeof service.downloadRecording>[0]);
+    } as Parameters<typeof service.downloadSegment>[0]);
     expect(fetchMock).toHaveBeenCalledWith('https://tenant.example/api/v1/remote-access/recordings/rec-1/download', {
       credentials: 'omit',
       headers: { 'X-OpenFrame-Client': 'web/test', Authorization: 'Bearer token-1' },
@@ -181,16 +185,14 @@ describe('SessionRecordingsApiService', () => {
   });
 
   it('reports every failed or missing download as unavailable', async () => {
-    const recording = { downloadUrl: 'https://storage.example/rec-1' } as Parameters<
-      typeof service.downloadRecording
-    >[0];
+    const recording = { downloadUrl: 'https://storage.example/rec-1' } as Parameters<typeof service.downloadSegment>[0];
     fetchMock.mockResolvedValueOnce({ ok: false });
-    await expect(service.downloadRecording(recording)).rejects.toBeInstanceOf(RecordingUnavailableError);
+    await expect(service.downloadSegment(recording)).rejects.toBeInstanceOf(RecordingUnavailableError);
     // A CORS refusal surfaces as a TypeError from fetch.
     fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    await expect(service.downloadRecording(recording)).rejects.toBeInstanceOf(RecordingUnavailableError);
+    await expect(service.downloadSegment(recording)).rejects.toBeInstanceOf(RecordingUnavailableError);
     await expect(
-      service.downloadRecording({ downloadUrl: undefined } as Parameters<typeof service.downloadRecording>[0]),
+      service.downloadSegment({ downloadUrl: undefined } as Parameters<typeof service.downloadSegment>[0]),
     ).rejects.toBeInstanceOf(RecordingUnavailableError);
   });
 });
