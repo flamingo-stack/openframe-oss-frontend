@@ -14,13 +14,14 @@ export class RecordingUnavailableError extends Error {
 }
 
 /**
- * Session-recordings backend surface. The storage API is not built yet, so
- * the app runs on
- * `MockSessionRecordingsService`; swapping in the real client is one new
- * implementation of this interface plus flipping the singleton below - hooks
- * and UI stay untouched.
+ * Session-recordings backend surface: the in-memory mock below, or the
+ * openframe-saas-api client (session-recordings-api-service.ts), picked by
+ * `useSessionRecordingsService`.
  */
 export interface ISessionRecordingsService {
+  /** Whether a recording can be removed from the tab; the API keeps them until retention does. */
+  readonly canDelete: boolean;
+  /** The device's remote sessions, newest first. */
   list(deviceId: string): Promise<RecordingSummary[]>;
   get(recordingId: string): Promise<RecordingDetail>;
   /** Fetch the raw `.mcrec` bytes. Throws {@link RecordingUnavailableError}. */
@@ -39,43 +40,61 @@ function delay(ms: number): Promise<void> {
 }
 
 const MOCK_CHAT: RecordingChatMessage[] = [
-  { id: 'c1', author: 'Anthony Reed', sentAt: '2026-09-05T14:47:05Z', body: 'Computer work slow' },
+  {
+    id: 'c1',
+    author: 'Anthony Reed',
+    fromTechnician: false,
+    sentAt: '2026-09-05T14:47:05Z',
+    body: 'Computer work slow',
+  },
   {
     id: 'c2',
     author: 'Roman Smith',
+    fromTechnician: true,
     sentAt: '2026-09-05T14:47:20Z',
     body: 'Hi Anthony, thanks for approving the session. When did this start?',
   },
   {
     id: 'c3',
     author: 'Anthony Reed',
+    fromTechnician: false,
     sentAt: '2026-09-05T14:47:41Z',
     body: 'Since this morning. Everything freezes when I open Excel',
   },
   {
     id: 'c4',
     author: 'Roman Smith',
+    fromTechnician: true,
     sentAt: '2026-09-05T14:48:02Z',
     body: "Got it, opening Task Manager to check what's eating resources",
   },
-  { id: 'c5', author: 'Anthony Reed', sentAt: '2026-09-05T14:48:10Z', body: 'ok' },
+  { id: 'c5', author: 'Anthony Reed', fromTechnician: false, sentAt: '2026-09-05T14:48:10Z', body: 'ok' },
   {
     id: 'c6',
     author: 'Roman Smith',
+    fromTechnician: true,
     sentAt: '2026-09-05T14:49:31Z',
     body: "Found it, an update process is stuck at 99% CPU. I'll need admin rights to restart it",
   },
-  { id: 'c7', author: 'Anthony Reed', sentAt: '2026-09-05T14:49:44Z', body: 'Sure, go ahead' },
+  { id: 'c7', author: 'Anthony Reed', fromTechnician: false, sentAt: '2026-09-05T14:49:44Z', body: 'Sure, go ahead' },
   {
     id: 'c8',
     author: 'Roman Smith',
+    fromTechnician: true,
     sentAt: '2026-09-05T14:51:12Z',
     body: 'Done, killed the process and paused updates until tonight. Try Excel now',
   },
-  { id: 'c9', author: 'Anthony Reed', sentAt: '2026-09-05T14:51:40Z', body: 'Wow, much faster. Thank you!' },
+  {
+    id: 'c9',
+    author: 'Anthony Reed',
+    fromTechnician: false,
+    sentAt: '2026-09-05T14:51:40Z',
+    body: 'Wow, much faster. Thank you!',
+  },
   {
     id: 'c10',
     author: 'Roman Smith',
+    fromTechnician: true,
     sentAt: '2026-09-05T14:52:01Z',
     body: "You're welcome. I'll close the session, ping us if it comes back",
   },
@@ -145,6 +164,7 @@ function buildSeeds(deviceId: string): MockRecordingSeed[] {
     sizeBytes: seed.sizeBytes ?? null,
     protocol: seed.protocol ?? 2,
     processing: seed.processing ?? false,
+    recordingId: seed.processing ? null : seed.id,
     employee: { name: 'Roman Smith', role: 'Admin' },
     id: seed.id,
     detail: seed.detail,
@@ -152,6 +172,8 @@ function buildSeeds(deviceId: string): MockRecordingSeed[] {
 }
 
 class MockSessionRecordingsService implements ISessionRecordingsService {
+  readonly canDelete = true;
+
   /** Keyed by deviceId; deletes mutate the array so invalidation shows. */
   private store = new Map<string, MockRecordingSeed[]>();
 

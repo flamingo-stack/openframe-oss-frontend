@@ -1,8 +1,5 @@
-// Session-recording read models.
-//
-// Shapes mirror the Figma mockups (devices 744-40363 list, 758-46350 detail);
-// the storage backend is still in flight, so these are the
-// contract the mock service implements and the future BE client must satisfy.
+// Remote-session read models for the Remote Sessions tab and the recording
+// page. Both the mock service and the openframe-saas-api client produce them.
 
 export interface RecordingEmployee {
   name: string;
@@ -10,18 +7,23 @@ export interface RecordingEmployee {
   avatarUrl?: string;
 }
 
+/** One row of the Remote Sessions tab: a remote session and the recording it produced, if any. */
 export interface RecordingSummary {
+  /** The session id. */
   id: string;
   deviceId: string;
   /** ISO timestamp of the session start. */
   startedAt: string;
-  /** Null while the recording is still processing. */
+  /** Null while the session is still running or its recording is processing. */
   durationMs: number | null;
-  /** Null while the recording is still processing. */
+  /** Total size of the session's files; null until one is stored. */
   sizeBytes: number | null;
   /** 1 = terminal, 2 = desktop/KVM. */
   protocol: 1 | 2;
+  /** Recording on, no file stored yet. */
   processing: boolean;
+  /** The recording page opens on this file (the session's first); null when there is nothing to play. */
+  recordingId: string | null;
   /** The technician who ran the session. */
   employee: RecordingEmployee;
 }
@@ -29,18 +31,22 @@ export interface RecordingSummary {
 export interface RecordingChatMessage {
   id: string;
   author: string;
+  /** The technician's side of the dialog, as opposed to the end user's. */
+  fromTechnician: boolean;
   /** ISO timestamp. */
   sentAt: string;
   body: string;
 }
 
 export interface RecordingDetail extends RecordingSummary {
-  hostname: string;
-  organization: { id: string; name: string; logoUrl?: string };
+  /** Unknown while the device lookup has not answered or the device is gone. */
+  hostname?: string;
+  /** `id` is absent for a customer the session could not link to a page. */
+  organization: { id?: string; name: string; logoUrl?: string };
   /** e.g. "1280 × 720" - may be unknown until the file is decoded. */
   resolution?: string;
   loggedInUser?: string;
-  /** Signed GET for the .mcrec bytes; absent while processing. */
+  /** Where the .mcrec bytes of `recordingId` come from; absent while processing. */
   downloadUrl?: string;
   chat: RecordingChatMessage[];
 }

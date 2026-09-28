@@ -36,6 +36,7 @@ import { formatDate, formatDateTime, formatTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { useDeleteSessionRecording, useSessionRecordings } from '../../hooks/use-session-recordings';
+import { useSessionRecordingsService } from '../../hooks/use-session-recordings-service';
 import type { Device } from '../../types/device.types';
 import type { RecordingSummary } from '../../types/session-recording';
 import { formatBytes, formatDurationMs } from '../remote-sessions/format';
@@ -61,11 +62,18 @@ function employeeInitials(name: string): string {
     .join('');
 }
 
-/** Recorded remote sessions of this device (Figma 744-40363), on the mock service until the storage backend ships. */
+/** The page a row opens: the session's recording, when it has one to play. */
+function recordingHref(row: RecordingSummary): string | null {
+  return row.recordingId ? routes.devices.remoteSessionRecording(row.recordingId) : null;
+}
+
+/** Remote sessions of this device, one row per session, each opening the recording it produced. */
 export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const router = useRouter();
   const deviceId = device?.machineId ?? null;
   const { data, isLoading } = useSessionRecordings(deviceId);
+  const { service } = useSessionRecordingsService();
+  const canDelete = service.canDelete;
   const deleteRecording = useDeleteSessionRecording(deviceId ?? '');
 
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
@@ -236,36 +244,43 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
       },
       {
         id: REMOTE_SESSION_COLUMNS.actions.id,
-        cell: ({ row }: { row: Row<RecordingSummary> }) => (
-          <div
-            data-no-row-click
-            className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-mf)]"
-          >
-            <Button
-              variant="outline"
-              size="icon"
-              leftIcon={<TrashIcon className="h-6 w-6" />}
-              aria-label="Delete recording"
-              disabled={row.original.processing}
-              onClick={() => setDeleteTarget(row.original)}
-            />
-            {/* onClick, not `href`: the row itself is a link (rowHref), and an
-                anchor nested in an anchor is invalid HTML (hydration error). */}
-            <Button
-              onClick={() => router.push(routes.devices.remoteSessionRecording(row.original.id))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open session recording"
-              className="bg-ods-card"
-            />
-          </div>
-        ),
+        cell: ({ row }: { row: Row<RecordingSummary> }) => {
+          const href = recordingHref(row.original);
+          return (
+            <div
+              data-no-row-click
+              className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-mf)]"
+            >
+              {canDelete && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  leftIcon={<TrashIcon className="h-6 w-6" />}
+                  aria-label="Delete recording"
+                  disabled={!row.original.recordingId}
+                  onClick={() => setDeleteTarget(row.original)}
+                />
+              )}
+              {/* onClick, not `href`: the row itself is a link (rowHref), and an
+                  anchor nested in an anchor is invalid HTML (hydration error). */}
+              {href && (
+                <Button
+                  onClick={() => router.push(href)}
+                  variant="outline"
+                  size="icon"
+                  leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+                  aria-label="Open session recording"
+                  className="bg-ods-card"
+                />
+              )}
+            </div>
+          );
+        },
         enableSorting: false,
         meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.actions),
       },
     ],
-    [dateFilter, employeeOptions, router],
+    [canDelete, dateFilter, employeeOptions, router],
   );
 
   const table = useDataTable<RecordingSummary>({
@@ -368,7 +383,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
           loading={isLoading}
           skeletonRows={4}
           rowClassName="mb-1"
-          rowHref={(recording: RecordingSummary) => routes.devices.remoteSessionRecording(recording.id)}
+          rowHref={recordingHref}
           emptyState={{
             icon: <ComputerMouseIcon />,
             title: 'No remote sessions found',
@@ -421,8 +436,8 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
         variant="destructive"
         isPending={deleteRecording.isPending}
         onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteRecording.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+          if (!deleteTarget?.recordingId) return;
+          deleteRecording.mutate(deleteTarget.recordingId, { onSuccess: () => setDeleteTarget(null) });
         }}
       />
     </div>

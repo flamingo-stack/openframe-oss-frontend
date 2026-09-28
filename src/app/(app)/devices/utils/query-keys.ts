@@ -29,11 +29,16 @@ export const deviceQueryKeys = {
 
   detail: (machineId: string) => [...deviceQueryKeys.all, 'detail', machineId] as const,
 
-  /** Session recordings of one device (the Remote Sessions tab). */
-  sessionRecordings: (deviceId: string) => [...deviceQueryKeys.all, 'session-recordings', deviceId] as const,
+  /**
+   * Remote sessions of one device (the Remote Sessions tab). Keyed by backend
+   * as well: the mock and the API must never share an entry, since the flag
+   * that picks between them can answer after a first read.
+   */
+  sessionRecordings: (isMock: boolean, deviceId: string) =>
+    [...deviceQueryKeys.all, 'session-recordings', isMock ? 'mock' : 'api', deviceId] as const,
   /** One recording's detail (the player page). */
-  sessionRecording: (recordingId: string) =>
-    [...deviceQueryKeys.all, 'session-recordings', 'detail', recordingId] as const,
+  sessionRecording: (isMock: boolean, recordingId: string) =>
+    [...deviceQueryKeys.all, 'session-recordings', isMock ? 'mock' : 'api', 'detail', recordingId] as const,
 
   counts: () => [...deviceQueryKeys.all, 'counts'] as const,
   countsBy: (filter: DeviceFilterInput) => [...deviceQueryKeys.counts(), filter] as const,

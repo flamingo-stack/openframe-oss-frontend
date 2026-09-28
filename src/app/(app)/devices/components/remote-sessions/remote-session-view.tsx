@@ -1,15 +1,18 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDateTime } from '@/lib/format-date';
+import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import { useSessionRecording } from '../../hooks/use-session-recordings';
-import { RecordingUnavailableError, sessionRecordingsService } from '../../services/session-recordings-service';
+import { useSessionRecordingsService } from '../../hooks/use-session-recordings-service';
+import { RecordingUnavailableError } from '../../services/session-recordings-service';
 import { DevLocalFileLoader } from './dev-local-file-loader';
 import { PlayerControls } from './player-controls';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
@@ -32,7 +35,10 @@ interface RemoteSessionViewProps {
  */
 export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const handleBack = useSafeBack(routes.devices.list);
-  const { data: recording, isLoading } = useSessionRecording(recordingId);
+  const recordingQuery = useSessionRecording(recordingId);
+  const recording = recordingQuery.data;
+  const { isLoading, isOffline, error: loadError } = queryState(recordingQuery);
+  const { service } = useSessionRecordingsService();
   const player = useRecordingPlayer();
   const searchParams = useSearchParams();
   // The local-file loader is not part of the design - it exists purely to test
@@ -60,17 +66,17 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     }
   };
 
-  // Fetch the .mcrec once the detail arrives. The mock service always throws
-  // RecordingUnavailableError (no storage backend yet) - the page then shows
-  // the processing empty state, and in dev the local-file loader feeds the
-  // player instead.
+  // Fetch the .mcrec once the detail arrives. A file that cannot be fetched
+  // (still processing, no storage, or the mock, which has none) throws
+  // RecordingUnavailableError - the page then shows the processing empty
+  // state, and in dev the local-file loader can feed the player instead.
   const { loadBuffer } = player;
   useEffect(() => {
     if (!recording) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const buffer = await sessionRecordingsService.downloadRecording(recording);
+        const buffer = await service.downloadRecording(recording);
         if (!cancelled) await loadBuffer(buffer);
       } catch (error) {
         if (!cancelled && error instanceof RecordingUnavailableError) setUnavailable(true);
@@ -79,7 +85,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [recording, loadBuffer]);
+  }, [recording, service, loadBuffer]);
 
   return (
     <PageLayout
@@ -91,7 +97,18 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       subtitleRow="while-loading"
       showHeader={!isFullscreen}
     >
-      <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col gap-0 bg-black' : 'contents'}>
+      {/* An unknown or hidden recording, or a failed read: the page has nothing to play. */}
+      {(loadError || isOffline) && (
+        <LoadError
+          {...loadErrorProps(isOffline, "Couldn't load this recording.", () => void recordingQuery.refetch())}
+        />
+      )}
+      <div
+        className={cn(
+          isFullscreen ? 'fixed inset-0 z-50 flex flex-col gap-0 bg-black' : 'contents',
+          (loadError || isOffline) && 'hidden',
+        )}
+      >
         {showDevLoader && !isFullscreen && (
           <DevLocalFileLoader
             onLoad={async buffer => {
