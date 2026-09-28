@@ -196,6 +196,8 @@ function LoadedOnboardingContent() {
 
   const statusOf = (step: UserOnboardingStepId): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
+  // First step still to do, in display order: the one row that says "Next".
+  const nextStep = USER_ONBOARDING_STEPS.find(step => !isStepDone(step, completedSteps)) ?? null;
   const doneOf = (step: UserOnboardingStepId) => isStepDone(step, completedSteps);
   const completeOf = (step: UserOnboardingStepId) => () => {
     setCompletingStep(step);
@@ -255,6 +257,7 @@ function LoadedOnboardingContent() {
                 id={onboardingStepAnchorId(item.step)}
                 icon={item.icon}
                 status={statusOf(item.step)}
+                next={item.step === nextStep}
                 title={item.title}
                 description={item.description}
                 expanded={expandedOf(item.step)}

@@ -36,6 +36,9 @@ export interface OnboardingAccordionItemProps {
   description: string;
   /** @default 'active' */
   status?: OnboardingStepStatus;
+  /** The first step still to do: a "Next" tag beside the chevron, since nothing
+   *  opens on its own. Ignored for `completed` and `disabled`. */
+  next?: boolean;
   /** Right-aligned hint shown for `disabled` steps (e.g. "Added Customer required"). */
   requirementHint?: string;
   /** Whether the step starts expanded. Ignored for `disabled`. @default false */
@@ -79,6 +82,7 @@ export function OnboardingAccordionItem({
   title,
   description,
   status = 'active',
+  next = false,
   requirementHint,
   defaultExpanded = false,
   expanded: controlledExpanded,
@@ -95,9 +99,9 @@ export function OnboardingAccordionItem({
 
   const toggle = React.useCallback(() => {
     if (isDisabled) return;
-    const next = !expanded;
-    setInternalExpanded(next);
-    onExpandedChange?.(next);
+    const value = !expanded;
+    setInternalExpanded(value);
+    onExpandedChange?.(value);
   }, [isDisabled, expanded, onExpandedChange]);
 
   return (
@@ -160,6 +164,10 @@ export function OnboardingAccordionItem({
             {isCompleted ? (
               <span className="flex h-8 items-center justify-center rounded-md bg-ods-success-secondary px-[var(--spacing-system-xsf)] text-ods-success text-h5">
                 Complete
+              </span>
+            ) : next ? (
+              <span className="flex h-8 items-center justify-center rounded-md bg-ods-accent-secondary px-[var(--spacing-system-xsf)] text-ods-accent text-h5">
+                Next
               </span>
             ) : null}
             <Button

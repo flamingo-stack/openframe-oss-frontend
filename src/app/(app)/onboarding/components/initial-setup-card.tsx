@@ -134,6 +134,8 @@ function InitialSetupCardContent() {
 
   const total = TENANT_ONBOARDING_STEPS.length;
   const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
+  // First step still to do, in display order: the one row that says "Next".
+  const nextStep = TENANT_ONBOARDING_STEPS.find(step => !isStepDone(step, completedSteps)) ?? null;
   const allDone = done >= total;
 
   // Commit once, the instant every step is done — that is what makes ANY exit from the
@@ -206,6 +208,7 @@ function InitialSetupCardContent() {
             ref={refOf(meta.step)}
             icon={meta.icon}
             status={statusOf(meta)}
+            next={meta.step === nextStep}
             requirementHint={meta.requiresData?.hint}
             title={meta.title}
             description={meta.description}
