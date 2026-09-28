@@ -351,13 +351,15 @@ class FleetApiClient {
     device_mapping?: boolean;
   }): Promise<ApiResponse<{ hosts: Host[] }>> {
     const queryParams = new URLSearchParams();
-    if (params?.team_id) queryParams.append('team_id', params.team_id.toString());
+    // `!== undefined` (not truthiness): team_id 0 ("All teams") and page 0 (first
+    // page) are valid values — `if (value)` would drop them silently.
+    if (params?.team_id !== undefined) queryParams.append('team_id', params.team_id.toString());
     if (params?.query) queryParams.append('query', params.query);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.order_key) queryParams.append('order_key', params.order_key);
     if (params?.order_direction) queryParams.append('order_direction', params.order_direction);
     if (params?.per_page) queryParams.append('per_page', params.per_page.toString());
-    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.page !== undefined) queryParams.append('page', params.page.toString());
     if (params?.disable_failing_policies !== undefined) {
       queryParams.append('disable_failing_policies', params.disable_failing_policies.toString());
     }
