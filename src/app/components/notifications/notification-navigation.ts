@@ -5,6 +5,7 @@ import {
   NOTIFICATION_ATTR,
   readNotificationAttributes,
 } from '@/graphql/notifications/notification-attributes';
+import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { mingoDialogLink, routes } from '@/lib/routes';
 
 // Backend notification `type` discriminators (`TenantNotificationType`). GraphQL rows and NATS
@@ -20,6 +21,7 @@ export const TICKET_ASSIGNED_TYPE = 'TICKET_ASSIGNED';
 export const TICKET_ESCALATED_BY_USER_TYPE = 'TICKET_ESCALATED_BY_USER';
 export const CUSTOMER_MESSAGE_PUBLISHED_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
 export const ADMIN_MESSAGE_PUBLISHED_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
+export const INSIGHT_DETECTED_TYPE = 'INSIGHT_DETECTED';
 
 /**
  * Types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`.
@@ -64,6 +66,12 @@ export type NotificationAction = { label: string; route: string; mingoDialogId?:
 // routes.* builders URL-encode values via URLSearchParams — no manual encodeURIComponent.
 const mingoDialogRoute = (dialogId: string) => mingoDialogLink(dialogId);
 const ticketRoute = (ticketId: string, tab?: 'chat') => routes.tickets.dialog(ticketId, { tab });
+// The attribute carries the STORED insight id; the details page queries `insight(id:)`, which
+// takes the Relay global id only (saas-api `InsightNodeIdCodec` rejects anything else).
+const incidentAction = (insightId: string): NotificationAction => ({
+  label: 'Incident Details',
+  route: routes.incidents.details(ensureGlobalIdForType('Insight', insightId)),
+});
 
 /**
  * Action for a Mingo dialog: the canonical route ALWAYS, plus the drawer id.
@@ -103,6 +111,7 @@ function resolveAction(
   type: string | null,
   ticketId: string | null,
   dialogId: string | null,
+  insightId: string | null,
   category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
@@ -121,6 +130,10 @@ function resolveAction(
     return mingoDialogAction(dialogId);
   }
 
+  if (type === INSIGHT_DETECTED_TYPE && insightId) {
+    return incidentAction(insightId);
+  }
+
   // Unknown type. The contract requires new types to reach users without a client release —
   // "an unfamiliar string still routes by ids, never drops the message silently" — so route
   // by the entity ids rather than giving up.
@@ -129,6 +142,8 @@ function resolveAction(
   // chat's dialogId, and the Mingo drawer resolves admin dialogs only, so following one
   // blindly would land on an empty chat. The category is what tells the two apart.
   if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
+  // An incident id outranks a Mingo dialog: a chat ABOUT an incident still names the incident.
+  if (insightId) return incidentAction(insightId);
   if (dialogId && category === MINGO_CATEGORY) return mingoDialogAction(dialogId);
 
   return null;
@@ -144,6 +159,7 @@ export function resolveNotificationAction(notification: Notification): Notificat
     nonEmptyString(meta.notificationType),
     nonEmptyString(meta.ticketId),
     nonEmptyString(meta.dialogId),
+    nonEmptyString(meta.insightId),
     nonEmptyString(notification.category),
   );
 }
@@ -169,6 +185,7 @@ function routeFromWireFields(fields: Record<string, unknown>): string | null {
       nonEmptyString(fields.type),
       attributes[NOTIFICATION_ATTR.ticketId] ?? nonEmptyString(fields.ticketId),
       attributes[NOTIFICATION_ATTR.dialogId] ?? nonEmptyString(fields.dialogId),
+      attributes[NOTIFICATION_ATTR.insightId] ?? nonEmptyString(fields.insightId),
       nonEmptyString(fields.category),
     ),
   );
@@ -195,7 +212,7 @@ export function resolveNatsNotificationRoute(payload: unknown): string | null {
  * envelope, and the mobile shell's tap path.
  *
  * Reads the top-level keys only: the backend (`FcmPushSender.buildData`) writes `type` plus
- * the `PushActionable` ids (`ticketId`/`dialogId`) as flat keys, and drops any larger blob
+ * every attribute (`ticketId`/`dialogId`/`insightId`, …) as a flat key, and drops any larger blob
  * whole when the payload would exceed FCM's size budget — so the flat ids are the guaranteed
  * half of the payload and the only half worth routing on.
  */

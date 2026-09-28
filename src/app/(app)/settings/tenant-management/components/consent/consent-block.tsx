@@ -1,6 +1,6 @@
 'use client';
 
-import { DirectoryProvider } from '../../types/directory-enums';
+import { DirectoryProvider } from '@/generated/schema-enums';
 import { ConsentLinkPanel, type ConsentPanelProps } from './consent-link-panel';
 import { MicrosoftConsentPanel } from './microsoft-consent-panel';
 
