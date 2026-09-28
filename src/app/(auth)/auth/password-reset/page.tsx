@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import { authApiClient } from '@/lib/auth-api-client';
+import { routes } from '@/lib/routes';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -27,7 +28,7 @@ export default function PasswordResetPage() {
         description: 'No reset token provided. Please use the link from your password reset email.',
         variant: 'destructive',
       });
-      router.push('/auth');
+      router.push(routes.auth.root);
     }
   }, [token, router, toast]);
 
@@ -35,7 +36,7 @@ export default function PasswordResetPage() {
   const isMismatch = !!confirmPassword && password !== confirmPassword;
   const isValid = password.length >= MIN_PASSWORD_LENGTH && password === confirmPassword;
 
-  const handleBack = () => router.push('/auth');
+  const handleBack = () => router.push(routes.auth.root);
 
   const handleSubmit = async () => {
     if (!token || !isValid) return;
@@ -60,7 +61,7 @@ export default function PasswordResetPage() {
       });
 
       setTimeout(() => {
-        router.push('/auth');
+        router.push(routes.auth.root);
       }, 2000);
     } catch (error) {
       console.error('Password reset error:', error);
