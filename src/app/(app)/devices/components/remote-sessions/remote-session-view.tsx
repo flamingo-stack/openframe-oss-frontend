@@ -12,7 +12,7 @@ import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import { useSessionRecording } from '../../hooks/use-session-recordings';
-import { useSessionRecordingsService } from '../../hooks/use-session-recordings-service';
+import { sessionRecordingsApiService } from '../../services/session-recordings-api-service';
 import { DevLocalFileLoader } from './dev-local-file-loader';
 import { PlayerControls } from './player-controls';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
@@ -39,7 +39,6 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const recordingQuery = useSessionRecording(recordingId);
   const recording = recordingQuery.data;
   const { isLoading, isOffline, error: loadError } = queryState(recordingQuery);
-  const { service } = useSessionRecordingsService();
   const player = useRecordingPlayer();
   // Nothing to show but the error - unless local files were loaded in the meantime.
   const failedToLoad = (!!loadError || isOffline) && player.state === 'empty';
@@ -71,7 +70,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
 
   // Load the session's files once the detail arrives, oldest first: playback
   // starts on the first while the rest download one by one. When no file can
-  // be fetched (still processing, no storage, or the mock, which has none) the
+  // be fetched (still processing, or no storage) the
   // page shows the processing empty state, and in dev the local-file loader
   // can feed the player instead; a session missing only some files plays the
   // rest and says so.
@@ -82,7 +81,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     (async () => {
       try {
         const { failed } = await loadSegments(
-          recording.segments.map(segment => () => service.downloadSegment(segment)),
+          recording.segments.map(segment => () => sessionRecordingsApiService.downloadSegment(segment)),
         );
         if (!cancelled && failed > 0) {
           toast({
@@ -98,7 +97,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [recording, service, loadSegments, toast]);
+  }, [recording, loadSegments, toast]);
 
   return (
     <PageLayout

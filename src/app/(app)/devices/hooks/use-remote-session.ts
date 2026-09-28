@@ -11,7 +11,7 @@ import {
 import type { RemoteSession, RemoteSessionEnd } from '../types/remote-access';
 
 export interface UseRemoteSessionResult {
-  /** The backend session behind the mounted surface; null until found, and always on the mock. */
+  /** The backend session behind the mounted surface; null until found. */
   session: RemoteSession | null;
   /** Set once the session is over - from the push, the poll, or this technician's own end. */
   ended: RemoteSessionEnd | null;
@@ -45,10 +45,9 @@ function sameSession(a: RemoteSession, b: RemoteSession): boolean {
  * end (REMOTE_SESSION_ENDED on the technician's notification subject, with a
  * poll as the fallback) and the technician's own end on leave. Until the
  * gateway closes relays itself, this is what ends the stream on both sides.
- * `live` is false on the mock approval backend, where no record exists.
  */
-export function useRemoteSession(deviceId: string, requestId: string | null, live: boolean): UseRemoteSessionResult {
-  const enabled = live && requestId !== null;
+export function useRemoteSession(deviceId: string, requestId: string | null): UseRemoteSessionResult {
+  const enabled = requestId !== null;
   const userId = useAuthStore(s => s.user?.id);
   const [session, setSession] = useState<RemoteSession | null>(null);
   const [ended, setEnded] = useState<RemoteSessionEnd | null>(null);

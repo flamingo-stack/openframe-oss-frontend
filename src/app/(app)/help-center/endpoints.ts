@@ -28,6 +28,7 @@
  * 401-refresh). Same-origin keeps `embedAuthedFetch` valid in prod builds too.
  */
 import type { EndpointsRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
+import { TRUST_CENTER_API_PATH } from '@flamingo-stack/openframe-frontend-core/types';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -88,6 +89,10 @@ export const EP = {
   productReleaseBySlug: (slug: string) => `${CONTENT}/releases/${slug}`,
   // legal (privacy / terms)
   legal: (docType: string) => `${CONTENT}/legal/${docType}`,
+  // trust center (Vanta-fed public projection) — the lib owns the hub path
+  // (`TRUST_CENTER_API_PATH` = `/api/trust-center`), so it is prefixed onto the
+  // proxy root rather than re-spelled (same spelling as react-embedding-example).
+  trustCenter: `${CONTENT_BASE}${TRUST_CENTER_API_PATH}`,
   // FAQs — `<FaqSection apiBaseUrl=CONTENT_BASE>` self-builds `/api/faqs`.
   // knowledge base (docs hub) — the lib `<DocsHubPage>` fetches the tree +
   // content from `…/docs/sources/<sourceId>/{structure,content}`, resolves

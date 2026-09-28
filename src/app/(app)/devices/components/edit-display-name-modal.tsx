@@ -48,10 +48,7 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
   const deviceId = device?.machineId || device?.id || '';
 
   const showRemoteAccess = useRemoteAccessApprovalGate() === 'on';
-  const devicePolicy = useDeviceRemoteAccessPolicy(deviceId, {
-    enabled: isOpen && showRemoteAccess,
-    organizationId: device?.organizationId,
-  });
+  const devicePolicy = useDeviceRemoteAccessPolicy(deviceId, { enabled: isOpen && showRemoteAccess });
   const { mutateAsync: setDeviceMode, isPending: isSavingMode } = useSetDeviceRemoteAccessMode();
 
   // The select shows the loaded mode until the user picks something, so a
@@ -93,7 +90,7 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
 
     if (modeChanged && selectedModeValue) {
       try {
-        await setDeviceMode({ deviceId, mode: selectedModeValue, organizationId: device?.organizationId });
+        await setDeviceMode({ deviceId, mode: selectedModeValue });
       } catch (err) {
         toast({
           title: 'Save failed',

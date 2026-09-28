@@ -241,4 +241,4 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
   }
 }
 
-export const sessionRecordingsApiService = new SessionRecordingsApiService();
+export const sessionRecordingsApiService: ISessionRecordingsService = new SessionRecordingsApiService();

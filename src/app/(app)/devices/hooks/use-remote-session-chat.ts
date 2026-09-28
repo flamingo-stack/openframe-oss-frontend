@@ -8,27 +8,17 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { useRemoteAccessSession } from '../components/remote-access/remote-access-session-context';
 import { decodeRemoteSessionChatChunk, remoteSessionChatApiService } from '../services/remote-session-chat-api-service';
-import {
-  type IRemoteSessionChatService,
-  isMockRemoteSessionDialog,
-  mockRemoteSessionChatService,
-  mockRemoteSessionDialogId,
-} from '../services/remote-session-chat-service';
 import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
 
 const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
 
 /**
- * The chat dialog of the current remote session: on the real approval backend
- * the id the session record carries (null until the record is known, or when
- * the backend provisioned no chat); on the mock backend a dialog named after
- * the approved request, so the panel can be exercised without a backend.
- * Null with the flag off - the legacy auto-start session has no chat.
+ * The chat dialog of the current remote session: the id the session record
+ * carries - null until the record is known, when the backend provisioned no
+ * chat, and with the flag off (the legacy auto-start session has no chat).
  */
 export function useRemoteSessionDialogId(): string | null {
-  const { requestId, session, live } = useRemoteAccessSession();
-  if (live) return session?.dialogId ?? null;
-  return requestId ? mockRemoteSessionDialogId(requestId) : null;
+  return useRemoteAccessSession().session?.dialogId ?? null;
 }
 
 /** The signed-in technician as the chat shows them on their own rows. */
@@ -70,15 +60,12 @@ export interface RemoteSessionChatState {
 }
 
 /**
- * History + live delivery for one session dialog. A real dialog is read from
- * the chat service and tailed on its JetStream subject from the page's last
- * sequence; the mock dialog is tailed in memory. Own messages come back
- * through the same feed as the end user's, so the list is one ordered stream,
- * deduplicated by id and by sequence against the page.
+ * History + live delivery for one session dialog: read from the chat service
+ * and tailed on its JetStream subject from the page's last sequence. Own
+ * messages come back through the same feed as the end user's, so the list is
+ * one ordered stream, deduplicated by id and by sequence against the page.
  */
 export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChatState {
-  const isMock = isMockRemoteSessionDialog(dialogId);
-  const service: IRemoteSessionChatService = isMock ? mockRemoteSessionChatService : remoteSessionChatApiService;
   // One record per dialog: a dialog change is a derived reset (no setState in
   // the effect body), live rows arriving before the page stay ordered after it.
   const [store, setStore] = useState<ChatStore>(EMPTY_STORE);
@@ -104,7 +91,7 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
   useEffect(() => {
     if (!dialogId) return undefined;
     let cancelled = false;
-    service
+    remoteSessionChatApiService
       .history(dialogId)
       .then(page => {
         if (cancelled) return;
@@ -129,31 +116,24 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
     return () => {
       cancelled = true;
     };
-  }, [service, dialogId, historyRevision]);
+  }, [dialogId, historyRevision]);
 
-  // The mock's feed.
-  useEffect(() => {
-    if (!dialogId || !isMock) return undefined;
-    return mockRemoteSessionChatService.subscribe(dialogId, message => deliver(dialogId, message));
-  }, [dialogId, isMock, deliver]);
-
-  // The real dialog's feed, from the page's tail once the page is in.
+  // The dialog's feed, from the page's tail once the page is in.
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
   const current = store.dialogId === dialogId ? store : EMPTY_STORE;
-  const liveDialogId = dialogId && !isMock ? dialogId : null;
   const { reconnectionCount } = useJetStreamDialogSubscription({
-    enabled: liveDialogId !== null && current.historyLoaded,
-    dialogId: liveDialogId,
+    enabled: dialogId !== null && current.historyLoaded,
+    dialogId,
     streamName: CHAT_CHUNKS_STREAM,
     topic: NATS_TOPICS.MESSAGE,
     optStartSeq: current.lastSeq,
     onEvent: useCallback(
       (payload: unknown) => {
-        if (!liveDialogId) return;
+        if (!dialogId) return;
         const row = decodeRemoteSessionChatChunk(payload, technicianRef.current);
-        if (row) deliver(liveDialogId, row);
+        if (row) deliver(dialogId, row);
       },
-      [liveDialogId, deliver],
+      [dialogId, deliver],
     ),
     onBeforeReconnect,
     getNatsWsUrl: getWsUrl,
@@ -171,7 +151,7 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
       if (!dialogId || !text) return false;
       setSending(true);
       try {
-        await service.send(dialogId, text, technicianRef.current);
+        await remoteSessionChatApiService.send(dialogId, text);
         return true;
       } catch {
         return false;
@@ -179,7 +159,7 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
         setSending(false);
       }
     },
-    [service, dialogId],
+    [dialogId],
   );
 
   const messages = useMemo(() => [...current.history, ...current.live], [current.history, current.live]);

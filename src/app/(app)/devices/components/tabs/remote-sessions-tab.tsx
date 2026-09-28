@@ -36,7 +36,7 @@ import { formatDate, formatDateTime, formatTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { useDeleteSessionRecording, useSessionRecordings } from '../../hooks/use-session-recordings';
-import { useSessionRecordingsService } from '../../hooks/use-session-recordings-service';
+import { sessionRecordingsApiService } from '../../services/session-recordings-api-service';
 import type { Device } from '../../types/device.types';
 import type { RecordingSummary } from '../../types/session-recording';
 import { formatBytes, formatDurationMs } from '../remote-sessions/format';
@@ -72,8 +72,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const router = useRouter();
   const deviceId = device?.machineId ?? null;
   const { data, isLoading } = useSessionRecordings(deviceId);
-  const { service } = useSessionRecordingsService();
-  const canDelete = service.canDelete;
+  const canDelete = sessionRecordingsApiService.canDelete;
   const deleteRecording = useDeleteSessionRecording(deviceId ?? '');
 
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
@@ -124,7 +123,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   );
 
   // EMPLOYEE header funnel options - the technicians present in this device's
-  // list (the mock has no employee ids, so the name doubles as the value; the
+  // list (the rows carry no employee ids, so the name doubles as the value; the
   // filterFn compares it against the employee cell's accessor value).
   const employeeOptions = useMemo(() => {
     const names = [...new Set(allRecordings.map(recording => recording.employee.name))].sort();
