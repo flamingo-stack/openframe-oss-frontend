@@ -2,7 +2,6 @@
 
 import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
-  AlertTriangleIcon,
   ArrowRightUpIcon,
   Filter02Icon,
   SearchIcon,
@@ -20,10 +19,17 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
+import { defineParamSchema, formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchQuery, readInlineData, useLazyLoadQuery, usePaginationFragment, useRelayEnvironment } from 'react-relay';
-import type { incidentFiltersRefreshRelayQuery as IncidentFiltersRefreshQueryType } from '@/__generated__/incidentFiltersRefreshRelayQuery.graphql';
+import {
+  fetchQuery,
+  readInlineData,
+  useLazyLoadQuery,
+  useMutation,
+  usePaginationFragment,
+  useRelayEnvironment,
+} from 'react-relay';
+import type { archiveResolvedInsightsMutation as ArchiveResolvedInsightsMutationType } from '@/__generated__/archiveResolvedInsightsMutation.graphql';
 import type { incidentsTableRelay_query$key as IncidentsFragmentKey } from '@/__generated__/incidentsTableRelay_query.graphql';
 import type { incidentsTableRelayPaginationQuery as IncidentsPaginationQueryType } from '@/__generated__/incidentsTableRelayPaginationQuery.graphql';
 import type {
@@ -32,19 +38,21 @@ import type {
 } from '@/__generated__/incidentsTableRelayQuery.graphql';
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
 import { EmptyState, liveColumnMeta, skeletonColumnDefs, useRetryKey } from '@/app/components/shared';
+import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { InsightSeverity, InsightStatus, InsightType } from '@/generated/schema-enums';
-import { incidentFiltersRefreshRelayQuery } from '@/graphql/insights/incident-filters-refresh-relay';
+import { archiveResolvedInsightsMutation } from '@/graphql/insights/archive-resolved-insights-mutation';
 import { incidentsTableRelayFragment, incidentsTableRelayQuery } from '@/graphql/insights/incidents-table-relay';
 import { insightFacetsFragment } from '@/graphql/insights/insight-facets';
 import { formatDateTime } from '@/lib/format-date';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openInNewTab } from '@/lib/open-in-new-tab';
-import { routes } from '@/lib/routes';
+import { pluralize } from '@/lib/pluralize';
+import { type IncidentsTab, routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { type FacetEntry, type FacetOption, facetToSortedOptions } from '../../scripts/shared/utils/facet-options';
 import { type MingoAction, mingoActionFor, useFixWithMingo } from '../hooks/use-fix-with-mingo';
@@ -52,6 +60,7 @@ import { useLatestIncidentDialogs } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
 import {
   enumMembers,
+  ALL_INCIDENT_STATUSES,
   INCIDENT_SEVERITY_LABELS,
   INCIDENT_STATUS_LABELS,
   INCIDENT_TYPE_LABELS,
@@ -59,8 +68,10 @@ import {
   WORKING_SET_STATUSES,
 } from '../utils/incident-labels';
 import { type IncidentRow, toIncidentRow, toTransitionTable } from '../utils/incident-transform';
+import { IncidentAssignee } from './incident-assignee';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
-import { DEVICE_INCIDENTS_TABLE_COLUMNS, INCIDENT_COLUMNS, INCIDENTS_TABLE_COLUMNS } from './incidents-table-columns';
+import { DEVICE_INCIDENTS_TABLE_COLUMNS, INCIDENT_COLUMNS } from './incidents-table-columns';
+import { archiveResolvedAction, INCIDENT_TAB_VIEWS } from './incidents-tabs';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
 
@@ -133,6 +144,14 @@ interface IncidentsTableContentProps {
    * and so the same customer.
    */
   deviceScoped: boolean;
+  /**
+   * The statuses this list covers — a status tab's, or every status for the
+   * device tab. The Status filter offers only these, and none at all for a
+   * single-status tab (Snoozed, Archived), where every row has the same one.
+   */
+  statuses: readonly InsightStatus[];
+  /** Bumped by the caller to refetch the list — after a write the store cannot see, like Archive Resolved. */
+  refreshKey: number;
   /** What a list with no incidents at all shows in place of the table. */
   emptyState: ReactNode;
 }
@@ -148,15 +167,18 @@ function IncidentsTableContent({
   onMobileFilterClose,
   stickyHeaderOffset,
   deviceScoped,
+  statuses,
+  refreshKey,
   emptyState,
 }: IncidentsTableContentProps) {
   const { toast } = useToast();
-  const environment = useRelayEnvironment();
   const mingoControls = useFixWithMingo();
 
   // One round-trip per interaction: the filter facets (`insightFilters`) ride the
   // list operation — see the query docstring for the facet semantics.
+  const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
+  const fetchKey = `${retryKey}:${refreshKey}`;
   const queryData = useLazyLoadQuery<IncidentsTableQueryType>(
     incidentsTableRelayQuery,
     {
@@ -165,7 +187,7 @@ function IncidentsTableContent({
       first: PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-and-network', fetchKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -192,23 +214,23 @@ function IncidentsTableContent({
   // once — hundreds of identical failing requests a second against a backend
   // that just said no. One toast, then the footer goes quiet. Recorded against
   // the variables it failed for: this component stays mounted across filter,
-  // search and retry changes, and a new list gets its own footer. Compared by
+  // search and refetch changes, and a new list gets its own footer. Compared by
   // identity on purpose — `backendFilters` is memoized upstream and only
   // changes with the URL params, so a re-render cannot revive the footer.
-  const [failedPage, setFailedPage] = useState<{ filter: InsightFilter; search: string; retryKey: number } | null>(
+  const [failedPage, setFailedPage] = useState<{ filter: InsightFilter; search: string; fetchKey: string } | null>(
     null,
   );
   const pageFailed =
     failedPage !== null &&
     failedPage.filter === backendFilters &&
     failedPage.search === debouncedSearch &&
-    failedPage.retryKey === retryKey;
+    failedPage.fetchKey === fetchKey;
   const fetchNextPage = () => {
     if (!hasNext || isLoadingNext || pageFailed) return;
     loadNext(PAGE_SIZE, {
       onComplete: error => {
         if (!error) return;
-        setFailedPage({ filter: backendFilters, search: debouncedSearch, retryKey });
+        setFailedPage({ filter: backendFilters, search: debouncedSearch, fetchKey });
         toast({
           title: 'Error',
           description: getRelayErrorMessage(error, 'Failed to load more incidents'),
@@ -221,31 +243,46 @@ function IncidentsTableContent({
   const facets = readInlineData<InsightFacetsKey>(insightFacetsFragment, queryData.insightFilters);
   const typeOptions = enumFacetOptions(facets.types, INCIDENT_TYPE_LABELS);
   const severityOptions = enumFacetOptions(facets.severities, INCIDENT_SEVERITY_LABELS);
-  const statusOptions = enumFacetOptions(facets.statuses, INCIDENT_STATUS_LABELS);
+  const statusLocked = statuses.length === 1;
+  const inScope = new Set<string>(statuses);
+  const scopedStatusFacet = facets.statuses.filter(option => inScope.has(option.value));
+  const statusOptions = enumFacetOptions(scopedStatusFacet, INCIDENT_STATUS_LABELS);
   const customerOptions = facetToSortedOptions(facets.organizationIds);
+  const assigneeOptions = facetToSortedOptions(facets.assigneeIds);
   const filteredCount = facets.filteredCount ?? undefined;
-  // The status facet is narrowed by every filter EXCEPT status, so under the
-  // working-set default it still counts ARCHIVED — a tenant whose incidents are
-  // all filed away has "no rows" but is not empty, and keeps the filters.
-  const hasAnyIncident = facets.statuses.some(option => option.count > 0);
+  // The status facet is narrowed by every filter EXCEPT status, so it counts the
+  // list's statuses even where the default leaves some out — the device tab's
+  // ARCHIVED: a device whose incidents are all filed away has "no rows" but is
+  // not empty, and keeps the filters. Counting only the list's own statuses is
+  // what makes a status tab empty when that status is.
+  const hasAnyIncident = scopedStatusFacet.some(option => option.count > 0);
 
-  // A transition rewrites one record, but the status counts (and the total) it
-  // was aggregated into stay as fetched — refetch the facets imperatively into
-  // the same store records the dropdowns read from. The list itself is not
-  // refetched: the mutation payload already updated the row, which stays in
-  // place even when its new status is outside the active filter until the next
-  // filter interaction or reload.
-  const refreshFilterMeta = () => {
-    fetchQuery<IncidentFiltersRefreshQueryType>(
+  // A transition can take a row out of this list (Snooze on Current, Reopen on
+  // Archived) and moves the counts it was aggregated into, while its payload
+  // rewrites only the one record. Refetch every loaded row — the first page
+  // alone would collapse a scrolled list — into the same connection and facet
+  // records. Imperative on purpose: a failed refresh toasts, where a failed
+  // render-time refetch would swap the tab for the error card.
+  const loadedCount = data.insights?.edges?.length ?? 0;
+  const refreshAfterTransition = () => {
+    fetchQuery<IncidentsTableQueryType>(
       environment,
-      incidentFiltersRefreshRelayQuery,
-      { filter: backendFilters, search: debouncedSearch || null },
+      incidentsTableRelayQuery,
+      { filter: backendFilters, search: debouncedSearch || null, first: Math.max(PAGE_SIZE, loadedCount), after: null },
       { fetchPolicy: 'network-only' },
-    ).subscribe({});
+    ).subscribe({
+      error: (error: Error) => {
+        toast({
+          title: 'Error',
+          description: getRelayErrorMessage(error, 'Failed to refresh incidents'),
+          variant: 'destructive',
+        });
+      },
+    });
   };
 
   const { transition, snoozeTarget, cancelSnooze, confirmSnooze, isMutating, isSnoozing } =
-    useIncidentTransitions(refreshFilterMeta);
+    useIncidentTransitions(refreshAfterTransition);
   const transitionTable = toTransitionTable(queryData);
 
   const columns = useMemo<ColumnDef<IncidentTableRow>[]>(() => {
@@ -329,10 +366,25 @@ function IncidentsTableContent({
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
+        meta: statusLocked
+          ? liveColumnMeta(INCIDENT_COLUMNS.status)
+          : liveColumnMeta(INCIDENT_COLUMNS.status, { filter: { options: statusOptions } }),
+      },
+      {
+        id: INCIDENT_COLUMNS.assignee.id,
+        accessorFn: (row: IncidentTableRow) => row.assignee?.id,
+        header: INCIDENT_COLUMNS.assignee.header,
+        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+          <div className="flex min-w-0 items-center">
+            <IncidentAssignee incident={row.original} />
+          </div>
+        ),
+        enableSorting: false,
+        filterFn: multiSelectFilterFn,
         // Rightmost filterable column: anchor the dropdown to the right edge so it
         // never flips placement (start↔end) on open/close.
-        meta: liveColumnMeta(INCIDENT_COLUMNS.status, {
-          filter: { options: statusOptions, placement: 'bottom-end' },
+        meta: liveColumnMeta(INCIDENT_COLUMNS.assignee, {
+          filter: { options: assigneeOptions, placement: 'bottom-end' },
         }),
       },
       {
@@ -402,14 +454,17 @@ function IncidentsTableContent({
     customerOptions,
     severityOptions,
     statusOptions,
+    assigneeOptions,
     deviceScoped,
+    statusLocked,
   ]);
 
   const filterGroups = [
     { id: INCIDENT_COLUMNS.incident.id, title: 'Category', options: typeOptions },
     ...(deviceScoped ? [] : [{ id: INCIDENT_COLUMNS.device.id, title: 'Customer', options: customerOptions }]),
     { id: INCIDENT_COLUMNS.severity.id, title: 'Severity', options: severityOptions },
-    { id: INCIDENT_COLUMNS.status.id, title: 'Status', options: statusOptions },
+    ...(statusLocked ? [] : [{ id: INCIDENT_COLUMNS.status.id, title: 'Status', options: statusOptions }]),
+    { id: INCIDENT_COLUMNS.assignee.id, title: 'Assigned', options: assigneeOptions },
   ];
 
   const columnFilters = useMemo(
@@ -535,7 +590,7 @@ function IncidentsTableSkeleton({ layout, stickyHeaderOffset }: IncidentsTableSk
 }
 
 // ----------------------------------------------------------------
-// Outer shells — layout + URL state + Suspense boundary
+// Shared list + outer shells (URL state, layout)
 // ----------------------------------------------------------------
 
 /** The filter selections as they sit in the URL, whatever each shell names the params. */
@@ -544,6 +599,7 @@ interface IncidentSelections {
   organizationId: string[];
   severity: string[];
   status: string[];
+  assigneeId: string[];
 }
 
 interface IncidentsListProps {
@@ -552,16 +608,27 @@ interface IncidentsListProps {
   onSearchChange: (value: string) => void;
   onSelectionsChange: (selections: IncidentSelections) => void;
   machineId?: string;
+  /** The statuses the list covers (see `IncidentsTableContent`) — a module constant: the filter memo keys on it. */
+  statuses: readonly InsightStatus[];
+  /** The statuses listed while none is chosen; all of `statuses` when omitted. A module constant too. */
+  defaultStatuses?: readonly InsightStatus[];
+  /** The table's layout while it loads — the same one the live columns follow. */
+  skeletonColumns: readonly TableSkeletonColumn[];
+  refreshKey?: number;
   emptyState: ReactNode;
 }
 
-/** Toolbar + table over URL state the caller owns — what the page and the device tab share. */
+/** Toolbar + table over URL state the caller owns — what the page tabs and the device tab share. */
 function IncidentsList({
   selections,
   search,
   onSearchChange,
   onSelectionsChange,
   machineId,
+  statuses,
+  defaultStatuses = statuses,
+  skeletonColumns,
+  refreshKey = 0,
   emptyState,
 }: IncidentsListProps) {
   // Local search input keeps typing responsive; the shared hook debounces it to
@@ -578,29 +645,33 @@ function IncidentsList({
 
   const deviceScoped = machineId !== undefined;
 
-  // URL params are untyped strings — keep only real enum members, and hand the
-  // SAME narrowed arrays to the server filter and to the table's column state,
-  // so a stray `?status=BOGUS` cannot empty the table client-side. With no
-  // status chosen the list is the working set: everything but ARCHIVED.
+  // URL params are untyped strings — keep only real enum members (and, for
+  // status, only the list's own; none on a single-status tab, which has no
+  // control to clear one), and hand the SAME narrowed arrays to the server
+  // filter and to the table's column state, so a stray `?status=BOGUS` cannot
+  // empty the table client-side. With no status chosen the list shows
+  // `defaultStatuses`.
   // One memo for both: `useDeferredQuery` compares `backendFilters` by identity.
   // The deps are the arrays, not `selections`, which the caller rebuilds every render.
-  const { type, organizationId, severity, status } = selections;
+  const { type, organizationId, severity, status, assigneeId } = selections;
   const { backendFilters, tableFilters } = useMemo(() => {
     const types = enumMembers(type, InsightType);
     const severities = enumMembers(severity, InsightSeverity);
-    const statuses = enumMembers(status, InsightStatus);
+    const chosenStatuses =
+      statuses.length > 1 ? enumMembers(status, InsightStatus).filter(value => statuses.includes(value)) : [];
     const filter: InsightFilter = {
-      statuses: statuses.length > 0 ? statuses : [...WORKING_SET_STATUSES],
+      statuses: chosenStatuses.length > 0 ? chosenStatuses : [...defaultStatuses],
       ...(types.length > 0 && { types }),
       ...(severities.length > 0 && { severities }),
       ...(organizationId.length > 0 && { organizationIds: organizationId }),
+      ...(assigneeId.length > 0 && { assigneeIds: assigneeId }),
       ...(machineId !== undefined && { machineIds: [machineId] }),
     };
     return {
       backendFilters: filter,
-      tableFilters: { type: types, organizationId, severity: severities, status: statuses },
+      tableFilters: { type: types, organizationId, severity: severities, status: chosenStatuses, assigneeId },
     };
-  }, [type, organizationId, severity, status, machineId]);
+  }, [type, organizationId, severity, status, assigneeId, machineId, statuses, defaultStatuses]);
 
   // Deferred query variables: on a filter/search interaction the table keeps
   // rendering the current rows while the refetch is in flight, instead of
@@ -614,6 +685,7 @@ function IncidentsList({
       organizationId: columnFilters.organizationId || [],
       severity: columnFilters.severity || [],
       status: columnFilters.status || [],
+      assigneeId: columnFilters.assigneeId || [],
     });
     // In the device tab the top of `main` is the device header, above the filter just changed.
     if (!deviceScoped) {
@@ -645,14 +717,7 @@ function IncidentsList({
         </div>
       )}
 
-      <Suspense
-        fallback={
-          <IncidentsTableSkeleton
-            layout={deviceScoped ? DEVICE_INCIDENTS_TABLE_COLUMNS : INCIDENTS_TABLE_COLUMNS}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        }
-      >
+      <Suspense fallback={<IncidentsTableSkeleton layout={skeletonColumns} stickyHeaderOffset={stickyHeaderOffset} />}>
         <IncidentsTableContent
           backendFilters={deferredFilters}
           debouncedSearch={deferredSearch}
@@ -664,6 +729,8 @@ function IncidentsList({
           onMobileFilterClose={() => setMobileFilterOpen(false)}
           stickyHeaderOffset={stickyHeaderOffset}
           deviceScoped={deviceScoped}
+          statuses={statuses}
+          refreshKey={refreshKey}
           emptyState={emptyState}
         />
       </Suspense>
@@ -671,30 +738,91 @@ function IncidentsList({
   );
 }
 
-/** The Incidents page: every device's incidents. */
-export function IncidentsTable() {
-  const { params, setParam, setParams } = useApiParams({
-    search: { type: 'string', default: '' },
-    type: { type: 'array', default: [] },
-    organizationId: { type: 'array', default: [] },
-    severity: { type: 'array', default: [] },
-    status: { type: 'array', default: [] },
-  });
+/** The Incidents page's filter params — see the page for why it declares them too. */
+export const INCIDENT_FILTER_PARAMS = defineParamSchema({
+  search: { type: 'string', default: '' },
+  type: { type: 'array', default: [] },
+  organizationId: { type: 'array', default: [] },
+  severity: { type: 'array', default: [] },
+  status: { type: 'array', default: [] },
+  assigneeId: { type: 'array', default: [] },
+});
+
+/** Every filter param at its default — keyed to the schema, so a param missing here fails tsc. */
+export const NO_INCIDENT_FILTERS = {
+  search: '',
+  type: [],
+  organizationId: [],
+  severity: [],
+  status: [],
+  assigneeId: [],
+} satisfies Record<keyof typeof INCIDENT_FILTER_PARAMS, unknown>;
+
+/** One tab of the Incidents page. It owns the query string's filter params, unprefixed. */
+export function IncidentsTable({ tab }: { tab: IncidentsTab }) {
+  const { toast } = useToast();
+  const view = INCIDENT_TAB_VIEWS[tab];
+  const EmptyIcon = view.icon;
+  const { params, setParam, setParams } = useApiParams(INCIDENT_FILTER_PARAMS);
+
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [commitArchiveResolved, isArchiving] = useMutation<ArchiveResolvedInsightsMutationType>(
+    archiveResolvedInsightsMutation,
+  );
+
+  const archiveResolved = () => {
+    commitArchiveResolved({
+      variables: {},
+      onCompleted: ({ archiveResolvedInsights: count }) => {
+        setConfirmArchive(false);
+        // The sweep updates no record the store can see — refetch the list and its counts.
+        setRefreshKey(key => key + 1);
+        toast({
+          title: count > 0 ? 'Resolved incidents archived' : 'Nothing to archive',
+          description:
+            count > 0
+              ? `${pluralize(count, 'incident')} ${count === 1 ? 'was' : 'were'} moved to Archived Incidents.`
+              : 'There are no resolved incidents.',
+          variant: count > 0 ? 'success' : 'default',
+        });
+      },
+      onError: error => {
+        toast({
+          title: 'Error',
+          description: getRelayErrorMessage(error, 'Failed to archive resolved incidents'),
+          variant: 'destructive',
+        });
+      },
+    });
+  };
 
   return (
-    <PageLayout title="Incidents" className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+    <PageLayout
+      title={view.title}
+      actions={view.archiveResolved ? [archiveResolvedAction(() => setConfirmArchive(true))] : undefined}
+      actionsVariant="icon-buttons"
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+    >
       <IncidentsList
         selections={params}
         search={params.search}
         onSearchChange={value => setParam('search', value)}
         onSelectionsChange={setParams}
-        emptyState={
-          <EmptyState
-            icon={<AlertTriangleIcon />}
-            title="No incidents detected"
-            description="Your monitored devices are all clear"
-          />
-        }
+        statuses={view.statuses}
+        skeletonColumns={view.columns}
+        refreshKey={refreshKey}
+        emptyState={<EmptyState icon={<EmptyIcon />} title={view.empty.title} description={view.empty.description} />}
+      />
+      <ConfirmDialog
+        open={confirmArchive}
+        onOpenChange={setConfirmArchive}
+        title="Archive Resolved Incidents"
+        description="Every resolved incident moves to Archived Incidents — not only the ones on screen. You can unarchive any of them from there."
+        confirmLabel="Archive Resolved"
+        cancelLabel="Close"
+        isPending={isArchiving}
+        onConfirm={archiveResolved}
       />
     </PageLayout>
   );
@@ -720,6 +848,7 @@ export function DeviceIncidentsTable({ machineId, emptyState }: DeviceIncidentsT
     incidentsType: { type: 'array', default: [] },
     incidentsSeverity: { type: 'array', default: [] },
     incidentsStatus: { type: 'array', default: [] },
+    incidentsAssignee: { type: 'array', default: [] },
   });
 
   return (
@@ -729,6 +858,7 @@ export function DeviceIncidentsTable({ machineId, emptyState }: DeviceIncidentsT
         organizationId: NO_ORGANIZATIONS,
         severity: params.incidentsSeverity,
         status: params.incidentsStatus,
+        assigneeId: params.incidentsAssignee,
       }}
       search={params.incidentsSearch}
       onSearchChange={value => setParam('incidentsSearch', value)}
@@ -737,9 +867,13 @@ export function DeviceIncidentsTable({ machineId, emptyState }: DeviceIncidentsT
           incidentsType: selections.type,
           incidentsSeverity: selections.severity,
           incidentsStatus: selections.status,
+          incidentsAssignee: selections.assigneeId,
         })
       }
       machineId={machineId}
+      statuses={ALL_INCIDENT_STATUSES}
+      defaultStatuses={WORKING_SET_STATUSES}
+      skeletonColumns={DEVICE_INCIDENTS_TABLE_COLUMNS}
       emptyState={emptyState}
     />
   );

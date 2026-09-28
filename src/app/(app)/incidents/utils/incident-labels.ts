@@ -40,8 +40,9 @@ export const INCIDENT_TRANSITION_ACTIONS: Record<InsightStatus, { label: string;
 };
 
 /**
- * What the list shows when no status filter is chosen: everything still in
- * play. ARCHIVED is filed away by definition and only appears when asked for.
+ * Everything still in play: what the device Incidents tab and Mingo's incident
+ * context list by default. ARCHIVED is filed away by definition and only
+ * appears when asked for.
  */
 export const WORKING_SET_STATUSES: readonly InsightStatus[] = [
   InsightStatus.NEW,
@@ -49,6 +50,19 @@ export const WORKING_SET_STATUSES: readonly InsightStatus[] = [
   InsightStatus.SNOOZED,
   InsightStatus.RESOLVED,
 ];
+
+/** The Current Incidents tab: what still needs a hand. Snoozed and Archived have tabs of their own. */
+export const CURRENT_INCIDENT_STATUSES: readonly InsightStatus[] = [
+  InsightStatus.NEW,
+  InsightStatus.ACKNOWLEDGED,
+  InsightStatus.RESOLVED,
+];
+
+export const SNOOZED_INCIDENT_STATUSES: readonly InsightStatus[] = [InsightStatus.SNOOZED];
+export const ARCHIVED_INCIDENT_STATUSES: readonly InsightStatus[] = [InsightStatus.ARCHIVED];
+
+/** Every status — what a list that is not a status tab (the device page's) may filter by. */
+export const ALL_INCIDENT_STATUSES: readonly InsightStatus[] = Object.values(InsightStatus);
 
 /** Keeps only the members of `values` that are values of the enum object `of` — URL params are untyped. */
 export function enumMembers<T extends string>(values: readonly string[], enumObject: Record<string, T>): T[] {
