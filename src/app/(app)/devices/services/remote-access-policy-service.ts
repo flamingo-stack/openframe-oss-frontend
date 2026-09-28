@@ -26,12 +26,23 @@ export interface IRemoteAccessPolicyService {
    * the mock's way to walk the scopes; the API resolves them on the server.
    */
   getDevicePolicy(deviceId: string, organizationId?: string): Promise<DeviceRemoteAccessPolicy>;
+  /**
+   * The same read for a page of table rows in one request, keyed by device id.
+   * A device the server no longer knows is left out of the map.
+   */
+  getDevicePolicies(devices: ReadonlyArray<DevicePolicyRef>): Promise<Map<string, DeviceRemoteAccessPolicy>>;
   /** `null` clears the override. Answers with the device's policy after the write. */
   setDeviceMode(
     deviceId: string,
     mode: RemoteAccessMode | null,
     organizationId?: string,
   ): Promise<DeviceRemoteAccessPolicy>;
+}
+
+/** A device as the batch read takes it: its machine id, plus the organization only the mock uses. */
+export interface DevicePolicyRef {
+  deviceId: string;
+  organizationId?: string;
 }
 
 export const DEFAULT_TENANT_REMOTE_ACCESS_POLICY: TenantRemoteAccessPolicy = {
@@ -99,6 +110,11 @@ class MockRemoteAccessPolicyService implements IRemoteAccessPolicyService {
   async getDevicePolicy(deviceId: string, organizationId?: string): Promise<DeviceRemoteAccessPolicy> {
     await delay(MOCK_LATENCY_MS);
     return this.device(deviceId, organizationId);
+  }
+
+  async getDevicePolicies(devices: ReadonlyArray<DevicePolicyRef>): Promise<Map<string, DeviceRemoteAccessPolicy>> {
+    await delay(MOCK_LATENCY_MS);
+    return new Map(devices.map(({ deviceId, organizationId }) => [deviceId, this.device(deviceId, organizationId)]));
   }
 
   async setDeviceMode(
