@@ -32,7 +32,7 @@ Strategy: `~/flamingo/openframe-desktop/docs/mobile-app-plan.md` + `native-apps-
 | `NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER` | dev-ticket observer toggle |
 | `NEXT_PUBLIC_MOBILE_AUTH_UI` | `login-only` (default: no Sign Up tab, no in-app org setup, no-account notice — App Review 3.1.1/3.1.3) or `legacy` (the tabbed sign-up flow) |
 | `FRONTEND_DIR` | frontend checkout override (default `~/flamingo/openframe-frontend`) |
-| `FRONTEND_REF` | build from a fresh clone of the frontend at this release tag (or branch) instead of a local checkout — use for store builds; mutually exclusive with `FRONTEND_DIR` |
+| `FRONTEND_REF` | build from a fresh clone of the frontend at this release tag (or branch) instead of a local checkout — use for store builds; mutually exclusive with `FRONTEND_DIR`; clone URL overridable with `FRONTEND_REPO` |
 
 `www/` and `ios/App/App/public/` are git-ignored artifacts — a fresh clone must stage a
 bundle (`web:placeholder` or `build:web`) + `cap sync` before Xcode can build.
@@ -78,7 +78,8 @@ exists.**
   `pushState` → SPA `popstate`).
 - **`AppDelegate.swift`** — stock + the three APNs forwarding methods
   `@capacitor-firebase/messaging` requires (NotificationCenter posts; Firebase
-  auto-configures in the plugin's `load()`).
+  auto-configures in the plugin's `load()`), plus native push retraction and the
+  background-fetch completion call (see Push).
 - **`OpenFrameApplication.java`** — the Android process-level init point (manifest
   `android:name`): installs the lifecycle's foreground observer and creates the
   notification channels. **`OpenFrameMessagingService.java`**, **`PushNotifications.java`**,
@@ -192,6 +193,20 @@ block in `capacitor.config.ts` avoids a package-identity collision).
 - Foreground banners are suppressed on both platforms (`presentationOptions: []`; Android
   FCM never auto-displays while foregrounded). `notificationReceived` still fires for
   in-app handling.
+- **Retraction is native on both platforms.** The backend retracts a banner (read,
+  dismissed, approval resolved elsewhere) with a silent `NOTIFICATION_RETRACTED` push and
+  resends the rolling `retractedIds` list on every push. iOS: `AppDelegate`'s
+  `didReceiveRemoteNotification` removes delivered notifications whose userInfo
+  `notificationId` matches (so the `of.feedback.*` outcomes go too); Android:
+  `PushNotifications.retract` cancels `tag = notificationId, id = 0`. On iOS an alert push
+  has no `content-available`, so its list reaches native code only while foregrounded — in
+  the background only the silent retraction itself does. **iOS: that method
+  owns the completion call** — with Firebase swizzling on, the handler is a
+  GoogleUtilities dispatch-group wrapper that FIRMessaging also calls, and the plugin
+  (8.3.0) never calls it; if a plugin bump starts calling it, drop ours or the group
+  over-leaves and crashes. Silent pushes never reach a force-quit app, and `simctl push`
+  cannot deliver one (it asks for a `background_fetch` launch the app has no mode for) —
+  device-only to verify.
 - `UIBackgroundModes: remote-notification` in Info.plist; `App/App.entitlements`
   (aps-environment) is hooked into both App-target configs (needs a paid Apple team).
 - Permission is requested by the frontend **after login** (`src/lib/native-push.ts`), not

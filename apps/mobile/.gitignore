@@ -5,7 +5,7 @@ node_modules/
 www/
 
 # frontend checkout cloned by build:web when FRONTEND_REF is set
-/.frontend
+/.frontend/
 
 # native build output (lane archives, exported .ipas, DerivedData)
 build/

@@ -11,7 +11,7 @@
 # Single-tenant pin (dev / self-hosted — skips discovery-based host learning):
 #   add NEXT_PUBLIC_TENANT_HOST_URL=https://acme.openframe.example
 #
-# Source of the frontend, in order:
+# Source of the frontend — one of (setting both is an error):
 #   FRONTEND_REF=1.0.127   a fresh shallow clone of FRONTEND_REPO at that release
 #                          tag (a branch works too, for a dev build) into
 #                          .frontend/ (git-ignored). What a store build should
@@ -19,6 +19,7 @@
 #                          it as its version in X-OpenFrame-Client.
 #   FRONTEND_DIR=<path>    an existing working copy, built as-is — the local dev
 #                          loop. Default ~/flamingo/openframe-frontend.
+# FRONTEND_REPO overrides the clone URL (a fork or mirror).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
