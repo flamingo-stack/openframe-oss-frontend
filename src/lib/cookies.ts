@@ -21,7 +21,7 @@ export interface CookieAttributes {
 
 export function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined;
-  const escaped = name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1');
+  const escaped = name.replace(/[.*+?^${}()|[\]\\`,-]/g, '\\$&');
   const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : undefined;
 }
