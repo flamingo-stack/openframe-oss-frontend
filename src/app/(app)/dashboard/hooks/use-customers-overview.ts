@@ -42,6 +42,12 @@ export interface OrganizationOverviewRow {
   inactivePct: number;
 }
 
+// TODO(OPENFRAM-002-2): This raw GraphQL POST is forbidden for new code under
+// OPENFRAM-002-2, which requires react-relay (useLazyLoadQuery/useFragment/useMutation)
+// with compiled artifacts for GraphQL data fetching. Migrating this hook requires a
+// relay environment + relay-compiler setup that does not yet exist in this repository;
+// tracked separately so the migration can bring its own environment/schema/compiled
+// query artifacts rather than introducing broken imports here.
 const GET_ORGANIZATIONS_QUERY = `
   query GetOrganizations($first: Int) {
     organizations(first: $first) {
