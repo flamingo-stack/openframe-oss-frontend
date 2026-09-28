@@ -2,18 +2,16 @@
 
 import { notFound } from 'next/navigation';
 import { ContentErrorBoundary, ListPageSkeleton } from '@/app/components/shared';
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { isSaasTenantMode } from '@/lib/app-mode';
 import { IncidentsTable } from './components/incidents-table';
 import { INCIDENTS_TABLE_COLUMNS } from './components/incidents-table-columns';
+import { useIncidentsGate } from './hooks/use-incidents-gate';
 
 export default function IncidentsPage() {
-  const gate = useFeatureFlagGate('insights');
+  const gate = useIncidentsGate();
 
-  // The insights API exists only in saas-api, so the page is saas-tenant only.
-  // Only a definitive flag "off" 404s: `notFound()` throws, and throwing while
-  // the flags are merely unanswered is unrecoverable (see notifications/page.tsx).
-  if (!isSaasTenantMode() || gate === 'off') {
+  // Only a definitive "off" 404s: `notFound()` throws, and throwing while the
+  // flags are merely unanswered is unrecoverable (see notifications/page.tsx).
+  if (gate === 'off') {
     notFound();
   }
   if (gate === 'loading') {

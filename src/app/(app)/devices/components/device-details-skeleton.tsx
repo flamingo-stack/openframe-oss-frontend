@@ -14,6 +14,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { DEVICE_INCIDENTS_TABLE_COLUMNS } from '@/app/(app)/incidents/components/incidents-table-columns';
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
 import { DEVICE_TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
 import { PoliciesTable, type PolicyTableRow, QueriesTable, type QueryTableRow } from '@/app/components/shared';
@@ -572,6 +573,8 @@ function getTabSkeleton(activeTab: string) {
       return <TicketsTabSkeleton />;
     case 'remote-sessions':
       return <TableTabSkeleton columns={REMOTE_SESSIONS_TAB_COLUMNS} placeholder="Search for Remote Session" />;
+    case 'incidents':
+      return <TableTabSkeleton columns={DEVICE_INCIDENTS_TABLE_COLUMNS} placeholder="Search for Incidents" />;
     default:
       return <OverviewTabSkeleton />;
   }
