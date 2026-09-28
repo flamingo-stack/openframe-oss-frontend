@@ -137,7 +137,7 @@ export function useRemoteAccessApproval(deviceId: string): UseRemoteAccessApprov
     [deviceId, applySettled],
   );
 
-  // Decision delivery while awaiting: the push below, and this poll as its fallback.
+  // Decision delivery while awaiting: the NATS push (`decisionSubject`, below) and this poll as its fallback.
   const requestId = state === 'awaiting' || state === 'requesting' ? (request?.requestId ?? null) : null;
   useEffect(() => {
     if (!requestId) return undefined;
@@ -152,7 +152,7 @@ export function useRemoteAccessApproval(deviceId: string): UseRemoteAccessApprov
           else setRequest(current);
         })
         .catch(() => {
-          // Transient poll failures are absorbed - the push channel and the
+          // Transient poll failures are absorbed - the NATS push and the
           // next tick both still stand.
         });
     }, POLL_MS);
