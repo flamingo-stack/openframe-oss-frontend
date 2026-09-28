@@ -157,12 +157,14 @@ export function AiSettings() {
 
           // Attach the staged avatar to the SAVED view id — on a fresh tenant
           // the record only exists after the save above created it.
+          let avatarFailed = false;
           try {
             const savedViewId = savedView?.id || clientView.view?.id;
             if (savedViewId) {
               await commitAvatar(savedViewId);
             }
           } catch (err) {
+            avatarFailed = true;
             toast({
               title: 'Avatar upload failed',
               description: err instanceof Error ? err.message : 'Settings saved, but the avatar was not updated',
@@ -170,7 +172,9 @@ export function AiSettings() {
             });
           }
 
-          toast({ title: 'Saved', description: 'AI assistant settings updated', variant: 'success' });
+          if (!avatarFailed) {
+            toast({ title: 'Saved', description: 'AI assistant settings updated', variant: 'success' });
+          }
           setIsEditMode(false);
         } catch (err) {
           toast({
