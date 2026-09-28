@@ -1,10 +1,11 @@
 'use client';
 
-import { LoadError, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadError, Skeleton, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { TabBarSkeleton } from '@/app/components/shared';
 import { loadErrorProps } from '@/lib/query-state';
 import {
   useAdminAiConfig,
@@ -38,12 +39,38 @@ const FORM_ID_BY_TAB: Record<AiSettingsTabId, string> = {
   'device-guardrails': DEVICE_GUARDRAILS_FORM_ID,
 };
 
+/** Two always-visible tabs stand in for the set until the flags answer. */
+const TAB_WIDTHS = ['w-[300px]', 'w-[280px]'] as const;
+
+/**
+ * The page waits for the flags that shape its tab set before choosing a tab:
+ * the starting tab is picked once, on mount of the content below, and a set
+ * read earlier would lack the flag-gated tabs a link or the default can point
+ * at.
+ */
 export function AiSettings() {
+  const visibleTabs = useVisibleAiSettingsTabs();
+
+  if (!visibleTabs) {
+    return (
+      <AiSettingsLayout>
+        <TabBarSkeleton widths={TAB_WIDTHS} />
+        <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
+          <Skeleton className="h-20 w-full rounded-md" />
+          <Skeleton className="h-64 w-full rounded-md" />
+        </div>
+      </AiSettingsLayout>
+    );
+  }
+
+  return <AiSettingsContent visibleTabs={visibleTabs} />;
+}
+
+function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
   // Tabs are feature-flag gated; default to the first one that's visible.
-  const visibleTabs = useVisibleAiSettingsTabs();
   const firstTabId = (visibleTabs[0]?.id as AiSettingsTabId | undefined) ?? 'guardrails';
 
   // Deep-link support: `?tab=<id>&edit=true` opens a tab in edit mode
@@ -227,7 +254,7 @@ export function AiSettings() {
 
   return (
     <AiSettingsLayout actions={headerActions} mobileBottomActions={isEditMode}>
-      <AiSettingsTabs activeTab={effectiveTab} onTabChange={handleTabChange}>
+      <AiSettingsTabs tabs={visibleTabs} activeTab={effectiveTab} onTabChange={handleTabChange}>
         {activeId => {
           // Keep the tab bar visible; show skeletons while the tab config loads.
           if (isLoading) {

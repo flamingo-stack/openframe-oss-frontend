@@ -44,6 +44,7 @@ export const TAB_IDS = {
     'security',
     'agents',
     'tickets',
+    'incidents',
     'hardware',
     'os',
     'network',
@@ -207,6 +208,7 @@ export const routes = {
     bugFixesAndEnhancements: '/help-center/bug-fixes-and-enhancements',
     tickets: '/help-center/tickets',
     faqs: '/help-center/faqs',
+    trustCenter: '/help-center/trust-center',
     knowledgeBase: '/help-center/knowledge-base',
     // `[docType]` is enumerable (see the route's `generateStaticParams`), so the
     // literal union is the typed guard ROUTES.md asks for over a bare `string`.
@@ -400,7 +402,8 @@ export const routes = {
     // connections. Sub-pages take the connection id as `?id=` like every other
     // detail page (static-export constraint, see ROUTES.md).
     tenantManagement: '/settings/tenant-management',
-    tenantNew: '/settings/tenant-management/new',
+    // `id`: the connection a New flow already created, so a reload or Back resumes it instead of a blank form.
+    tenantNew: (o?: { id?: string | number }) => withQuery('/settings/tenant-management/new', { id: o?.id }),
     tenantDetails: (id: string | number) => withQuery('/settings/tenant-management/details', { id }),
     tenantEdit: (id: string | number) => withQuery('/settings/tenant-management/edit', { id }),
     tenantReconnect: (id: string | number) => withQuery('/settings/tenant-management/reconnect', { id }),

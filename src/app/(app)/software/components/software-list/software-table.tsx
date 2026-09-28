@@ -77,12 +77,8 @@ function columnMeta<const T extends object>(column: TableSkeletonColumn, sortabl
   return liveColumnMeta({ ...column, sortable: sortableIds.includes(column.id) }, extra);
 }
 
-function buildColumns(
-  sortableIds: readonly string[],
-  filterOptions: SoftwareFilterOptions,
-  linksEnabled: boolean,
-): ColumnDef<SoftwareRow>[] {
-  const columns: ColumnDef<SoftwareRow>[] = [
+function buildColumns(sortableIds: readonly string[], filterOptions: SoftwareFilterOptions): ColumnDef<SoftwareRow>[] {
+  return [
     {
       id: SOFTWARE_LIST_COLUMNS.name.id,
       header: SOFTWARE_LIST_COLUMNS.name.header,
@@ -116,20 +112,15 @@ function buildColumns(
       enableSorting: false,
       meta: columnMeta(SOFTWARE_LIST_COLUMNS.vulnerabilities, sortableIds),
     },
-  ];
-
-  if (linksEnabled) {
-    columns.push({
+    {
       id: SOFTWARE_LIST_COLUMNS.open.id,
       cell: ({ row }: { row: Row<SoftwareRow> }) => (
         <OpenRowButton label="Open in new tab" onClick={openInNewTab(routes.software.details(row.original.id))} />
       ),
       enableSorting: false,
       meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.open),
-    });
-  }
-
-  return columns;
+    },
+  ];
 }
 
 const getRowId = (row: SoftwareRow) => row.id;
@@ -155,8 +146,6 @@ export interface SoftwareTableProps {
   isFiltered: boolean;
   /** True while a refetch is in flight — dims the stale rows and guards the empty state. */
   isPending: boolean;
-  /** Rows lead into the title's page. Off where the tenant has no Software module to open. */
-  linksEnabled?: boolean;
   /** Drawn for a list with nothing in it at all (not a search or funnel miss). */
   emptyState: ReactNode;
   /** Nothing in the list at all — the caller drops its toolbar. */
@@ -181,7 +170,6 @@ export function SoftwareTable({
   onSelectionsChange,
   isFiltered,
   isPending,
-  linksEnabled = true,
   emptyState,
   onEmptyChange,
   stickyHeaderOffset,
@@ -194,7 +182,7 @@ export function SoftwareTable({
   const table = useDataTable<SoftwareRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
     data: rows as SoftwareRow[],
-    columns: buildColumns(sortableIds, filterOptions, linksEnabled),
+    columns: buildColumns(sortableIds, filterOptions),
     getRowId,
     enableSorting: false,
     state: { columnFilters },
@@ -234,7 +222,7 @@ export function SoftwareTable({
               : 'No software matches the selected filters. Try adjusting your filters.',
           }}
           rowClassName="mb-1"
-          rowHref={linksEnabled ? rowHref : undefined}
+          rowHref={rowHref}
         />
         {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
         {rows.length > 0 && (

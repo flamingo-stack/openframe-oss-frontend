@@ -1,6 +1,7 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { toGlobalId } from '@/lib/relay-id';
 import {
   mingoDrawerDialogId,
   resolveNatsNotificationRoute,
@@ -85,6 +86,41 @@ describe('resolveNatsNotificationRoute', () => {
         context: { type: 'TICKET_ASSIGNED', ticketId: 'from-context' },
       }),
     ).toBe('/tickets/dialog?id=from-attributes');
+  });
+});
+
+/**
+ * `insightId` is the STORED id; the incident page's `insight(id:)` takes the Relay global
+ * id only, so the route must carry the encoded form — a raw id there fails the page query.
+ */
+describe('incident deep links', () => {
+  const globalId = toGlobalId('Insight', 'i-1');
+  const incidentRoute = `/incidents/details?id=${globalId}`;
+
+  it('routes an insight notification to its incident on every transport', () => {
+    expect(resolvePushNotificationRoute({ type: 'INSIGHT_DETECTED', insightId: 'i-1' })).toBe(incidentRoute);
+    expect(resolveNatsNotificationRoute({ type: 'INSIGHT_DETECTED', attributes: { insightId: 'i-1' } })).toBe(
+      incidentRoute,
+    );
+    const action = resolveNotificationAction({
+      meta: { notificationType: 'INSIGHT_DETECTED', insightId: 'i-1' },
+    } as unknown as Notification);
+    expect(action).toEqual({ label: 'Incident Details', route: incidentRoute });
+  });
+
+  it('does not double-encode an id that is already global', () => {
+    expect(resolvePushNotificationRoute({ type: 'INSIGHT_DETECTED', insightId: globalId })).toBe(incidentRoute);
+  });
+
+  it('routes an unrecognised type by its insight id, after a ticket id', () => {
+    expect(resolvePushNotificationRoute({ type: 'INSIGHT_SHIPPED_LATER', insightId: 'i-1' })).toBe(incidentRoute);
+    expect(resolvePushNotificationRoute({ type: 'SOMETHING_ELSE', insightId: 'i-1', ticketId: 't-1' })).toBe(
+      '/tickets/dialog?id=t-1',
+    );
+  });
+
+  it('yields null without an insight id', () => {
+    expect(resolvePushNotificationRoute({ type: 'INSIGHT_DETECTED' })).toBeNull();
   });
 });
 

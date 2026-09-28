@@ -10,7 +10,15 @@ import {
   parseMeshCentralLastSeen,
 } from '@/lib/meshcentral/meshcentral-api';
 import { fetchDeviceNode } from '../queries/devices-api';
-import type { Battery, Device, DeviceDataSources, DeviceGraphQlNode, DevicePolicy, User } from '../types/device.types';
+import type {
+  Battery,
+  Device,
+  DeviceDataSources,
+  DeviceGraphQlNode,
+  DevicePolicy,
+  Software,
+  User,
+} from '../types/device.types';
 import type { FleetHost } from '../types/fleet.types';
 import { toDeviceTags } from '../utils/device-transform';
 import { deviceQueryKeys } from '../utils/query-keys';
@@ -40,6 +48,41 @@ function createDevice(
   meshCentralLastSeen: string | null,
   sources: DeviceDataSources,
 ): Device {
+  // Transform Fleet software to unified Software type. The host payload carries
+  // the inventory already, so this costs no request; it feeds the Fleet-backed
+  // Software / Vulnerabilities tabs (`software-management` off) — the module's
+  // tabs read their own connections and never look here.
+  const software: Software[] =
+    fleetData?.software?.map(fs => {
+      const signatureTeamId = fs.signature_information?.find(s => s.team_identifier)?.team_identifier;
+      return {
+        id: fs.id,
+        name: fs.name,
+        version: fs.version,
+        source: fs.source,
+        vendor: fs.vendor || undefined, // Normalize null to undefined
+        bundle_identifier: fs.bundle_identifier,
+        vulnerabilities: (fs.vulnerabilities || []).map(v => ({
+          cve: v.cve,
+          details_link: v.details_link,
+          created_at: v.created_at,
+          // Fleet Premium severity fields — pass through when present.
+          cvss_score: v.cvss_score ?? undefined,
+          epss_probability: v.epss_probability ?? undefined,
+          cisa_known_exploit: v.cisa_known_exploit ?? undefined,
+          cve_published: v.cve_published ?? undefined,
+          resolved_in_version: v.resolved_in_version ?? undefined,
+        })),
+        installed_paths: fs.installed_paths,
+        last_opened_at: fs.last_opened_at,
+        signed: Boolean(signatureTeamId),
+        signature_team_id: signatureTeamId,
+        generated_cpe: fs.generated_cpe,
+        browser: fs.browser,
+        extension_id: fs.extension_id,
+      };
+    }) || [];
+
   // Transform Fleet batteries to unified Battery type
   const batteries: Battery[] =
     fleetData?.batteries?.map(fb => ({
@@ -189,6 +232,7 @@ function createDevice(
     version: node.agentVersion,
 
     // Unified Arrays (NO NESTING)
+    software,
     batteries,
     users,
     policies,
