@@ -16,6 +16,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { FEATURE_FLAG_NAMES } from '@/lib/feature-flags';
 import type { ScheduleTimeReference } from '@/generated/schema-enums';
 import { type EditScheduleFormData, TIME_REFERENCE_OPTIONS } from '../types/edit-schedule.types';
 import {
@@ -101,7 +102,11 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
   // LOCKED instead: the same treatment the page already gives fields whose
   // record has not landed, and it means the control cannot appear beside a
   // choice the user has already made.
-  const deviceTimeGate = useFeatureFlagGate('script-schedule-device-time');
+  //
+  // The flag name is read from the registered `FEATURE_FLAG_NAMES` table rather
+  // than a bare string literal at the call site, so a typo or a rename is a
+  // type error here instead of a silently-permanent fallback.
+  const deviceTimeGate = useFeatureFlagGate(FEATURE_FLAG_NAMES.SCRIPT_SCHEDULE_DEVICE_TIME);
   const showTimeReference = deviceTimeGate === 'on';
   const fieldsDisabled = disabled || deviceTimeGate === 'loading';
 

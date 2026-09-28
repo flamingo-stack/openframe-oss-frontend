@@ -1,6 +1,6 @@
 'use client';
 
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { featureFlags } from '@/lib/feature-flags';
 import { remoteAccessApprovalApiService } from '../services/remote-access-approval-api-service';
 import {
   type IRemoteAccessApprovalService,
@@ -26,7 +26,7 @@ export interface RemoteAccessApprovalServiceSelection {
  * i.e. after the flags have loaded.
  */
 export function useRemoteAccessApprovalService(): RemoteAccessApprovalServiceSelection {
-  const apiEnabled = useFeatureFlag('remote-access-approval-api');
+  const apiEnabled = featureFlags.remoteAccessApprovalApi.enabled();
   return apiEnabled
     ? { service: remoteAccessApprovalApiService, isMock: false }
     : { service: mockRemoteAccessApprovalService, isMock: true };
