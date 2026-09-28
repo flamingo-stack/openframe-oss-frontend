@@ -10,14 +10,15 @@ import { assignInsightMutation } from '@/graphql/insights/assign-insight-mutatio
 import { unassignInsightMutation } from '@/graphql/insights/unassign-insight-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { useAssigneeOptions } from '../../tickets/hooks/use-ticket-options';
-import type { Incident } from '../utils/incident-transform';
+import type { IncidentRow } from '../utils/incident-transform';
 
 /**
- * The "Assigned" cell of the summary card: the compact assignee picker (the
- * same one the ticket board uses) beside the current holder's name. Assigning
- * is independent of status — an incident can change hands while snoozed.
+ * The "Assigned" cell of the summary card and of the Incidents table: the
+ * compact assignee picker (the same one the ticket board uses) beside the
+ * current holder's name. Assigning is independent of status — an incident can
+ * change hands while snoozed.
  */
-export function IncidentAssignee({ incident }: { incident: Incident }) {
+export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
   const { toast } = useToast();
   const { options, isLoading } = useAssigneeOptions();
   const [commitAssign, isAssigning] = useMutation<AssignInsightMutationType>(assignInsightMutation);
@@ -60,18 +61,21 @@ export function IncidentAssignee({ incident }: { incident: Incident }) {
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
-      <AssigneeDropdown
-        variant="compact"
-        currentAssignee={
-          assignee
-            ? { id: assignee.id, name: assignee.name, avatarSrc: assignee.avatarUrl, deleted: assignee.deleted }
-            : undefined
-        }
-        options={options}
-        isLoading={isLoading}
-        isPending={isAssigning || isUnassigning}
-        onAssign={handleAssign}
-      />
+      {/* In a table row only the picker is its own control; the name beside it opens the row like the rest of it. */}
+      <div data-no-row-click className="shrink-0">
+        <AssigneeDropdown
+          variant="compact"
+          currentAssignee={
+            assignee
+              ? { id: assignee.id, name: assignee.name, avatarSrc: assignee.avatarUrl, deleted: assignee.deleted }
+              : undefined
+          }
+          options={options}
+          isLoading={isLoading}
+          isPending={isAssigning || isUnassigning}
+          onAssign={handleAssign}
+        />
+      </div>
       <InfoCell
         value={
           assignee ? (
