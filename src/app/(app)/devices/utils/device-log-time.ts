@@ -21,18 +21,19 @@ export const DEFAULT_DEVICE_LOG_RANGE: DeviceLogRangeWindow = '24h';
 export const MAX_DEVICE_LOG_RANGE_DAYS = 30;
 
 /**
- * Production retention, the shortest of any environment (dev/qa/stage keep 30 days).
- * The empty state mentions retention for a range that reaches past it, without
- * naming the number: the client cannot tell which environment it runs against.
+ * Past this many days an empty list hints at retention rather than at the filters.
+ * It is the shortest retention of any environment (production; dev/qa/stage keep
+ * 30 days), not a promise: the client cannot tell which environment it runs
+ * against, so the hint never names a number.
  */
-export const DEVICE_LOG_RETENTION_DAYS = 10;
+export const DEVICE_LOG_RETENTION_HINT_DAYS = 10;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 /** True when the window starts before production retention, measured from its anchor. */
 export function isBeyondDeviceLogRetention(from: string | undefined, anchorMs: number): boolean {
-  return from !== undefined && anchorMs - Date.parse(from) > DEVICE_LOG_RETENTION_DAYS * DAY_MS;
+  return from !== undefined && anchorMs - Date.parse(from) > DEVICE_LOG_RETENTION_HINT_DAYS * DAY_MS;
 }
 
 /** The first day a range ending on `last` may start on: both end days count toward the cap. */

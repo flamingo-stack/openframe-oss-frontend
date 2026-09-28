@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   adoptRefreshStamp,
-  DEVICE_LOG_RETENTION_DAYS,
+  DEVICE_LOG_RETENTION_HINT_DAYS,
   deviceLogCustomBounds,
   deviceLogDay,
   deviceLogPickerBounds,
@@ -194,8 +194,8 @@ describe('isBeyondDeviceLogRetention', () => {
   const daysBack = (days: number) => new Date(anchor - days * 86_400_000).toISOString();
 
   it('flags a window that starts before retention, measured from its own anchor', () => {
-    expect(isBeyondDeviceLogRetention(daysBack(DEVICE_LOG_RETENTION_DAYS + 1), anchor)).toBe(true);
-    expect(isBeyondDeviceLogRetention(daysBack(DEVICE_LOG_RETENTION_DAYS), anchor)).toBe(false);
+    expect(isBeyondDeviceLogRetention(daysBack(DEVICE_LOG_RETENTION_HINT_DAYS + 1), anchor)).toBe(true);
+    expect(isBeyondDeviceLogRetention(daysBack(DEVICE_LOG_RETENTION_HINT_DAYS), anchor)).toBe(false);
     expect(isBeyondDeviceLogRetention(daysBack(7), anchor)).toBe(false);
   });
 
