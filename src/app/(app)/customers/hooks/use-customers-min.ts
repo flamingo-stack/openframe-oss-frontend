@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { GET_ORGANIZATIONS_MIN_QUERY } from '../queries/customers-queries';
 
@@ -21,48 +21,42 @@ interface OrganizationMinNode {
   image?: { imageUrl?: string } | null;
 }
 
-export function useCustomersMin(limit: number = 10) {
-  const [items, setItems] = useState<OrganizationMin[]>([]);
-  const [isLoading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export const customersMinQueryKey = (limit: number, search: string) =>
+  ['customers', 'min', { limit, search }] as const;
 
-  const fetch = useCallback(
-    async (search: string = '') => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await apiClient.post<{
-          data?: { organizations?: { edges?: { node: OrganizationMinNode }[] } };
-        }>('/api/graphql', {
-          query: GET_ORGANIZATIONS_MIN_QUERY,
-          variables: { search, first: limit },
-        });
+async function fetchCustomersMin(limit: number, search: string): Promise<OrganizationMin[]> {
+  const response = await apiClient.post<{
+    data?: { organizations?: { edges?: { node: OrganizationMinNode }[] } };
+  }>('/api/graphql', {
+    query: GET_ORGANIZATIONS_MIN_QUERY,
+    variables: { search, first: limit },
+  });
 
-        if (!response.ok) {
-          throw new Error(response.error || `Request failed with status ${response.status}`);
-        }
+  if (!response.ok) {
+    throw new Error(response.error || `Request failed with status ${response.status}`);
+  }
 
-        const payload = response.data?.data?.organizations;
-        const list = Array.isArray(payload?.edges) ? payload.edges : [];
-        const mapped: OrganizationMin[] = list.map(({ node }) => ({
-          id: node.id,
-          organizationId: node.organizationId,
-          name: node.name,
-          isDefault: node.isDefault,
-          imageUrl: node.image?.imageUrl,
-        }));
-        setItems(mapped);
-        return mapped;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Failed to fetch customers';
-        setError(msg);
-        throw e;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [limit],
-  );
+  const payload = response.data?.data?.organizations;
+  const list = Array.isArray(payload?.edges) ? payload.edges : [];
+  return list.map(({ node }) => ({
+    id: node.id,
+    organizationId: node.organizationId,
+    name: node.name,
+    isDefault: node.isDefault,
+    imageUrl: node.image?.imageUrl,
+  }));
+}
 
-  return { items, isLoading, error, fetch };
+export function useCustomersMin(limit: number = 10, search: string = '') {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: customersMinQueryKey(limit, search),
+    queryFn: () => fetchCustomersMin(limit, search),
+  });
+
+  return {
+    items: data ?? [],
+    isLoading,
+    error: error instanceof Error ? error.message : null,
+    fetch: refetch,
+  };
 }
