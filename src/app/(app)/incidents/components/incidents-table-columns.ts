@@ -28,3 +28,8 @@ export const INCIDENTS_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
   INCIDENT_COLUMNS.mingo,
   INCIDENT_COLUMNS.open,
 ];
+
+/** The device page's Incidents tab: one device, so no Device column. */
+export const DEVICE_INCIDENTS_TABLE_COLUMNS: readonly TableSkeletonColumn[] = INCIDENTS_TABLE_COLUMNS.filter(
+  column => column !== INCIDENT_COLUMNS.device,
+);

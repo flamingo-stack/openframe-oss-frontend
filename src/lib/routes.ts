@@ -44,6 +44,7 @@ export const TAB_IDS = {
     'security',
     'agents',
     'tickets',
+    'incidents',
     'hardware',
     'os',
     'network',

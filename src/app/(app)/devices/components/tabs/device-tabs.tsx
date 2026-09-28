@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AlertTriangleIcon,
   // BracketCurlyEllipsisVrIcon, // Queries tab temporarily disabled
   BracketSquareCheckIcon,
   ComputerMouseIcon,
@@ -16,10 +17,12 @@ import {
   WebDesignIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import type { DeviceDetailTab } from '@/lib/routes';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
 import { AgentsTab } from './agents-tab';
 import { HardwareTab } from './hardware-tab';
+import { IncidentsTab } from './incidents-tab';
 import { NetworkTab } from './network-tab';
 import { OsTab } from './os-tab';
 import { OverviewTab } from './overview-tab';
@@ -32,7 +35,13 @@ import { TicketsTab } from './tickets-tab';
 import { UsersTab } from './users-tab';
 import { VulnerabilitiesTab } from './vulnerabilities-tab';
 
-const BASE_DEVICE_TABS: TabItem[] = [
+// `satisfies` links each gated id to the route registry's tab union — renaming it in
+// TAB_IDS.deviceDetails without updating this fails tsc.
+export const REMOTE_SESSIONS_TAB_ID = 'remote-sessions' satisfies DeviceDetailTab;
+const INCIDENTS_TAB_ID = 'incidents' satisfies DeviceDetailTab;
+
+/** Every tab, gated ones included — `useDeviceTabs` narrows it to the visible set. */
+export const ALL_DEVICE_TABS: TabItem[] = [
   {
     id: 'overview',
     label: 'Overview',
@@ -44,6 +53,12 @@ const BASE_DEVICE_TABS: TabItem[] = [
     label: 'Vulnerabilities',
     icon: BracketSquareCheckIcon,
     component: VulnerabilitiesTab,
+  },
+  {
+    id: INCIDENTS_TAB_ID,
+    label: 'Incidents',
+    icon: AlertTriangleIcon,
+    component: IncidentsTab,
   },
   {
     id: 'policies',
@@ -106,30 +121,28 @@ const BASE_DEVICE_TABS: TabItem[] = [
     icon: WebDesignIcon,
     component: SoftwareTab,
   },
+  {
+    id: REMOTE_SESSIONS_TAB_ID,
+    label: 'Remote Sessions',
+    // The Figma glyph is named "computer-mouse" - the same icon the Remote
+    // Control header button uses.
+    icon: ComputerMouseIcon,
+    component: RemoteSessionsTab,
+  },
 ];
-
-// `satisfies` links the id to the route registry's tab union — renaming it in
-// TAB_IDS.deviceDetails without updating this fails tsc.
-export const REMOTE_SESSIONS_TAB_ID = 'remote-sessions' satisfies DeviceDetailTab;
-
-const REMOTE_SESSIONS_TAB: TabItem = {
-  id: REMOTE_SESSIONS_TAB_ID,
-  label: 'Remote Sessions',
-  // The Figma glyph is named "computer-mouse" - the same icon the Remote
-  // Control header button uses.
-  icon: ComputerMouseIcon,
-  component: RemoteSessionsTab,
-};
-
-/** Superset used to resolve the active tab's component regardless of visibility. */
-export const ALL_DEVICE_TABS: TabItem[] = [...BASE_DEVICE_TABS, REMOTE_SESSIONS_TAB];
 
 /**
  * Tabs shown for a device. Remote Sessions is gated on the 'remote-access-approval'
- * flag (same pattern as `getCustomerTabs`): 'loading' and 'off' both hide it, so
- * the tab only ever appears when the feature is actually on.
+ * flag (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
+ * 'loading' and 'off' both hide a tab, so it only ever appears when the feature
+ * is actually on.
  */
 export function useDeviceTabs(): TabItem[] {
   const recordingsGate = useRemoteAccessApprovalGate();
-  return recordingsGate === 'on' ? ALL_DEVICE_TABS : BASE_DEVICE_TABS;
+  const incidentsGate = useIncidentsGate();
+  return ALL_DEVICE_TABS.filter(
+    tab =>
+      (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate === 'on') &&
+      (tab.id !== INCIDENTS_TAB_ID || incidentsGate === 'on'),
+  );
 }
