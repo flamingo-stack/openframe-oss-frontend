@@ -62,23 +62,32 @@ export function getDeviceActionsColumn(renderRowActions?: (device: Device) => Re
   };
 }
 
-export const DEVICE_OPEN_COLUMN: ColumnDef<Device> = {
-  id: 'open',
-  cell: ({ row }: { row: Row<Device> }) => (
-    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-      <Button
-        onClick={openInNewTab(deviceRowHref(row.original))}
-        variant="outline"
-        size="icon"
-        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-        aria-label="Open in new tab"
-        className="bg-ods-card"
-      />
-    </div>
-  ),
-  enableSorting: false,
-  meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
-};
+/**
+ * Builds the open-in-new-tab column for a table whose rows link out via `rowHref`.
+ * Kept generic (not device-specific) so other tables with the same
+ * open-in-new-tab affordance can share this instead of redeclaring it.
+ */
+export function createOpenColumn<T>(rowHref: (row: T) => string): ColumnDef<T> {
+  return {
+    id: 'open',
+    cell: ({ row }: { row: Row<T> }) => (
+      <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+        <Button
+          onClick={openInNewTab(rowHref(row.original))}
+          variant="outline"
+          size="icon"
+          leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+          aria-label="Open in new tab"
+          className="bg-ods-card"
+        />
+      </div>
+    ),
+    enableSorting: false,
+    meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+  };
+}
+
+export const DEVICE_OPEN_COLUMN: ColumnDef<Device> = createOpenColumn<Device>(deviceRowHref);
 
 interface DevicesTableBodyProps {
   devices: Device[];
