@@ -26,6 +26,12 @@ export interface TempFileEntry {
   error?: string;
 }
 
+// NOTE: This hook intentionally uses apiClient + react-query rather than
+// react-relay's useMutation. A full migration to react-relay requires
+// relay-compiler-generated artifacts derived from the live GraphQL schema,
+// which are not present in this repository and cannot be safely hand-authored
+// here. See finding OPENFRAM-002-2 — tracked as follow-up work requiring
+// schema/codegen tooling access.
 export async function createTempAttachment(
   source: UploadSource,
 ): Promise<{ id: string; fileName: string; fileSize: number; contentType: string }> {
