@@ -20,15 +20,22 @@ import {
   isRetryableDeviceLogError,
 } from '../../../utils/device-log-errors';
 import { deviceLogRowKey, type PolledPage } from '../../../utils/device-log-tail';
-import { DEVICE_LOG_RETENTION_DAYS, groupDeviceLogDays } from '../../../utils/device-log-time';
+import { groupDeviceLogDays } from '../../../utils/device-log-time';
 import { TabEmptyState } from '../tab-empty-state';
 import { AGENT_LOG_ROW_PAINT } from './agent-log-columns';
 import { AgentLogRow } from './agent-log-row';
 import { AgentLogsDayHeader } from './agent-logs-day-header';
 import { AgentLogsRowsSkeleton } from './agent-logs-skeleton';
 
-/** The API maximum: a scroll page and a poll page both ask for it, so a busy device needs fewer round trips. */
+/** The API maximum for a scroll page, so a busy device needs fewer round trips. */
 const DEVICE_LOGS_PAGE_SIZE = 500;
+
+/**
+ * A poll asks for less: it runs every 5 seconds on every open
+ * tab and normally finds a handful of lines. A poll that fills this page is a gap,
+ * which reloads the head of the list instead.
+ */
+const DEVICE_LOGS_POLL_PAGE_SIZE = 100;
 
 const agentLogsContentQueryNode = graphql`
   query agentLogsContentQuery($machineId: String!, $filter: DeviceLogFilterInput, $first: Int!, $after: String) {
@@ -142,7 +149,7 @@ export function AgentLogsContent({
       fetchQuery<agentLogsContentPollQuery>(
         environment,
         agentLogsContentPollQueryNode,
-        { machineId, filter: { ...list.filter, from }, first: DEVICE_LOGS_PAGE_SIZE },
+        { machineId, filter: { ...list.filter, from }, first: DEVICE_LOGS_POLL_PAGE_SIZE },
         { fetchPolicy: 'network-only' },
       ).map((answer): PolledPage => ({
         gap: answer.deviceLogs.pageInfo.hasNextPage,
@@ -215,7 +222,7 @@ export function AgentLogsContent({
             title="No logs in this range"
             description={
               beyondRetention
-                ? `Agent logs are kept for ${DEVICE_LOG_RETENTION_DAYS} days. Try a narrower range or different filters.`
+                ? 'Logs older than the retention period are no longer kept. Try a narrower range or different filters.'
                 : 'Nothing matched the current range and filters.'
             }
             buttonLabel={hasActiveFilters ? 'Reset filters' : undefined}

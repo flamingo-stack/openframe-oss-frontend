@@ -20,7 +20,11 @@ export const DEFAULT_DEVICE_LOG_RANGE: DeviceLogRangeWindow = '24h';
 /** The API rejects wider ranges with VALIDATION_ERROR; the picker never offers one. */
 export const MAX_DEVICE_LOG_RANGE_DAYS = 30;
 
-/** Production retention; the empty state names it for ranges that reach past it. */
+/**
+ * Production retention, the shortest of any environment (dev/qa/stage keep 30 days).
+ * The empty state mentions retention for a range that reaches past it, without
+ * naming the number: the client cannot tell which environment it runs against.
+ */
 export const DEVICE_LOG_RETENTION_DAYS = 10;
 
 const HOUR_MS = 60 * 60 * 1000;
