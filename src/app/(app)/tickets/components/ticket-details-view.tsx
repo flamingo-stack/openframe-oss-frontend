@@ -97,6 +97,14 @@ interface TicketDetailsViewProps {
   ticketId: string;
 }
 
+// Canonical tab ids for this view's main tab navigation, referenced by both the
+// URL-sync logic (mainTab / handleMainTabChange) and the TabNavigation/tab items
+// below, so a rename only ever happens in this one place.
+const TAB_IDS = {
+  DETAILS: 'details',
+  CHAT: 'chat',
+} as const;
+
 /**
  * Wrap a device-menu item so opening it also fires a dashboard-activity event.
  *
@@ -294,7 +302,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     });
   }, [dialog, startTimer, toast]);
   const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
-  const mainTab = searchParams.get('tab') === 'chat' ? 'chat' : 'details';
+  const mainTab = searchParams.get('tab') === TAB_IDS.CHAT ? TAB_IDS.CHAT : TAB_IDS.DETAILS;
   const handleMainTabChange = useCallback(
     (tabId: string) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -647,7 +655,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // point at. But with nothing to put in a Details tab — every AI-dialog ticket — the desktop
   // column renders the chat bare while `mainTab` still reads 'details', and the mobile column
   // keeps its tabs, so only the breakpoint separates the two.
-  const clientChatOnScreen = hasClientChat && (mainTab === 'chat' || (isLgUp === true && !showDetailsTabs));
+  const clientChatOnScreen = hasClientChat && (mainTab === TAB_IDS.CHAT || (isLgUp === true && !showDetailsTabs));
 
   const customerName =
     dialog.organizationName ||
@@ -844,8 +852,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   );
 
   const mainTabs: TabItem[] = [
-    { id: 'details', label: 'Ticket Details', icon: ClipboardListIcon },
-    { id: 'chat', label: 'Client Chat', icon: ChatsIcon },
+    { id: TAB_IDS.DETAILS, label: 'Ticket Details', icon: ClipboardListIcon },
+    { id: TAB_IDS.CHAT, label: 'Client Chat', icon: ChatsIcon },
   ];
 
   // Ticket Details pane (description + assigned items) — shared by the tabbed and
@@ -921,7 +929,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
             {showDetailsTabs ? (
               <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
                 {active =>
-                  active === 'chat' ? (
+                  active === TAB_IDS.CHAT ? (
                     <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
                   ) : (
                     <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
@@ -948,7 +956,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
             {hasClientChat ? (
               <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
                 {active =>
-                  active === 'chat' ? (
+                  active === TAB_IDS.CHAT ? (
                     <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
                   ) : (
                     <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
