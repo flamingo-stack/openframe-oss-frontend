@@ -11,7 +11,7 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
-import { ANCHOR_TOP_OFFSET_PX, useOnboardingAutoAdvance } from '../hooks/use-onboarding-auto-advance';
+import { ANCHOR_TOP_OFFSET_PX, useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import {
   countCompleted,
   isStepDone,
@@ -137,7 +137,7 @@ function LoadedOnboardingContent() {
   // (`onboardingStepAnchorId`); the fragment parses back to a step here, unknown
   // fragments → null. Lazy initializer: this component only mounts client-side
   // (behind the `isLoaded` gate), so reading `location.hash` during the first
-  // render is safe and gives the deep-linked step to the auto-advance hook from
+  // render is safe and gives the deep-linked step to the accordion hook from
   // the start — an effect would run after the hook's mount anchor.
   const [hashStep, setHashStep] = useState<UserOnboardingStepId | null>(() =>
     typeof window === 'undefined'
@@ -172,11 +172,8 @@ function LoadedOnboardingContent() {
     }
   }, []);
 
-  // Guided flow: the first incomplete step opens automatically (anchored on mount —
-  // the next step may be a group or two below the fold) and, as steps complete, the
-  // flow advances: finished step folds, the next one opens and scrolls into view.
-  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAutoAdvance(USER_ONBOARDING_STEPS, completedSteps, {
-    scrollOnMount: true,
+  // Every step starts collapsed; only a click or the URL hash opens one.
+  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAccordion<UserOnboardingStepId>({
     urlStep: hashStep,
     onOpenStepChange: syncHashToStep,
   });

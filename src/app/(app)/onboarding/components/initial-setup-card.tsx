@@ -8,7 +8,7 @@ import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
-import { useOnboardingAutoAdvance } from '../hooks/use-onboarding-auto-advance';
+import { useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import { type DataDetectableStep, useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
 import { MEET_MINGO_META } from '../meet-mingo-meta';
 import { countCompleted, isStepDone, TENANT_ONBOARDING_STEPS } from '../onboarding-steps';
@@ -129,12 +129,8 @@ function InitialSetupCardContent() {
   // background mutation to round-trip. Overlap is harmless — both readers dedupe.
   const completedSteps = [...(tenant?.completedSteps ?? []), ...completedByData];
 
-  // Guided flow: the first incomplete step opens and, as steps complete, the finished
-  // one folds while the next opens and scrolls into view. `scrollOnMount` anchors that
-  // on entry too. Runs after the suspend, so the first open step comes from settled data.
-  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAutoAdvance(TENANT_ONBOARDING_STEPS, completedSteps, {
-    scrollOnMount: true,
-  });
+  // Every step starts collapsed; only a click opens one.
+  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAccordion<TenantOnboardingStep>();
 
   const total = TENANT_ONBOARDING_STEPS.length;
   const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);

@@ -43,7 +43,7 @@ export interface OnboardingAccordionItemProps {
   /**
    * Controlled expansion. When set, the row follows this value and reports chevron
    * toggles via `onExpandedChange` instead of keeping internal state (used by the
-   * auto-advance flow — see `useOnboardingAutoAdvance`). Ignored for `disabled`.
+   * auto-advance flow — see `useOnboardingAccordion`). Ignored for `disabled`.
    */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -188,7 +188,7 @@ export function OnboardingAccordionItem({
         <div
           // The auto-advance click anchor measures this wrapper (its height is the
           // row's visible body) to pre-subtract a collapsing row above the clicked
-          // one — see STEP_BODY_SELECTOR in `useOnboardingAutoAdvance`.
+          // one — see STEP_BODY_SELECTOR in `useOnboardingAccordion`.
           data-onboarding-step-body
           className={cn(
             'grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',
