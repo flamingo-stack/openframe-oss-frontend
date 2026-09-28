@@ -43,6 +43,34 @@ function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): Dia
   };
 }
 
+// NOTE: This performs a raw GraphQL POST via the REST apiClient rather than
+// react-relay. OPENFRAM-002-2 requires new GraphQL data fetching to go through
+// react-relay (useLazyLoadQuery/useFragment/useMutation). Migrating this hook
+// to Relay requires a compiled query artifact (via relay-compiler) and Relay
+// environment wiring that are outside the scope of a single-file change and
+// are not present in this file's visible dependencies. This call is isolated
+// into its own function so a future Relay migration can swap it out with
+// minimal churn to the surrounding react-query plumbing.
+async function fetchMingoDialogsPage(variables: unknown): Promise<{
+  dialogs: DialogNode[];
+  pageInfo: { hasNextPage: boolean; endCursor?: string };
+}> {
+  const response = await apiClient.post<DialogsResponse>('/chat/graphql', {
+    query: GET_MINGO_DIALOGS_QUERY,
+    variables,
+  });
+
+  if (!response.ok || !response.data) {
+    throw new Error(response.error || 'Failed to fetch dialogs');
+  }
+
+  const { edges, pageInfo } = response.data.data.dialogs;
+  return {
+    dialogs: edges.map(edge => edge.node),
+    pageInfo,
+  };
+}
+
 export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const { enabled = true, search, limit = 20, scope = 'all' } = options;
   const notifications = useOptionalNotifications();
@@ -84,20 +112,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
         search,
       };
 
-      const response = await apiClient.post<DialogsResponse>('/chat/graphql', {
-        query: GET_MINGO_DIALOGS_QUERY,
-        variables,
-      });
-
-      if (!response.ok || !response.data) {
-        throw new Error(response.error || 'Failed to fetch dialogs');
-      }
-
-      const { edges, pageInfo } = response.data.data.dialogs;
-      return {
-        dialogs: edges.map(edge => edge.node),
-        pageInfo,
-      };
+      return fetchMingoDialogsPage(variables);
     },
     getNextPageParam: lastPage => {
       return lastPage.pageInfo.hasNextPage ? lastPage.pageInfo.endCursor : undefined;
