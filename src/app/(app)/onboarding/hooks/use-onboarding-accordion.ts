@@ -4,16 +4,6 @@ import { scrollElementIntoView } from '@flamingo-stack/openframe-frontend-core/u
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
- * How long the accordion rows animate (the grid-rows 0fr↔1fr transition in
- * `onboarding-accordion` runs 200ms). The auto-advance anchor waits this out so
- * the collapsing/expanding rows settle before the target position is measured —
- * the smooth tween re-tracks the target each frame anyway, but the
- * reduced-motion path is a single instant write and must measure settled
- * geometry.
- */
-const ACCORDION_ANIMATION_MS = 250;
-
-/**
  * Breathing room between the top of the scroll container and the anchored row.
  * Replaces the accordion row's former `scroll-mt-20` (80px), which only the
  * native `scrollIntoView` honored — `scrollElementIntoView` takes the offset
@@ -30,15 +20,7 @@ export const ANCHOR_TOP_OFFSET_PX = 80;
  */
 const STEP_BODY_SELECTOR = '[data-onboarding-step-body]';
 
-interface AutoAdvanceOptions<T extends string> {
-  /**
-   * Also anchor the initially open step on mount, so the user lands on the
-   * actionable step even when it sits below the fold (earlier steps done, or a
-   * surface reached via deep link / return visit). On for both onboarding
-   * surfaces — the /onboarding page and the dashboard Initial Setup card.
-   * @default false
-   */
-  scrollOnMount?: boolean;
+interface AccordionOptions<T extends string> {
   /**
    * URL-synced open step (the hub same-page anchor model — `#faq-…`/`#delivery-…`
    * there, `#step-…` here). The page parses + validates the hash fragment and
@@ -53,49 +35,30 @@ interface AutoAdvanceOptions<T extends string> {
 }
 
 /**
- * Guided single-open accordion flow for an onboarding surface: keeps the FIRST
- * incomplete step (in display order) auto-expanded and anchors it into view as
- * progress advances. One step is open at a time — same model as the hub's
- * ticket/help-center drawers this mirrors.
+ * Single-open accordion for an onboarding surface. Every step starts collapsed
+ * and only the user opens one: a chevron click, or a deep link (`urlStep`),
+ * which is anchored into view on mount. Progress never moves the open step —
+ * the guided auto-advance this replaced opened the next step and scrolled to
+ * it on its own, which pulled the page out from under the user.
  *
- * - On mount, the deep-linked (`urlStep`) or next incomplete step starts
- *   expanded (optionally scrolled to) and is reported to the URL.
- * - A chevron toggle opens/closes a step, anchors the clicked row (every click
- *   scrolls — open, close, or cross-row switch, exactly like the hub's
- *   `TicketRow`) and mirrors the change into the URL.
- * - When progress advances (the next incomplete step changes), the finished
- *   step collapses, the new next step expands and is anchored into view.
- * - Once every step is done, the open step collapses and the surface scrolls
- *   back to the top so its header — where the "Complete …" finisher lives —
- *   is in view.
- *
- * Anchoring goes through the core-lib's unified `scrollElementIntoView` helper —
- * it resolves the actual scroll container (the AppLayout `<main overflow-y-auto>`,
- * not the window), survives layout shifts from the still-animating accordion, and
- * honors `prefers-reduced-motion` internally.
+ * A click anchors the clicked row (open, close, or cross-row switch, exactly
+ * like the hub's `TicketRow`) and mirrors the change into the URL. Anchoring
+ * goes through the core-lib's unified `scrollElementIntoView` helper — it
+ * resolves the actual scroll container (the AppLayout `<main overflow-y-auto>`,
+ * not the window), survives layout shifts from the still-animating accordion,
+ * and honors `prefers-reduced-motion` internally.
  *
  * Returns per-step accessors meant for `OnboardingAccordionItem`:
  * `expandedOf`/`onExpandedChangeOf` (controlled expansion) and `refOf` (anchor node).
  */
-export function useOnboardingAutoAdvance<T extends string>(
-  steps: readonly T[],
-  // Membership oracle, not a step list — deliberately NOT `readonly T[]`. A surface
-  // renders a subset of its enum, so this can name steps it never shows; `steps` alone
-  // defines the universe.
-  completedSteps: readonly string[],
-  { scrollOnMount = false, urlStep = null, onOpenStepChange }: AutoAdvanceOptions<T> = {},
-) {
-  // The step the flow points the user at — first incomplete one in display order.
-  const nextStep = steps.find(step => !completedSteps.includes(step)) ?? null;
-
-  // Single open step. A URL-provided step wins on mount (deep link / restored
-  // tab); otherwise the guided flow opens the first incomplete step.
-  const [openStep, setOpenStepState] = useState<T | null>(urlStep ?? nextStep);
-
+export function useOnboardingAccordion<T extends string>({
+  urlStep = null,
+  onOpenStepChange,
+}: AccordionOptions<T> = {}) {
+  const [openStep, setOpenStepState] = useState<T | null>(urlStep);
   const nodesRef = useRef(new Map<T, HTMLDivElement>());
   // Stable per-step ref callbacks, so rows don't detach/re-attach on every render.
   const refCallbacksRef = useRef(new Map<T, (node: HTMLDivElement | null) => void>());
-  const prevNextStepRef = useRef(nextStep);
   const prevUrlStepRef = useRef(urlStep);
   const openStepRef = useRef(openStep);
   const onOpenStepChangeRef = useRef(onOpenStepChange);
@@ -104,14 +67,6 @@ export function useOnboardingAutoAdvance<T extends string>(
     onOpenStepChangeRef.current = onOpenStepChange;
   });
 
-  /**
-   * What the mount effect below needs, captured so it can stay mount-only. Read
-   * from a ref rather than listed as dependencies: re-running it on a later URL
-   * change would re-scroll the page out from under the user, which is what the
-   * adopt-external-changes effect further down is for.
-   */
-  const mountArgsRef = useRef({ urlStep, scrollOnMount });
-
   // Every internal transition goes through here so the URL param stays a
   // faithful mirror of the open block.
   const setOpenStep = useCallback((step: T | null) => {
@@ -119,16 +74,10 @@ export function useOnboardingAutoAdvance<T extends string>(
     onOpenStepChangeRef.current?.(step);
   }, []);
 
-  // `anchor` lands the row near the top of the scroller; `surface-top` scrolls the
-  // whole surface back to the top of its container (the node only picks WHICH
-  // container to drive — `adjustTargetY` overrides the target to 0).
-  const scrollToStep = useCallback((step: T, mode: 'anchor' | 'surface-top' = 'anchor') => {
+  const scrollToStep = useCallback((step: T) => {
     const node = nodesRef.current.get(step);
     if (!node) return;
-    scrollElementIntoView(
-      node,
-      mode === 'surface-top' ? { adjustTargetY: () => 0 } : { headerOffset: ANCHOR_TOP_OFFSET_PX },
-    );
+    scrollElementIntoView(node, { headerOffset: ANCHOR_TOP_OFFSET_PX });
   }, []);
 
   // Click anchor — fires immediately on toggle (no animation wait): the tween
@@ -155,20 +104,16 @@ export function useOnboardingAutoAdvance<T extends string>(
     });
   }, []);
 
-  // Mount: report the initially open step so the URL reflects it from the
-  // start, and (on deep-linkable surfaces) land the user on it.
-  // mount-only by design
+  // Mount: a deep-linked step opens collapsed-siblings-first and is landed on.
+  // Read from a ref so the effect stays mount-only: re-running it on a later
+  // URL change would re-scroll the page, which the adopt effect below owns.
   const scrollToStepRef = useRef(scrollToStep);
   useEffect(() => {
     scrollToStepRef.current = scrollToStep;
   });
-
   useEffect(() => {
     const initial = openStepRef.current;
-    if (!initial) return;
-    const { urlStep: mountUrlStep, scrollOnMount: shouldScroll } = mountArgsRef.current;
-    if (initial !== mountUrlStep) onOpenStepChangeRef.current?.(initial);
-    if (shouldScroll) scrollToStepRef.current(initial);
+    if (initial) scrollToStepRef.current(initial);
   }, []);
 
   // Adopt external URL changes (back/forward, hand-edited param): the URL owns
@@ -182,26 +127,6 @@ export function useOnboardingAutoAdvance<T extends string>(
     setOpenStepState(urlStep);
     if (urlStep) scrollToToggledStep(urlStep, collapsing);
   }, [urlStep, scrollToToggledStep]);
-
-  // Auto-advance: when the next incomplete step changes, close the finished one,
-  // open the new one, and (after the accordion animation) anchor to it.
-  useEffect(() => {
-    const prev = prevNextStepRef.current;
-    if (nextStep === prev) return undefined;
-    prevNextStepRef.current = nextStep;
-    setOpenStep(nextStep);
-    const firstStep = steps[0];
-    const timer = window.setTimeout(() => {
-      if (nextStep) {
-        scrollToStep(nextStep);
-      } else if (firstStep) {
-        // All done — back to the top of the surface so its header (the finisher
-        // button) shows.
-        scrollToStep(firstStep, 'surface-top');
-      }
-    }, ACCORDION_ANIMATION_MS);
-    return () => window.clearTimeout(timer);
-  }, [nextStep, steps, scrollToStep, setOpenStep]);
 
   const expandedOf = useCallback((step: T) => step === openStep, [openStep]);
 
@@ -227,5 +152,5 @@ export function useOnboardingAutoAdvance<T extends string>(
     return callback;
   }, []);
 
-  return { nextStep, expandedOf, onExpandedChangeOf, refOf };
+  return { expandedOf, onExpandedChangeOf, refOf };
 }

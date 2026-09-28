@@ -37,6 +37,7 @@ import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal'
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
+import { AnnouncementTopBar } from './announcement-top-bar';
 import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
 import { AiSpendLimitBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
@@ -449,6 +450,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   //     `OnboardingTourBar` on EVERY page — on `/onboarding` the CTA is dropped.
   // Each bar's CTA reads "Start …"/"Take …" until its first step is done, then
   // "Continue …". Driven by the backend onboarding progress in the store.
+  //   Otherwise: the hub announcement — informational and dismissible, so it
+  //     ranks below every bar that asks for an action, and it only ever
+  //     replaces an empty slot (never stacks, never bumps a bar out).
   const isOnboardingPage = pathname?.startsWith('/onboarding') ?? false;
   const isDashboardPage = pathname === '/' || (pathname?.startsWith('/dashboard') ?? false);
   // Who the cached band is allowed to speak for. The replay below is the ONLY
@@ -521,6 +525,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           showAction={!isOnboardingPage}
         />
       );
+    } else {
+      topBar = <AnnouncementTopBar />;
     }
   } else {
     // Progress hasn't loaded yet. Rendering nothing here just moves the jump

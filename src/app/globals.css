@@ -161,6 +161,19 @@ html[data-shell='mobile'] .of-auth-shell {
   padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom));
 }
 
+/* Shared-auth host: the hub announcement bar sits in-flow above auth pages that size themselves
+   to the viewport (core `min-h-screen`, `lg:h-screen`). `auth-announcement-bar.tsx` publishes the
+   bar's live height as --announcement-h on <body>; the pages take what is left, so a dismiss (the
+   bar collapses to 0) closes the gap and nothing ever scrolls by the bar's height. */
+body:has([data-announcement-bar]) .of-auth-pages .min-h-screen {
+  min-height: calc(100vh - var(--announcement-h, 0px));
+}
+@media (min-width: 1024px) {
+  body:has([data-announcement-bar]) .of-auth-pages .lg\:h-screen {
+    height: calc(100vh - var(--announcement-h, 0px));
+  }
+}
+
 /* Standalone full-screen pages — rendered outside BOTH of the roots above, i.e.
    with no chrome to hand the remaining edges to, so this root owns all four.
    Currently just /account-deleted, which the deletion flow `replace`s onto once
