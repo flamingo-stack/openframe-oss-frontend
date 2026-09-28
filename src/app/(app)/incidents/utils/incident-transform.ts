@@ -47,6 +47,7 @@ export interface IncidentRow {
   /** Raw `Organization.organizationId` — what the customer route and filters take. */
   organizationId: string;
   organizationName: string;
+  assignee: IncidentUser | null;
 }
 
 export function toIncidentRow(ref: insightRowFields_insight$key): IncidentRow {
@@ -67,6 +68,7 @@ export function toIncidentRow(ref: insightRowFields_insight$key): IncidentRow {
     deviceType: machine?.type ?? null,
     organizationId: node.organizationId,
     organizationName: node.organization?.name ?? '',
+    assignee: node.assigneeId ? toIncidentUser(node.assigneeId, node.assignee) : null,
   };
 }
 
@@ -104,7 +106,6 @@ export interface Incident extends IncidentRow {
   interval: number | null;
   /** The osquery evidence rows; null for incidents recorded before evidence was kept. */
   queryResult: QueryResultRow[] | null;
-  assignee: IncidentUser | null;
   organizationImageUrl?: string;
 }
 
@@ -129,7 +130,6 @@ export function toIncident(ref: insightFields_insight$key): Incident {
     description: node.description ?? null,
     interval: node.interval ?? null,
     queryResult: node.queryResult ? node.queryResult.map(toQueryResultRow) : null,
-    assignee: node.assigneeId ? toIncidentUser(node.assigneeId, node.assignee) : null,
     organizationImageUrl: getFullImageUrl(node.organization?.image?.imageUrl, node.organization?.image?.hash),
   };
 }
