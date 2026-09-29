@@ -38,7 +38,7 @@ export function TenantFormSkeleton({ variant }: { variant: TenantFormSkeletonVar
   return (
     <PageLayout
       title={FORM_TITLES[variant]}
-      backButton={{ label: 'Back to Integrations', onClick: handleBack }}
+      backButton={{ label: 'Back', onClick: handleBack }}
       actions={[SAVE_PLACEHOLDER]}
       actionsVariant="primary-buttons"
     >

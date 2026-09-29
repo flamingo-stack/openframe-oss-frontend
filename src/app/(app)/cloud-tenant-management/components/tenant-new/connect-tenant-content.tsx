@@ -35,7 +35,7 @@ export function ConnectTenantContent({ id }: { id: string }) {
 
   if (!connection) {
     return (
-      <PageLayout title="New Tenant Integration" backButton={{ label: 'Back to Integrations', onClick: handleBack }}>
+      <PageLayout title="New Tenant Integration" backButton={{ label: 'Back', onClick: handleBack }}>
         <NotFoundError message="Tenant not found" onHome={() => router.replace(routes.cloudTenantManagement.list)} />
       </PageLayout>
     );

@@ -64,7 +64,7 @@ function ReconnectTenantContent({ id }: { id: string }) {
   return (
     <PageLayout
       title="Reconnect Tenant Integration"
-      backButton={{ label: 'Back to Integrations', onClick: handleBack }}
+      backButton={{ label: 'Back', onClick: handleBack }}
       actions={actions}
       actionsVariant="primary-buttons"
     >

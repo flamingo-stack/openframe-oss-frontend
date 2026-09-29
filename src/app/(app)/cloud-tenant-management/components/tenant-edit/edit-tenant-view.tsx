@@ -41,7 +41,7 @@ export function EditTenantView({ id }: { id: string }) {
   return (
     <PageLayout
       title="Edit Tenant Integration"
-      backButton={{ label: 'Back to Integrations', onClick: handleBack }}
+      backButton={{ label: 'Back', onClick: handleBack }}
       actions={actions}
       actionsVariant="primary-buttons"
     >

@@ -37,7 +37,7 @@ export function NewTenantView() {
   return (
     <PageLayout
       title="New Tenant Integration"
-      backButton={{ label: 'Back to Integrations', onClick: handleBack }}
+      backButton={{ label: 'Back', onClick: handleBack }}
       actions={[SAVE_PLACEHOLDER]}
       actionsVariant="primary-buttons"
     >
