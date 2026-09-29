@@ -10,7 +10,7 @@ import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
  * the tenant may not have is on screen before the answer.
  *
  * Only a definitive "off" 404s: `notFound()` throws, and throwing while the
- * flags are merely unanswered is unrecoverable (see notifications/page.tsx).
+ * flags are merely unanswered is unrecoverable (see `use-feature-flag.ts`).
  * The sidebar entry and the Mingo picker read the same flag through the
  * plain hook, where appearing late is fine.
  */

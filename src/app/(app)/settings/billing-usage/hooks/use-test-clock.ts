@@ -16,12 +16,24 @@ import { extractGraphqlErrorMessage } from './extract-graphql-error-message';
  */
 
 const advanceTestClockMutation = graphql`
-  mutation useTestClockAdvanceMutation($days: Int!) {
-    advanceTestClock(days: $days) {
+  mutation useTestClockAdvanceMutation($days: Int, $hours: Int) {
+    advanceTestClock(days: $days, hours: $hours) {
       frozenTime
     }
   }
 `;
+
+/**
+ * How far to move the clock. Days and hours add up on the backend; either may be left
+ * out, but the backend rejects a call that carries neither (or a negative value) with a
+ * message the panel shows verbatim. Hours exist because Stripe cuts its cycle at the
+ * subscription anchor's time of day, so a whole-day step can never land inside the
+ * hours around that boundary.
+ */
+export interface TestClockAdvance {
+  days?: number;
+  hours?: number;
+}
 
 const resetTestClockMutation = graphql`
   mutation useTestClockResetMutation {
@@ -35,9 +47,11 @@ export function useAdvanceTestClock() {
   const [commit, isInFlight] = useMutation<UseTestClockAdvanceMutationType>(advanceTestClockMutation);
 
   const mutate = useCallback(
-    (days: number, onSuccess?: (frozenTime: string | null) => void) => {
+    ({ days, hours }: TestClockAdvance, onSuccess?: (frozenTime: string | null) => void) => {
       commit({
-        variables: { days },
+        // A field the tester left empty goes out as null rather than 0, so the backend
+        // sees exactly what was filled in and its "neither given" check stays meaningful.
+        variables: { days: days ?? null, hours: hours ?? null },
         onCompleted: (response, errors) => {
           // `advanceTestClock` is nullable, so a failed mutation still resolves as a
           // valid payload ({ advanceTestClock: null } plus `errors`) and Relay routes

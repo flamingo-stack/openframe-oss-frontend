@@ -11,7 +11,7 @@ import { isSaasTenantMode } from '@/lib/app-mode';
  */
 
 /**
- * The trailing header cells the live header reserves while its flags load, in the
+ * The trailing header cells the live header reserves while the chrome loads, in the
  * order it renders them: time tracker, notifications, then the Mingo launcher. No
  * avatar — the header carries no user cell (`showUser: false`), and reserving one
  * would leave a cell that never fills in.
@@ -20,9 +20,8 @@ import { isSaasTenantMode } from '@/lib/app-mode';
  * wordmark, `gap-2 px-4`), roughly twice a square cell, so reserving a square for it
  * leaves the cluster short and shifts it when the real header lands.
  *
- * Deliberately NOT derived from the feature flags: they are exactly what is still
- * loading, so reading them here would reserve nothing at all. App mode IS known
- * synchronously, and Mingo is a SaaS-tenant surface.
+ * Derived from app mode only, which IS known synchronously: Mingo is a SaaS-tenant
+ * surface.
  */
 export function headerLoadingCells(): HeaderLoadingCell[] {
   return isSaasTenantMode() ? ['icon', 'icon', 'wide'] : ['icon', 'icon'];

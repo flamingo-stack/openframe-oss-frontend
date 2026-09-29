@@ -159,11 +159,7 @@ describe('RemoteAccessPolicyApiService', () => {
         },
       ],
     });
-    const policies = await service.getDevicePolicies([
-      { deviceId: 'machine-1' },
-      { deviceId: 'machine-2' },
-      { deviceId: 'machine-3' },
-    ]);
+    const policies = await service.getDevicePolicies(['machine-1', 'machine-2', 'machine-3']);
     expect(relay.fetchQuery.mock.calls[0]?.[2]).toEqual({
       ids: ['TWFjaGluZTptYWNoaW5lLTE', 'TWFjaGluZTptYWNoaW5lLTI', 'TWFjaGluZTptYWNoaW5lLTM'],
     });

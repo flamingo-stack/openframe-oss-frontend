@@ -4,13 +4,11 @@ import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 
 /**
- * The one gate for the approval-aware connect flow. 'off' means
- * the legacy behavior - the tunnel auto-starts with no consent step. The
- * backend does not register 'remote-access-approval' yet (unknown names come
- * back disabled), so the dev server bypasses the server answer - the flow must
- * be testable against the mock service before the approval API exists.
+ * The one gate for the approval-aware connect flow and the policy UI. 'off'
+ * means the legacy behavior - the tunnel auto-starts with no consent step.
+ * It follows the server flag on every build, the dev server included: the
+ * flow talks to the approval API, which is switched on exactly where the flag is.
  */
 export function useRemoteAccessApprovalGate(): FeatureFlagGate {
-  const serverGate = useFeatureFlagGate('remote-access-approval');
-  return process.env.NODE_ENV === 'development' ? 'on' : serverGate;
+  return useFeatureFlagGate('remote-access-approval');
 }

@@ -31,7 +31,7 @@ import {
   type RemoteAccessPolicyScope,
   type TenantRemoteAccessPolicy,
 } from '../types/remote-access';
-import type { DevicePolicyRef, IRemoteAccessPolicyService } from './remote-access-policy-service';
+import type { IRemoteAccessPolicyService } from './remote-access-policy-service';
 import { oneOf } from './remote-access-wire';
 
 /**
@@ -237,7 +237,6 @@ export class RemoteAccessPolicyApiService implements IRemoteAccessPolicyService 
     return readOrganization(saved);
   }
 
-  /** The server resolves the scopes itself; the organization id the mock needs is not used here. */
   async getDevicePolicy(deviceId: string): Promise<DeviceRemoteAccessPolicy> {
     const data = await fetchQuery<DeviceQuery>(
       getRelayEnvironment(),
@@ -249,13 +248,13 @@ export class RemoteAccessPolicyApiService implements IRemoteAccessPolicyService 
     return readDevice(data.device.remoteAccess);
   }
 
-  async getDevicePolicies(devices: ReadonlyArray<DevicePolicyRef>): Promise<Map<string, DeviceRemoteAccessPolicy>> {
+  async getDevicePolicies(deviceIds: ReadonlyArray<string>): Promise<Map<string, DeviceRemoteAccessPolicy>> {
     const policies = new Map<string, DeviceRemoteAccessPolicy>();
-    if (devices.length === 0) return policies;
+    if (deviceIds.length === 0) return policies;
     const data = await fetchQuery<DevicesQuery>(
       getRelayEnvironment(),
       devicesQuery,
-      { ids: devices.map(({ deviceId }) => toGlobalId('Machine', deviceId)) },
+      { ids: deviceIds.map(deviceId => toGlobalId('Machine', deviceId)) },
       { fetchPolicy: 'network-only' },
     ).toPromise();
     for (const node of data?.nodes ?? []) {

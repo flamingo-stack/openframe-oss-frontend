@@ -253,6 +253,11 @@ export interface Device {
   updatedAt?: string;
   osUuid?: string;
   timezone?: string;
+  /**
+   * Id of the user whose install command enrolled the device. Set only by the
+   * details fetch; absent on devices enrolled before the command carried it.
+   */
+  addedByUserId?: string;
 
   // Fleet-derived metadata
   software_updated_at?: string; // Fleet software inventory last-scanned timestamp
@@ -366,6 +371,8 @@ export type DeviceGraphQlNode = {
   timezone?: string;
   registeredAt?: string;
   updatedAt?: string;
+  /** Id of the user whose install command enrolled the device; null on devices enrolled without one. */
+  userId?: string | null;
   // `id`, not `tagId` — this mirrors the GraphQL `Tag` node, and the transform
   // renames it. The old `tagId` here named a field the documents never selected,
   // so every tag arrived with `tagId: undefined` behind a type that claimed

@@ -13,6 +13,7 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import type { Device } from '../types/device.types';
 import { getDeviceName } from '../utils/device-name';
+import { DeviceAddedByCell } from './device-added-by-cell';
 
 function formatDateWithTime(iso?: string): React.ReactNode {
   const d = toValidDate(iso);
@@ -44,9 +45,6 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   const deviceLabel = [device.manufacturer, device.model].filter(Boolean).join(', ');
   const serialNumber = device.serialNumber || device.serial_number;
   const uuid = device.osUuid || device.machineId || device.id;
-  // TEMP: assigned-user block is hidden until the backend returns a user entity
-  const assignedUser = { username: null, imageUrl: null };
-  const assignedUserImageUrl = getFullImageUrl(assignedUser?.imageUrl);
   const customerImageUrl = getFullImageUrl(device.organizationImageUrl, device.organizationImageHash);
   const customerHref = device.organizationId ? routes.customers.details(device.organizationId) : undefined;
 
@@ -86,15 +84,10 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
     </>
   );
 
-  const assignedInner = assignedUser?.username && (
-    <>
-      <EntityImage src={assignedUserImageUrl} alt={assignedUser.username} className="size-10 rounded-full md:size-10" />
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <TruncateText className="text-ods-accent underline">{assignedUser.username}</TruncateText>
-        <p className="truncate text-ods-text-secondary text-h6">Assigned User</p>
-      </div>
-    </>
-  );
+  const addedByCell = <DeviceAddedByCell userId={device.addedByUserId} />;
+  // Holds a column of the desktop grid that has no cell yet, so the cells
+  // around it keep their column.
+  const emptyCell = <div className="flex-1" aria-hidden="true" />;
 
   const canCopyUuid = Boolean(uuid);
   const uuidCell = (
@@ -131,7 +124,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
           {serialCell}
         </div>
 
-        {/* Mobile (< md): customer and assigned each as a full-width row so their
+        {/* Mobile (< md): customer and added-by each as a full-width row so their
             dividers reach the card edges (no horizontal padding constraining
             the border). */}
         {customerInner && (
@@ -139,23 +132,17 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
             {customerInner}
           </div>
         )}
-        {assignedInner && (
-          <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
-            {assignedInner}
-          </div>
-        )}
+        <div className="flex min-h-14 items-center border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
+          {addedByCell}
+        </div>
 
-        {/* Tablet (md to lg): customer + assigned in one horizontal row. */}
-        {(customerInner || assignedInner) && (
-          <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] md:flex md:items-center md:gap-[var(--spacing-system-m)]">
-            {customerInner && (
-              <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customerInner}</div>
-            )}
-            {assignedInner && (
-              <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{assignedInner}</div>
-            )}
-          </div>
-        )}
+        {/* Tablet (md to lg): customer + added-by in one horizontal row. */}
+        <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] md:flex md:items-center md:gap-[var(--spacing-system-m)]">
+          {customerInner && (
+            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customerInner}</div>
+          )}
+          {addedByCell}
+        </div>
 
         <div className={rowClass}>
           {registeredCell}
@@ -166,25 +153,36 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
         </div>
       </div>
 
-      {/* ===== Desktop (lg+) — 4 cells per row, matching Figma 9-57016 ===== */}
+      {/* ===== Desktop (lg+) — a grid of 4 columns ===== */}
       <div className="hidden lg:flex lg:flex-col">
-        {/* Row 1: Hostname · Device · Type · Customer ID (Site) */}
+        {/* Row 1: Hostname · Device · Type · Serial Number */}
         <div className={rowClass}>
           {hostnameCell}
           {deviceCell}
           {typeCell}
+          {serialCell}
+        </div>
+        {/* Row 2: Customer ID (Site) · — · — · Added by */}
+        <div className={rowClass}>
           {customerInner ? (
             <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customerInner}</div>
           ) : (
-            <div className="flex-1" aria-hidden="true" />
+            emptyCell
           )}
+          {emptyCell}
+          {emptyCell}
+          {addedByCell}
         </div>
-        {/* Row 2: UUID · Serial Number · Registered · Updated */}
-        <div className="flex min-h-20 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)]">
-          {uuidCell}
-          {serialCell}
+        {/* Row 3: Registered · Updated · — · — */}
+        <div className={rowClass}>
           {registeredCell}
           {updatedCell}
+          {emptyCell}
+          {emptyCell}
+        </div>
+        {/* Row 4: UUID */}
+        <div className="flex min-h-20 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)]">
+          {uuidCell}
         </div>
       </div>
     </div>

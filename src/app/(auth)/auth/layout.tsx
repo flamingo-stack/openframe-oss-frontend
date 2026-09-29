@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { routeTitle } from '@/lib/route-title';
+import { AuthAnnouncementBar } from './components/auth-announcement-bar';
 import { RedditClickIdCapture } from './components/reddit-click-id-capture';
 
 export const metadata = {
@@ -14,7 +15,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <>
       <RedditClickIdCapture />
-      <Suspense fallback={null}>{children}</Suspense>
+      <AuthAnnouncementBar />
+      <div className="of-auth-pages">
+        <Suspense fallback={null}>{children}</Suspense>
+      </div>
     </>
   );
 }

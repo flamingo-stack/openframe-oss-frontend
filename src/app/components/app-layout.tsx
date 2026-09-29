@@ -37,6 +37,7 @@ import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal'
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
+import { AnnouncementTopBar } from './announcement-top-bar';
 import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
 import { AiSpendLimitBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
@@ -274,11 +275,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // — what `chromeLoading` below covers is how it LOOKS, not whether it mounts.
   // Anything whose wrong value would redirect or change which surface renders needs
   // `useFeatureFlagGate` instead (see the drawer's URL sync).
-  const timeTrackerEnabled = useFeatureFlag('time-tracker');
-  const helpCenterEnabled = useFeatureFlag('help-center');
   const insightsEnabled = useFeatureFlag('insights');
   const softwareManagementEnabled = useFeatureFlag('software-management');
-  const notificationsEnabled = useFeatureFlag('notifications');
   const billingsEnabled = useFeatureFlag('billings');
   /**
    * What the app-wide billing banners have to say, reported by the hydrator
@@ -402,12 +400,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   const navigationFlags = useMemo<NavigationFlags>(
     () => ({
-      timeTracker: timeTrackerEnabled,
-      helpCenter: helpCenterEnabled,
       insights: insightsEnabled,
       softwareManagement: softwareManagementEnabled,
     }),
-    [timeTrackerEnabled, helpCenterEnabled, insightsEnabled, softwareManagementEnabled],
+    [insightsEnabled, softwareManagementEnabled],
   );
 
   const navigationItems = useMemo(
@@ -449,6 +445,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   //     `OnboardingTourBar` on EVERY page — on `/onboarding` the CTA is dropped.
   // Each bar's CTA reads "Start …"/"Take …" until its first step is done, then
   // "Continue …". Driven by the backend onboarding progress in the store.
+  //   Otherwise: the hub announcement — informational and dismissible, so it
+  //     ranks below every bar that asks for an action, and it only ever
+  //     replaces an empty slot (never stacks, never bumps a bar out).
   const isOnboardingPage = pathname?.startsWith('/onboarding') ?? false;
   const isDashboardPage = pathname === '/' || (pathname?.startsWith('/dashboard') ?? false);
   // Who the cached band is allowed to speak for. The replay below is the ONLY
@@ -521,6 +520,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           showAction={!isOnboardingPage}
         />
       );
+    } else {
+      topBar = <AnnouncementTopBar />;
     }
   } else {
     // Progress hasn't loaded yet. Rendering nothing here just moves the jump
@@ -577,18 +578,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // core header's own `useMdUp()` has resolved, so its mobile-first render never
       // reaches the screen.
       loading: chromeLoading,
-      // MUST be passed explicitly: `showNotifications`/`showTimeTracker`/`showMingoAI`
-      // below are themselves flag-driven, so during `loading` they all read false and
-      // the placeholder would reserve nothing at all.
-      //
-      // This is now the ONLY header placeholder — the shell skeleton that used to
+      // This is the ONLY header placeholder — the shell skeleton that used to
       // render one ahead of it is gone, so there is no second copy to stay in step
-      // with. A tenant with one of the flags off loses a cell from a right-aligned
-      // cluster in empty space, which shifts nothing else on the page — see
-      // `headerLoadingCells`.
+      // with. See `headerLoadingCells`.
       loadingActionCells: headerLoadingCells(),
-      showNotifications: notificationsEnabled,
-      showTimeTracker: timeTrackerEnabled,
+      showNotifications: true,
+      showTimeTracker: true,
       // No user cell in the header. Profile and Log Out stay reachable from the
       // Settings hub (its pinned "Log Out" button) and, on mobile, from the burger
       // menu — which is why the user props below are gone rather than kept unused:
@@ -598,25 +593,15 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // `AppHeader` prop names — external API, not ours.
       // Support-ticket alerts cell — Help Center unread indication.
       // Attention-only: renders nothing unless <TicketLiveProvider> is
-      // mounted (same helpCenterEnabled gate below), the viewer is
-      // authed, AND there are unread replies.
-      showTicketAlerts: helpCenterEnabled,
+      // enabled (below), the viewer is authed, AND there are unread replies.
+      showTicketAlerts: true,
       ticketAlertsHref: routes.helpCenter.tickets,
       onTicketAlerts: openHelpCenterTickets,
       showMingoAI: chatEnabled,
       onMingoAI: toggleChat,
       isMingoAIActive: chatOpen,
     }),
-    [
-      chromeLoading,
-      notificationsEnabled,
-      timeTrackerEnabled,
-      chatEnabled,
-      toggleChat,
-      chatOpen,
-      helpCenterEnabled,
-      openHelpCenterTickets,
-    ],
+    [chromeLoading, chatEnabled, toggleChat, chatOpen, openHelpCenterTickets],
   );
 
   const mobileBurgerMenuProps = useMemo(
@@ -680,7 +665,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       {/* `!isLocked`: the badge count is decorative, and on a locked workspace its
           request is held by the subscription gate — the Suspense below would sit on
           its fallback for the whole visit rather than resolving. */}
-      {notificationsEnabled && sessionReady && !isLocked && (
+      {sessionReady && !isLocked && (
         // Two boundaries, two different failures, both of them real here.
         //
         // ErrorBoundary: a trial-expired GraphQL error makes the query return null data,
@@ -701,8 +686,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         </ErrorBoundary>
       )}
       {/* BOTH providers below are mounted UNCONDITIONALLY and told what to do
-          through `enabled`. That is a rule, not a style: their answers
-          (`sessionReady`, a feature flag) arrive mid-boot, and a wrapper that
+          through `enabled`. That is a rule, not a style: their answer
+          (`sessionReady`) arrives mid-boot, and a wrapper that
           swaps between `<Provider>{children}</Provider>` and `<>{children}</>`
           changes the element TYPE at this position when they land — React then
           tears down and remounts EVERYTHING below, which here is the whole
@@ -713,18 +698,18 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           flags answer. Anything else that has to wrap this layout gets an
           `enabled` prop too — never a conditional mount.
 
-          `enabled` itself: the feature's flag, plus `sessionReady` (no request
-          before `/me` answers), plus `!isLocked` — a locked workspace has its
+          `enabled` itself: `sessionReady` (no request before `/me`
+          answers), plus `!isLocked` — a locked workspace has its
           app data refused, so these requests would be parked by the
           subscription gate rather than answered (same reason as the onboarding
           hydrator below). With `enabled={false}` each provides NO context, so
           every surface reading it hides itself exactly as it did when the
           provider was absent. */}
-      <TimeTrackerHostProvider enabled={timeTrackerEnabled && sessionReady && !isLocked}>
+      <TimeTrackerHostProvider enabled={sessionReady && !isLocked}>
         {/* Ticket live stream + unread indication (Help Center). Wraps
             CoreAppLayout so BOTH the header's TicketAlertsButton and the
             /help-center/tickets page (children) read one provider. */}
-        <TicketLiveProvider enabled={helpCenterEnabled && sessionReady && !isLocked}>
+        <TicketLiveProvider enabled={sessionReady && !isLocked}>
           <CoreAppLayout
             // Hook for the native-shell safe-area CSS in globals.css: the layout
             // root owns the top inset (see `.app-shell-root`). Inert on the web.

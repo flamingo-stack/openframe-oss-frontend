@@ -54,12 +54,14 @@ const testClockPanelQuery = graphql`
 
 function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
   const daysInputId = useId();
+  const hoursInputId = useId();
   const data = useLazyLoadQuery<TestClockPanelQueryType>(testClockPanelQuery, {}, { fetchPolicy: 'store-and-network' });
   const advance = useAdvanceTestClock();
   const reset = useResetTestClock();
   const provisioning = useBillingProvisioningStatus();
 
   const [daysInput, setDaysInput] = useState('1');
+  const [hoursInput, setHoursInput] = useState('');
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   // Mutation responses are the freshest truth for the frozen time, so they win over
   // the initial query result. `undefined` means "nothing committed yet — use the query".
@@ -67,13 +69,16 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
 
   const frozenTime = frozenTimeOverride !== undefined ? frozenTimeOverride : (data.testClockTime?.frozenTime ?? null);
 
-  const parsedDays = Number.parseInt(daysInput, 10);
-  const isDaysValid = Number.isInteger(parsedDays) && parsedDays >= 1;
+  // Days and hours add up; either may be blank, but the step must move the clock.
+  // An empty field is left out of the mutation rather than sent as 0.
+  const days = parseStep(daysInput);
+  const hours = parseStep(hoursInput);
+  const isStepValid = days !== null && hours !== null && (days ?? 0) + (hours ?? 0) > 0;
   const isBusy = advance.isPending || reset.isPending;
 
   const handleAdvance = () => {
-    if (!isDaysValid || isBusy) return;
-    advance.mutate(parsedDays, nextFrozenTime => {
+    if (!isStepValid || isBusy) return;
+    advance.mutate({ days, hours }, nextFrozenTime => {
       setFrozenTimeOverride(nextFrozenTime);
       onClockChanged();
     });
@@ -136,7 +141,7 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
           <Input
             id={daysInputId}
             type="number"
-            min={1}
+            min={0}
             step={1}
             value={daysInput}
             disabled={isBusy}
@@ -144,9 +149,27 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
             className="w-24"
           />
         </div>
+        {/* Stripe turns the cycle over at the subscription anchor's time of day, not at
+            midnight, so hours are what put the clock just before or just after that
+            boundary - the only place period membership and invoice timing can be tested. */}
+        <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+          <label htmlFor={hoursInputId} className="text-ods-text-secondary text-h6">
+            Hours
+          </label>
+          <Input
+            id={hoursInputId}
+            type="number"
+            min={0}
+            step={1}
+            value={hoursInput}
+            disabled={isBusy}
+            onChange={event => setHoursInput(event.target.value)}
+            className="w-24"
+          />
+        </div>
         {/* The first advance also creates the clock and flushes metered usage to
             Stripe, so this can sit in flight for several seconds. */}
-        <Button type="submit" variant="accent" loading={advance.isPending} disabled={!isDaysValid || isBusy}>
+        <Button type="submit" variant="accent" loading={advance.isPending} disabled={!isStepValid || isBusy}>
           Advance
         </Button>
         {/* Always available: the backend now handles the no-clock case itself
@@ -190,6 +213,16 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
       />
     </div>
   );
+}
+
+/**
+ * One advance field: blank means "not given" (`undefined`), a non-negative integer is
+ * the value, and anything else (negative, fractional, junk) is `null` = invalid.
+ */
+function parseStep(input: string): number | undefined | null {
+  if (input.trim() === '') return undefined;
+  const parsed = Number(input);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 interface SeedUsageFieldProps {

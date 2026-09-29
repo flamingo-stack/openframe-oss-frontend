@@ -24,9 +24,7 @@ vi.mock('./use-remote-access-approval-gate', () => ({
 // The real module carries the list's graphql tags, which need the Relay babel plugin vitest does not run.
 vi.mock('../queries/devices-api', () => ({ DEVICES_PAGE_SIZE: 20 }));
 
-vi.mock('./use-remote-access-policy-service', () => ({
-  useRemoteAccessPolicyService: () => ({ service, isMock: false, ready: true }),
-}));
+vi.mock('../services/remote-access-policy-api-service', () => ({ remoteAccessPolicyApiService: service }));
 
 const DENIED: DeviceRemoteAccessPolicy = {
   mode: 'DENY_ACCESS',
@@ -83,8 +81,8 @@ beforeEach(() => {
   gate.value = 'on';
   service.getDevicePolicy.mockReset();
   service.getDevicePolicies.mockReset();
-  service.getDevicePolicies.mockImplementation(async (page: ReadonlyArray<{ deviceId: string }>) => {
-    return new Map(page.filter(ref => ref.deviceId === 'machine-21').map(ref => [ref.deviceId, DENIED]));
+  service.getDevicePolicies.mockImplementation(async (page: ReadonlyArray<string>) => {
+    return new Map(page.filter(deviceId => deviceId === 'machine-21').map(deviceId => [deviceId, DENIED]));
   });
 });
 
@@ -96,9 +94,7 @@ describe('useRowRemoteAccessPolicies', () => {
   it('reads the rows a page at a time and the row menus pick the answer up', async () => {
     await render();
 
-    const pages = service.getDevicePolicies.mock.calls.map(([page]) =>
-      (page as ReadonlyArray<{ deviceId: string }>).map(ref => ref.deviceId),
-    );
+    const pages = service.getDevicePolicies.mock.calls.map(([page]) => page as ReadonlyArray<string>);
     expect(pages.map(page => page.length)).toEqual([20, 5]);
     expect(pages[1]?.[0]).toBe('machine-20');
     expect(modeOf('machine-21')).toBe('DENY_ACCESS');

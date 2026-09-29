@@ -1,6 +1,5 @@
 'use client';
 
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import type { AgentAiConfig, AiQuickAction, ClientView } from '../types/ai-settings';
 import { AiSettingsCustomerCard } from './ai-settings-customer-card';
@@ -40,28 +39,22 @@ export function AiSettingsOverview({
   quickActions,
   quickActionsBanner,
 }: AiSettingsOverviewProps) {
-  const customizationEnabled = useFeatureFlag('customer-ai-assistant-settings');
-
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       {aiConfig && view && (
         <>
           <AiSettingsCustomerCard aiConfig={aiConfig} view={view} providerModelLabel={providerModelLabel} />
-          {/* Previews are part of the not-yet-released AI customization. */}
-          {customizationEnabled && (
-            <AiSettingsPreviews
-              assistantName={view.assistantName}
-              avatarUrl={getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash)}
-              accentColor={view.accentColor}
-              theme={view.applicationTheme}
-              providerName={aiConfig.llmProvider}
-              modelDisplayName={providerModelLabel ?? aiConfig.providerModel}
-            />
-          )}
+          <AiSettingsPreviews
+            assistantName={view.assistantName}
+            avatarUrl={getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash)}
+            accentColor={view.accentColor}
+            theme={view.applicationTheme}
+            providerName={aiConfig.llmProvider}
+            modelDisplayName={providerModelLabel ?? aiConfig.providerModel}
+          />
         </>
       )}
-      {/* Quick actions are part of the not-yet-released AI customization. */}
-      {customizationEnabled && quickActions && aiConfig && (
+      {quickActions && aiConfig && (
         <AiSettingsQuickActionsSection
           title="Assistant Quick Actions"
           actions={quickActions}

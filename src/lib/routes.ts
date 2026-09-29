@@ -62,12 +62,14 @@ export const TAB_IDS = {
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
   aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
+  incidents: ['current', 'snoozed', 'archived'],
 } as const;
 
 export type CustomerListTab = (typeof TAB_IDS.customersList)[number];
 export type CustomerDetailTab = (typeof TAB_IDS.customerDetails)[number];
 export type CustomerEditTab = (typeof TAB_IDS.customerEdit)[number];
 export type DeviceDetailTab = (typeof TAB_IDS.deviceDetails)[number];
+export type IncidentsTab = (typeof TAB_IDS.incidents)[number];
 export type ScriptDetailTab = (typeof TAB_IDS.scriptDetails)[number];
 export type SoftwareDetailTab = (typeof TAB_IDS.softwareDetails)[number];
 export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];

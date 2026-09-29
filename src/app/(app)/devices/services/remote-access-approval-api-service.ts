@@ -39,7 +39,7 @@ import { nullableTimestamp, oneOf, type RawWire, text, timestamp } from './remot
  * `RemoteAccessCreateError`. The decision push is not part of this service: it
  * arrives as a flat REMOTE_ACCESS_DECISION event on the technician's
  * notification subject, which `useRemoteAccessApproval` subscribes to
- * (see `parseRemoteAccessDecisionEvent`); `onDecision` is therefore a no-op here.
+ * (see `parseRemoteAccessDecisionEvent`).
  */
 
 /** Every operation reads the whole request; `@inline` because the reader is a service, not a component. */
@@ -226,11 +226,6 @@ export class RemoteAccessApprovalApiService implements IRemoteAccessApprovalServ
     const payload = await commitMutationPromise<RevokeMutation>(revokeMutation, { requestId });
     const blocking = payload.revokeRemoteAccessRequest.userErrors.filter(e => e.code !== REVOKE_SETTLED_CODE);
     if (blocking.length > 0) throw new Error(blocking[0].message || 'Could not cancel the remote access request');
-  }
-
-  onDecision(): () => void {
-    // The push channel is the NATS notification subject, subscribed in the hook.
-    return () => {};
   }
 }
 

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import {
   applyRemoteAccessDecisionEvent,
   parseRemoteAccessDecisionEvent,
+  remoteAccessApprovalApiService,
 } from '../services/remote-access-approval-api-service';
 import { isSettledRequestStatus } from '../services/remote-access-approval-service';
 import {
@@ -13,10 +14,6 @@ import {
   RemoteAccessCreateError,
   type RemoteAccessRequest,
 } from '../types/remote-access';
-import {
-  type RemoteAccessApprovalServiceSelection,
-  useRemoteAccessApprovalService,
-} from './use-remote-access-approval-service';
 
 /**
  * The technician-side view of one approval attempt:
@@ -37,8 +34,6 @@ export interface UseRemoteAccessApprovalResult {
   error: string | null;
   /** The create refusal behind `busy` / `unreachable` / `error` from the API; null otherwise. */
   errorCode: RemoteAccessCreateErrorCode | null;
-  /** True while the in-memory mock stands in for the backend (see useRemoteAccessApprovalService). */
-  isMock: boolean;
   /** `reason` is optional - passed through when known, e.g. from a ticket. */
   requestAccess: (reason?: string) => void;
   /** Revoke the open request (technician cancel) and go back to idle. */
@@ -88,19 +83,7 @@ const NOTIFICATION_SUBJECT_SUFFIX = 'notification';
  * The approval flow covers remote screen sessions only, so the wire
  * `sessionKind` is a constant rather than a parameter.
  */
-export function useRemoteAccessApproval(
-  deviceId: string,
-  /** Mock resolution hint - see CreateRemoteAccessRequestInput.organizationId. */
-  organizationId?: string,
-): UseRemoteAccessApprovalResult {
-  const selection = useRemoteAccessApprovalService();
-  // The backend an attempt was created on serves that attempt to the end: the
-  // flag answer can arrive (dev bypasses the gate before the flags load) or
-  // flip while a request is open, and a request must never be polled, revoked
-  // or listened for on the other backend.
-  const [active, setActive] = useState<RemoteAccessApprovalServiceSelection | null>(null);
-  const service = active?.service ?? selection.service;
-  const isMock = active?.isMock ?? selection.isMock;
+export function useRemoteAccessApproval(deviceId: string): UseRemoteAccessApprovalResult {
   const userId = useAuthStore(s => s.user?.id);
   const [state, setState] = useState<RemoteAccessApprovalState>('idle');
   const [request, setRequest] = useState<RemoteAccessRequest | null>(null);
@@ -125,19 +108,12 @@ export function useRemoteAccessApproval(
   const requestAccess = useCallback(
     (reason?: string) => {
       const attempt = ++attemptRef.current;
-      const chosen = selection;
-      setActive(chosen);
       setError(null);
       setErrorCode(null);
       setState('requesting');
       (async () => {
         try {
-          const created = await chosen.service.create({
-            deviceId,
-            sessionKind: 'desktop',
-            reason,
-            organizationId,
-          });
+          const created = await remoteAccessApprovalApiService.create({ deviceId, sessionKind: 'desktop', reason });
           if (attempt !== attemptRef.current) return;
           setRequest(created);
           if (isSettledRequestStatus(created.status)) {
@@ -158,23 +134,17 @@ export function useRemoteAccessApproval(
         }
       })();
     },
-    [selection, deviceId, organizationId, applySettled],
+    [deviceId, applySettled],
   );
 
-  // Decision delivery while awaiting: push subscription + polling fallback.
+  // Decision delivery while awaiting: the NATS push (`decisionSubject`, below) and this poll as its fallback.
   const requestId = state === 'awaiting' || state === 'requesting' ? (request?.requestId ?? null) : null;
   useEffect(() => {
     if (!requestId) return undefined;
     const attempt = attemptRef.current;
 
-    const unsubscribe = service.onDecision(requestId, settled => {
-      if (attempt !== attemptRef.current) return;
-      if (isSettledRequestStatus(settled.status)) applySettled(settled);
-      else setRequest(settled);
-    });
-
     const poll = setInterval(() => {
-      service
+      remoteAccessApprovalApiService
         .get(requestId)
         .then(current => {
           if (attempt !== attemptRef.current) return;
@@ -182,25 +152,22 @@ export function useRemoteAccessApproval(
           else setRequest(current);
         })
         .catch(() => {
-          // Transient poll failures are absorbed - the push channel and the
+          // Transient poll failures are absorbed - the NATS push and the
           // next tick both still stand.
         });
     }, POLL_MS);
 
-    return () => {
-      unsubscribe();
-      clearInterval(poll);
-    };
-  }, [service, requestId, applySettled]);
+    return () => clearInterval(poll);
+  }, [requestId, applySettled]);
 
-  // The real API's push channel: REMOTE_ACCESS_DECISION on the technician's
-  // notification subject (flat payload, no notification id - the notifications
-  // drawer ignores it). Subscribed only while a real request is open; the
+  // The push channel: REMOTE_ACCESS_DECISION on the technician's notification
+  // subject (flat payload, no notification id - the notifications drawer
+  // ignores it). Subscribed only while a request is open; the
   // notifications bridge holds its own subscription on the same subject, which
   // NATS allows. Events for other requests are dropped; a repeated status is a
   // no-op, so dedup by requestId + status falls out of the merge.
   const decisionSubject =
-    !isMock && requestId && userId ? `${NOTIFICATION_SUBJECT_PREFIX}.${userId}.${NOTIFICATION_SUBJECT_SUFFIX}` : null;
+    requestId && userId ? `${NOTIFICATION_SUBJECT_PREFIX}.${userId}.${NOTIFICATION_SUBJECT_SUFFIX}` : null;
   const requestRef = useRef(request);
   useEffect(() => {
     requestRef.current = request;
@@ -232,14 +199,13 @@ export function useRemoteAccessApproval(
     setRequest(null);
     setError(null);
     setErrorCode(null);
-    setActive(null);
     if (open && !isSettledRequestStatus(open.status)) {
-      service.revoke(open.requestId).catch(() => {
+      remoteAccessApprovalApiService.revoke(open.requestId).catch(() => {
         // Best-effort: an already-settled request rejects the revoke (409 on
         // the real API) and there is nothing left to cancel.
       });
     }
-  }, [service, request]);
+  }, [request]);
 
   const reset = useCallback(() => {
     attemptRef.current++;
@@ -247,8 +213,7 @@ export function useRemoteAccessApproval(
     setRequest(null);
     setError(null);
     setErrorCode(null);
-    setActive(null);
   }, []);
 
-  return { state, request, error, errorCode, isMock, requestAccess, cancel, reset };
+  return { state, request, error, errorCode, requestAccess, cancel, reset };
 }

@@ -21,7 +21,7 @@ import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import type { DeviceDetailTab } from '@/lib/routes';
 import { useDeviceAgentLogsGate } from '../../hooks/use-device-agent-logs-gate';
-import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
+import { useSessionRecordingsGate } from '../../hooks/use-session-recordings-gate';
 import { AGENT_LOGS_TAB_ID, listsAgentLogsTab } from '../../utils/device-tab-gates';
 import { AgentLogsTab } from './agent-logs/agent-logs-tab';
 import { AgentsTab } from './agents-tab';
@@ -143,15 +143,15 @@ export const ALL_DEVICE_TABS: TabItem[] = [
 ];
 
 /**
- * Tabs shown for a device. Remote Sessions is gated on the 'remote-access-approval'
- * flag (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
+ * Tabs shown for a device. Remote Sessions is gated on the session recordings
+ * gate (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
  * 'loading' and 'off' both hide a tab, so it only ever appears when the feature
  * is actually on. Agent Logs is the one exception: while its flag loads it stays
  * listed for the deep link that asked for it, so the page and its skeleton show
  * the same tab bar (`listsAgentLogsTab`).
  */
 export function useDeviceTabs(requestedTab: string): TabItem[] {
-  const recordingsGate = useRemoteAccessApprovalGate();
+  const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
   const agentLogsGate = useDeviceAgentLogsGate();
   return ALL_DEVICE_TABS.filter(
