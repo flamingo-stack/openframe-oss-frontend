@@ -4715,6 +4715,8 @@ type Ticket implements AssignableTarget & Node {
   title: String
   description: String
   status: String
+  statusKind: TicketStatusKind
+  statusDefinition: TicketStatusDefinition
   creationSource: String
   deviceId: String
   deviceHostname: String
@@ -4727,6 +4729,21 @@ type Ticket implements AssignableTarget & Node {
   createdAt: Instant
   updatedAt: Instant
   resolvedAt: Instant
+}
+
+enum TicketStatusKind {
+  AI_ASSISTANCE
+  TECH_REQUIRED
+  RESOLVED
+  ARCHIVED
+  CUSTOM
+}
+
+type TicketStatusDefinition {
+  id: ID!
+  name: String!
+  color: String!
+  kind: TicketStatusKind!
 }
 
 type TimeEntry implements Node {
