@@ -100,6 +100,7 @@ export const GET_DEVICE_QUERY = `
       timezone
       registeredAt
       updatedAt
+      userId
       tags {
         id
         key
