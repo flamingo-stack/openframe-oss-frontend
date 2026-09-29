@@ -245,7 +245,7 @@ export function NewDeviceContent() {
               render={({ field }) => (
                 // UI only for now (mockup 378-8628): wiring the choice into the
                 // install/register command is deferred with the --unattended
-                // registration-flag tasks (CU-86akergdw / CU-86akergep).
+                // registration-flag tasks.
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger label="Remote Access Permission" labelVariant="large">
                     <SelectValue>{REMOTE_ACCESS_MODE_META[field.value as RemoteAccessMode].label}</SelectValue>

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { primeShellVersion } from '@/lib/client-identity';
 import { initKeyboardInset } from '@/lib/keyboard-inset';
 import { initNativeBack } from '@/lib/native-back';
 import {
@@ -50,6 +51,8 @@ export function NativeShellInitializer() {
     // home indicator) and applied to the desktop window as well while this was
     // `data-native-shell`.
     document.documentElement.dataset.shell = shellKind();
+
+    primeShellVersion();
 
     if (isMobileShell()) {
       // Status bar (overlay + light content) then safe-area insets. Kicked off

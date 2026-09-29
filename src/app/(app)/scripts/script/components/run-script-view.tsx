@@ -288,7 +288,8 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
                 onArgumentsChange={field.onChange}
                 keyPlaceholder="Key"
                 valuePlaceholder="Enter Value"
-                addButtonLabel="Add Environment Var"
+                addButtonLabel="Add Variable"
+                addSecretButtonLabel="Add Secret"
                 titleLabel="Environment Vars"
               />
             )}

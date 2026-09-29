@@ -4,7 +4,8 @@
  */
 
 /**
- * Unified Software type
+ * Unified Software type — one title in the Fleet host payload, as the
+ * Fleet-backed Software / Vulnerabilities tabs list it (`software-management` off).
  */
 export interface Software {
   id: number;
@@ -26,7 +27,7 @@ export interface Software {
 }
 
 /**
- * Unified Vulnerability type
+ * Unified Vulnerability type — one CVE on a `Software` title, from Fleet.
  */
 export interface Vulnerability {
   cve: string;
@@ -223,6 +224,7 @@ export interface Device {
   agentVersion?: string;
 
   // Unified Arrays (NO NESTING)
+  /** The Fleet host's inventory — read by the Fleet-backed Software / Vulnerabilities tabs only. */
   software?: Software[];
   batteries?: Battery[];
   users?: User[];
@@ -251,6 +253,11 @@ export interface Device {
   updatedAt?: string;
   osUuid?: string;
   timezone?: string;
+  /**
+   * Id of the user whose install command enrolled the device. Set only by the
+   * details fetch; absent on devices enrolled before the command carried it.
+   */
+  addedByUserId?: string;
 
   // Fleet-derived metadata
   software_updated_at?: string; // Fleet software inventory last-scanned timestamp
@@ -364,6 +371,8 @@ export type DeviceGraphQlNode = {
   timezone?: string;
   registeredAt?: string;
   updatedAt?: string;
+  /** Id of the user whose install command enrolled the device; null on devices enrolled without one. */
+  userId?: string | null;
   // `id`, not `tagId` — this mirrors the GraphQL `Tag` node, and the transform
   // renames it. The old `tagId` here named a field the documents never selected,
   // so every tag arrived with `tagId: undefined` behind a type that claimed

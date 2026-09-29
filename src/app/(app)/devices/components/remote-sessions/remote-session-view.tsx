@@ -24,7 +24,7 @@ interface RemoteSessionViewProps {
 /**
  * The "Remote Session Recording" page (Figma 758-46350). This first iteration
  * carries the player itself - metadata card and session-chat transcript land
- * with the Remote Sessions tab (same CU-86akc3ce5, follow-up PR).
+ * with the Remote Sessions tab (follow-up PR).
  *
  * Fullscreen lives here rather than in the player so the canvas never
  * remounts: the wrapper swaps to `fixed inset-0` and PageLayout hides its

@@ -61,7 +61,7 @@ function employeeInitials(name: string): string {
     .join('');
 }
 
-/** Recorded remote sessions of this device (Figma 744-40363), on the mock service until CU-86akc3c5q ships. */
+/** Recorded remote sessions of this device (Figma 744-40363), on the mock service until the storage backend ships. */
 export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const router = useRouter();
   const deviceId = device?.machineId ?? null;

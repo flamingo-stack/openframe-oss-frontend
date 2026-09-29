@@ -1,93 +1,29 @@
-// Remote access policy service (CU-86akeqw8b).
-//
-// Backs the policy settings UI while the BE policy task (CU-86akeqw6h) is in
-// design: one `RemoteAccessMode` per scope with device -> organization ->
-// tenant resolution. The approval timeout and the fallbacks are fixed backend
-// constants (decision 2026-09-18), not part of the policy. Swapping to the
-// real API is one new implementation of `IRemoteAccessPolicyService`.
+import type {
+  DeviceRemoteAccessPolicy,
+  OrganizationRemoteAccessPolicy,
+  RemoteAccessMode,
+  TenantRemoteAccessPolicy,
+} from '../types/remote-access';
 
-import type { RemoteAccessMode, TenantRemoteAccessPolicy } from '../types/remote-access';
-
+/**
+ * The remote access policy as the settings screens and the connect flow read
+ * it: one mode per scope, the effective mode resolved device -> organization
+ * -> tenant on the server. Implemented by `RemoteAccessPolicyApiService`
+ * (remote-access-policy-api-service.ts) on openframe-saas-api.
+ */
 export interface IRemoteAccessPolicyService {
   getTenantPolicy(): Promise<TenantRemoteAccessPolicy>;
   updateTenantPolicy(policy: TenantRemoteAccessPolicy): Promise<TenantRemoteAccessPolicy>;
-  /** Per-organization override; `null` = the organization inherits the tenant default. */
-  getOrganizationMode(organizationId: string): Promise<RemoteAccessMode | null>;
-  setOrganizationMode(organizationId: string, mode: RemoteAccessMode | null): Promise<void>;
-  /** Per-device override; `null` = the device inherits its organization/tenant mode. */
-  getDeviceMode(deviceId: string): Promise<RemoteAccessMode | null>;
-  setDeviceMode(deviceId: string, mode: RemoteAccessMode | null): Promise<void>;
-  /** Effective mode for a device: device override -> organization override -> tenant default. */
-  resolveDeviceMode(deviceId: string, organizationId?: string): Promise<RemoteAccessMode>;
+  getOrganizationPolicy(organizationId: string): Promise<OrganizationRemoteAccessPolicy>;
+  /** `null` clears the override: the organization inherits the tenant default again. */
+  setOrganizationMode(organizationId: string, mode: RemoteAccessMode | null): Promise<OrganizationRemoteAccessPolicy>;
+  /** The device's override and its effective mode. */
+  getDevicePolicy(deviceId: string): Promise<DeviceRemoteAccessPolicy>;
+  /**
+   * The same read for a page of table rows in one request, keyed by device id.
+   * A device the server no longer knows is left out of the map.
+   */
+  getDevicePolicies(deviceIds: ReadonlyArray<string>): Promise<Map<string, DeviceRemoteAccessPolicy>>;
+  /** `null` clears the override. Answers with the device's policy after the write. */
+  setDeviceMode(deviceId: string, mode: RemoteAccessMode | null): Promise<DeviceRemoteAccessPolicy>;
 }
-
-export const DEFAULT_TENANT_REMOTE_ACCESS_POLICY: TenantRemoteAccessPolicy = {
-  mode: 'APPROVAL_REQUIRED',
-};
-
-const MOCK_LATENCY_MS = 250;
-
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * In-memory mock. State lives for the SPA session (like the approval-service
- * mock) - enough to exercise every screen and the DENY_ACCESS action gating
- * end to end before the BE exists.
- */
-class MockRemoteAccessPolicyService implements IRemoteAccessPolicyService {
-  private tenantPolicy: TenantRemoteAccessPolicy = { ...DEFAULT_TENANT_REMOTE_ACCESS_POLICY };
-  private readonly organizationModes = new Map<string, RemoteAccessMode>();
-  private readonly deviceModes = new Map<string, RemoteAccessMode>();
-
-  async getTenantPolicy(): Promise<TenantRemoteAccessPolicy> {
-    await delay(MOCK_LATENCY_MS);
-    return { ...this.tenantPolicy };
-  }
-
-  async updateTenantPolicy(policy: TenantRemoteAccessPolicy): Promise<TenantRemoteAccessPolicy> {
-    await delay(MOCK_LATENCY_MS);
-    this.tenantPolicy = { ...policy };
-    return { ...this.tenantPolicy };
-  }
-
-  async getOrganizationMode(organizationId: string): Promise<RemoteAccessMode | null> {
-    await delay(MOCK_LATENCY_MS);
-    return this.organizationModes.get(organizationId) ?? null;
-  }
-
-  async setOrganizationMode(organizationId: string, mode: RemoteAccessMode | null): Promise<void> {
-    await delay(MOCK_LATENCY_MS);
-    if (mode === null) {
-      this.organizationModes.delete(organizationId);
-    } else {
-      this.organizationModes.set(organizationId, mode);
-    }
-  }
-
-  async getDeviceMode(deviceId: string): Promise<RemoteAccessMode | null> {
-    await delay(MOCK_LATENCY_MS);
-    return this.deviceModes.get(deviceId) ?? null;
-  }
-
-  async setDeviceMode(deviceId: string, mode: RemoteAccessMode | null): Promise<void> {
-    await delay(MOCK_LATENCY_MS);
-    if (mode === null) {
-      this.deviceModes.delete(deviceId);
-    } else {
-      this.deviceModes.set(deviceId, mode);
-    }
-  }
-
-  async resolveDeviceMode(deviceId: string, organizationId?: string): Promise<RemoteAccessMode> {
-    await delay(MOCK_LATENCY_MS);
-    const deviceMode = this.deviceModes.get(deviceId);
-    if (deviceMode) return deviceMode;
-    const organizationMode = organizationId ? this.organizationModes.get(organizationId) : undefined;
-    if (organizationMode) return organizationMode;
-    return this.tenantPolicy.mode;
-  }
-}
-
-export const remoteAccessPolicyService: IRemoteAccessPolicyService = new MockRemoteAccessPolicyService();

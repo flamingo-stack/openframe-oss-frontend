@@ -20,8 +20,8 @@
 # Stages 2 (Claude), 3 and 4 follow the code reviewer's agentic pattern
 # (templates/scripts/code-documentation-lib.mjs): the hub serves this
 # repository's settings, the script packs the material, ONE hub call writes
-# ONE document (forced `emit_document`; the hub's read tools when the
-# repository's "Graph lookups" switch is on), a deterministic gate checks every
+# ONE document (forced `emit_document`; the hub's read tools once the
+# repository's visibility is resolved), a deterministic gate checks every
 # repository path it names, and the script, never the model, picks where each
 # document is written.
 #
@@ -213,6 +213,8 @@ env:
   # Analysis Exclusions - Complete array of glob patterns to exclude from repository analysis
   # (build artifacts, dependencies, the hub's own checkout, cloned dependency repos)
   EXCLUDED_PATHS: '**/node_modules/**,**/.git/**,**/target/**,**/dist/**,**/build/**,**/.next/**,**/out/**,**/coverage/**,**/vendor/**,**/.yalc/**,**/.turbo/**,**/.gradle/**,**/__pycache__/**,**/.terraform/**,**/.venv/**,**/venv/**,**/multi-platform-hub/**,**/deps-*/**'
+  # The documentation pull request's branch prefix (CODE_DOCUMENTATION_BRANCH_PREFIX, written by npm run workflows:sync)
+  DOCS_BRANCH_PREFIX: 'code-documentation/'
   README_LOGO_ALT: 'OpenFrame Logo'
 
 jobs:
@@ -261,6 +263,7 @@ jobs:
           && github.event.pull_request.head.repo.full_name == github.repository
           && !startsWith(github.event.pull_request.head.ref, 'ai-fix/')
           && !startsWith(github.event.pull_request.head.ref, 'setup/')
+          && !startsWith(github.event.pull_request.head.ref, 'code-documentation/')
           && !(github.event.action == 'edited' && github.event.sender.type == 'Bot'))
     # The overlay coordinates, spelled ONCE: the hub's dispatch payload, or this PR's own event (the steps
     # below build only after the live refresh answered `build`). Both empty on a default-branch rebuild.
@@ -464,9 +467,11 @@ jobs:
       - name: Set up Node.js
         if: github.event_name != 'pull_request' || steps.refresh.outputs.build == 'true'
         continue-on-error: ${{ github.event_name == 'pull_request' }}
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+          # v5+ caches automatically when it finds a package manager; this job never did.
+          package-manager-cache: false
 
       # The command is CODE_GRAPH_INSTALL_COMMAND (lib/config/code-graph-workflow.ts),
       # the one spelling both workflows use: pinned wasm tree-sitter + grammars +
@@ -1451,7 +1456,7 @@ jobs:
           # Use sanitized run ID for branch name. Branch, PR title, status file and
           # commit messages all carry the product name: 🦩 Flamingo Code Documentation.
           SAFE_RUN_ID="${{ steps.branch-name-early.outputs.safe_run_id }}"
-          BRANCH_NAME="docs/flamingo-ai-technical-writer-$SAFE_RUN_ID"
+          BRANCH_NAME="${DOCS_BRANCH_PREFIX}$SAFE_RUN_ID"
 
           # Configure git
           git config user.name "github-actions[bot]"
@@ -1663,9 +1668,11 @@ jobs:
           fi
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+          # v5+ caches automatically when it finds a package manager; this job never did.
+          package-manager-cache: false
 
       # =========================================================================
       # STAGE 0: CODE GRAPH (same build as the standalone code-graph job above)
@@ -1974,7 +1981,7 @@ jobs:
 
       - name: Set up Python 3.12
         if: contains(env.STAGES, 'codewiki') && steps.detect_language.outputs.codewiki_supported == 'true'
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
@@ -2509,9 +2516,9 @@ jobs:
       # STAGE 3: TUTORIALS
       # Getting-started guides and how-to tutorials, written by the Code
       # Documentation lane (code-documentation-lib.mjs): one hub call per
-      # tutorial with the forced `emit_document` tool and, when the repository's
-      # "Graph lookups" switch is on, the hub's read tools (the code graph and
-      # the rules, scoped to what THIS repository may see). No model key here.
+      # tutorial with the forced `emit_document` tool and, once the repository's
+      # visibility is resolved, the hub's read tools (the code graph and the
+      # rules, scoped to what THIS repository may see). No model key here.
       # Generates 4 tutorials: user/getting-started, user/common-use-cases,
       #                        dev/getting-started-dev, dev/architecture-overview-dev
       # =========================================================================
@@ -3171,6 +3178,12 @@ jobs:
           elif [ "$JOB_STATUS" != "success" ]; then
             STATUS="failure"
             REASON="the job status is $JOB_STATUS"
+          # A requested stage that FAILED fails the run, whatever the others wrote:
+          # a run whose stages 3 and 4 wrote nothing used to report success because
+          # stage 2 had committed reference docs.
+          elif FAILED_STAGES=$(for n in 1 2 3 4; do v="STAGE${n}_STATUS"; [ "${!v}" = "failed" ] && printf 'stage %s, ' "$n"; done) && [ -n "$FAILED_STAGES" ]; then
+            STATUS="failure"
+            REASON="${FAILED_STAGES%, } failed"
           # Check if we have any documentation changes
           elif [ "$HAS_CHANGES" != "true" ]; then
             STATUS="no_changes"
@@ -3196,7 +3209,7 @@ jobs:
 
           # Branch actually created by "Create docs branch". Falls back to the same
           # formula only when that step never ran (this step is `if: always()`).
-          SAFE_BRANCH="${BRANCH_NAME:-docs/flamingo-ai-technical-writer-$SAFE_RUN_ID}"
+          SAFE_BRANCH="${BRANCH_NAME:-${DOCS_BRANCH_PREFIX}$SAFE_RUN_ID}"
 
           # Send final webhook using helper function
           report_final_status "$CALLBACK_URL" "$WEBHOOK_SECRET" "$RUN_ID" "$REPO_ID" \

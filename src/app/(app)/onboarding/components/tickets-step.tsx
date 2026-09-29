@@ -41,11 +41,13 @@ export function TicketsStep({
   onCompleteBackground,
   completed,
   completing,
+  expanded,
 }: {
   onComplete?: () => void;
   onCompleteBackground?: () => void;
   completed?: boolean;
   completing?: boolean;
+  expanded?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -72,7 +74,15 @@ export function TicketsStep({
           </p>
         </div>
         <div className="w-full flex-1">
-          <Video kind="youtube" url={DEMO_VIDEO_ID} title="Tickets demo video" priority />
+          <Video
+            kind="youtube"
+            url={DEMO_VIDEO_ID}
+            title="Tickets demo video"
+            priority
+            muted
+            autoActivate={expanded}
+            suspended={!expanded}
+          />
         </div>
       </div>
 

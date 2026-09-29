@@ -115,7 +115,7 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
   const downloadBaseUrl = useSyncExternalStore(subscribe, assetsDownloadBase, getServerDownloadBaseSnapshot);
   const hydrated = useSyncExternalStore(subscribe, getClientHydratedSnapshot, getServerHydratedSnapshot);
 
-  // Value of the download's `x-machine-id` header (CU-86aknaw57): random,
+  // Value of the download's `x-machine-id` header: random,
   // fresh per visit, and rotated by the page after every copy so two devices
   // enrolled from one open tab do not download under the same id. State
   // rather than a value computed in render: a random id must survive

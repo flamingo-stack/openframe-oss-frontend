@@ -3,12 +3,11 @@
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 
 /**
- * Whether the mock-service QA controls (simulate the end user's decision,
- * local .mcrec loader) render. TEMPORARY until the BE approval API
- * (CU-86ajx02gz) and recordings storage (CU-86akc3c5q) replace the mocks.
+ * Whether the recording player's local .mcrec loader renders. TEMPORARY until
+ * the recordings storage replaces the recordings mock.
  *
  * Server flag `remote-access-mock-tools` (on for dev / qa) for deployed
- * builds; the dev server shows them regardless, mirroring the approval gate's
+ * builds; the dev server shows it regardless, mirroring the approval gate's
  * dev bypass - a local server pointed at an environment without the flag
  * (e.g. stage) still has nothing but the mock to test against.
  */

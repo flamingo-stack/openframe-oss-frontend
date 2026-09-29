@@ -109,11 +109,11 @@ const ALL_CUSTOMER_TABS: TabItem[] = [
 ];
 
 interface CustomerTabsVisibility {
-  /** Appended only when the customer has a custom appearance override. */
+  /** Customer AI configuration view (saas-tenant: per-org settings live in the saas-ai-agent). */
   showCustomAiAssistant: boolean;
-  /** Read-only guardrails defaults view (saas-tenant, flag-gated). */
+  /** Read-only guardrails view (saas-tenant, same reason). */
   showGuardrails: boolean;
-  /** Remote access policy view (CU-86akeqw8b, `remote-access-approval` gate). */
+  /** Remote access policy view (`remote-access-approval` gate). */
   showDeviceGuardrails: boolean;
 }
 

@@ -53,10 +53,11 @@ describe('the canonical Mingo dialog deep link', () => {
   });
 });
 
-describe('settings.tenant* (CU-86akj8ajt)', () => {
+describe('settings.tenant*', () => {
   it('builds the list and the create page as fixed paths', () => {
     expect(routes.settings.tenantManagement).toBe('/settings/tenant-management');
-    expect(routes.settings.tenantNew).toBe('/settings/tenant-management/new');
+    expect(routes.settings.tenantNew()).toBe('/settings/tenant-management/new');
+    expect(routes.settings.tenantNew({ id: 'tc-01' })).toBe('/settings/tenant-management/new?id=tc-01');
   });
 
   it('puts the connection id in `?id=` on the detail, edit and reconnect pages', () => {

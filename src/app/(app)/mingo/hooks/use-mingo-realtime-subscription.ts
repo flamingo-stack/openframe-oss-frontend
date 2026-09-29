@@ -16,8 +16,8 @@ import { bindMingoDialog, setMingoChatHandlers, useMingoMessagesStore } from '..
 import type { DialogNode } from '../types/dialog.types';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
-const MINGO_JETSTREAM_TOPIC: NatsMessageType = 'admin-message';
-const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
+export const MINGO_JETSTREAM_TOPIC: NatsMessageType = 'admin-message';
+export const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
 
 interface UseMingoRealtimeSubscriptionOptions {
   onChunkReceived?: (dialogId: string, chunk: ChunkData, messageType: NatsMessageType) => void;

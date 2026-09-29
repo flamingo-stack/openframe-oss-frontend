@@ -56,6 +56,7 @@ interface ApiResponse<T = unknown> {
   ok: boolean;
 }
 
+import { clientIdentityHeaders } from './client-identity';
 import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
@@ -139,6 +140,7 @@ class ApiClient {
     const requestHeaders: Record<string, string> = {
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      ...clientIdentityHeaders(),
       ...headers, // Custom headers from caller
     };
 

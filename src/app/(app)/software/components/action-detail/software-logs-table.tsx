@@ -23,7 +23,7 @@ import type { FacetOption } from '@/app/(app)/scripts/shared/utils/facet-options
 import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import type { PackageManagerType, SoftwareAction } from '@/generated/schema-enums';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { singleColumnFilter } from '../shared/single-column-filter';
+import { singleColumnFilter } from '../shared/column-filters';
 import { SoftwareLogCustomerCell } from './software-log-customer-cell';
 import { SoftwareLogDeviceCell } from './software-log-device-cell';
 import { SoftwareLogResultPanel } from './software-log-result-panel';

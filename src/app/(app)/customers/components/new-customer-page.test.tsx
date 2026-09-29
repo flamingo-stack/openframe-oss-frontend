@@ -40,8 +40,14 @@ vi.mock('@/app/hooks/use-safe-back', () => ({ safeBackOrReplace: spies.safeBack,
 
 vi.mock('@/lib/upload-with-auth', () => ({ uploadWithAuth: vi.fn(), deleteWithAuth: vi.fn() }));
 
+// The customer device guardrails block reaches the Relay-backed remote access
+// policy client: its `graphql` tags need the Relay transform, which vitest has
+// no equivalent of, and the Relay environment reads the request timeout from
+// the api-client at load. Neither runs in this test.
+vi.mock('react-relay', () => ({ graphql: () => ({}), fetchQuery: vi.fn(), commitMutation: vi.fn() }));
 vi.mock('@/lib/api-client', () => ({
   apiClient: { post: spies.post, put: spies.put, get: vi.fn() },
+  REQUEST_TIMEOUT_MS: 30_000,
 }));
 
 // The lib measures text for truncation tooltips and reads viewport queries; jsdom has neither.

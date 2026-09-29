@@ -4,7 +4,7 @@ import type { DataTableSortState } from '@flamingo-stack/openframe-frontend-core
 import { useMemo } from 'react';
 import { SortDirection } from '@/generated/schema-enums';
 
-interface ServerSortInput {
+export interface ServerSortInput {
   field: string;
   direction: SortDirection;
 }

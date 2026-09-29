@@ -1,45 +1,36 @@
 'use client';
 
 import { Parcel02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  type ColumnDef,
-  DataTable,
-  type DataTableSortState,
-  type Row,
-  useDataTable,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect } from 'react';
+import type { DataTableSortState } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type {
-  softwareListTable_query$data,
-  softwareListTable_query$key,
-} from '@/__generated__/softwareListTable_query.graphql';
+import type { softwareListTable_query$key } from '@/__generated__/softwareListTable_query.graphql';
 import type { softwareListTablePaginationQuery as SoftwareListTablePaginationQueryType } from '@/__generated__/softwareListTablePaginationQuery.graphql';
 import type {
   softwareListTableQuery as SoftwareListTableQueryType,
   SortInput,
 } from '@/__generated__/softwareListTableQuery.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
-import { openInNewTab } from '@/lib/open-in-new-tab';
-import { routes } from '@/lib/routes';
-import { OpenRowButton } from '../shared/open-row-button';
-import { SoftwareDevicesCell } from './software-devices-cell';
-import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
-import { SoftwareNameCell } from './software-name-cell';
-import { SoftwareVersionCell } from './software-version-cell';
-import { SoftwareVulnerabilitiesCell } from './software-vulnerabilities-cell';
+import { EmptyState, useRetryKey } from '@/app/components/shared';
+import type { ListSelections } from '../shared/software-list-frame';
+import { SOFTWARE_LIST_PAGE_SIZE, SOFTWARE_LIST_SORTABLE_COLUMN_IDS } from './software-list-columns';
+import { SoftwareTable, toSoftwareFilterInput } from './software-table';
+import { useSoftwareFilters } from './use-software-filters';
 
 /**
  * The fleet-wide `softwares` connection — one row per software title,
- * aggregated across devices. Search and sort are pushed to the server; the
- * pagination fragment drives infinite scroll.
- *
- * No `softwareFilters` facets ride along: the list has no filter funnels (the
- * design's header carries sort toggles only).
+ * aggregated across devices. Search, sort and the funnel are pushed to the
+ * server; the pagination fragment drives infinite scroll. The rows themselves
+ * are the shared `SoftwareTable`, the one a device's own inventory draws too,
+ * with the funnel fed by `softwareFilters`.
  */
 const softwareListTableQuery = graphql`
-  query softwareListTableQuery($search: String, $sort: SortInput, $first: Int!, $after: String) {
-    ...softwareListTable_query @arguments(search: $search, sort: $sort, first: $first, after: $after)
+  query softwareListTableQuery(
+    $filter: SoftwareFilterInput
+    $search: String
+    $sort: SortInput
+    $first: Int!
+    $after: String
+  ) {
+    ...softwareListTable_query @arguments(filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
   }
 `;
 
@@ -47,21 +38,18 @@ const softwareListTableFragment = graphql`
   fragment softwareListTable_query on Query
   @refetchable(queryName: "softwareListTablePaginationQuery")
   @argumentDefinitions(
+    filter: { type: "SoftwareFilterInput" }
     search: { type: "String" }
     sort: { type: "SortInput" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    softwares(search: $search, sort: $sort, first: $first, after: $after)
+    softwares(filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
       @connection(key: "softwareListTable_softwares") {
       filteredCount
       edges {
         node {
-          id
-          ...softwareNameCell_software
-          ...softwareVersionCell_software
-          ...softwareDevicesCell_software
-          ...softwareVulnerabilitiesCell_software
+          ...softwareTable_software
         }
       }
       pageInfo {
@@ -72,62 +60,22 @@ const softwareListTableFragment = graphql`
   }
 `;
 
-type SoftwareRow = NonNullable<softwareListTable_query$data['softwares']>['edges'][number]['node'];
-
-const COLUMNS: ColumnDef<SoftwareRow>[] = [
-  {
-    id: SOFTWARE_LIST_COLUMNS.name.id,
-    header: SOFTWARE_LIST_COLUMNS.name.header,
-    cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareNameCell software={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.name),
-  },
-  {
-    id: SOFTWARE_LIST_COLUMNS.currentVersion.id,
-    header: SOFTWARE_LIST_COLUMNS.currentVersion.header,
-    cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVersionCell software={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.currentVersion),
-  },
-  {
-    // Column ids of the sortable headers ARE the backend sort fields.
-    id: SOFTWARE_LIST_COLUMNS.devicesCount.id,
-    header: SOFTWARE_LIST_COLUMNS.devicesCount.header,
-    cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareDevicesCell software={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.devicesCount),
-  },
-  {
-    id: SOFTWARE_LIST_COLUMNS.vulnerabilities.id,
-    header: SOFTWARE_LIST_COLUMNS.vulnerabilities.header,
-    cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVulnerabilitiesCell software={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.vulnerabilities),
-  },
-  {
-    id: SOFTWARE_LIST_COLUMNS.open.id,
-    cell: ({ row }: { row: Row<SoftwareRow> }) => (
-      <OpenRowButton label="Open in new tab" onClick={openInNewTab(routes.software.details(row.original.id))} />
-    ),
-    enableSorting: false,
-    meta: liveColumnMeta(SOFTWARE_LIST_COLUMNS.open),
-  },
-];
-
-const getRowId = (row: SoftwareRow) => row.id;
-const rowHref = (row: SoftwareRow) => routes.software.details(row.id);
-
 interface SoftwareListTableProps {
   debouncedSearch: string;
   /** Deferred sort — feeds the query (lags the live indicator during a refetch). */
   sort: SortInput | null;
+  /** Deferred funnel selection — feeds the query (lags the live ticks during a refetch). */
+  deferredSelections: ListSelections;
   /** Live sort — drives the header indicator so it flips instantly on click. */
   sortState: DataTableSortState | null;
   onSortChange: (columnId: string) => void;
+  /** Live funnel selection — what the headers draw as ticked. */
+  selections: ListSelections;
+  onSelectionsChange: (next: Record<string, string[]>) => void;
   /**
-   * True while the deferred query variables lag the live search/sort state (a
-   * refetch is in flight and the rows on screen are the previous result) —
-   * guards the empty state so it never flashes on stale data.
+   * True while the deferred query variables lag the live search/sort/funnel
+   * state (a refetch is in flight and the rows on screen are the previous
+   * result) — guards the empty state so it never flashes on stale data.
    */
   isPending: boolean;
   onEmptyChange: (isEmpty: boolean) => void;
@@ -140,8 +88,11 @@ interface SoftwareListTableProps {
 export function SoftwareListTable({
   debouncedSearch,
   sort,
+  deferredSelections,
   sortState,
   onSortChange,
+  selections,
+  onSelectionsChange,
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
@@ -149,9 +100,10 @@ export function SoftwareListTable({
   emptyDescription,
 }: SoftwareListTableProps) {
   const retryKey = useRetryKey();
+  const filter = toSoftwareFilterInput(deferredSelections);
   const queryData = useLazyLoadQuery<SoftwareListTableQueryType>(
     softwareListTableQuery,
-    { search: debouncedSearch || null, sort, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
+    { filter, search: debouncedSearch || null, sort, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
@@ -160,58 +112,33 @@ export function SoftwareListTable({
     softwareListTable_query$key
   >(softwareListTableFragment, queryData);
 
-  const rows = (data.softwares?.edges ?? []).map(edge => edge.node);
-  const totalCount = data.softwares?.filteredCount ?? rows.length;
+  // The funnel's options: what actually occurs across the fleet, from the
+  // server, so a value no title has is never offered.
+  const filterOptions = useSoftwareFilters();
+
+  const rows = data.softwares.edges.map(edge => edge.node);
 
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_LIST_PAGE_SIZE);
   };
 
-  const table = useDataTable<SoftwareRow>({ data: rows, columns: COLUMNS, getRowId, enableSorting: false });
-
-  const showEmptyState = !debouncedSearch && !isPending && rows.length === 0;
-
-  useEffect(() => {
-    onEmptyChange(showEmptyState);
-  }, [showEmptyState, onEmptyChange]);
-
-  if (showEmptyState) {
-    return <EmptyState icon={<Parcel02Icon />} title={emptyTitle} description={emptyDescription} />;
-  }
-
   return (
-    // Dim (don't unmount) the stale rows while a deferred refetch is in flight —
-    // the subtle fade is the pending feedback. Swapping to skeletons is exactly
-    // the flash the deferral avoids.
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-          sort={sortState}
-          onSortChange={onSortChange}
-        />
-        <DataTable.Body
-          skeletonRows={SOFTWARE_LIST_PAGE_SIZE}
-          emptyMessage={
-            debouncedSearch
-              ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No software found.'
-          }
-          rowClassName="mb-1"
-          rowHref={rowHref}
-        />
-        {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
-          />
-        )}
-      </DataTable>
-    </div>
+    <SoftwareTable
+      rows={rows}
+      totalCount={data.softwares.filteredCount}
+      debouncedSearch={debouncedSearch}
+      sortableIds={SOFTWARE_LIST_SORTABLE_COLUMN_IDS}
+      sortState={sortState}
+      onSortChange={onSortChange}
+      filterOptions={filterOptions}
+      selections={selections}
+      onSelectionsChange={onSelectionsChange}
+      isFiltered={filter !== null}
+      isPending={isPending}
+      emptyState={<EmptyState icon={<Parcel02Icon />} title={emptyTitle} description={emptyDescription} />}
+      onEmptyChange={onEmptyChange}
+      stickyHeaderOffset={stickyHeaderOffset}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+    />
   );
 }

@@ -44,6 +44,7 @@ export const TAB_IDS = {
     'security',
     'agents',
     'tickets',
+    'incidents',
     'hardware',
     'os',
     'network',
@@ -60,12 +61,14 @@ export const TAB_IDS = {
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
   aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
+  incidents: ['current', 'snoozed', 'archived'],
 } as const;
 
 export type CustomerListTab = (typeof TAB_IDS.customersList)[number];
 export type CustomerDetailTab = (typeof TAB_IDS.customerDetails)[number];
 export type CustomerEditTab = (typeof TAB_IDS.customerEdit)[number];
 export type DeviceDetailTab = (typeof TAB_IDS.deviceDetails)[number];
+export type IncidentsTab = (typeof TAB_IDS.incidents)[number];
 export type ScriptDetailTab = (typeof TAB_IDS.scriptDetails)[number];
 export type SoftwareDetailTab = (typeof TAB_IDS.softwareDetails)[number];
 export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
@@ -203,6 +206,7 @@ export const routes = {
     bugFixesAndEnhancements: '/help-center/bug-fixes-and-enhancements',
     tickets: '/help-center/tickets',
     faqs: '/help-center/faqs',
+    trustCenter: '/help-center/trust-center',
     knowledgeBase: '/help-center/knowledge-base',
     // `[docType]` is enumerable (see the route's `generateStaticParams`), so the
     // literal union is the typed guard ROUTES.md asks for over a bare `string`.
@@ -392,11 +396,12 @@ export const routes = {
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
     billingUsage: (o?: { action?: BillingUsageAction }) => withQuery('/settings/billing-usage', { action: o?.action }),
-    // Tenant Management (CU-86akj8ajt): Microsoft 365 / Google Workspace directory
+    // Tenant Management: Microsoft 365 / Google Workspace directory
     // connections. Sub-pages take the connection id as `?id=` like every other
     // detail page (static-export constraint, see ROUTES.md).
     tenantManagement: '/settings/tenant-management',
-    tenantNew: '/settings/tenant-management/new',
+    // `id`: the connection a New flow already created, so a reload or Back resumes it instead of a blank form.
+    tenantNew: (o?: { id?: string | number }) => withQuery('/settings/tenant-management/new', { id: o?.id }),
     tenantDetails: (id: string | number) => withQuery('/settings/tenant-management/details', { id }),
     tenantEdit: (id: string | number) => withQuery('/settings/tenant-management/edit', { id }),
     tenantReconnect: (id: string | number) => withQuery('/settings/tenant-management/reconnect', { id }),

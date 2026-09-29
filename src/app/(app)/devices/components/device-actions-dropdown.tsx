@@ -18,6 +18,7 @@ export function DeviceActionsDropdown({ device, context, onActionComplete, onRun
     onRunScript,
     onActionComplete,
     navigateOnDestructive: context === 'detail',
+    policyContext: context === 'table' ? 'row' : 'page',
   });
 
   const menuGroups = useMemo((): ActionsMenuGroup[] => {

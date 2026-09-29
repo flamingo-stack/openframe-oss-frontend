@@ -44,7 +44,7 @@ export function useFeatureFlagsReady(): boolean {
  * `'loading'` into `'off'`; that is the bug this hook exists to prevent.
  *
  * ```tsx
- * const gate = useFeatureFlagGate('time-tracker');
+ * const gate = useFeatureFlagGate('insights');
  * if (gate === 'loading') return <TabBarSkeleton widths={TAB_WIDTHS} />;
  * if (gate === 'off') { redirect(); return null; }
  * ```

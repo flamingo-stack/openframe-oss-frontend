@@ -27,7 +27,7 @@ import { authApiClient } from '@/lib/auth-api-client';
 import { isBillingHidden } from '@/lib/billing-visibility';
 import { handleApiError } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import { useTenantManagementGate } from '../tenant-management/hooks/use-tenant-management-gate';
+import { useTenantManagementGate } from '../tenant-management/components/shared/use-tenant-management-gate';
 import { AccountSettingsCard } from './account-settings-card';
 import { BiometricLoginCard } from './biometric-login-card';
 import { EditProfileModal } from './edit-profile-modal';
@@ -117,14 +117,13 @@ export function SettingsHub() {
   const billingsGate = useFeatureFlagGate('billings');
   // Billing & Usage is the workspace's money — owners and admins, nobody else.
   const billingAccessGate = useBillingAccessGate();
-  const downloadAppsGate = useFeatureFlagGate('download-apps');
   const tenantManagementGate = useTenantManagementGate();
   const mobileShell = useIsMobileShell();
 
   // The app mode and the shell are build constants, so this list — every card this build
   // can ever show — is known on the first render. It is what the loading grid draws, which
-  // is why the shell check belongs here and not beside the flag below: a card filtered in
-  // `visibleItems` alone would hold a placeholder slot it never fills.
+  // is why the shell check belongs here and not in `visibleItems` below: a card filtered
+  // there alone would hold a placeholder slot it never fills.
   const defaultItems = SETTINGS_NAV_ITEMS.filter(item => {
     if (item.href === routes.settings.architecture) {
       return isOssTenantMode();
@@ -138,16 +137,10 @@ export function SettingsHub() {
     return true;
   });
   const gatesResolved =
-    billingsGate !== 'loading' &&
-    billingAccessGate !== 'loading' &&
-    downloadAppsGate !== 'loading' &&
-    tenantManagementGate !== 'loading';
+    billingsGate !== 'loading' && billingAccessGate !== 'loading' && tenantManagementGate !== 'loading';
   const visibleItems = defaultItems.filter(item => {
     if (item.href === routes.settings.billingUsage()) {
       return billingsGate === 'on' && billingAccessGate === 'allowed';
-    }
-    if (item.href === routes.settings.downloadApps) {
-      return downloadAppsGate === 'on';
     }
     if (item.href === routes.settings.tenantManagement) {
       return tenantManagementGate === 'on';

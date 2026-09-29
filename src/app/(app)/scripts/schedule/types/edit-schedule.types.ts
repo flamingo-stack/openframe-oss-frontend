@@ -1,6 +1,7 @@
 import { OS_PLATFORMS } from '@flamingo-stack/openframe-frontend-core/utils';
 import { z } from 'zod';
 import { ScheduleOfflineBehavior, ScheduleTimeReference, ScriptScheduleTrigger } from '@/generated/schema-enums';
+import { scriptArgumentSchema } from '../../shared/types/edit-script.types';
 import { parseKeyValues, serializeKeyValues } from '../../shared/utils/script-key-values';
 import { envVarsToInput, envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
 import { customParamsByScriptId, effectiveScriptParams, toEnvVarInputs } from '../utils/schedule-script-params';
@@ -25,8 +26,6 @@ import type { ScheduleDetailData } from './schedule-detail.types';
 
 /** Fallback when a script carries no timeout of its own (design default). */
 const DEFAULT_TIMEOUT_SECONDS = 90;
-
-const keyValueSchema = z.object({ id: z.string(), key: z.string(), value: z.string() });
 
 /**
  * UI platform id → its display name ("darwin" → "MacOS"). Reads the FULL
@@ -165,8 +164,8 @@ export const editScheduleFormSchema = z
             // 0 = no script picked yet, so the field is locked and empty; a real
             // timeout only exists once a script is chosen (it seeds this).
             timeoutSeconds: z.number().int().min(0),
-            args: z.array(keyValueSchema),
-            envVars: z.array(keyValueSchema),
+            args: z.array(scriptArgumentSchema),
+            envVars: z.array(scriptArgumentSchema),
             /**
              * The picked script's OWN defaults, carried with no control of their
              * own: an override is written only for the half that differs from
@@ -174,7 +173,8 @@ export const editScheduleFormSchema = z
              * instead of freezing a copy the day it was saved.
              */
             defaultArgs: z.array(z.string()),
-            defaultEnvVars: z.array(z.object({ name: z.string(), value: z.string(), secret: z.boolean() })),
+            // `value` is null for a secret: the server masks it on every read.
+            defaultEnvVars: z.array(z.object({ name: z.string(), value: z.string().nullable(), secret: z.boolean() })),
           })
           .refine(entry => !entry.scriptId || entry.timeoutSeconds >= 1, {
             message: 'Timeout must be at least 1 second',

@@ -1,4 +1,4 @@
-// MeshCentral `.mcrec` session-recording format (CU-86akc3ce5).
+// MeshCentral `.mcrec` session-recording format.
 //
 // A recording is a stream of records, each a 16-byte big-endian header followed
 // by `size` payload bytes:

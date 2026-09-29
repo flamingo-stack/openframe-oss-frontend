@@ -1,5 +1,5 @@
-import { commitMutation, fetchQuery, graphql } from 'react-relay';
-import { getRequest, type GraphQLTaggedNode, type MutationParameters, readInlineData } from 'relay-runtime';
+import { fetchQuery, graphql } from 'react-relay';
+import { getRequest, readInlineData } from 'relay-runtime';
 import type {
   remoteSessionApiService_session$data as WireSession,
   remoteSessionApiService_session$key as WireSessionKey,
@@ -8,6 +8,7 @@ import type { remoteSessionApiServiceActiveQuery as ActiveQuery } from '@/__gene
 import type { remoteSessionApiServiceEndMutation as EndMutation } from '@/__generated__/remoteSessionApiServiceEndMutation.graphql';
 import type { remoteSessionApiServiceSessionQuery as SessionQuery } from '@/__generated__/remoteSessionApiServiceSessionQuery.graphql';
 import { getRelayEnvironment } from '@/lib/relay';
+import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import { sendGraphqlKeepalive } from '@/lib/relay/environment';
 import {
   REMOTE_ACCESS_MODES,
@@ -161,24 +162,6 @@ export function applyRemoteSessionEvent(session: RemoteSession | null, event: Re
   return { ...base, status: 'ENDED', endReason: event.endReason, endedAt: event.endedAt ?? null };
 }
 
-/** `commitMutation` as a promise: GraphQL-level errors reject, the payload resolves. */
-function commit<TMutation extends MutationParameters>(
-  mutation: GraphQLTaggedNode,
-  variables: TMutation['variables'],
-): Promise<TMutation['response']> {
-  return new Promise((resolve, reject) => {
-    commitMutation<TMutation>(getRelayEnvironment(), {
-      mutation,
-      variables,
-      onCompleted: (response, errors) => {
-        if (errors?.length) reject(new Error(errors[0].message));
-        else resolve(response);
-      },
-      onError: reject,
-    });
-  });
-}
-
 export class RemoteSessionApiService {
   /** The caller's own ACTIVE session on the device, or null (another technician's reads as null too). */
   async active(deviceId: string): Promise<RemoteSession | null> {
@@ -204,7 +187,7 @@ export class RemoteSessionApiService {
 
   /** The technician ends their own session; a session that is already over counts as ended. */
   async end(sessionId: string): Promise<void> {
-    const payload = await commit<EndMutation>(endMutation, { sessionId });
+    const payload = await commitMutationPromise<EndMutation>(endMutation, { sessionId });
     const blocking = payload.endRemoteSession.userErrors.filter(e => e.code !== END_ALREADY_ENDED_CODE);
     if (blocking.length > 0) throw new Error(blocking[0].message || 'Could not end the remote session');
   }

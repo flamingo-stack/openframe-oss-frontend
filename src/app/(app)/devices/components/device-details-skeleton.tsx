@@ -2,7 +2,6 @@
 
 import {
   type ActionsMenuGroup,
-  Input,
   type PageActionButton,
   PageLayout,
   TabNavigation,
@@ -11,34 +10,20 @@ import {
   ArrowRightUpIcon,
   BracketCurlyIcon,
   ComputerMouseIcon,
-  SearchIcon,
   TerminalIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  type ColumnDef,
-  DataTable,
-  Skeleton,
-  useDataTable,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useMemo } from 'react';
+import { DEVICE_INCIDENTS_TABLE_COLUMNS } from '@/app/(app)/incidents/components/incidents-table-columns';
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
 import { DEVICE_TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
-import {
-  PoliciesTable,
-  type PolicyTableRow,
-  QueriesTable,
-  type QueryTableRow,
-  skeletonColumnDefs,
-  type TableSkeletonColumn,
-} from '@/app/components/shared';
-import {
-  REMOTE_SESSIONS_TAB_COLUMNS,
-  SOFTWARE_TAB_COLUMNS,
-  USERS_TAB_COLUMNS,
-  VULNERABILITIES_TAB_COLUMNS,
-} from './tabs/device-tab-columns';
+import { PoliciesTable, type PolicyTableRow, QueriesTable, type QueryTableRow } from '@/app/components/shared';
+import { DeviceAddedByCellSkeleton } from './device-added-by-cell';
+import { REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS } from './tabs/device-tab-columns';
 import { useDeviceTabs } from './tabs/device-tabs';
+import { SoftwareTabSkeleton } from './tabs/software-tab';
+import { SearchInputSkeleton, TableTabSkeleton } from './tabs/table-tab-skeleton';
+import { VulnerabilitiesTabSkeleton } from './tabs/vulnerabilities-tab';
 
 const noop = () => {};
 
@@ -204,49 +189,6 @@ function InfoCardSkeleton({
 }
 
 /**
- * The REAL search input — fixed chrome, so we render the actual core `Input` (enabled, icon +
- * placeholder) during load instead of a grey bar, matching the tab's live search field.
- */
-function SearchInputSkeleton({ placeholder }: { placeholder: string }) {
-  return (
-    <Input
-      placeholder={placeholder}
-      className="w-full"
-      startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
-    />
-  );
-}
-
-const EMPTY_TABLE_ROWS: unknown[] = [];
-
-/**
- * Standard table-tab skeleton — the app-wide loading pattern (see `customer-details-skeleton`):
- * a search bar + an empty real `DataTable` with `loading`, which renders the real
- * `DataTableSkeleton` (all columns, correct header height, responsive condensing). Headers are
- * rendered for real; the search input is a plain bar (not a disabled input).
- */
-function TableTabSkeleton({ columns, placeholder }: { columns: readonly TableSkeletonColumn[]; placeholder: string }) {
-  const colDefs = useMemo<ColumnDef<unknown>[]>(() => skeletonColumnDefs<unknown>(columns), [columns]);
-
-  const table = useDataTable<unknown>({
-    data: EMPTY_TABLE_ROWS,
-    columns: colDefs,
-    getRowId: () => '',
-    enableSorting: false,
-  });
-
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <SearchInputSkeleton placeholder={placeholder} />
-      <DataTable table={table}>
-        <DataTable.Header />
-        <DataTable.Body loading skeletonRows={10} emptyMessage="" rowClassName="mb-1" />
-      </DataTable>
-    </div>
-  );
-}
-
-/**
  * Mirrors the real `InfoCell`: a column with [row(optional inline icon + value), label].
  * Only the value is a skeleton; the label is the real static text. `iconClass` matches the
  * live icon box (Device `w-5/7`, Type/UUID `w-4/6`).
@@ -300,6 +242,8 @@ function DeviceInfoSectionSkeleton() {
   const updated = <InfoCellSkeleton label="Updated" valueWidth="w-40" />;
   const uuid = <InfoCellSkeleton label="UUID" valueWidth="w-48" iconClass="w-4 h-4 md:w-6 md:h-6" />;
   const customer = <CustomerCellSkeleton />;
+  const addedBy = <DeviceAddedByCellSkeleton />;
+  const emptyCell = <div className="flex-1" aria-hidden="true" />;
 
   return (
     <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
@@ -313,13 +257,17 @@ function DeviceInfoSectionSkeleton() {
           {type}
           {serial}
         </div>
-        {/* Mobile (< md): customer as a full-width row */}
+        {/* Mobile (< md): customer and added-by each as a full-width row */}
         <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
           {customer}
         </div>
-        {/* Tablet (md to lg): customer in one row */}
+        <div className="flex min-h-14 items-center border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
+          {addedBy}
+        </div>
+        {/* Tablet (md to lg): customer + added-by in one row */}
         <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] md:flex md:items-center md:gap-[var(--spacing-system-m)]">
           <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customer}</div>
+          {addedBy}
         </div>
         <div className={rowClass}>
           {registered}
@@ -330,19 +278,28 @@ function DeviceInfoSectionSkeleton() {
         </div>
       </div>
 
-      {/* ===== Desktop (lg+) — 2 rows of 4 ===== */}
+      {/* ===== Desktop (lg+) — a grid of 4 columns ===== */}
       <div className="hidden lg:flex lg:flex-col">
         <div className={rowClass}>
           {hostname}
           {device}
           {type}
+          {serial}
+        </div>
+        <div className={rowClass}>
           <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customer}</div>
+          {emptyCell}
+          {emptyCell}
+          {addedBy}
+        </div>
+        <div className={rowClass}>
+          {registered}
+          {updated}
+          {emptyCell}
+          {emptyCell}
         </div>
         <div className="flex min-h-20 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)]">
           {uuid}
-          {serial}
-          {registered}
-          {updated}
         </div>
       </div>
     </div>
@@ -545,14 +502,6 @@ function UsersTabSkeleton() {
   return <TableTabSkeleton columns={USERS_TAB_COLUMNS} placeholder="Search for User" />;
 }
 
-function SoftwareTabSkeleton() {
-  return <TableTabSkeleton columns={SOFTWARE_TAB_COLUMNS} placeholder="Search for Software" />;
-}
-
-function VulnerabilitiesTabSkeleton() {
-  return <TableTabSkeleton columns={VULNERABILITIES_TAB_COLUMNS} placeholder="Search for Vulnerability" />;
-}
-
 /**
  * Policies and Queries render the REAL shared tables in their loading state
  * instead of a column copy: both already reserve the actions column while
@@ -640,6 +589,8 @@ function getTabSkeleton(activeTab: string) {
       return <TicketsTabSkeleton />;
     case 'remote-sessions':
       return <TableTabSkeleton columns={REMOTE_SESSIONS_TAB_COLUMNS} placeholder="Search for Remote Session" />;
+    case 'incidents':
+      return <TableTabSkeleton columns={DEVICE_INCIDENTS_TABLE_COLUMNS} placeholder="Search for Incidents" />;
     default:
       return <OverviewTabSkeleton />;
   }

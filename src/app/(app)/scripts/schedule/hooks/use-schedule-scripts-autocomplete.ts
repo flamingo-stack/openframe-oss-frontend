@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchQuery, useRelayEnvironment } from 'react-relay';
 import type { scheduleScriptsPickerRelayQuery as PickerQueryType } from '@/__generated__/scheduleScriptsPickerRelayQuery.graphql';
 import { scheduleScriptsPickerRelayQuery } from '@/graphql/scripts/schedule-scripts-picker-relay';
-import { platformsToEnums } from '../../shared/utils/script-mappers';
+import { platformsToEnums, type StoredEnvVar } from '../../shared/utils/script-mappers';
 
 export interface PickerScript {
   id: string;
@@ -14,7 +14,7 @@ export interface PickerScript {
   /** Run parameters the script carries itself — seed the schedule card on pick. */
   defaultTimeoutSeconds: number | null;
   defaultArgs: string[];
-  envVars: { name: string; value: string }[];
+  envVars: ReadonlyArray<StoredEnvVar>;
 }
 
 /**
@@ -62,7 +62,7 @@ export function useScheduleScriptsAutocomplete(supportedPlatforms: string[]) {
             supportedPlatforms: node.supportedPlatforms ? [...node.supportedPlatforms] : [],
             defaultTimeoutSeconds: node.defaultTimeoutSeconds ?? null,
             defaultArgs: node.defaultArgs ? [...node.defaultArgs] : [],
-            envVars: node.envVars ? node.envVars.map(env => ({ name: env.name, value: env.value ?? '' })) : [],
+            envVars: node.envVars ?? [],
           })),
         );
         setIsLoading(false);

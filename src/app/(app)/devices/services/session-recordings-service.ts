@@ -14,8 +14,8 @@ export class RecordingUnavailableError extends Error {
 }
 
 /**
- * Session-recordings backend surface (CU-86akc3ce5). The storage API
- * (CU-86akc3c5q) is not built yet, so the app runs on
+ * Session-recordings backend surface. The storage API is not built yet, so
+ * the app runs on
  * `MockSessionRecordingsService`; swapping in the real client is one new
  * implementation of this interface plus flipping the singleton below - hooks
  * and UI stay untouched.

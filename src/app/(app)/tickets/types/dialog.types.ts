@@ -53,7 +53,7 @@ export interface Dialog {
   statusUpdatedAt?: string | null;
   resolvedAt?: string | null;
   // Who closed the ticket: 'AI_AGENT' | 'TECHNICIAN' | 'END_USER' (open string on the BE).
-  // Null while open; selected only when the ai-resolution flag is on.
+  // Null while open.
   resolvedBy?: string | null;
   aiResolutionSuggestedAt?: string | null;
   rating?: DialogRating | null;

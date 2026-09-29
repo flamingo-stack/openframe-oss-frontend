@@ -28,6 +28,7 @@
  * 401-refresh). Same-origin keeps `embedAuthedFetch` valid in prod builds too.
  */
 import type { EndpointsRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
+import { TRUST_CENTER_API_PATH } from '@flamingo-stack/openframe-frontend-core/types';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -88,6 +89,10 @@ export const EP = {
   productReleaseBySlug: (slug: string) => `${CONTENT}/releases/${slug}`,
   // legal (privacy / terms)
   legal: (docType: string) => `${CONTENT}/legal/${docType}`,
+  // trust center (Vanta-fed public projection) — the lib owns the hub path
+  // (`TRUST_CENTER_API_PATH` = `/api/trust-center`), so it is prefixed onto the
+  // proxy root rather than re-spelled (same spelling as react-embedding-example).
+  trustCenter: `${CONTENT_BASE}${TRUST_CENTER_API_PATH}`,
   // FAQs — `<FaqSection apiBaseUrl=CONTENT_BASE>` self-builds `/api/faqs`.
   // knowledge base (docs hub) — the lib `<DocsHubPage>` fetches the tree +
   // content from `…/docs/sources/<sourceId>/{structure,content}`, resolves
@@ -112,6 +117,9 @@ export const EP = {
 /**
  * EndpointsRuntime for the lib's contact / access-code / announcement surfaces.
  *
+ * `announcementsUrl` feeds the app shell's `<AnnouncementTopBar>` (the lib
+ * `<AnnouncementBar>` self-fetches the platform's active announcement from it).
+ *
  * Help Center mounts only ONE of these: the authed ticket create form, which
  * wraps the lib `<ContactForm>`. `<ContactForm>` calls `useContactSubmission`
  * (→ `useRequiredEndpointsRuntime()`) UNCONDITIONALLY at the top of render —
@@ -125,8 +133,8 @@ export const EP = {
  * module constant (not rebuilt per render) — safe to pass straight to the
  * provider with no `useMemo`.
  */
-export const HELP_CENTER_ENDPOINTS: EndpointsRuntime = {
-  announcementsUrl: `${CONTENT}/announcements`,
+export const CONTENT_ENDPOINTS: EndpointsRuntime = {
+  announcementsUrl: `${CONTENT}/announcements/active`,
   accessCode: {
     validateUrl: `${CONTENT}/validate-access-code`,
     consumeUrl: `${CONTENT}/consume-access-code`,

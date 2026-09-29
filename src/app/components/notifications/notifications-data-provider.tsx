@@ -43,7 +43,6 @@ import type { notificationsDrawerRelay_query$key as NotificationsDrawerFragmentK
 import type { notificationsDrawerRelayPaginationQuery as NotificationsDrawerPaginationQueryType } from '@/__generated__/notificationsDrawerRelayPaginationQuery.graphql';
 import type { notificationsDrawerRelayQuery as NotificationsDrawerRelayQueryType } from '@/__generated__/notificationsDrawerRelayQuery.graphql';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import type { NotificationSeverity } from '@/generated/schema-enums';
 import { cancelPendingPushMutation } from '@/graphql/notifications/cancel-pending-push-mutation';
 import { getLiveConnectionPairs } from '@/graphql/notifications/live-connection-pairs';
@@ -115,10 +114,6 @@ function payloadAttributes(payload: NatsNotificationPayload): Record<string, str
 
 function payloadDialogId(payload: NatsNotificationPayload): string | null {
   return payloadAttributes(payload)[NOTIFICATION_ATTR.dialogId] ?? null;
-}
-
-function payloadTicketId(payload: NatsNotificationPayload): string | null {
-  return payloadAttributes(payload)[NOTIFICATION_ATTR.ticketId] ?? null;
 }
 
 /**
@@ -324,11 +319,10 @@ export function NotificationsDataProvider({ children }: { children: ReactNode })
   const userId = useAuthStore(s => s.user?.id);
   const [showPopups, setShowPopups] = useLocalStorage<boolean>(SHOW_POPUPS_STORAGE_KEY, true);
   const [showDesktopPopups, setShowDesktopPopups] = useLocalStorage<boolean>(SHOW_DESKTOP_POPUPS_STORAGE_KEY, false);
-  const notificationsEnabled = useFeatureFlag('notifications');
 
   return (
     <NotificationsDataInner
-      userId={notificationsEnabled && isAuthenticated ? (userId ?? null) : null}
+      userId={isAuthenticated ? (userId ?? null) : null}
       showPopups={showPopups}
       onShowPopupsChange={setShowPopups}
       showDesktopPopups={showDesktopPopups}
@@ -594,11 +588,9 @@ function maybeShowDesktopNotification(
     title,
     createdAt: Date.now(),
     category: payload.category,
-    meta: {
-      notificationType: payload.type,
-      dialogId: payloadDialogId(payload) ?? undefined,
-      ticketId: payloadTicketId(payload) ?? undefined,
-    },
+    // Every attribute, as `mapNotificationNode` does — the route mapping picks the ids it
+    // knows, and a hand-picked subset here silently drops any entity added later.
+    meta: { ...payloadAttributes(payload), notificationType: payload.type },
   });
 
   try {

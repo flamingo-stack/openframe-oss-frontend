@@ -1,7 +1,7 @@
-// Session-recording read models (CU-86akc3ce5).
+// Session-recording read models.
 //
 // Shapes mirror the Figma mockups (devices 744-40363 list, 758-46350 detail);
-// the storage backend (CU-86akc3c5q) is still in flight, so these are the
+// the storage backend is still in flight, so these are the
 // contract the mock service implements and the future BE client must satisfy.
 
 export interface RecordingEmployee {

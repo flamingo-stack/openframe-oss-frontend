@@ -67,8 +67,6 @@ export interface OnboardingNavState {
  * three states.
  */
 export interface NavigationFlags {
-  timeTracker: boolean;
-  helpCenter: boolean;
   insights: boolean;
   softwareManagement: boolean;
 }
@@ -107,9 +105,8 @@ export const getNavigationItems = (
       path: routes.dashboard,
       isActive: pathname.startsWith('/dashboard'),
     },
-    // Right under Dashboard (Figma): the working set of open findings is the
-    // first thing a technician looks at. saas-tenant only — the insights API
-    // lives in saas-api.
+    // Right under Dashboard (Figma): the current incidents are the first thing
+    // a technician looks at. saas-tenant only — the insights API lives in saas-api.
     ...(isSaasTenantMode() && flags.insights
       ? [
           {
@@ -182,15 +179,13 @@ export const getNavigationItems = (
     });
   }
 
-  if (flags.timeTracker) {
-    baseItems.push({
-      id: 'worktime',
-      label: 'Worktime',
-      icon: <ClockHistoryIcon size={24} />,
-      path: routes.worktime,
-      isActive: pathname.startsWith('/worktime'),
-    });
-  }
+  baseItems.push({
+    id: 'worktime',
+    label: 'Worktime',
+    icon: <ClockHistoryIcon size={24} />,
+    path: routes.worktime,
+    isActive: pathname.startsWith('/worktime'),
+  });
 
   baseItems.push({
     id: 'knowledge-base',
@@ -201,16 +196,14 @@ export const getNavigationItems = (
     isActive: pathname.startsWith('/knowledge-base'),
   });
 
-  if (flags.helpCenter) {
-    baseItems.push({
-      id: 'help-center',
-      label: 'Help Center',
-      icon: <QuestionCircleIcon size={24} />,
-      path: routes.helpCenter.root,
-      section: 'secondary',
-      isActive: pathname.startsWith('/help-center'),
-    });
-  }
+  baseItems.push({
+    id: 'help-center',
+    label: 'Help Center',
+    icon: <QuestionCircleIcon size={24} />,
+    path: routes.helpCenter.root,
+    section: 'secondary',
+    isActive: pathname.startsWith('/help-center'),
+  });
 
   baseItems.push({
     id: 'settings',

@@ -4,24 +4,17 @@ import { QueryReportTable } from '@flamingo-stack/openframe-frontend-core/compon
 import type { ReactNode } from 'react';
 import type { Incident } from '../utils/incident-transform';
 
-/** The first column of the evidence table: the machine every row came from. */
-const DEVICE_COLUMN = 'device';
-
 /**
  * "Query Details": the osquery rows the finding was made from, in the same
  * report table the Monitoring query page uses. Columns are the detecting
- * query's own column names (they vary by kind), with the device pinned first —
- * every row is from the incident's one machine. The device is set AFTER the
- * spread so a query column that happens to be called `device` cannot replace it.
+ * query's own column names (they vary by kind). No device column: an incident
+ * belongs to exactly one machine, which the summary card already names.
  */
 export function IncidentQueryResults({ incident }: { incident: Incident }) {
-  const rows = (incident.queryResult ?? []).map(row => ({ ...row, [DEVICE_COLUMN]: incident.deviceName }));
-
   return (
     <QueryResultsFrame>
       <QueryReportTable
-        data={rows}
-        columnOrder={[DEVICE_COLUMN]}
+        data={incident.queryResult ?? []}
         showExport={false}
         emptyMessage={
           incident.queryResult
@@ -45,13 +38,13 @@ function QueryResultsFrame({ children }: { children: ReactNode }) {
 
 /**
  * The same heading over the report table's own loading rows. The column count
- * is the detecting query's and unknown until the record lands; four is the
- * common shape (device + three query columns), one row the common count.
+ * is the detecting query's and unknown until the record lands; three is the
+ * common shape, one row the common count.
  */
 export function IncidentQueryResultsSkeleton() {
   return (
     <QueryResultsFrame>
-      <QueryReportTable data={[]} loading skeletonRows={1} skeletonColumns={4} showExport={false} />
+      <QueryReportTable data={[]} loading skeletonRows={1} skeletonColumns={3} showExport={false} />
     </QueryResultsFrame>
   );
 }

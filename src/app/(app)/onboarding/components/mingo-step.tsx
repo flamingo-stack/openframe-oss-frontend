@@ -52,11 +52,13 @@ export function MingoStep({
   onCompleteBackground,
   completed,
   completing,
+  expanded,
 }: {
   onComplete?: () => void;
   onCompleteBackground?: () => void;
   completed?: boolean;
   completing?: boolean;
+  expanded?: boolean;
 }) {
   // MPH-sourced quick actions — the `agent-mingo` agent config (source-keyed on
   // `agent-mingo`), selected via the runtime's standard agent-config URL builder.
@@ -126,7 +128,15 @@ export function MingoStep({
         </div>
 
         <div className="w-full flex-1">
-          <Video kind="youtube" url={DEMO_VIDEO_ID} title="Meet Mingo demo video" priority />
+          <Video
+            kind="youtube"
+            url={DEMO_VIDEO_ID}
+            title="Meet Mingo demo video"
+            priority
+            muted
+            autoActivate={expanded}
+            suspended={!expanded}
+          />
         </div>
       </div>
 

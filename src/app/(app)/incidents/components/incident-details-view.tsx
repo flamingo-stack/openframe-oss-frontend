@@ -55,7 +55,7 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
 
   // The status button is named after the transition the technician most likely
   // wants — Resolve while the incident is open — and its menu lists every legal
-  // one (design: "Resolve ▾"). A resolved incident offers Archive / Reopen.
+  // one (design: "Resolve ▾"). A resolved incident offers Archive, an archived one Reopen.
   const targets = transitionsFrom(transitions, incident.status);
   const primary = targets.includes(InsightStatus.RESOLVED) ? InsightStatus.RESOLVED : targets[0];
   // A deleted assignee is not offered by the ticket picker — the ticket starts unassigned.

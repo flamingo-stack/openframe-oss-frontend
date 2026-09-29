@@ -21,7 +21,8 @@ import type {
   SortInput,
 } from '@/__generated__/softwareVulnerabilitiesTableQuery.graphql';
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
-import { openNvd } from '../../shared/nvd-url';
+import { openInNewTab } from '@/lib/open-in-new-tab';
+import { routes } from '@/lib/routes';
 import { OpenRowButton } from '../../shared/open-row-button';
 import { SOFTWARE_VULNERABILITIES_PAGE_SIZE, SOFTWARE_VULNERABILITY_COLUMNS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilityDiscoveredCell } from './software-vulnerability-discovered-cell';
@@ -31,7 +32,8 @@ import { SoftwareVulnerabilityVersionCell } from './software-vulnerability-versi
  * Software → Vulnerabilities: the CVEs matched to this title. One row per CVE
  * × affected fleet version — a CVE that hits several installed versions is
  * listed once per version — with when Fleet first found it. Search and the
- * Discovered sort only; no severity, which the scanner does not rate.
+ * Discovered sort only; no severity, which the scanner does not rate. A row
+ * opens the CVE's own page; NVD is one click further, its "More Details".
  */
 const softwareVulnerabilitiesTableQuery = graphql`
   query softwareVulnerabilitiesTableQuery(
@@ -111,7 +113,10 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
   {
     id: SOFTWARE_VULNERABILITY_COLUMNS.open.id,
     cell: ({ row }: { row: Row<SoftwareVulnerabilityRow> }) => (
-      <OpenRowButton label={`Open ${row.original.cveId} on NVD`} onClick={() => openNvd(row.original.cveId)} />
+      <OpenRowButton
+        label={`Open ${row.original.cveId} in new tab`}
+        onClick={openInNewTab(routes.software.vulnerability(row.original.cveId))}
+      />
     ),
     enableSorting: false,
     meta: liveColumnMeta(SOFTWARE_VULNERABILITY_COLUMNS.open),
@@ -123,6 +128,7 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
  * occur in either half, so the pair can't collide with another.
  */
 const getRowId = (row: SoftwareVulnerabilityRow) => `${row.cveId}\0${row.affectedVersion ?? ''}`;
+const rowHref = (row: SoftwareVulnerabilityRow) => routes.software.vulnerability(row.cveId);
 
 interface SoftwareVulnerabilitiesTableProps {
   softwareId: string;
@@ -206,6 +212,7 @@ export function SoftwareVulnerabilitiesTable({
           skeletonRows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
           emptyMessage={`No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`}
           rowClassName="mb-1"
+          rowHref={rowHref}
         />
         {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
         {rows.length > 0 && (

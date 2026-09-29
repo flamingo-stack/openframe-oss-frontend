@@ -22,7 +22,7 @@ const WINDOWS_POWERSHELL_CMD =
 
 export default function RemoteShellPage() {
   // No approval gate here: the approval flow covers remote screen sessions
-  // only (decision 2026-09-16); the shell keeps its legacy auto-start.
+  // only; the shell keeps its legacy auto-start.
   return <RemoteShellSession />;
 }
 

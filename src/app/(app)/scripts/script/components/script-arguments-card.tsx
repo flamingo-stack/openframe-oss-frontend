@@ -1,17 +1,12 @@
 'use client';
 
 import { Label } from '@flamingo-stack/openframe-frontend-core';
-import { argsToParamRows, envStringsToParamRows, ScriptParamRows } from '../../shared/components/script-param-rows';
+import { type ScriptParamRow, ScriptParamRows } from '../../shared/components/script-param-rows';
 
 interface ScriptArgumentsCardProps {
   title: string;
-  args: string[];
-  /**
-   * Also selects how a valueless entry reads: `' '` marks an argument list,
-   * where a bare key is a flag; anything else marks env vars, where an empty
-   * value is a legal setting. One knob, so the two can never disagree.
-   */
-  separator?: string;
+  /** Built by `argsToParamRows` / `envPairsToParamRows`, which own how a valueless or secret entry reads. */
+  rows: ScriptParamRow[];
 }
 
 /**
@@ -23,12 +18,10 @@ interface ScriptArgumentsCardProps {
  * case explicitly (design 1:49182) — otherwise the frame is the same one
  * `InfoCard` draws.
  */
-export function ScriptArgumentsCard({ title, args, separator = '=' }: ScriptArgumentsCardProps) {
-  if (!args || args.length === 0) {
+export function ScriptArgumentsCard({ title, rows }: ScriptArgumentsCardProps) {
+  if (rows.length === 0) {
     return null;
   }
-
-  const rows = separator === ' ' ? argsToParamRows(args) : envStringsToParamRows(args);
 
   return (
     <div className="flex w-full flex-col gap-1">

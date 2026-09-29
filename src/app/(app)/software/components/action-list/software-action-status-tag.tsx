@@ -28,10 +28,19 @@ const SOFTWARE_ACTION_STATUS: Record<SoftwareActionStatus, ActionStatusPresentat
  */
 const RENAMED_ACTION_STATUS = { SUCCESS: SOFTWARE_ACTION_STATUS.COMPLETED };
 
+/** How a status draws, under either spelling — undefined for one this build does not know. */
+function statusPresentation(status: string): ActionStatusPresentation | undefined {
+  return presentationFor(SOFTWARE_ACTION_STATUS, status) ?? presentationFor(RENAMED_ACTION_STATUS, status);
+}
+
+/** The status as the chip words it — the Status funnel says the same. */
+export function softwareActionStatusLabel(status: string): string | undefined {
+  return statusPresentation(status)?.label;
+}
+
 /** The STATUS chip of a Software Actions row. */
 export function SoftwareActionStatusTag({ status }: { status: string }) {
-  const presentation =
-    presentationFor(SOFTWARE_ACTION_STATUS, status) ?? presentationFor(RENAMED_ACTION_STATUS, status);
+  const presentation = statusPresentation(status);
   if (!presentation) return <Tag label={status} variant="grey" />;
   return (
     <Tag

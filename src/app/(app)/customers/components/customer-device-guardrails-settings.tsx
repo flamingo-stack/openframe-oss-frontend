@@ -15,7 +15,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import {
-  useOrganizationRemoteAccessMode,
+  useOrganizationRemoteAccessPolicy,
   useSetOrganizationRemoteAccessMode,
   useTenantRemoteAccessPolicy,
 } from '@/app/(app)/devices/hooks/use-remote-access-policy';
@@ -38,7 +38,7 @@ interface CustomerDeviceGuardrailsSettingsProps {
 
 /**
  * "Customer Device Guardrails" block on the customer edit page
- * (CU-86akeqw8b, mockups 505-13898 / 505-13814): the per-organization remote
+ * (mockups 505-13898 / 505-13814): the per-organization remote
  * access permission override. Follows the AI guardrails block pattern - a
  * "use default" checkbox with the mode select underneath, no Save button of
  * its own; the page-level "Save Customer" calls `commit()` through the ref.
@@ -49,15 +49,16 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
 >(function CustomerDeviceGuardrailsSettingsInner({ organizationId }, ref) {
   const router = useRouter();
   const tenant = useTenantRemoteAccessPolicy();
-  const organization = useOrganizationRemoteAccessMode(organizationId);
+  const organization = useOrganizationRemoteAccessPolicy(organizationId);
   const { mutateAsync: setOrganizationMode } = useSetOrganizationRemoteAccessMode();
 
   // null until the user touches the controls; the server value renders
   // underneath so a background refetch can't overwrite an in-progress choice.
   const [choice, setChoice] = useState<{ useDefault: boolean; mode: RemoteAccessMode } | null>(null);
 
-  const isLoading = tenant.isLoading || organization.isLoading;
-  const savedMode = organization.data ?? null;
+  // isPending, not isLoading: the queries wait for the feature flags to answer, and that wait is loading too.
+  const isLoading = tenant.isPending || organization.isPending;
+  const savedMode = organization.data?.mode ?? null;
   const tenantMode = tenant.data?.mode ?? 'APPROVAL_REQUIRED';
 
   const useDefault = choice ? choice.useDefault : savedMode === null;

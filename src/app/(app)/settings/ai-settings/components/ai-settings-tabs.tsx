@@ -9,7 +9,6 @@ import {
 import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useMemo } from 'react';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 
 export const AI_SETTINGS_TAB_IDS = ['mingo', 'customer', 'guardrails', 'device-guardrails'] as const;
 export type AiSettingsTabId = (typeof AI_SETTINGS_TAB_IDS)[number];
@@ -21,54 +20,34 @@ export const AI_SETTINGS_TABS: TabItem[] = [
   { id: 'device-guardrails', label: 'Device Guardrails', icon: MonitorShieldIcon },
 ];
 
-/** The flags this tab set depends on, resolved reactively by the hook below. */
-interface AiSettingsTabFlags {
-  mingoAiChatSettings: boolean;
-  remoteAccessApproval: boolean;
-}
-
-// Tabs gated behind server feature flags until each feature ships. Guardrails
-// is always visible.
-const TAB_FEATURE_FLAG: Partial<Record<AiSettingsTabId, (flags: AiSettingsTabFlags) => boolean>> = {
-  // Temporarily always visible: the Customer AI Assistant tab is shown, while the
-  // not-yet-released appearance customization it controls stays gated behind
-  // `featureFlags.customerAiAssistantSettings` at its own call sites.
-  customer: () => true,
-  mingo: flags => flags.mingoAiChatSettings,
-  // Remote access policy (CU-86akeqw8b) ships dark with the approval flow flag.
-  'device-guardrails': flags => flags.remoteAccessApproval,
-};
-
 /**
- * Tabs visible for the current feature-flag state (server-driven).
+ * Tabs visible for the current feature-flag state (server-driven), or `null`
+ * until `remote-access-approval`, the one flag that shapes the set, has answered.
  *
- * A hook, not a plain function: both call sites read it during render, and a
- * `featureFlags.*` snapshot taken before the flags query answers would pin the
- * tab set to the env defaults with nothing to recompute it.
+ * `null` rather than a partial set: the page picks its starting tab from this
+ * once, so a set read before the flag answers (device-guardrails tab missing) would
+ * send a `?tab=device-guardrails` link to the wrong tab for good.
  */
-export function useVisibleAiSettingsTabs(): TabItem[] {
-  const mingoAiChatSettings = useFeatureFlag('mingo-ai-chat-settings');
-  // Tri-state gate (dev builds bypass the flag); `loading` keeps the tab hidden.
-  const remoteAccessApproval = useRemoteAccessApprovalGate() === 'on';
+export function useVisibleAiSettingsTabs(): TabItem[] | null {
+  // Dev builds bypass this flag; see the gate.
+  const remoteAccessApproval = useRemoteAccessApprovalGate();
 
   return useMemo(() => {
-    const flags: AiSettingsTabFlags = { mingoAiChatSettings, remoteAccessApproval };
-    return AI_SETTINGS_TABS.filter(tab => {
-      const gate = TAB_FEATURE_FLAG[tab.id as AiSettingsTabId];
-      return !gate || gate(flags);
-    });
-  }, [mingoAiChatSettings, remoteAccessApproval]);
+    if (remoteAccessApproval === 'loading') return null;
+    // Remote access policy ships dark with the approval flow flag.
+    if (remoteAccessApproval === 'on') return AI_SETTINGS_TABS;
+    return AI_SETTINGS_TABS.filter(tab => tab.id !== 'device-guardrails');
+  }, [remoteAccessApproval]);
 }
 
 interface AiSettingsTabsProps {
+  tabs: TabItem[];
   activeTab: AiSettingsTabId;
   onTabChange: (id: AiSettingsTabId) => void;
   children: (activeTab: AiSettingsTabId) => ReactNode;
 }
 
-export function AiSettingsTabs({ activeTab, onTabChange, children }: AiSettingsTabsProps) {
-  const tabs = useVisibleAiSettingsTabs();
-
+export function AiSettingsTabs({ tabs, activeTab, onTabChange, children }: AiSettingsTabsProps) {
   return (
     <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={tabId => onTabChange(tabId as AiSettingsTabId)}>
       {activeId => <div className="pt-[var(--spacing-system-l)]">{children(activeId as AiSettingsTabId)}</div>}

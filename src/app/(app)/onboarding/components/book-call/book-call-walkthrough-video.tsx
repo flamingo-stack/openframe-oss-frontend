@@ -32,5 +32,6 @@ export function BookCallWalkthroughVideo({ className }: { className?: string }) 
     return <Skeleton className={cn('aspect-video w-full rounded-md', className)} />;
   }
 
-  return <InlineWalkthroughVideo video={video} className={className} />;
+  // The clip is the point of the page: it starts on its own, muted, with the unmute glyph up.
+  return <InlineWalkthroughVideo video={video} autoPlayCard className={className} />;
 }

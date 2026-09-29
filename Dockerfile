@@ -18,6 +18,13 @@ RUN --mount=type=cache,target=/root/.npm \
 
 COPY . .
 
+# Reported by the bundle in X-OpenFrame-Client (next.config.mjs). The context has
+# no .git to describe, so CI hands in the release version or `main-`/`pr-N-` plus
+# a short sha — the backend drops a version over 32 characters (client-identity.ts).
+# Declared here, not above: every RUN after an ARG is keyed on it, and a value
+# that changes per build would otherwise bust the `npm ci` layer too.
+ARG OPENFRAME_BUNDLE_VERSION
+
 RUN --mount=type=cache,target=/app/dist/cache \
     npm run build && \
     if node -p "require('./dist/required-server-files.json').config.images.unoptimized" | grep -q true; then \

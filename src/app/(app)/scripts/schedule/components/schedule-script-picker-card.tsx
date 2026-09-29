@@ -341,6 +341,7 @@ export function ScheduleScriptPickerCard({
                     keyPlaceholder="Key"
                     valuePlaceholder="Enter Value"
                     addButtonLabel="Add Environment Var"
+                    addSecretButtonLabel="Add Secret"
                     titleLabel=""
                     disabled={runParamsLocked}
                   />
@@ -379,6 +380,7 @@ export function ScheduleScriptPickerCard({
                   keyPlaceholder="Key"
                   valuePlaceholder="Enter Value"
                   addButtonLabel="Add Environment Var"
+                  addSecretButtonLabel="Add Secret"
                   titleLabel="Environment Vars"
                   disabled={runParamsLocked}
                 />

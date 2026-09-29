@@ -1,7 +1,7 @@
 /**
- * Pins the client download step of the install and uninstall commands
- * (CU-86aknaw57): every platform variant fetches the bundle with the
- * `x-machine-id` header, and the id handed to it is a fresh v4 UUID each time.
+ * Pins the client download step of the install and uninstall commands: every
+ * platform variant fetches the bundle with the `x-machine-id` header, and the
+ * id handed to it is a fresh v4 UUID each time.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';

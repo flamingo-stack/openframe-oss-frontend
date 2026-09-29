@@ -4,10 +4,7 @@ import { LoadError, Skeleton } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import {
-  useOrganizationRemoteAccessMode,
-  useTenantRemoteAccessPolicy,
-} from '@/app/(app)/devices/hooks/use-remote-access-policy';
+import { useOrganizationRemoteAccessPolicy } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { REMOTE_ACCESS_MODE_META } from '@/app/(app)/devices/types/remote-access';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { routes } from '@/lib/routes';
@@ -17,8 +14,8 @@ interface CustomerDeviceGuardrailsTabProps {
 }
 
 /**
- * "Customer Device Guardrails" tab on the customer details page
- * (CU-86akeqw8b): the organization's remote access permission - the tenant
+ * "Customer Device Guardrails" tab on the customer details page: the
+ * organization's remote access permission - the tenant
  * default while the org inherits (with the "Using Default Settings" banner
  * per the design), the org's own mode otherwise. Read-only, like the AI
  * guardrails tab; a per-customer edit flow can build on
@@ -26,10 +23,10 @@ interface CustomerDeviceGuardrailsTabProps {
  */
 export function CustomerDeviceGuardrailsTab({ organizationId }: CustomerDeviceGuardrailsTabProps) {
   const router = useRouter();
-  const tenant = useTenantRemoteAccessPolicy();
-  const organization = useOrganizationRemoteAccessMode(organizationId);
+  const organization = useOrganizationRemoteAccessPolicy(organizationId);
 
-  if (tenant.isLoading || organization.isLoading) {
+  // isPending, not isLoading: the query waits for the feature flags to answer, and that wait is loading too.
+  if (organization.isPending) {
     return (
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <Skeleton className="h-16 w-full rounded-md" />
@@ -38,21 +35,19 @@ export function CustomerDeviceGuardrailsTab({ organizationId }: CustomerDeviceGu
     );
   }
 
-  if (tenant.error || organization.error || !tenant.data) {
+  if (organization.error || !organization.data) {
     return (
       <LoadError
         message="Couldn't load customer device guardrails. The service may be temporarily unavailable."
         onRetry={() => {
-          void tenant.refetch();
           void organization.refetch();
         }}
       />
     );
   }
 
-  const overrideMode = organization.data ?? null;
-  const inheritsDefault = overrideMode === null;
-  const effectiveMode = overrideMode ?? tenant.data.mode;
+  const inheritsDefault = organization.data.mode === null;
+  const effectiveMode = organization.data.effectiveMode;
   const modeLabel = REMOTE_ACCESS_MODE_META[effectiveMode].label;
 
   return (

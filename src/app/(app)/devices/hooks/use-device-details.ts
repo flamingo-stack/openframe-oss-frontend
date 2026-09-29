@@ -41,14 +41,17 @@ function collectEndUserEmails(fleetData: FleetHost | null): string[] | undefined
  * Create Device object directly from API responses
  * No normalization layer - direct mapping
  */
-function createDevice(
+export function createDevice(
   node: DeviceGraphQlNode,
   fleetData: FleetHost | null,
   meshCentralStatus: 'online' | 'offline' | null,
   meshCentralLastSeen: string | null,
   sources: DeviceDataSources,
 ): Device {
-  // Transform Fleet software to unified Software type
+  // Transform Fleet software to unified Software type. The host payload carries
+  // the inventory already, so this costs no request; it feeds the Fleet-backed
+  // Software / Vulnerabilities tabs (`software-management` off) — the module's
+  // tabs read their own connections and never look here.
   const software: Software[] =
     fleetData?.software?.map(fs => {
       const signatureTeamId = fs.signature_information?.find(s => s.team_identifier)?.team_identifier;
@@ -271,6 +274,7 @@ function createDevice(
     updatedAt: fleetData?.detail_updated_at || fleetData?.seen_time || node.updatedAt || node.lastSeen,
     osUuid: fleetData?.uuid || node.osUuid,
     timezone: node.timezone,
+    addedByUserId: node.userId || undefined,
 
     // Fleet-derived metadata (already in the host payload)
     software_updated_at: fleetData?.software_updated_at,

@@ -77,7 +77,7 @@ export default function RemoteDesktopPage() {
   // client render) falls through to the normal flow; the gate below only fires
   // a request on user action, so the one-frame difference cannot start one.
   const isMobileViewport = useMediaQuery('(max-width: 799px)');
-  // The dead-end ships with the approval flow (CU-86agfp8w9) and is behind its
+  // The dead-end ships with the approval flow and is behind its
   // flag: with the flag off the page behaves exactly as before the epic.
   const remoteAccessGate = useRemoteAccessApprovalGate();
   const handleBack = useSafeBack(routes.devices.details(deviceId));

@@ -1,7 +1,7 @@
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 
 /**
- * Column layout for the device-detail table tabs.
+ * Column layout for the device-detail table tabs that draw their own tables.
  *
  * Data-only on purpose (see `table-column-layout.ts`): each of these tables is
  * drawn by two renderers — the live tab and `DeviceDetailsSkeleton`, which
@@ -13,6 +13,11 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  * Headers are the real uppercase strings the tabs pass; `DataTable` uppercases
  * them in CSS anyway, but keeping them verbatim means a diff here is a diff in
  * exactly one place.
+ *
+ * The Software and Vulnerabilities tabs each have two layouts: the `FLEET_*`
+ * ones below, drawn over the Fleet host payload while `software-management` is
+ * off, and the Software module's (`software-list-columns.ts` /
+ * `vulnerability-list-columns.ts`) once it is on — see `software-tab.tsx`.
  */
 
 const USER_COLUMNS = {
@@ -24,7 +29,8 @@ const USER_COLUMNS = {
   status: { id: 'status', header: 'STATUS', width: 'w-[120px] shrink-0', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
-const SOFTWARE_COLUMNS = {
+/** Software tab over the Fleet host payload (`software-management` off). */
+const FLEET_SOFTWARE_COLUMNS = {
   name: { id: 'name', header: 'SOFTWARE', width: 'flex-1 min-w-0' },
   source: { id: 'source', header: 'SOURCE', width: 'w-[180px] shrink-0', hideAt: 'lg' },
   vulnerabilities: { id: 'vulnerabilities', header: 'VULNERABILITIES', width: 'w-[160px] shrink-0' },
@@ -33,16 +39,18 @@ const SOFTWARE_COLUMNS = {
 } satisfies Record<string, TableSkeletonColumn>;
 
 /**
+ * Vulnerabilities tab over the Fleet host payload (`software-management` off).
+ *
  * Below `md` the row is CVE + severity + the details button only. The percentage
  * widths this table uses on desktop are unusable there — on a 375px viewport the
  * row's inner width is ~310px, so `20%`/`16%` resolve to ~62px/~50px and the row
  * (which is `overflow-hidden`) clipped both the CVE id and the severity tag.
  * So CVE takes the leftover space, severity gets the fixed width its tag needs,
- * and SOFTWARE drops out of the row — `VulnerabilitiesTab` folds the package name
- * into the CVE cell as a second line there, which DISCOVERED has no equivalent of
- * and is the least useful of the three for mobile triage anyway.
+ * and SOFTWARE drops out of the row — `FleetVulnerabilitiesTab` folds the package
+ * name into the CVE cell as a second line there, which DISCOVERED has no
+ * equivalent of and is the least useful of the three for mobile triage anyway.
  */
-const VULNERABILITY_COLUMNS = {
+const FLEET_VULNERABILITY_COLUMNS = {
   cve: { id: 'cve', header: 'CVE ID', width: 'flex-1 min-w-0 md:flex-none md:w-[20%]' },
   severity: { id: 'severity', header: 'SEVERITY', width: 'w-[88px] md:w-[16%]', sortable: true },
   software: { id: 'software_name', header: 'SOFTWARE', width: 'flex-1 min-w-0', hideAt: 'md' },
@@ -63,7 +71,7 @@ const REMOTE_SESSION_COLUMNS = {
   actions: { id: 'actions', width: 'w-[112px] shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
-export { REMOTE_SESSION_COLUMNS, SOFTWARE_COLUMNS, USER_COLUMNS, VULNERABILITY_COLUMNS };
+export { FLEET_SOFTWARE_COLUMNS, FLEET_VULNERABILITY_COLUMNS, REMOTE_SESSION_COLUMNS, USER_COLUMNS };
 
 /** Users tab — render order for the live table and the page skeleton. */
 export const USERS_TAB_COLUMNS: readonly TableSkeletonColumn[] = [
@@ -75,23 +83,30 @@ export const USERS_TAB_COLUMNS: readonly TableSkeletonColumn[] = [
   USER_COLUMNS.status,
 ];
 
-/** Software tab — render order for the live table and the page skeleton. */
-export const SOFTWARE_TAB_COLUMNS: readonly TableSkeletonColumn[] = [
-  SOFTWARE_COLUMNS.name,
-  SOFTWARE_COLUMNS.source,
-  SOFTWARE_COLUMNS.vulnerabilities,
-  SOFTWARE_COLUMNS.filePath,
-  SOFTWARE_COLUMNS.lastUsed,
+/** Fleet-backed Software tab — render order for the live table and the page skeleton. */
+export const FLEET_SOFTWARE_TAB_COLUMNS: readonly TableSkeletonColumn[] = [
+  FLEET_SOFTWARE_COLUMNS.name,
+  FLEET_SOFTWARE_COLUMNS.source,
+  FLEET_SOFTWARE_COLUMNS.vulnerabilities,
+  FLEET_SOFTWARE_COLUMNS.filePath,
+  FLEET_SOFTWARE_COLUMNS.lastUsed,
 ];
 
-/** Vulnerabilities tab — render order for the live table and the page skeleton. */
-export const VULNERABILITIES_TAB_COLUMNS: readonly TableSkeletonColumn[] = [
-  VULNERABILITY_COLUMNS.cve,
-  VULNERABILITY_COLUMNS.severity,
-  VULNERABILITY_COLUMNS.software,
-  VULNERABILITY_COLUMNS.discovered,
-  VULNERABILITY_COLUMNS.open,
+/** Fleet-backed Vulnerabilities tab — render order for the live table and the page skeleton. */
+export const FLEET_VULNERABILITIES_TAB_COLUMNS: readonly TableSkeletonColumn[] = [
+  FLEET_VULNERABILITY_COLUMNS.cve,
+  FLEET_VULNERABILITY_COLUMNS.severity,
+  FLEET_VULNERABILITY_COLUMNS.software,
+  FLEET_VULNERABILITY_COLUMNS.discovered,
+  FLEET_VULNERABILITY_COLUMNS.open,
 ];
+
+/**
+ * Placeholder rows while a tab's list is in flight — the same count the page
+ * skeleton draws for it, so the tab's own fallback does not jump when it takes
+ * over from the page's.
+ */
+export const DEVICE_TAB_SKELETON_ROWS = 10;
 
 /** Remote Sessions tab — render order for the live table and the page skeleton. */
 export const REMOTE_SESSIONS_TAB_COLUMNS: readonly TableSkeletonColumn[] = [

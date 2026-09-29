@@ -11,7 +11,7 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
-import { ANCHOR_TOP_OFFSET_PX, useOnboardingAutoAdvance } from '../hooks/use-onboarding-auto-advance';
+import { ANCHOR_TOP_OFFSET_PX, useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import {
   countCompleted,
   isStepDone,
@@ -43,6 +43,9 @@ type StepBodyProps = {
   completing?: boolean;
   onComplete?: () => void;
   onCompleteBackground?: () => void;
+  /** The row is open. Bodies stay mounted while collapsed (the accordion
+   *  animates height), so a demo video plays only while this is true. */
+  expanded?: boolean;
 };
 
 /**
@@ -134,7 +137,7 @@ function LoadedOnboardingContent() {
   // (`onboardingStepAnchorId`); the fragment parses back to a step here, unknown
   // fragments → null. Lazy initializer: this component only mounts client-side
   // (behind the `isLoaded` gate), so reading `location.hash` during the first
-  // render is safe and gives the deep-linked step to the auto-advance hook from
+  // render is safe and gives the deep-linked step to the accordion hook from
   // the start — an effect would run after the hook's mount anchor.
   const [hashStep, setHashStep] = useState<UserOnboardingStepId | null>(() =>
     typeof window === 'undefined'
@@ -169,11 +172,8 @@ function LoadedOnboardingContent() {
     }
   }, []);
 
-  // Guided flow: the first incomplete step opens automatically (anchored on mount —
-  // the next step may be a group or two below the fold) and, as steps complete, the
-  // flow advances: finished step folds, the next one opens and scrolls into view.
-  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAutoAdvance(USER_ONBOARDING_STEPS, completedSteps, {
-    scrollOnMount: true,
+  // Every step starts collapsed; only a click or the URL hash opens one.
+  const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAccordion<UserOnboardingStepId>({
     urlStep: hashStep,
     onOpenStepChange: syncHashToStep,
   });
@@ -196,6 +196,8 @@ function LoadedOnboardingContent() {
 
   const statusOf = (step: UserOnboardingStepId): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
+  // First step still to do, in display order: the one row that says "Next".
+  const nextStep = USER_ONBOARDING_STEPS.find(step => !isStepDone(step, completedSteps)) ?? null;
   const doneOf = (step: UserOnboardingStepId) => isStepDone(step, completedSteps);
   const completeOf = (step: UserOnboardingStepId) => () => {
     setCompletingStep(step);
@@ -255,6 +257,7 @@ function LoadedOnboardingContent() {
                 id={onboardingStepAnchorId(item.step)}
                 icon={item.icon}
                 status={statusOf(item.step)}
+                next={item.step === nextStep}
                 title={item.title}
                 description={item.description}
                 expanded={expandedOf(item.step)}
@@ -265,6 +268,7 @@ function LoadedOnboardingContent() {
                   completing={completingOf(item.step)}
                   onComplete={completeOf(item.step)}
                   onCompleteBackground={completeBackgroundOf(item.step)}
+                  expanded={expandedOf(item.step)}
                 />
               </OnboardingAccordionItem>
             );
