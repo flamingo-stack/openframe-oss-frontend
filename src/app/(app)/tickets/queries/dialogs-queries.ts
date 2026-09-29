@@ -1,5 +1,3 @@
-import { featureFlags } from '@/lib/feature-flags';
-
 /**
  * Response names the escalation bodies are fetched under.
  *
@@ -47,47 +45,7 @@ export function normalizeMessageDataAliases<T>(messageData: T): T {
   return (changed ? normalized : messageData) as T;
 }
 
-export function getDialogMessagesQuery() {
-  // Gated on `ai-escalation`: these types ship with the escalation backend, and
-  // a fragment on a type the schema doesn't declare fails validation for the
-  // whole document — every message would come back empty, not just the block.
-  const escalationFragments = featureFlags.aiEscalation.enabled()
-    ? `
-            ... on EscalationOfferData {
-              type
-              offerId
-              state
-              ${OFFER_TEXT_ALIAS}: text
-              origin
-              resolvedByName
-            }
-
-            ... on TicketEscalatedData {
-              type
-              ticketId
-              ticketNumber
-              reason
-              ${ESCALATED_TEXT_ALIAS}: text
-            }
-`
-    : '';
-  // Gated on `ai-resolution` for the same reason as the escalation types:
-  // `TicketEventData` ships with the ticket-resolution backend (the same flag
-  // gates the assistant's closure tools server-side).
-  const ticketEventFragment = featureFlags.aiResolution.enabled()
-    ? `
-            ... on TicketEventData {
-              type
-              kind
-              actorId
-              actorName
-              actorType
-              targetStatusKind
-              ${TICKET_EVENT_REASON_ALIAS}: reason
-            }
-`
-    : '';
-  return `
+export const GET_DIALOG_MESSAGES_QUERY = `
   query GetAllMessages($dialogId: ID!, $chatType: ChatType, $cursor: String, $limit: Int, $sortField: String, $sortDirection: SortDirection) {
     messages(
       dialogId: $dialogId
@@ -181,8 +139,33 @@ export function getDialogMessagesQuery() {
               resolvedByName
             }
 
-            ${escalationFragments}
-            ${ticketEventFragment}
+            ... on EscalationOfferData {
+              type
+              offerId
+              state
+              ${OFFER_TEXT_ALIAS}: text
+              origin
+              resolvedByName
+            }
+
+            ... on TicketEscalatedData {
+              type
+              ticketId
+              ticketNumber
+              reason
+              ${ESCALATED_TEXT_ALIAS}: text
+            }
+
+            ... on TicketEventData {
+              type
+              kind
+              actorId
+              actorName
+              actorType
+              targetStatusKind
+              ${TICKET_EVENT_REASON_ALIAS}: reason
+            }
+
             ... on ContextCompactionStartData {
               type
             }
@@ -208,4 +191,3 @@ export function getDialogMessagesQuery() {
     }
   }
 `;
-}

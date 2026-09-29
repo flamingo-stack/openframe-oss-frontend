@@ -9,7 +9,6 @@ import {
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Controller } from 'react-hook-form';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { type CommitAvatar, useCustomerAiAssistantForm } from '../hooks/use-customer-ai-assistant-form';
 import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
 import { getProviderModelLabel, useSupportedModels } from '../hooks/use-supported-models';
@@ -46,15 +45,9 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
   const applicationTheme = form.watch('applicationTheme');
   const accentColor = form.watch('accentColor');
 
-  // Appearance customization (theme/accent + previews, answer style, quick actions)
-  // is not released yet — keep it behind the feature flag.
-  const showCustomization = useFeatureFlag('customer-ai-assistant-settings');
-
   // OpenFrame defaults come straight from the Product Hub (the BE stores only
   // customs); shown in view mode and as the editor's dimmed preview/seed.
-  const hubDefaults = useHubDefaultQuickActions(ASSISTANT_QUICK_ACTIONS_CONFIG.agentSlug, {
-    enabled: showCustomization,
-  });
+  const hubDefaults = useHubDefaultQuickActions(ASSISTANT_QUICK_ACTIONS_CONFIG.agentSlug);
 
   if (!isEditMode) {
     const modelLabel = getProviderModelLabel(modelsByProvider, aiConfig.llmProvider, aiConfig.providerModel);
@@ -104,65 +97,61 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
         </div>
       </div>
 
-      {showCustomization && (
-        <>
-          <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border p-[var(--spacing-system-l)]">
-            <div className="flex flex-col gap-[var(--spacing-system-l)] md:flex-row md:items-end">
-              <div className="min-w-0 flex-1">
-                <Controller
-                  name="applicationTheme"
-                  control={form.control}
-                  render={({ field }) => (
-                    <TabSelector
-                      label="Application Theme"
-                      variant="primary"
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      items={[
-                        { id: 'DARK', label: 'Dark', icon: <MoonStarIcon className="size-5" /> },
-                        { id: 'LIGHT', label: 'Light', icon: <Sun01Icon className="size-5" /> },
-                        { id: 'SYSTEM', label: 'System', icon: <MonitorIcon className="size-5" /> },
-                      ]}
-                    />
-                  )}
+      <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border p-[var(--spacing-system-l)]">
+        <div className="flex flex-col gap-[var(--spacing-system-l)] md:flex-row md:items-end">
+          <div className="min-w-0 flex-1">
+            <Controller
+              name="applicationTheme"
+              control={form.control}
+              render={({ field }) => (
+                <TabSelector
+                  label="Application Theme"
+                  variant="primary"
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={[
+                    { id: 'DARK', label: 'Dark', icon: <MoonStarIcon className="size-5" /> },
+                    { id: 'LIGHT', label: 'Light', icon: <Sun01Icon className="size-5" /> },
+                    { id: 'SYSTEM', label: 'System', icon: <MonitorIcon className="size-5" /> },
+                  ]}
                 />
-              </div>
-
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <p className="text-ods-text-primary text-h3">Accent Color</p>
-                <Controller
-                  name="accentColor"
-                  control={form.control}
-                  render={({ field }) => <ColorPickerInput value={field.value} onChange={field.onChange} />}
-                />
-              </div>
-            </div>
-
-            <AiSettingsPreviews
-              assistantName={assistantName || view.assistantName}
-              avatarUrl={avatarUrl}
-              accentColor={accentColor || view.accentColor}
-              theme={applicationTheme}
-              providerName={llmProvider}
-              modelDisplayName={getProviderModelLabel(
-                modelsByProvider,
-                llmProvider,
-                providerModel || aiConfig.providerModel,
               )}
             />
           </div>
 
-          <AiAnswerStyleFields control={form.control} answerStyle={answerStyle} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <p className="text-ods-text-primary text-h3">Accent Color</p>
+            <Controller
+              name="accentColor"
+              control={form.control}
+              render={({ field }) => <ColorPickerInput value={field.value} onChange={field.onChange} />}
+            />
+          </div>
+        </div>
 
-          <AiSettingsQuickActionsEditor
-            control={form.control}
-            title="Assistant Quick Actions"
-            agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
-            defaultActions={hubDefaults.actions}
-            className="mt-8"
-          />
-        </>
-      )}
+        <AiSettingsPreviews
+          assistantName={assistantName || view.assistantName}
+          avatarUrl={avatarUrl}
+          accentColor={accentColor || view.accentColor}
+          theme={applicationTheme}
+          providerName={llmProvider}
+          modelDisplayName={getProviderModelLabel(
+            modelsByProvider,
+            llmProvider,
+            providerModel || aiConfig.providerModel,
+          )}
+        />
+      </div>
+
+      <AiAnswerStyleFields control={form.control} answerStyle={answerStyle} />
+
+      <AiSettingsQuickActionsEditor
+        control={form.control}
+        title="Assistant Quick Actions"
+        agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
+        defaultActions={hubDefaults.actions}
+        className="mt-8"
+      />
     </form>
   );
 }

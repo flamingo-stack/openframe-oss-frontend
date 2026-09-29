@@ -1722,7 +1722,9 @@ type Mutation {
   """new | snoozed -> acknowledged. Clears any snooze."""
   acknowledgeInsight(input: InsightIdInput!): Insight!
 
-  """new | acknowledged -> snoozed until the given moment."""
+  """
+  new -> snoozed until the given moment. Acknowledged is work in progress and cannot be put back to sleep.
+  """
   snoozeInsight(input: SnoozeInsightInput!): Insight!
 
   """Any open status -> resolved."""
@@ -1735,7 +1737,14 @@ type Mutation {
   archiveInsight(input: InsightIdInput!): Insight!
 
   """
-  resolved | archived -> new, for an insight closed too early or filed away by mistake.
+  resolved -> archived for every resolved insight of the tenant in one write, for clearing out a
+  working set that has piled up. Returns how many were filed away. The status is part of the
+  write itself, so an insight reopened while the sweep runs keeps its new status.
+  """
+  archiveResolvedInsights: Int!
+
+  """
+  archived -> new, for an insight filed away that needs another look. Only archived insights can be reopened.
   """
   reopenInsight(input: InsightIdInput!): Insight!
 
@@ -2197,9 +2206,9 @@ type Mutation {
   seedTestUsage(metricType: BillingMetricType!, value: Int!): TestUsageResult!
 
   """
-  Advance this tenant's Stripe test clock by N days (dev/stage only). Attaches a clock to the customer on first call, flushes current metered usage to Stripe, then advances.
+  Advance this tenant's Stripe test clock (dev/stage only). Days and hours add up, and either may be omitted, so the clock can be stepped to either side of a Stripe cycle boundary. Attaches a clock to the customer on first call, flushes current metered usage to Stripe, then advances.
   """
-  advanceTestClock(days: Int!): TestClockResult
+  advanceTestClock(days: Int, hours: Int): TestClockResult
 
   """
   Delete this tenant's Stripe test clock (dev/stage only). Cascades to delete the customer, resetting the tenant to trial.

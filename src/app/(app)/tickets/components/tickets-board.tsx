@@ -21,7 +21,6 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useNow } from '@/app/hooks/use-now';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { EMPTY_VALUE } from '@/lib/empty-value';
-import { featureFlags } from '@/lib/feature-flags';
 import { appendImageHash } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { useApprovalRequests } from '../hooks/use-approval-requests';
@@ -639,14 +638,11 @@ export function TicketsBoard({
         // goes through the confirmation modal (target status + assignee +
         // reason) instead of committing the drop. The card is HELD at the drop
         // position while the modal is open, exactly like Take Over below -
-        // confirming keeps it there, cancelling releases it back. Gated on
-        // `ai-resolution` — with the flag off the drop commits directly (legacy).
-        if (featureFlags.aiResolution.enabled()) {
-          if (sourceKind === 'RESOLVED') {
-            setHeldMove(change);
-            setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
-            return;
-          }
+        // confirming keeps it there, cancelling releases it back.
+        if (sourceKind === 'RESOLVED') {
+          setHeldMove(change);
+          setReopenTarget({ ticketId: change.ticketId, initialStatusId: change.toColumnId });
+          return;
         }
         // Dragging an AI-worked ticket into another column is a take-over: ask
         // for confirmation (status pre-set to the target column) instead of

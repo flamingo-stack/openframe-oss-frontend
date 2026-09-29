@@ -5,24 +5,14 @@ import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
  * the backend only returns flags that are explicitly requested.
  */
 export const FEATURE_FLAG_NAMES = [
-  'ai-escalation',
-  'ai-resolution',
   'billings',
-  'help-center',
-  'notifications',
   'debug-nats-chunks',
-  'mingo-ai-chat-settings',
-  'customer-ai-assistant-settings',
-  'customer-ai-configuration',
-  'customer-guardrails',
-  'time-tracker',
   // The "Timezone" control on the script-schedule form (SERVER vs DEVICE_LOCAL
   // `timeReference`). UI only: a schedule that already carries DEVICE_LOCAL
   // still reads and saves as one with the flag off, the picker is simply absent.
   'script-schedule-device-time',
   'cancel-subscription',
   'test-clock',
-  'download-apps',
   // MeshCentral attended remote access: the approval-gated connect flow and
   // the remote access policy UI, both on the real API. Off = the legacy
   // auto-start tunnel behavior, no policy UI.
@@ -119,60 +109,12 @@ export const featureFlags = {
       return getFlagValue('billings', () => false);
     },
   },
-  helpCenter: {
-    enabled(): boolean {
-      return getFlagValue('help-center', () => false);
-    },
-  },
-  notifications: {
-    enabled(): boolean {
-      return getFlagValue('notifications', () => false);
-    },
-  },
   debugNatsChunks: {
     enabled(): boolean {
       // Local override FIRST — see `isDebugChunkLogForced`: a server value of
       // `false` must not silence a log the developer switched on for their own
       // browser, which a plain `envFallback` could not express.
       return isDebugChunkLogForced() || getFlagValue(DEBUG_NATS_CHUNKS_KEY, () => false);
-    },
-  },
-  aiEscalation: {
-    enabled(): boolean {
-      return getFlagValue('ai-escalation', () => false);
-    },
-  },
-  aiResolution: {
-    enabled(): boolean {
-      return getFlagValue('ai-resolution', () => false);
-    },
-  },
-  mingoAiChatSettings: {
-    enabled(): boolean {
-      return getFlagValue('mingo-ai-chat-settings', () => false);
-    },
-  },
-  customerAiAssistantSettings: {
-    enabled(): boolean {
-      return getFlagValue('customer-ai-assistant-settings', () => false);
-    },
-  },
-  // Old↔new switch for the customer AI-assistant tab (details + edit):
-  // off (default) → the legacy appearance-only view (pre-session); on → the
-  // new full Customer AI Configuration. Independent of `customerAiAssistantSettings`.
-  customerAiConfiguration: {
-    enabled(): boolean {
-      return getFlagValue('customer-ai-configuration', () => false);
-    },
-  },
-  customerGuardrails: {
-    enabled(): boolean {
-      return getFlagValue('customer-guardrails', () => false);
-    },
-  },
-  timeTracker: {
-    enabled(): boolean {
-      return getFlagValue('time-tracker', () => false);
     },
   },
   cancelSubscription: {

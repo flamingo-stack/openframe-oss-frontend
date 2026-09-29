@@ -2,7 +2,7 @@ import { graphql } from 'react-relay';
 
 /**
  * What a row of the Incidents table draws: the finding, the machine it is about,
- * its customer, severity and status. Kept as the narrowest step on purpose —
+ * its customer, severity, status and assignee. Kept as the narrowest step on purpose —
  * `description` and `queryResult` (the osquery evidence rows) are detail-page
  * payload and can be large, so the list never selects them.
  *
@@ -12,6 +12,8 @@ import { graphql } from 'react-relay';
  * `machineId` / `organizationId` are the RAW ids (`Machine.machineId`,
  * `Organization.organizationId`), which is what the filter inputs and the
  * customer route take; `organization.id` is the opaque node handle.
+ * `assigneeId` is the raw `User.id` — what `assignInsight` takes and what the
+ * assignee picker's options carry; `assignee.id` is the node handle.
  */
 export const insightRowFieldsFragment = graphql`
   fragment insightRowFields_insight on Insight @inline {
@@ -33,6 +35,10 @@ export const insightRowFieldsFragment = graphql`
     organization {
       id
       name
+    }
+    assigneeId
+    assignee {
+      ...insightUserFields_user
     }
   }
 `;

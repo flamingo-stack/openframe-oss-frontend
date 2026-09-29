@@ -1,5 +1,3 @@
-import { featureFlags } from '@/lib/feature-flags';
-
 // Ticket GraphQL queries and mutations (openframe-saas-ai-agent service via /chat/graphql)
 
 export const CREATE_TICKET_MUTATION = `
@@ -264,7 +262,7 @@ export const GET_TICKETS_QUERY = `
             key
             color
           }
-          # Unflagged, so it must not outrun the backend — see boardCardTicketFragment.
+          # Must not outrun the backend — see BOARD_CARD_TICKET_FRAGMENT.
           unreadMessageCount
           createdAt
           updatedAt
@@ -286,33 +284,18 @@ export const GET_TICKETS_QUERY = `
 // ===== Lifecycle board (custom statuses) =====
 
 /**
- * `escalatedByUser` ships with the escalation backend, so it rides the
- * `ai-escalation` flag: a field the server's schema does not declare fails
- * validation for the entire document, and `extractGraphQlData` throws on the
- * first GraphQL error — every board column would come back empty rather than
- * merely missing a badge. `resolvedBy` rides the `ai-resolution` flag for the
- * same reason.
- *
- * `unreadMessageCount` (the technicians' shared unread client-message counter,
- * openframe-saas-tenant#3301) is selected UNCONDITIONALLY and carries that same
- * failure mode, because `ticket.graphqls` declares it with no feature flag —
- * there is no flag to ride, and borrowing an unrelated one (`notifications`
- * gates the notifications UI, not the ai-agent schema) would only move the
- * breakage. It is therefore a deploy-ordering requirement: the saas-ai-agent
- * carrying the field must ship BEFORE this frontend, or the board columns, the
+ * Deploy-ordering requirement: any field here that the deployed saas-ai-agent
+ * does not declare fails validation for the entire document, and
+ * `extractGraphQlData` throws on the first GraphQL error — the board columns, the
  * tickets table and the ticket picker (`use-ticket-options.ts`, same document)
- * all come back empty. Same constraint at the `GET_TICKETS_QUERY` selection.
- *
- * `lastActivityAt` / `activityState` (board activity indicators) are in the
- * same unconditional, no-flag position: the saas-ai-agent build exposing them
- * (openframe-saas-tenant#2938) must be deployed before this frontend.
- *
- * `machine.nickname` (every `ClientTicketOwner.machine` selection in this file)
- * is the same case: `shared.graphqls` declares it unflagged, so the saas-ai-agent
- * that added it (openframe-saas-tenant#3020) must be deployed before a frontend
- * carrying this selection, or the same three surfaces come back empty.
+ * all come back empty rather than merely missing a badge. So the saas-ai-agent
+ * carrying a new field must ship BEFORE a frontend selecting it. Same constraint
+ * at the `GET_TICKETS_QUERY` selection. Fields added that way:
+ * `unreadMessageCount` (openframe-saas-tenant#3301), `lastActivityAt` /
+ * `activityState` (#2938), and `machine.nickname` on every
+ * `ClientTicketOwner.machine` selection in this file (#3020).
  */
-const boardCardTicketFragment = () => `
+const BOARD_CARD_TICKET_FRAGMENT = `
   fragment BoardCardTicket on Ticket {
     id
     ticketNumber
@@ -372,8 +355,8 @@ const boardCardTicketFragment = () => `
     unreadMessageCount
     lastActivityAt
     activityState
-    ${featureFlags.aiEscalation.enabled() ? 'escalatedByUser' : ''}
-    ${featureFlags.aiResolution.enabled() ? 'resolvedBy' : ''}
+    escalatedByUser
+    resolvedBy
     pendingApproval {
       id
       approvalType
@@ -398,7 +381,7 @@ const boardCardTicketFragment = () => `
   }
 `;
 
-export const getBoardColumnTicketsQuery = () => `
+export const GET_BOARD_COLUMN_TICKETS_QUERY = `
   query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!], $hasUnreadNotifications: Boolean, $activity: [TicketActivityFilter!]) {
     tickets(
       filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds, hasUnreadNotifications: $hasUnreadNotifications, activity: $activity }
@@ -421,7 +404,7 @@ export const getBoardColumnTicketsQuery = () => `
       filteredCount
     }
   }
-  ${boardCardTicketFragment()}
+  ${BOARD_CARD_TICKET_FRAGMENT}
 `;
 
 export const GET_TICKET_STATUS_TRANSITION_RULES_QUERY = `

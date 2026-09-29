@@ -18,6 +18,7 @@ const incident: IncidentRow = {
   deviceType: 'laptop',
   organizationId: 'o-1',
   organizationName: 'куукку',
+  assignee: null,
 };
 
 describe('incidentMingoDraft', () => {
