@@ -30,6 +30,7 @@ import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remot
 import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devices/hooks/use-remote-session-chat';
 import { buildRemoteAccessRelayIdPrefix, type RemoteSessionEndReason } from '@/app/(app)/devices/types/remote-access';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
+import { pullDeviceClipboardToLocal, pushLocalClipboardToDevice } from '@/app/(app)/devices/utils/remote-clipboard-sync';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
@@ -462,30 +463,10 @@ function RemoteDesktopSession() {
 
     desktop.setClipboardInterceptor?.((type, sendKeys) => {
       if (type === 'paste') {
-        (async () => {
-          try {
-            const text = await navigator.clipboard.readText();
-            if (text && controlRef.current && meshcentralAgentId) {
-              await controlRef.current.setClipboard(meshcentralAgentId, text);
-            }
-          } catch {
-            // Clipboard read failed (permissions/insecure context) — proceed anyway
-          }
-          sendKeys();
-        })();
+        void pushLocalClipboardToDevice(controlRef.current, meshcentralAgentId).then(sendKeys);
       } else {
         sendKeys();
-        (async () => {
-          try {
-            await new Promise(r => setTimeout(r, 250));
-            if (controlRef.current && meshcentralAgentId) {
-              const text = await controlRef.current.getClipboard(meshcentralAgentId);
-              if (text) await navigator.clipboard.writeText(text);
-            }
-          } catch {
-            // Clipboard write failed (permissions/insecure context) — ignore
-          }
-        })();
+        void pullDeviceClipboardToLocal(controlRef.current, meshcentralAgentId);
       }
     });
 
