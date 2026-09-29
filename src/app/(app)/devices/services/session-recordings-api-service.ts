@@ -8,7 +8,6 @@ import type { sessionRecordingsApiServiceDetailQuery as DetailQuery } from '@/__
 import type { sessionRecordingsApiServiceDeviceQuery as DeviceQuery } from '@/__generated__/sessionRecordingsApiServiceDeviceQuery.graphql';
 import type { sessionRecordingsApiServiceListQuery as ListQuery } from '@/__generated__/sessionRecordingsApiServiceListQuery.graphql';
 import { RemoteSessionRecordingState } from '@/generated/schema-enums';
-import { clientIdentityHeaders } from '@/lib/client-identity';
 import { getRelayEnvironment } from '@/lib/relay';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
@@ -156,7 +155,9 @@ async function readHostname(machineId: string): Promise<string | undefined> {
  * authenticated like any other request and answers with a redirect to such a
  * URL; the credentials mode carries over to that storage request, so cookies go
  * `same-origin` only - `include` would make the bucket's plain "any origin"
- * CORS rule refuse the response.
+ * CORS rule refuse the response. No `X-OpenFrame-Client` here: the browser
+ * carries it across the redirect, and a custom header turns the storage GET
+ * into a preflighted request the bucket does not answer.
  */
 async function fetchRecordingBytes(downloadUrl: string): Promise<ArrayBuffer> {
   let response: Response;
@@ -167,7 +168,7 @@ async function fetchRecordingBytes(downloadUrl: string): Promise<ArrayBuffer> {
     const bearer = isBearerAuthMode() ? getAccessTokenSync() : null;
     response = await fetch(`${host}${downloadUrl}`, {
       credentials: bearer ? 'omit' : 'same-origin',
-      headers: { ...clientIdentityHeaders(), ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },
+      headers: bearer ? { Authorization: `Bearer ${bearer}` } : {},
     });
   }
   if (!response.ok) throw new RecordingUnavailableError();

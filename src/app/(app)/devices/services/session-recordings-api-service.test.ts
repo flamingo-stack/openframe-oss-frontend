@@ -13,7 +13,6 @@ vi.mock('@/lib/relay', () => ({ getRelayEnvironment: () => ({}) }));
 vi.mock('relay-runtime', () => ({ readInlineData: (_fragment: unknown, ref: unknown) => ref }));
 vi.mock('./remote-session-chat-api-service', () => ({ remoteSessionChatApiService: chat }));
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => 'https://tenant.example/' } }));
-vi.mock('@/lib/client-identity', () => ({ clientIdentityHeaders: () => ({ 'X-OpenFrame-Client': 'web/test' }) }));
 vi.mock('@/lib/token-store', () => ({
   isBearerAuthMode: () => auth.bearer !== null,
   getAccessTokenSync: () => auth.bearer,
@@ -168,7 +167,7 @@ describe('SessionRecordingsApiService', () => {
     } as Parameters<typeof service.downloadSegment>[0]);
     expect(fetchMock).toHaveBeenCalledWith('https://tenant.example/api/v1/remote-access/recordings/rec-1/download', {
       credentials: 'same-origin',
-      headers: { 'X-OpenFrame-Client': 'web/test' },
+      headers: {},
     });
   });
 
@@ -180,7 +179,7 @@ describe('SessionRecordingsApiService', () => {
     } as Parameters<typeof service.downloadSegment>[0]);
     expect(fetchMock).toHaveBeenCalledWith('https://tenant.example/api/v1/remote-access/recordings/rec-1/download', {
       credentials: 'omit',
-      headers: { 'X-OpenFrame-Client': 'web/test', Authorization: 'Bearer token-1' },
+      headers: { Authorization: 'Bearer token-1' },
     });
   });
 
