@@ -44,8 +44,8 @@ export const FEATURE_FLAG_NAMES = [
   // the Fleet host payload when off (`devices/components/tabs/software-tab.tsx`).
   'software-management',
   // The Agent Logs tab on device details; off, "Device Logs" keeps
-  // leading to Overview. The `deviceLogs` query exists only on tenants running
-  // oss-lib >= #2188, so the tab stays dark until the backend registers the name.
+  // leading to Overview. The `deviceLogs` query exists only on backends that ship
+  // the device logs API, so the tab stays dark until the backend registers the name.
   'device-agent-logs',
   // "Compact Chat Memory" in the Mingo chat ⋯ menus: summarizes a
   // dialog's AI context on demand. Off = the item is absent; auto-compaction is

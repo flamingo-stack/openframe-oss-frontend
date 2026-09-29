@@ -38,24 +38,26 @@ const DEVICE_LOGS_PAGE_SIZE = 500;
 const DEVICE_LOGS_POLL_PAGE_SIZE = 100;
 
 const agentLogsContentQueryNode = graphql`
-  query agentLogsContentQuery($machineId: String!, $filter: DeviceLogFilterInput, $first: Int!, $after: String) {
-    ...agentLogsContent_query @arguments(machineId: $machineId, filter: $filter, first: $first, after: $after)
+  query agentLogsContentQuery($machineIds: [String!]!, $filter: DeviceLogFilterInput, $first: Int!, $after: String) {
+    ...agentLogsContent_query @arguments(machineIds: $machineIds, filter: $filter, first: $first, after: $after)
   }
 `;
 
 // Keyed on the machine AND the filter: cursors belong to the filter that made
 // them, so a filter change starts a new list instead of appending to the old one.
+// The API takes `machineIds` optionally, and leaving it out means every device in
+// the tenant; it is required here so this tab can never ask for that.
 const agentLogsContentFragment = graphql`
   fragment agentLogsContent_query on Query
   @refetchable(queryName: "agentLogsContentPaginationQuery")
   @argumentDefinitions(
-    machineId: { type: "String!" }
+    machineIds: { type: "[String!]!" }
     filter: { type: "DeviceLogFilterInput" }
     first: { type: "Int", defaultValue: 500 }
     after: { type: "String" }
   ) {
-    deviceLogs(machineId: $machineId, filter: $filter, first: $first, after: $after)
-      @connection(key: "agentLogsContent_deviceLogs", filters: ["machineId", "filter"]) {
+    deviceLogs(machineIds: $machineIds, filter: $filter, first: $first, after: $after)
+      @connection(key: "agentLogsContent_deviceLogs", filters: ["machineIds", "filter"]) {
       __id
       edges {
         cursor
@@ -71,8 +73,8 @@ const agentLogsContentFragment = graphql`
 // The auto-update probe: the list's filter with `from` = its newest line. Its
 // lines are moved into the list's connection by the live tail.
 const agentLogsContentPollQueryNode = graphql`
-  query agentLogsContentPollQuery($machineId: String!, $filter: DeviceLogFilterInput, $first: Int!) {
-    deviceLogs(machineId: $machineId, filter: $filter, first: $first) {
+  query agentLogsContentPollQuery($machineIds: [String!]!, $filter: DeviceLogFilterInput, $first: Int!) {
+    deviceLogs(machineIds: $machineIds, filter: $filter, first: $first) {
       edges {
         cursor
         node {
@@ -128,7 +130,7 @@ export function AgentLogsContent({
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<agentLogsContentQuery>(
     agentLogsContentQueryNode,
-    { machineId, filter: list.filter, first: DEVICE_LOGS_PAGE_SIZE, after: null },
+    { machineIds: [machineId], filter: list.filter, first: DEVICE_LOGS_PAGE_SIZE, after: null },
     // The list key in `fetchKey` makes a manual refresh re-issue the first page
     // even when the filter did not change (a custom range).
     { fetchPolicy: 'store-and-network', fetchKey: `${retryKey}:${list.key}` },
@@ -149,7 +151,7 @@ export function AgentLogsContent({
       fetchQuery<agentLogsContentPollQuery>(
         environment,
         agentLogsContentPollQueryNode,
-        { machineId, filter: { ...list.filter, from }, first: DEVICE_LOGS_POLL_PAGE_SIZE },
+        { machineIds: [machineId], filter: { ...list.filter, from }, first: DEVICE_LOGS_POLL_PAGE_SIZE },
         { fetchPolicy: 'network-only' },
       ).map((answer): PolledPage => ({
         gap: answer.deviceLogs.pageInfo.hasNextPage,

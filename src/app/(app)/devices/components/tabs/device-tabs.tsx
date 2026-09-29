@@ -134,9 +134,9 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     component: RemoteSessionsTab,
   },
   {
-    // Last in the bar; the same glyph as the "Device Logs" menu entry.
+    // Last in the bar; named and drawn like the "Device Logs" menu entry that opens it.
     id: AGENT_LOGS_TAB_ID,
-    label: 'Agent Logs',
+    label: 'Device Logs',
     icon: ClipboardListIcon,
     component: AgentLogsTab,
   },
