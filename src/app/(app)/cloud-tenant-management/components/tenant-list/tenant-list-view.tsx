@@ -8,7 +8,6 @@ import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { useWorkspaceAdminGate } from '@/app/hooks/use-workspace-admin-gate';
 import { routes } from '@/lib/routes';
 import { TenantsTable } from './tenants-table';
 import { TENANTS_PAGE_SIZE, TENANTS_TABLE_COLUMNS } from './tenants-table-columns';
@@ -38,8 +37,6 @@ interface TenantListViewProps {
 }
 
 export function TenantListView({ loading = false }: TenantListViewProps) {
-  const access = useWorkspaceAdminGate();
-
   const { params, setParam } = useApiParams({ search: { type: 'string', default: '' } });
   // Local search keeps typing responsive; the hook debounces it into the URL param.
   const {
@@ -51,10 +48,6 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
-  // Owners and admins connect tenants. While the role is unknown the header draws the placeholder in
-  // the button's own width (`loadingActions` shapes it from `actions`), so the slot does not jump.
-  const actions = access === 'denied' ? undefined : [CONNECT_TENANT_ACTION];
-
   const tableSkeleton = (
     <TableSkeleton columns={TENANTS_TABLE_COLUMNS} rows={TENANTS_PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
   );
@@ -63,9 +56,8 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
     // No page padding here: it lives in `TenantPageShell`, around the error boundary.
     <PageLayout
       title="Cloud Tenant Management"
-      actions={actions}
+      actions={[CONNECT_TENANT_ACTION]}
       actionsVariant="icon-buttons"
-      loadingActions={access === 'loading'}
       contentClassName="flex flex-col"
     >
       <div className="flex flex-col" style={containerStyle}>
@@ -93,7 +85,6 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
               isPending={isPending}
               onEmptyChange={setIsEmpty}
               stickyHeaderOffset={stickyHeaderOffset}
-              canConnect={access === 'allowed'}
             />
           </Suspense>
         )}

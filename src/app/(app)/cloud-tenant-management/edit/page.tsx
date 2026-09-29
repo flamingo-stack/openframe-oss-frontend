@@ -2,17 +2,14 @@
 
 import { notFound } from 'next/navigation';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
-import { useWorkspaceAdminGate } from '@/app/hooks/use-workspace-admin-gate';
 import { routes } from '@/lib/routes';
 import { TenantPageShell } from '../components/shared/tenant-page-shell';
-import { TenantRestrictedScreen } from '../components/shared/tenant-restricted-screen';
 import { useTenantManagementGate } from '../components/shared/use-tenant-management-gate';
 import { EditTenantView } from '../components/tenant-edit/edit-tenant-view';
 import { TenantFormSkeleton } from '../components/tenant-form/tenant-form-skeleton';
 
 export default function EditTenantPage() {
   const gate = useTenantManagementGate();
-  const access = useWorkspaceAdminGate();
   const id = useRequiredIdParam(routes.cloudTenantManagement.list, routes.cloudTenantManagement.new());
   if (gate === 'off') {
     notFound();
@@ -20,12 +17,9 @@ export default function EditTenantPage() {
   if (!id) {
     return null;
   }
-  if (gate === 'on' && access === 'denied') {
-    return <TenantRestrictedScreen />;
-  }
   return (
     <TenantPageShell title="Edit Tenant Integration" errorMessage="Couldn't load this tenant." resetKey={id}>
-      {gate === 'loading' || access === 'loading' ? (
+      {gate === 'loading' ? (
         <TenantFormSkeleton variant="edit" />
       ) : (
         // Keyed by id: a hop from tenant A to B would otherwise keep A's form state.

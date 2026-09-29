@@ -35,14 +35,11 @@ const tenantDetailContentQuery = graphql`
 
 interface TenantDetailContentProps {
   id: string;
-  actions?: PageActionButton[];
-  loadingActions?: boolean;
-  /** Owners and admins run the probe; everyone else reads. */
-  canCheck: boolean;
+  actions: PageActionButton[];
 }
 
 /** Everything on the details page that waits for the record. */
-export function TenantDetailContent({ id, actions, loadingActions, canCheck }: TenantDetailContentProps) {
+export function TenantDetailContent({ id, actions }: TenantDetailContentProps) {
   const router = useRouter();
   const retryKey = useRetryKey();
   const { directoryConnection: connection } = useLazyLoadQuery<TenantDetailContentQueryType>(
@@ -65,7 +62,7 @@ export function TenantDetailContent({ id, actions, loadingActions, canCheck }: T
 
   return (
     <>
-      <TenantDetailTitle title={connection.name} actions={actions} loadingActions={loadingActions} />
+      <TenantDetailTitle title={connection.name} actions={actions} />
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
         <TenantSummaryCard connection={connection} />
         {isReadable(connection.access.state) ? (
@@ -96,7 +93,6 @@ export function TenantDetailContent({ id, actions, loadingActions, canCheck }: T
               checking={isChecking}
               verdict={verdict}
               onCheck={check}
-              disabled={!canCheck}
             />
           </>
         )}

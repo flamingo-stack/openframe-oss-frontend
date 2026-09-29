@@ -11,9 +11,9 @@ interface TenantDetailTitleProps {
   title: string;
   /** The title is the record's name and it is still loading — drawn as a bar. */
   loading?: boolean;
-  /** Role-gated actions (owners and admins); they depend on the route and the role, not on the record. */
+  /** Reconnect and Edit; they hang on the route, not on the record. */
   actions?: PageActionButton[];
-  /** The role is not known yet — the actions are drawn as placeholders. */
+  /** The record is not confirmed yet — the actions are drawn as placeholders in their own widths. */
   loadingActions?: boolean;
 }
 

@@ -109,12 +109,10 @@ interface TenantsTableProps {
   isPending: boolean;
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
-  /** Owners and admins get the Connect action in the empty state. */
-  canConnect: boolean;
 }
 
 /** The tenant rows — suspends on the query, so it lives under the view's `<Suspense>`. */
-export function TenantsTable({ search, isPending, onEmptyChange, stickyHeaderOffset, canConnect }: TenantsTableProps) {
+export function TenantsTable({ search, isPending, onEmptyChange, stickyHeaderOffset }: TenantsTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<TenantsTableQueryType>(
     tenantsTableQuery,
@@ -141,7 +139,7 @@ export function TenantsTable({ search, isPending, onEmptyChange, stickyHeaderOff
         icon={<CodingForkIcon />}
         title="No tenants connected yet"
         description="Connect a Microsoft 365 or Google Workspace tenant to see its users and access state here."
-        buttonLabel={canConnect ? 'Connect Tenant' : undefined}
+        buttonLabel="Connect Tenant"
         buttonProps={{ href: routes.cloudTenantManagement.new() }}
       />
     );

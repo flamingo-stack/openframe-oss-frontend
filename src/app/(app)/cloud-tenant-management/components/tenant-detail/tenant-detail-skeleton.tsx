@@ -4,7 +4,7 @@ import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/c
 import { TENANT_DETAIL_TITLE, TenantDetailTitle } from './tenant-detail-title';
 import { TenantSummaryCardSkeleton } from './tenant-summary-card';
 
-/** The two entries the header settles into for an owner or admin — the placeholders are sized off them. */
+/** The two entries the header settles into — the placeholders are sized off them. */
 const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Reconnect' }, { label: 'Edit Integration' }];
 
 /**
@@ -14,9 +14,8 @@ const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Reconnect' }, { label: 'E
  * the record's answer, so nothing stands in for it here: the integration rows are their own island
  * with their own skeleton, mounted once the state is known, and the consent card paints with the record.
  *
- * The actions are placeholders whoever is looking (canon `script-details-skeleton`): they hang on
- * the role, which the server render never knows and a late-hydrating segment already does — so a
- * skeleton that drew them for real hydrated a link over a bar. The settled header reads the role.
+ * The actions are placeholders (canon `script-details-skeleton`): Reconnect and Edit are links to a
+ * record the query has not confirmed yet — an unknown id settles into "Tenant not found" with no actions.
  */
 export function TenantDetailSkeleton() {
   return (

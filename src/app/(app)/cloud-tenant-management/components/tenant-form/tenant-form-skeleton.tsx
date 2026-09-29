@@ -24,7 +24,7 @@ const FORM_TITLES: Record<TenantFormSkeletonVariant, string> = {
 const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant: 'accent', disabled: true };
 
 /**
- * The New / Edit / Reconnect pages while the flag, the role or the record is unknown: the real
+ * The New / Edit / Reconnect pages while the flag or the record is unknown: the real
  * chrome and the real controls, locked (canon `edit-schedule-skeleton`). The fields come from
  * `TenantFormFields` over a throwaway form, so there is no second copy of the markup to keep in
  * step; only what names the record — the identity card's values, the consent instruction — is a bar.
