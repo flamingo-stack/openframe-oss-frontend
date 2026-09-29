@@ -273,7 +273,6 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
   );
 
   return (
-    // The Retry button renders inside the failed bubble, through `renderMention`.
     <MingoRetryContext value={retryLastTurn}>
       {/* Realtime tail for the active dialog — writes chunks into the shared
           store, exactly like the /mingo page. Gated on active + subscribed; on

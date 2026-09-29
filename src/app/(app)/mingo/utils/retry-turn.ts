@@ -28,19 +28,25 @@ export interface RetryableTurn {
  * its prompt would repeat a question the user moved past.
  */
 export function findRetryableTurn(messages: readonly ProcessedMessage[]): RetryableTurn | null {
-  const visible = messages.filter(message => !message.hidden);
-  const last = visible.at(-1);
-  if (last?.role !== 'assistant' || !Array.isArray(last.content)) return null;
-  if (last.content.at(-1)?.type !== 'error') return null;
-
-  const userTurn = [...visible].reverse().find(message => message.role === 'user');
-  if (typeof userTurn?.content !== 'string' || !userTurn.content.trim()) return null;
-
-  return {
-    failedMessageId: last.id,
-    prompt: userTurn.content,
-    contextItems: userTurn.contextItems?.length ? userTurn.contextItems : undefined,
-  };
+  let failed: ProcessedMessage | undefined;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.hidden) continue;
+    if (!failed) {
+      if (message.role !== 'assistant' || !Array.isArray(message.content) || message.content.at(-1)?.type !== 'error') {
+        return null;
+      }
+      failed = message;
+    } else if (message.role === 'user') {
+      if (typeof message.content !== 'string' || !message.content.trim()) return null;
+      return {
+        failedMessageId: failed.id,
+        prompt: message.content,
+        contextItems: message.contextItems?.length ? message.contextItems : undefined,
+      };
+    }
+  }
+  return null;
 }
 
 /** The failed bubble with the Retry token appended after its error segment. */

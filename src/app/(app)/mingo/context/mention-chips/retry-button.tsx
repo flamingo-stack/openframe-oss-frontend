@@ -1,10 +1,9 @@
 'use client';
 
 /**
- * The Retry action under a Mingo turn that ended on an error (see
- * `utils/retry-turn.ts` for why it rides the mention slot). `renderMention` is a
- * module-level function, so the handler reaches the button through context: the
- * host provides it around `<EmbeddableChat>`, and null means nothing to retry.
+ * The Retry action under a failed Mingo turn (see `utils/retry-turn.ts`). The
+ * handler comes through context so `renderMention` keeps its stable identity;
+ * null means nothing to retry.
  */
 
 import { Refresh01LeftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';

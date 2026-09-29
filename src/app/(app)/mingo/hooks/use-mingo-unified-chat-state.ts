@@ -126,11 +126,7 @@ export interface MingoUnifiedChat {
    * renders as an ordinary empty thread and says nothing.
    */
   dialogError: string | null;
-  /**
-   * Resends the user turn whose reply ended on an error chunk, or null when the
-   * latest turn did not fail. The host provides it to the Retry button, which the
-   * failed bubble renders through `renderMention` (see `utils/retry-turn.ts`).
-   */
+  /** Resends the user turn whose reply ended on an error, or null when the latest turn did not fail. */
   retryLastTurn: (() => void) | null;
 }
 
@@ -405,8 +401,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     [streamingPhase, processedMessages],
   );
 
-  // Decorated outside the cache above, so the Retry token leaves the bubble as
-  // soon as the turn stops being retryable.
+  // Not stored in `unifiedCache`, so the token disappears as soon as `retryTurn` goes null.
   const threadMessages = useMemo(
     () => (retryTurn ? messages.map(m => (m.id === retryTurn.failedMessageId ? withRetryAction(m) : m)) : messages),
     [messages, retryTurn],

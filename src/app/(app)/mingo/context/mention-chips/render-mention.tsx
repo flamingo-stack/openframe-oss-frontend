@@ -104,7 +104,7 @@ export function renderMingoMention({
     case M.TICKET:
       return <RestMentionChip marker={marker} id={id} icon={icon} fallbackLabel={label} />;
     case RETRY_MARKER:
-      // Not an entity: the host's own token for the Retry action (see `retry-turn.ts`).
+      // Not an entity: see `retry-turn.ts`.
       return <MingoRetryButton />;
     default:
       // Unknown marker → let the lib render the bare `@marker:id` token.
