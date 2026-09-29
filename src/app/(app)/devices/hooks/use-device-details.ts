@@ -41,7 +41,7 @@ function collectEndUserEmails(fleetData: FleetHost | null): string[] | undefined
  * Create Device object directly from API responses
  * No normalization layer - direct mapping
  */
-function createDevice(
+export function createDevice(
   node: DeviceGraphQlNode,
   fleetData: FleetHost | null,
   meshCentralStatus: 'online' | 'offline' | null,
@@ -274,6 +274,7 @@ function createDevice(
     updatedAt: fleetData?.detail_updated_at || fleetData?.seen_time || node.updatedAt || node.lastSeen,
     osUuid: fleetData?.uuid || node.osUuid,
     timezone: node.timezone,
+    addedByUserId: node.userId || undefined,
 
     // Fleet-derived metadata (already in the host payload)
     software_updated_at: fleetData?.software_updated_at,
