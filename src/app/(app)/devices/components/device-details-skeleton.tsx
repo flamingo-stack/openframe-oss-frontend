@@ -18,6 +18,7 @@ import { DEVICE_INCIDENTS_TABLE_COLUMNS } from '@/app/(app)/incidents/components
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
 import { DEVICE_TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
 import { PoliciesTable, type PolicyTableRow, QueriesTable, type QueryTableRow } from '@/app/components/shared';
+import { DeviceAddedByCellSkeleton } from './device-added-by-cell';
 import { REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS } from './tabs/device-tab-columns';
 import { useDeviceTabs } from './tabs/device-tabs';
 import { SoftwareTabSkeleton } from './tabs/software-tab';
@@ -241,6 +242,8 @@ function DeviceInfoSectionSkeleton() {
   const updated = <InfoCellSkeleton label="Updated" valueWidth="w-40" />;
   const uuid = <InfoCellSkeleton label="UUID" valueWidth="w-48" iconClass="w-4 h-4 md:w-6 md:h-6" />;
   const customer = <CustomerCellSkeleton />;
+  const addedBy = <DeviceAddedByCellSkeleton />;
+  const emptyCell = <div className="flex-1" aria-hidden="true" />;
 
   return (
     <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
@@ -254,13 +257,17 @@ function DeviceInfoSectionSkeleton() {
           {type}
           {serial}
         </div>
-        {/* Mobile (< md): customer as a full-width row */}
+        {/* Mobile (< md): customer and added-by each as a full-width row */}
         <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
           {customer}
         </div>
-        {/* Tablet (md to lg): customer in one row */}
+        <div className="flex min-h-14 items-center border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
+          {addedBy}
+        </div>
+        {/* Tablet (md to lg): customer + added-by in one row */}
         <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] md:flex md:items-center md:gap-[var(--spacing-system-m)]">
           <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customer}</div>
+          {addedBy}
         </div>
         <div className={rowClass}>
           {registered}
@@ -271,19 +278,28 @@ function DeviceInfoSectionSkeleton() {
         </div>
       </div>
 
-      {/* ===== Desktop (lg+) — 2 rows of 4 ===== */}
+      {/* ===== Desktop (lg+) — a grid of 4 columns ===== */}
       <div className="hidden lg:flex lg:flex-col">
         <div className={rowClass}>
           {hostname}
           {device}
           {type}
+          {serial}
+        </div>
+        <div className={rowClass}>
           <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customer}</div>
+          {emptyCell}
+          {emptyCell}
+          {addedBy}
+        </div>
+        <div className={rowClass}>
+          {registered}
+          {updated}
+          {emptyCell}
+          {emptyCell}
         </div>
         <div className="flex min-h-20 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)]">
           {uuid}
-          {serial}
-          {registered}
-          {updated}
         </div>
       </div>
     </div>
