@@ -2,15 +2,15 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
-import { graphql, useMutation } from 'react-relay';
+import { commitLocalUpdate, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import type { useResumeSubscriptionMutation as UseResumeSubscriptionMutationType } from '@/__generated__/useResumeSubscriptionMutation.graphql';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 
 // Clears a scheduled cancellation (status PENDING_CANCELLATION) in Stripe so the
 // subscription renews again. Only valid while still inside the paid period — a
 // fully canceled subscription must go through checkout instead. Takes no input
-// and returns a Boolean, so the Relay store can't auto-update; callers refetch
-// the billing query via `onSuccess`.
+// and returns a Boolean, so the Relay store can't auto-update: the store is
+// invalidated on success (see below) and the page refetches via `onSuccess`.
 const resumeSubscriptionMutation = graphql`
   mutation useResumeSubscriptionMutation {
     resumeSubscription
@@ -23,6 +23,7 @@ interface ResumeSubscriptionOptions {
 
 export function useResumeSubscription() {
   const { toast } = useToast();
+  const environment = useRelayEnvironment();
   const [commit, isInFlight] = useMutation<UseResumeSubscriptionMutationType>(resumeSubscriptionMutation);
 
   const mutate = useCallback(
@@ -39,6 +40,12 @@ export function useResumeSubscription() {
             });
             return;
           }
+          // The status went from PENDING_CANCELLATION back to ACTIVE server-side
+          // and nothing in the payload says so. Invalidate the store so every
+          // subscription-derived query (billing page, lock guard, balance bars)
+          // refetches on its next read instead of serving the cancelled state —
+          // the same step useCancelSubscription takes in the other direction.
+          commitLocalUpdate(environment, store => store.invalidateStore());
           toast({
             title: 'Subscription Renewed',
             description: 'Your subscription will continue and the scheduled cancellation was removed.',
@@ -55,7 +62,7 @@ export function useResumeSubscription() {
         },
       });
     },
-    [commit, toast],
+    [commit, toast, environment],
   );
 
   return { mutate, isPending: isInFlight };
