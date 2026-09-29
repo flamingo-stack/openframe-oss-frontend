@@ -56,6 +56,7 @@ import {
 } from '../context/context-types';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
+import { findRetryableTurn, withRetryAction } from '../utils/retry-turn';
 import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
@@ -125,6 +126,8 @@ export interface MingoUnifiedChat {
    * renders as an ordinary empty thread and says nothing.
    */
   dialogError: string | null;
+  /** Resends the user turn whose reply ended on an error, or null when the latest turn did not fail. */
+  retryLastTurn: (() => void) | null;
 }
 
 /**
@@ -391,6 +394,19 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     return 'idle';
   }, [reducerPhase, isTyping, isCompacting]);
 
+  // Offered only once the turn has settled: while the composer is locked, a
+  // resend would be refused as "Mingo is busy".
+  const retryTurn = useMemo(
+    () => (streamingPhase === 'idle' ? findRetryableTurn(processedMessages) : null),
+    [streamingPhase, processedMessages],
+  );
+
+  // Not stored in `unifiedCache`, so the token disappears as soon as `retryTurn` goes null.
+  const threadMessages = useMemo(
+    () => (retryTurn ? messages.map(m => (m.id === retryTurn.failedMessageId ? withRetryAction(m) : m)) : messages),
+    [messages, retryTurn],
+  );
+
   // ─── Dialog selection (mirrors the /mingo page glue, minus URL syncing) ───
   const selectDialog = useCallback(
     (id: string | null) => {
@@ -493,6 +509,14 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     [activeDialogId, sendInNewDialog, sendMingoMessage, buildSendContext],
   );
 
+  const retryLastTurn = useMemo(() => {
+    if (!retryTurn) return null;
+    return () => {
+      trackDashboardActivity(EVENT_SUBTYPE.RETRY_MINGO_MESSAGE);
+      void sendMessage(retryTurn.prompt, { contextItems: retryTurn.contextItems });
+    };
+  }, [retryTurn, sendMessage]);
+
   const stopMessage = useCallback(() => {
     void stopGeneration();
   }, [stopGeneration]);
@@ -581,7 +605,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
 
   const state = useMemo<UnifiedChatState>(
     () => ({
-      messages,
+      messages: threadMessages,
       isLoading: isTyping || isCompacting,
       streamingPhase,
       sendMessage,
@@ -636,7 +660,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       connectionState: connectionState as ChatConnectionState,
     }),
     [
-      messages,
+      threadMessages,
       isTyping,
       isCompacting,
       streamingPhase,
@@ -710,5 +734,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     fetchArchivedDialogs,
     unarchiveDialog,
     dialogError,
+    retryLastTurn,
   };
 }

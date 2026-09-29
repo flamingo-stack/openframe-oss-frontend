@@ -50,6 +50,7 @@ import { KNOWLEDGE_BASE_ROUTE } from '../(app)/help-center/endpoints';
 import { useMingoContextEntityTypes } from '../(app)/mingo/context/context-sources';
 import { CONTEXT_ITEMS_MAX } from '../(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoMention } from '../(app)/mingo/context/mention-chips/render-mention';
+import { MingoRetryContext } from '../(app)/mingo/context/mention-chips/retry-button';
 import { renderMingoContextItems } from '../(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '../(app)/mingo/context/use-context-memory';
 import { MINGO_DIALOG_NOT_FOUND } from '../(app)/mingo/hooks/use-mingo-dialog-selection';
@@ -79,6 +80,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
     fetchArchivedDialogs,
     unarchiveDialog,
     dialogError,
+    retryLastTurn,
   } = useMingoUnifiedChatState();
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
   const startCompaction = useMingoCompactionStore(s => s.startCompaction);
@@ -271,7 +273,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
   );
 
   return (
-    <>
+    <MingoRetryContext value={retryLastTurn}>
       {/* Realtime tail for the active dialog — writes chunks into the shared
           store, exactly like the /mingo page. Gated on active + subscribed; on
           reopen it resubscribes and replays missed chunks from the stored
@@ -370,6 +372,6 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         // header page-context banner. The strip self-hides when memory is empty.
         contextMemory={contextMemory}
       />
-    </>
+    </MingoRetryContext>
   );
 }

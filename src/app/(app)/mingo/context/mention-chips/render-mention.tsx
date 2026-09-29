@@ -27,11 +27,13 @@ import type { ReactNode } from 'react';
 import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
+import { RETRY_MARKER } from '../../utils/retry-turn';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
 import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
 import { MentionTag } from './mention-tag';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
+import { MingoRetryButton } from './retry-button';
 
 const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
 const KB_FOLDER_ICON = <KbFolderIcon size={24} />;
@@ -101,6 +103,9 @@ export function renderMingoMention({
     case M.USER:
     case M.TICKET:
       return <RestMentionChip marker={marker} id={id} icon={icon} fallbackLabel={label} />;
+    case RETRY_MARKER:
+      // Not an entity: see `retry-turn.ts`.
+      return <MingoRetryButton />;
     default:
       // Unknown marker → let the lib render the bare `@marker:id` token.
       return null;
