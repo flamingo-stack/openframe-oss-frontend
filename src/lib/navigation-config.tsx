@@ -107,9 +107,8 @@ export const getNavigationItems = (
       path: routes.dashboard,
       isActive: pathname.startsWith('/dashboard'),
     },
-    // Right under Dashboard (Figma): the working set of open findings is the
-    // first thing a technician looks at. saas-tenant only — the insights API
-    // lives in saas-api.
+    // Right under Dashboard (Figma): the current incidents are the first thing
+    // a technician looks at. saas-tenant only — the insights API lives in saas-api.
     ...(isSaasTenantMode() && flags.insights
       ? [
           {

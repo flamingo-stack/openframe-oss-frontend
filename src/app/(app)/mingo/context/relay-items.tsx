@@ -436,10 +436,10 @@ export function ScheduleItems({ query, selectedKeys, onToggle, atLimit }: Contex
 
 // ───────────────────────────── Incident ─────────────────────────────────────
 
-// Mingo incident context lists the WORKING SET only — the same default the
-// Incidents page opens on: everything but ARCHIVED, which is filed away and
-// nothing to act on. `Insight.id` is already the opaque id the `insight(id:)`
-// query and the `@insight:<id>` marker take, so no decode/re-encode here.
+// Mingo incident context lists the WORKING SET only — everything but ARCHIVED,
+// which is filed away and nothing to act on (the device Incidents tab's
+// default). `Insight.id` is already the opaque id the `insight(id:)` query and
+// the `@insight:<id>` marker take, so no decode/re-encode here.
 const INCIDENT_CONTEXT_FILTER = { statuses: [...WORKING_SET_STATUSES] };
 
 const INCIDENTS_FRAGMENT = graphql`
