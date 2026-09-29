@@ -264,6 +264,7 @@ Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query 
 - **Knowledge Base** (`/knowledge-base`) — Articles/folders (fully Relay)
 - **Help Center** (`/help-center/*`) — Content pages via core-lib `help-center-pages`
 - **Worktime** (`/worktime`) — Time entries
+- **Cloud Tenant Management** (`/cloud-tenant-management/*`) — Microsoft 365 / Google Workspace directory connections (sidebar item "Integrations"; flag `tenant-management`; owners/admins write, everyone reads)
 - **Notifications** (`/notifications`) — Relay reference implementation
 - **Settings** (`/settings/*`) — ai-settings, api-keys, architecture (OSS-only), billing-usage (flag `billings`), employees, sso
 - **Checkout** (`/checkout/success|cancel`) — Stripe checkout result pages

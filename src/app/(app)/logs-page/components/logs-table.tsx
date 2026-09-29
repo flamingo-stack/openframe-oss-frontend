@@ -66,6 +66,7 @@ import type { LogFilterInput } from '../types/log.types';
 import { logSourceLabels } from '../utils/log-source-labels';
 import { LogCopyButton, type LogCopyTarget } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
+import { LOG_COLUMN_WIDTHS } from './logs-table-columns';
 import { LogsTableSkeleton } from './logs-table-skeleton';
 
 // ----------------------------------------------------------------
@@ -392,7 +393,7 @@ function LogsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-[200px]', alwaysShowHeader: true },
+        meta: { width: LOG_COLUMN_WIDTHS.logId, alwaysShowHeader: true },
       },
       {
         accessorKey: 'status',
@@ -405,7 +406,7 @@ function LogsTableContent({
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: {
-          width: 'w-[120px]',
+          width: LOG_COLUMN_WIDTHS.status,
           filter: {
             options:
               logFilters?.severities?.map((severity: string) => ({
@@ -428,7 +429,7 @@ function LogsTableContent({
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: {
-          width: 'w-[150px]',
+          width: LOG_COLUMN_WIDTHS.tool,
           hideAt: 'md',
           filter: {
             options:
@@ -459,7 +460,7 @@ function LogsTableContent({
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: {
-          width: 'w-[120px]',
+          width: LOG_COLUMN_WIDTHS.source,
           hideAt: 'md',
           filter: organizationLocked
             ? undefined
@@ -477,7 +478,7 @@ function LogsTableContent({
           </TruncateText>
         ),
         enableSorting: false,
-        meta: { width: 'flex-1', hideAt: 'lg' },
+        meta: { width: LOG_COLUMN_WIDTHS.description, hideAt: 'lg' },
       },
       {
         id: 'copy',
@@ -487,7 +488,7 @@ function LogsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none ml-auto', align: 'right' },
+        meta: { width: `${LOG_COLUMN_WIDTHS.action} ml-auto`, align: 'right' },
       },
       {
         id: 'quickView',
@@ -504,7 +505,7 @@ function LogsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
+        meta: { width: LOG_COLUMN_WIDTHS.action, align: 'right' },
       },
       {
         id: 'open',
@@ -521,7 +522,7 @@ function LogsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: { width: LOG_COLUMN_WIDTHS.action, hideAt: 'md', align: 'right' },
       },
     ],
     [logFilters, getLogDetailsUrl, organizationLocked, dateFilter],

@@ -12,7 +12,12 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
-import { PACKAGE_MANAGER_LABEL, PACKAGE_MANAGERS, type SupportedPackageManager } from '../shared/package-managers';
+import {
+  PACKAGE_MANAGER_ICON,
+  PACKAGE_MANAGER_LABEL,
+  PACKAGE_MANAGERS,
+  type SupportedPackageManager,
+} from '../shared/package-managers';
 import { PackageSearchField } from './package-search-field';
 import { PackageSearchFieldPlaceholder } from './package-search-field-placeholder';
 import type { SoftwareRow } from './software-row';
@@ -37,11 +42,17 @@ export function SoftwareRowFields({ row, removable, onChange, onRemove }: Softwa
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PACKAGE_MANAGERS.map(manager => (
-              <SelectItem key={manager} value={manager}>
-                {PACKAGE_MANAGER_LABEL[manager]}
-              </SelectItem>
-            ))}
+            {PACKAGE_MANAGERS.map(manager => {
+              const Icon = PACKAGE_MANAGER_ICON[manager];
+              return (
+                <SelectItem key={manager} value={manager}>
+                  <span className="flex items-center gap-[var(--spacing-system-xsf)]">
+                    <Icon size={20} className="shrink-0 text-ods-text-secondary" />
+                    {PACKAGE_MANAGER_LABEL[manager]}
+                  </span>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>

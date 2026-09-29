@@ -4,6 +4,7 @@ import { type ColumnDef, DataTable, useDataTable } from '@flamingo-stack/openfra
 import { useMemo } from 'react';
 import { DateColumnHeader } from '@/app/components/shared/date-column-header';
 import { multiSelectFilterFn } from '@/lib/table-filters';
+import { LOG_COLUMN_WIDTHS } from './logs-table-columns';
 
 /**
  * Loading fallback for `LogsTable` — an empty `DataTable` carrying the real
@@ -38,49 +39,49 @@ export function LogsTableSkeleton() {
         // sideways.
         header: () => <DateColumnHeader label="Log ID" />,
         enableSorting: false,
-        meta: { width: 'w-[200px]', alwaysShowHeader: true },
+        meta: { width: LOG_COLUMN_WIDTHS.logId, alwaysShowHeader: true },
       },
       {
         id: 'status',
         header: 'Status',
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px]', filter: PENDING_FILTER },
+        meta: { width: LOG_COLUMN_WIDTHS.status, filter: PENDING_FILTER },
       },
       {
         id: 'tool',
         header: 'Tool',
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[150px]', hideAt: 'md', filter: PENDING_FILTER },
+        meta: { width: LOG_COLUMN_WIDTHS.tool, hideAt: 'md', filter: PENDING_FILTER },
       },
       {
         id: 'source',
         header: 'SOURCE',
         enableSorting: false,
         filterFn: multiSelectFilterFn,
-        meta: { width: 'w-[120px]', hideAt: 'md', filter: PENDING_FILTER },
+        meta: { width: LOG_COLUMN_WIDTHS.source, hideAt: 'md', filter: PENDING_FILTER },
       },
       {
         id: 'description',
         header: 'Log Details',
         enableSorting: false,
-        meta: { width: 'flex-1', hideAt: 'lg' },
+        meta: { width: LOG_COLUMN_WIDTHS.description, hideAt: 'lg' },
       },
       {
         id: 'copy',
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none ml-auto', align: 'right' },
+        meta: { width: `${LOG_COLUMN_WIDTHS.action} ml-auto`, align: 'right' },
       },
       {
         id: 'quickView',
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
+        meta: { width: LOG_COLUMN_WIDTHS.action, align: 'right' },
       },
       {
         id: 'open',
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: { width: LOG_COLUMN_WIDTHS.action, hideAt: 'md', align: 'right' },
       },
     ],
     [],

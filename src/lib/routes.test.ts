@@ -53,22 +53,22 @@ describe('the canonical Mingo dialog deep link', () => {
   });
 });
 
-describe('settings.tenant*', () => {
+describe('cloudTenantManagement', () => {
   it('builds the list and the create page as fixed paths', () => {
-    expect(routes.settings.tenantManagement).toBe('/settings/tenant-management');
-    expect(routes.settings.tenantNew()).toBe('/settings/tenant-management/new');
-    expect(routes.settings.tenantNew({ id: 'tc-01' })).toBe('/settings/tenant-management/new?id=tc-01');
+    expect(routes.cloudTenantManagement.list).toBe('/cloud-tenant-management');
+    expect(routes.cloudTenantManagement.new()).toBe('/cloud-tenant-management/new');
+    expect(routes.cloudTenantManagement.new({ id: 'tc-01' })).toBe('/cloud-tenant-management/new?id=tc-01');
   });
 
   it('puts the connection id in `?id=` on the detail, edit and reconnect pages', () => {
     // Static export forbids dynamic segments, see ROUTES.md.
-    expect(routes.settings.tenantDetails('tc-01')).toBe('/settings/tenant-management/details?id=tc-01');
-    expect(routes.settings.tenantEdit('tc-01')).toBe('/settings/tenant-management/edit?id=tc-01');
-    expect(routes.settings.tenantReconnect('tc-01')).toBe('/settings/tenant-management/reconnect?id=tc-01');
+    expect(routes.cloudTenantManagement.details('tc-01')).toBe('/cloud-tenant-management/details?id=tc-01');
+    expect(routes.cloudTenantManagement.edit('tc-01')).toBe('/cloud-tenant-management/edit?id=tc-01');
+    expect(routes.cloudTenantManagement.reconnect('tc-01')).toBe('/cloud-tenant-management/reconnect?id=tc-01');
   });
 
   it('encodes the id and accepts a numeric one', () => {
-    expect(routes.settings.tenantDetails('a b&c=1')).toBe('/settings/tenant-management/details?id=a+b%26c%3D1');
-    expect(routes.settings.tenantDetails(7)).toBe('/settings/tenant-management/details?id=7');
+    expect(routes.cloudTenantManagement.details('a b&c=1')).toBe('/cloud-tenant-management/details?id=a+b%26c%3D1');
+    expect(routes.cloudTenantManagement.details(7)).toBe('/cloud-tenant-management/details?id=7');
   });
 });

@@ -13,20 +13,15 @@ import { knownValue } from '@/lib/exhaustive-map';
 import { PACKAGE_SEARCH_LABEL, PACKAGE_SEARCH_PLACEHOLDER } from './package-search-field-placeholder';
 
 /**
- * Package-manager catalog search (Homebrew / winget).
+ * Package-manager catalog search (Homebrew / Chocolatey / winget). An empty search lists the
+ * catalog (Homebrew: most popular first), so the field has options before the user types.
  *
- * `@include(if: $hasQuery)`: the backend rejects a search under 2 characters,
- * so the box selects nothing until then — read with `store-only`, that renders
- * without a request.
+ * `@include(if: $list)` is off for the first render only: read `store-only`, that paints the
+ * field without a request, and the listing itself arrives in the deferred re-render below.
  */
 const packageSearchFieldQuery = graphql`
-  query packageSearchFieldQuery(
-    $packageManager: PackageManagerType!
-    $search: String!
-    $first: Int!
-    $hasQuery: Boolean!
-  ) {
-    searchPackages(packageManager: $packageManager, search: $search, first: $first) @include(if: $hasQuery) {
+  query packageSearchFieldQuery($packageManager: PackageManagerType!, $search: String!, $first: Int!, $list: Boolean!) {
+    searchPackages(packageManager: $packageManager, search: $search, first: $first) @include(if: $list) {
       edges {
         node {
           id
@@ -40,9 +35,9 @@ const packageSearchFieldQuery = graphql`
   }
 `;
 
-/** Below this many characters (after trimming) the catalog is not searched — the backend's own minimum. */
-const MIN_QUERY_LENGTH = 2;
 const SEARCH_LIMIT = 25;
+/** The deferred query's first-render value: no search yet, not even the empty one. */
+const NOT_YET = null;
 
 type SearchItem = NonNullable<packageSearchFieldQuery$data['searchPackages']>['edges'][number]['node'];
 
@@ -86,27 +81,28 @@ interface PackageSearchFieldProps {
 /**
  * "Software Name": a server-searched picker over one package manager's catalog.
  *
- * The query variables are deferred, so a new search keeps the previous results
- * on screen (and the input focused) while it is in flight instead of suspending
- * the field. Below two characters the search field is not selected at all and
- * the read is `store-only` — no request, no suspension.
+ * The query variables are deferred, so a search never suspends the field: the
+ * input stays mounted and focused while the fetch is in flight, and the list
+ * shows the picker's loading row until the results land. The very first value is `NOT_YET` (React 19 `initialValue`), so the
+ * opening listing of the catalog is a deferred re-render too: the field is live
+ * and typeable from the first paint, never the disabled placeholder, and a query
+ * typed meanwhile simply supersedes it.
  *
  * Callers key it by package manager: switching catalogs starts a fresh search.
  */
 export function PackageSearchField({ packageManager, value, onChange }: PackageSearchFieldProps) {
   const [search, setSearch] = useState('');
   const query = useDebounce(search, 300).trim();
-  const deferredQuery = useDeferredValue(query);
-  const hasQuery = deferredQuery.length >= MIN_QUERY_LENGTH;
+  const deferredQuery = useDeferredValue<string | null>(query, NOT_YET);
+  const list = deferredQuery !== NOT_YET;
 
   const data = useLazyLoadQuery<PackageSearchFieldQueryType>(
     packageSearchFieldQuery,
-    { packageManager, search: deferredQuery, first: SEARCH_LIMIT, hasQuery },
-    { fetchPolicy: hasQuery ? 'store-or-network' : 'store-only' },
+    { packageManager, search: deferredQuery ?? '', first: SEARCH_LIMIT, list },
+    { fetchPolicy: list ? 'store-or-network' : 'store-only' },
   );
 
-  const typedEnough = search.trim().length >= MIN_QUERY_LENGTH;
-  const isSearching = typedEnough && (search.trim() !== query || deferredQuery !== query);
+  const isSearching = !list || search.trim() !== query || deferredQuery !== query;
 
   const found = (data.searchPackages?.edges ?? []).map(edge => toSelectedPackage(edge.node));
   // The picked package must stay resolvable after the results move on to a new search.
@@ -125,7 +121,7 @@ export function PackageSearchField({ packageManager, value, onChange }: PackageS
       disableClientFilter
       placeholder={PACKAGE_SEARCH_PLACEHOLDER}
       loading={isSearching}
-      noOptionsText={typedEnough ? 'No packages found' : `Type at least ${MIN_QUERY_LENGTH} characters`}
+      noOptionsText="No packages found"
     />
   );
 }
