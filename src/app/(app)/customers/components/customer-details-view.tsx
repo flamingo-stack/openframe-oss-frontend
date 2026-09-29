@@ -19,8 +19,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
-import { useClientView } from '@/app/(app)/settings/ai-settings/hooks/use-client-view';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { getFullImageUrl } from '@/lib/image-url';
 import { type CustomerDetailTab, type CustomerEditTab, routes } from '@/lib/routes';
@@ -75,29 +73,20 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
 
   const { organization, isLoading, error } = useCustomerDetails(id);
 
-  // The customer AI-assistant tab depends on the openframe-saas-ai-agent
-  // service (/chat/graphql), so it's saas-tenant only. `customer-ai-configuration`
-  // switches the NEW full view vs the legacy appearance-only view. The new view
-  // always shows (inherited defaults render with a banner, like guardrails); the
-  // legacy view still respects `customer-ai-assistant-settings` and only appears
-  // when a ClientView appearance override exists (else it would render empty).
-  const isNewAiConfig = useFeatureFlag('customer-ai-configuration');
-  // Hook called unconditionally, then combined: `&&` would short-circuit the
-  // call and break hook order on renders where `isNewAiConfig` is true.
-  const customizationEnabled = useFeatureFlag('customer-ai-assistant-settings');
-  const isLegacyAppearance = !isNewAiConfig && customizationEnabled;
+  // The customer AI-assistant and guardrails tabs read per-org settings from the
+  // openframe-saas-ai-agent service (/chat/graphql), so they're saas-tenant only.
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
-  const { view: clientView } = useClientView(id, { enabled: isLegacyAppearance && isSaasTenant && !!id });
-  const showCustomAiAssistant = isSaasTenant && (isNewAiConfig || (isLegacyAppearance && !!clientView));
-  // Effective per-org guardrails via /chat/graphql (saas-ai-agent), so
-  // saas-tenant only; own release flag, independent of the appearance feature.
-  const showGuardrails = useFeatureFlag('customer-guardrails') && isSaasTenant;
   // Remote access policy: not saas-gated - MeshCentral runs in
   // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
   const showDeviceGuardrails = useRemoteAccessApprovalGate() === 'on';
   const tabs = useMemo(
-    () => getCustomerTabs({ showCustomAiAssistant, showGuardrails, showDeviceGuardrails }),
-    [showCustomAiAssistant, showGuardrails, showDeviceGuardrails],
+    () =>
+      getCustomerTabs({
+        showCustomAiAssistant: isSaasTenant,
+        showGuardrails: isSaasTenant,
+        showDeviceGuardrails,
+      }),
+    [isSaasTenant, showDeviceGuardrails],
   );
   const activeTab = (tabs.some(tab => tab.id === requestedTab) ? requestedTab : 'devices') as CustomerDetailTab;
 

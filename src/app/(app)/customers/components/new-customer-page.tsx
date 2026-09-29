@@ -15,14 +15,12 @@ import {
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes, TAB_IDS } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
 import { useCustomerForm } from '../hooks/use-customer-form';
 import { useCustomerLogo } from '../hooks/use-customer-logo';
-import { CustomerAiAssistantAppearance } from './ai-assistant-appearance/customer-ai-assistant-appearance';
 import { CustomerAiConfiguration } from './customer-ai-configuration/customer-ai-configuration';
 import { CustomerDeviceGuardrailsSettings } from './customer-device-guardrails-settings';
 import { CustomerFormFields } from './customer-form-fields';
@@ -57,16 +55,8 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   // service, absent in self-hosted) and edit-mode only (they need an org id to
   // scope the override). When any is visible, the page renders as tabs
   // (Details / AI Configuration / Guardrails).
-  //
-  // `customer-ai-configuration` switches the AI tab's flow: on → the full
-  // Customer AI Configuration (provider/model, answer style, quick actions);
-  // off (default) → the legacy appearance-only block, which keeps its original
-  // `customer-ai-assistant-settings` gate (pre-session behavior).
-  const isFullAiConfig = useFeatureFlag('customer-ai-configuration');
-  const customizationEnabled = useFeatureFlag('customer-ai-assistant-settings');
-  const guardrailsEnabled = useFeatureFlag('customer-guardrails');
-  const showAiConfig = !!organizationId && isSaasTenant && (isFullAiConfig || customizationEnabled);
-  const showGuardrails = !!organizationId && isSaasTenant && guardrailsEnabled;
+  const showAiConfig = !!organizationId && isSaasTenant;
+  const showGuardrails = showAiConfig;
   // Remote access policy: not saas-gated - MeshCentral runs in
   // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
   const remoteAccessGate = useRemoteAccessApprovalGate();
@@ -76,21 +66,13 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
   const editTabs = useMemo<TabItem[]>(
     () => [
       { id: DETAILS_TAB, label: 'Details', icon: FileContentIcon },
-      ...(showAiConfig
-        ? [
-            {
-              id: AI_CONFIGURATION_TAB,
-              label: isFullAiConfig ? 'Customer AI Configuration' : 'AI-Assistant Appearance',
-              icon: ChatsIcon,
-            },
-          ]
-        : []),
+      ...(showAiConfig ? [{ id: AI_CONFIGURATION_TAB, label: 'Customer AI Configuration', icon: ChatsIcon }] : []),
       ...(showGuardrails ? [{ id: GUARDRAILS_TAB, label: 'Customer AI Guardrails', icon: ShieldCheckIcon }] : []),
       ...(showDeviceGuardrails
         ? [{ id: DEVICE_GUARDRAILS_TAB, label: 'Customer Device Guardrails', icon: MonitorShieldIcon }]
         : []),
     ],
-    [showAiConfig, isFullAiConfig, showGuardrails, showDeviceGuardrails],
+    [showAiConfig, showGuardrails, showDeviceGuardrails],
   );
 
   // Tab rides the URL (controlled mode, mirroring customer-details-view) so
@@ -184,11 +166,7 @@ export function NewCustomerPage({ organizationId }: NewCustomerPageProps) {
               <div className={activeId === DETAILS_TAB ? undefined : 'hidden'}>{detailsForm}</div>
               {showAiConfig && (
                 <div className={activeId === AI_CONFIGURATION_TAB ? undefined : 'hidden'}>
-                  {isFullAiConfig ? (
-                    <CustomerAiConfiguration ref={refs.aiConfigurationRef} organizationId={organizationId} />
-                  ) : (
-                    <CustomerAiAssistantAppearance ref={refs.appearanceRef} organizationId={organizationId} />
-                  )}
+                  <CustomerAiConfiguration ref={refs.aiConfigurationRef} organizationId={organizationId} />
                 </div>
               )}
               {showGuardrails && (

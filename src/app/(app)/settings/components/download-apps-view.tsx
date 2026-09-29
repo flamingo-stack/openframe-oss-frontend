@@ -36,18 +36,7 @@ function AppCard({ title, description, children }: AppCardProps) {
   );
 }
 
-interface DownloadAppsViewProps {
-  /**
-   * The `download-apps` flag has not answered yet, so it is not yet known whether
-   * this page exists for the tenant. Held in the same state as an unresolved
-   * installer lookup: the page draws, but nothing is downloadable until the answer
-   * lands — otherwise a click inside that window fetches an installer for a tenant
-   * the page is about to 404 for.
-   */
-  pending?: boolean;
-}
-
-export function DownloadAppsView({ pending = false }: DownloadAppsViewProps) {
+export function DownloadAppsView() {
   const handleBack = useSafeBack(routes.settings.root());
   // The page 404s on the phone, so the shell term is only ever true here for the
   // desktop app; otherwise this is the VIEWPORT term, giving narrow browser windows
@@ -70,12 +59,12 @@ export function DownloadAppsView({ pending = false }: DownloadAppsViewProps) {
   // load of this route in the desktop shell (a soft navigation there is already correct on
   // its first render).
   //
-  // It does reach markup second-hand, through `isLoading` into `downloadsPending` and the
-  // buttons' `loading` prop — but `pending` is true for every cold load (the feature flag
-  // is never cached), which masks the difference. Cache those flags and this becomes a
-  // hydration mismatch.
+  // It does reach markup second-hand, through `isLoading` into the buttons' `loading`
+  // prop: the prerender has the lookup pending, while the desktop shell's hydration render
+  // has it disabled. `desktopShell` still reads `false` there, so the mismatch term holds
+  // the buttons in the prerendered state until the hook catches up and the card unmounts.
   const { installers, isLoading, isOffline, error } = useDesktopInstallers(!isDesktopShell());
-  const downloadsPending = pending || isLoading;
+  const downloadsPending = isLoading || desktopShell !== isDesktopShell();
 
   // Stated inline rather than toasted: the degradation lasts as long as the lookup
   // keeps failing, and it is not cosmetic — every control keeps its "Download for …"
@@ -139,12 +128,9 @@ export function DownloadAppsView({ pending = false }: DownloadAppsViewProps) {
 
         <AppCard title="Mobile App" description="Get alerts and respond to tickets on the go.">
           {/* Both listings are published and permanent, so these are plain links with no
-              installer lookup to fail — which is why they do not hold on `pending` the way
-              the desktop card's buttons do. They can therefore render during the flag's
-              unanswered window for a tenant the page may then 404: harmless, since a public
-              store listing is not a tenant resource. The desktop card's
-              ODS buttons have no counterpart here: Apple and Google each require their
-              own badge artwork on anything linking to their store. */}
+              installer lookup to fail. The desktop card's ODS buttons have no counterpart
+              here: Apple and Google each require their own badge artwork on anything
+              linking to their store. */}
           <StoreBadgeLinks
             appStoreUrl={APP_STORE_URL}
             googlePlayUrl={GOOGLE_PLAY_URL}

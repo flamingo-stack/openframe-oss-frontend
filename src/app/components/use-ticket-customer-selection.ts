@@ -52,7 +52,7 @@ export function useTicketCustomerSelection({ enabled = true }: { enabled?: boole
   // `enabled` is what lets a host mount this hook unconditionally and still pay
   // nothing for it — the time-tracker host is mounted on every page so that its
   // provider never changes the tree shape (see `TimeTrackerHostProvider`), and
-  // with the feature off neither option list may fetch.
+  // while it is disabled neither option list may fetch.
   const { options: ticketOptionsRaw, isLoading: ticketsLoading } = useTicketSearchOptions(
     ticketSearch,
     customerId ?? undefined,
