@@ -277,6 +277,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // `useFeatureFlagGate` instead (see the drawer's URL sync).
   const insightsEnabled = useFeatureFlag('insights');
   const softwareManagementEnabled = useFeatureFlag('software-management');
+  const tenantManagementEnabled = useFeatureFlag('tenant-management');
   const billingsEnabled = useFeatureFlag('billings');
   /**
    * What the app-wide billing banners have to say, reported by the hydrator
@@ -402,8 +403,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     () => ({
       insights: insightsEnabled,
       softwareManagement: softwareManagementEnabled,
+      tenantManagement: tenantManagementEnabled,
     }),
-    [insightsEnabled, softwareManagementEnabled],
+    [insightsEnabled, softwareManagementEnabled, tenantManagementEnabled],
   );
 
   const navigationItems = useMemo(
