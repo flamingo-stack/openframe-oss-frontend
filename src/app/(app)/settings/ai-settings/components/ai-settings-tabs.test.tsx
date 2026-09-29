@@ -1,7 +1,7 @@
 /**
- * Pins that the AI Settings tab set is withheld until every flag shaping it has
+ * Pins that the AI Settings tab set is withheld until the flag shaping it has
  * answered: the page picks its starting tab from the first set it gets, so a
- * set with the flag-gated tabs still missing would strand a deep link.
+ * set with the flag-gated tab still missing would strand a deep link.
  */
 
 import { act } from 'react';
@@ -11,11 +11,7 @@ import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { useVisibleAiSettingsTabs } from './ai-settings-tabs';
 
 const { gates } = vi.hoisted(() => ({
-  gates: { mingo: 'loading' as FeatureFlagGate, remoteAccess: 'loading' as FeatureFlagGate },
-}));
-
-vi.mock('@/app/hooks/use-feature-flag', () => ({
-  useFeatureFlagGate: () => gates.mingo,
+  gates: { remoteAccess: 'loading' as FeatureFlagGate },
 }));
 
 vi.mock('@/app/(app)/devices/hooks/use-remote-access-approval-gate', () => ({
@@ -46,25 +42,18 @@ afterEach(() => {
 });
 
 describe('useVisibleAiSettingsTabs', () => {
-  it('answers nothing while either flag is still loading', () => {
-    gates.mingo = 'loading';
-    gates.remoteAccess = 'on';
-    expect(render()).toBe('null');
-
-    gates.mingo = 'on';
+  it('answers nothing while the flag is still loading', () => {
     gates.remoteAccess = 'loading';
     expect(render()).toBe('null');
   });
 
-  it('answers the full set once both flags are on', () => {
-    gates.mingo = 'on';
+  it('answers the full set once the flag is on', () => {
     gates.remoteAccess = 'on';
     expect(render()).toBe('mingo,customer,guardrails,device-guardrails');
   });
 
-  it('leaves out the tabs whose flags are off', () => {
-    gates.mingo = 'off';
+  it('leaves out the device guardrails tab when the flag is off', () => {
     gates.remoteAccess = 'off';
-    expect(render()).toBe('customer,guardrails');
+    expect(render()).toBe('mingo,customer,guardrails');
   });
 });

@@ -67,8 +67,6 @@ export interface OnboardingNavState {
  * three states.
  */
 export interface NavigationFlags {
-  timeTracker: boolean;
-  helpCenter: boolean;
   insights: boolean;
   softwareManagement: boolean;
 }
@@ -181,15 +179,13 @@ export const getNavigationItems = (
     });
   }
 
-  if (flags.timeTracker) {
-    baseItems.push({
-      id: 'worktime',
-      label: 'Worktime',
-      icon: <ClockHistoryIcon size={24} />,
-      path: routes.worktime,
-      isActive: pathname.startsWith('/worktime'),
-    });
-  }
+  baseItems.push({
+    id: 'worktime',
+    label: 'Worktime',
+    icon: <ClockHistoryIcon size={24} />,
+    path: routes.worktime,
+    isActive: pathname.startsWith('/worktime'),
+  });
 
   baseItems.push({
     id: 'knowledge-base',
@@ -200,16 +196,14 @@ export const getNavigationItems = (
     isActive: pathname.startsWith('/knowledge-base'),
   });
 
-  if (flags.helpCenter) {
-    baseItems.push({
-      id: 'help-center',
-      label: 'Help Center',
-      icon: <QuestionCircleIcon size={24} />,
-      path: routes.helpCenter.root,
-      section: 'secondary',
-      isActive: pathname.startsWith('/help-center'),
-    });
-  }
+  baseItems.push({
+    id: 'help-center',
+    label: 'Help Center',
+    icon: <QuestionCircleIcon size={24} />,
+    path: routes.helpCenter.root,
+    section: 'secondary',
+    isActive: pathname.startsWith('/help-center'),
+  });
 
   baseItems.push({
     id: 'settings',

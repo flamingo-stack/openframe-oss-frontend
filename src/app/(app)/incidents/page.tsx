@@ -28,7 +28,7 @@ export default function IncidentsPage() {
   const view = INCIDENT_TAB_VIEWS[tab];
 
   // Only a definitive "off" 404s: `notFound()` throws, and throwing while the
-  // flags are merely unanswered is unrecoverable (see notifications/page.tsx).
+  // flags are merely unanswered is unrecoverable (see `use-feature-flag.ts`).
   if (gate === 'off') {
     notFound();
   }

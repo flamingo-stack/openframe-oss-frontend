@@ -9,7 +9,6 @@ import { useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { InfoCell } from '@/app/components/shared/info-cell';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -62,7 +61,6 @@ function EmployeeSummarySkeleton() {
 }
 
 export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
-  const timeTrackerEnabled = useFeatureFlag('time-tracker');
   const router = useRouter();
   const { toast } = useToast();
   const handleBack = useSafeBack(routes.settings.employees);
@@ -230,7 +228,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
           </div>
         </div>
       )}
-      {timeTrackerEnabled && <EmployeeWorkTime userId={userId} />}
+      <EmployeeWorkTime userId={userId} />
       <ConfirmDeleteUserModal
         open={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}

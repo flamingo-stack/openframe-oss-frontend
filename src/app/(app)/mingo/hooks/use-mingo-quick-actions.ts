@@ -1,6 +1,5 @@
 'use client';
 
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useAdminAiConfig } from '../../settings/ai-settings/hooks/use-agent-ai-config';
 import { useHubDefaultQuickActions } from '../../settings/ai-settings/hooks/use-hub-default-quick-actions';
 import type { AiQuickAction } from '../../settings/ai-settings/types/ai-settings';
@@ -12,15 +11,11 @@ import type { AiQuickAction } from '../../settings/ai-settings/types/ai-settings
  * defaults fetched from the Product Hub (`agent-mingo` public config via the
  * gateway's `/chat/content/**` proxy); off → the org's customized actions from
  * the tenant BE — the same record the AI Settings "Mingo AI Chat" tab edits.
- * Gated by the same `mingo-ai-chat-settings` flag that gates that tab, so the
- * feature toggles together (and the queries stay idle when off).
  */
 export function useMingoQuickActions(): AiQuickAction[] {
-  const enabled = useFeatureFlag('mingo-ai-chat-settings');
-  const { config } = useAdminAiConfig({ enabled });
+  const { config } = useAdminAiConfig();
   const isDefault = config?.quickActionsIsDefault ?? true;
-  const hubDefaults = useHubDefaultQuickActions('mingo', { enabled: enabled && isDefault });
+  const hubDefaults = useHubDefaultQuickActions('mingo', { enabled: isDefault });
 
-  if (!enabled) return [];
   return isDefault ? hubDefaults.actions : (config?.quickActions ?? []);
 }
