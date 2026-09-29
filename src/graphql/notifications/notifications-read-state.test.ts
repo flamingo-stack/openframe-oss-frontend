@@ -18,15 +18,18 @@ vi.mock('react-relay', async importOriginal => ({
   graphql: () => ({}),
 }));
 
+import { NotificationReadStatus } from '@/generated/schema-enums';
 import { getLiveConnectionPairs, registerLiveConnectionPairs } from './live-connection-pairs';
 import {
   makeDeleteNotificationUpdater,
+  makeMarkAllReadUpdater,
   makeMarkReadUpdater,
   makeReadStateUpdater,
   type NotificationConnectionPair,
   NOTIFICATIONS_CONNECTION_KEY,
   notificationsConnectionFilters,
   type NotificationsConnectionFilters,
+  setReadStatus,
   UNFILTERED_NOTIFICATION_PAIR,
 } from './notifications-helpers';
 
@@ -75,15 +78,35 @@ function seedBuckets(store: RecordSourceSelectorProxy, count: number): void {
   store.getRoot().setLinkedRecords([bucket], 'unreadCountsByCategory');
 }
 
-function seedUnread(store: RecordSourceSelectorProxy, id: string, filters: NotificationsConnectionFilters): void {
+function seedNode(
+  store: RecordSourceSelectorProxy,
+  id: string,
+  filters: NotificationsConnectionFilters,
+  status: NotificationReadStatus,
+  createdAt?: string,
+): void {
   const node = store.get(id) ?? store.create(id, 'Notification');
   node.setValue(id, 'id');
-  node.setValue(false, 'read');
+  if (createdAt) node.setValue(createdAt, 'createdAt');
+  setReadStatus(node, status);
   node.setValue(CATEGORY, 'category');
   const conn = ConnectionHandler.getConnection(store.getRoot(), NOTIFICATIONS_CONNECTION_KEY, filters);
   if (!conn) throw new Error('connection not seeded');
   const edge = ConnectionHandler.createEdge(store, conn, node, 'NotificationEdge');
   ConnectionHandler.insertEdgeBefore(conn, edge);
+}
+
+function seedUnread(
+  store: RecordSourceSelectorProxy,
+  id: string,
+  filters: NotificationsConnectionFilters,
+  createdAt?: string,
+): void {
+  seedNode(store, id, filters, NotificationReadStatus.UNREAD, createdAt);
+}
+
+function seedArchived(store: RecordSourceSelectorProxy, id: string, createdAt: string): void {
+  seedNode(store, id, UNFILTERED_NOTIFICATION_PAIR.read, NotificationReadStatus.ARCHIVED, createdAt);
 }
 
 function nodeIds(environment: Environment, filters: NotificationsConnectionFilters): string[] {
@@ -108,6 +131,14 @@ function unreadCount(environment: Environment): number {
   return count;
 }
 
+function statusOf(environment: Environment, id: string): NotificationReadStatus | undefined {
+  let status: NotificationReadStatus | undefined;
+  update(environment, store => {
+    status = store.get(id)?.getValue('status') as NotificationReadStatus | undefined;
+  });
+  return status;
+}
+
 function isRead(environment: Environment, id: string): boolean | undefined {
   let read: boolean | undefined;
   update(environment, store => {
@@ -125,8 +156,8 @@ describe('a READ event', () => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
       seedBuckets(store, 3);
-      seedUnread(store, 'n-1', UNFILTERED_NOTIFICATION_PAIR.unread);
-      seedUnread(store, 'n-2', UNFILTERED_NOTIFICATION_PAIR.unread);
+      seedUnread(store, 'n-1', UNFILTERED_NOTIFICATION_PAIR.unread, '2026-09-01T00:00:00Z');
+      seedUnread(store, 'n-2', UNFILTERED_NOTIFICATION_PAIR.unread, '2026-09-02T00:00:00Z');
     });
   });
 
@@ -226,5 +257,86 @@ describe('the live connection-pair registry', () => {
 
     unregister();
     expect(getLiveConnectionPairs()).toEqual([UNFILTERED_NOTIFICATION_PAIR]);
+  });
+});
+
+describe('an ARCHIVED notification in history', () => {
+  let environment: Environment;
+
+  beforeEach(() => {
+    environment = makeEnvironment();
+    update(environment, store => {
+      createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
+      createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
+      seedBuckets(store, 1);
+      seedUnread(store, 'n-1', UNFILTERED_NOTIFICATION_PAIR.unread, '2026-09-02T00:00:00Z');
+      seedArchived(store, 'a-1', '2026-09-01T00:00:00Z');
+    });
+  });
+
+  it('turns READ on mark-read, stays in history once, and leaves the bucket alone', () => {
+    update(environment, makeMarkReadUpdater('a-1', [UNFILTERED_NOTIFICATION_PAIR]));
+
+    expect(statusOf(environment, 'a-1')).toBe(NotificationReadStatus.READ);
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.read)).toEqual(['a-1']);
+    expect(unreadCount(environment)).toBe(1);
+  });
+
+  it('turns READ on mark-all, like the backend does', () => {
+    update(environment, makeMarkAllReadUpdater([UNFILTERED_NOTIFICATION_PAIR]));
+
+    expect(statusOf(environment, 'a-1')).toBe(NotificationReadStatus.READ);
+    expect(statusOf(environment, 'n-1')).toBe(NotificationReadStatus.READ);
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.read)).toEqual(['n-1', 'a-1']);
+  });
+});
+
+describe('a card moving into history', () => {
+  let environment: Environment;
+
+  function setHasNextPage(store: RecordSourceSelectorProxy, value: boolean): void {
+    const conn = ConnectionHandler.getConnection(
+      store.getRoot(),
+      NOTIFICATIONS_CONNECTION_KEY,
+      UNFILTERED_NOTIFICATION_PAIR.read,
+    );
+    conn?.getLinkedRecord('pageInfo')?.setValue(value, 'hasNextPage');
+  }
+
+  beforeEach(() => {
+    environment = makeEnvironment();
+    update(environment, store => {
+      createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
+      createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
+      seedBuckets(store, 1);
+      seedArchived(store, 'h-old', '2026-09-10T00:00:00Z');
+      seedArchived(store, 'h-new', '2026-09-20T00:00:00Z');
+    });
+  });
+
+  it('lands at its createdAt position, not on top', () => {
+    update(environment, store => seedUnread(store, 'n-1', UNFILTERED_NOTIFICATION_PAIR.unread, '2026-09-15T00:00:00Z'));
+    update(environment, makeMarkReadUpdater('n-1', [UNFILTERED_NOTIFICATION_PAIR]));
+
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.read)).toEqual(['h-new', 'n-1', 'h-old']);
+  });
+
+  it('stays out while older than every loaded row and more pages remain', () => {
+    update(environment, store => {
+      setHasNextPage(store, true);
+      seedUnread(store, 'n-1', UNFILTERED_NOTIFICATION_PAIR.unread, '2026-09-01T00:00:00Z');
+    });
+    update(environment, makeMarkReadUpdater('n-1', [UNFILTERED_NOTIFICATION_PAIR]));
+
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.read)).toEqual(['h-new', 'h-old']);
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.unread)).toEqual([]);
+    expect(unreadCount(environment)).toBe(0);
+  });
+
+  it('goes last when older than every loaded row and the list is complete', () => {
+    update(environment, store => seedUnread(store, 'n-1', UNFILTERED_NOTIFICATION_PAIR.unread, '2026-09-01T00:00:00Z'));
+    update(environment, makeMarkReadUpdater('n-1', [UNFILTERED_NOTIFICATION_PAIR]));
+
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.read)).toEqual(['h-new', 'h-old', 'n-1']);
   });
 });

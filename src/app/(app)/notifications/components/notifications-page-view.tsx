@@ -10,12 +10,14 @@ import {
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useQueryLoader } from 'react-relay';
+import { commitLocalUpdate, fetchQuery, useQueryLoader, useRelayEnvironment } from 'react-relay';
+import { ConnectionHandler } from 'relay-runtime';
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useSearchParam } from '@/app/hooks/use-search-param';
-import { registerLiveConnectionPairs } from '@/graphql/notifications/live-connection-pairs';
+import { registerLiveConnectionPairs, subscribeReadStatusRefresh } from '@/graphql/notifications/live-connection-pairs';
 import {
+  NOTIFICATIONS_CONNECTION_KEY,
   notificationsConnectionFilters,
   UNFILTERED_NOTIFICATION_PAIR,
 } from '@/graphql/notifications/notifications-helpers';
@@ -24,6 +26,8 @@ import { useNotificationMutations } from '@/graphql/notifications/use-notificati
 import { NOTIFICATIONS_SECTION_PAGE_SIZE, NotificationsSection } from './notifications-section';
 
 const SEARCH_DEBOUNCE_MS = 300;
+// Archiving a ticket sends one live event per notification; coalesce them into one refetch.
+const READ_STATUS_REFRESH_DEBOUNCE_MS = 500;
 
 const NOTIFICATIONS_TABS: TabItem[] = [
   { id: 'new', label: 'New Notifications', icon: BellIcon },
@@ -95,6 +99,41 @@ export function NotificationsPageView() {
   // search-keyed pair it has to be told about, or a card read elsewhere stays in the table.
   useEffect(() => registerLiveConnectionPairs(filterPairs), [filterPairs]);
 
+  // Subscribed at the page, not in the history tab: an archive landing while "New" is open
+  // still moves the card into history, and it must carry its flag when that tab opens.
+  const environment = useRelayEnvironment();
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = subscribeReadStatusRefresh(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const variables = historyQueryRef?.variables;
+        if (!variables) return;
+        // Ask for every row the list holds — paged in, or moved in live while the tab was closed —
+        // so the refetch, which replaces the edges, doesn't shrink it.
+        let loaded = 0;
+        commitLocalUpdate(environment, store => {
+          const filters = { filter: variables.filter, search: variables.search };
+          const conn = ConnectionHandler.getConnection(store.getRoot(), NOTIFICATIONS_CONNECTION_KEY, filters);
+          loaded = conn?.getLinkedRecords('edges')?.length ?? 0;
+        });
+        fetchQuery<NotificationsSectionRelayQueryType>(
+          environment,
+          notificationsSectionRelayQuery,
+          { ...variables, first: Math.max(variables.first, loaded) },
+          { fetchPolicy: 'network-only' },
+        ).subscribe({
+          // Background reconciliation: a failure leaves the row untagged until the next load.
+          error: () => {},
+        });
+      }, READ_STATUS_REFRESH_DEBOUNCE_MS);
+    });
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [environment, historyQueryRef]);
+
   const onMarkAllReadCompleted = useCallback(() => {
     toast({ title: 'All notifications marked as read', variant: 'success' });
   }, [toast]);
@@ -155,6 +194,7 @@ export function NotificationsPageView() {
           searchValue={search}
           onSearchChange={setSearch}
           rowVariant="read"
+          onMarkRead={markRead}
           onDelete={removeNotification}
           actions={historyActions}
         />
