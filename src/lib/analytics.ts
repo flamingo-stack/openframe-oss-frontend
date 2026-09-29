@@ -37,6 +37,7 @@ export const EVENT_SUBTYPE = {
   SEND_MINGO_MESSAGE: 'send_mingo_message_mingo',
   APPROVE_MINGO_COMMAND: 'approve_mingo_command_mingo',
   REJECT_MINGO_COMMAND: 'reject_mingo_command_mingo',
+  RETRY_MINGO_MESSAGE: 'retry_mingo_message_mingo',
   // /tickets/dialog — ticket detail
   OPEN_REMOTE_SHELL: 'open_remote_shell_ticket_detail',
   OPEN_REMOTE_CONTROL: 'open_remote_control_ticket_detail',
