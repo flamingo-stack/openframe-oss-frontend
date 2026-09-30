@@ -48,7 +48,7 @@ export const FEATURE_FLAG_NAMES = [
   // dialog's AI context on demand. Off = the item is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
-  // The Agent Logs tab on device details (CU-86agb21qt); off, "Device Logs" keeps leading to Overview.
+  // The Device Logs tab on device details (CU-86agb21qt); off, "Device Logs" keeps leading to Overview.
   'device-agent-logs',
 ] as const;
 

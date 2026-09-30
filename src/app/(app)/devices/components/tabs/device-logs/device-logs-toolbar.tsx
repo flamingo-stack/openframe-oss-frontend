@@ -20,7 +20,7 @@ import type { DeviceLogLevel } from '@/generated/schema-enums';
 import { DEVICE_LOG_LEVELS, deviceLogLevelVariant } from '../../../utils/device-log-level';
 import { DEVICE_LOG_RANGE_LABELS, DEVICE_LOG_RANGES, type DeviceLogRange } from '../../../utils/device-log-time';
 
-interface AgentLogsToolbarProps {
+interface DeviceLogsToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
   /** Why the typed text is not applied; shown under the box. */
@@ -42,7 +42,7 @@ interface AgentLogsToolbarProps {
 }
 
 /** Figma 696:38908: search + Auto-Update, then level chips, the range and Refresh. Outside the list's Suspense so the search box keeps focus. */
-export function AgentLogsToolbar({
+export function DeviceLogsToolbar({
   search,
   onSearchChange,
   searchError,
@@ -58,7 +58,7 @@ export function AgentLogsToolbar({
   onRefresh,
   isRefreshing,
   disabled = false,
-}: AgentLogsToolbarProps) {
+}: DeviceLogsToolbarProps) {
   const chipKeyDown = (level: DeviceLogLevel) => (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -72,7 +72,7 @@ export function AgentLogsToolbar({
         <div className="min-w-0 flex-1">
           <Input
             placeholder="Search for Log"
-            aria-label="Search agent logs"
+            aria-label="Search device logs"
             value={search}
             onChange={event => onSearchChange(event.target.value)}
             startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
@@ -81,7 +81,7 @@ export function AgentLogsToolbar({
           />
         </div>
         <CheckboxBlock
-          id="agent-logs-auto-update"
+          id="device-logs-auto-update"
           label="Auto-Update"
           checked={autoUpdate}
           onCheckedChange={onAutoUpdateChange}
