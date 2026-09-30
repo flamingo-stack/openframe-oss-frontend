@@ -3,9 +3,9 @@
 import { CheckIcon, Chevron01RightIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { agentLogRow_entry$key } from '@/__generated__/agentLogRow_entry.graphql';
+import { useCollapsePhase } from '@/app/hooks/use-collapse-phase';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { formatLogTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
@@ -41,7 +41,8 @@ function MetaLine({ label, value }: { label: string; value: string }) {
 /** One log line: time · level · message, opening to the full message, the raw instants, the hostname and Copy. */
 export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
   const data = useFragment(agentLogRowFragment, entry);
-  const [expanded, setExpanded] = useState(false);
+  const { phase, toggle, collapsed } = useCollapsePhase();
+  const expanded = phase === 'opening' || phase === 'open';
   const { copy, copied } = useCopyToClipboard({ successDescription: 'Log line copied' });
 
   const level = data.level.trim().toUpperCase();
@@ -51,8 +52,8 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
     // overflow-hidden: the header's hover fill takes the row's own corners, flush with the body when open.
     <li
       className={cn(
-        'overflow-hidden rounded-md border border-transparent',
-        expanded && 'border-ods-border bg-ods-card',
+        'overflow-hidden rounded-md border border-transparent transition-colors duration-200 motion-reduce:transition-none',
+        phase === 'open' && 'border-ods-border bg-ods-card',
       )}
     >
       <Button
@@ -61,7 +62,7 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
         font="regular"
         fullWidth
         aria-expanded={expanded}
-        onClick={() => setExpanded(open => !open)}
+        onClick={toggle}
         className={cn('justify-start rounded-none text-left focus-visible:ring-inset', AGENT_LOG_LINE)}
       >
         <span className={cn(AGENT_LOG_TIME_COLUMN, 'shrink-0 tabular-nums text-ods-text-secondary text-code')}>
@@ -90,27 +91,45 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
           )}
         />
       </Button>
-      {expanded && (
-        <div className="flex flex-col gap-[var(--spacing-system-xs)] px-[var(--spacing-system-xs)] pb-[var(--spacing-system-xs)]">
-          <p className="whitespace-pre-wrap text-ods-text-primary text-code [overflow-wrap:anywhere]">{data.message}</p>
-          <dl className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <MetaLine label="received" value={data.timestamp} />
-            {data.agentTimestamp != null && <MetaLine label="agent_ts" value={data.agentTimestamp} />}
-            {data.hostname && <MetaLine label="hostname" value={data.hostname} />}
-          </dl>
-          <div>
-            <Button
-              variant="outline"
-              size="small"
-              leftIcon={
-                copied ? <CheckIcon className="text-ods-success" /> : <Copy02Icon className="text-ods-text-secondary" />
-              }
-              onClick={() => {
-                void copy(data.message);
-              }}
-            >
-              Copy
-            </Button>
+      {phase !== null && (
+        <div
+          className={cn(
+            'grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',
+            phase === 'open' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+          )}
+          onTransitionEnd={event => {
+            if (event.target === event.currentTarget && phase === 'closing') collapsed();
+          }}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="flex flex-col gap-[var(--spacing-system-xs)] px-[var(--spacing-system-xs)] pb-[var(--spacing-system-xs)]">
+              <p className="whitespace-pre-wrap text-ods-text-primary text-code [overflow-wrap:anywhere]">
+                {data.message}
+              </p>
+              <dl className="flex flex-col gap-[var(--spacing-system-xxs)]">
+                <MetaLine label="received" value={data.timestamp} />
+                {data.agentTimestamp != null && <MetaLine label="agent_ts" value={data.agentTimestamp} />}
+                {data.hostname && <MetaLine label="hostname" value={data.hostname} />}
+              </dl>
+              <div>
+                <Button
+                  variant="outline"
+                  size="small"
+                  leftIcon={
+                    copied ? (
+                      <CheckIcon className="text-ods-success" />
+                    ) : (
+                      <Copy02Icon className="text-ods-text-secondary" />
+                    )
+                  }
+                  onClick={() => {
+                    void copy(data.message);
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}
