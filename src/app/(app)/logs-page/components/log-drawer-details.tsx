@@ -5,7 +5,7 @@ import { Component, type ReactNode, Suspense } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { logDrawerDetails_log$key } from '@/__generated__/logDrawerDetails_log.graphql';
 import type { logDrawerDetailsQuery as LogDrawerDetailsQueryType } from '@/__generated__/logDrawerDetailsQuery.graphql';
-import { getErrorMessage } from '@/lib/handle-api-error';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { formatLogDetailsRefForCopy } from '../utils/format-log-details';
 
 /** The composite key `logDetails` takes; the row carries it, the full log does not ride along. */
@@ -106,7 +106,13 @@ export function LogDrawerDetails({ log, fallback }: LogDrawerDetailsProps) {
     <LogDrawerDetailsErrorBoundary
       key={`${toolEventId}:${timestamp}`}
       fallback={fallback}
-      onError={error => toast({ title: 'Error', description: getErrorMessage(error), variant: 'destructive' })}
+      onError={error =>
+        toast({
+          title: 'Error',
+          description: getRelayErrorMessage(error, 'Failed to load log details'),
+          variant: 'destructive',
+        })
+      }
     >
       <Suspense fallback={<LogDrawerDetailsSkeleton />}>
         <LogDrawerDetailsContent

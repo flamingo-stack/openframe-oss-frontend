@@ -8,7 +8,7 @@ import { fetchQuery, graphql, useFragment, useRelayEnvironment } from 'react-rel
 import type { logCopyButton_log$key } from '@/__generated__/logCopyButton_log.graphql';
 import type { logCopyButtonQuery as LogCopyButtonQueryType } from '@/__generated__/logCopyButtonQuery.graphql';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
-import { getErrorMessage } from '@/lib/handle-api-error';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { formatLogDetailsRefForCopy } from '../utils/format-log-details';
 
 /** The composite key `logDetails` takes — the row carries it, the full log does not ride along. */
@@ -70,7 +70,11 @@ export function LogCopyButton({ log }: { log: logCopyButton_log$key }) {
         await copy(formatLogDetailsRefForCopy(data.logDetails));
       }
     } catch (error) {
-      toast({ title: 'Error fetching log details', description: getErrorMessage(error), variant: 'destructive' });
+      toast({
+        title: 'Error fetching log details',
+        description: getRelayErrorMessage(error, 'Failed to fetch log details'),
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
