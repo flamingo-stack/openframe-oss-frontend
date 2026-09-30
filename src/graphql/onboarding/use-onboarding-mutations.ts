@@ -11,6 +11,7 @@ import type { completeUserOnboardingStepMutation as CompleteUserStepType } from 
 import type { resetUserOnboardingMutation as ResetUserType } from '@/__generated__/resetUserOnboardingMutation.graphql';
 import type { skipUserOnboardingMutation as SkipUserType } from '@/__generated__/skipUserOnboardingMutation.graphql';
 import type { TenantOnboardingStep, UserOnboardingStep } from '@/generated/schema-enums';
+import type { Instant } from '@/lib/graphql-scalars';
 import {
   type TenantOnboardingProgress,
   type UserOnboardingProgress,
@@ -23,8 +24,8 @@ import { completeUserOnboardingStepMutation } from './complete-user-onboarding-s
 import { resetUserOnboardingMutation } from './reset-user-onboarding-mutation';
 import { skipUserOnboardingMutation } from './skip-user-onboarding-mutation';
 
-type TenantPayload = { completedSteps: readonly string[]; completed: boolean; completedAt: string | null };
-type UserPayload = TenantPayload & { skipped: boolean; skippedAt: string | null };
+type TenantPayload = { completedSteps: readonly string[]; completed: boolean; completedAt?: Instant | null };
+type UserPayload = TenantPayload & { skipped: boolean; skippedAt?: Instant | null };
 
 function toTenant(payload: TenantPayload): TenantOnboardingProgress {
   return {

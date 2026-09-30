@@ -50,12 +50,12 @@ import {
 import {
   formatDurationLabel,
   makeDeleteTimeEntryUpdater,
-  parseInstant,
   subscribeTimeEntriesChanged,
   toInstantRange,
   toOrganizationGlobalId,
 } from '@/graphql/time-tracker/time-tracker-helpers';
 import { formatDate } from '@/lib/format-date';
+import type { Instant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
 
@@ -89,7 +89,7 @@ function rangeFromParams(from: string, to: string): DateRange | undefined {
 interface WorkTimeRow {
   id: string;
   durationSeconds: number;
-  startedAt: unknown;
+  startedAt: Instant;
   ticketId: string | null;
   ticketNumber: number | null;
   ticketTitle: string | null;
@@ -110,8 +110,8 @@ interface WorkTimeRow {
 interface WorkTimeFilter {
   employeeIds: string[] | null;
   organizationIds: string[] | null;
-  startedFrom: string | null;
-  startedTo: string | null;
+  startedFrom: Instant | null;
+  startedTo: Instant | null;
 }
 
 interface QueryVars {
@@ -160,7 +160,7 @@ const timeColumn: ColumnDef<WorkTimeRow> = {
       <span className="font-mono text-ods-text-primary text-h4">
         {formatDurationLabel(row.original.durationSeconds)}
       </span>
-      <span className="text-ods-text-secondary text-h6">{formatDate(parseInstant(row.original.startedAt))}</span>
+      <span className="text-ods-text-secondary text-h6">{formatDate(row.original.startedAt)}</span>
     </div>
   ),
   enableSorting: false,
@@ -705,8 +705,8 @@ export function WorkTimeTable({
           deleteTarget ? (
             <>
               <span className="text-ods-error">{formatDurationLabel(deleteTarget.durationSeconds)}</span> logged on{' '}
-              <span className="text-ods-error">{formatDate(parseInstant(deleteTarget.startedAt))}</span> will be
-              permanently removed and subtracted from totals.
+              <span className="text-ods-error">{formatDate(deleteTarget.startedAt)}</span> will be permanently removed
+              and subtracted from totals.
             </>
           ) : null
         }
