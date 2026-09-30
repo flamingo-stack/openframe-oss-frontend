@@ -17,8 +17,15 @@ const DIALOG_LOOKUP_STALE_MS = 30 * 1000;
  * Only the statuses the drawer can show: an archived chat would leave the
  * button pointing at a conversation the drawer refuses.
  *
- * `/chat/graphql` is the ai-agent (raw POST by design, see the Data Fetching
- * Strategy). Every failure — transport, or a GraphQL error envelope such as an
+ * LEGACY EXCEPTION (OPENFRAM-002-2): unlike the rest of this feature area,
+ * this hook talks to the ai-agent's `/chat/graphql` endpoint, which is a
+ * distinct GraphQL service from the one react-relay's Environment is wired
+ * to. Until that service is exposed through the Relay environment (or a
+ * dedicated Relay network layer is stood up for it), this raw POST via
+ * apiClient + @tanstack/react-query is kept as an explicit, documented
+ * exception rather than introducing an ad hoc second Relay environment here.
+ *
+ * Every failure — transport, or a GraphQL error envelope such as an
  * ai-agent that does not know the `insightId` filter yet — answers null
  * without a toast, deliberately: the button then offers a fresh chat, which is
  * the right fallback, and the header must not fall over because the chat

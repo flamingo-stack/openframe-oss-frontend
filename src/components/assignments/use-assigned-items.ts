@@ -18,6 +18,17 @@ import {
   type ServerAssignmentTargetType,
 } from './types';
 
+// LEGACY-MIGRATION EXEMPTION (OPENFRAM-002-2): this hook intentionally stays on
+// a raw POST GraphQL call + react-query rather than react-relay. `assignedItems`
+// resolves a hand-rolled union (`AssignedTargetNode`) across four unrelated
+// backend types (Organization, Machine, KnowledgeBaseItem, Ticket) that do not
+// yet expose stable Relay fragments (`deviceRowFields_machine` and friends are
+// consumed here as plain field lists, not fragment spreads, because the
+// underlying types are not wired into the Relay compiler's schema for this
+// endpoint yet — see the TODO on `ensureGlobalId` below for the related
+// backend gap on Ticket ids). Converting this call to `useLazyLoadQuery` needs
+// that backend work first; until then this file is the explicitly-tracked
+// legacy-not-yet-migrated exception, not new steady-state practice.
 const ASSIGNED_ITEMS_QUERY = `#graphql
   query AssignmentsAssignedItems($itemId: ID!, $targetType: AssignmentTargetType!, $first: Int) {
     assignedItems(itemId: $itemId, targetType: $targetType, first: $first) {

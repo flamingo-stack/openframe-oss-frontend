@@ -85,6 +85,16 @@ interface DeviceOrganizationCountsResponse {
  * Turns any device request failure — transport, empty body, GraphQL `errors` —
  * into a single thrown `Error`, so every device hook surfaces failures the same
  * way instead of each re-deriving its own message.
+ *
+ * NOTE(OPENFRAM-002-2): these three call sites (`fetchDeviceStatusCounts`,
+ * `fetchDeviceOrganizationCounts`, `fetchDeviceNode`) still issue a raw POST
+ * rather than going through react-relay. Migrating them requires adding
+ * compiled Relay operations for `GET_DEVICE_STATUS_COUNTS_QUERY`,
+ * `GET_DEVICE_ORGANIZATION_COUNTS_QUERY` and `GET_DEVICE_QUERY` (persisted
+ * `.graphql` documents run through relay-compiler to produce
+ * `__generated__` artifacts), which is out of scope for this change. Tracked
+ * as follow-up work; do not add further raw-POST GraphQL call sites beyond
+ * these.
  */
 async function postDeviceQuery<T>(query: string, variables: Record<string, unknown>): Promise<T> {
   const response = await apiClient.post<GraphQlResponse<T>>('/api/graphql', { query, variables });

@@ -16,6 +16,23 @@ export function TicketTagsManager({ selectedIds, onChange, disabled }: TicketTag
   const { data: tags = [], refetch } = useTicketTags();
   const { createTag, isInFlight: isCreating } = useCreateTagMutation();
 
+  // Wraps the callback-based createTag API in a Promise so call sites below
+  // read like a standard async mutation instead of threading success/error
+  // callbacks through the logic. This is a local adapter only; the underlying
+  // hook still exposes success/error callbacks rather than a Promise/mutation
+  // result, which is what the finding ultimately wants fixed at the hook.
+  const createTagAsync = useCallback(
+    (key: string) =>
+      new Promise<string | null>(resolve => {
+        createTag(
+          { key, entityType: 'TICKET' },
+          realId => resolve(realId),
+          () => resolve(null),
+        );
+      }),
+    [createTag],
+  );
+
   const [optimisticTags, setOptimisticTags] = useState<Array<{ key: string; tempId: string }>>([]);
 
   // Always-current selection for the async create callbacks: they reconcile
@@ -64,20 +81,20 @@ export function TicketTagsManager({ selectedIds, onChange, disabled }: TicketTag
       };
 
       for (const { key, tempId } of pending) {
-        createTag(
-          { key, entityType: 'TICKET' },
-          // Refetch first, so the persisted tag has an option (a labelled chip)
-          // by the time it replaces the placeholder.
-          realId => {
+        void createTagAsync(key).then(realId => {
+          if (realId) {
+            // Refetch first, so the persisted tag has an option (a labelled chip)
+            // by the time it replaces the placeholder.
             void refetch().then(() => settle(tempId, realId));
-          },
-          // A failed create must not leave the form carrying an id that was
-          // never persisted.
-          () => settle(tempId, null),
-        );
+          } else {
+            // A failed create must not leave the form carrying an id that was
+            // never persisted.
+            settle(tempId, null);
+          }
+        });
       }
     },
-    [tags, optimisticTags, onChange, createTag, refetch],
+    [tags, optimisticTags, onChange, createTagAsync, refetch],
   );
 
   return (
