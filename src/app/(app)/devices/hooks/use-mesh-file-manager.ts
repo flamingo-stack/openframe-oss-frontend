@@ -3,6 +3,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MeshCentralFileManager } from '@/lib/meshcentral/file-manager';
 import type { FileConnectionState, FileEntry, FileTransferProgress } from '@/lib/meshcentral/file-manager-types';
+import { FileDeleteError } from '@/lib/meshcentral/file-operations';
 import { MeshControlClient } from '@/lib/meshcentral/meshcentral-control';
 import { convertFileEntriesToItems, sanitizePath } from '../utils/file-manager-utils';
 
@@ -419,13 +420,16 @@ export function useMeshFileManager({
           description: (error as Error).message,
           variant: 'destructive',
         });
-        return;
+        // Anything but a verified failure changed nothing we know of, so the
+        // selection stays for a retry.
+        if (!(error instanceof FileDeleteError)) return;
       }
 
+      // No refresh: fileManager.deleteItems lists the folder itself to check the outcome. After
+      // a verified failure part of the selection may be gone all the same.
       setSelectedFiles([]);
-      refreshCurrentDirectory();
     },
-    [toast, refreshCurrentDirectory],
+    [toast],
   );
 
   const renameItem = useCallback(
