@@ -137,6 +137,8 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     id: AGENT_LOGS_TAB_ID,
     label: 'Agent Logs',
     icon: ClipboardListIcon,
+    // Shipped behind its flag — the same stamp the sidebar puts on flagged modules.
+    badge: 'Beta',
     component: AgentLogsTab,
   },
 ];
