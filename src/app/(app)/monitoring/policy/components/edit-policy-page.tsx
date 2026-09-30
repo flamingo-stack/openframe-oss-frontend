@@ -16,6 +16,7 @@ import { getFleetHostId } from '../../../devices/utils/device-action-utils';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { MonitoringEditSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
+import { useSeedFormOnLoad } from '../../hooks/use-seed-form-on-load';
 import { usePolicies } from '../../hooks/use-policies';
 import { usePolicyDetails } from '../hooks/use-policy-details';
 import { usePolicyDevices } from '../hooks/use-policy-devices';
@@ -104,28 +105,20 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
   const [hasQuery, setHasQuery] = useState(false);
   const [hasName, setHasName] = useState(false);
 
-  // Seeded when the fetched policy arrives (or is replaced), during render rather
-  // than in an effect: an effect renders the empty form once after the data has
-  // landed, which is a visible flash of blank fields on every load.
-  //
-  // `undefined` is a sentinel, NOT the initial value: `policyDetails` is
-  // `Policy | null` and never `undefined`, so the block below also runs on the
-  // FIRST render. Seeding the tracker with the current value instead would skip
-  // it entirely whenever react-query already holds the record — the standard
-  // Policy details -> Edit journey — and the form would open blank.
-  const [seededFrom, setSeededFrom] = useState<typeof policyDetails | undefined>(undefined);
-  if (policyDetails !== seededFrom) {
-    setSeededFrom(policyDetails);
-    if (policyDetails && isExistingPolicy) {
-      reset({
-        name: policyDetails.name,
-        description: policyDetails.description || '',
-        query: policyDetails.query || '',
-      });
-      setHasQuery(!!policyDetails.query?.trim());
-      setHasName(!!policyDetails.name?.trim());
-    }
-  }
+  useSeedFormOnLoad({
+    data: policyDetails,
+    isEnabled: isExistingPolicy,
+    reset,
+    toFormValues: details => ({
+      name: details.name,
+      description: details.description || '',
+      query: details.query || '',
+    }),
+    onSeeded: details => {
+      setHasQuery(!!details.query?.trim());
+      setHasName(!!details.name?.trim());
+    },
+  });
 
   const handleBack = useSafeBack(
     isExistingPolicy && numericId ? routes.monitoring.policy(numericId) : routes.monitoring.root({ tab: 'policies' }),
