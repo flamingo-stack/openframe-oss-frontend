@@ -9,7 +9,11 @@ import { toInvoiceRow } from '../shared/invoice-row';
 import { InvoicesFilterModal } from './invoices-filter-modal';
 import { useInvoicesTable } from './use-invoices-table';
 
-/** The tenant's Stripe history, every entry as the shared row reads it (`invoice-row.ts`). */
+/**
+ * The tenant's Stripe history, every entry as the shared row reads it
+ * (`invoice-row.ts`). `null` when the subscription answered without its
+ * invoices — Stripe could not be reached — which is not the same as none.
+ */
 const invoicesHistoryFragment = graphql`
   fragment invoicesHistory_subscription on SubscriptionDetail {
     pendingInvoices {
@@ -18,12 +22,16 @@ const invoicesHistoryFragment = graphql`
   }
 `;
 
+const INVOICES_UNAVAILABLE_MESSAGE =
+  "Couldn't load the invoices. Try again in a moment, and contact support if this persists.";
+
 export function InvoicesHistory({ subscription }: { subscription: invoicesHistory_subscription$key }) {
   const data = useFragment(invoicesHistoryFragment, subscription);
+  const pendingInvoices = data.pendingInvoices ?? null;
   // Memoized for the table instance, which keys its row model on the rows'
   // identity — the fragment's array is stable between store updates, the mapped
   // one would not be.
-  const invoices = useMemo(() => data.pendingInvoices.map(toInvoiceRow), [data.pendingInvoices]);
+  const invoices = useMemo(() => (pendingInvoices ?? []).map(toInvoiceRow), [pendingInvoices]);
   const {
     table,
     search,
@@ -37,6 +45,17 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
     statusOptions,
   } = useInvoicesTable(invoices);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  // Said under the section's own title, so what failed is named — a page that
+  // silently drops its invoices reads as a tenant that has none.
+  if (pendingInvoices == null) {
+    return (
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <h2 className="text-ods-text-primary text-h2">Invoices History</h2>
+        <p className="text-ods-error text-h6">{INVOICES_UNAVAILABLE_MESSAGE}</p>
+      </div>
+    );
+  }
 
   if (invoices.length === 0) return null;
 

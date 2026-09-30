@@ -124,50 +124,71 @@ function UnpaidInvoicesContent() {
     },
   );
 
+  // `null` when the subscription answered without its invoices (Stripe could
+  // not be reached): the workspace is still suspended, but there is nothing to
+  // list and nothing to open — which is a different screen from "none owed".
+  const pendingInvoices = data.subscription?.pendingInvoices ?? null;
   const invoices = useMemo(
-    () => (data.subscription?.pendingInvoices ?? []).map(toInvoiceRow).filter(isOutstandingInvoice).sort(byOldestFirst),
-    [data],
+    () => (pendingInvoices ? pendingInvoices.map(toInvoiceRow).filter(isOutstandingInvoice).sort(byOldestFirst) : null),
+    [pendingInvoices],
   );
 
+  if (invoices == null) return <SuspendedWorkspaceMain invoices={null} unavailable />;
   return <SuspendedWorkspaceMain invoices={invoices} />;
 }
 
-/**
- * `null` while the invoices are on their way — the copy is already true then,
- * and the CTA renders as itself, disabled. Reusing the real controls rather than
- * grey bars is the app-wide loading convention.
- */
-function SuspendedWorkspaceMain({ invoices }: { invoices: readonly InvoiceRow[] | null }) {
-  const loading = invoices == null;
-  // The oldest outstanding invoice — the one the suspension counts from, and so
-  // the one the single big CTA opens. Every other one is still reachable from
-  // its own row.
-  const oldest = invoices?.[0] ?? null;
-  const nothingOutstanding = !loading && invoices.length === 0;
+interface SuspendedWorkspaceMainProps {
+  /**
+   * `null` while the invoices are on their way — the copy is already true then,
+   * and the CTA renders as itself, disabled. Reusing the real controls rather
+   * than grey bars is the app-wide loading convention.
+   */
+  invoices: readonly InvoiceRow[] | null;
+  /** The invoices could not be loaded at all: say so, and offer the support form the shell carries. */
+  unavailable?: boolean;
+}
+
+function SuspendedWorkspaceMain({ invoices, unavailable = false }: SuspendedWorkspaceMainProps) {
+  const loading = invoices == null && !unavailable;
+  // The oldest outstanding invoice with a payment link — the suspension counts
+  // from the oldest, and an invoice Stripe has not finalized has no link yet,
+  // so the single big CTA opens the oldest one that can actually be paid. Every
+  // other one is still reachable from its own row.
+  const payUrl = invoices?.find(invoice => invoice.hostedInvoiceUrl)?.hostedInvoiceUrl ?? null;
+  const nothingOutstanding = invoices != null && invoices.length === 0;
+  const nothingPayable = invoices != null && invoices.length > 0 && payUrl == null;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[var(--spacing-system-xl)]">
       <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)] text-center">
         <h1 className="text-ods-text-primary text-h2">{TITLE}</h1>
         <p className="text-ods-text-secondary text-h4">
-          {nothingOutstanding
-            ? "This workspace's access is paused and we can't find an open invoice to settle. Contact support and we'll sort it out."
-            : "The invoice wasn't paid within 30 days, so access to OpenFrame has been paused. Pay the outstanding balance to restore access instantly."}
+          {unavailable
+            ? INVOICES_UNAVAILABLE_COPY.description
+            : nothingOutstanding
+              ? "This workspace's access is paused and we can't find an open invoice to settle. Contact support and we'll sort it out."
+              : "The invoice wasn't paid within 30 days, so access to OpenFrame has been paused. Pay the outstanding balance to restore access instantly."}
         </p>
       </div>
 
-      {!nothingOutstanding && (
+      {!unavailable && !nothingOutstanding && (
         <>
           <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)]">
-            {loading ? (
+            {loading || invoices == null ? (
               <OutstandingInvoiceRowPlaceholder />
             ) : (
               invoices.map(invoice => <OutstandingInvoiceRow key={invoice.id} invoice={invoice} />)
             )}
           </div>
 
+          {nothingPayable && (
+            <p className="text-ods-error text-h6">
+              These invoices have no payment link yet. Contact support to settle them.
+            </p>
+          )}
+
           <Button
-            {...(oldest ? { href: oldest.hostedInvoiceUrl, openInNewTab: true } : { disabled: true })}
+            {...(payUrl ? { href: payUrl, openInNewTab: true } : { disabled: true })}
             rightIcon={<ExternalLinkIcon />}
           >
             Pay Invoice
@@ -180,6 +201,7 @@ function SuspendedWorkspaceMain({ invoices }: { invoices: readonly InvoiceRow[] 
 
 function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow }) {
   const overdue = isOverdue(invoice);
+  const name = invoice.invoiceNumber ? `invoice ${invoice.invoiceNumber}` : 'invoice';
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] sm:h-20 sm:flex-row sm:items-center sm:py-0">
@@ -191,12 +213,12 @@ function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow }) {
       <InvoiceCell caption="Status">
         <Tag variant={overdue ? 'error' : 'warning'} label={overdue ? 'Overdue' : 'Unpaid'} />
       </InvoiceCell>
+      {/* No link before Stripe finalizes the invoice: the control stays, disabled, so the row keeps its shape. */}
       <Button
         variant="outline"
         size="icon"
-        href={invoice.hostedInvoiceUrl}
-        openInNewTab
-        aria-label={`Open invoice ${invoice.invoiceNumber ?? ''}`.trim()}
+        {...(invoice.hostedInvoiceUrl ? { href: invoice.hostedInvoiceUrl, openInNewTab: true } : { disabled: true })}
+        aria-label={invoice.hostedInvoiceUrl ? `Open ${name}` : `This ${name} has no payment link yet`}
       >
         <ExternalLinkIcon />
       </Button>

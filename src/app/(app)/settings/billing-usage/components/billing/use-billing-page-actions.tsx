@@ -121,10 +121,14 @@ export function useBillingPageActions({
    */
   const planOffered = !isPendingCancellation && !needsCheckout;
 
-  // Stripe hosts the invoice; the newest outstanding one is the one to settle.
+  // Stripe hosts the invoice; the newest one with a payment link is the one to
+  // settle. The list is null when the subscription answered without its
+  // invoices, and an entry has no link before Stripe finalizes it — either way
+  // there is nothing to open, and the button falls back to the plan below.
   const latestPendingInvoiceUrl =
-    [...data.pendingInvoices].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
-      ?.hostedInvoiceUrl ?? null;
+    [...(data.pendingInvoices ?? [])]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .find(invoice => invoice.hostedInvoiceUrl)?.hostedInvoiceUrl ?? null;
 
   const menuActions: ActionsMenuGroup[] = [
     {

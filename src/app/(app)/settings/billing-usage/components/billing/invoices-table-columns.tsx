@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  Button,
   type ColumnDef,
   type DataTableFilterOption,
   type Row,
@@ -153,15 +154,22 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
       id: 'actions',
       cell: ({ row }: { row: Row<InvoiceRow> }) => (
         <div data-no-row-click className="pointer-events-auto flex justify-end">
-          <a
-            href={row.original.hostedInvoiceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open invoice"
-            className="flex items-center justify-center rounded-md border border-ods-border bg-ods-card p-3 text-ods-text-secondary transition-colors hover:text-ods-text-primary"
-          >
-            <ExternalLinkIcon className="size-6" />
-          </a>
+          {/* No link before Stripe finalizes the invoice: the control stays, disabled, so the column keeps its shape. */}
+          {row.original.hostedInvoiceUrl ? (
+            <a
+              href={row.original.hostedInvoiceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open invoice"
+              className="flex items-center justify-center rounded-md border border-ods-border bg-ods-card p-3 text-ods-text-secondary transition-colors hover:text-ods-text-primary"
+            >
+              <ExternalLinkIcon className="size-6" />
+            </a>
+          ) : (
+            <Button variant="outline" size="icon" disabled aria-label="This invoice has no payment link yet">
+              <ExternalLinkIcon className="size-6" />
+            </Button>
+          )}
         </div>
       ),
       enableSorting: false,
