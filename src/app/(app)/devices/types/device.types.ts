@@ -1,3 +1,5 @@
+import type { Instant } from '@/lib/graphql-scalars';
+
 /**
  * Unified Device types - Single source of truth
  * All fields at root level, no nesting
@@ -383,7 +385,7 @@ export type DeviceGraphQlNode = {
     description?: string;
     color?: string;
     values: string[];
-    createdAt?: string;
+    createdAt?: Instant;
   }>;
   toolConnections?: ToolConnection[];
   installedAgents?: InstalledAgent[];

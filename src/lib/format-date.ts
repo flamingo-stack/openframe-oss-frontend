@@ -1,4 +1,5 @@
 import { EMPTY_VALUE } from './empty-value';
+import { parseInstant, parseLocalDate } from './graphql-scalars';
 
 type DateInput = string | number | Date;
 
@@ -10,6 +11,8 @@ type DateInput = string | number | Date;
  */
 export function toValidDate(input: DateInput | null | undefined): Date | null {
   if (input == null || input === '') return null;
+  // A `Date` scalar is a local day; every other string the API sends is an instant.
+  if (typeof input === 'string') return parseLocalDate(input) ?? parseInstant(input);
   const date = input instanceof Date ? input : new Date(input);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -37,3 +40,14 @@ export const formatDateTime = (input: DateInput | null | undefined): string => {
   const date = toValidDate(input);
   return date ? `${dateFmt.format(date)} ${timeFmt.format(date)}` : EMPTY_VALUE;
 };
+
+// Fixed-width 24-hour time with milliseconds, so log lines align in a column.
+const logTimeFmt = new Intl.DateTimeFormat(undefined, {
+  hourCycle: 'h23',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  fractionalSecondDigits: 3,
+});
+
+export const formatLogTime = (input: DateInput | null | undefined): string => format(input, logTimeFmt);

@@ -44,9 +44,9 @@ afterEach(() => {
   container.remove();
 });
 
-function renderChip(href: string) {
+function renderChip(href: string, onOpen?: () => void) {
   act(() => {
-    root.render(<MentionTag label="app-server-03" href={href} />);
+    root.render(<MentionTag label="app-server-03" href={href} onOpen={onOpen} />);
   });
   const anchor = container.querySelector('a');
   if (!anchor) throw new Error('chip rendered no anchor');
@@ -80,6 +80,22 @@ describe('MentionTag click', () => {
     const event = primaryClick(anchor);
 
     expect(event.defaultPrevented).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+    expect(useMingoLauncherStore.getState()).toMatchObject({ isOpen: true, closedForNavigation: false });
+  });
+
+  it('hands a primary click to onOpen instead of navigating, drawer intact, no new tab', () => {
+    // Desktop web, where a plain chip would open a tab: an in-place target
+    // must not, whatever the window policy says.
+    sameWindow = false;
+    const onOpen = vi.fn();
+    const anchor = renderChip('/dashboard?mingoDialog=d-1', onOpen);
+    expect(anchor.getAttribute('target')).toBeNull();
+
+    const event = primaryClick(anchor);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(onOpen).toHaveBeenCalledTimes(1);
     expect(push).not.toHaveBeenCalled();
     expect(useMingoLauncherStore.getState()).toMatchObject({ isOpen: true, closedForNavigation: false });
   });

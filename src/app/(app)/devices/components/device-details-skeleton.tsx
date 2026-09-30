@@ -19,6 +19,7 @@ import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-s
 import { DEVICE_TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
 import { PoliciesTable, type PolicyTableRow, QueriesTable, type QueryTableRow } from '@/app/components/shared';
 import { DeviceAddedByCellSkeleton } from './device-added-by-cell';
+import { AgentLogsTabSkeleton } from './tabs/agent-logs/agent-logs-skeleton';
 import { REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS } from './tabs/device-tab-columns';
 import { useDeviceTabs } from './tabs/device-tabs';
 import { SoftwareTabSkeleton } from './tabs/software-tab';
@@ -587,6 +588,8 @@ function getTabSkeleton(activeTab: string) {
       return <QueriesTabSkeleton />;
     case 'tickets':
       return <TicketsTabSkeleton />;
+    case 'agent-logs':
+      return <AgentLogsTabSkeleton />;
     case 'remote-sessions':
       return <TableTabSkeleton columns={REMOTE_SESSIONS_TAB_COLUMNS} placeholder="Search for Remote Session" />;
     case 'incidents':
