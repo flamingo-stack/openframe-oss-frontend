@@ -143,7 +143,7 @@ export function AgentLogsToolbar({
             aria-label="Refresh logs"
             onClick={onRefresh}
             disabled={disabled || isRefreshing}
-            leftIcon={<Refresh01RightIcon />}
+            leftIcon={<Refresh01RightIcon className="text-ods-text-secondary" />}
             className="shrink-0"
           />
         </div>

@@ -96,7 +96,9 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
             <Button
               variant="outline"
               size="small"
-              leftIcon={copied ? <CheckIcon className="text-ods-success" /> : <Copy02Icon />}
+              leftIcon={
+                copied ? <CheckIcon className="text-ods-success" /> : <Copy02Icon className="text-ods-text-secondary" />
+              }
               onClick={() => {
                 void copy(data.message);
               }}
