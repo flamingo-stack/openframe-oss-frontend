@@ -425,7 +425,7 @@ export class TicketService implements TicketServiceInterface {
 
     if (!response.ok) {
       console.error(`Failed to fetch ${chatType} chunks:`, response.status);
-      return [];
+      throw new Error(response.error || `Failed to fetch ${chatType} chunks (${response.status})`);
     }
 
     return response.data || [];
