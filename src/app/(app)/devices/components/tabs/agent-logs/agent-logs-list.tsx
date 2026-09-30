@@ -147,12 +147,14 @@ export function AgentLogsList({
           {days.map(day => (
             <section key={day.key} className="flex flex-col gap-[var(--spacing-system-xxs)]">
               <div className="flex items-center gap-[var(--spacing-system-xs)] pb-[var(--spacing-system-xxs)] pt-[var(--spacing-system-s)]">
-                <span className="text-ods-text-secondary text-h5">{formatDate(day.date)}</span>
+                <h3 className="uppercase text-ods-text-secondary text-h5">{formatDate(day.date)}</h3>
                 <span aria-hidden="true" className="h-px flex-1 bg-ods-border" />
               </div>
-              {day.rows.map(row => (
-                <AgentLogRow key={row.key} entry={row.item.node} deviceHostname={deviceHostname} />
-              ))}
+              <ul className="flex flex-col gap-[var(--spacing-system-xxs)]">
+                {day.rows.map(row => (
+                  <AgentLogRow key={row.key} entry={row.item.node} deviceHostname={deviceHostname} />
+                ))}
+              </ul>
             </section>
           ))}
         </div>

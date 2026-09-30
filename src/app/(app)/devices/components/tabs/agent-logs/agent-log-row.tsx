@@ -48,7 +48,7 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
   const time = formatLogTime(data.timestamp);
 
   return (
-    <div className={cn('rounded-md border border-transparent', expanded && 'border-ods-border bg-ods-card')}>
+    <li className={cn('rounded-md border border-transparent', expanded && 'border-ods-border bg-ods-card')}>
       <Button
         variant="transparent"
         size="wrap"
@@ -108,6 +108,6 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
           </div>
         </div>
       )}
-    </div>
+    </li>
   );
 }
