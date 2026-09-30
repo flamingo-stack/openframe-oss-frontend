@@ -264,6 +264,7 @@ Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query 
 - **Knowledge Base** (`/knowledge-base`) — Articles/folders (fully Relay)
 - **Help Center** (`/help-center/*`) — Content pages via core-lib `help-center-pages`
 - **Worktime** (`/worktime`) — Time entries
+- **Cloud Tenant Management** (`/cloud-tenant-management/*`) — Microsoft 365 / Google Workspace directory connections (sidebar item "Integrations"; flag `tenant-management`)
 - **Notifications** (`/notifications`) — Relay reference implementation
 - **Settings** (`/settings/*`) — ai-settings, api-keys, architecture (OSS-only), billing-usage (flag `billings`), employees, sso
 - **Checkout** (`/checkout/success|cancel`) — Stripe checkout result pages
@@ -531,7 +532,8 @@ Rules for anything automatic (heartbeats, registrations, telemetry, hydrators):
 - Environment/provider: `src/lib/relay/` (singleton, cookie auth + 401 refresh, mounted in root layout above all other providers)
 - Run `npm run relay` after adding/changing any `graphql\`...\`` tag (`npm run build` also runs it)
 - Operation names MUST be prefixed with the camelCased file name (e.g. `unread-counts-relay.ts` → `unreadCountsRelayQuery`)
-- **Enum / scalar types come from `@/generated/schema-enums`, NEVER from a query's Relay artifact.** `src/generated/schema-enums.ts` is generated from `schema.graphql` by `npm run generate-enums` (Prisma-style: the same name is both a `const` value and a `type`, so `ScriptShell.CMD` and `const s: ScriptShell` both work). Do NOT `import type { ScriptShell } from '@/__generated__/<someQuery>.graphql'` — relay-compiler owns `src/__generated__/`, re-emits per-operation copies, and prunes them, so those imports are unstable. Refresh the SDL with `npm run fetch-schema`, then `npm run generate-enums`.
+- **Custom scalars are typed through `customScalarTypes` in `relay.config.json` and owned by `src/lib/graphql-scalars.ts`.** `Instant` and `Date` are branded strings (`Instant`, `LocalDate`), `Long` is `number`, `JSON` is `unknown`; `requireCustomScalarTypes` makes a new scalar without a mapping a compile error. Read an `Instant` through `parseInstant` / the `format-date` formatters (Java prints up to nine fraction digits; `Date` reads three), a `Date` through `parseLocalDate` (a local day; `new Date('yyyy-MM-dd')` would put it at UTC midnight), and build an `Instant` through `toInstant(date)` / `asInstant(string)` — never `new Date(x).toISOString()` into a variable, never `String(x)` out of a fragment. A hand-written type that mirrors a wire field carries the scalar type, not `string` or `unknown`.
+- **Enum types come from `@/generated/schema-enums`, NEVER from a query's Relay artifact.** `src/generated/schema-enums.ts` is generated from `schema.graphql` by `npm run generate-enums` (Prisma-style: the same name is both a `const` value and a `type`, so `ScriptShell.CMD` and `const s: ScriptShell` both work). Do NOT `import type { ScriptShell } from '@/__generated__/<someQuery>.graphql'` — relay-compiler owns `src/__generated__/`, re-emits per-operation copies, and prunes them, so those imports are unstable. Refresh the SDL with `npm run fetch-schema`, then `npm run generate-enums`.
 
 **Reference implementations** (notifications domain, fully on Relay):
 - `src/graphql/notifications/` — query/fragment/mutation definitions, connection updaters via `ConnectionHandler`

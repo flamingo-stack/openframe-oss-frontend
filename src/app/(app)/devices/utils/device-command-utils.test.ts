@@ -7,9 +7,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildInstallCommand,
+  buildRegisterCommand,
   buildUninstallCommand,
+  isInstallMethodEnabled,
   MACHINE_ID_HEADER,
   newDownloadMachineId,
+  PACKAGE_MANAGER_METHODS,
 } from './device-command-utils';
 
 const BASE = 'https://tenant.example.com';
@@ -92,5 +95,25 @@ describe('buildUninstallCommand', () => {
     expect(buildUninstallCommand({ platform: 'darwin', downloadBaseUrl: BASE, machineId: MACHINE_ID })).toBe(
       `${MAC_DOWNLOAD} && sudo ./openframe-client uninstall`,
     );
+  });
+});
+
+describe('package manager install methods', () => {
+  it('offers the script and Chocolatey, and keeps the unpublished packages disabled', () => {
+    expect(isInstallMethodEnabled('script')).toBe(true);
+    expect(isInstallMethodEnabled('chocolatey')).toBe(true);
+    expect(isInstallMethodEnabled('winget')).toBe(false);
+    expect(isInstallMethodEnabled('brew')).toBe(false);
+  });
+
+  it('installs the Chocolatey package under its published name', () => {
+    expect(PACKAGE_MANAGER_METHODS.chocolatey.installCommand).toBe('choco install openframe-client -y');
+  });
+
+  it('registers through the installed openframe-client binary', () => {
+    const options = { serverUrl: 'tenant.example.com', initialKey: 'key', orgId: 'org', userId: 'user' };
+    const args = 'openframe-client auth --serverUrl tenant.example.com --initialKey key --orgId org --userId user';
+    expect(buildRegisterCommand({ platform: 'windows', ...options })).toBe(args);
+    expect(buildRegisterCommand({ platform: 'darwin', ...options })).toBe(`sudo ${args}`);
   });
 });

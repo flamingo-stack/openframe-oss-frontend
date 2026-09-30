@@ -1,5 +1,6 @@
 import type { DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { endOfDay, format, parse, startOfDay } from 'date-fns';
+import { type Instant, toInstant } from './graphql-scalars';
 
 // Day-granular date filter <-> URL param (local yyyy-MM-dd), shared by the
 // table date filters (Logs, Customers).
@@ -24,12 +25,12 @@ export function dateRangeFromParams(dateFrom: string, dateTo: string): DateRange
  * filter; a single picked day (no `to`) covers that one day.
  */
 export function dateRangeToInstantBounds(range: DateRange | undefined): {
-  from?: string;
-  to?: string;
+  from?: Instant;
+  to?: Instant;
 } {
   const upperBoundDay = range?.to ?? range?.from;
   return {
-    from: range?.from ? startOfDay(range.from).toISOString() : undefined,
-    to: upperBoundDay ? endOfDay(upperBoundDay).toISOString() : undefined,
+    from: range?.from ? toInstant(startOfDay(range.from)) : undefined,
+    to: upperBoundDay ? toInstant(endOfDay(upperBoundDay)) : undefined,
   };
 }

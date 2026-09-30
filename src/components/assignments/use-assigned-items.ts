@@ -137,7 +137,7 @@ function toMachineRowFields(target: AssignedTargetNode): DeviceRowFields {
     nickname: t.nickname as string | null,
     osType: t.osType as DeviceRowFields['osType'],
     status: t.status as DeviceRowFields['status'],
-    lastSeen: t.lastSeen ?? null,
+    lastSeen: t.lastSeen as DeviceRowFields['lastSeen'],
     type: t.type as DeviceRowFields['type'],
     organization: t.organization as DeviceRowFields['organization'],
     tags: t.tags as DeviceRowFields['tags'],

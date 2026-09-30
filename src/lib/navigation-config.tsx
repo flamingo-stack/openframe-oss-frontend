@@ -5,6 +5,7 @@ import {
   ChartDonutIcon,
   ClipboardListIcon,
   ClockHistoryIcon,
+  CodingForkIcon,
   CompassIcon,
   IdCardIcon,
   MonitorIcon,
@@ -69,6 +70,7 @@ export interface OnboardingNavState {
 export interface NavigationFlags {
   insights: boolean;
   softwareManagement: boolean;
+  tenantManagement: boolean;
 }
 
 export const getNavigationItems = (
@@ -186,6 +188,19 @@ export const getNavigationItems = (
     path: routes.worktime,
     isActive: pathname.startsWith('/worktime'),
   });
+
+  // Integrations — Cloud Tenant Management today (Figma: the last primary item).
+  // Behind `tenant-management`, like its routes.
+  if (flags.tenantManagement) {
+    baseItems.push({
+      id: 'integrations',
+      label: 'Integrations',
+      icon: <CodingForkIcon size={24} />,
+      path: routes.cloudTenantManagement.list,
+      isActive: pathname.startsWith('/cloud-tenant-management'),
+      badge: BETA_BADGE,
+    });
+  }
 
   baseItems.push({
     id: 'knowledge-base',

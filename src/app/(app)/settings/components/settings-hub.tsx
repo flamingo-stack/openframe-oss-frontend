@@ -3,7 +3,6 @@
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import {
   ChartDonutIcon,
-  CodingForkIcon,
   CompassIcon,
   Hierarchy02Icon,
   Logout01Icon,
@@ -27,7 +26,6 @@ import { authApiClient } from '@/lib/auth-api-client';
 import { isBillingHidden } from '@/lib/billing-visibility';
 import { handleApiError } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import { useTenantManagementGate } from '../tenant-management/components/shared/use-tenant-management-gate';
 import { AccountSettingsCard } from './account-settings-card';
 import { BiometricLoginCard } from './biometric-login-card';
 import { EditProfileModal } from './edit-profile-modal';
@@ -87,13 +85,6 @@ const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     title: 'Download Apps',
     description: 'Install OpenFrame on desktop, iOS, and Android',
   },
-  {
-    href: routes.settings.tenantManagement,
-    icon: CodingForkIcon,
-    title: 'Tenant Management',
-    description: 'Connect Microsoft 365 and Google Workspace',
-    badge: 'Beta',
-  },
 ];
 
 /**
@@ -117,7 +108,6 @@ export function SettingsHub() {
   const billingsGate = useFeatureFlagGate('billings');
   // Billing & Usage is the workspace's money — owners and admins, nobody else.
   const billingAccessGate = useBillingAccessGate();
-  const tenantManagementGate = useTenantManagementGate();
   const mobileShell = useIsMobileShell();
 
   // The app mode and the shell are build constants, so this list — every card this build
@@ -136,14 +126,10 @@ export function SettingsHub() {
     }
     return true;
   });
-  const gatesResolved =
-    billingsGate !== 'loading' && billingAccessGate !== 'loading' && tenantManagementGate !== 'loading';
+  const gatesResolved = billingsGate !== 'loading' && billingAccessGate !== 'loading';
   const visibleItems = defaultItems.filter(item => {
     if (item.href === routes.settings.billingUsage()) {
       return billingsGate === 'on' && billingAccessGate === 'allowed';
-    }
-    if (item.href === routes.settings.tenantManagement) {
-      return tenantManagementGate === 'on';
     }
     return true;
   });

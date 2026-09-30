@@ -1,3 +1,5 @@
+import { HomebrewLogoGreyIcon, WingetLogoGreyIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import type { ComponentType } from 'react';
 import { PackageManagerType, SoftwareSource } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 
@@ -13,6 +15,18 @@ export type SupportedPackageManager = (typeof PACKAGE_MANAGERS)[number];
 export const PACKAGE_MANAGER_LABEL: Record<SupportedPackageManager, string> = {
   BREW: 'Brew',
   WINGET: 'WinGet',
+};
+
+/**
+ * Each catalog's brand mark, in the grey (`currentColor`) cut the tool badges use,
+ * so it takes whatever text colour the row it sits in gives it.
+ */
+export const PACKAGE_MANAGER_ICON: Record<
+  SupportedPackageManager,
+  ComponentType<{ size?: number; className?: string }>
+> = {
+  BREW: HomebrewLogoGreyIcon,
+  WINGET: WingetLogoGreyIcon,
 };
 
 /** The OS each catalog installs on — what narrows the device picker. */
