@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@flamingo-stack/openframe-frontend-core';
 import { CalendarIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   DateFilterMenu,
@@ -86,7 +87,7 @@ export function DateColumnHeader({ label, filter, actionHint = 'Sort and filter 
       range={filter.range}
       onApply={filter.onApply}
       trigger={
-        <button type="button" className={cn(rowClassName, 'cursor-pointer')}>
+        <Button type="button" className={cn(rowClassName, 'cursor-pointer')}>
           {content}
           {/* The affordance is APPENDED to the visible label, not an `aria-label`
               replacing it: now that the label sits inside the button, an
@@ -94,7 +95,7 @@ export function DateColumnHeader({ label, filter, actionHint = 'Sort and filter 
               column would go unnamed for screen readers (WCAG 2.5.3, Label in
               Name). `sr-only` is out of flow, so the row lays out unchanged. */}
           <span className="sr-only">{actionHint}</span>
-        </button>
+        </Button>
       }
     />
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { Upload02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, TicketAttachmentsList } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, Input, TicketAttachmentsList } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ChangeEvent, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -74,7 +74,7 @@ export function TicketAttachmentsSection({ ticketId, attachments }: TicketAttach
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <p className="text-ods-text-secondary text-h5">Attachments</p>
       {uiAttachments.length > 0 && <TicketAttachmentsList attachments={uiAttachments} />}
-      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilesSelected} />
+      <Input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilesSelected} />
       <Button
         variant="outline"
         size="small"

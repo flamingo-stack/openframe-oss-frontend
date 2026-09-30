@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, PageLayout, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, Input, PageLayout, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { FileAction, FileItem } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import { FileManager, FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import type React from 'react';
@@ -178,9 +178,12 @@ export function FileManagerContainer({
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (file) {
-        await uploadFile(file);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+        try {
+          await uploadFile(file);
+        } finally {
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
         }
       }
     },
@@ -327,7 +330,7 @@ export function FileManagerContainer({
         )}
 
         {/* Hidden file input for uploads */}
-        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} multiple={false} />
+        <Input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} multiple={false} />
       </div>
 
       {/* Upload progress */}
