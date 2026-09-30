@@ -71,6 +71,8 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               ticketNumber
               title
               description
+              statusKind
+              statusDefinition { id name color kind }
               creationSource
               deviceId
               deviceHostname
@@ -149,12 +151,18 @@ function toDialog(target: AssignedTargetNode): Dialog {
   // not found". Guarded on the typename: a raw 24-hex ObjectId is valid base64
   // too, and an unguarded decode would mangle the few that contain a colon byte.
   const decoded = decodeGlobalId(target.id);
+  const statusDefinition = t.statusDefinition as { id: string; name: string; color: string; kind: string } | null;
   return {
     id: decoded?.typename === 'Ticket' ? decoded.rawId : target.id,
     title: (t.title as string) || 'Untitled Dialog',
     owner: { type: 'CLIENT' },
     createdAt: (t.createdAt as string) || '',
     resolvedAt: (t.resolvedAt as string) ?? null,
+    // The lifecycle status, mapped as the board maps it (`normalizeTicketToDialog`).
+    statusId: statusDefinition?.id,
+    statusName: statusDefinition?.name,
+    statusColor: statusDefinition?.color,
+    statusKind: statusDefinition?.kind ?? (t.statusKind as string | undefined),
     ticketNumber: t.ticketNumber as number | undefined,
     description: t.description as string | undefined,
     creationSource: t.creationSource as string | undefined,

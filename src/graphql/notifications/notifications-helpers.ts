@@ -4,7 +4,7 @@ import type {
   notificationFields_notification$data as NotificationFieldsData,
   notificationFields_notification$key as NotificationFieldsKey,
 } from '@/__generated__/notificationFields_notification.graphql';
-import type { NotificationSeverity } from '@/generated/schema-enums';
+import { NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
 import { NOTIFICATION_ATTR, parseAttributeToolCalls, readNotificationAttributes } from './notification-attributes';
 import { notificationFieldsFragment } from './notification-fields';
 
@@ -82,6 +82,34 @@ export function connectionHasNode(conn: RecordProxy, nodeId: string): boolean {
   return edges.some(edge => edge?.getLinkedRecord('node')?.getDataID() === nodeId);
 }
 
+/** `read` is what the lists filter on, `status` what history renders; one follows from the other. */
+export function setReadStatus(node: RecordProxy, status: NotificationReadStatus): void {
+  node.setValue(status !== NotificationReadStatus.UNREAD, 'read');
+  node.setValue(status, 'status');
+}
+
+function createdAtMs(record: RecordProxy | null | undefined): number {
+  const value = record?.getValue('createdAt');
+  return value == null ? Number.POSITIVE_INFINITY : parseCreatedAt(value);
+}
+
+/**
+ * Put a node into a newest-first connection at its `createdAt` position, not at the top: a
+ * card read or archived elsewhere is usually older than what the list has loaded, and on top
+ * it would sit out of order until the next refetch moved it. One older than every loaded row
+ * is left out while more pages remain — it belongs to a page not fetched yet.
+ */
+function insertEdgeByCreatedAt(store: RecordSourceSelectorProxy, conn: RecordProxy, node: RecordProxy): void {
+  if (connectionHasNode(conn, node.getDataID())) return;
+  const edges = conn.getLinkedRecords('edges') ?? [];
+  const createdAt = createdAtMs(node);
+  const index = edges.findIndex(edge => createdAtMs(edge?.getLinkedRecord('node')) < createdAt);
+  if (index === -1 && conn.getLinkedRecord('pageInfo')?.getValue('hasNextPage') === true) return;
+  const edge = ConnectionHandler.createEdge(store, conn, node, NOTIFICATION_EDGE_TYPENAME);
+  const at = index === -1 ? edges.length : index;
+  conn.setLinkedRecords([...edges.slice(0, at), edge, ...edges.slice(at)], 'edges');
+}
+
 /**
  * Every updater below is idempotent: it may run for the same notification twice — the user's
  * own mutation, then the READ / DELETED event the backend publishes for it, in either order
@@ -102,7 +130,7 @@ export function makeMarkReadUpdater(
     if (options.adjustCount !== false && node.getValue('read') === false) {
       adjustUnreadCount(store, node.getValue('category'), -1);
     }
-    node.setValue(true, 'read');
+    setReadStatus(node, NotificationReadStatus.READ);
 
     const root = store.getRoot();
     const seen = new Set<string>();
@@ -115,11 +143,7 @@ export function makeMarkReadUpdater(
       const readConn = ConnectionHandler.getConnection(root, NOTIFICATIONS_CONNECTION_KEY, pair.read);
       if (readConn && !seen.has(readConn.getDataID())) {
         seen.add(readConn.getDataID());
-        // `insertEdgeBefore` does not dedupe, and the edge id is derived from the node's,
-        // so a second insert would list the same row twice in history.
-        if (connectionHasNode(readConn, id)) continue;
-        const edge = ConnectionHandler.createEdge(store, readConn, node, NOTIFICATION_EDGE_TYPENAME);
-        ConnectionHandler.insertEdgeBefore(readConn, edge);
+        insertEdgeByCreatedAt(store, readConn, node);
       }
     }
   };
@@ -151,17 +175,24 @@ export function makeMarkAllReadUpdater(pairs: NotificationConnectionPair[]) {
       for (const edge of edges) {
         const node = edge.getLinkedRecord('node');
         if (!node) continue;
-        node.setValue(true, 'read');
-        if (readConnForInsert) {
-          const movedEdge = ConnectionHandler.createEdge(store, readConnForInsert, node, NOTIFICATION_EDGE_TYPENAME);
-          ConnectionHandler.insertEdgeBefore(readConnForInsert, movedEdge);
-        }
+        setReadStatus(node, NotificationReadStatus.READ);
+        if (readConnForInsert) insertEdgeByCreatedAt(store, readConnForInsert, node);
       }
       unreadConn.setLinkedRecords([], 'edges');
       const pageInfo = unreadConn.getLinkedRecord('pageInfo');
       if (pageInfo) {
         pageInfo.setValue(false, 'hasNextPage');
         pageInfo.setValue(null, 'endCursor');
+      }
+    }
+    // The backend's mark-all also turns ARCHIVED into READ, and those rows already sit in history.
+    for (const pair of pairs) {
+      const readConn = ConnectionHandler.getConnection(root, NOTIFICATIONS_CONNECTION_KEY, pair.read);
+      for (const edge of readConn?.getLinkedRecords('edges') ?? []) {
+        const node = edge?.getLinkedRecord('node');
+        if (node?.getValue('status') === NotificationReadStatus.ARCHIVED) {
+          setReadStatus(node, NotificationReadStatus.READ);
+        }
       }
     }
     // Backend marks every notification read (not just the loaded ones), so clear all buckets.

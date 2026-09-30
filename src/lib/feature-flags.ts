@@ -31,9 +31,10 @@ export const FEATURE_FLAG_NAMES = [
   'remote-access-v2',
   // The Incidents module (`/incidents`) over saas-api's `insights` API.
   'insights',
-  // Tenant Management: the Settings module that connects Microsoft 365 / Google
-  // Workspace directories over the directory API. Registered on dev and qa;
-  // absent elsewhere, which reads as off.
+  // Cloud Tenant Management (`/cloud-tenant-management/*`, the sidebar's
+  // "Integrations" item): connects Microsoft 365 / Google Workspace directories
+  // over the directory API. Registered on dev and qa; absent elsewhere, which
+  // reads as off.
   'tenant-management',
   // The Software module (`/software/*`: the inventory, its vulnerabilities,
   // install / update runs) and its two Mingo context kinds (SOFTWARE and
@@ -157,7 +158,7 @@ export const featureFlags = {
     },
   },
   /**
-   * Tenant Management. Route/hub gating goes through
+   * Cloud Tenant Management. Route/sidebar gating goes through
    * `useTenantManagementGate` (tri-state); this accessor is for
    * imperative reads only.
    */

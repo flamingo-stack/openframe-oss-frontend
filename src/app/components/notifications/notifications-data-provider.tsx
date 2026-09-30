@@ -43,9 +43,9 @@ import type { notificationsDrawerRelay_query$key as NotificationsDrawerFragmentK
 import type { notificationsDrawerRelayPaginationQuery as NotificationsDrawerPaginationQueryType } from '@/__generated__/notificationsDrawerRelayPaginationQuery.graphql';
 import type { notificationsDrawerRelayQuery as NotificationsDrawerRelayQueryType } from '@/__generated__/notificationsDrawerRelayQuery.graphql';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
-import type { NotificationSeverity } from '@/generated/schema-enums';
+import { NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
 import { cancelPendingPushMutation } from '@/graphql/notifications/cancel-pending-push-mutation';
-import { getLiveConnectionPairs } from '@/graphql/notifications/live-connection-pairs';
+import { getLiveConnectionPairs, requestReadStatusRefresh } from '@/graphql/notifications/live-connection-pairs';
 import { markNotificationReadMutation } from '@/graphql/notifications/mark-notification-read-mutation';
 import {
   DRAWER_PAGE_SIZE,
@@ -67,6 +67,7 @@ import {
   parseSeverity,
   readNotificationAttributes,
   readNotificationNode,
+  setReadStatus,
   stripNotificationMarkup,
   UNFILTERED_NOTIFICATION_PAIR,
 } from '@/graphql/notifications/notifications-helpers';
@@ -173,6 +174,8 @@ function prependNotificationEdge(
  *
  * An id the store never loaded (a card outside the paged window, a bulk mark-all) adjusts
  * no bucket locally, so the counts are refetched after every event either way.
+ *
+ * A READ for a row not already READ here may be an archive — see `requestReadStatusRefresh`.
  */
 function applyReadStateEvent(
   environment: IEnvironment,
@@ -181,8 +184,11 @@ function applyReadStateEvent(
 ): void {
   const ids = (notificationIds ?? []).filter(id => typeof id === 'string' && id.length > 0).map(notificationGlobalId);
   if (ids.length === 0) return;
+  const source = environment.getStore().getSource();
+  const mayBeArchive = eventType === 'READ' && ids.some(id => source.get(id)?.status !== NotificationReadStatus.READ);
   commitLocalUpdate(environment, makeReadStateUpdater(eventType, ids, getLiveConnectionPairs()));
   refreshUnreadCounts(environment);
+  if (mayBeArchive) requestReadStatusRefresh();
 }
 
 interface NatsNotificationPayload {
@@ -706,7 +712,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
         }
 
         node.setValue(createdAtSeconds, 'createdAt');
-        node.setValue(false, 'read');
+        setReadStatus(node, NotificationReadStatus.UNREAD);
 
         if (suppress) {
           // Never enters the unread connection, so no popup and no drawer entry; lands

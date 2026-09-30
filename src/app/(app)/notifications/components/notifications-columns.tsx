@@ -12,6 +12,7 @@ import {
   dotColorByVariant,
   type Row,
   SplitButton,
+  Tag,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn, formatTicketRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -25,6 +26,8 @@ export interface NotificationRow {
   description: string | null | undefined;
   createdAt: number;
   read: boolean;
+  /** Read automatically because its entity was archived; flagged until the user interacts with it. */
+  archived: boolean;
   notification: Notification;
 }
 
@@ -61,6 +64,15 @@ const titleColorBySeverity: Partial<Record<NotificationSeverity, string>> = {
  */
 const DESCRIPTION_LINES = 2;
 
+function NotificationTitle({ row, className }: { row: NotificationRow; className: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+      <TruncateText className={className}>{row.title}</TruncateText>
+      {row.archived ? <Tag label="Archived" variant="grey" className="shrink-0" /> : null}
+    </div>
+  );
+}
+
 export function buildNotificationColumns({
   rowVariant,
   canOpenMingoDrawer = false,
@@ -87,12 +99,12 @@ export function buildNotificationColumns({
             </div>
             <div className="hidden min-w-0 flex-col gap-[var(--spacing-system-xxs)] md:flex">
               {/* Real content leads; the context-derived kind label moved to the details column. */}
-              <TruncateText className={titleColor}>{row.original.title}</TruncateText>
+              <NotificationTitle row={row.original} className={titleColor} />
               <span className="truncate text-ods-text-secondary text-h6">{relativeTime}</span>
             </div>
             {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
             <div className="flex min-w-0 flex-col md:hidden">
-              <TruncateText className={titleColor}>{row.original.title}</TruncateText>
+              <NotificationTitle row={row.original} className={titleColor} />
               <TruncateText lines={DESCRIPTION_LINES} variant="h6" tone="secondary" className="break-words">
                 {row.original.description || relativeTime}
               </TruncateText>
@@ -137,29 +149,32 @@ export function buildNotificationColumns({
         // const so it narrows inside the closure.
         const drawerDialogId = canOpenMingoDrawer ? (action.mingoDialogId ?? null) : null;
         const navigates = !drawerDialogId;
+        const { id, read, archived } = row.original;
+        const markRead = !read || archived ? () => onMarkRead?.(id) : undefined;
         // Opening clears unread: the drawer changes no URL of its own here (the sync
         // hook stamps one a commit later), so the location-based auto-reader can't.
-        // `onMarkRead` is only wired for the unread variant; it's a no-op for
-        // already-read rows.
         const openDrawer = drawerDialogId
           ? () => {
               openMingoDialogInDrawer(drawerDialogId);
-              onMarkRead?.(row.original.id);
+              markRead?.();
             }
           : undefined;
+        // Any open of an archived row clears its flag, a navigation included: only ticket and
+        // dialog pages auto-read on arrival, and the new-tab half leaves this row on screen.
+        const onOpen = openDrawer ?? (archived ? markRead : undefined);
         return (
           <div data-no-row-click className="flex w-full justify-end">
             <SplitButton
               className="hidden md:inline-flex"
               variant="outline"
               href={navigates ? action.route : undefined}
-              onClick={openDrawer}
+              onClick={onOpen}
               groupAriaLabel={action.label}
               iconAction={{
                 icon: <ArrowRightUpIcon className="text-ods-text-secondary" />,
                 'aria-label': navigates ? `Open ${action.label} in new tab` : `Open ${action.label}`,
                 href: navigates ? action.route : undefined,
-                onClick: openDrawer,
+                onClick: onOpen,
                 openInNewTab: navigates,
               }}
             >
@@ -171,7 +186,7 @@ export function buildNotificationColumns({
               variant="outline"
               size="icon"
               href={navigates ? action.route : undefined}
-              onClick={openDrawer}
+              onClick={onOpen}
               aria-label={action.label}
               leftIcon={<ArrowRightUpIcon />}
             />
