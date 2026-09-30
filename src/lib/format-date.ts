@@ -1,4 +1,5 @@
 import { EMPTY_VALUE } from './empty-value';
+import { parseInstant } from './graphql-scalars';
 
 type DateInput = string | number | Date;
 
@@ -10,6 +11,7 @@ type DateInput = string | number | Date;
  */
 export function toValidDate(input: DateInput | null | undefined): Date | null {
   if (input == null || input === '') return null;
+  if (typeof input === 'string') return parseInstant(input);
   const date = input instanceof Date ? input : new Date(input);
   return Number.isNaN(date.getTime()) ? null : date;
 }

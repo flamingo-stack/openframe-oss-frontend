@@ -1,16 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { deviceLogRangeBounds, groupByLocalDay, instantToDate } from './device-log-time';
+import { asInstant } from '@/lib/graphql-scalars';
+import { deviceLogRangeBounds, groupByLocalDay } from './device-log-time';
 
 // A zone west of UTC, so a UTC-day grouping would show the wrong day.
 process.env.TZ = 'America/New_York';
-
-describe('instantToDate', () => {
-  it('reads the nanosecond fractions Java prints', () => {
-    expect(instantToDate('2026-09-23T09:04:26.847000044Z')?.toISOString()).toBe('2026-09-23T09:04:26.847Z');
-    expect(instantToDate('2026-09-23T09:04:26Z')?.toISOString()).toBe('2026-09-23T09:04:26.000Z');
-    expect(instantToDate('yesterday')).toBeNull();
-  });
-});
 
 describe('deviceLogRangeBounds', () => {
   const anchor = Date.parse('2026-09-21T12:00:00.000Z');
@@ -33,7 +26,7 @@ describe('groupByLocalDay', () => {
   const group = (lines: [string, string][]) =>
     groupByLocalDay(
       lines,
-      ([timestamp]) => timestamp,
+      ([timestamp]) => asInstant(timestamp),
       ([, cursor]) => cursor,
     );
 

@@ -114,10 +114,9 @@ export function AgentLogsList({
     fetchNextPage,
   });
 
-  // `Instant` is an unmapped scalar (`any` in the artifact).
   const days = groupByLocalDay(
     edges,
-    edge => String(edge.node.timestamp),
+    edge => edge.node.timestamp,
     edge => edge.cursor,
   );
 

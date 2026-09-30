@@ -2,6 +2,7 @@ import type { DateRange } from '@flamingo-stack/openframe-frontend-core/componen
 import { startOfDay, subDays } from 'date-fns';
 import { dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { toValidDate } from '@/lib/format-date';
+import { type Instant, toInstant } from '@/lib/graphql-scalars';
 
 // --- The range control ---
 
@@ -38,14 +39,14 @@ export function deviceLogRangeBounds(
   range: DeviceLogRange,
   custom: DateRange | undefined,
   anchorMs: number,
-): { from?: string; to?: string } {
+): { from?: Instant; to?: Instant } {
   if (range !== 'custom') return presetBounds(range, anchorMs);
   // Custom with no days picked yet reads as the default preset.
   return custom ? dateRangeToInstantBounds(custom) : presetBounds(DEFAULT_DEVICE_LOG_RANGE, anchorMs);
 }
 
-function presetBounds(preset: DeviceLogPreset, anchorMs: number): { from: string } {
-  return { from: new Date(anchorMs - PRESET_MS[preset]).toISOString() };
+function presetBounds(preset: DeviceLogPreset, anchorMs: number): { from: Instant } {
+  return { from: toInstant(new Date(anchorMs - PRESET_MS[preset])) };
 }
 
 /** The custom picker's selectable days: the 30 ending on the anchor's. */
@@ -56,16 +57,9 @@ export function deviceLogPickerBounds(anchorMs: number): { fromDate: Date; toDat
 
 // --- The lines ---
 
-/** Java prints an `Instant` with up to nine fraction digits; `Date` parses three. */
-const NANOS_PAST_MILLIS = /(\.\d{3})\d+Z$/;
-
-export function instantToDate(instant: string): Date | null {
-  return toValidDate(instant.replace(NANOS_PAST_MILLIS, '$1Z'));
-}
-
 /** The local day a line belongs to; an unreadable instant is its own day. */
-function localDayOf(instant: string): string {
-  const date = instantToDate(instant);
+function localDayOf(instant: Instant): string {
+  const date = toValidDate(instant);
   return date ? toDayParam(date) : instant;
 }
 
@@ -88,7 +82,7 @@ export interface DeviceLogDayGroup<T> {
 /** Consecutive lines of one local day, in list order. */
 export function groupByLocalDay<T>(
   items: readonly T[],
-  instantOf: (item: T) => string,
+  instantOf: (item: T) => Instant,
   cursorOf: (item: T) => string,
 ): DeviceLogDayGroup<T>[] {
   const keys = uniqueRowKeys(items.map(cursorOf));
@@ -100,7 +94,7 @@ export function groupByLocalDay<T>(
     const row = { key: keys[index], item };
     const current = groups.at(-1);
     if (current?.key === day) current.rows.push(row);
-    else groups.push({ key: day, date: instantToDate(instant), rows: [row] });
+    else groups.push({ key: day, date: toValidDate(instant), rows: [row] });
   });
 
   return groups;

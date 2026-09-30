@@ -3,6 +3,7 @@
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
+import type { Instant } from '@/lib/graphql-scalars';
 import { useLogDetails } from '../../log-details/hooks/use-log-details';
 import { formatLogDetailsForCopy } from '../utils/format-log-details';
 
@@ -12,7 +13,7 @@ export interface LogCopyTarget {
   ingestDay: string;
   toolType: string;
   eventType: string;
-  timestamp: string;
+  timestamp: Instant;
 }
 
 /**

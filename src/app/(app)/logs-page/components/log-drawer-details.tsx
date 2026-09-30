@@ -4,6 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Component, type ReactNode, Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { logDrawerDetailsQuery as LogDrawerDetailsQueryType } from '@/__generated__/logDrawerDetailsQuery.graphql';
+import type { Instant } from '@/lib/graphql-scalars';
 import { getErrorMessage } from '@/lib/handle-api-error';
 import { formatLogDetailsForCopy } from '../utils/format-log-details';
 
@@ -38,7 +39,7 @@ export interface LogDrawerDetailsProps {
   ingestDay: string;
   toolType: string;
   eventType: string;
-  timestamp: string;
+  timestamp: Instant;
   toolEventId: string;
   /** Shown when the full log cannot be loaded (the row summary). */
   fallback: string;
@@ -60,7 +61,7 @@ function LogDrawerDetailsContent({ fallback, ...variables }: LogDrawerDetailsPro
         toolType: log.toolType,
         severity: log.severity,
         message: log.message ?? undefined,
-        timestamp: String(log.timestamp),
+        timestamp: log.timestamp,
         details: log.details ?? undefined,
       })}
     </span>

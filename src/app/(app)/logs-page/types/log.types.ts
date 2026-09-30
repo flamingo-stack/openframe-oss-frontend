@@ -1,3 +1,4 @@
+import type { Instant } from '@/lib/graphql-scalars';
 import type { PartialNamedDevice } from '../../devices/types/device.types';
 
 export interface LogEntry {
@@ -10,7 +11,7 @@ export interface LogEntry {
   deviceId?: string;
   summary: string;
   message?: string;
-  timestamp: string;
+  timestamp: Instant;
   details?: string;
   metadata?: Record<string, unknown>;
 
@@ -42,7 +43,7 @@ export interface LogFilterInput {
   organizationIds?: string[];
   deviceId?: string;
   userId?: string[];
-  /** Inclusive UTC ISO-8601 bounds of the timestamp range filter */
-  timestampFrom?: string;
-  timestampTo?: string;
+  /** Inclusive bounds of the timestamp range filter */
+  timestampFrom?: Instant;
+  timestampTo?: Instant;
 }

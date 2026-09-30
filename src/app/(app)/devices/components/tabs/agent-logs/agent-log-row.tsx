@@ -10,7 +10,6 @@ import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { formatLogTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
 import { deviceLogLevelVariant } from '../../../utils/device-log-level';
-import { instantToDate } from '../../../utils/device-log-time';
 import { AGENT_LOG_LEVEL_COLUMN, AGENT_LOG_LINE, AGENT_LOG_TIME_COLUMN } from './agent-log-layout';
 
 const agentLogRowFragment = graphql`
@@ -45,11 +44,8 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
   const [expanded, setExpanded] = useState(false);
   const { copy, copied } = useCopyToClipboard({ successDescription: 'Log line copied' });
 
-  // `Instant` and `Long` are unmapped scalars (`any` in the artifact).
-  const timestamp = String(data.timestamp);
-  const count = Number(data.count);
   const level = data.level.trim().toUpperCase();
-  const time = formatLogTime(instantToDate(timestamp));
+  const time = formatLogTime(data.timestamp);
 
   return (
     <div className={cn('rounded-md border border-transparent', expanded && 'border-ods-border bg-ods-card')}>
@@ -77,8 +73,8 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
             className="hidden shrink-0 md:inline-flex"
           />
         )}
-        {count > 1 && (
-          <Tag as="span" variant="outline" label={<span>×{formatCount(count)}</span>} className="shrink-0" />
+        {data.count != null && data.count > 1 && (
+          <Tag as="span" variant="outline" label={<span>×{formatCount(data.count)}</span>} className="shrink-0" />
         )}
         <Chevron01RightIcon
           aria-hidden="true"
@@ -92,8 +88,8 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
         <div className="flex flex-col gap-[var(--spacing-system-xs)] px-[var(--spacing-system-xs)] pb-[var(--spacing-system-xs)]">
           <p className="whitespace-pre-wrap text-ods-text-primary text-code [overflow-wrap:anywhere]">{data.message}</p>
           <dl className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <MetaLine label="received" value={timestamp} />
-            {data.agentTimestamp != null && <MetaLine label="agent_ts" value={String(data.agentTimestamp)} />}
+            <MetaLine label="received" value={data.timestamp} />
+            {data.agentTimestamp != null && <MetaLine label="agent_ts" value={data.agentTimestamp} />}
             {data.hostname && <MetaLine label="hostname" value={data.hostname} />}
           </dl>
           <div>
