@@ -205,7 +205,7 @@ function RemoteShellSession() {
           },
           onCtrlMessage: () => {},
           onConsoleMessage: msg => {
-            toastRef.current({ title: 'Remote Shell', description: msg, variant: 'default' });
+            if (msg) toastRef.current({ title: 'Remote Shell', description: msg, variant: 'default' });
           },
           onRequestPairing: async relayId => {
             try {

@@ -13,7 +13,8 @@ export type TunnelOptions = {
 
 type TunnelCallbacks = {
   onData: (data: string | Uint8Array) => void;
-  onConsoleMessage?: (msg: string) => void;
+  /** The agent's status line for this tunnel; `null` when the agent clears it. */
+  onConsoleMessage?: (msg: string | null) => void;
   onStateChange?: (state: TunnelState) => void;
   onBinaryData?: (data: Uint8Array) => void;
   onCtrlMessage?: (msg: Record<string, unknown>) => void;
@@ -28,6 +29,7 @@ export class MeshTunnel {
   private id: string;
   private latencyTimer: ReturnType<typeof setInterval> | null = null;
   private isHandshakeComplete = false;
+  private hasDialled = false;
 
   constructor(
     private params: {
@@ -39,13 +41,18 @@ export class MeshTunnel {
        * Prefix of the relay id, `<requestId>.<p>` for a session opened under a
        * remote access approval: the gateway gate matches the
        * first token against the approval grant. The tunnel appends its own
-       * nonce, so every tunnel of the session stays unique.
+       * nonce, a new one for every dial, so every relay of the session stays
+       * unique.
        */
       relayIdPrefix?: string;
     } & TunnelCallbacks,
   ) {
+    this.id = this.createRelayId();
+  }
+
+  private createRelayId(): string {
     const nonce = Math.random().toString(36).slice(2);
-    this.id = params.relayIdPrefix ? `${params.relayIdPrefix}.${nonce}` : nonce;
+    return this.params.relayIdPrefix ? `${this.params.relayIdPrefix}.${nonce}` : nonce;
   }
 
   getRelayId(): string {
@@ -56,6 +63,10 @@ export class MeshTunnel {
     const protocol = this.params.protocol ?? 1;
 
     const buildUrl = () => {
+      // One relay id per dial, as MeshCentral's own client does. The server pairs the two sockets that share an id, so a redial under the id of a relay that has just dropped can be matched with what is left of that relay instead of a fresh agent tunnel. The prefix is kept - it is what ties the relay to its approval.
+      if (this.hasDialled) this.id = this.createRelayId();
+      this.hasDialled = true;
+
       const qs = new URLSearchParams({
         browser: '1',
         p: String(protocol),
@@ -117,8 +128,17 @@ export class MeshTunnel {
       onError: () => {
         // noop
       },
-      onClose: () => {
+      onClose: event => {
         this.clearLatencyTimer();
+        // The close frame is the only record of why a relay went away: nothing on the server side reports it.
+        console.warn('[MeshTunnel] Relay closed', {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          protocol,
+          relayId: this.id,
+          paired: this.isHandshakeComplete,
+        });
       },
     });
 
@@ -191,7 +211,7 @@ export class MeshTunnel {
         const j = JSON.parse(s);
         if (j && (j.ctrlChannel === 102938 || j.ctrlChannel === '102938')) {
           if (j.type === 'console' && this.params.onConsoleMessage) {
-            this.params.onConsoleMessage(j.msg);
+            this.params.onConsoleMessage(typeof j.msg === 'string' && j.msg ? j.msg : null);
           }
           if (j.type === 'ping') {
             this.sendCtrl({ ctrlChannel: 102938, type: 'pong' });
