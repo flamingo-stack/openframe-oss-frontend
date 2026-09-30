@@ -4,6 +4,7 @@ import {
   AlertTriangleIcon,
   // BracketCurlyEllipsisVrIcon, // Queries tab temporarily disabled
   BracketSquareCheckIcon,
+  ClipboardListIcon,
   ComputerMouseIcon,
   FolderShieldIcon,
   HardDrivesIcon,
@@ -19,7 +20,9 @@ import {
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import type { DeviceDetailTab } from '@/lib/routes';
+import { useDeviceAgentLogsGate } from '../../hooks/use-device-agent-logs-gate';
 import { useSessionRecordingsGate } from '../../hooks/use-session-recordings-gate';
+import { AgentLogsTab } from './agent-logs/agent-logs-tab';
 import { AgentsTab } from './agents-tab';
 import { HardwareTab } from './hardware-tab';
 import { IncidentsTab } from './incidents-tab';
@@ -39,6 +42,7 @@ import { VulnerabilitiesTab } from './vulnerabilities-tab';
 // TAB_IDS.deviceDetails without updating this fails tsc.
 export const REMOTE_SESSIONS_TAB_ID = 'remote-sessions' satisfies DeviceDetailTab;
 const INCIDENTS_TAB_ID = 'incidents' satisfies DeviceDetailTab;
+const AGENT_LOGS_TAB_ID = 'agent-logs' satisfies DeviceDetailTab;
 
 /** Every tab, gated ones included — `useDeviceTabs` narrows it to the visible set. */
 export const ALL_DEVICE_TABS: TabItem[] = [
@@ -129,20 +133,29 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     icon: ComputerMouseIcon,
     component: RemoteSessionsTab,
   },
+  {
+    id: AGENT_LOGS_TAB_ID,
+    label: 'Agent Logs',
+    icon: ClipboardListIcon,
+    component: AgentLogsTab,
+  },
 ];
 
 /**
  * Tabs shown for a device. Remote Sessions is gated on the session recordings
- * gate (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
+ * gate (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate,
+ * Agent Logs on `device-agent-logs`.
  * 'loading' and 'off' both hide a tab, so it only ever appears when the feature
  * is actually on.
  */
 export function useDeviceTabs(): TabItem[] {
   const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
+  const agentLogsGate = useDeviceAgentLogsGate();
   return ALL_DEVICE_TABS.filter(
     tab =>
       (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate === 'on') &&
-      (tab.id !== INCIDENTS_TAB_ID || incidentsGate === 'on'),
+      (tab.id !== INCIDENTS_TAB_ID || incidentsGate === 'on') &&
+      (tab.id !== AGENT_LOGS_TAB_ID || agentLogsGate === 'on'),
   );
 }

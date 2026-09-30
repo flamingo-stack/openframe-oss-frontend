@@ -37,3 +37,14 @@ export const formatDateTime = (input: DateInput | null | undefined): string => {
   const date = toValidDate(input);
   return date ? `${dateFmt.format(date)} ${timeFmt.format(date)}` : EMPTY_VALUE;
 };
+
+// Fixed-width 24-hour time with milliseconds, so log lines align in a column.
+const logTimeFmt = new Intl.DateTimeFormat(undefined, {
+  hourCycle: 'h23',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  fractionalSecondDigits: 3,
+});
+
+export const formatLogTime = (input: DateInput | null | undefined): string => format(input, logTimeFmt);
