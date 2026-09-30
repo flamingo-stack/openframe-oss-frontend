@@ -20,16 +20,16 @@ import {
   deviceLogRangeBounds,
   isDeviceLogRange,
 } from '../../../utils/device-log-time';
-import { type AgentLogsFilter, AgentLogsList } from './agent-logs-list';
-import { AgentLogsRowsSkeleton } from './agent-logs-skeleton';
-import { AgentLogsToolbar } from './agent-logs-toolbar';
+import { type DeviceLogsFilter, DeviceLogsList } from './device-logs-list';
+import { DeviceLogsRowsSkeleton } from './device-logs-skeleton';
+import { DeviceLogsToolbar } from './device-logs-toolbar';
 
-interface AgentLogsTabProps {
+interface DeviceLogsTabProps {
   device: Device;
 }
 
-/** Device details → Agent Logs (CU-86agb21qt). Filters ride the URL under `log*` keys, apart from the Overview logs table's. */
-export function AgentLogsTab({ device }: AgentLogsTabProps) {
+/** Device details → Device Logs (CU-86agb21qt). Filters ride the URL under `log*` keys, apart from the Overview logs table's. */
+export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
   const machineId = device.machineId || device.id;
   const searchParams = useSearchParams();
   const { params, setParam, setParams } = useApiParams({
@@ -58,8 +58,8 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
     setRefreshedAt(pendingAnchor.at);
   }
 
-  const filter = useMemo<AgentLogsFilter>(() => {
-    const next: AgentLogsFilter = deviceLogRangeBounds(range, customRange, anchor);
+  const filter = useMemo<DeviceLogsFilter>(() => {
+    const next: DeviceLogsFilter = deviceLogRangeBounds(range, customRange, anchor);
     // Every level on and every level off both mean "send no levels".
     if (selectedLevels.length > 0 && selectedLevels.length < DEVICE_LOG_LEVELS.length) next.levels = selectedLevels;
     if (parsedSearch.error === null) {
@@ -103,7 +103,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <AgentLogsToolbar
+      <DeviceLogsToolbar
         search={search}
         onSearchChange={setSearch}
         searchError={parsedSearch.error}
@@ -120,9 +120,9 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
         isRefreshing={isPending}
       />
       {/* The deferred key: the live one would remount a failed list and re-send it. */}
-      <ContentErrorBoundary label="AgentLogsTab" message="Couldn't load agent logs." resetKey={deferredList.key}>
-        <Suspense fallback={<AgentLogsRowsSkeleton />}>
-          <AgentLogsList
+      <ContentErrorBoundary label="DeviceLogsTab" message="Couldn't load device logs." resetKey={deferredList.key}>
+        <Suspense fallback={<DeviceLogsRowsSkeleton />}>
+          <DeviceLogsList
             key={deferredList.key}
             machineId={machineId}
             filter={deferredList.filter}
