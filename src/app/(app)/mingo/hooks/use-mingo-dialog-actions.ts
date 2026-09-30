@@ -29,6 +29,14 @@ interface FetchArchivedResult {
   nextCursor: string | null;
 }
 
+// Single source of truth for the archived-dialogs cache key shape, shared by
+// the fetcher (which appends the pagination params) and the invalidator
+// (which only needs the base key to match all param variants).
+const ARCHIVED_DIALOGS_BASE_KEY = ['mingo-archived-dialogs'] as const;
+function buildArchivedDialogsQueryKey(params: { search?: string; limit: number }) {
+  return [...ARCHIVED_DIALOGS_BASE_KEY, { search: params.search, limit: params.limit }] as const;
+}
+
 async function runDialogMutation(query: string, variables: Record<string, unknown>, key: string): Promise<void> {
   const response = await apiClient.post<{ data: Record<string, DialogMutationPayload> }>('/chat/graphql', {
     query,
@@ -58,8 +66,8 @@ export function useMingoDialogActions() {
     // Archive/unarchive move a dialog between the active and archived lists, so
     // refresh BOTH cached queries — otherwise the archived-list cache (below)
     // would go stale after archiving/unarchiving.
-    void queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
-    void queryClient.invalidateQueries({ queryKey: ['mingo-archived-dialogs'] });
+    void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.list() });
+    void queryClient.invalidateQueries({ queryKey: ARCHIVED_DIALOGS_BASE_KEY });
   }, [queryClient]);
 
   const renameDialog = useCallback(
@@ -147,7 +155,7 @@ export function useMingoDialogActions() {
       // set) stay transient. Invalidated on archive/unarchive above.
       if (!params.cursor) {
         return queryClient.fetchQuery({
-          queryKey: ['mingo-archived-dialogs', { search: params.search, limit: params.limit ?? 20 }],
+          queryKey: buildArchivedDialogsQueryKey({ search: params.search, limit: params.limit ?? 20 }),
           queryFn: runFetch,
           staleTime: 5 * 60 * 1000,
           gcTime: 30 * 60 * 1000,

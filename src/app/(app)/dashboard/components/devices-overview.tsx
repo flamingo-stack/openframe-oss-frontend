@@ -81,6 +81,8 @@ export function DevicesOverviewSection() {
             progressSize={{ base: 24, md: 56 }}
             href={
               // Archived devices live on their own page; /devices only lists the rest.
+              // TODO(OPENFRAM-001-2): replace with a routes.devices helper once one exists
+              // for the filtered list view, instead of hand-building the query string.
               card.status === DEVICE_STATUS.ARCHIVED ? routes.devices.archive : `/devices?statuses=${card.status}`
             }
           />

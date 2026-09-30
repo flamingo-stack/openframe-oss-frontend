@@ -58,13 +58,21 @@ export function useMingoRealtimeSubscription(
   }, [onChunkReceived]);
 
   const onConnectionChange = useCallback((dialogId: string, connected: boolean) => {
-    setConnectionState(connected ? 'connected' : 'disconnected');
     setDialogStates(prev => {
       const newMap = new Map(prev);
       const existing = newMap.get(dialogId);
       if (existing) {
-        newMap.set(dialogId, { ...existing, isConnected: connected });
+        newMap.set(dialogId, { ...existing, isConnected: connected, hasCaughtUp: connected ? existing.hasCaughtUp : false });
       }
+
+      // Derive the global connection state from ALL currently subscribed
+      // dialogs rather than the single dialog that just fired this callback,
+      // so one dialog's transient disconnect/reconnect cannot mask the fact
+      // that other dialogs are still connected (or vice versa).
+      const allConnected = newMap.size > 0 && Array.from(newMap.values()).every(state => state.isConnected);
+      const anyConnected = Array.from(newMap.values()).some(state => state.isConnected);
+      setConnectionState(allConnected ? 'connected' : anyConnected ? 'connecting' : 'disconnected');
+
       return newMap;
     });
   }, []);
@@ -96,6 +104,8 @@ export function useMingoRealtimeSubscription(
         });
         return newMap;
       });
+
+      catchupRefs.current.set(dialogId, true);
 
       if (dialogId === activeDialogId) {
         resetUnread(dialogId);
@@ -301,3 +311,4 @@ export function DialogSubscription({
 
   return null;
 }
+
