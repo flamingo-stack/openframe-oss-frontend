@@ -44,11 +44,20 @@ interface MentionTagProps {
   label: ReactNode;
   /** Entity detail-page URL — always one of OUR routes (`routes.*`). */
   href?: string;
+  /**
+   * Opens the target IN PLACE instead of navigating to `href` — for a target
+   * that lives in the drawer itself (an earlier conversation), where a page
+   * load or a new tab would be the wrong surface. A primary click is taken over
+   * whatever `useSameWindowLinks` says, and the drawer stays open; `href` stays
+   * on the anchor for a middle-click, a modifier click or a copy.
+   */
+  onOpen?: () => void;
 }
 
-export function MentionTag({ icon, label, href }: MentionTagProps) {
+export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   const sameWindow = useSameWindowLinks();
   const router = useRouter();
+  const newTab = !sameWindow && !onOpen;
 
   // String labels go straight to Tag: its label slot shows a FloatingTooltip with
   // the full entity name only when the chip's max-w actually clips it, on a span
@@ -77,7 +86,13 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   // on the phone while the same chip, opening a new tab on the desktop, worked.
   // Same rule as the runtime's `navigate` for in-chat cards.
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (!sameWindow || !navigatesCurrentWindow(e)) return;
+    if (!navigatesCurrentWindow(e)) return;
+    if (onOpen) {
+      e.preventDefault();
+      onOpen();
+      return;
+    }
+    if (!sameWindow) return;
     e.preventDefault();
     useMingoLauncherStore.getState().closeForNavigation();
     router.push(href);
@@ -86,7 +101,7 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   return (
     <a
       href={href}
-      {...(sameWindow ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+      {...(newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
       onClick={handleClick}
       className="no-underline"
     >
