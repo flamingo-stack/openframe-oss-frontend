@@ -2,7 +2,7 @@
  * MeshCentral File Operations
  */
 
-import type { FileOperationRequest } from './file-manager-types';
+import type { FileEntry, FileOperationRequest } from './file-manager-types';
 
 export class FileOperations {
   private requestIdCounter = 0;
@@ -75,6 +75,27 @@ export class FileOperations {
       delfiles: items,
       rec: recursive,
     };
+  }
+
+  /**
+   * The agent never answers `rm`: it swallows the failure and only emits an audit
+   * log whose count is wrong for a partly-deleted folder. The listing requested
+   * after the delete is the one outcome the protocol gives, so a requested name
+   * still in it was not deleted. Returns null when everything is gone.
+   */
+  describeDeleteFailure(requested: string[], listing: FileEntry[]): string | null {
+    const survivors = listing.filter(entry => requested.includes(entry.n));
+    if (survivors.length === 0) return null;
+
+    const partial = survivors.some(entry => entry.t === 2) ? ' Some folder contents may have been removed.' : '';
+
+    if (requested.length === 1) {
+      return `"${survivors[0].n}" could not be deleted. It may be locked or in use.${partial}`;
+    }
+
+    // No names here: the toast clamps at three lines, and the survivors are the
+    // rows still on screen.
+    return `${survivors.length} of ${requested.length} items could not be deleted. They may be locked or in use.${partial}`;
   }
 
   createCopyRequest(sourcePath: string, destinationPath: string, fileNames: string[]): FileOperationRequest {

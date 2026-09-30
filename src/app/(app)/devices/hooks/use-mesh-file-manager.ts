@@ -419,9 +419,9 @@ export function useMeshFileManager({
           description: (error as Error).message,
           variant: 'destructive',
         });
-        return;
       }
 
+      // A failed delete can still have removed some of the selection.
       setSelectedFiles([]);
       refreshCurrentDirectory();
     },

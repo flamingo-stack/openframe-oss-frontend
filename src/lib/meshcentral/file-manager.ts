@@ -566,10 +566,18 @@ export class MeshCentralFileManager {
   }
 
   async deleteItems(items: string[], recursive = false): Promise<void> {
-    const request = this.fileOps.createDeleteRequest(this.currentPath, items, recursive);
+    const path = this.currentPath;
+    const request = this.fileOps.createDeleteRequest(path, items, recursive);
 
     await this.sendOperationWithoutResponse(request);
-    await this.loadDirectory(this.currentPath);
+
+    // Not loadDirectory(): it answers from the cached listing while another load of
+    // this path is in flight, and that listing may predate the delete. The agent
+    // handles the tunnel in order, so this one is read after the rm has run.
+    const listing = await this.sendOperation<FileEntry[]>(this.fileOps.createListDirectoryRequest(path));
+
+    const failure = this.fileOps.describeDeleteFailure(items, listing);
+    if (failure) throw new Error(failure);
   }
 
   async copyFiles(items: string[], destinationPath: string): Promise<void> {
