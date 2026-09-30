@@ -226,18 +226,19 @@ export function SsoConfigModal({
           <div className="min-w-0 flex-1">
             <TruncateText className="text-code">{redirectUrl}</TruncateText>
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             aria-label="Copy redirect URL"
             onClick={handleCopyRedirectUrl}
-            className="flex shrink-0 items-center"
+            className="flex h-auto shrink-0 items-center p-0"
           >
             {copied ? (
               <CheckIcon className="h-4 w-4 text-ods-success md:h-6 md:w-6" />
             ) : (
               <Copy02Icon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />
             )}
-          </button>
+          </Button>
         </div>
         <p className="text-ods-text-primary text-h4">
           The callback URL must match exactly. Authentication will fail if not properly configured in your SSO provider.
@@ -284,14 +285,15 @@ export function SsoConfigModal({
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setClientSecret(e.target.value)}
             className="bg-ods-card"
             endAdornment={
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 aria-label={showSecret ? 'Hide client secret' : 'Show client secret'}
                 onClick={() => setShowSecret(!showSecret)}
-                className="flex items-center"
+                className="flex h-auto items-center p-0"
               >
                 {showSecret ? <EyeOffIcon /> : <EyeIcon />}
-              </button>
+              </Button>
             }
           />
         </div>
