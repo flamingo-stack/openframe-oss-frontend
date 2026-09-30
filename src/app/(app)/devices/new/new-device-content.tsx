@@ -314,6 +314,7 @@ export function NewDeviceContent() {
               command={command}
               onCopy={copyInstallScript}
               copyAriaLabel="Copy installation script"
+              commandClassName="text-ods-accent"
             />
           ) : (
             <>
@@ -322,12 +323,14 @@ export function NewDeviceContent() {
                 command={PACKAGE_MANAGER_METHODS[installMethod].installCommand}
                 onCopy={() => copyBoxCommand(PACKAGE_MANAGER_METHODS[installMethod].installCommand)}
                 copyAriaLabel="Copy install command"
+                commandClassName="text-ods-accent"
               />
               <CommandBox
                 title="OpenFrame Register Command"
                 command={registerCommand}
                 onCopy={copyRegisterCommand}
                 copyAriaLabel="Copy register command"
+                commandClassName="text-ods-accent"
               />
             </>
           )}
