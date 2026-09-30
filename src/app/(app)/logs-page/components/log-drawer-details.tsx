@@ -2,11 +2,22 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Component, type ReactNode, Suspense } from 'react';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
+import type { logDrawerDetails_log$key } from '@/__generated__/logDrawerDetails_log.graphql';
 import type { logDrawerDetailsQuery as LogDrawerDetailsQueryType } from '@/__generated__/logDrawerDetailsQuery.graphql';
-import type { Instant } from '@/lib/graphql-scalars';
 import { getErrorMessage } from '@/lib/handle-api-error';
-import { formatLogDetailsForCopy } from '../utils/format-log-details';
+import { formatLogDetailsRefForCopy } from '../utils/format-log-details';
+
+/** The composite key `logDetails` takes; the row carries it, the full log does not ride along. */
+const logDrawerDetailsFragment = graphql`
+  fragment logDrawerDetails_log on LogEvent {
+    toolEventId
+    ingestDay
+    toolType
+    eventType
+    timestamp
+  }
+`;
 
 const logDrawerDetailsQuery = graphql`
   query logDrawerDetailsQuery(
@@ -23,29 +34,23 @@ const logDrawerDetailsQuery = graphql`
       timestamp: $timestamp
       toolEventId: $toolEventId
     ) {
-      id
-      toolEventId
-      eventType
-      toolType
-      severity
-      message
-      timestamp
-      details
+      ...formatLogDetails_log
     }
   }
 `;
 
-export interface LogDrawerDetailsProps {
-  ingestDay: string;
-  toolType: string;
-  eventType: string;
-  timestamp: Instant;
-  toolEventId: string;
+interface LogDrawerDetailsProps {
+  log: logDrawerDetails_log$key;
   /** Shown when the full log cannot be loaded (the row summary). */
   fallback: string;
 }
 
-function LogDrawerDetailsContent({ fallback, ...variables }: LogDrawerDetailsProps) {
+interface LogDrawerDetailsContentProps {
+  variables: LogDrawerDetailsQueryType['variables'];
+  fallback: string;
+}
+
+function LogDrawerDetailsContent({ variables, fallback }: LogDrawerDetailsContentProps) {
   const data = useLazyLoadQuery<LogDrawerDetailsQueryType>(logDrawerDetailsQuery, variables, {
     fetchPolicy: 'store-or-network',
   });
@@ -53,19 +58,7 @@ function LogDrawerDetailsContent({ fallback, ...variables }: LogDrawerDetailsPro
   const log = data.logDetails;
   if (!log) return <>{fallback}</>;
 
-  return (
-    <span className="block whitespace-pre-wrap break-words">
-      {formatLogDetailsForCopy({
-        toolEventId: log.toolEventId,
-        eventType: log.eventType,
-        toolType: log.toolType,
-        severity: log.severity,
-        message: log.message ?? undefined,
-        timestamp: log.timestamp,
-        details: log.details ?? undefined,
-      })}
-    </span>
-  );
+  return <span className="block whitespace-pre-wrap break-words">{formatLogDetailsRefForCopy(log)}</span>;
 }
 
 class LogDrawerDetailsErrorBoundary extends Component<
@@ -103,19 +96,23 @@ function LogDrawerDetailsSkeleton() {
  * Full log details block for the "Log Details" drawer — the same content the
  * "Copy Log Details" affordances put on the clipboard, fetched on drawer open.
  */
-export function LogDrawerDetails(props: LogDrawerDetailsProps) {
+export function LogDrawerDetails({ log, fallback }: LogDrawerDetailsProps) {
   const { toast } = useToast();
+  const { toolEventId, ingestDay, toolType, eventType, timestamp } = useFragment(logDrawerDetailsFragment, log);
 
   return (
     // Keyed by the composite log identity so a failed boundary resets when
     // another log is selected while the drawer stays mounted.
     <LogDrawerDetailsErrorBoundary
-      key={`${props.toolEventId}:${props.timestamp}`}
-      fallback={props.fallback}
+      key={`${toolEventId}:${timestamp}`}
+      fallback={fallback}
       onError={error => toast({ title: 'Error', description: getErrorMessage(error), variant: 'destructive' })}
     >
       <Suspense fallback={<LogDrawerDetailsSkeleton />}>
-        <LogDrawerDetailsContent {...props} />
+        <LogDrawerDetailsContent
+          variables={{ toolEventId, ingestDay, toolType, eventType, timestamp }}
+          fallback={fallback}
+        />
       </Suspense>
     </LogDrawerDetailsErrorBoundary>
   );

@@ -1,18 +1,17 @@
 import type { Instant } from '@/lib/graphql-scalars';
 import type { PartialNamedDevice } from '../../devices/types/device.types';
+import type { CopyableLogDetails } from '../utils/format-log-details';
 
-export interface LogEntry {
-  toolEventId: string;
-  eventType: string;
+/**
+ * A log as the raw-POST paths still read it (`use-logs.ts`, `use-log-details.ts`).
+ * The copy payload's fields come from the generated shape; the rest stays
+ * restated by hand until those paths move to Relay.
+ */
+export interface LogEntry extends CopyableLogDetails {
   ingestDay: string;
-  toolType: string;
-  severity: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
   userId?: string;
   deviceId?: string;
   summary: string;
-  message?: string;
-  timestamp: Instant;
-  details?: string;
   metadata?: Record<string, unknown>;
 
   // Device-related fields from backend
