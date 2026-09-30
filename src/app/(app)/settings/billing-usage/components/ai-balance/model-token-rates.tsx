@@ -3,8 +3,8 @@
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertTriangleIcon,
-  AnthropicLogoIcon,
-  GeminiLogoIcon,
+  AnthropicLogoGreyIcon,
+  GeminiLogoGreyIcon,
   OpenaiLogoGreyIcon,
   QuestionCircleIcon,
   Refresh02VrIcon,
@@ -22,10 +22,15 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { modelTokenRatesQuery as ModelTokenRatesQueryType } from '@/__generated__/modelTokenRatesQuery.graphql';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 
+/**
+ * The provider marks in their monochrome cut. They take the row's text colour,
+ * and the row paints them in the secondary grey: the mockup keeps every logo
+ * quiet so the brand colours do not compete with the figures beside them.
+ */
 const PROVIDER_ICON: Record<string, ComponentType<{ className?: string }>> = {
-  ANTHROPIC: AnthropicLogoIcon,
+  ANTHROPIC: AnthropicLogoGreyIcon,
   OPENAI: OpenaiLogoGreyIcon,
-  GOOGLE_GEMINI: GeminiLogoIcon,
+  GOOGLE_GEMINI: GeminiLogoGreyIcon,
 };
 
 const SKELETON_ROW_KEYS = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10'] as const;
@@ -119,17 +124,19 @@ export function ModelTokenRates({ autoTopUpEnabled }: ModelTokenRatesProps) {
 }
 
 /**
- * On or off, in the mockup's two treatments: the refresh mark in the success
- * colour when the balance refills itself, a crossed circle in the secondary
- * grey when it does not.
+ * On or off, in the mockup's two treatments. On, the line sits on the success
+ * tint with the refresh mark and the words in the success colour — the one
+ * band of colour in the panel, so a refilling balance reads at a glance. Off,
+ * it stays on the panel's own background with a crossed circle in the
+ * secondary grey.
  */
 function AutoTopUpLine({ enabled }: { enabled: boolean }) {
   const Icon = enabled ? Refresh02VrIcon : XmarkCircleIcon;
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center gap-[var(--spacing-system-xsf)] border-b border-ods-border px-[var(--spacing-system-sf)] py-[var(--spacing-system-xsf)] text-h4',
-        enabled ? 'text-ods-success' : 'text-ods-text-secondary',
+        'flex shrink-0 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-s)] py-[var(--spacing-system-xs)] text-h4',
+        enabled ? 'bg-ods-success-secondary text-ods-success' : 'text-ods-text-secondary',
       )}
     >
       <Icon className="size-6 shrink-0" />
@@ -170,7 +177,7 @@ function ModelTokenRatesContent() {
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-2 border-b border-ods-border px-3 py-2 uppercase tracking-[-0.02em] text-ods-text-secondary text-h5">
+      <div className="flex shrink-0 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-s)] py-[var(--spacing-system-xs)] uppercase tracking-[-0.02em] text-ods-text-secondary text-h5">
         <span className="flex-1">Model</span>
         <span>OpenFrame Token</span>
       </div>
@@ -179,8 +186,11 @@ function ModelTokenRatesContent() {
         {rates.map(rate => {
           const Icon = PROVIDER_ICON[rate.providerType];
           return (
-            <div key={`${rate.providerType}-${rate.modelName}`} className="flex items-center gap-2 px-3 py-2">
-              {Icon && <Icon className="size-6 shrink-0" />}
+            <div
+              key={`${rate.providerType}-${rate.modelName}`}
+              className="flex items-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-s)] py-[var(--spacing-system-xxs)]"
+            >
+              {Icon && <Icon className="size-6 shrink-0 text-ods-text-secondary" />}
               <span className="whitespace-nowrap text-ods-text-primary text-h6">
                 {rate.displayName || rate.modelName}
               </span>
@@ -202,13 +212,16 @@ function ModelTokenRatesContent() {
 function ModelTokenRatesSkeleton() {
   return (
     <>
-      <div className="flex items-center gap-2 border-b border-ods-border px-3 py-2">
+      <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-s)] py-[var(--spacing-system-xs)]">
         <Skeleton className="h-4 w-12" />
         <div className="flex-1" />
         <Skeleton className="h-4 w-28" />
       </div>
       {SKELETON_ROW_KEYS.map(key => (
-        <div key={key} className="flex items-center gap-2 px-3 py-2">
+        <div
+          key={key}
+          className="flex items-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-s)] py-[var(--spacing-system-xxs)]"
+        >
           <Skeleton className="size-6 shrink-0 rounded-full" />
           <Skeleton className="h-4 w-40" />
           <div className="flex-1" />
