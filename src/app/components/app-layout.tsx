@@ -666,11 +666,15 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       )}
       {/* Reports what the billing banners above need. Suspends, so it sits in
           its own boundary and renders nothing either way — a shell that waited
-          on it would hold the whole app for a banner. */}
+          on it would hold the whole app for a banner. The ErrorBoundary is for
+          the same reason as the unread counts above: a failed banner query must
+          not reach the root boundary and take the page with it. */}
       {showAiSpendBar && (
-        <Suspense fallback={null}>
-          <BillingBarsHydrator onResolved={setBillingBars} />
-        </Suspense>
+        <ErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <BillingBarsHydrator onResolved={setBillingBars} />
+          </Suspense>
+        </ErrorBoundary>
       )}
       {/* Desktop shell update offer. Also owns the mount-time availability
           check that the sidebar's update button reads. No-op elsewhere. */}

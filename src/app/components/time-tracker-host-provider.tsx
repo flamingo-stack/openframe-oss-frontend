@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ErrorBoundary,
   type TimeTrackerData,
   type TimeTrackerEntry,
   TimeTrackerProvider,
@@ -305,16 +306,28 @@ function TimeTrackerHost({ enabled, children }: { enabled: boolean; children: Re
   // siblings around it come and go, and a sibling appearing costs the subtree
   // nothing. The modals mount their own `useTicketCustomerSelection`, so they are
   // part of "costs anything" and are gated too.
+  //
+  // Each hydrator has its own `ErrorBoundary`. This host sits above the
+  // `(app)/error.tsx` boundary, so a failed query here otherwise reaches the ROOT
+  // boundary and replaces the whole app with "Something Went Wrong". That is what
+  // a Stripe return did: the backend refuses `myTimeEntries` as
+  // SUBSCRIPTION_CANCELED for a few seconds after a canceled workspace pays, and
+  // Try Again rethrows the retained failure. A failed hydrator costs the panel
+  // its timer or recent entries, not the page.
   return (
     <TimeTrackerProvider enabled={enabled} {...trackerData}>
       {enabled && (
         <>
-          <Suspense fallback={null}>
-            <CurrentTimerHydrator onTimer={setTimerNode} />
-          </Suspense>
-          <Suspense fallback={null}>
-            <RecentEntriesHydrator onEntries={setRecentNodes} />
-          </Suspense>
+          <ErrorBoundary fallback={null}>
+            <Suspense fallback={null}>
+              <CurrentTimerHydrator onTimer={setTimerNode} />
+            </Suspense>
+          </ErrorBoundary>
+          <ErrorBoundary fallback={null}>
+            <Suspense fallback={null}>
+              <RecentEntriesHydrator onEntries={setRecentNodes} />
+            </Suspense>
+          </ErrorBoundary>
         </>
       )}
       {children}
