@@ -48,7 +48,13 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
   const time = formatLogTime(data.timestamp);
 
   return (
-    <li className={cn('rounded-md border border-transparent', expanded && 'border-ods-border bg-ods-card')}>
+    // overflow-hidden: the header's hover fill takes the row's own corners, flush with the body when open.
+    <li
+      className={cn(
+        'overflow-hidden rounded-md border border-transparent',
+        expanded && 'border-ods-border bg-ods-card',
+      )}
+    >
       <Button
         variant="transparent"
         size="wrap"
@@ -56,7 +62,7 @@ export function AgentLogRow({ entry, deviceHostname }: AgentLogRowProps) {
         fullWidth
         aria-expanded={expanded}
         onClick={() => setExpanded(open => !open)}
-        className={cn('justify-start text-left', AGENT_LOG_LINE)}
+        className={cn('justify-start rounded-none text-left focus-visible:ring-inset', AGENT_LOG_LINE)}
       >
         <span className={cn(AGENT_LOG_TIME_COLUMN, 'shrink-0 tabular-nums text-ods-text-secondary text-code')}>
           {time}
