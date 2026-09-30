@@ -51,6 +51,7 @@ export const TAB_IDS = {
     'users',
     'software',
     'remote-sessions',
+    'agent-logs',
   ],
   scriptDetails: ['details', 'executions'],
   softwareDetails: ['devices', 'vulnerabilities'],

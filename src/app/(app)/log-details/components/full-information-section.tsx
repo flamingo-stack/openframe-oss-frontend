@@ -4,19 +4,7 @@ import type { InfoCardData } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCard, ToolIcon } from '@flamingo-stack/openframe-frontend-core';
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import { formatDateTime } from '@/lib/format-date';
-
-interface LogEntry {
-  toolEventId: string;
-  eventType: string;
-  ingestDay: string;
-  toolType: string;
-  severity: string;
-  userId?: string;
-  deviceId?: string;
-  message?: string;
-  timestamp: string;
-  details?: string;
-}
+import type { LogEntry } from '../../logs-page/types/log.types';
 
 interface FullInformationSectionProps {
   logDetails?: LogEntry | null;

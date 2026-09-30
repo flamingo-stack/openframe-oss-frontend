@@ -125,7 +125,7 @@ export const PACKAGE_MANAGER_METHODS: Record<Exclude<InstallMethod, 'script'>, P
   chocolatey: {
     label: 'Chocolatey',
     commandTitle: 'Chocolatey Install Command',
-    installCommand: 'choco install openframe -y',
+    installCommand: 'choco install openframe-client -y',
   },
   brew: {
     label: 'Brew',
@@ -138,13 +138,15 @@ export function installMethodLabel(method: InstallMethod): string {
   return method === 'script' ? 'Script' : PACKAGE_MANAGER_METHODS[method].label;
 }
 
+/** Methods whose package is published; the rest are pending DevOps publishing. */
+const ENABLED_INSTALL_METHODS: ReadonlySet<InstallMethod> = new Set(['script', 'chocolatey']);
+
 /**
- * Package-manager installs are not live yet (packages pending DevOps
- * publishing), so every method except the install script is shown disabled in
- * the Install Method dropdown until they ship.
+ * A method whose package is not live yet is shown disabled in the Install
+ * Method dropdown until it ships.
  */
 export function isInstallMethodEnabled(method: InstallMethod): boolean {
-  return method === 'script';
+  return ENABLED_INSTALL_METHODS.has(method);
 }
 
 export function installMethodsForPlatform(platform: OSPlatformId): InstallMethod[] {
@@ -168,7 +170,7 @@ export function buildRegisterCommand(options: RegisterCommandOptions): string {
 
   const userArg = userId ? ` --userId ${userId}` : '';
   const extras = additionalArgs.length ? ' ' + additionalArgs.join(' ') : '';
-  const command = `openframe auth --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}${userArg}${extras}`;
+  const command = `openframe-client auth --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}${userArg}${extras}`;
   return platform === 'windows' ? command : `sudo ${command}`;
 }
 

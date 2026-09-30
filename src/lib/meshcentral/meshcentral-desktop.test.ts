@@ -54,3 +54,33 @@ describe('MeshDesktop.onBinaryFrame', () => {
     expect([canvas.width, canvas.height]).toEqual([1280, 720]);
   });
 });
+
+describe('MeshDesktop.beginStream', () => {
+  // KVM command 7 (screen size) is the one command whose effect shows without a 2D context.
+  const SCREEN_SIZE_800x600 = new Uint8Array([0x00, 0x07, 0x00, 0x08, 0x03, 0x20, 0x02, 0x58]);
+  // The head of a 100-byte tile (command 3) whose relay dropped before the rest arrived.
+  const TRUNCATED_TILE = new Uint8Array([0x00, 0x03, 0x00, 0x64, 0x00, 0x00]);
+
+  function renderOnly(): { desktop: MeshDesktop; canvas: HTMLCanvasElement } {
+    const canvas = document.createElement('canvas');
+    canvas.getContext = () => null;
+    const desktop = new MeshDesktop();
+    desktop.attachRenderOnly(canvas);
+    return { desktop, canvas };
+  }
+
+  it('drops the command a dropped relay left half-received', async () => {
+    const { desktop, canvas } = renderOnly();
+    await desktop.onBinaryFrame(TRUNCATED_TILE);
+    desktop.beginStream();
+    await desktop.onBinaryFrame(SCREEN_SIZE_800x600);
+    expect([canvas.width, canvas.height]).toEqual([800, 600]);
+  });
+
+  it('would otherwise parse the next relay as the tail of that command', async () => {
+    const { desktop, canvas } = renderOnly();
+    await desktop.onBinaryFrame(TRUNCATED_TILE);
+    await desktop.onBinaryFrame(SCREEN_SIZE_800x600);
+    expect(canvas.width).not.toBe(800);
+  });
+});
