@@ -36,6 +36,7 @@ import {
 } from '@/graphql/time-tracker/time-tracker-helpers';
 import { updateTimeEntryMutation } from '@/graphql/time-tracker/update-time-entry-mutation';
 import { formatDate } from '@/lib/format-date';
+import type { Instant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { useAuthStore } from '@/stores';
@@ -96,7 +97,7 @@ function AssignedUserField({
 export interface ManualEntryEditTarget {
   id: string;
   durationSeconds: number;
-  startedAt: unknown;
+  startedAt: Instant;
   ticketId?: string | null;
   ticketNumber?: number | null;
   ticketTitle?: string | null;
