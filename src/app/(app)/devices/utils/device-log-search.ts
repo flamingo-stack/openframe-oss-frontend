@@ -1,29 +1,43 @@
-// `DeviceLogFilterInput.contains/excludes`: max 5 terms of 256 characters each.
-const MAX_TERMS = 5;
-const MAX_TERM_LENGTH = 256;
+// `DeviceLogFilterInput.contains` / `excludes`: at most 5 terms of 256 characters each (`DeviceLogService`).
+const MAX_SEARCH_TERMS = 5;
+const MAX_SEARCH_LENGTH = 256;
+
+/** One term of the search box: a quoted phrase or a bare word, either behind a leading `-`. */
+const TERM_PATTERN = /-?"[^"]*"|\S+/g;
 
 export interface DeviceLogSearch {
   contains: string[];
   excludes: string[];
-  /** Why the text cannot be sent; `contains`/`excludes` are then not applied. */
+  /** Why the text cannot be sent; `contains` and `excludes` are then not applied. */
   error: string | null;
 }
 
-/** `"control channel" -heartbeat` → contains `control channel`, excludes `heartbeat`. */
-export function parseDeviceLogSearch(input: string): DeviceLogSearch {
+/** `"control channel" failed -heartbeat` → contains `control channel`, `failed`; excludes `heartbeat`. */
+export function parseDeviceLogSearch(text: string): DeviceLogSearch {
   const contains: string[] = [];
   const excludes: string[] = [];
-  for (const token of input.match(/-?"[^"]*"|\S+/g) ?? []) {
-    const negated = token.startsWith('-');
-    const term = token.slice(negated ? 1 : 0).replace(/^"|"$/g, '');
-    if (term) (negated ? excludes : contains).push(term);
+
+  for (const token of text.match(TERM_PATTERN) ?? []) {
+    const excluded = token.startsWith('-');
+    const term = stripQuotes(excluded ? token.slice(1) : token);
+    if (term === '') continue;
+    if (excluded) excludes.push(term);
+    else contains.push(term);
   }
 
-  let error: string | null = null;
-  if ([...contains, ...excludes].some(term => term.length > MAX_TERM_LENGTH)) {
-    error = `Search terms are limited to ${MAX_TERM_LENGTH} characters.`;
-  } else if (contains.length > MAX_TERMS || excludes.length > MAX_TERMS) {
-    error = `Use up to ${MAX_TERMS} search terms and ${MAX_TERMS} excluded terms.`;
-  }
-  return { contains, excludes, error };
+  return { contains, excludes, error: searchLimitError(contains, excludes) };
+}
+
+function stripQuotes(token: string): string {
+  return token.replace(/^"|"$/g, '');
+}
+
+function searchLimitError(contains: string[], excludes: string[]): string | null {
+  const tooLong = [...contains, ...excludes].some(term => term.length > MAX_SEARCH_LENGTH);
+  if (tooLong) return `Search terms are limited to ${MAX_SEARCH_LENGTH} characters.`;
+
+  const tooMany = contains.length > MAX_SEARCH_TERMS || excludes.length > MAX_SEARCH_TERMS;
+  if (tooMany) return `Use up to ${MAX_SEARCH_TERMS} search terms and ${MAX_SEARCH_TERMS} excluded terms.`;
+
+  return null;
 }

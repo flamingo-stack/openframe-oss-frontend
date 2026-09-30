@@ -3,8 +3,11 @@ import { startOfDay, subDays } from 'date-fns';
 import { dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { toValidDate } from '@/lib/format-date';
 
+// --- The range control ---
+
 export const DEVICE_LOG_RANGES = ['1h', '24h', '7d', 'custom'] as const;
 export type DeviceLogRange = (typeof DEVICE_LOG_RANGES)[number];
+type DeviceLogPreset = Exclude<DeviceLogRange, 'custom'>;
 
 export const DEVICE_LOG_RANGE_LABELS: Record<DeviceLogRange, string> = {
   '1h': 'Last hour',
@@ -13,29 +16,35 @@ export const DEVICE_LOG_RANGE_LABELS: Record<DeviceLogRange, string> = {
   custom: 'Custom range',
 };
 
-export const DEFAULT_DEVICE_LOG_RANGE: Exclude<DeviceLogRange, 'custom'> = '24h';
+export const DEFAULT_DEVICE_LOG_RANGE: DeviceLogPreset = '24h';
 
-/** `DeviceLogFilterInput`: `from`..`to` may span at most 30 days. */
+/** `DeviceLogFilterInput`: `from`..`to` may span at most 30 days (`DeviceLogService.MAX_RANGE`). */
 const MAX_RANGE_DAYS = 30;
 
 const HOUR_MS = 60 * 60 * 1000;
-const PRESET_MS: Record<Exclude<DeviceLogRange, 'custom'>, number> = {
+const DAY_MS = 24 * HOUR_MS;
+const PRESET_MS: Record<DeviceLogPreset, number> = {
   '1h': HOUR_MS,
-  '24h': 24 * HOUR_MS,
-  '7d': 7 * 24 * HOUR_MS,
+  '24h': DAY_MS,
+  '7d': 7 * DAY_MS,
 };
 
-export const isDeviceLogRange = (value: string): value is DeviceLogRange =>
-  (DEVICE_LOG_RANGES as readonly string[]).includes(value);
+export function isDeviceLogRange(value: string): value is DeviceLogRange {
+  return (DEVICE_LOG_RANGES as readonly string[]).includes(value);
+}
 
-/** A preset counts back from `anchorMs`; custom covers the picked local days, or the default preset until days are picked. */
+/** `from`/`to` for the filter: a preset counts back from the anchor; custom covers the picked local days. */
 export function deviceLogRangeBounds(
   range: DeviceLogRange,
   custom: DateRange | undefined,
   anchorMs: number,
 ): { from?: string; to?: string } {
-  if (range === 'custom' && custom) return dateRangeToInstantBounds(custom);
-  const preset = range === 'custom' ? DEFAULT_DEVICE_LOG_RANGE : range;
+  if (range !== 'custom') return presetBounds(range, anchorMs);
+  // Custom with no days picked yet reads as the default preset.
+  return custom ? dateRangeToInstantBounds(custom) : presetBounds(DEFAULT_DEVICE_LOG_RANGE, anchorMs);
+}
+
+function presetBounds(preset: DeviceLogPreset, anchorMs: number): { from: string } {
   return { from: new Date(anchorMs - PRESET_MS[preset]).toISOString() };
 }
 
@@ -45,9 +54,29 @@ export function deviceLogPickerBounds(anchorMs: number): { fromDate: Date; toDat
   return { fromDate: startOfDay(subDays(today, MAX_RANGE_DAYS - 1)), toDate: today };
 }
 
-/** An `Instant` as a `Date`. Java prints up to nine fraction digits; `Date` parses three. */
+// --- The lines ---
+
+/** Java prints an `Instant` with up to nine fraction digits; `Date` parses three. */
+const NANOS_PAST_MILLIS = /(\.\d{3})\d+Z$/;
+
 export function instantToDate(instant: string): Date | null {
-  return toValidDate(instant.replace(/(\.\d{3})\d+Z$/, '$1Z'));
+  return toValidDate(instant.replace(NANOS_PAST_MILLIS, '$1Z'));
+}
+
+/** The local day a line belongs to; an unreadable instant is its own day. */
+function localDayOf(instant: string): string {
+  const date = instantToDate(instant);
+  return date ? toDayParam(date) : instant;
+}
+
+/** The cursor is the line's timestamp, so lines sharing one get a suffix to stay unique as React keys. */
+function uniqueRowKeys(cursors: readonly string[]): string[] {
+  const seen = new Map<string, number>();
+  return cursors.map(cursor => {
+    const repeat = seen.get(cursor) ?? 0;
+    seen.set(cursor, repeat + 1);
+    return repeat === 0 ? cursor : `${cursor}#${repeat}`;
+  });
 }
 
 export interface DeviceLogDayGroup<T> {
@@ -56,28 +85,23 @@ export interface DeviceLogDayGroup<T> {
   rows: { key: string; item: T }[];
 }
 
-/**
- * Consecutive lines of one local day, in list order. Row keys are the cursors,
- * suffixed when lines share one (the cursor is the line's timestamp).
- */
+/** Consecutive lines of one local day, in list order. */
 export function groupByLocalDay<T>(
   items: readonly T[],
   instantOf: (item: T) => string,
   cursorOf: (item: T) => string,
 ): DeviceLogDayGroup<T>[] {
+  const keys = uniqueRowKeys(items.map(cursorOf));
   const groups: DeviceLogDayGroup<T>[] = [];
-  const seen = new Map<string, number>();
-  for (const item of items) {
+
+  items.forEach((item, index) => {
     const instant = instantOf(item);
-    const date = instantToDate(instant);
-    const dayKey = date ? toDayParam(date) : instant;
-    const cursor = cursorOf(item);
-    const repeat = seen.get(cursor) ?? 0;
-    seen.set(cursor, repeat + 1);
-    const row = { key: repeat === 0 ? cursor : `${cursor}#${repeat}`, item };
-    const last = groups[groups.length - 1];
-    if (last && last.key === dayKey) last.rows.push(row);
-    else groups.push({ key: dayKey, date, rows: [row] });
-  }
+    const day = localDayOf(instant);
+    const row = { key: keys[index], item };
+    const current = groups.at(-1);
+    if (current?.key === day) current.rows.push(row);
+    else groups.push({ key: day, date: instantToDate(instant), rows: [row] });
+  });
+
   return groups;
 }
