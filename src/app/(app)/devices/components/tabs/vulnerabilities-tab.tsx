@@ -139,6 +139,9 @@ function ModuleVulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
  * own table over `deviceVulnerabilities`, so the tab reads like the module's
  * page and its rows lead to the CVE's page there. Until the flag answers, the
  * skeleton — see `SoftwareTab`.
+ *
+ * Structurally mirrors `SoftwareTab` (same gate/skeleton/off/on shape); each
+ * tab switches on its own module's data, so the branches are not extracted.
  */
 export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
   const gate = useFeatureFlagGate('software-management');

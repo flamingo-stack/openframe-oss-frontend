@@ -129,6 +129,12 @@ function ModuleSoftwareTab({ device }: SoftwareTabProps) {
  * there. Until the flag answers, the skeleton — not the Fleet list, which would
  * guess the module absent and swap the table out under the user
  * (`use-feature-flag.ts`).
+ *
+ * Structurally identical to `VulnerabilitiesTab` (gate → skeleton / Fleet /
+ * module component); kept as a distinct declaration here because the two tabs
+ * gate on different flags and delegate to different Fleet/module
+ * implementations, so there's no shared body to extract without threading
+ * those through as parameters.
  */
 export function SoftwareTab({ device }: SoftwareTabProps) {
   const gate = useFeatureFlagGate('software-management');
