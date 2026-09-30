@@ -126,20 +126,20 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     component: SoftwareTab,
   },
   {
-    id: REMOTE_SESSIONS_TAB_ID,
-    label: 'Remote Sessions',
-    // The Figma glyph is named "computer-mouse" - the same icon the Remote
-    // Control header button uses.
-    icon: ComputerMouseIcon,
-    component: RemoteSessionsTab,
-  },
-  {
     id: AGENT_LOGS_TAB_ID,
     label: 'Agent Logs',
     icon: ClipboardListIcon,
     // Shipped behind its flag — the same stamp the sidebar puts on flagged modules.
     badge: 'Beta',
     component: AgentLogsTab,
+  },
+  {
+    id: REMOTE_SESSIONS_TAB_ID,
+    label: 'Remote Sessions',
+    // The Figma glyph is named "computer-mouse" - the same icon the Remote
+    // Control header button uses.
+    icon: ComputerMouseIcon,
+    component: RemoteSessionsTab,
   },
 ];
 
