@@ -12,7 +12,6 @@ import { useSeedForm } from '@/app/hooks/use-seed-form';
 import { collectFormErrorMessages } from '@/lib/collect-form-error-messages';
 import { routes } from '@/lib/routes';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
-import type { CustomerAppearanceHandle } from '../components/ai-assistant-appearance/customer-ai-assistant-appearance';
 import type { CustomerAiConfigurationHandle } from '../components/customer-ai-configuration/customer-ai-configuration';
 import type { CustomerDeviceGuardrailsHandle } from '../components/customer-device-guardrails-settings';
 import type { CustomerGuardrailsHandle } from '../components/customer-guardrails-settings';
@@ -87,10 +86,7 @@ export function useCustomerForm({ organizationId, flushPendingLogo, onInvalid }:
   const inFlightRef = useRef(false);
 
   // Let "Save Customer" also persist the AI configuration / guardrails blocks.
-  // Only one AI block is mounted at a time (the flag picks old vs new), so at
-  // most one of these refs is set; both handle shapes are `{ validate, commit }`.
   const aiConfigurationRef = useRef<CustomerAiConfigurationHandle>(null);
-  const appearanceRef = useRef<CustomerAppearanceHandle>(null);
   const guardrailsRef = useRef<CustomerGuardrailsHandle>(null);
   const deviceGuardrailsRef = useRef<CustomerDeviceGuardrailsHandle>(null);
 
@@ -99,11 +95,11 @@ export function useCustomerForm({ organizationId, flushPendingLogo, onInvalid }:
       // Everything is caught here: handleSubmit re-throws a rejection after
       // resetting isSubmitting, and handleSave does not await it.
       try {
-        // Whichever AI block is mounted (flag picks old appearance vs new config).
-        const activeAiHandle = aiConfigurationRef.current ?? appearanceRef.current;
+        // Set only when the AI configuration block is mounted (saas-tenant, edit mode).
+        const aiHandle = aiConfigurationRef.current;
 
         // Validate the AI fields before writing anything.
-        if (activeAiHandle && !(await activeAiHandle.validate())) {
+        if (aiHandle && !(await aiHandle.validate())) {
           toast({
             title: 'Check AI configuration',
             description: 'Fix the highlighted AI configuration fields before saving',
@@ -134,9 +130,9 @@ export function useCustomerForm({ organizationId, flushPendingLogo, onInvalid }:
         // Persist the AI overrides/reset (edit mode only). The customer is already
         // saved at this point, so a configuration failure is a non-fatal warning —
         // it must not surface as a full "Save failed".
-        if (organizationId && activeAiHandle) {
+        if (organizationId && aiHandle) {
           try {
-            await activeAiHandle.commit();
+            await aiHandle.commit();
           } catch (e) {
             toast({
               title: 'Customer saved, AI configuration not updated',
@@ -147,7 +143,7 @@ export function useCustomerForm({ organizationId, flushPendingLogo, onInvalid }:
         }
 
         // Persist the per-customer guardrails selection (edit mode only). Same
-        // non-fatal semantics as the appearance block: the customer is saved.
+        // non-fatal semantics as the AI configuration block: the customer is saved.
         if (organizationId && guardrailsRef.current) {
           try {
             await guardrailsRef.current.commit();
@@ -239,6 +235,6 @@ export function useCustomerForm({ organizationId, flushPendingLogo, onInvalid }:
     isSubmitting: form.formState.isSubmitting,
     showErrors,
     handleSave,
-    refs: { aiConfigurationRef, appearanceRef, guardrailsRef, deviceGuardrailsRef },
+    refs: { aiConfigurationRef, guardrailsRef, deviceGuardrailsRef },
   };
 }

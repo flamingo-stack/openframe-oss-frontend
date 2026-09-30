@@ -2,12 +2,12 @@ import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
 import { apiClient } from '@/lib/api-client';
 import type { ChatType } from '../constants';
 import { API_ENDPOINTS } from '../constants';
-import { getDialogMessagesQuery, normalizeMessageDataAliases } from '../queries/dialogs-queries';
+import { GET_DIALOG_MESSAGES_QUERY, normalizeMessageDataAliases } from '../queries/dialogs-queries';
 import {
   GET_TICKET_QUERY,
   GET_TICKET_STATUS_TRANSITION_RULES_QUERY,
   GET_TICKETS_QUERY,
-  getBoardColumnTicketsQuery,
+  GET_BOARD_COLUMN_TICKETS_QUERY,
   MARK_DIALOG_MESSAGES_READ_MUTATION,
   REORDER_TICKET_MUTATION,
   TICKETS_DEFAULT_SORT,
@@ -244,7 +244,7 @@ export class TicketService implements TicketServiceInterface {
 
   async fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage> {
     const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
-      query: getBoardColumnTicketsQuery(),
+      query: GET_BOARD_COLUMN_TICKETS_QUERY,
       variables: {
         statusId: params.statusId,
         limit: params.limit,
@@ -291,7 +291,7 @@ export class TicketService implements TicketServiceInterface {
         messages: { edges: Array<{ cursor: string; node: Message }>; pageInfo: MessagePage['pageInfo'] };
       }>
     >('/chat/graphql', {
-      query: getDialogMessagesQuery(),
+      query: GET_DIALOG_MESSAGES_QUERY,
       variables: {
         dialogId: params.dialogId,
         chatType: params.chatType,

@@ -19,6 +19,7 @@ import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryTy
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { EmptyState } from '@/app/components/shared';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { NotificationReadStatus } from '@/generated/schema-enums';
 import {
   mapNotificationNode,
   parseCreatedAt,
@@ -143,6 +144,7 @@ function SectionTable({
           description: node.description == null ? null : stripNotificationMarkup(node.description),
           createdAt: parseCreatedAt(node.createdAt),
           read: node.read,
+          archived: node.status === NotificationReadStatus.ARCHIVED,
           notification: mapNotificationNode(node),
         };
       }),

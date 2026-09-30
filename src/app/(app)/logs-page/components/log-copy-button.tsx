@@ -2,45 +2,81 @@
 
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useState } from 'react';
+import { fetchQuery, graphql, useFragment, useRelayEnvironment } from 'react-relay';
+import type { logCopyButton_log$key } from '@/__generated__/logCopyButton_log.graphql';
+import type { logCopyButtonQuery as LogCopyButtonQueryType } from '@/__generated__/logCopyButtonQuery.graphql';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
-import { useLogDetails } from '../../log-details/hooks/use-log-details';
-import { formatLogDetailsForCopy } from '../utils/format-log-details';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { formatLogDetailsRefForCopy } from '../utils/format-log-details';
 
-/** Identifying fields needed to fetch a log's full details for copying. */
-export interface LogCopyTarget {
-  toolEventId: string;
-  ingestDay: string;
-  toolType: string;
-  eventType: string;
-  timestamp: string;
-}
+/** The composite key `logDetails` takes — the row carries it, the full log does not ride along. */
+const logCopyButtonFragment = graphql`
+  fragment logCopyButton_log on LogEvent {
+    toolEventId
+    ingestDay
+    toolType
+    eventType
+    timestamp
+  }
+`;
+
+const logCopyButtonQuery = graphql`
+  query logCopyButtonQuery(
+    $toolEventId: String!
+    $ingestDay: String!
+    $toolType: String!
+    $eventType: String!
+    $timestamp: Instant!
+  ) {
+    logDetails(
+      toolEventId: $toolEventId
+      ingestDay: $ingestDay
+      toolType: $toolType
+      eventType: $eventType
+      timestamp: $timestamp
+    ) {
+      ...formatLogDetails_log
+    }
+  }
+`;
 
 /**
- * Table-row "Copy Log Details" button. The row payload only carries the summary,
- * so the full log (message + raw details) is fetched on click — the same source
- * the log-details page copies — and then formatted via {@link formatLogDetailsForCopy}.
+ * Table-row "Copy Log Details" button. The full log (message + raw details) is
+ * fetched on click — the same `logDetails` the drawer and the log-details page
+ * read, so a log the drawer already opened copies straight from the store.
  */
-export function LogCopyButton({ log }: { log: LogCopyTarget }) {
+export function LogCopyButton({ log }: { log: logCopyButton_log$key }) {
+  const { toolEventId, ingestDay, toolType, eventType, timestamp } = useFragment(logCopyButtonFragment, log);
+  const environment = useRelayEnvironment();
+  const { toast } = useToast();
   const { copy, copied } = useCopyToClipboard({
     successDescription: 'Log details copied to clipboard',
     errorDescription: 'Unable to copy log details',
   });
-  const { fetchLogDetailsById, isLoading } = useLogDetails();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleCopy = async () => {
+    setIsLoading(true);
     try {
-      const details = await fetchLogDetailsById(
-        log.toolEventId,
-        log.ingestDay,
-        log.toolType,
-        log.eventType,
-        log.timestamp,
-      );
-      if (details) {
-        copy(formatLogDetailsForCopy(details));
+      const data = await fetchQuery<LogCopyButtonQueryType>(
+        environment,
+        logCopyButtonQuery,
+        { toolEventId, ingestDay, toolType, eventType, timestamp },
+        { fetchPolicy: 'store-or-network' },
+      ).toPromise();
+      if (data?.logDetails) {
+        await copy(formatLogDetailsRefForCopy(data.logDetails));
       }
-    } catch {
-      // fetchLogDetailsById already surfaces the failure via a toast.
+    } catch (error) {
+      toast({
+        title: 'Error fetching log details',
+        description: getRelayErrorMessage(error, 'Failed to fetch log details'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 

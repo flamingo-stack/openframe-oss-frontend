@@ -39,7 +39,10 @@ import {
   useTransition,
 } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type { logsTableRelay_query$key as LogsFragmentKey } from '@/__generated__/logsTableRelay_query.graphql';
+import type {
+  logsTableRelay_query$data as LogsFragmentData,
+  logsTableRelay_query$key as LogsFragmentKey,
+} from '@/__generated__/logsTableRelay_query.graphql';
 import type { logsTableRelayPaginationQuery as LogsPaginationQueryType } from '@/__generated__/logsTableRelayPaginationQuery.graphql';
 import type { logsTableRelayQuery as LogsQueryType } from '@/__generated__/logsTableRelayQuery.graphql';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
@@ -62,10 +65,10 @@ import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import type { LogFilterInput } from '../types/log.types';
 import { logSourceLabels } from '../utils/log-source-labels';
-import { LogCopyButton, type LogCopyTarget } from './log-copy-button';
+import { LogCopyButton } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
+import { LOG_COLUMN_WIDTHS } from './logs-table-columns';
 import { LogsTableSkeleton } from './logs-table-skeleton';
 
 // ----------------------------------------------------------------
@@ -122,6 +125,8 @@ const logsTableRelayFragment = graphql`
           organizationName
           summary
           timestamp
+          ...logCopyButton_log
+          ...logDrawerDetails_log
         }
       }
       pageInfo {
@@ -138,10 +143,10 @@ const logsTableRelayFragment = graphql`
 
 type UiSortDirection = 'asc' | 'desc';
 
-interface LogSortInput {
-  field: LogSortField;
-  direction: SortDirection;
-}
+type LogFilterInput = NonNullable<LogsQueryType['variables']['filter']>;
+type LogSortInput = NonNullable<LogsQueryType['variables']['sort']>;
+/** A row of the connection as the fragment above selects it. */
+type LogNode = LogsFragmentData['logs']['edges'][number]['node'];
 
 interface UiLogEntry {
   id: string;
@@ -165,12 +170,12 @@ interface UiLogEntry {
     details?: string;
   };
   /**
-   * The API row this table row was built from. The row shape drops fields the
-   * drawer, the copy button and the details link still need (the composite key
-   * `ingestDay`/`toolType`/`eventType`/`timestamp`, and the device id), so the
-   * source row rides along.
+   * The API row this table row was built from. The row shape drops what the
+   * details link still needs (the composite key `ingestDay`/`toolType`/
+   * `eventType`/`timestamp`, and the device id), and the copy button and the
+   * drawer read their own fragments off it, so the source row rides along.
    */
-  originalLogEntry: LogCopyTarget & { deviceId?: string | null };
+  originalLogEntry: LogNode;
 }
 
 /**
@@ -392,7 +397,7 @@ function LogsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-[200px]', alwaysShowHeader: true },
+        meta: { width: LOG_COLUMN_WIDTHS.logId, alwaysShowHeader: true },
       },
       {
         accessorKey: 'status',
@@ -405,7 +410,7 @@ function LogsTableContent({
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: {
-          width: 'w-[120px]',
+          width: LOG_COLUMN_WIDTHS.status,
           filter: {
             options:
               logFilters?.severities?.map((severity: string) => ({
@@ -428,7 +433,7 @@ function LogsTableContent({
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: {
-          width: 'w-[150px]',
+          width: LOG_COLUMN_WIDTHS.tool,
           hideAt: 'md',
           filter: {
             options:
@@ -459,7 +464,7 @@ function LogsTableContent({
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: {
-          width: 'w-[120px]',
+          width: LOG_COLUMN_WIDTHS.source,
           hideAt: 'md',
           filter: organizationLocked
             ? undefined
@@ -477,7 +482,7 @@ function LogsTableContent({
           </TruncateText>
         ),
         enableSorting: false,
-        meta: { width: 'flex-1', hideAt: 'lg' },
+        meta: { width: LOG_COLUMN_WIDTHS.description, hideAt: 'lg' },
       },
       {
         id: 'copy',
@@ -487,7 +492,7 @@ function LogsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none ml-auto', align: 'right' },
+        meta: { width: `${LOG_COLUMN_WIDTHS.action} ml-auto`, align: 'right' },
       },
       {
         id: 'quickView',
@@ -504,7 +509,7 @@ function LogsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', align: 'right' },
+        meta: { width: LOG_COLUMN_WIDTHS.action, align: 'right' },
       },
       {
         id: 'open',
@@ -521,7 +526,7 @@ function LogsTableContent({
           </div>
         ),
         enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
+        meta: { width: LOG_COLUMN_WIDTHS.action, hideAt: 'md', align: 'right' },
       },
     ],
     [logFilters, getLogDetailsUrl, organizationLocked, dateFilter],
@@ -689,14 +694,7 @@ function LogsTableContent({
         onClose={handleCloseModal}
         description={
           selectedLog ? (
-            <LogDrawerDetails
-              ingestDay={selectedLog.originalLogEntry.ingestDay}
-              toolType={selectedLog.originalLogEntry.toolType}
-              eventType={selectedLog.originalLogEntry.eventType}
-              timestamp={selectedLog.originalLogEntry.timestamp}
-              toolEventId={selectedLog.logId}
-              fallback={selectedLog.description.title}
-            />
+            <LogDrawerDetails log={selectedLog.originalLogEntry} fallback={selectedLog.description.title} />
           ) : (
             ''
           )

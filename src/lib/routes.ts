@@ -51,6 +51,7 @@ export const TAB_IDS = {
     'users',
     'software',
     'remote-sessions',
+    'agent-logs',
   ],
   scriptDetails: ['details', 'executions'],
   softwareDetails: ['devices', 'vulnerabilities'],
@@ -388,15 +389,22 @@ export const routes = {
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
     billingUsage: '/settings/billing-usage',
-    // Tenant Management: Microsoft 365 / Google Workspace directory
-    // connections. Sub-pages take the connection id as `?id=` like every other
-    // detail page (static-export constraint, see ROUTES.md).
-    tenantManagement: '/settings/tenant-management',
+  },
+
+  /**
+   * Cloud Tenant Management: Microsoft 365 / Google Workspace directory
+   * connections. A module of its own — the sidebar's "Integrations" item — not a
+   * Settings section (it sat under `/settings/tenant-management` until 2026-09;
+   * `not-found.tsx` remaps the old paths). Sub-pages take the connection id as
+   * `?id=` like every other detail page (static-export constraint, see ROUTES.md).
+   */
+  cloudTenantManagement: {
+    list: '/cloud-tenant-management',
     // `id`: the connection a New flow already created, so a reload or Back resumes it instead of a blank form.
-    tenantNew: (o?: { id?: string | number }) => withQuery('/settings/tenant-management/new', { id: o?.id }),
-    tenantDetails: (id: string | number) => withQuery('/settings/tenant-management/details', { id }),
-    tenantEdit: (id: string | number) => withQuery('/settings/tenant-management/edit', { id }),
-    tenantReconnect: (id: string | number) => withQuery('/settings/tenant-management/reconnect', { id }),
+    new: (o?: { id?: string | number }) => withQuery('/cloud-tenant-management/new', { id: o?.id }),
+    details: (id: string | number) => withQuery('/cloud-tenant-management/details', { id }),
+    edit: (id: string | number) => withQuery('/cloud-tenant-management/edit', { id }),
+    reconnect: (id: string | number) => withQuery('/cloud-tenant-management/reconnect', { id }),
   },
 
   notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),

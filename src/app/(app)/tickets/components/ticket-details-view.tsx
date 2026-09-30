@@ -42,7 +42,6 @@ import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { NotesSection } from '@/app/components/shared';
 import type { AiModel } from '@/app/hooks/use-ai-model';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
@@ -51,7 +50,6 @@ import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tra
 import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
 import { EMPTY_VALUE } from '@/lib/empty-value';
-import { featureFlags } from '@/lib/feature-flags';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { loadErrorProps } from '@/lib/query-state';
@@ -141,7 +139,6 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const searchParams = useSearchParams();
   const handleBackToTickets = useSafeBack(routes.tickets.list);
   const { toast } = useToast();
-  const timeTrackerEnabled = useFeatureFlag('time-tracker');
   // Which of the two always-mounted layout columns is showing. Same 1280px the core preset
   // gives the `lg:` classes below; `undefined` until the client viewport is known.
   const isLgUp = useLgUp();
@@ -271,9 +268,10 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const { data: statusesData } = useTicketStatusesQuery();
   const { handleApproveRequest, handleRejectRequest } = useApprovalRequests();
 
-  // Time tracker lives in a global host provider (mounted when the feature flag
-  // is on). Starting here writes the running timer into the Relay store, which
-  // the host's CurrentTimer hydrator reads — so the global panel reflects it.
+  // Time tracker lives in a global host provider (enabled once the session
+  // resolves on an unlocked workspace). Starting here writes the running timer
+  // into the Relay store, which the host's CurrentTimer hydrator reads — so the
+  // global panel reflects it.
   const timeTracker = useOptionalTimeTracker();
   const [startTimer, isStartingTimer] = useMutation<StartTimerMutationType>(startTimerMutation);
   const handleStartTimeTracking = useCallback(() => {
@@ -424,15 +422,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       if (isStatusLockedByPendingApproval(dialog)) return;
       // Leaving a terminal status for a WORKING one is a REOPEN, not a plain
       // move: it goes through the confirmation modal (target status + assignee
-      // + reason) instead of firing the transition directly. Gated on
-      // `ai-resolution` - with the flag off the legacy direct transition below
-      // still applies. A terminal-to-terminal pick (e.g. Archived → Resolved)
-      // stays a plain move: the modal filters closed kinds out of its options,
-      // so routing it there could only render the target as a raw status id.
-      if (
-        featureFlags.aiResolution.enabled() &&
-        (dialog.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED)
-      ) {
+      // + reason) instead of firing the transition directly. A terminal-to-
+      // terminal pick (e.g. Archived → Resolved) stays a plain move: the modal
+      // filters closed kinds out of its options, so routing it there could only
+      // render the target as a raw status id.
+      if (dialog.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED) {
         const targetKind = statusesData?.snapshot?.find(s => s.id === toStatusId)?.kind;
         if (targetKind !== TICKET_STATUS_KIND.RESOLVED && targetKind !== TICKET_STATUS_KIND.ARCHIVED) {
           setReopenTarget({ ticketId, initialStatusId: toStatusId });
@@ -728,8 +722,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // AI-assistance, resolved, and archived tickets. Once a timer is running the
   // button disables — only one timer can be active at a time.
   const canTrackTime =
-    timeTrackerEnabled &&
-    (dialog.statusKind === TICKET_STATUS_KIND.TECH_REQUIRED || dialog.statusKind === TICKET_STATUS_KIND.CUSTOM);
+    dialog.statusKind === TICKET_STATUS_KIND.TECH_REQUIRED || dialog.statusKind === TICKET_STATUS_KIND.CUSTOM;
   const isTimerActive = (timeTracker?.status ?? 'ready') !== 'ready';
 
   const sidebarActions: PageActionButton[] = [];

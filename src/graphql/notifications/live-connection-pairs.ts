@@ -26,3 +26,24 @@ export function getLiveConnectionPairs(): NotificationConnectionPair[] {
   for (const list of registered) pairs.push(...list);
   return pairs;
 }
+
+/**
+ * History lists that render a row's read status and have to re-read it from the server.
+ *
+ * The backend relays an entity's ARCHIVED transition over NATS as a plain READ event, so a
+ * READ for a row not already READ here could be either a read elsewhere or an archive — and
+ * only the server knows which. Archiving moves only UNREAD rows, so a READ for a row already
+ * READ is never one. Drop this once the event carries the status.
+ */
+const readStatusRefreshListeners = new Set<() => void>();
+
+export function subscribeReadStatusRefresh(listener: () => void): () => void {
+  readStatusRefreshListeners.add(listener);
+  return () => {
+    readStatusRefreshListeners.delete(listener);
+  };
+}
+
+export function requestReadStatusRefresh(): void {
+  for (const listener of readStatusRefreshListeners) listener();
+}

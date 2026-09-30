@@ -1,6 +1,7 @@
 import { ScheduleOfflineBehavior, ScheduleTimeReference, ScriptScheduleTrigger } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate, formatTime } from '@/lib/format-date';
+import { asInstant, type Instant } from '@/lib/graphql-scalars';
 
 /**
  * Timing model helpers for Script Schedules v2.
@@ -626,11 +627,11 @@ export function applyTimeSlot(date: Date | null | undefined, slot: string): Date
  * than by shifting the instant, so a DST boundary between now and the picked day
  * cannot move a digit.
  */
-export function toScheduleInstant(date: Date, timeReference?: ScheduleTimeReference | string | null): string {
-  if (!isDeviceLocalTime(timeReference)) return date.toISOString().replace(/\.\d+Z$/, 'Z');
+export function toScheduleInstant(date: Date, timeReference?: ScheduleTimeReference | string | null): Instant {
+  if (!isDeviceLocalTime(timeReference)) return asInstant(date.toISOString().replace(/\.\d+Z$/, 'Z'));
   const pad = (value: number, length = 2) => String(value).padStart(length, '0');
   const wallClock = `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  return `${wallClock}T${pad(date.getHours())}:${pad(date.getMinutes())}:00Z`;
+  return asInstant(`${wallClock}T${pad(date.getHours())}:${pad(date.getMinutes())}:00Z`);
 }
 
 /**

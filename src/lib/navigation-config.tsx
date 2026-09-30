@@ -5,6 +5,7 @@ import {
   ChartDonutIcon,
   ClipboardListIcon,
   ClockHistoryIcon,
+  CodingForkIcon,
   CompassIcon,
   IdCardIcon,
   MonitorIcon,
@@ -67,10 +68,9 @@ export interface OnboardingNavState {
  * three states.
  */
 export interface NavigationFlags {
-  timeTracker: boolean;
-  helpCenter: boolean;
   insights: boolean;
   softwareManagement: boolean;
+  tenantManagement: boolean;
 }
 
 export const getNavigationItems = (
@@ -181,13 +181,24 @@ export const getNavigationItems = (
     });
   }
 
-  if (flags.timeTracker) {
+  baseItems.push({
+    id: 'worktime',
+    label: 'Worktime',
+    icon: <ClockHistoryIcon size={24} />,
+    path: routes.worktime,
+    isActive: pathname.startsWith('/worktime'),
+  });
+
+  // Integrations — Cloud Tenant Management today (Figma: the last primary item).
+  // Behind `tenant-management`, like its routes.
+  if (flags.tenantManagement) {
     baseItems.push({
-      id: 'worktime',
-      label: 'Worktime',
-      icon: <ClockHistoryIcon size={24} />,
-      path: routes.worktime,
-      isActive: pathname.startsWith('/worktime'),
+      id: 'integrations',
+      label: 'Integrations',
+      icon: <CodingForkIcon size={24} />,
+      path: routes.cloudTenantManagement.list,
+      isActive: pathname.startsWith('/cloud-tenant-management'),
+      badge: BETA_BADGE,
     });
   }
 
@@ -200,16 +211,14 @@ export const getNavigationItems = (
     isActive: pathname.startsWith('/knowledge-base'),
   });
 
-  if (flags.helpCenter) {
-    baseItems.push({
-      id: 'help-center',
-      label: 'Help Center',
-      icon: <QuestionCircleIcon size={24} />,
-      path: routes.helpCenter.root,
-      section: 'secondary',
-      isActive: pathname.startsWith('/help-center'),
-    });
-  }
+  baseItems.push({
+    id: 'help-center',
+    label: 'Help Center',
+    icon: <QuestionCircleIcon size={24} />,
+    path: routes.helpCenter.root,
+    section: 'secondary',
+    isActive: pathname.startsWith('/help-center'),
+  });
 
   baseItems.push({
     id: 'settings',

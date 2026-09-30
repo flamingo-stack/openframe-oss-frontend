@@ -49,13 +49,13 @@ import { useAuthStore } from '@/stores';
 /**
  * Host for the global time-tracker panel, mounted around the whole app shell.
  *
- * `enabled` (the feature flag + a resolved session + an unlocked workspace) is
- * passed DOWN, never used to decide whether to mount: this used to return
- * `<>{children}</>` when off, and the moment the flag answered mid-boot the
+ * `enabled` (a resolved session + an unlocked workspace) is passed DOWN, never
+ * used to decide whether to mount: this used to return `<>{children}</>` when
+ * off, and the moment the answer landed mid-boot the
  * element type at this position changed and React remounted the entire
  * `CoreAppLayout` and the page inside it. See the comment at its call site in
  * `app-layout.tsx`. Everything that costs anything — the two Relay hydrators,
- * the modals, and the ticket/customer option queries — is gated on the flag
+ * the modals, and the ticket/customer option queries — is gated on `enabled`
  * instead, so a mounted-but-disabled host issues no requests, and the lib
  * provider supplies NO context, exactly as when it was absent.
  */
@@ -226,7 +226,7 @@ function TimeTrackerHost({ enabled, children }: { enabled: boolean; children: Re
       if (!node) return;
       setEditTarget({
         id: node.id,
-        durationSeconds: Number(node.durationSeconds),
+        durationSeconds: node.durationSeconds,
         startedAt: node.startedAt,
         ticketId: node.ticketId ?? null,
         ticketNumber: node.ticketNumber ?? null,

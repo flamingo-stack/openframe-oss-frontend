@@ -5,24 +5,14 @@ import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
  * the backend only returns flags that are explicitly requested.
  */
 export const FEATURE_FLAG_NAMES = [
-  'ai-escalation',
-  'ai-resolution',
   'billings',
-  'help-center',
-  'notifications',
   'debug-nats-chunks',
-  'mingo-ai-chat-settings',
-  'customer-ai-assistant-settings',
-  'customer-ai-configuration',
-  'customer-guardrails',
-  'time-tracker',
   // The "Timezone" control on the script-schedule form (SERVER vs DEVICE_LOCAL
   // `timeReference`). UI only: a schedule that already carries DEVICE_LOCAL
   // still reads and saves as one with the flag off, the picker is simply absent.
   'script-schedule-device-time',
   'cancel-subscription',
   'test-clock',
-  'download-apps',
   // MeshCentral attended remote access: the approval-gated connect flow and
   // the remote access policy UI, both on the real API. Off = the legacy
   // auto-start tunnel behavior, no policy UI.
@@ -41,9 +31,10 @@ export const FEATURE_FLAG_NAMES = [
   'remote-access-v2',
   // The Incidents module (`/incidents`) over saas-api's `insights` API.
   'insights',
-  // Tenant Management: the Settings module that connects Microsoft 365 / Google
-  // Workspace directories over the directory API. Registered on dev and qa;
-  // absent elsewhere, which reads as off.
+  // Cloud Tenant Management (`/cloud-tenant-management/*`, the sidebar's
+  // "Integrations" item): connects Microsoft 365 / Google Workspace directories
+  // over the directory API. Registered on dev and qa; absent elsewhere, which
+  // reads as off.
   'tenant-management',
   // The Software module (`/software/*`: the inventory, its vulnerabilities,
   // install / update runs) and its two Mingo context kinds (SOFTWARE and
@@ -57,6 +48,8 @@ export const FEATURE_FLAG_NAMES = [
   // dialog's AI context on demand. Off = the item is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
+  // The Agent Logs tab on device details (CU-86agb21qt); off, "Device Logs" keeps leading to Overview.
+  'device-agent-logs',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
@@ -119,60 +112,12 @@ export const featureFlags = {
       return getFlagValue('billings', () => false);
     },
   },
-  helpCenter: {
-    enabled(): boolean {
-      return getFlagValue('help-center', () => false);
-    },
-  },
-  notifications: {
-    enabled(): boolean {
-      return getFlagValue('notifications', () => false);
-    },
-  },
   debugNatsChunks: {
     enabled(): boolean {
       // Local override FIRST — see `isDebugChunkLogForced`: a server value of
       // `false` must not silence a log the developer switched on for their own
       // browser, which a plain `envFallback` could not express.
       return isDebugChunkLogForced() || getFlagValue(DEBUG_NATS_CHUNKS_KEY, () => false);
-    },
-  },
-  aiEscalation: {
-    enabled(): boolean {
-      return getFlagValue('ai-escalation', () => false);
-    },
-  },
-  aiResolution: {
-    enabled(): boolean {
-      return getFlagValue('ai-resolution', () => false);
-    },
-  },
-  mingoAiChatSettings: {
-    enabled(): boolean {
-      return getFlagValue('mingo-ai-chat-settings', () => false);
-    },
-  },
-  customerAiAssistantSettings: {
-    enabled(): boolean {
-      return getFlagValue('customer-ai-assistant-settings', () => false);
-    },
-  },
-  // Old↔new switch for the customer AI-assistant tab (details + edit):
-  // off (default) → the legacy appearance-only view (pre-session); on → the
-  // new full Customer AI Configuration. Independent of `customerAiAssistantSettings`.
-  customerAiConfiguration: {
-    enabled(): boolean {
-      return getFlagValue('customer-ai-configuration', () => false);
-    },
-  },
-  customerGuardrails: {
-    enabled(): boolean {
-      return getFlagValue('customer-guardrails', () => false);
-    },
-  },
-  timeTracker: {
-    enabled(): boolean {
-      return getFlagValue('time-tracker', () => false);
     },
   },
   cancelSubscription: {
@@ -215,7 +160,7 @@ export const featureFlags = {
     },
   },
   /**
-   * Tenant Management. Route/hub gating goes through
+   * Cloud Tenant Management. Route/sidebar gating goes through
    * `useTenantManagementGate` (tri-state); this accessor is for
    * imperative reads only.
    */

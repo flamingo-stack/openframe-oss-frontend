@@ -52,6 +52,13 @@ const LEGACY_RENAMED_ROUTES: Record<string, string> = {
   '/customers/edit/new': '/customers/new',
   '/monitoring/policy/edit/new': '/monitoring/policy/new',
   '/monitoring/query/edit/new': '/monitoring/query/new',
+  // Cloud Tenant Management left Settings for a module of its own (sidebar
+  // "Integrations"). The `?id=` query rides along unchanged.
+  '/settings/tenant-management': '/cloud-tenant-management',
+  '/settings/tenant-management/new': '/cloud-tenant-management/new',
+  '/settings/tenant-management/details': '/cloud-tenant-management/details',
+  '/settings/tenant-management/edit': '/cloud-tenant-management/edit',
+  '/settings/tenant-management/reconnect': '/cloud-tenant-management/reconnect',
 };
 
 /**

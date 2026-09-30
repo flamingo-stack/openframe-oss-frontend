@@ -19,6 +19,7 @@ import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
+import { useDeviceAgentLogsGate } from '../hooks/use-device-agent-logs-gate';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { getDeviceName } from '../utils/device-name';
 import { getDeviceStatusConfig } from '../utils/device-status';
@@ -98,8 +99,8 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     // Clear the action param to avoid re-triggering
     const newParams = new URLSearchParams(searchParams.toString());
     newParams.delete('action');
-    router.replace(`/devices/details${newParams.toString() ? `?${newParams.toString()}` : ''}`);
-  }, [runScriptRequested, searchParams, router]);
+    router.replace(`${pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`);
+  }, [runScriptRequested, searchParams, router, pathname]);
 
   const normalizedDevice = deviceDetails;
 
@@ -148,10 +149,10 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     return groups;
   }, [actionAvailability, deviceMenuItems]);
 
+  const agentLogsGate = useDeviceAgentLogsGate();
   const handleDeviceLogs = () => {
     const params = new URLSearchParams(window.location.search);
-    // Logs now live on the Overview tab.
-    params.set('tab', 'overview');
+    params.set('tab', agentLogsGate === 'on' ? 'agent-logs' : 'overview');
     // Add timestamp to force logs refresh
     params.set('refresh', Date.now().toString());
     router.push(`${window.location.pathname}?${params.toString()}`);

@@ -13,7 +13,7 @@ export default function IncidentDetailsPage() {
   const id = useRequiredIdParam(routes.incidents.list);
 
   // Same gate as the list: only a definitive "off" 404s (`notFound()` throws —
-  // see notifications/page.tsx).
+  // see `use-feature-flag.ts`).
   if (gate === 'off') {
     notFound();
   }
