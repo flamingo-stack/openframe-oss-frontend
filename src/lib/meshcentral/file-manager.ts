@@ -14,7 +14,7 @@ import type {
   FileOperationResponse,
   RelayControlMessage,
 } from './file-manager-types';
-import { FileOperations } from './file-operations';
+import { FileDeleteError, FileOperations } from './file-operations';
 import { FileUploader } from './file-uploader';
 import type { MeshControlClient } from './meshcentral-control';
 import { MeshTunnel, type TunnelState } from './meshcentral-tunnel';
@@ -577,7 +577,7 @@ export class MeshCentralFileManager {
     const listing = await this.sendOperation<FileEntry[]>(this.fileOps.createListDirectoryRequest(path));
 
     const failure = this.fileOps.describeDeleteFailure(items, listing);
-    if (failure) throw new Error(failure);
+    if (failure) throw new FileDeleteError(failure);
   }
 
   async copyFiles(items: string[], destinationPath: string): Promise<void> {

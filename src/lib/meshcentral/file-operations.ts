@@ -4,6 +4,13 @@
 
 import type { FileEntry, FileOperationRequest } from './file-manager-types';
 
+/**
+ * The delete reached the agent and the listing read after it still holds some of
+ * the requested names. Distinct from a transport error, where nothing is known to
+ * have changed.
+ */
+export class FileDeleteError extends Error {}
+
 export class FileOperations {
   private requestIdCounter = 0;
 

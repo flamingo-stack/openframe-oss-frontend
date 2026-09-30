@@ -5,7 +5,7 @@ import { FileOperations } from './file-operations';
 const file = (n: string): FileEntry => ({ n, t: 3 });
 const folder = (n: string): FileEntry => ({ n, t: 2 });
 
-describe('describeDeleteFailure', () => {
+describe('FileOperations.describeDeleteFailure', () => {
   const ops = new FileOperations();
 
   it('returns null when none of the requested names are in the listing', () => {
