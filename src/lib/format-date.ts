@@ -1,5 +1,5 @@
 import { EMPTY_VALUE } from './empty-value';
-import { parseInstant } from './graphql-scalars';
+import { parseInstant, parseLocalDate } from './graphql-scalars';
 
 type DateInput = string | number | Date;
 
@@ -11,7 +11,8 @@ type DateInput = string | number | Date;
  */
 export function toValidDate(input: DateInput | null | undefined): Date | null {
   if (input == null || input === '') return null;
-  if (typeof input === 'string') return parseInstant(input);
+  // A `Date` scalar is a local day; every other string the API sends is an instant.
+  if (typeof input === 'string') return parseLocalDate(input) ?? parseInstant(input);
   const date = input instanceof Date ? input : new Date(input);
   return Number.isNaN(date.getTime()) ? null : date;
 }

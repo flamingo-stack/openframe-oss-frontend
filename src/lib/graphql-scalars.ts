@@ -40,6 +40,19 @@ export function isInstant(value: string): value is Instant {
   return parseInstant(value) !== null;
 }
 
+const LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** The day as a `Date` at local midnight, or null when it is not one. `Date` alone reads `yyyy-MM-dd` as UTC midnight: the day before, west of UTC. */
+export function parseLocalDate(day: string): Date | null {
+  const match = LOCAL_DATE.exec(day);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const date = Number(match[3]);
+  const parsed = new Date(year, month - 1, date);
+  return parsed.getMonth() === month - 1 && parsed.getDate() === date ? parsed : null;
+}
+
 /** Adopts a string built elsewhere (a wall-clock instant, a stored value); throws on one `Date` cannot read. */
 export function asInstant(value: string): Instant {
   if (!isInstant(value)) throw new Error(`Not an Instant: ${value}`);
