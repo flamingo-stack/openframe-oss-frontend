@@ -106,7 +106,7 @@ export function AgentLogsToolbar({
                 disabled={disabled}
                 onClick={disabled ? undefined : () => onToggleLevel(level)}
                 onKeyDown={disabled ? undefined : chipKeyDown(level)}
-                className={cn(!disabled && 'cursor-pointer', !on && 'text-ods-text-muted')}
+                className={cn(!disabled && 'cursor-pointer', !on && 'opacity-50')}
               />
             );
           })}

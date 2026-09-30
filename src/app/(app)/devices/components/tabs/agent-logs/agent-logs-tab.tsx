@@ -2,12 +2,14 @@
 
 import type { DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import type { DeviceLogLevel } from '@/generated/schema-enums';
 import { dateRangeFromParams, toDayParam } from '@/lib/date-filter-params';
+import { parseInstant } from '@/lib/graphql-scalars';
 import type { Device } from '../../../types/device.types';
 import { DEVICE_LOG_LEVELS, isDeviceLogLevel } from '../../../utils/device-log-level';
 import { parseDeviceLogSearch } from '../../../utils/device-log-search';
@@ -29,6 +31,7 @@ interface AgentLogsTabProps {
 /** Device details → Agent Logs (CU-86agb21qt). Filters ride the URL under `log*` keys, apart from the Overview logs table's. */
 export function AgentLogsTab({ device }: AgentLogsTabProps) {
   const machineId = device.machineId || device.id;
+  const searchParams = useSearchParams();
   const { params, setParam, setParams } = useApiParams({
     logSearch: { type: 'string', default: '' },
     logLevels: { type: 'array', default: [] },
@@ -45,12 +48,14 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
   const customRange = useMemo(() => dateRangeFromParams(params.logFrom, params.logTo), [params.logFrom, params.logTo]);
 
   // "Now" is fixed per list and read in events only, so a preset's window does not slide on every render.
-  const [anchor, setAnchor] = useState(() => Date.now());
+  // Refresh moves it, and so does the `refresh` stamp "View Device Logs" sets after a script run.
+  const [refreshedAt, setRefreshedAt] = useState(() => Date.now());
+  const anchor = Math.max(refreshedAt, Number(searchParams.get('refresh')) || 0);
   // A preset's URL lands a router round trip after the click; the anchor moves with it, so the change is one request.
   const [pendingAnchor, setPendingAnchor] = useState<{ range: DeviceLogRange; at: number } | null>(null);
   if (pendingAnchor !== null && pendingAnchor.range === range) {
     setPendingAnchor(null);
-    setAnchor(pendingAnchor.at);
+    setRefreshedAt(pendingAnchor.at);
   }
 
   const filter = useMemo<AgentLogsFilter>(() => {
@@ -63,10 +68,16 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
     }
     return next;
   }, [range, customRange, anchor, selectedLevels, parsedSearch]);
-  const list = useMemo(() => ({ key: `${machineId}|${JSON.stringify(filter)}`, filter }), [machineId, filter]);
+  // The anchor is part of the key: a custom range does not depend on it, and Refresh must still make a new list.
+  const list = useMemo(
+    () => ({ key: `${machineId}|${anchor}|${JSON.stringify(filter)}`, filter }),
+    [machineId, anchor, filter],
+  );
   const { deferredFilters: deferredList, isPending } = useDeferredQuery(list, '');
 
   const [autoUpdate, setAutoUpdate] = useState(true);
+  // A range that ended before this list was made cannot grow, so there is nothing to tail.
+  const rangeClosed = filter.to != null && (parseInstant(filter.to)?.getTime() ?? Infinity) <= anchor;
   const hasFilters = selectedLevels.length > 0 || search !== '' || range !== DEFAULT_DEVICE_LOG_RANGE;
 
   const toggleLevel = (level: DeviceLogLevel) => {
@@ -105,7 +116,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
         pickerBounds={deviceLogPickerBounds(anchor)}
         autoUpdate={autoUpdate}
         onAutoUpdateChange={setAutoUpdate}
-        onRefresh={() => setAnchor(Date.now())}
+        onRefresh={() => setRefreshedAt(Date.now())}
         isRefreshing={isPending}
       />
       {/* The deferred key: the live one would remount a failed list and re-send it. */}
@@ -117,7 +128,7 @@ export function AgentLogsTab({ device }: AgentLogsTabProps) {
             filter={deferredList.filter}
             deviceHostname={device.hostname}
             isPending={isPending}
-            autoUpdate={autoUpdate}
+            autoUpdate={autoUpdate && !rangeClosed}
             hasFilters={hasFilters}
             onResetFilters={resetFilters}
           />

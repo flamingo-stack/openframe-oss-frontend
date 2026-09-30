@@ -2,7 +2,7 @@ import type { DateRange } from '@flamingo-stack/openframe-frontend-core/componen
 import { startOfDay, subDays } from 'date-fns';
 import { dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { toValidDate } from '@/lib/format-date';
-import { type Instant, toInstant } from '@/lib/graphql-scalars';
+import { type Instant, parseInstant, toInstant } from '@/lib/graphql-scalars';
 
 // --- The range control ---
 
@@ -24,6 +24,7 @@ const MAX_RANGE_DAYS = 30;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+const MAX_RANGE_MS = MAX_RANGE_DAYS * DAY_MS;
 const PRESET_MS: Record<DeviceLogPreset, number> = {
   '1h': HOUR_MS,
   '24h': DAY_MS,
@@ -39,10 +40,20 @@ export function deviceLogRangeBounds(
   range: DeviceLogRange,
   custom: DateRange | undefined,
   anchorMs: number,
-): { from?: Instant; to?: Instant } {
+): InstantBounds {
   if (range !== 'custom') return presetBounds(range, anchorMs);
   // Custom with no days picked yet reads as the default preset.
-  return custom ? dateRangeToInstantBounds(custom) : presetBounds(DEFAULT_DEVICE_LOG_RANGE, anchorMs);
+  return custom ? clampToMaxRange(dateRangeToInstantBounds(custom)) : presetBounds(DEFAULT_DEVICE_LOG_RANGE, anchorMs);
+}
+
+type InstantBounds = { from?: Instant; to?: Instant };
+
+/** Thirty picked local days are thirty days and an hour across a DST end, which the API rejects; the start moves in by that hour. */
+function clampToMaxRange(bounds: InstantBounds): InstantBounds {
+  const fromMs = bounds.from === undefined ? undefined : parseInstant(bounds.from)?.getTime();
+  const toMs = bounds.to === undefined ? undefined : parseInstant(bounds.to)?.getTime();
+  if (fromMs === undefined || toMs === undefined || toMs - fromMs <= MAX_RANGE_MS) return bounds;
+  return { from: toInstant(new Date(toMs - MAX_RANGE_MS)), to: bounds.to };
 }
 
 function presetBounds(preset: DeviceLogPreset, anchorMs: number): { from: Instant } {

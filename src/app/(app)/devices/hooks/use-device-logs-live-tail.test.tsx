@@ -66,6 +66,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   vi.useRealTimers();
+  Reflect.deleteProperty(document, 'visibilityState');
 });
 
 describe('useDeviceLogsLiveTail', () => {

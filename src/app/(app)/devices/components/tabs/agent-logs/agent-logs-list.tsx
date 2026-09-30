@@ -1,6 +1,7 @@
 'use client';
 
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
 import { fetchQuery, graphql, useLazyLoadQuery, usePaginationFragment, useRelayEnvironment } from 'react-relay';
@@ -9,6 +10,7 @@ import type { agentLogsListPaginationQuery } from '@/__generated__/agentLogsList
 import type { agentLogsListQuery, agentLogsListQuery$variables } from '@/__generated__/agentLogsListQuery.graphql';
 import { SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { formatDate } from '@/lib/format-date';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { useDeviceLogsLiveTail } from '../../../hooks/use-device-logs-live-tail';
 import { useGridInfiniteScroll } from '../../../hooks/use-grid-infinite-scroll';
 import { useIsAtTop } from '../../../hooks/use-is-at-top';
@@ -72,6 +74,7 @@ export function AgentLogsList({
   onResetFilters,
 }: AgentLogsListProps) {
   const environment = useRelayEnvironment();
+  const { toast } = useToast();
   const retryKey = useRetryKey();
   const variables = useMemo(() => ({ machineId, filter, first: PAGE_SIZE, after: null }), [machineId, filter]);
   const queryData = useLazyLoadQuery<agentLogsListQuery>(agentLogsListQueryNode, variables, {
@@ -103,7 +106,13 @@ export function AgentLogsList({
     setLoadMoreFailed(false);
     loadNext(PAGE_SIZE, {
       onComplete: error => {
-        if (error) setLoadMoreFailed(true);
+        if (!error) return;
+        setLoadMoreFailed(true);
+        toast({
+          title: 'Error loading older logs',
+          description: getRelayErrorMessage(error, 'Failed to load older logs'),
+          variant: 'destructive',
+        });
       },
     });
   };

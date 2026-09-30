@@ -35,10 +35,8 @@ export function useDeviceLogsLiveTail({ reload, enabled, atTop }: UseDeviceLogsL
 
     function tick() {
       if (request) return;
-      if (document.visibilityState === 'hidden') {
-        schedule(DEVICE_LOGS_POLL_INTERVAL_MS);
-        return;
-      }
+      // Hidden: no reload and no timer; `visibilitychange` resumes it.
+      if (document.visibilityState === 'hidden') return;
       reload().subscribe({
         start: subscription => {
           request = subscription;
