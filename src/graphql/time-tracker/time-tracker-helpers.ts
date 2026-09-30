@@ -3,6 +3,7 @@ import { endOfDay, startOfDay } from 'date-fns';
 import { ConnectionHandler, type RecordSourceSelectorProxy } from 'relay-runtime';
 import { TimerState } from '@/generated/schema-enums';
 import { formatDate } from '@/lib/format-date';
+import { type Instant, type Long, parseInstant, toInstant } from '@/lib/graphql-scalars';
 import { ensureGlobalIdForType, toGlobalId } from '@/lib/relay-id';
 
 export const MY_TIME_ENTRIES_CONNECTION_KEY = 'MyTimeEntries_myTimeEntries';
@@ -12,11 +13,11 @@ const CURRENT_TIMER_FIELD = 'currentTimer';
 export interface TimeEntryNodeShape {
   readonly id: string;
   readonly state: string;
-  readonly durationSeconds: unknown;
-  readonly breakSeconds?: unknown;
-  readonly startedAt: unknown;
-  readonly pausedAt?: unknown;
-  readonly updatedAt?: unknown;
+  readonly durationSeconds: Long;
+  readonly breakSeconds?: Long | null;
+  readonly startedAt: Instant;
+  readonly pausedAt?: Instant | null;
+  readonly updatedAt?: Instant | null;
   readonly ticketId?: string | null;
   readonly ticketNumber?: number | null;
   readonly ticketTitle?: string | null;
@@ -32,21 +33,7 @@ export interface TrackerClockState {
   accumulatedMs: number;
 }
 
-const EPOCH_MS_THRESHOLD = 1e12;
-
-/** Instant scalar may arrive as ISO string, epoch seconds, or epoch ms — normalize to ms. */
-export function parseInstant(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value < EPOCH_MS_THRESHOLD ? value * 1000 : value;
-  }
-  if (typeof value === 'string') {
-    const asNumber = Number(value);
-    if (Number.isFinite(asNumber)) return asNumber < EPOCH_MS_THRESHOLD ? asNumber * 1000 : asNumber;
-    const parsed = Date.parse(value);
-    if (!Number.isNaN(parsed)) return parsed;
-  }
-  return Date.now();
-}
+const instantMs = (instant: Instant): number => parseInstant(instant)?.getTime() ?? Date.now();
 
 /**
  * Calendar-day codec for day-granular fields (e.g. a manual time entry's "Date").
@@ -57,12 +44,12 @@ export function parseInstant(value: unknown): number {
  * own day's range. The two functions are exact inverses, so prefill → edit →
  * save round-trips stably in every timezone.
  */
-export function calendarDayToInstant(date: Date): string {
-  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())).toISOString();
+export function calendarDayToInstant(date: Date): Instant {
+  return toInstant(new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())));
 }
 
-export function instantToCalendarDay(value: unknown): Date {
-  const inst = new Date(parseInstant(value));
+export function instantToCalendarDay(instant: Instant): Date {
+  const inst = parseInstant(instant) ?? new Date();
   return new Date(inst.getUTCFullYear(), inst.getUTCMonth(), inst.getUTCDate());
 }
 
@@ -70,19 +57,21 @@ export function instantToCalendarDay(value: unknown): Date {
  * Move an instant to another calendar day keeping its UTC time-of-day. Editing an entry
  * through the date-only picker must not collapse a timer entry's real start time to midnight.
  */
-export function moveInstantToCalendarDay(value: unknown, day: Date): string {
-  const inst = new Date(parseInstant(value));
-  return new Date(
-    Date.UTC(
-      day.getFullYear(),
-      day.getMonth(),
-      day.getDate(),
-      inst.getUTCHours(),
-      inst.getUTCMinutes(),
-      inst.getUTCSeconds(),
-      inst.getUTCMilliseconds(),
+export function moveInstantToCalendarDay(instant: Instant, day: Date): Instant {
+  const inst = parseInstant(instant) ?? new Date();
+  return toInstant(
+    new Date(
+      Date.UTC(
+        day.getFullYear(),
+        day.getMonth(),
+        day.getDate(),
+        inst.getUTCHours(),
+        inst.getUTCMinutes(),
+        inst.getUTCSeconds(),
+        inst.getUTCMilliseconds(),
+      ),
     ),
-  ).toISOString();
+  );
 }
 
 /**
@@ -97,10 +86,11 @@ export function mapTimerToTrackerState(node: TimeEntryNodeShape | null): Tracker
   if (!node || node.state === TimerState.COMPLETED) {
     return { status: 'ready', runningSince: null, accumulatedMs: 0 };
   }
-  const startedMs = parseInstant(node.startedAt);
-  const breakMs = Number(node.breakSeconds ?? 0) * 1000;
+  const startedMs = instantMs(node.startedAt);
+  const breakMs = (node.breakSeconds ?? 0) * 1000;
   if (node.state === TimerState.PAUSED) {
-    const workedMs = parseInstant(node.pausedAt) - startedMs - breakMs;
+    const pausedMs = node.pausedAt ? instantMs(node.pausedAt) : Date.now();
+    const workedMs = pausedMs - startedMs - breakMs;
     return { status: 'paused', runningSince: null, accumulatedMs: Math.max(0, workedMs) };
   }
   // RUNNING: useTrackerClock shows accumulatedMs + (now - runningSince); shifting the
@@ -118,8 +108,8 @@ export function formatDurationLabel(seconds: number): string {
 }
 
 export interface InstantRangeValue {
-  startedFrom: string;
-  startedTo: string;
+  startedFrom: Instant;
+  startedTo: Instant;
 }
 
 /**
@@ -128,7 +118,7 @@ export interface InstantRangeValue {
  * whole `to` day is included regardless of an entry's time of day.
  */
 export function toInstantRange(from: Date, to: Date): InstantRangeValue {
-  return { startedFrom: startOfDay(from).toISOString(), startedTo: endOfDay(to).toISOString() };
+  return { startedFrom: toInstant(startOfDay(from)), startedTo: toInstant(endOfDay(to)) };
 }
 
 /**
@@ -171,8 +161,8 @@ export function parseDurationLabel(label: string): number | null {
 export function mapTimeEntryToLastEntry(node: TimeEntryNodeShape): TimeTrackerEntry {
   return {
     id: node.id,
-    durationLabel: formatDurationLabel(Number(node.durationSeconds)),
-    dateLabel: formatDate(parseInstant(node.startedAt)),
+    durationLabel: formatDurationLabel(node.durationSeconds),
+    dateLabel: formatDate(node.startedAt),
     title: node.ticketTitle ?? (node.ticketNumber != null ? `#${node.ticketNumber}` : '–'),
     description: node.notes ?? undefined,
   };

@@ -17,7 +17,7 @@ import type { ComponentType, SVGProps } from 'react';
 import { DirectoryAccessState, DirectoryCapability, DirectoryProvider } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { presentationFor } from '@/lib/exhaustive-map';
-import { formatDate, formatTimeWithSeconds } from '@/lib/format-date';
+import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
 
 type TagVariant = NonNullable<TagProps['variant']>;
 
@@ -184,12 +184,6 @@ export function lastReadAt(connection: { readonly lastSyncAt?: unknown }): strin
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function parseInstant(iso: string | null | undefined): Date | null {
-  if (!iso) return null;
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 /**
  * "41m ago" while fresh, the calendar date once a day old (the design shows
  * "Last read: 10/10/2016" on a stale row), the empty mark when there was never a read.
@@ -197,14 +191,14 @@ function parseInstant(iso: string | null | undefined): Date | null {
  * invalid instant and warns on the console.
  */
 export function formatLastRead(iso: string | null | undefined, now: Date = new Date()): string {
-  const date = parseInstant(iso);
+  const date = toValidDate(iso);
   if (!date) return EMPTY_VALUE;
   return now.getTime() - date.getTime() < DAY_MS ? formatRelativeTime(date) : formatDate(date);
 }
 
 /** The two-tone "11/12/24 09:43:00" of the details card; `null` = never connected. */
 export function formatConnectedAt(iso: string | null | undefined): { date: string; time: string } | null {
-  const date = parseInstant(iso);
+  const date = toValidDate(iso);
   return date ? { date: formatDate(date), time: formatTimeWithSeconds(date) } : null;
 }
 
