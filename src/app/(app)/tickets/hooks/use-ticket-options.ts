@@ -33,6 +33,9 @@ const EMPTY_AVATAR_OPTIONS: AvatarOption[] = [];
 
 // Cache key builders for this hook's queries, so any surface that needs to
 // invalidate these caches imports the exact same shape.
+// TODO(MULTIPLA-002-2): these builders should live in hooks/admin-query-keys.ts
+// alongside the other shared query key definitions; not moved here yet because
+// this file cannot confirm that module's current exported shape.
 export const ticketOptionsQueryKeys = {
   organizations: (search: string) => ['ticket-options', 'organizations', search] as const,
   assignees: () => ['ticket-options', 'assignees'] as const,

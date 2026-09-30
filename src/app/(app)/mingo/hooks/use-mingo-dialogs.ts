@@ -3,6 +3,7 @@
 import { type DialogItem, useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { mingoDialogsKey } from '@/hooks/admin-query-keys';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { GET_MINGO_DIALOGS_QUERY } from '../queries/dialogs-queries';
@@ -64,7 +65,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const query = useInfiniteQuery({
     // `scope` is part of the key: MY/ALL are different server-side datasets
     // with their own cursors, so they must not share cached pages.
-    queryKey: ['mingo-dialogs', { search, limit, scope }],
+    queryKey: mingoDialogsKey({ search, limit, scope }),
     queryFn: async ({
       pageParam,
     }): Promise<{ dialogs: DialogNode[]; pageInfo: { hasNextPage: boolean; endCursor?: string } }> => {
