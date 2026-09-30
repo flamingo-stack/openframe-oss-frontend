@@ -32,6 +32,7 @@ export type DesktopInputHandlers = {
   attachDisplayView?(displayId: number, canvas: HTMLCanvasElement): void;
   detachDisplayView?(displayId: number): void;
   onFirstFrame?(callback: () => void): void;
+  beginStream?(): void;
   setClipboardInterceptor?(interceptor: ((type: 'copy' | 'cut' | 'paste', sendKeys: () => void) => void) | null): void;
 };
 
@@ -802,6 +803,19 @@ export class MeshDesktop implements DesktopInputHandlers {
 
   onFirstFrame(callback: () => void) {
     this.onFirstFrameCallback = callback;
+  }
+
+  /**
+   * Marks the start of a new relay pairing. A relay that dropped mid-command
+   * leaves the head of that command buffered, and the next relay's bytes would
+   * be parsed as its tail - every command after it misaligned, no frame ever
+   * drawn. It also re-arms `onFirstFrame`: the picture already on the canvas
+   * says nothing about whether this pairing streams.
+   */
+  beginStream() {
+    this.accum = null;
+    this.accumOffset = 0;
+    this.firstFrameDrawn = false;
   }
 
   sendKeyCombo(combo: string) {

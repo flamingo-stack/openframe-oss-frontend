@@ -113,6 +113,12 @@ export default function RemoteDesktopPage() {
 /** MeshCentral relay protocol number for the desktop (KVM) stream. */
 const DESKTOP_PROTOCOL = 2;
 
+/** How long a paired relay may stay silent before its pairing is thrown away for a fresh one. */
+const FIRST_FRAME_TIMEOUT_MS = 10_000;
+
+/** Fresh pairings the page tries on its own before it hands the failure to the technician. */
+const MAX_STREAM_RETRIES = 2;
+
 /** The "Session ended" line per end reason; the dev lever plays the end user's end. */
 const SESSION_ENDED_COPY: Record<RemoteSessionEndReason, string> = {
   client: 'The user ended the remote session',
@@ -207,6 +213,17 @@ function RemoteDesktopSession() {
   const currentDisplayRef = useRef(currentDisplay);
   const didAutoSelectDisplayRef = useRef(false);
   const [firstFrameReceived, setFirstFrameReceived] = useState(false);
+  // A relay that pairs proves nothing about the stream: the agent can accept
+  // the tunnel and never start the capture, and nothing on the wire says so.
+  // True from a pairing until its first frame. Deliberately not cleared when
+  // the socket drops - a relay that keeps dropping and re-pairing without ever
+  // drawing a frame must run out of time too.
+  const [awaitingStream, setAwaitingStream] = useState(false);
+  const streamRetriesRef = useRef(0);
+  // The agent's own status line (a consent wait, a refusal), kept on the page
+  // while there is no picture to look at: a toast is gone before it explains
+  // why the stream is late.
+  const [agentMessage, setAgentMessage] = useState<string | null>(null);
   const [clipboardEnabled, setClipboardEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [shortcuts, setShortcuts] = useLocalStorage<RemoteShortcut[]>(
@@ -292,7 +309,11 @@ function RemoteDesktopSession() {
     const desktop = new MeshDesktop();
     desktopRef.current = desktop;
 
-    desktop.onFirstFrame?.(() => setFirstFrameReceived(true));
+    desktop.onFirstFrame?.(() => {
+      setFirstFrameReceived(true);
+      setAwaitingStream(false);
+      streamRetriesRef.current = 0;
+    });
 
     // Set up display list change callback
     desktop.onDisplayListChange?.(newDisplays => {
@@ -327,6 +348,8 @@ function RemoteDesktopSession() {
 
     initializingRef.current = true;
     setFirstFrameReceived(false);
+    setAwaitingStream(false);
+    setAgentMessage(null);
     setConnectionStatus('connecting');
     let cancelled = false;
     let control: MeshControlClient | undefined;
@@ -360,7 +383,8 @@ function RemoteDesktopSession() {
           },
           onCtrlMessage: () => {},
           onConsoleMessage: msg => {
-            toastRef.current({ title: 'Remote Desktop', description: msg, variant: 'default' });
+            setAgentMessage(msg);
+            if (msg) toastRef.current({ title: 'Remote Desktop', description: msg, variant: 'default' });
           },
           onRequestPairing: async relayId => {
             try {
@@ -385,6 +409,8 @@ function RemoteDesktopSession() {
                 variant: 'info',
               });
             } else if (s === 3) {
+              desktopRef.current?.beginStream?.();
+              setAwaitingStream(true);
               if (isReconnectingRef.current) {
                 isReconnectingRef.current = false;
                 toastRef.current({
@@ -435,6 +461,26 @@ function RemoteDesktopSession() {
       tunnelRef.current = null;
     };
   }, [isPageReady, meshcentralAgentId, retryNonce]);
+
+  useEffect(() => {
+    if (!awaitingStream || sessionEnded) return undefined;
+    const timer = setTimeout(() => {
+      setAwaitingStream(false);
+      if (streamRetriesRef.current < MAX_STREAM_RETRIES) {
+        streamRetriesRef.current += 1;
+        console.warn('[RemoteDesktop] No desktop frame after pairing, pairing again', {
+          attempt: streamRetriesRef.current,
+        });
+        // A whole new attempt rather than a redial: new control session, new tunnel, new relay id.
+        setRetryNonce(n => n + 1);
+        return;
+      }
+      console.warn('[RemoteDesktop] No desktop frame after pairing, giving up');
+      tunnelRef.current?.stop();
+      setConnectionStatus('failed');
+    }, FIRST_FRAME_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [awaitingStream, sessionEnded]);
 
   useEffect(() => {
     if (state !== 3) return;
@@ -779,6 +825,7 @@ function RemoteDesktopSession() {
           <span className="text-ods-text-secondary text-h6">
             {state === 3 ? 'Waiting for desktop stream' : 'Connecting to desktop'}
           </span>
+          {agentMessage && <span className="text-ods-text-secondary text-h6">{agentMessage}</span>}
         </div>
       )}
       {connectionStatus === 'reconnecting' && !sessionEnded && (
@@ -800,7 +847,13 @@ function RemoteDesktopSession() {
                 <Button variant="outline" onClick={handleBack}>
                   Back to Device Details
                 </Button>
-                <Button variant="accent" onClick={() => setRetryNonce(n => n + 1)}>
+                <Button
+                  variant="accent"
+                  onClick={() => {
+                    streamRetriesRef.current = 0;
+                    setRetryNonce(n => n + 1);
+                  }}
+                >
                   Retry
                 </Button>
               </div>
