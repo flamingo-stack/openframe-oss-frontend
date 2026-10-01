@@ -710,6 +710,15 @@ type DirectoryConnection {
   " No `rules` field: nothing in the Tenant Management designs renders a connection's visibility\n rules, and the retrieval path needs review before it is exposed. Mingo still sets them through\n DirectoryConnectionRuleWriter, and the lib-side reader is untouched."
   access: DirectoryConnectionAccess!
   domains: [DirectoryDomain!]!
+
+  """
+  How the most recent consent attempt ended, whatever the outcome — the same result the admin was
+  redirected back with (`?gws=` / `?ms=`). A new attempt replaces it once it finishes; a success is
+  never replaced by a later failure of the same attempt (e.g. the browser's Back re-running the
+  callback). Null until an attempt started after this field existed has finished. Outcomes that
+  never reach OpenFrame (Google's "Access blocked" screen) are not recorded.
+  """
+  lastConsentInfo: DirectoryConsentInfo
 }
 
 """
@@ -5168,4 +5177,72 @@ scalar _FieldSet
 
 type _Service {
   sdl: String!
+}
+
+"""
+Every outcome the consent callback can end an attempt with, across both providers.
+CONNECTED: consent granted (Microsoft 365: every requested tier). PARTIAL: Microsoft 365 only — the
+chain finished but tiers were declined (deniedTiers) or failed at Microsoft (issues). DENIED: the admin cancelled Google's
+consent screen. WRONG_DOMAIN: the Google account is not a verified admin of the connection's domain.
+SIGN_IN_FAILED: the Microsoft sign-in was cancelled or could not be verified. NOT_ADMIN: the Microsoft
+account is neither a Global Administrator nor a Privileged Role Administrator (a PIM role must be
+activated first). WRONG_TENANT: the Microsoft account or consent belongs to another directory.
+NOT_CONSENTED: Microsoft found no consent for OpenFrame's app. ERROR: failed on OpenFrame's side.
+EXPIRED: the consent link was opened after it expired; start the consent again.
+"""
+enum DirectoryConsentOutcome {
+  CONNECTED
+  PARTIAL
+  DENIED
+  WRONG_DOMAIN
+  SIGN_IN_FAILED
+  NOT_ADMIN
+  WRONG_TENANT
+  NOT_CONSENTED
+  ERROR
+  EXPIRED
+}
+
+type DirectoryConsentInfo {
+  outcome: DirectoryConsentOutcome!
+
+  """
+  Microsoft 365 only: the tier the chain stopped at (CORE, AUDIT, WRITE, ROLES). Null for Google Workspace and for a chain that finished.
+  """
+  tier: String
+
+  """
+  Microsoft 365 only: tiers the admin declined during the attempt. Empty for Google Workspace.
+  """
+  deniedTiers: [String!]!
+
+  """
+  Why the attempt ended as it did, beyond the outcome: provider errors and permissions still propagating.
+  """
+  issues: [DirectoryConsentIssue!]!
+  occurredAt: Instant!
+}
+
+"""
+PROVIDER_ERROR: Microsoft or Google failed the step (not an admin's decline); providerCode and correlationId identify it.
+PERMISSIONS_PENDING: the admin accepted, but the permissions were not visible yet; OpenFrame rechecks automatically.
+"""
+enum DirectoryConsentIssueKind {
+  PROVIDER_ERROR
+  PERMISSIONS_PENDING
+}
+
+type DirectoryConsentIssue {
+  """Microsoft 365 tier; null for Google Workspace."""
+  tier: String
+  kind: DirectoryConsentIssueKind!
+
+  """AADSTS code (Microsoft), OAuth error token (Google) or 'unknown'."""
+  providerCode: String
+
+  """Microsoft correlation id, for Microsoft support."""
+  correlationId: String
+
+  """What happened and what to do, in plain words."""
+  message: String!
 }
