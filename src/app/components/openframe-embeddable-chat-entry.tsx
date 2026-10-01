@@ -31,7 +31,6 @@
  */
 
 import type {
-  ChatComposerLock,
   ChatContextPickerConfig,
   EmbeddableChatHandle,
   MingoQuickAction,
@@ -67,15 +66,9 @@ interface OpenframeEmbeddableChatEntryProps {
   /** Change handler, shared with the host `AppLayoutDrawer`. The chat's own
    *  in-header X button calls this with `false` to close the drawer. */
   onOpenChange: (open: boolean) => void;
-  /**
-   * The agents are paused (the AI balance is spent — `billing-bars.tsx`): the
-   * composer takes no input and says why, and nothing here sends around it.
-   * `null` while Mingo is listening.
-   */
-  composerLock: ChatComposerLock | null;
 }
 
-export function OpenframeEmbeddableChatEntry({ open, onOpenChange, composerLock }: OpenframeEmbeddableChatEntryProps) {
+export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEmbeddableChatEntryProps) {
   const {
     state,
     subscription,
@@ -194,11 +187,8 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange, composerLock 
     if (!pendingPrompt) return;
     const text = consumePendingPrompt();
     if (!text) return;
-    // Paused agents answer nothing: the prompt is dropped rather than sent into
-    // a refusal, and the locked composer the click opened onto says why.
-    if (composerLock) return;
     void sendInNewDialog(text);
-  }, [pendingPrompt, consumePendingPrompt, sendInNewDialog, composerLock]);
+  }, [pendingPrompt, consumePendingPrompt, sendInNewDialog]);
 
   // Queued launcher "start a new chat". Nothing to send and nothing the host can
   // set — which view the narrow panel shows with no open conversation (list vs.
@@ -363,9 +353,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange, composerLock 
         // Admin-configured Mingo quick actions rendered as chips in the Mingo
         // empty state. Omitted when none are configured so the lib keeps its
         // default welcome content.
-        // A chip sends straight into a new dialog, around the composer — so a
-        // locked composer has no chips beside it.
-        mingoWelcome={!composerLock && mingoQuickActions.length > 0 ? { quickActions: mingoQuickActions } : undefined}
+        mingoWelcome={mingoQuickActions.length > 0 ? { quickActions: mingoQuickActions } : undefined}
         contextPicker={contextPicker}
         // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
         // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`
@@ -381,7 +369,6 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange, composerLock 
         // to review and forget individual entries. Replaces the old under-the-
         // header page-context banner. The strip self-hides when memory is empty.
         contextMemory={contextMemory}
-        composerLock={composerLock}
       />
     </>
   );
