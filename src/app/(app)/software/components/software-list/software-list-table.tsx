@@ -13,14 +13,12 @@ import { EmptyState, useRetryKey } from '@/app/components/shared';
 import type { ListSelections } from '../shared/software-list-frame';
 import { SOFTWARE_LIST_PAGE_SIZE, SOFTWARE_LIST_SORTABLE_COLUMN_IDS } from './software-list-columns';
 import { SoftwareTable, toSoftwareFilterInput } from './software-table';
-import { useSoftwareFilters } from './use-software-filters';
 
 /**
  * The fleet-wide `softwares` connection — one row per software title,
  * aggregated across devices. Search, sort and the funnel are pushed to the
  * server; the pagination fragment drives infinite scroll. The rows themselves
- * are the shared `SoftwareTable`, the one a device's own inventory draws too,
- * with the funnel fed by `softwareFilters`.
+ * are the shared `SoftwareTable`, the one a device's own inventory draws too.
  */
 const softwareListTableQuery = graphql`
   query softwareListTableQuery(
@@ -104,17 +102,13 @@ export function SoftwareListTable({
   const queryData = useLazyLoadQuery<SoftwareListTableQueryType>(
     softwareListTableQuery,
     { filter, search: debouncedSearch || null, sort, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
     SoftwareListTablePaginationQueryType,
     softwareListTable_query$key
   >(softwareListTableFragment, queryData);
-
-  // The funnel's options: what actually occurs across the fleet, from the
-  // server, so a value no title has is never offered.
-  const filterOptions = useSoftwareFilters();
 
   const rows = data.softwares.edges.map(edge => edge.node);
 
@@ -130,7 +124,6 @@ export function SoftwareListTable({
       sortableIds={SOFTWARE_LIST_SORTABLE_COLUMN_IDS}
       sortState={sortState}
       onSortChange={onSortChange}
-      filterOptions={filterOptions}
       selections={selections}
       onSelectionsChange={onSelectionsChange}
       isFiltered={filter !== null}

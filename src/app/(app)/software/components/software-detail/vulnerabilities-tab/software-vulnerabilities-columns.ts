@@ -1,4 +1,5 @@
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { FLEET_LIST_PAGE_SIZE } from '../../shared/fleet-list-paging';
 
 /**
  * Column layout for Software → Vulnerabilities, shared by the live table and
@@ -35,4 +36,4 @@ export const SOFTWARE_VULNERABILITIES_SORTABLE_COLUMN_IDS: readonly string[] = [
   SOFTWARE_VULNERABILITY_COLUMNS.discoveredAt.id,
 ];
 
-export const SOFTWARE_VULNERABILITIES_PAGE_SIZE = 20;
+export const SOFTWARE_VULNERABILITIES_PAGE_SIZE = FLEET_LIST_PAGE_SIZE;

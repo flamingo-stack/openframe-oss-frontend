@@ -15,15 +15,15 @@ import type {
 } from '@/__generated__/softwareTable_software.graphql';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared';
 import type { SoftwareVersionStatus } from '@/generated/schema-enums';
-import type { SoftwareFilterOptions } from '@/graphql/software/software-facets-fields';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { multiColumnFilter } from '../shared/column-filters';
+import { FLEET_LIST_SKELETON_ROWS } from '../shared/fleet-list-paging';
 import { OpenRowButton } from '../shared/open-row-button';
 import type { ListSelections } from '../shared/software-list-frame';
 import { SoftwareDevicesCell } from './software-devices-cell';
-import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
+import { SOFTWARE_LIST_COLUMNS } from './software-list-columns';
 import { SoftwareNameCell } from './software-name-cell';
 import { SoftwareVersionCell } from './software-version-cell';
 import { SoftwareVulnerabilitiesCell } from './software-vulnerabilities-cell';
@@ -77,7 +77,18 @@ function columnMeta<const T extends object>(column: TableSkeletonColumn, sortabl
   return liveColumnMeta({ ...column, sortable: sortableIds.includes(column.id) }, extra);
 }
 
-function buildColumns(sortableIds: readonly string[], filterOptions: SoftwareFilterOptions): ColumnDef<SoftwareRow>[] {
+/**
+ * The Current Version funnel's options: none. The backend never sets
+ * `versionStatus` on a title, so the `softwareFilters` / `deviceSoftwareFilters`
+ * facet always answered empty — and the core table draws no funnel for empty
+ * options — while costing a second full Fleet catalog read that the rows waited
+ * on. The column keeps `meta.filter` so its header cell holds its shape. When
+ * the backend starts filling `versionStatus`, bring the facet query back, fetched
+ * in parallel with the rows rather than after them.
+ */
+const NO_VERSION_STATUS_OPTIONS: never[] = [];
+
+function buildColumns(sortableIds: readonly string[]): ColumnDef<SoftwareRow>[] {
   return [
     {
       id: SOFTWARE_LIST_COLUMNS.name.id,
@@ -94,7 +105,7 @@ function buildColumns(sortableIds: readonly string[], filterOptions: SoftwareFil
       enableSorting: false,
       filterFn: multiSelectFilterFn,
       meta: columnMeta(SOFTWARE_LIST_COLUMNS.currentVersion, sortableIds, {
-        filter: { options: filterOptions.versionStatuses },
+        filter: { options: NO_VERSION_STATUS_OPTIONS },
       }),
     },
     {
@@ -137,8 +148,6 @@ export interface SoftwareTableProps {
   /** Live sort — drives the header indicator so it flips instantly on click. */
   sortState: DataTableSortState | null;
   onSortChange: (columnId: string) => void;
-  /** The funnel's options, from the surface's own facet query. */
-  filterOptions: SoftwareFilterOptions;
   /** Live funnel selection by column id — what the headers draw as ticked, so a tick lands instantly. */
   selections: ListSelections;
   onSelectionsChange: (next: Record<string, string[]>) => void;
@@ -165,7 +174,6 @@ export function SoftwareTable({
   sortableIds,
   sortState,
   onSortChange,
-  filterOptions,
   selections,
   onSelectionsChange,
   isFiltered,
@@ -182,7 +190,7 @@ export function SoftwareTable({
   const table = useDataTable<SoftwareRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
     data: rows as SoftwareRow[],
-    columns: buildColumns(sortableIds, filterOptions),
+    columns: buildColumns(sortableIds),
     getRowId,
     enableSorting: false,
     state: { columnFilters },
@@ -215,7 +223,7 @@ export function SoftwareTable({
           onSortChange={onSortChange}
         />
         <DataTable.Body
-          skeletonRows={SOFTWARE_LIST_PAGE_SIZE}
+          skeletonRows={FLEET_LIST_SKELETON_ROWS}
           emptyState={{
             title: debouncedSearch
               ? `No software found matching "${debouncedSearch}". Try adjusting your search.`

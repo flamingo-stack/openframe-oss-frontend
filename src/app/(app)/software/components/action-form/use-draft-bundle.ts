@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { commitMutation, graphql, useFragment, useRelayEnvironment } from 'react-relay';
 import { getRequest, type IEnvironment } from 'relay-runtime';
 import type { useDraftBundle_bundle$key } from '@/__generated__/useDraftBundle_bundle.graphql';
@@ -51,13 +51,15 @@ function discard(environment: IEnvironment, id: string): void {
  * The bundle behind the Install / Update Software form, for as long as the page
  * is open.
  *
- * There is none until the user assigns a device: `ensureBundle` creates the
- * draft on the first "+" / "Add All" and answers every later call with the same
- * id, so a page that is opened and left again costs the server nothing. From
- * then on every device the user adds is written to it as it happens, the way a
- * script schedule's assignment is edited, so the selection never has to fit in
- * the browser; `submitSoftwareBundle` then runs or schedules whatever the draft
- * holds.
+ * Opened with the form (once `enabled`), not on the first "+": the device picker
+ * reads its lists off the bundle, so with a draft in hand from the start every
+ * assignment — the first included — is the same in-place edit of the same
+ * lists. Created on the first click instead, the picker had to start on the
+ * fleet's list and swap to the bundle's mid-click, remounting every row. The
+ * price is one create (and one discard) per visit. Every device the user adds
+ * is written to the draft as it happens, the way a script schedule's assignment
+ * is edited, so the selection never has to fit in the browser;
+ * `submitSoftwareBundle` then runs or schedules whatever the draft holds.
  *
  * A draft that is NOT submitted is discarded with the page: on unmount for a
  * navigation within the app, and from `pagehide` for a tab close or reload,
@@ -65,10 +67,11 @@ function discard(environment: IEnvironment, id: string): void {
  * neither — a crash or a dropped network loses the request — so the server's
  * reaper of stale drafts stays the safety net, not this.
  */
-export function useDraftBundle() {
+export function useDraftBundle({ enabled }: { enabled: boolean }) {
   const environment = useRelayEnvironment();
 
   const [bundle, setBundle] = useState<useDraftBundle_bundle$key | null>(null);
+  const [createError, setCreateError] = useState<Error | null>(null);
   const liveIdRef = useRef<string | null>(null);
   const creatingRef = useRef<Promise<string> | null>(null);
   const submittedRef = useRef(false);
@@ -107,7 +110,7 @@ export function useDraftBundle() {
 
   /**
    * The draft's id, creating the draft if there is none yet. Concurrent callers
-   * — two quick clicks — share one creation. Rejects if the server refuses, or
+   * — Strict Mode's double effect — share one creation. Rejects if the server refuses, or
    * if the page has left in the meantime (that draft is discarded here, since
    * nothing else knows it exists).
    */
@@ -128,10 +131,7 @@ export function useDraftBundle() {
             return;
           }
           liveIdRef.current = created.id;
-          // A transition: the lists that hang off the bundle then load under the
-          // fleet lists already on screen, instead of dropping them to a skeleton
-          // on the very click that added the first device.
-          startTransition(() => setBundle(created));
+          setBundle(created);
           resolve(created.id);
         },
         onError: reject,
@@ -143,6 +143,19 @@ export function useDraftBundle() {
     return creatingRef.current;
   }, [environment]);
 
+  // Open the draft as soon as the form may write — and again after a bfcache
+  // restore dropped it (`pageshow` above) or a failed attempt was retried.
+  const needsBundle = enabled && bundle === null && createError === null;
+  useEffect(() => {
+    if (!needsBundle) return;
+    ensureBundle().catch((error: Error) => {
+      if (!goneRef.current) setCreateError(error);
+    });
+  }, [needsBundle, ensureBundle]);
+
+  /** Clears a failed creation, which makes the effect above try again. */
+  const retryCreate = useCallback(() => setCreateError(null), []);
+
   /** Submit succeeded: the bundle is the run's history now, not a draft to discard. */
   const markSubmitted = useCallback(() => {
     submittedRef.current = true;
@@ -153,7 +166,8 @@ export function useDraftBundle() {
   return {
     bundleId: draft?.id ?? null,
     deviceCount: draft?.deviceCount ?? 0,
-    ensureBundle,
+    createError,
+    retryCreate,
     markSubmitted,
   };
 }

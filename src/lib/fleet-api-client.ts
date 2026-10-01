@@ -371,8 +371,14 @@ class FleetApiClient {
     return this.get(path);
   }
 
-  async getHost(hostId: number): Promise<ApiResponse<FleetHostResponse>> {
-    return this.get(`/api/latest/fleet/hosts/${hostId}`);
+  /**
+   * `excludeSoftware` drops the host's installed software (and the CVEs nested
+   * in it) from the payload — by far its heaviest part, and Fleet builds it
+   * on every call.
+   */
+  async getHost(hostId: number, options?: { excludeSoftware?: boolean }): Promise<ApiResponse<FleetHostResponse>> {
+    const query = options?.excludeSoftware ? '?exclude_software=true' : '';
+    return this.get(`/api/latest/fleet/hosts/${hostId}${query}`);
   }
 
   async getHostPolicies(hostId: number): Promise<ApiResponse<Policy[]>> {
