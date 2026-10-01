@@ -2,10 +2,7 @@
 
 import { WebDesignIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { SoftwareListFrame } from '@/app/(app)/software/components/shared/software-list-frame';
-import {
-  SOFTWARE_LIST_SORTABLE_COLUMN_IDS,
-  SOFTWARE_LIST_TABLE_COLUMNS,
-} from '@/app/(app)/software/components/software-list/software-list-columns';
+import { SOFTWARE_LIST_TABLE_COLUMNS } from '@/app/(app)/software/components/software-list/software-list-columns';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { Device } from '../../types/device.types';
@@ -90,7 +87,7 @@ function softwareEmptyState(device: Device) {
 /**
  * Device → Software over the Software module: the titles installed on this
  * machine, from the `deviceSoftware` connection. The Software page is the
- * reference — the same frame, table, search, sort toggles and funnels over this
+ * reference — the same frame, table, search and funnels over this
  * device's rows — so nothing here decides how a list of `Software` looks, and
  * every row opens the title's page in the module. What the tab adds is its
  * own: the boundary that keeps a failed list from taking the page down, and
@@ -106,7 +103,6 @@ function ModuleSoftwareTab({ device }: SoftwareTabProps) {
     <SoftwareListFrame
       paramPrefix="software"
       placeholder={SEARCH_PLACEHOLDER}
-      sortableIds={SOFTWARE_LIST_SORTABLE_COLUMN_IDS}
       skeletonColumns={SOFTWARE_LIST_TABLE_COLUMNS}
       skeletonRows={DEVICE_TAB_SKELETON_ROWS}
     >

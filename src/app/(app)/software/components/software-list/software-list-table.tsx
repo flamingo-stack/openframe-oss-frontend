@@ -1,26 +1,22 @@
 'use client';
 
 import { Parcel02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { DataTableSortState } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { softwareListTable_query$key } from '@/__generated__/softwareListTable_query.graphql';
 import type { softwareListTablePaginationQuery as SoftwareListTablePaginationQueryType } from '@/__generated__/softwareListTablePaginationQuery.graphql';
-import type {
-  softwareListTableQuery as SoftwareListTableQueryType,
-  SortInput,
-} from '@/__generated__/softwareListTableQuery.graphql';
+import type { softwareListTableQuery as SoftwareListTableQueryType } from '@/__generated__/softwareListTableQuery.graphql';
 import { EmptyState, useRetryKey } from '@/app/components/shared';
-import { SOFTWARE_LIST_PAGE_SIZE, SOFTWARE_LIST_SORTABLE_COLUMN_IDS } from './software-list-columns';
+import { SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { SoftwareTable } from './software-table';
 
 /**
  * The fleet-wide `softwares` connection — one row per software title,
- * aggregated across devices. Search and sort are pushed to the server; the pagination fragment drives infinite scroll. The rows themselves
+ * aggregated across devices. Search is pushed to the server; the pagination fragment drives infinite scroll. The rows themselves
  * are the shared `SoftwareTable`, the one a device's own inventory draws too.
  */
 const softwareListTableQuery = graphql`
-  query softwareListTableQuery($search: String, $sort: SortInput, $first: Int!, $after: String) {
-    ...softwareListTable_query @arguments(search: $search, sort: $sort, first: $first, after: $after)
+  query softwareListTableQuery($search: String, $first: Int!, $after: String) {
+    ...softwareListTable_query @arguments(search: $search, first: $first, after: $after)
   }
 `;
 
@@ -29,12 +25,10 @@ const softwareListTableFragment = graphql`
   @refetchable(queryName: "softwareListTablePaginationQuery")
   @argumentDefinitions(
     search: { type: "String" }
-    sort: { type: "SortInput" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    softwares(search: $search, sort: $sort, first: $first, after: $after)
-      @connection(key: "softwareListTable_softwares") {
+    softwares(search: $search, first: $first, after: $after) @connection(key: "softwareListTable_softwares") {
       filteredCount
       edges {
         node {
@@ -51,13 +45,8 @@ const softwareListTableFragment = graphql`
 
 interface SoftwareListTableProps {
   debouncedSearch: string;
-  /** Deferred sort — feeds the query (lags the live indicator during a refetch). */
-  sort: SortInput | null;
-  /** Live sort — drives the header indicator so it flips instantly on click. */
-  sortState: DataTableSortState | null;
-  onSortChange: (columnId: string) => void;
   /**
-   * True while the deferred query variables lag the live search/sort
+   * True while the deferred query variables lag the live search
    * state (a refetch is in flight and the rows on screen are the previous
    * result) — guards the empty state so it never flashes on stale data.
    */
@@ -71,9 +60,6 @@ interface SoftwareListTableProps {
 /** The Software inventory rows — suspends on the query, so it lives under the view's `<Suspense>`. */
 export function SoftwareListTable({
   debouncedSearch,
-  sort,
-  sortState,
-  onSortChange,
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
@@ -83,7 +69,7 @@ export function SoftwareListTable({
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareListTableQueryType>(
     softwareListTableQuery,
-    { search: debouncedSearch || null, sort, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
+    { search: debouncedSearch || null, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
@@ -103,9 +89,6 @@ export function SoftwareListTable({
       rows={rows}
       totalCount={data.softwares.filteredCount}
       debouncedSearch={debouncedSearch}
-      sortableIds={SOFTWARE_LIST_SORTABLE_COLUMN_IDS}
-      sortState={sortState}
-      onSortChange={onSortChange}
       isPending={isPending}
       emptyState={<EmptyState icon={<Parcel02Icon />} title={emptyTitle} description={emptyDescription} />}
       onEmptyChange={onEmptyChange}

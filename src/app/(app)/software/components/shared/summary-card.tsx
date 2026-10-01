@@ -5,7 +5,9 @@ import type { ReactNode } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
 
 /** Static class names — Tailwind only sees whole literals. */
-const GRID_COLUMNS = { 2: 'md:grid-cols-2', 4: 'md:grid-cols-4' } as const;
+const GRID_COLUMNS = { 2: 'md:grid-cols-2', 3: 'md:grid-cols-3', 4: 'md:grid-cols-4' } as const;
+
+export type SummaryCardColumns = keyof typeof GRID_COLUMNS;
 
 export interface SummaryField {
   label: string;
@@ -15,7 +17,7 @@ export interface SummaryField {
 interface SummaryCardProps {
   fields: readonly SummaryField[];
   /** How many fields sit side by side from md up; below md they stack. */
-  columns: keyof typeof GRID_COLUMNS;
+  columns: SummaryCardColumns;
   /** A full-width block above the fields (the CVE's description). */
   lead?: ReactNode;
 }
