@@ -182,10 +182,6 @@ export default defineConfig([
     //    that needs it, and read by a plain mapper function via `readInlineData`
     //    (`device-{row,selector,}-fields.ts` compose into a ladder this way). The
     //    consumer is a function in another file by construction.
-    //  - `subscription-settings-view` spreads the device-plan-picker's fragments
-    //    and hands the refs down through PaywallBody and DeviceManagementCard to
-    //    the picker that reads them. Passing a fragment ref through an intermediate
-    //    component is ordinary Relay; the rule only recognises a direct render.
     //  - The software module's two `*-picker-lists` are colocated pickers: their
     //    own fragments they read themselves, but the device rows inside them are
     //    the `@inline` ladder step above, read by the shared picker's mapper — the
@@ -200,7 +196,6 @@ export default defineConfig([
     name: 'openframe-frontend/fragment-definitions-render-nothing',
     files: [
       'src/graphql/**/*.ts',
-      'src/app/(app)/settings/billing-usage/subscription/components/subscription-settings-view.tsx',
       'src/app/(app)/software/components/action-form/*-picker-lists.tsx',
       'src/app/(app)/software/components/vulnerability-detail/vulnerability-devices-table.tsx',
     ],

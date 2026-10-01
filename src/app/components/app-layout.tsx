@@ -26,14 +26,14 @@ import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { isAppShell } from '@/lib/platform';
-import { routes } from '@/lib/routes';
+import { MANAGE_AI_BALANCE_ACTION, routes } from '@/lib/routes';
 import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
 import { AnnouncementTopBar } from './announcement-top-bar';
 import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
-import { AiSpendLimitBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
+import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { MingoCompactionWatchers } from './mingo-compaction-watchers';
@@ -286,13 +286,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     setTrialDismissed(isTrialBarDismissed(trialToken));
   }, [trialToken]);
   /**
-   * The bar exists for its "Expand" action, so it needs a build that has the
-   * limit control: the mobile builds hide every payment surface (App Store
-   * Guideline 3.1.1) and the desktop build shows billing read-only — see
-   * `billing-visibility.ts`. Neither page this bar would send you to can raise
-   * the limit.
+   * Both bars exist for their action — top up the balance, activate the
+   * subscription — so they need a build that can do it: the mobile builds hide
+   * every payment surface (App Store Guideline 3.1.1) and the desktop build
+   * shows billing read-only — see `billing-visibility.ts`. Neither page these
+   * bars would send you to has a top-up or a checkout on them.
    */
-  const showAiSpendBar = billingsEnabled && !isBillingHidden() && !isBillingReadOnly() && sessionReady && !isLocked;
+  const showBillingBars = billingsEnabled && !isBillingHidden() && !isBillingReadOnly() && sessionReady && !isLocked;
 
   // The Mingo sidebar (header launcher + in-layout chat drawer) is the only chat
   // surface there is. It is meaningful only inside the full, unlocked app shell
@@ -429,23 +429,23 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // workspace cannot act on it: the AI and trial bars send you to Billing &
     // Usage. Answered first, so no later branch has to remember the lock.
     topBar = undefined;
-  } else if (showAiSpendBar && billingBars.ai.tone !== 'default') {
+  } else if (showBillingBars && billingBars.ai.tone !== 'default') {
     // First in line: agents about to stop answering cannot wait, and this
-    // state is invisible from every page but Billing & Usage.
+    // state is invisible from every page but Billing & Usage. The CTA lands
+    // with the top-up dialog already open.
     topBar = (
-      <AiSpendLimitBar
+      <AiBalanceBar
         tone={billingBars.ai.tone}
-        percent={billingBars.ai.percent}
-        onExpand={() => router.push(routes.settings.billingUsage)}
+        onManage={() => router.push(routes.settings.billingUsage({ action: MANAGE_AI_BALANCE_ACTION }))}
       />
     );
-  } else if (showAiSpendBar && billingBars.trial && !trialDismissed) {
+  } else if (showBillingBars && billingBars.trial && !trialDismissed) {
     // Below the AI bars: a trial past its halfway point is a deadline, not a
     // failure.
     topBar = (
       <TrialEndingBar
         daysLeft={billingBars.trial.daysLeft}
-        onActivate={() => router.push(routes.settings.billingUsage)}
+        onActivate={() => router.push(routes.settings.billingUsage())}
         onDismiss={() => {
           if (!trialToken) return;
           dismissTrialBar(trialToken);
@@ -667,7 +667,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       {/* Reports what the billing banners above need. Suspends, so it sits in
           its own boundary and renders nothing either way — a shell that waited
           on it would hold the whole app for a banner. */}
-      {showAiSpendBar && (
+      {showBillingBars && (
         <Suspense fallback={null}>
           <BillingBarsHydrator onResolved={setBillingBars} />
         </Suspense>
