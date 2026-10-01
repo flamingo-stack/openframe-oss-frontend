@@ -58,7 +58,7 @@ export function BundleDevicePicker({ bundleId, ensureBundle, scope, isDeviceDisa
   const filter = useMemo(() => narrowWithinScope(scope, narrowingToFilter(narrowing)), [scope, narrowing]);
   const { deferredFilters: deferredFilter, deferredSearch } = useDeferredQuery(filter, debouncedSearch);
 
-  const { busy, addDevice, removeDevice, addAllDevices, removeAllDevices } = useBundleDeviceAssignment({
+  const { busy, pendingIds, addDevice, removeDevice, addAllDevices, removeAllDevices } = useBundleDeviceAssignment({
     bundleId,
     ensureBundle,
     filter,
@@ -87,6 +87,7 @@ export function BundleDevicePicker({ bundleId, ensureBundle, scope, isDeviceDisa
     busy,
     onAdd: addDevice,
     onRemove: removeDevice,
+    pendingIds,
     onAddAll: addAllDevices,
     onRemoveAll: removeAllDevices,
     isDeviceDisabled,

@@ -7,13 +7,10 @@ import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { FLEET_LIST_SKELETON_ROWS, FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
 import { SoftwareSearchToolbar } from '../../shared/software-search-toolbar';
 import { useServerSort } from '../../shared/use-server-sort';
-import {
-  SOFTWARE_DEVICES_PAGE_SIZE,
-  SOFTWARE_DEVICES_SORTABLE_COLUMN_IDS,
-  SOFTWARE_DEVICES_TABLE_COLUMNS,
-} from './software-devices-columns';
+import { SOFTWARE_DEVICES_SORTABLE_COLUMN_IDS, SOFTWARE_DEVICES_TABLE_COLUMNS } from './software-devices-columns';
 import { SoftwareDevicesTable } from './software-devices-table';
 
 /**
@@ -40,7 +37,7 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
     search: searchInput,
     setSearch: setSearchInput,
     debouncedSearch,
-  } = useSearchParam(params.deviceSearch, value => setParam('deviceSearch', value), 300);
+  } = useSearchParam(params.deviceSearch, value => setParam('deviceSearch', value), FLEET_SEARCH_DEBOUNCE_MS);
 
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -67,7 +64,7 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
   const tableSkeleton = (
     <TableSkeleton
       columns={SOFTWARE_DEVICES_TABLE_COLUMNS}
-      rows={SOFTWARE_DEVICES_PAGE_SIZE}
+      rows={FLEET_LIST_SKELETON_ROWS}
       stickyHeaderOffset={stickyHeaderOffset}
     />
   );

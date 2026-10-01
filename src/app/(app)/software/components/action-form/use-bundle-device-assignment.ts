@@ -81,6 +81,8 @@ interface UseBundleDeviceAssignmentOptions {
   deferredSearch: string;
 }
 
+const NO_PENDING: ReadonlySet<string> = new Set();
+
 /**
  * Every write the bundle's device picker performs, and the toast each owes the
  * user — the same two write models as a script schedule's picker
@@ -102,18 +104,39 @@ export function useBundleDeviceAssignment({
   const { toast } = useToast();
   const environment = useRelayEnvironment();
 
-  // No in-flight flag for the single-row pair: the optimistic layer is their
-  // state, per row, and a global one would only re-lock what it replaced.
   const [commitAdd] = useMutation<AddMutationType>(addMutation);
   const [commitRemove] = useMutation<RemoveMutationType>(removeMutation);
   const [commitAddAll, isAddingAll] = useMutation<AddAllMutationType>(addAllMutation);
   const [commitRemoveAll, isRemovingAll] = useMutation<RemoveAllMutationType>(removeAllMutation);
   const [isCreating, setCreating] = useState(false);
 
+  // The creation lock holds until the draft's own lists are on screen, not just
+  // until the draft exists: they load under a transition, and until that commits
+  // the fleet list is still showing — with a "+" on the very row just added,
+  // since the fleet has no idea what the bundle holds. Released in the render
+  // that swaps them in.
+  const [prevBundleId, setPrevBundleId] = useState(bundleId);
+  if (bundleId !== prevBundleId) {
+    setPrevBundleId(bundleId);
+    if (bundleId) setCreating(false);
+  }
+
   // Only the wholesale writes lock the picker — they replace the list under the
   // user — plus the creation of the draft, during which a second click would
   // have nothing to write to yet.
   const busy = isAddingAll || isRemovingAll || isCreating;
+
+  // A single +/− locks its own row, not the picker, until it lands: the
+  // optimistic layer already flipped the row, so a second click would either
+  // resend the add or race it with a remove the server may apply first. The ref
+  // is the guard (handlers stay reference-stable); the state is what renders.
+  const inFlightRef = useRef(new Set<string>());
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(NO_PENDING);
+  const setInFlight = useCallback((deviceId: string, inFlight: boolean) => {
+    if (inFlight) inFlightRef.current.add(deviceId);
+    else inFlightRef.current.delete(deviceId);
+    setPendingIds(new Set(inFlightRef.current));
+  }, []);
 
   // The bulk actions must send the narrowing as it is AT CLICK TIME; a ref keeps
   // the handlers reference-stable. Written in an effect, not in render, so only
@@ -145,17 +168,19 @@ export function useBundleDeviceAssignment({
 
   /** Runs a write against the draft, creating the draft first if there is none. */
   const withBundle = useCallback(
-    (run: (id: string) => void, fallback: string) => {
+    (run: (id: string) => void, onError: (error: Error) => void) => {
       if (bundleId) {
         run(bundleId);
         return;
       }
       setCreating(true);
-      void ensureBundle()
-        .then(run, errorHandler(fallback))
-        .finally(() => setCreating(false));
+      // Success leaves the lock on — see `prevBundleId` above.
+      void ensureBundle().then(run, (error: Error) => {
+        setCreating(false);
+        onError(error);
+      });
     },
-    [bundleId, ensureBundle, errorHandler],
+    [bundleId, ensureBundle],
   );
 
   /**
@@ -187,28 +212,39 @@ export function useBundleDeviceAssignment({
   // aside; the lists arrive from the server with the device already in them.
   const addDevice = useCallback(
     (device: Device) => {
+      if (inFlightRef.current.has(device.id)) return;
+      setInFlight(device.id, true);
+      const toastError = errorHandler('Failed to add the device');
+      const onError = (error: Error) => {
+        setInFlight(device.id, false);
+        toastError(error);
+      };
       withBundle(id => {
         commitAdd({
           variables: { bundleId: id, machineIds: [device.id] },
           ...assignmentUpdaters({ id, keys: BUNDLE_PICKER_CONNECTION_KEYS }, device.id, true, connectionNarrowing()),
           onCompleted: () => {
+            setInFlight(device.id, false);
             toast({
               title: 'Device added',
               description: `"${getDeviceName(device)}" was added to the selection.`,
               variant: 'success',
             });
           },
-          onError: errorHandler('Failed to add the device'),
+          onError,
         });
-      }, 'Failed to add the device');
+      }, onError);
     },
-    [withBundle, commitAdd, connectionNarrowing, toast, errorHandler],
+    [withBundle, commitAdd, connectionNarrowing, toast, errorHandler, setInFlight],
   );
 
   const removeDevice = useCallback(
     (device: Device) => {
       // Nothing is assigned before there is a bundle, so there is nothing to remove.
       if (!bundleId) return;
+      if (inFlightRef.current.has(device.id)) return;
+      setInFlight(device.id, true);
+      const onError = errorHandler('Failed to remove the device');
       commitRemove({
         variables: { bundleId, machineIds: [device.id] },
         ...assignmentUpdaters(
@@ -218,16 +254,20 @@ export function useBundleDeviceAssignment({
           connectionNarrowing(),
         ),
         onCompleted: () => {
+          setInFlight(device.id, false);
           toast({
             title: 'Device removed',
             description: `"${getDeviceName(device)}" was removed from the selection.`,
             variant: 'success',
           });
         },
-        onError: errorHandler('Failed to remove the device'),
+        onError: error => {
+          setInFlight(device.id, false);
+          onError(error);
+        },
       });
     },
-    [bundleId, commitRemove, connectionNarrowing, toast, errorHandler],
+    [bundleId, commitRemove, connectionNarrowing, toast, errorHandler, setInFlight],
   );
 
   const addAllDevices = useCallback(() => {
@@ -245,7 +285,7 @@ export function useBundleDeviceAssignment({
         },
         onError: errorHandler('Failed to add the devices'),
       });
-    }, 'Failed to add the devices');
+    }, errorHandler('Failed to add the devices'));
   }, [withBundle, commitAddAll, toast, refreshLists, errorHandler]);
 
   const removeAllDevices = useCallback(() => {
@@ -265,5 +305,5 @@ export function useBundleDeviceAssignment({
     });
   }, [bundleId, commitRemoveAll, toast, refreshLists, errorHandler]);
 
-  return { busy, addDevice, removeDevice, addAllDevices, removeAllDevices };
+  return { busy, pendingIds, addDevice, removeDevice, addAllDevices, removeAllDevices };
 }

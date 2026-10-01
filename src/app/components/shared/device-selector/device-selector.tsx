@@ -192,6 +192,7 @@ export function DeviceSelector({
       }
       if (disabled) return;
       if (isDeviceDisabled?.(device)) return;
+      if (server.pendingIds?.has(device.id)) return;
       if (server.activeTab === 'selected') {
         server.onRemove(device);
         return;
@@ -437,6 +438,8 @@ export function DeviceSelector({
     [selectedTags, setSelectedTags, setSearchTerm],
   );
 
+  const pendingIds = server?.pendingIds;
+
   const columns = useMemo<ColumnDef<Device>[]>(
     () => [
       {
@@ -544,6 +547,7 @@ export function DeviceSelector({
 
           const key = getDeviceKey(device);
           if (key === undefined) return null;
+          const rowDisabled = disabled || !!pendingIds?.has(device.id);
           // Server mode fills `selectedIds` from the connection's own
           // per-row flag, so "already in?" is answered by the backend rather
           // than by whichever page the client happens to hold.
@@ -558,7 +562,7 @@ export function DeviceSelector({
                   onClick={() => toggleDevice(device)}
                   leftIcon={<TrashIcon size={24} />}
                   className="text-ods-error hover:opacity-80"
-                  disabled={disabled}
+                  disabled={rowDisabled}
                 />
               </div>
             );
@@ -581,7 +585,7 @@ export function DeviceSelector({
                     ? 'border-ods-accent bg-ods-open-yellow-secondary text-ods-accent hover:border-ods-accent hover:bg-ods-open-yellow-secondary'
                     : 'text-ods-text-secondary hover:text-ods-text-primary'
                 }
-                disabled={disabled}
+                disabled={rowDisabled}
               />
             </div>
           );
@@ -599,6 +603,7 @@ export function DeviceSelector({
       activeSubTab,
       toggleDevice,
       disabled,
+      pendingIds,
     ],
   );
 

@@ -135,6 +135,12 @@ export function SoftwareActionView({
         <ServerDevicePickerSkeleton />
       ) : (
         <BundleDevicePicker
+          // A new OS set is a different candidate list, not a refetch of this
+          // one: remounting drops straight to the skeleton instead of leaving
+          // the previous OS's devices on screen — and addable — while the
+          // deferred query catches up. The picker's search and funnels go with
+          // it, which is right: they narrowed a list that no longer exists.
+          key={osTypesKey}
           bundleId={bundleId}
           ensureBundle={ensureBundle}
           scope={scope}

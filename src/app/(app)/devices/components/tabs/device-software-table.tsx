@@ -16,15 +16,13 @@ import {
 } from '@/app/(app)/software/components/software-list/software-list-columns';
 import { SoftwareTable, toSoftwareFilterInput } from '@/app/(app)/software/components/software-list/software-table';
 import { useRetryKey } from '@/app/components/shared';
-import { useDeviceSoftwareFilters } from './use-device-software-filters';
 
 /**
  * Device → Software: what is installed on this machine, one row per title —
  * the same `Software` node the fleet-wide list shows, read in this device's
  * scope (the version is the one installed here), drawn by the same table with
  * the same sort toggles and funnel. Search, sort and the funnel go to the
- * server; the funnel's options come from `deviceSoftwareFilters`, the page's
- * facets scoped to this device. The pagination fragment drives infinite scroll.
+ * server. The pagination fragment drives infinite scroll.
  */
 const deviceSoftwareTableQuery = graphql`
   query deviceSoftwareTableQuery(
@@ -109,17 +107,13 @@ export function DeviceSoftwareTable({
   const queryData = useLazyLoadQuery<DeviceSoftwareTableQueryType>(
     deviceSoftwareTableQuery,
     { machineId, filter, search: debouncedSearch || null, sort, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
     DeviceSoftwareTablePaginationQueryType,
     deviceSoftwareTable_query$key
   >(deviceSoftwareTableFragment, queryData);
-
-  // The funnel's options: what actually occurs on this device, from the
-  // server, so a value no title here has is never offered.
-  const filterOptions = useDeviceSoftwareFilters(machineId);
 
   const rows = data.deviceSoftware.edges.map(edge => edge.node);
 
@@ -136,7 +130,6 @@ export function DeviceSoftwareTable({
       sortableIds={SOFTWARE_LIST_SORTABLE_COLUMN_IDS}
       sortState={sortState}
       onSortChange={onSortChange}
-      filterOptions={filterOptions}
       selections={selections}
       onSelectionsChange={onSelectionsChange}
       isFiltered={filter !== null}

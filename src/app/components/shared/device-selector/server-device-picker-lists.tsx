@@ -56,6 +56,8 @@ interface ServerDevicePickerListsProps {
   busy: boolean;
   onAdd: (device: Device) => void;
   onRemove: (device: Device) => void;
+  /** Rows whose single +/− is in flight — locked one by one, see `DeviceSelectorServer`. */
+  pendingIds?: ReadonlySet<string>;
   onAddAll: () => void;
   onRemoveAll: () => void;
   isDeviceDisabled?: (device: Device) => string | undefined;
@@ -86,6 +88,7 @@ export function ServerDevicePickerLists({
   busy,
   onAdd,
   onRemove,
+  pendingIds,
   onAddAll,
   onRemoveAll,
   isDeviceDisabled,
@@ -151,6 +154,7 @@ export function ServerDevicePickerLists({
         totalCount: half.connection?.filteredCount,
         onAdd,
         onRemove,
+        pendingIds,
         onAddAll,
         onRemoveAll,
       }}

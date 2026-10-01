@@ -51,6 +51,12 @@ export interface DeviceSelectorServer {
   /** Row actions. Committed immediately; there is no Save to batch them into. */
   onAdd: (device: Device) => void;
   onRemove: (device: Device) => void;
+  /**
+   * Devices (by `device.id`) whose +/− is still in flight: their row action is
+   * locked until it lands, so a second click cannot send the same write again
+   * or race it with the opposite one.
+   */
+  pendingIds?: ReadonlySet<string>;
   /** Header bulk actions — resolved server-side over the current narrowing. */
   onAddAll: () => void;
   onRemoveAll: () => void;

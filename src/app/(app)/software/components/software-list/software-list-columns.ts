@@ -1,4 +1,5 @@
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { FLEET_LIST_PAGE_SIZE } from '../shared/fleet-list-paging';
 
 /**
  * Column layout for the Software table, shared by the live table, its skeleton
@@ -50,4 +51,4 @@ export const SOFTWARE_LIST_SORTABLE_COLUMN_IDS: readonly string[] = [
 /** The funnels' column ids — the keys their selections travel under in the URL. */
 export const SOFTWARE_LIST_FILTER_COLUMN_IDS: readonly string[] = [SOFTWARE_LIST_COLUMNS.currentVersion.id];
 
-export const SOFTWARE_LIST_PAGE_SIZE = 20;
+export const SOFTWARE_LIST_PAGE_SIZE = FLEET_LIST_PAGE_SIZE;

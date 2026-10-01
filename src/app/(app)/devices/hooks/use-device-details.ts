@@ -9,6 +9,7 @@ import {
   parseMeshCentralDeviceStatus,
   parseMeshCentralLastSeen,
 } from '@/lib/meshcentral/meshcentral-api';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { fetchDeviceNode } from '../queries/devices-api';
 import type {
   Battery,
@@ -48,10 +49,10 @@ export function createDevice(
   meshCentralLastSeen: string | null,
   sources: DeviceDataSources,
 ): Device {
-  // Transform Fleet software to unified Software type. The host payload carries
-  // the inventory already, so this costs no request; it feeds the Fleet-backed
-  // Software / Vulnerabilities tabs (`software-management` off) — the module's
-  // tabs read their own connections and never look here.
+  // Transform Fleet software to unified Software type. It feeds the
+  // Fleet-backed Software / Vulnerabilities tabs (`software-management` off)
+  // only — the module's tabs read their own connections and never look here,
+  // so with the module on the host is fetched without it (`fetchDeviceDetails`).
   const software: Software[] =
     fleetData?.software?.map(fs => {
       const signatureTeamId = fs.signature_information?.find(s => s.team_identifier)?.team_identifier;
@@ -306,6 +307,19 @@ export function createDevice(
   };
 }
 
+/**
+ * The host's software list is read only by the Fleet-backed tabs, which
+ * `software-management` replaces — and this query re-runs every 10 seconds on
+ * every tab, so with the module on it pulled the whole inventory from Fleet over
+ * and over for nothing. Read off the store, not a hook: this runs outside React.
+ * Not answered yet counts as off — the payload then stays complete, which the
+ * Fleet tabs need if the answer turns out to be no.
+ */
+function isSoftwareModuleOn(): boolean {
+  const { isLoaded, flags } = useFeatureFlagsStore.getState();
+  return isLoaded && flags['software-management'] === true;
+}
+
 async function fetchDeviceDetails(machineId: string): Promise<Device> {
   // 1) Fetch primary device from the shared device query layer
   const node = await fetchDeviceNode(machineId);
@@ -324,7 +338,7 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
     // Validate that agentToolId is a valid numeric string before calling Fleet API
     const fleetHostId = Number(fleet?.agentToolId);
     if (Number.isInteger(fleetHostId) && fleetHostId > 0) {
-      const fResponse = await fleetApiClient.getHost(fleetHostId);
+      const fResponse = await fleetApiClient.getHost(fleetHostId, { excludeSoftware: isSoftwareModuleOn() });
       if (fResponse.ok && fResponse.data?.host) {
         fleetData = fResponse.data.host;
         fleetSource = 'ok';
