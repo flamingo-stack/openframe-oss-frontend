@@ -4,13 +4,24 @@ import type {
   notificationFields_notification$data as NotificationFieldsData,
   notificationFields_notification$key as NotificationFieldsKey,
 } from '@/__generated__/notificationFields_notification.graphql';
-import { NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
-import { NOTIFICATION_ATTR, parseAttributeToolCalls, readNotificationAttributes } from './notification-attributes';
+import { InsightSeverity, NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
+import {
+  INSIGHT_DETECTED_TYPE,
+  isInsightNotificationType,
+  NOTIFICATION_ATTR,
+  parseAttributeToolCalls,
+  readNotificationAttributes,
+} from './notification-attributes';
 import { notificationFieldsFragment } from './notification-fields';
 
 export {
+  INSIGHT_ACKNOWLEDGED_TYPE,
+  INSIGHT_DETECTED_TYPE,
+  INSIGHT_RESOLVED_TYPE,
+  INSIGHT_SNOOZED_TYPE,
   isApprovalNotificationType,
   isApprovalResolved,
+  isInsightNotificationType,
   MINGO_APPROVAL_REQUEST_TYPE,
   NOTIFICATION_ATTR,
   parseAttributeToolCalls,
@@ -306,6 +317,16 @@ export function parseSeverity(
 }
 
 /**
+ * Backend vocabulary the product renamed: an insight is an incident on every screen
+ * (`/incidents`, the sidebar, the details page), so a type label says "incident" too. Keyed
+ * per word rather than per type so a type added later (INSIGHT_ESCALATED, say) still
+ * reads "Incident Escalated" without a client release.
+ */
+const UI_WORD_BY_BACKEND_WORD: Record<string, string> = {
+  insight: 'Incident',
+};
+
+/**
  * Human label for a notification `type`: SNAKE_CASE → Title Case
  * (e.g. TICKET_STATUS_CHANGED → "Ticket Status Changed"). Data-driven so new backend
  * types label themselves.
@@ -316,8 +337,35 @@ export function notificationTypeLabel(type: string | null | undefined): string |
     .toLowerCase()
     .split('_')
     .filter(Boolean)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map(word => UI_WORD_BY_BACKEND_WORD[word] ?? word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+/** Incident severities whose detection card is painted red (Figma: the error variant). */
+const RED_INSIGHT_SEVERITIES: ReadonlySet<string> = new Set([InsightSeverity.CRITICAL, InsightSeverity.HIGH]);
+
+/**
+ * The severity an incident notification is DRAWN with, which is not the one the backend
+ * stamps on it.
+ *
+ * The backend's severity is per type, not per emission (`NotificationTypeSpec.getSeverity`
+ * takes no seed): every INSIGHT_DETECTED is WARNING, every transition INFO. The design keys
+ * the card on the incident itself instead - the neutral grey card unless a critical or high
+ * incident was just detected, and grey again once someone acknowledges, snoozes or resolves
+ * it, whatever its severity. The `insightSeverity` attribute travels on every insight type
+ * for exactly this, so the card reads it and the stamped value is set aside. Every other
+ * type keeps what the backend said.
+ */
+function presentedSeverity(
+  type: string | undefined,
+  attributes: Record<string, string>,
+  stamped: KnownSeverity | undefined,
+): KnownSeverity | undefined {
+  if (!isInsightNotificationType(type)) return stamped;
+  const insightSeverity = attributes[NOTIFICATION_ATTR.insightSeverity];
+  const isRed =
+    type === INSIGHT_DETECTED_TYPE && insightSeverity != null && RED_INSIGHT_SEVERITIES.has(insightSeverity);
+  return isRed ? 'DANGER' : 'INFO';
 }
 
 /**
@@ -379,9 +427,9 @@ export function readNotificationNode(ref: NotificationFieldsKey): NotificationFi
  * timestamp, and offers no type or entity metadata — a plain tile, no navigation.
  */
 export function mapNotificationNode(node: NotificationFieldsData): Notification {
-  const severity = normalizeSeverity(node.severity);
   const attributes = readNotificationAttributes(node.attributes);
   const notificationType = node.type ?? undefined;
+  const severity = presentedSeverity(notificationType, attributes, normalizeSeverity(node.severity));
 
   // Entity ids (`ticketId`, `dialogId`) drive navigation and auto-read uniformly across
   // types (see resolveNotificationAction); they sit at fixed keys for every type, known or

@@ -21,6 +21,29 @@ import {
 export { isApprovalNotificationType, MINGO_APPROVAL_REQUEST_TYPE, TICKET_APPROVAL_REQUEST_TYPE };
 
 /**
+ * The insight family of backend `TenantNotificationType`s - what the UI calls incidents.
+ * The backend keeps the `Insight` vocabulary (the `insight(id:)` query, the `Insight` global
+ * id type, these names); the product renamed it to "incident" on every screen, and the
+ * notification surfaces follow the screens. One emission per detection, then one per
+ * status transition, all to the same incident.
+ */
+export const INSIGHT_DETECTED_TYPE = 'INSIGHT_DETECTED';
+export const INSIGHT_ACKNOWLEDGED_TYPE = 'INSIGHT_ACKNOWLEDGED';
+export const INSIGHT_SNOOZED_TYPE = 'INSIGHT_SNOOZED';
+export const INSIGHT_RESOLVED_TYPE = 'INSIGHT_RESOLVED';
+
+const INSIGHT_TYPE_PREFIX = 'INSIGHT_';
+
+/**
+ * True for any insight type, including one this release has never heard of: the family
+ * shares a prefix by backend convention, and a transition added later should still look
+ * and route like its siblings rather than fall back to a generic tile.
+ */
+export function isInsightNotificationType(type: unknown): type is string {
+  return typeof type === 'string' && type.startsWith(INSIGHT_TYPE_PREFIX);
+}
+
+/**
  * Attribute keys this app reads out of the flat `attributes` map. Every other key the
  * backend sends rides along into `meta` untouched — the catalog adds facts (ticketNumber,
  * actorName, machineId, …) without a client release, and dropping them here would be the
@@ -30,6 +53,8 @@ export const NOTIFICATION_ATTR = {
   ticketId: 'ticketId',
   dialogId: 'dialogId',
   insightId: 'insightId',
+  /** The incident's own `InsightSeverity` (CRITICAL … INFO), on every insight type. */
+  insightSeverity: 'insightSeverity',
   approvalRequestId: 'approvalRequestId',
   approvalType: 'approvalType',
   resolution: 'resolution',

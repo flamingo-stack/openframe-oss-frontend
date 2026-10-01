@@ -1,6 +1,7 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
 import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
+  AlertTriangleIcon,
   BracketCurlyIcon,
   ChartDonutIcon,
   ClipboardListIcon,
@@ -27,6 +28,7 @@ const iconByCategory: Record<string, ReactNode> = {
   SOFTWARE: <PackageIcon size={16} />,
   LOGS: <ClipboardListIcon size={16} />,
   TICKETS: <TagIcon size={16} />,
+  INSIGHTS: <AlertTriangleIcon size={16} />,
   MINGO: (
     <MingoIcon
       className="size-4"

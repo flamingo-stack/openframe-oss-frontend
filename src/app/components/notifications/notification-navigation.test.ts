@@ -112,6 +112,18 @@ describe('incident deep links', () => {
     expect(resolvePushNotificationRoute({ type: 'INSIGHT_DETECTED', insightId: globalId })).toBe(incidentRoute);
   });
 
+  // The transitions announce what someone did to the incident; the incident is still
+  // the thing to open.
+  it('routes every status transition to the same incident', () => {
+    for (const type of ['INSIGHT_ACKNOWLEDGED', 'INSIGHT_SNOOZED', 'INSIGHT_RESOLVED']) {
+      expect(resolvePushNotificationRoute({ type, insightId: 'i-1', actor: 'Ann' }), type).toBe(incidentRoute);
+      const action = resolveNotificationAction({
+        meta: { notificationType: type, insightId: 'i-1', actor: 'Ann' },
+      } as unknown as Notification);
+      expect(action, type).toEqual({ label: 'Incident Details', route: incidentRoute });
+    }
+  });
+
   it('routes an unrecognised type by its insight id, after a ticket id', () => {
     expect(resolvePushNotificationRoute({ type: 'INSIGHT_SHIPPED_LATER', insightId: 'i-1' })).toBe(incidentRoute);
     expect(resolvePushNotificationRoute({ type: 'SOMETHING_ELSE', insightId: 'i-1', ticketId: 't-1' })).toBe(
