@@ -20,7 +20,6 @@ import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
-import { useDeviceLogsGate } from '../hooks/use-device-logs-gate';
 import { getDeviceName } from '../utils/device-name';
 import { getDeviceStatusConfig } from '../utils/device-status';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
@@ -60,13 +59,20 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   // Controlled mode for TabNavigation: URL is the single source of truth.
   // Avoids a flicker bug in `urlSync` mode where the internal sync effect
   // briefly resets the active tab to the URL's previous value during navigation.
+  //
+  // Written with `history.replaceState`, not `router.replace`: a tab is a view of
+  // the same page, and a router navigation re-renders the route's metadata — the
+  // <title> is removed and re-inserted, so the browser tab (and the desktop
+  // shell's window title) blinked empty on every switch. Next syncs a native
+  // `replaceState` into `useSearchParams`, so the tab still follows the URL.
+  // Re-based on the live search string, so params written beside `tab` survive.
   const handleTabChange = useCallback(
     (tabId: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
       params.set('tab', tabId);
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      window.history.replaceState(null, '', `${pathname}?${params.toString()}${window.location.hash}`);
     },
-    [router, pathname, searchParams],
+    [pathname],
   );
 
   const { deviceDetails, isLoading, error } = useDeviceDetails(deviceId);
@@ -149,10 +155,9 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     return groups;
   }, [actionAvailability, deviceMenuItems]);
 
-  const deviceLogsGate = useDeviceLogsGate();
   const handleDeviceLogs = () => {
     const params = new URLSearchParams(window.location.search);
-    params.set('tab', deviceLogsGate === 'on' ? 'device-logs' : 'overview');
+    params.set('tab', 'device-logs');
     // Add timestamp to force logs refresh
     params.set('refresh', Date.now().toString());
     router.push(`${window.location.pathname}?${params.toString()}`);

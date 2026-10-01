@@ -20,8 +20,10 @@ import {
   deviceLogRangeBounds,
   isDeviceLogRange,
 } from '../../../utils/device-log-time';
+import { DeviceLogDrawer } from './device-log-drawer';
+import type { DeviceLogEntry } from './device-log-row';
 import { type DeviceLogsFilter, DeviceLogsList } from './device-logs-list';
-import { DeviceLogsRowsSkeleton } from './device-logs-skeleton';
+import { DeviceLogsListSkeleton } from './device-logs-skeleton';
 import { DeviceLogsToolbar } from './device-logs-toolbar';
 
 interface DeviceLogsTabProps {
@@ -76,6 +78,8 @@ export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
   const { deferredFilters: deferredList, isPending } = useDeferredQuery(list, '');
 
   const [autoUpdate, setAutoUpdate] = useState(true);
+  // Kept here, above the list: the list remounts per filter, and an open drawer should not close with it.
+  const [selected, setSelected] = useState<{ key: string; entry: DeviceLogEntry } | null>(null);
   // A range that ended before this list was made cannot grow, so there is nothing to tail.
   const rangeClosed = filter.to != null && (parseInstant(filter.to)?.getTime() ?? Infinity) <= anchor;
   const hasFilters = selectedLevels.length > 0 || search !== '' || range !== DEFAULT_DEVICE_LOG_RANGE;
@@ -121,7 +125,7 @@ export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
       />
       {/* The deferred key: the live one would remount a failed list and re-send it. */}
       <ContentErrorBoundary label="DeviceLogsTab" message="Couldn't load device logs." resetKey={deferredList.key}>
-        <Suspense fallback={<DeviceLogsRowsSkeleton />}>
+        <Suspense fallback={<DeviceLogsListSkeleton />}>
           <DeviceLogsList
             key={deferredList.key}
             machineId={machineId}
@@ -131,9 +135,12 @@ export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
             autoUpdate={autoUpdate && !rangeClosed}
             hasFilters={hasFilters}
             onResetFilters={resetFilters}
+            selectedKey={selected?.key ?? null}
+            onSelect={(key, entry) => setSelected({ key, entry })}
           />
         </Suspense>
       </ContentErrorBoundary>
+      <DeviceLogDrawer entry={selected?.entry ?? null} onClose={() => setSelected(null)} deviceId={machineId} />
     </div>
   );
 }
