@@ -16,7 +16,8 @@ import { useGridInfiniteScroll } from '../../../hooks/use-grid-infinite-scroll';
 import { useIsAtTop } from '../../../hooks/use-is-at-top';
 import { groupByLocalDay } from '../../../utils/device-log-time';
 import { TabEmptyState } from '../tab-empty-state';
-import { DeviceLogRow } from './device-log-row';
+import { DEVICE_LOG_DAY_HEADER } from './device-log-layout';
+import { type DeviceLogEntry, DeviceLogRow } from './device-log-row';
 import { DeviceLogsRowsSkeleton } from './device-logs-skeleton';
 
 const PAGE_SIZE = 100;
@@ -61,6 +62,9 @@ interface DeviceLogsListProps {
   autoUpdate: boolean;
   hasFilters: boolean;
   onResetFilters: () => void;
+  /** The row open in the Log Details drawer, by its cursor. */
+  selectedKey: string | null;
+  onSelect: (key: string, entry: DeviceLogEntry) => void;
 }
 
 /** The list, newest first, grouped by local day; older pages on scroll, the head re-read by the live tail. Remounted per filter. */
@@ -72,6 +76,8 @@ export function DeviceLogsList({
   autoUpdate,
   hasFilters,
   onResetFilters,
+  selectedKey,
+  onSelect,
 }: DeviceLogsListProps) {
   const environment = useRelayEnvironment();
   const { toast } = useToast();
@@ -135,7 +141,7 @@ export function DeviceLogsList({
       {tailFailed && <SectionLoadError message="Auto-update failed. Retrying in 30 seconds." />}
       {edges.length === 0 ? (
         isPending ? (
-          <DeviceLogsRowsSkeleton />
+          <DeviceLogsRowsSkeleton dayHeader />
         ) : (
           <TabEmptyState
             icon={<ClipboardListIcon />}
@@ -155,13 +161,19 @@ export function DeviceLogsList({
         >
           {days.map(day => (
             <section key={day.key} className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <div className="flex items-center gap-[var(--spacing-system-xs)] pb-[var(--spacing-system-xxs)] pt-[var(--spacing-system-s)]">
+              <div className={DEVICE_LOG_DAY_HEADER}>
                 <h3 className="uppercase text-ods-text-secondary text-h5">{formatDate(day.date)}</h3>
                 <span aria-hidden="true" className="h-px flex-1 bg-ods-border" />
               </div>
               <ul className="flex flex-col gap-[var(--spacing-system-xxs)]">
                 {day.rows.map(row => (
-                  <DeviceLogRow key={row.key} entry={row.item.node} deviceHostname={deviceHostname} />
+                  <DeviceLogRow
+                    key={row.key}
+                    entry={row.item.node}
+                    deviceHostname={deviceHostname}
+                    selected={row.key === selectedKey}
+                    onSelect={entry => onSelect(row.key, entry)}
+                  />
                 ))}
               </ul>
             </section>

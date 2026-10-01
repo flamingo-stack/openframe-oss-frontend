@@ -20,7 +20,6 @@ import {
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import type { DeviceDetailTab } from '@/lib/routes';
-import { useDeviceLogsGate } from '../../hooks/use-device-logs-gate';
 import { useSessionRecordingsGate } from '../../hooks/use-session-recordings-gate';
 import { AgentsTab } from './agents-tab';
 import { DeviceLogsTab } from './device-logs/device-logs-tab';
@@ -145,19 +144,16 @@ export const ALL_DEVICE_TABS: TabItem[] = [
 
 /**
  * Tabs shown for a device. Remote Sessions is gated on the session recordings
- * gate (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate,
- * Device Logs on `device-agent-logs`.
+ * gate (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
  * 'loading' and 'off' both hide a tab, so it only ever appears when the feature
  * is actually on.
  */
 export function useDeviceTabs(): TabItem[] {
   const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
-  const deviceLogsGate = useDeviceLogsGate();
   return ALL_DEVICE_TABS.filter(
     tab =>
       (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate === 'on') &&
-      (tab.id !== INCIDENTS_TAB_ID || incidentsGate === 'on') &&
-      (tab.id !== DEVICE_LOGS_TAB_ID || deviceLogsGate === 'on'),
+      (tab.id !== INCIDENTS_TAB_ID || incidentsGate === 'on'),
   );
 }
