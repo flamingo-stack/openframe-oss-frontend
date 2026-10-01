@@ -48,8 +48,6 @@ export const FEATURE_FLAG_NAMES = [
   // dialog's AI context on demand. Off = the item is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
-  // The Agent Logs tab on device details (CU-86agb21qt); off, "Device Logs" keeps leading to Overview.
-  'device-agent-logs',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
@@ -167,6 +165,16 @@ export const featureFlags = {
   tenantManagement: {
     enabled(): boolean {
       return getFlagValue('tenant-management', () => false);
+    },
+  },
+  /**
+   * The Software module. Route and tab gating go through
+   * `useFeatureFlagGate('software-management')` (tri-state); this accessor is
+   * for imperative reads, where not-yet-loaded reads as off.
+   */
+  softwareManagement: {
+    enabled(): boolean {
+      return getFlagValue('software-management', () => false);
     },
   },
 } as const;

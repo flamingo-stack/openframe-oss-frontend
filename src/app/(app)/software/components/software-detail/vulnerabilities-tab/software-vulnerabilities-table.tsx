@@ -23,6 +23,7 @@ import type {
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
+import { FLEET_LIST_SKELETON_ROWS } from '../../shared/fleet-list-paging';
 import { OpenRowButton } from '../../shared/open-row-button';
 import { SOFTWARE_VULNERABILITIES_PAGE_SIZE, SOFTWARE_VULNERABILITY_COLUMNS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilityDiscoveredCell } from './software-vulnerability-discovered-cell';
@@ -158,7 +159,7 @@ export function SoftwareVulnerabilitiesTable({
   const queryData = useLazyLoadQuery<SoftwareVulnerabilitiesTableQueryType>(
     softwareVulnerabilitiesTableQuery,
     { softwareId, search: debouncedSearch || null, sort, first: SOFTWARE_VULNERABILITIES_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -209,7 +210,7 @@ export function SoftwareVulnerabilitiesTable({
           onSortChange={onSortChange}
         />
         <DataTable.Body
-          skeletonRows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
+          skeletonRows={FLEET_LIST_SKELETON_ROWS}
           emptyMessage={`No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`}
           rowClassName="mb-1"
           rowHref={rowHref}

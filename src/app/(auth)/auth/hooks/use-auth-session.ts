@@ -30,7 +30,7 @@ export const authSessionQueryKey = ['auth', 'session'] as const;
  *   - the feature-flags query is `enabled` on it, so no flag ever loaded and the
  *     sidebar + header sat in their skeleton (`components/app-layout.tsx`);
  *   - `OnboardingProgressHydrator` mounts on it, so onboarding progress was
- *     never fetched — a tenant mid-setup saw no Initial Setup bar at all;
+ *     never fetched — a tenant mid-setup saw no onboarding chrome at all;
  *   - the request latch in `lib/session-ready.ts` was left neither opened nor
  *     released, so page data went out only once its 10-second fail-open elapsed.
  * The page then WORKED — the session cookie was fine all along, only our answer

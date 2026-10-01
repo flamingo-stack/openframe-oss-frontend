@@ -1,9 +1,8 @@
 /**
  * Storage layer for the free-trial banner's dismissal.
  *
- * Kept UI-free and in `lib/` for the same reason as the onboarding banner cache
- * beside it: `localStorage` access has to be callable from outside React, and
- * pulling banner components into that graph is the wrong trade.
+ * Kept UI-free and in `lib/`: `localStorage` access has to be callable from
+ * outside React, and pulling banner components into that graph is the wrong trade.
  *
  * Scoped to a TRIAL, not to a browser. The token the caller passes identifies
  * the trial period (its subscription and when it ends), so dismissing today's

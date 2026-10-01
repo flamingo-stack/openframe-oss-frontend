@@ -34,8 +34,6 @@ export interface DeviceMenuItemContext {
   isWindows?: boolean;
   /** Adds an "open in new tab" arrow icon-action to each item. */
   withNewTabAction?: boolean;
-  /** "Device Logs" opens the Agent Logs tab when the `device-agent-logs` flag is on, the Overview logs table otherwise. */
-  agentLogsEnabled?: boolean;
 }
 
 /**
@@ -137,9 +135,7 @@ export function buildDeviceMenuItems(ctx: DeviceMenuItemContext): DeviceMenuItem
   const manageFilesDisabled = !ctx.availability?.manageFilesEnabled;
 
   const deviceDetailsHref = routes.devices.details(ctx.deviceId);
-  const deviceLogsHref = routes.devices.details(ctx.deviceId, {
-    tab: ctx.agentLogsEnabled ? 'agent-logs' : 'overview',
-  });
+  const deviceLogsHref = routes.devices.details(ctx.deviceId, { tab: 'device-logs' });
 
   return {
     deviceDetails: {

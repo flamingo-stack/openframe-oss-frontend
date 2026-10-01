@@ -8,7 +8,7 @@ import {
   AppLayoutDrawerHeader,
   AppLayoutDrawerTitle,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
-import { DeviceCard, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DeviceCard, Tag, type TagProps } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
@@ -29,12 +29,13 @@ interface LogDrawerProps {
   description: React.ReactNode;
   statusTag?: {
     label: string;
-    variant?: 'success' | 'warning' | 'error' | 'grey' | 'critical';
+    variant?: TagProps['variant'];
   };
   timestamp?: string;
   infoFields?: LogDrawerInfoField[];
   /** Device ID — renders a DeviceCard pinned to the bottom */
   deviceId?: string;
+  /** Drawn under the info card — e.g. a Copy action. */
   children?: React.ReactNode;
 }
 
@@ -91,6 +92,7 @@ export function LogDrawer({
   timestamp,
   infoFields,
   deviceId,
+  children,
 }: LogDrawerProps) {
   const hasDevice = !!deviceId && deviceId !== 'null' && deviceId !== '';
 
@@ -140,6 +142,7 @@ export function LogDrawer({
                 ))}
               </div>
             )}
+            {children}
           </div>
 
           {/* DeviceCard pinned to bottom. Its Details button closes the drawer on

@@ -5,9 +5,9 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
 import { fetchQuery, graphql, useLazyLoadQuery, usePaginationFragment, useRelayEnvironment } from 'react-relay';
-import type { agentLogsList_query$key } from '@/__generated__/agentLogsList_query.graphql';
-import type { agentLogsListPaginationQuery } from '@/__generated__/agentLogsListPaginationQuery.graphql';
-import type { agentLogsListQuery, agentLogsListQuery$variables } from '@/__generated__/agentLogsListQuery.graphql';
+import type { deviceLogsList_query$key } from '@/__generated__/deviceLogsList_query.graphql';
+import type { deviceLogsListPaginationQuery } from '@/__generated__/deviceLogsListPaginationQuery.graphql';
+import type { deviceLogsListQuery, deviceLogsListQuery$variables } from '@/__generated__/deviceLogsListQuery.graphql';
 import { SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { formatDate } from '@/lib/format-date';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
@@ -16,23 +16,24 @@ import { useGridInfiniteScroll } from '../../../hooks/use-grid-infinite-scroll';
 import { useIsAtTop } from '../../../hooks/use-is-at-top';
 import { groupByLocalDay } from '../../../utils/device-log-time';
 import { TabEmptyState } from '../tab-empty-state';
-import { AgentLogRow } from './agent-log-row';
-import { AgentLogsRowsSkeleton } from './agent-logs-skeleton';
+import { DEVICE_LOG_DAY_HEADER } from './device-log-layout';
+import { type DeviceLogEntry, DeviceLogRow } from './device-log-row';
+import { DeviceLogsRowsSkeleton } from './device-logs-skeleton';
 
 const PAGE_SIZE = 100;
 
-export type AgentLogsFilter = NonNullable<agentLogsListQuery$variables['filter']>;
+export type DeviceLogsFilter = NonNullable<deviceLogsListQuery$variables['filter']>;
 
-const agentLogsListQueryNode = graphql`
-  query agentLogsListQuery($machineId: String!, $filter: DeviceLogFilterInput, $first: Int!, $after: String) {
-    ...agentLogsList_query @arguments(machineId: $machineId, filter: $filter, first: $first, after: $after)
+const deviceLogsListQueryNode = graphql`
+  query deviceLogsListQuery($machineId: String!, $filter: DeviceLogFilterInput, $first: Int!, $after: String) {
+    ...deviceLogsList_query @arguments(machineId: $machineId, filter: $filter, first: $first, after: $after)
   }
 `;
 
 // Keyed on the machine and the filter: cursors belong to the filter that made them.
-const agentLogsListFragment = graphql`
-  fragment agentLogsList_query on Query
-  @refetchable(queryName: "agentLogsListPaginationQuery")
+const deviceLogsListFragment = graphql`
+  fragment deviceLogsList_query on Query
+  @refetchable(queryName: "deviceLogsListPaginationQuery")
   @argumentDefinitions(
     machineId: { type: "String!" }
     filter: { type: "DeviceLogFilterInput" }
@@ -40,31 +41,34 @@ const agentLogsListFragment = graphql`
     after: { type: "String" }
   ) {
     deviceLogs(machineId: $machineId, filter: $filter, first: $first, after: $after)
-      @connection(key: "agentLogsList_deviceLogs", filters: ["machineId", "filter"]) {
+      @connection(key: "deviceLogsList_deviceLogs", filters: ["machineId", "filter"]) {
       edges {
         cursor
         node {
           timestamp
-          ...agentLogRow_entry
+          ...deviceLogRow_entry
         }
       }
     }
   }
 `;
 
-interface AgentLogsListProps {
+interface DeviceLogsListProps {
   machineId: string;
-  filter: AgentLogsFilter;
+  filter: DeviceLogsFilter;
   deviceHostname: string;
   /** The rows lag the controls while a filter change is in flight. */
   isPending: boolean;
   autoUpdate: boolean;
   hasFilters: boolean;
   onResetFilters: () => void;
+  /** The row open in the Log Details drawer, by its cursor. */
+  selectedKey: string | null;
+  onSelect: (key: string, entry: DeviceLogEntry) => void;
 }
 
 /** The list, newest first, grouped by local day; older pages on scroll, the head re-read by the live tail. Remounted per filter. */
-export function AgentLogsList({
+export function DeviceLogsList({
   machineId,
   filter,
   deviceHostname,
@@ -72,25 +76,27 @@ export function AgentLogsList({
   autoUpdate,
   hasFilters,
   onResetFilters,
-}: AgentLogsListProps) {
+  selectedKey,
+  onSelect,
+}: DeviceLogsListProps) {
   const environment = useRelayEnvironment();
   const { toast } = useToast();
   const retryKey = useRetryKey();
   const variables = useMemo(() => ({ machineId, filter, first: PAGE_SIZE, after: null }), [machineId, filter]);
-  const queryData = useLazyLoadQuery<agentLogsListQuery>(agentLogsListQueryNode, variables, {
+  const queryData = useLazyLoadQuery<deviceLogsListQuery>(deviceLogsListQueryNode, variables, {
     fetchPolicy: 'store-and-network',
     fetchKey: retryKey,
   });
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    agentLogsListPaginationQuery,
-    agentLogsList_query$key
-  >(agentLogsListFragment, queryData);
+    deviceLogsListPaginationQuery,
+    deviceLogsList_query$key
+  >(deviceLogsListFragment, queryData);
   const edges = data.deviceLogs.edges;
 
   // The same first page, network-only: the connection is replaced from the store, so nothing is merged by hand.
   const reload = useCallback(
     () =>
-      fetchQuery<agentLogsListQuery>(environment, agentLogsListQueryNode, variables, { fetchPolicy: 'network-only' }),
+      fetchQuery<deviceLogsListQuery>(environment, deviceLogsListQueryNode, variables, { fetchPolicy: 'network-only' }),
     [environment, variables],
   );
   const { ref: topRef, atTop } = useIsAtTop<HTMLDivElement>();
@@ -135,7 +141,7 @@ export function AgentLogsList({
       {tailFailed && <SectionLoadError message="Auto-update failed. Retrying in 30 seconds." />}
       {edges.length === 0 ? (
         isPending ? (
-          <AgentLogsRowsSkeleton />
+          <DeviceLogsRowsSkeleton dayHeader />
         ) : (
           <TabEmptyState
             icon={<ClipboardListIcon />}
@@ -155,13 +161,19 @@ export function AgentLogsList({
         >
           {days.map(day => (
             <section key={day.key} className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <div className="flex items-center gap-[var(--spacing-system-xs)] pb-[var(--spacing-system-xxs)] pt-[var(--spacing-system-s)]">
+              <div className={DEVICE_LOG_DAY_HEADER}>
                 <h3 className="uppercase text-ods-text-secondary text-h5">{formatDate(day.date)}</h3>
                 <span aria-hidden="true" className="h-px flex-1 bg-ods-border" />
               </div>
               <ul className="flex flex-col gap-[var(--spacing-system-xxs)]">
                 {day.rows.map(row => (
-                  <AgentLogRow key={row.key} entry={row.item.node} deviceHostname={deviceHostname} />
+                  <DeviceLogRow
+                    key={row.key}
+                    entry={row.item.node}
+                    deviceHostname={deviceHostname}
+                    selected={row.key === selectedKey}
+                    onSelect={entry => onSelect(row.key, entry)}
+                  />
                 ))}
               </ul>
             </section>
@@ -169,7 +181,7 @@ export function AgentLogsList({
         </div>
       )}
       <div ref={bottomRef} aria-hidden="true" className="h-px" />
-      {isLoadingNext && <AgentLogsRowsSkeleton rows={3} />}
+      {isLoadingNext && <DeviceLogsRowsSkeleton rows={3} />}
       {loadMoreFailed && <SectionLoadError message="Couldn't load older logs." onRetry={fetchNextPage} />}
       {edges.length > 0 && !hasNext && (
         <p className="py-[var(--spacing-system-s)] text-center text-ods-text-secondary text-h6">
