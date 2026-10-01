@@ -3,13 +3,13 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
+import { featureFlags } from '@/lib/feature-flags';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import {
   getMeshCentralDeviceInfo,
   parseMeshCentralDeviceStatus,
   parseMeshCentralLastSeen,
 } from '@/lib/meshcentral/meshcentral-api';
-import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { fetchDeviceNode } from '../queries/devices-api';
 import type {
   Battery,
@@ -307,19 +307,6 @@ export function createDevice(
   };
 }
 
-/**
- * The host's software list is read only by the Fleet-backed tabs, which
- * `software-management` replaces — and this query re-runs every 10 seconds on
- * every tab, so with the module on it pulled the whole inventory from Fleet over
- * and over for nothing. Read off the store, not a hook: this runs outside React.
- * Not answered yet counts as off — the payload then stays complete, which the
- * Fleet tabs need if the answer turns out to be no.
- */
-function isSoftwareModuleOn(): boolean {
-  const { isLoaded, flags } = useFeatureFlagsStore.getState();
-  return isLoaded && flags['software-management'] === true;
-}
-
 async function fetchDeviceDetails(machineId: string): Promise<Device> {
   // 1) Fetch primary device from the shared device query layer
   const node = await fetchDeviceNode(machineId);
@@ -338,7 +325,12 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
     // Validate that agentToolId is a valid numeric string before calling Fleet API
     const fleetHostId = Number(fleet?.agentToolId);
     if (Number.isInteger(fleetHostId) && fleetHostId > 0) {
-      const fResponse = await fleetApiClient.getHost(fleetHostId, { excludeSoftware: isSoftwareModuleOn() });
+      const fResponse = await fleetApiClient.getHost(fleetHostId, {
+        // The software list feeds only the Fleet-backed tabs, which the module
+        // replaces — and this query re-runs every 10 seconds on every tab. Not
+        // loaded yet reads as off, so the payload stays complete until we know.
+        excludeSoftware: featureFlags.softwareManagement.enabled(),
+      });
       if (fResponse.ok && fResponse.data?.host) {
         fleetData = fResponse.data.host;
         fleetSource = 'ok';
