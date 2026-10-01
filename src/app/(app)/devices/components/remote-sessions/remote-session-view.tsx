@@ -5,7 +5,7 @@ import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDateTime } from '@/lib/format-date';
 import { loadErrorProps, queryState } from '@/lib/query-state';
@@ -74,19 +74,28 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   // page shows the processing empty state, and in dev the local-file loader
   // can feed the player instead; a session missing only some files plays the
   // rest and says so.
-  const { loadSegments } = player;
+  // Keyed on the session's files, not on the query result: a background
+  // refetch hands back an equal detail as a new object, and reloading the same
+  // files into the player restarts playback for nothing. The player's own
+  // callbacks are not stable across renders either, hence the effect event.
+  const segmentsKey = recording ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
+  const loadFiles = useEffectEvent(async () => {
+    if (!recording) return { failed: 0, total: 0 };
+    const { failed } = await player.loadSegments(
+      recording.segments.map(segment => () => sessionRecordingsApiService.downloadSegment(segment)),
+    );
+    return { failed, total: recording.segments.length };
+  });
   useEffect(() => {
-    if (!recording) return undefined;
+    if (!segmentsKey) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const { failed } = await loadSegments(
-          recording.segments.map(segment => () => sessionRecordingsApiService.downloadSegment(segment)),
-        );
+        const { failed, total } = await loadFiles();
         if (!cancelled && failed > 0) {
           toast({
             title: 'Part of the recording is missing',
-            description: `${failed} of ${recording.segments.length} files of this session could not be loaded.`,
+            description: `${failed} of ${total} files of this session could not be loaded.`,
             variant: 'warning',
           });
         }
@@ -97,7 +106,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [recording, loadSegments, toast]);
+  }, [segmentsKey, toast]);
 
   return (
     <PageLayout
