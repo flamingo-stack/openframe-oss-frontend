@@ -1,7 +1,6 @@
 'use client';
 
-import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Alert, NotFoundError, type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { NotFoundError, type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -11,6 +10,8 @@ import { routes } from '@/lib/routes';
 import { isReadable } from '../../utils/tenant-presentation';
 import { ConsentBlock } from '../consent/consent-block';
 import { useCheckConnection } from '../consent/use-check-connection';
+import { TenantConsentAlert } from './tenant-consent-alert';
+import { TenantConsentIssues } from './tenant-consent-issues';
 import { TENANT_DETAIL_TITLE, TenantDetailTitle } from './tenant-detail-title';
 import { TenantIntegrationSection } from './tenant-integration-section';
 import { TenantIntegrationSectionSkeleton } from './tenant-integration-section-skeleton';
@@ -29,6 +30,8 @@ const tenantDetailContentQuery = graphql`
         state
       }
       ...tenantSummaryCard_connection
+      ...tenantConsentAlert_connection
+      ...tenantConsentIssues_connection
     }
   }
 `;
@@ -65,6 +68,8 @@ export function TenantDetailContent({ id, actions }: TenantDetailContentProps) {
       <TenantDetailTitle title={connection.name} actions={actions} />
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
         <TenantSummaryCard connection={connection} />
+        <TenantConsentAlert connection={connection} />
+        <TenantConsentIssues connection={connection} />
         {isReadable(connection.access.state) ? (
           // Its own boundary: a failed live read from the provider loses this section, not the page.
           <ContentErrorBoundary
@@ -75,26 +80,14 @@ export function TenantDetailContent({ id, actions }: TenantDetailContentProps) {
             </Suspense>
           </ContentErrorBoundary>
         ) : (
-          <>
-            <Alert
-              variant="warning"
-              className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-s)]"
-              role="status"
-            >
-              <span className="shrink-0">
-                <AlertTriangleIcon size={24} />
-              </span>
-              <p className="text-h3">Tenant is still not connected. Data aren&apos;t available yet.</p>
-            </Alert>
-            <ConsentBlock
-              mode="details"
-              provider={connection.provider}
-              consentUrl={connection.consentUrl}
-              checking={isChecking}
-              verdict={verdict}
-              onCheck={check}
-            />
-          </>
+          <ConsentBlock
+            mode="details"
+            provider={connection.provider}
+            consentUrl={connection.consentUrl}
+            checking={isChecking}
+            verdict={verdict}
+            onCheck={check}
+          />
         )}
       </div>
     </>
