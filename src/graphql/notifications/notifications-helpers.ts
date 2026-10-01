@@ -20,7 +20,6 @@ export {
   isApprovalResolved,
   isIncidentDetectedType,
   isIncidentNotificationType,
-  LEGACY_INSIGHT_DETECTED_TYPE,
   MINGO_APPROVAL_REQUEST_TYPE,
   NOTIFICATION_ATTR,
   parseAttributeToolCalls,

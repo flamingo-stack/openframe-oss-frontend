@@ -22,18 +22,12 @@ export { isApprovalNotificationType, MINGO_APPROVAL_REQUEST_TYPE, TICKET_APPROVA
 
 /**
  * The incident family of backend `TenantNotificationType`s: one emission per detection,
- * then one per status transition, all naming the same incident.
- *
- * INCIDENT_* is the backend's spelling (openframe-saas-tenant PR 3630, which also backfills
- * the stored rows). INSIGHT_* is the spelling before that rename, still recognised for a push
- * or NATS envelope emitted before the release and for a tenant whose backfill has not run
- * yet. The label a card shows is the type as-is - the client never rewrites a backend name.
+ * then one per status transition, all naming the same incident. The label a card shows is
+ * the type as-is - the client never rewrites a backend name.
  */
 export const INCIDENT_DETECTED_TYPE = 'INCIDENT_DETECTED';
-/** The pre-rename spelling of INCIDENT_DETECTED. */
-export const LEGACY_INSIGHT_DETECTED_TYPE = 'INSIGHT_DETECTED';
 
-const INCIDENT_TYPE_PREFIXES = ['INCIDENT_', 'INSIGHT_'] as const;
+const INCIDENT_TYPE_PREFIX = 'INCIDENT_';
 
 /**
  * True for any member of the family, including one this release has never heard of: the
@@ -41,12 +35,12 @@ const INCIDENT_TYPE_PREFIXES = ['INCIDENT_', 'INSIGHT_'] as const;
  * look and route like its siblings rather than fall back to a generic tile.
  */
 export function isIncidentNotificationType(type: unknown): type is string {
-  return typeof type === 'string' && INCIDENT_TYPE_PREFIXES.some(prefix => type.startsWith(prefix));
+  return typeof type === 'string' && type.startsWith(INCIDENT_TYPE_PREFIX);
 }
 
 /** The detection itself, as opposed to a status transition - the one card drawn by severity. */
 export function isIncidentDetectedType(type: unknown): boolean {
-  return type === INCIDENT_DETECTED_TYPE || type === LEGACY_INSIGHT_DETECTED_TYPE;
+  return type === INCIDENT_DETECTED_TYPE;
 }
 
 /**

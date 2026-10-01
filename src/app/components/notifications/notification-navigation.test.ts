@@ -108,13 +108,6 @@ describe('incident deep links', () => {
     expect(action).toEqual({ label: 'Incident Details', route: incidentRoute });
   });
 
-  // The backend spelled the family INSIGHT_* before the rename; a push or a row from then
-  // still opens its incident.
-  it('routes the pre-rename INSIGHT_* spelling the same way', () => {
-    expect(resolvePushNotificationRoute({ type: 'INSIGHT_DETECTED', insightId: 'i-1' })).toBe(incidentRoute);
-    expect(resolvePushNotificationRoute({ type: 'INSIGHT_SNOOZED', insightId: 'i-1' })).toBe(incidentRoute);
-  });
-
   it('does not double-encode an id that is already global', () => {
     expect(resolvePushNotificationRoute({ type: 'INCIDENT_DETECTED', insightId: globalId })).toBe(incidentRoute);
   });
