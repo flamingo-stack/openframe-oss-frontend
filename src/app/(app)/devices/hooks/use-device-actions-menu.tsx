@@ -17,7 +17,6 @@ import type { Device } from '../types/device.types';
 import { type DeviceActionAvailability, getDeviceActionAvailability } from '../utils/device-action-utils';
 import { buildDeviceMenuItems } from '../utils/device-menu-items';
 import { useDeviceConfirmationDialogs } from './use-device-confirmation-dialogs';
-import { useDeviceLogsGate } from './use-device-logs-gate';
 import { useRemoteAccessApprovalGate } from './use-remote-access-approval-gate';
 import { useEffectiveDeviceRemoteAccessMode } from './use-remote-access-policy';
 
@@ -113,14 +112,12 @@ export function useDeviceActionsMenu(
     }
   };
 
-  const deviceLogsGate = useDeviceLogsGate();
   const base = buildDeviceMenuItems({
     deviceId,
     availability: actionAvailability,
     iconSize: iconSize,
     isWindows,
     withNewTabAction: true,
-    deviceLogsEnabled: deviceLogsGate === 'on',
   });
 
   const runScriptDisabled = !actionAvailability?.runScriptEnabled;

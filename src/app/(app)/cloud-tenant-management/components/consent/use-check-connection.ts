@@ -13,7 +13,8 @@ import { accessStateHint, isReadable } from '../../utils/tenant-presentation';
 // Selects by id, so every row tag and card reading `access` updates in place — and nothing more. The
 // rows consent writes (`domains`, the grant) are a live provider read that `TenantIntegrationSection`
 // fetches itself once the state says the tenant is readable; asked for here, they would make the
-// probe of a still-unreadable tenant fail on a field the provider cannot answer.
+// probe of a still-unreadable tenant fail on a field the provider cannot answer. The consent outcome
+// is stored, not probed: re-read here because the admin's callback may have landed since the page did.
 const checkMutation = graphql`
   mutation useCheckConnectionMutation($connectionId: ID!) {
     checkDirectoryConnection(connectionId: $connectionId) {
@@ -24,6 +25,8 @@ const checkMutation = graphql`
           state
           capabilities
         }
+        ...tenantConsentAlert_connection
+        ...tenantConsentIssues_connection
       }
       userErrors {
         code
