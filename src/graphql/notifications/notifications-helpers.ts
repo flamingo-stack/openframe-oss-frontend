@@ -6,8 +6,8 @@ import type {
 } from '@/__generated__/notificationFields_notification.graphql';
 import { InsightSeverity, NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
 import {
-  INSIGHT_DETECTED_TYPE,
-  isInsightNotificationType,
+  isIncidentDetectedType,
+  isIncidentNotificationType,
   NOTIFICATION_ATTR,
   parseAttributeToolCalls,
   readNotificationAttributes,
@@ -15,13 +15,12 @@ import {
 import { notificationFieldsFragment } from './notification-fields';
 
 export {
-  INSIGHT_ACKNOWLEDGED_TYPE,
+  INCIDENT_DETECTED_TYPE,
   INSIGHT_DETECTED_TYPE,
-  INSIGHT_RESOLVED_TYPE,
-  INSIGHT_SNOOZED_TYPE,
   isApprovalNotificationType,
   isApprovalResolved,
-  isInsightNotificationType,
+  isIncidentDetectedType,
+  isIncidentNotificationType,
   MINGO_APPROVAL_REQUEST_TYPE,
   NOTIFICATION_ATTR,
   parseAttributeToolCalls,
@@ -317,19 +316,10 @@ export function parseSeverity(
 }
 
 /**
- * Backend vocabulary the product renamed: an insight is an incident on every screen
- * (`/incidents`, the sidebar, the details page), so a type label says "incident" too. Keyed
- * per word rather than per type so a type added later (INSIGHT_ESCALATED, say) still
- * reads "Incident Escalated" without a client release.
- */
-const UI_WORD_BY_BACKEND_WORD: Record<string, string> = {
-  insight: 'Incident',
-};
-
-/**
  * Human label for a notification `type`: SNAKE_CASE → Title Case
  * (e.g. TICKET_STATUS_CHANGED → "Ticket Status Changed"). Data-driven so new backend
- * types label themselves.
+ * types label themselves, and nothing else: a type that reads wrong on screen is renamed
+ * on the backend, never re-worded here.
  */
 export function notificationTypeLabel(type: string | null | undefined): string | undefined {
   if (!type) return undefined;
@@ -337,7 +327,7 @@ export function notificationTypeLabel(type: string | null | undefined): string |
     .toLowerCase()
     .split('_')
     .filter(Boolean)
-    .map(word => UI_WORD_BY_BACKEND_WORD[word] ?? word.charAt(0).toUpperCase() + word.slice(1))
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 
@@ -349,10 +339,10 @@ const RED_INSIGHT_SEVERITIES: ReadonlySet<string> = new Set([InsightSeverity.CRI
  * stamps on it.
  *
  * The backend's severity is per type, not per emission (`NotificationTypeSpec.getSeverity`
- * takes no seed): every INSIGHT_DETECTED is WARNING, every transition INFO. The design keys
- * the card on the incident itself instead - the neutral grey card unless a critical or high
+ * takes no seed): every detection is WARNING, every transition INFO. The design keys the
+ * card on the incident itself instead - the neutral grey card unless a critical or high
  * incident was just detected, and grey again once someone acknowledges, snoozes or resolves
- * it, whatever its severity. The `insightSeverity` attribute travels on every insight type
+ * it, whatever its severity. The `insightSeverity` attribute travels on every incident type
  * for exactly this, so the card reads it and the stamped value is set aside. Every other
  * type keeps what the backend said.
  */
@@ -361,10 +351,9 @@ function presentedSeverity(
   attributes: Record<string, string>,
   stamped: KnownSeverity | undefined,
 ): KnownSeverity | undefined {
-  if (!isInsightNotificationType(type)) return stamped;
+  if (!isIncidentNotificationType(type)) return stamped;
   const insightSeverity = attributes[NOTIFICATION_ATTR.insightSeverity];
-  const isRed =
-    type === INSIGHT_DETECTED_TYPE && insightSeverity != null && RED_INSIGHT_SEVERITIES.has(insightSeverity);
+  const isRed = isIncidentDetectedType(type) && insightSeverity != null && RED_INSIGHT_SEVERITIES.has(insightSeverity);
   return isRed ? 'DANGER' : 'INFO';
 }
 

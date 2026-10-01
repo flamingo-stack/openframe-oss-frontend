@@ -119,25 +119,27 @@ describe('the approval split', () => {
 /**
  * The incident card is drawn off the incident, not off the stamped severity: the backend
  * marks every detection WARNING and every transition INFO, the design wants grey unless a
- * critical or high incident was just detected. And the product says "incident" where the
- * backend says "insight".
+ * critical or high incident was just detected. The family is recognised under both the
+ * current INSIGHT_* spelling and the INCIDENT_* one the backend is asked to move to.
  */
 describe('incident rows', () => {
   const insight = { insightId: 'i-1', machineId: 'm-1', insightKind: 'SECURITY' };
 
-  it('labels the insight family as incidents, including a type this build has not seen', () => {
-    expect(mapNotificationNode(node({ type: 'INSIGHT_DETECTED' })).type).toBe('Incident Detected');
-    expect(mapNotificationNode(node({ type: 'INSIGHT_SNOOZED' })).type).toBe('Incident Snoozed');
-    expect(mapNotificationNode(node({ type: 'INSIGHT_ESCALATED_LATER' })).type).toBe('Incident Escalated Later');
+  it('labels the type as the backend spells it, never re-worded', () => {
+    expect(mapNotificationNode(node({ type: 'INSIGHT_DETECTED' })).type).toBe('Insight Detected');
+    expect(mapNotificationNode(node({ type: 'INCIDENT_DETECTED' })).type).toBe('Incident Detected');
+    expect(mapNotificationNode(node({ type: 'INCIDENT_SNOOZED' })).type).toBe('Incident Snoozed');
   });
 
   it('paints a critical or high detection red, whatever the backend stamped', () => {
-    for (const insightSeverity of ['CRITICAL', 'HIGH']) {
-      const mapped = mapNotificationNode(
-        node({ type: 'INSIGHT_DETECTED', severity: 'WARNING', attributes: { ...insight, insightSeverity } }),
-      );
-      expect(mapped.severity, insightSeverity).toBe('DANGER');
-      expect(mapped.variant, insightSeverity).toBe('error');
+    for (const type of ['INSIGHT_DETECTED', 'INCIDENT_DETECTED']) {
+      for (const insightSeverity of ['CRITICAL', 'HIGH']) {
+        const mapped = mapNotificationNode(
+          node({ type, severity: 'WARNING', attributes: { ...insight, insightSeverity } }),
+        );
+        expect(mapped.severity, `${type} ${insightSeverity}`).toBe('DANGER');
+        expect(mapped.variant, `${type} ${insightSeverity}`).toBe('error');
+      }
     }
   });
 
@@ -154,7 +156,7 @@ describe('incident rows', () => {
   });
 
   it('draws every status transition neutral, even for a critical incident', () => {
-    for (const type of ['INSIGHT_ACKNOWLEDGED', 'INSIGHT_SNOOZED', 'INSIGHT_RESOLVED']) {
+    for (const type of ['INSIGHT_ACKNOWLEDGED', 'INSIGHT_SNOOZED', 'INSIGHT_RESOLVED', 'INCIDENT_RESOLVED']) {
       const mapped = mapNotificationNode(
         node({ type, severity: 'DANGER', attributes: { ...insight, insightSeverity: 'CRITICAL', actor: 'Ann' } }),
       );

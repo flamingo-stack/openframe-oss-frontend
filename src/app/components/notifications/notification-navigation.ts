@@ -3,7 +3,7 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 import {
   INSIGHT_DETECTED_TYPE,
   isApprovalNotificationType,
-  isInsightNotificationType,
+  isIncidentNotificationType,
   NOTIFICATION_ATTR,
   readNotificationAttributes,
 } from '@/graphql/notifications/notification-attributes';
@@ -23,7 +23,7 @@ export const TICKET_ASSIGNED_TYPE = 'TICKET_ASSIGNED';
 export const TICKET_ESCALATED_BY_USER_TYPE = 'TICKET_ESCALATED_BY_USER';
 export const CUSTOMER_MESSAGE_PUBLISHED_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
 export const ADMIN_MESSAGE_PUBLISHED_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
-// The insight family (INSIGHT_DETECTED and its status transitions) is declared with the
+// The incident family (the detection and its status transitions) is declared with the
 // attribute contract, Relay-free, because the mapper reads it too.
 export { INSIGHT_DETECTED_TYPE };
 
@@ -136,7 +136,7 @@ function resolveAction(
 
   // Detection and every status transition (acknowledged, snoozed, resolved) name the same
   // incident, so they all open it.
-  if (isInsightNotificationType(type) && insightId) {
+  if (isIncidentNotificationType(type) && insightId) {
     return incidentAction(insightId);
   }
 

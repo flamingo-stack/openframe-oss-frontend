@@ -21,26 +21,31 @@ import {
 export { isApprovalNotificationType, MINGO_APPROVAL_REQUEST_TYPE, TICKET_APPROVAL_REQUEST_TYPE };
 
 /**
- * The insight family of backend `TenantNotificationType`s - what the UI calls incidents.
- * The backend keeps the `Insight` vocabulary (the `insight(id:)` query, the `Insight` global
- * id type, these names); the product renamed it to "incident" on every screen, and the
- * notification surfaces follow the screens. One emission per detection, then one per
- * status transition, all to the same incident.
+ * The incident family of backend `TenantNotificationType`s: one emission per detection,
+ * then one per status transition, all naming the same incident.
+ *
+ * The backend spells them INSIGHT_* today and is asked to rename them INCIDENT_* (the
+ * product calls the entity an incident on every screen, and the label a card shows is the
+ * type as-is - the client never rewrites a backend name). Both spellings are recognised so
+ * the rename ships without a client release, and so an older row keeps its look meanwhile.
  */
 export const INSIGHT_DETECTED_TYPE = 'INSIGHT_DETECTED';
-export const INSIGHT_ACKNOWLEDGED_TYPE = 'INSIGHT_ACKNOWLEDGED';
-export const INSIGHT_SNOOZED_TYPE = 'INSIGHT_SNOOZED';
-export const INSIGHT_RESOLVED_TYPE = 'INSIGHT_RESOLVED';
+export const INCIDENT_DETECTED_TYPE = 'INCIDENT_DETECTED';
 
-const INSIGHT_TYPE_PREFIX = 'INSIGHT_';
+const INCIDENT_TYPE_PREFIXES = ['INSIGHT_', 'INCIDENT_'] as const;
 
 /**
- * True for any insight type, including one this release has never heard of: the family
- * shares a prefix by backend convention, and a transition added later should still look
- * and route like its siblings rather than fall back to a generic tile.
+ * True for any member of the family, including one this release has never heard of: the
+ * family shares a prefix by backend convention, and a transition added later should still
+ * look and route like its siblings rather than fall back to a generic tile.
  */
-export function isInsightNotificationType(type: unknown): type is string {
-  return typeof type === 'string' && type.startsWith(INSIGHT_TYPE_PREFIX);
+export function isIncidentNotificationType(type: unknown): type is string {
+  return typeof type === 'string' && INCIDENT_TYPE_PREFIXES.some(prefix => type.startsWith(prefix));
+}
+
+/** The detection itself, as opposed to a status transition - the one card drawn by severity. */
+export function isIncidentDetectedType(type: unknown): boolean {
+  return type === INSIGHT_DETECTED_TYPE || type === INCIDENT_DETECTED_TYPE;
 }
 
 /**

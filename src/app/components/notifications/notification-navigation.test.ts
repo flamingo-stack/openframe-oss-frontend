@@ -114,8 +114,8 @@ describe('incident deep links', () => {
 
   // The transitions announce what someone did to the incident; the incident is still
   // the thing to open.
-  it('routes every status transition to the same incident', () => {
-    for (const type of ['INSIGHT_ACKNOWLEDGED', 'INSIGHT_SNOOZED', 'INSIGHT_RESOLVED']) {
+  it('routes every status transition to the same incident, under either spelling of the family', () => {
+    for (const type of ['INSIGHT_ACKNOWLEDGED', 'INSIGHT_SNOOZED', 'INSIGHT_RESOLVED', 'INCIDENT_DETECTED']) {
       expect(resolvePushNotificationRoute({ type, insightId: 'i-1', actor: 'Ann' }), type).toBe(incidentRoute);
       const action = resolveNotificationAction({
         meta: { notificationType: type, insightId: 'i-1', actor: 'Ann' },
