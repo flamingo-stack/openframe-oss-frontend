@@ -10,27 +10,17 @@ import type {
   SortInput,
 } from '@/__generated__/softwareListTableQuery.graphql';
 import { EmptyState, useRetryKey } from '@/app/components/shared';
-import type { ListSelections } from '../shared/software-list-frame';
 import { SOFTWARE_LIST_PAGE_SIZE, SOFTWARE_LIST_SORTABLE_COLUMN_IDS } from './software-list-columns';
-import { SoftwareTable, toSoftwareFilterInput } from './software-table';
-import { useSoftwareFilters } from './use-software-filters';
+import { SoftwareTable } from './software-table';
 
 /**
  * The fleet-wide `softwares` connection — one row per software title,
- * aggregated across devices. Search, sort and the funnel are pushed to the
- * server; the pagination fragment drives infinite scroll. The rows themselves
- * are the shared `SoftwareTable`, the one a device's own inventory draws too,
- * with the funnel fed by `softwareFilters`.
+ * aggregated across devices. Search and sort are pushed to the server; the pagination fragment drives infinite scroll. The rows themselves
+ * are the shared `SoftwareTable`, the one a device's own inventory draws too.
  */
 const softwareListTableQuery = graphql`
-  query softwareListTableQuery(
-    $filter: SoftwareFilterInput
-    $search: String
-    $sort: SortInput
-    $first: Int!
-    $after: String
-  ) {
-    ...softwareListTable_query @arguments(filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
+  query softwareListTableQuery($search: String, $sort: SortInput, $first: Int!, $after: String) {
+    ...softwareListTable_query @arguments(search: $search, sort: $sort, first: $first, after: $after)
   }
 `;
 
@@ -38,13 +28,12 @@ const softwareListTableFragment = graphql`
   fragment softwareListTable_query on Query
   @refetchable(queryName: "softwareListTablePaginationQuery")
   @argumentDefinitions(
-    filter: { type: "SoftwareFilterInput" }
     search: { type: "String" }
     sort: { type: "SortInput" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    softwares(filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
+    softwares(search: $search, sort: $sort, first: $first, after: $after)
       @connection(key: "softwareListTable_softwares") {
       filteredCount
       edges {
@@ -64,16 +53,11 @@ interface SoftwareListTableProps {
   debouncedSearch: string;
   /** Deferred sort — feeds the query (lags the live indicator during a refetch). */
   sort: SortInput | null;
-  /** Deferred funnel selection — feeds the query (lags the live ticks during a refetch). */
-  deferredSelections: ListSelections;
   /** Live sort — drives the header indicator so it flips instantly on click. */
   sortState: DataTableSortState | null;
   onSortChange: (columnId: string) => void;
-  /** Live funnel selection — what the headers draw as ticked. */
-  selections: ListSelections;
-  onSelectionsChange: (next: Record<string, string[]>) => void;
   /**
-   * True while the deferred query variables lag the live search/sort/funnel
+   * True while the deferred query variables lag the live search/sort
    * state (a refetch is in flight and the rows on screen are the previous
    * result) — guards the empty state so it never flashes on stale data.
    */
@@ -88,11 +72,8 @@ interface SoftwareListTableProps {
 export function SoftwareListTable({
   debouncedSearch,
   sort,
-  deferredSelections,
   sortState,
   onSortChange,
-  selections,
-  onSelectionsChange,
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
@@ -100,21 +81,16 @@ export function SoftwareListTable({
   emptyDescription,
 }: SoftwareListTableProps) {
   const retryKey = useRetryKey();
-  const filter = toSoftwareFilterInput(deferredSelections);
   const queryData = useLazyLoadQuery<SoftwareListTableQueryType>(
     softwareListTableQuery,
-    { filter, search: debouncedSearch || null, sort, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { search: debouncedSearch || null, sort, first: SOFTWARE_LIST_PAGE_SIZE, after: null },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
     SoftwareListTablePaginationQueryType,
     softwareListTable_query$key
   >(softwareListTableFragment, queryData);
-
-  // The funnel's options: what actually occurs across the fleet, from the
-  // server, so a value no title has is never offered.
-  const filterOptions = useSoftwareFilters();
 
   const rows = data.softwares.edges.map(edge => edge.node);
 
@@ -130,10 +106,6 @@ export function SoftwareListTable({
       sortableIds={SOFTWARE_LIST_SORTABLE_COLUMN_IDS}
       sortState={sortState}
       onSortChange={onSortChange}
-      filterOptions={filterOptions}
-      selections={selections}
-      onSelectionsChange={onSelectionsChange}
-      isFiltered={filter !== null}
       isPending={isPending}
       emptyState={<EmptyState icon={<Parcel02Icon />} title={emptyTitle} description={emptyDescription} />}
       onEmptyChange={onEmptyChange}

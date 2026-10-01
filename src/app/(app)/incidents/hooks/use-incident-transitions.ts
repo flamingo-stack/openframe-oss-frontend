@@ -14,6 +14,7 @@ import { archiveInsightMutation } from '@/graphql/insights/archive-insight-mutat
 import { reopenInsightMutation } from '@/graphql/insights/reopen-insight-mutation';
 import { resolveInsightMutation } from '@/graphql/insights/resolve-insight-mutation';
 import { snoozeInsightMutation } from '@/graphql/insights/snooze-insight-mutation';
+import { toInstant } from '@/lib/graphql-scalars';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { INCIDENT_STATUS_LABELS, INCIDENT_TRANSITION_ACTIONS } from '../utils/incident-labels';
 
@@ -93,7 +94,7 @@ export function useIncidentTransitions(onTransitioned?: () => void) {
 
   const confirmSnooze = (until: Date) => {
     if (!snoozeTarget) return;
-    const snoozedUntil = until.toISOString();
+    const snoozedUntil = toInstant(until);
     commitSnooze({
       variables: { input: { id: snoozeTarget.id, until: snoozedUntil } },
       optimisticResponse: { snoozeInsight: { id: snoozeTarget.id, status: InsightStatus.SNOOZED, snoozedUntil } },

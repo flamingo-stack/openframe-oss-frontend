@@ -4,7 +4,6 @@ import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/
 import {
   type ColumnDef,
   DataTable,
-  type DataTableFilterOption,
   type DataTableSortState,
   type Row,
   useDataTable,
@@ -26,17 +25,18 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../shared/column-filters';
+import { FLEET_LIST_SKELETON_ROWS } from '../../shared/fleet-list-paging';
 import { OpenRowButton } from '../../shared/open-row-button';
 import { SoftwareDeviceCell } from './software-device-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
 import { SOFTWARE_DEVICE_COLUMNS, SOFTWARE_DEVICES_PAGE_SIZE } from './software-devices-columns';
-import { useSoftwareDeviceFilters } from './use-software-device-filters';
+import { SOFTWARE_ON_DEVICE_STATUS_OPTIONS } from './software-on-device-status';
 
 /**
  * Software → Devices: the machines carrying this title, each with its OWN
  * installed version and per-device status (OUTDATED / SCHEDULED_UPDATE / …).
- * The Status funnel offers the states that actually occur among them, with
- * counts, from `softwareDeviceFilters`.
+ * The Status funnel offers the states the backend can report — a fixed list,
+ * see `SOFTWARE_ON_DEVICE_STATUS_OPTIONS`.
  */
 const softwareDevicesTableQuery = graphql`
   query softwareDevicesTableQuery(
@@ -100,8 +100,8 @@ function deviceHref(row: SoftwareDeviceRow): string {
   return routes.devices.details(row.device.machineId || row.device.id);
 }
 
-/** The columns, with the Status funnel offering exactly the states this title's devices are in. */
-function buildColumns(statusOptions: DataTableFilterOption[]): ColumnDef<SoftwareDeviceRow>[] {
+/** The columns, with the Status funnel over the states the backend reports. */
+function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
   return [
     {
       id: SOFTWARE_DEVICE_COLUMNS.device.id,
@@ -121,7 +121,7 @@ function buildColumns(statusOptions: DataTableFilterOption[]): ColumnDef<Softwar
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.softwareVersion, {
         // The column stretches to the row's end, so an end-anchored popover would
         // hang off the far right, nowhere near the header it belongs to.
-        filter: { options: statusOptions },
+        filter: { options: SOFTWARE_ON_DEVICE_STATUS_OPTIONS },
       }),
     },
     {
@@ -187,7 +187,7 @@ export function SoftwareDevicesTable({
       first: SOFTWARE_DEVICES_PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -208,13 +208,9 @@ export function SoftwareDevicesTable({
     onStatusFilterChange,
   );
 
-  // The funnel's options: what actually occurs among this title's devices, from
-  // the server, so a state no device is in is never offered.
-  const statusOptions = useSoftwareDeviceFilters(softwareId);
-
   const table = useDataTable<SoftwareDeviceRow>({
     data: rows,
-    columns: buildColumns(statusOptions),
+    columns: buildColumns(),
     getRowId,
     enableSorting: false,
     state: { columnFilters },
@@ -250,7 +246,7 @@ export function SoftwareDevicesTable({
           onSortChange={onSortChange}
         />
         <DataTable.Body
-          skeletonRows={SOFTWARE_DEVICES_PAGE_SIZE}
+          skeletonRows={FLEET_LIST_SKELETON_ROWS}
           emptyMessage={
             debouncedSearch
               ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`

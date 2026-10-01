@@ -167,6 +167,16 @@ export const featureFlags = {
       return getFlagValue('tenant-management', () => false);
     },
   },
+  /**
+   * The Software module. Route and tab gating go through
+   * `useFeatureFlagGate('software-management')` (tri-state); this accessor is
+   * for imperative reads, where not-yet-loaded reads as off.
+   */
+  softwareManagement: {
+    enabled(): boolean {
+      return getFlagValue('software-management', () => false);
+    },
+  },
 } as const;
 
 /**

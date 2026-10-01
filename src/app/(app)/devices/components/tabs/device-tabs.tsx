@@ -4,6 +4,7 @@ import {
   AlertTriangleIcon,
   // BracketCurlyEllipsisVrIcon, // Queries tab temporarily disabled
   BracketSquareCheckIcon,
+  ClipboardListIcon,
   ComputerMouseIcon,
   FolderShieldIcon,
   HardDrivesIcon,
@@ -21,6 +22,7 @@ import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate
 import type { DeviceDetailTab } from '@/lib/routes';
 import { useSessionRecordingsGate } from '../../hooks/use-session-recordings-gate';
 import { AgentsTab } from './agents-tab';
+import { DeviceLogsTab } from './device-logs/device-logs-tab';
 import { HardwareTab } from './hardware-tab';
 import { IncidentsTab } from './incidents-tab';
 import { NetworkTab } from './network-tab';
@@ -39,6 +41,7 @@ import { VulnerabilitiesTab } from './vulnerabilities-tab';
 // TAB_IDS.deviceDetails without updating this fails tsc.
 export const REMOTE_SESSIONS_TAB_ID = 'remote-sessions' satisfies DeviceDetailTab;
 const INCIDENTS_TAB_ID = 'incidents' satisfies DeviceDetailTab;
+const DEVICE_LOGS_TAB_ID = 'device-logs' satisfies DeviceDetailTab;
 
 /** Every tab, gated ones included — `useDeviceTabs` narrows it to the visible set. */
 export const ALL_DEVICE_TABS: TabItem[] = [
@@ -120,6 +123,14 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     label: 'Software',
     icon: WebDesignIcon,
     component: SoftwareTab,
+  },
+  {
+    id: DEVICE_LOGS_TAB_ID,
+    label: 'Device Logs',
+    icon: ClipboardListIcon,
+    // Shipped behind its flag — the same stamp the sidebar puts on flagged modules.
+    badge: 'Beta',
+    component: DeviceLogsTab,
   },
   {
     id: REMOTE_SESSIONS_TAB_ID,

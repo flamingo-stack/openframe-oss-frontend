@@ -111,8 +111,7 @@ export function buildPlaceholderBoardColumns(): BoardColumnDef[] {
 
 /**
  * Set once any instance has mounted, so a later mount reads the cache in its
- * INITIALIZER instead of a render later. Mirrors the same module-flag pattern in
- * `onboarding-top-bar-cache`'s placeholder.
+ * INITIALIZER instead of a render later.
  */
 let hasHydrated = false;
 

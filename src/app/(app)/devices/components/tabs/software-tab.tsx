@@ -3,7 +3,6 @@
 import { WebDesignIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { SoftwareListFrame } from '@/app/(app)/software/components/shared/software-list-frame';
 import {
-  SOFTWARE_LIST_FILTER_COLUMN_IDS,
   SOFTWARE_LIST_SORTABLE_COLUMN_IDS,
   SOFTWARE_LIST_TABLE_COLUMNS,
 } from '@/app/(app)/software/components/software-list/software-list-columns';
@@ -108,7 +107,6 @@ function ModuleSoftwareTab({ device }: SoftwareTabProps) {
       paramPrefix="software"
       placeholder={SEARCH_PLACEHOLDER}
       sortableIds={SOFTWARE_LIST_SORTABLE_COLUMN_IDS}
-      filterKeys={SOFTWARE_LIST_FILTER_COLUMN_IDS}
       skeletonColumns={SOFTWARE_LIST_TABLE_COLUMNS}
       skeletonRows={DEVICE_TAB_SKELETON_ROWS}
     >

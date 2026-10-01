@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import type { useBundleDeviceAssignmentAddAllMutation as AddAllMutationType } from '@/__generated__/useBundleDeviceAssignmentAddAllMutation.graphql';
 import type { useBundleDeviceAssignmentAddMutation as AddMutationType } from '@/__generated__/useBundleDeviceAssignmentAddMutation.graphql';
@@ -69,10 +69,8 @@ const removeAllMutation = graphql`
 `;
 
 interface UseBundleDeviceAssignmentOptions {
-  /** The draft, once there is one. */
-  bundleId: string | null;
-  /** Creates the draft on the first assignment — see `useDraftBundle`. */
-  ensureBundle: () => Promise<string>;
+  /** The draft — opened with the form (`useDraftBundle`), so every write has one to target. */
+  bundleId: string;
   /** Live narrowing — what the user is looking at right now. */
   filter: DeviceFilterInput;
   search: string;
@@ -87,13 +85,9 @@ interface UseBundleDeviceAssignmentOptions {
  * (`useScheduleDeviceAssignment`): a single +/− is committed incrementally and
  * rendered straight from the Relay store; the bulk actions replace the
  * assignment wholesale, so they report `busy` and re-read from the network.
- *
- * The one difference is the first write: there is no bundle until then, so the
- * two adding actions create it first and the picker locks for the round trip.
  */
 export function useBundleDeviceAssignment({
   bundleId,
-  ensureBundle,
   filter,
   search,
   deferredFilter,
@@ -102,18 +96,30 @@ export function useBundleDeviceAssignment({
   const { toast } = useToast();
   const environment = useRelayEnvironment();
 
-  // No in-flight flag for the single-row pair: the optimistic layer is their
-  // state, per row, and a global one would only re-lock what it replaced.
   const [commitAdd] = useMutation<AddMutationType>(addMutation);
   const [commitRemove] = useMutation<RemoveMutationType>(removeMutation);
   const [commitAddAll, isAddingAll] = useMutation<AddAllMutationType>(addAllMutation);
   const [commitRemoveAll, isRemovingAll] = useMutation<RemoveAllMutationType>(removeAllMutation);
-  const [isCreating, setCreating] = useState(false);
 
-  // Only the wholesale writes lock the picker — they replace the list under the
-  // user — plus the creation of the draft, during which a second click would
-  // have nothing to write to yet.
-  const busy = isAddingAll || isRemovingAll || isCreating;
+  // Only the wholesale writes lock the picker — they replace the list under the user.
+  const busy = isAddingAll || isRemovingAll;
+  // The handlers' own check, not just the picker's: a row that has not
+  // re-rendered since the lock went on can still deliver a click.
+  const busyRef = useRef(busy);
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
+  // No in-flight STATE for the single-row pair: the optimistic layer is their
+  // state, per row — the click flips the row at once, and nothing else is drawn.
+  // Only a guard: until a row's write lands, a further click on that row is
+  // dropped, so it can neither resend the add nor race it with a remove the
+  // server may apply first.
+  const inFlightRef = useRef(new Set<string>());
+  const setInFlight = useCallback((deviceId: string, inFlight: boolean) => {
+    if (inFlight) inFlightRef.current.add(deviceId);
+    else inFlightRef.current.delete(deviceId);
+  }, []);
 
   // The bulk actions must send the narrowing as it is AT CLICK TIME; a ref keeps
   // the handlers reference-stable. Written in an effect, not in render, so only
@@ -143,21 +149,6 @@ export function useBundleDeviceAssignment({
     [toast],
   );
 
-  /** Runs a write against the draft, creating the draft first if there is none. */
-  const withBundle = useCallback(
-    (run: (id: string) => void, fallback: string) => {
-      if (bundleId) {
-        run(bundleId);
-        return;
-      }
-      setCreating(true);
-      void ensureBundle()
-        .then(run, errorHandler(fallback))
-        .finally(() => setCreating(false));
-    },
-    [bundleId, ensureBundle, errorHandler],
-  );
-
   /**
    * Re-reads both halves from the network — for the bulk actions, whose result
    * the client cannot work out: they replace the assignment against a filter the
@@ -182,33 +173,42 @@ export function useBundleDeviceAssignment({
   // Both single-row handlers render the change once, in the optimistic layer,
   // and never again: the same patch is re-applied on the real commit. A failure
   // needs no rollback — Relay drops the layer, and the row and the count go back
-  // to what the server last said. On the very first add there is nothing to
-  // patch yet — the bundle's lists are still loading — and the updater steps
-  // aside; the lists arrive from the server with the device already in them.
+  // to what the server last said.
   const addDevice = useCallback(
     (device: Device) => {
-      withBundle(id => {
-        commitAdd({
-          variables: { bundleId: id, machineIds: [device.id] },
-          ...assignmentUpdaters({ id, keys: BUNDLE_PICKER_CONNECTION_KEYS }, device.id, true, connectionNarrowing()),
-          onCompleted: () => {
-            toast({
-              title: 'Device added',
-              description: `"${getDeviceName(device)}" was added to the selection.`,
-              variant: 'success',
-            });
-          },
-          onError: errorHandler('Failed to add the device'),
-        });
-      }, 'Failed to add the device');
+      if (busyRef.current || inFlightRef.current.has(device.id)) return;
+      setInFlight(device.id, true);
+      const onError = errorHandler('Failed to add the device');
+      commitAdd({
+        variables: { bundleId, machineIds: [device.id] },
+        ...assignmentUpdaters(
+          { id: bundleId, keys: BUNDLE_PICKER_CONNECTION_KEYS },
+          device.id,
+          true,
+          connectionNarrowing(),
+        ),
+        onCompleted: () => {
+          setInFlight(device.id, false);
+          toast({
+            title: 'Device added',
+            description: `"${getDeviceName(device)}" was added to the selection.`,
+            variant: 'success',
+          });
+        },
+        onError: error => {
+          setInFlight(device.id, false);
+          onError(error);
+        },
+      });
     },
-    [withBundle, commitAdd, connectionNarrowing, toast, errorHandler],
+    [bundleId, commitAdd, connectionNarrowing, toast, errorHandler, setInFlight],
   );
 
   const removeDevice = useCallback(
     (device: Device) => {
-      // Nothing is assigned before there is a bundle, so there is nothing to remove.
-      if (!bundleId) return;
+      if (busyRef.current || inFlightRef.current.has(device.id)) return;
+      setInFlight(device.id, true);
+      const onError = errorHandler('Failed to remove the device');
       commitRemove({
         variables: { bundleId, machineIds: [device.id] },
         ...assignmentUpdaters(
@@ -218,38 +218,39 @@ export function useBundleDeviceAssignment({
           connectionNarrowing(),
         ),
         onCompleted: () => {
+          setInFlight(device.id, false);
           toast({
             title: 'Device removed',
             description: `"${getDeviceName(device)}" was removed from the selection.`,
             variant: 'success',
           });
         },
-        onError: errorHandler('Failed to remove the device'),
+        onError: error => {
+          setInFlight(device.id, false);
+          onError(error);
+        },
       });
     },
-    [bundleId, commitRemove, connectionNarrowing, toast, errorHandler],
+    [bundleId, commitRemove, connectionNarrowing, toast, errorHandler, setInFlight],
   );
 
   const addAllDevices = useCallback(() => {
     const { filter: f, search: s } = narrowingRef.current;
-    withBundle(id => {
-      commitAddAll({
-        variables: { bundleId: id, filter: toRelayDeviceFilter(f), search: s || null },
-        onCompleted: response => {
-          toast({
-            title: 'Devices added',
-            description: `${pluralize(response.addAllDevicesToSoftwareBundle.deviceCount, 'device')} selected.`,
-            variant: 'success',
-          });
-          refreshLists(id);
-        },
-        onError: errorHandler('Failed to add the devices'),
-      });
-    }, 'Failed to add the devices');
-  }, [withBundle, commitAddAll, toast, refreshLists, errorHandler]);
+    commitAddAll({
+      variables: { bundleId, filter: toRelayDeviceFilter(f), search: s || null },
+      onCompleted: response => {
+        toast({
+          title: 'Devices added',
+          description: `${pluralize(response.addAllDevicesToSoftwareBundle.deviceCount, 'device')} selected.`,
+          variant: 'success',
+        });
+        refreshLists(bundleId);
+      },
+      onError: errorHandler('Failed to add the devices'),
+    });
+  }, [bundleId, commitAddAll, toast, refreshLists, errorHandler]);
 
   const removeAllDevices = useCallback(() => {
-    if (!bundleId) return;
     const { filter: f, search: s } = narrowingRef.current;
     commitRemoveAll({
       variables: { bundleId, filter: toRelayDeviceFilter(f), search: s || null },

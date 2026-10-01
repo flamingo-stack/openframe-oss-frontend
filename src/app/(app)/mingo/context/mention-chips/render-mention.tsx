@@ -11,30 +11,35 @@
  * stable identity falls out for free — the lib's per-message memo relies on
  * `renderMention` keeping reference equality across streaming chunks.
  *
- * Coverage = all thirteen markers the agent can emit. GraphQL types (device,
- * customer, kb article, kb folder, scheduled script, incident, software) resolve
- * via Relay; REST/ai-agent types (policy, query, user, ticket) via
- * `RestMentionChip`; a vulnerability needs no fetch at all — its CVE id IS its
- * name. SCRIPT is dual-sourced — a NEW script (24-char ObjectId) resolves via
- * Relay, a LEGACY Tactical script (numeric id) via REST — so both kinds of script
- * id render regardless of the flag. Every chip falls back to a plain id chip
- * (clickable where a route exists) if its fetch can't resolve a name. Unknown
- * marker → bare token.
+ * Coverage = all thirteen entity markers the agent can emit, plus `@chat:` — a
+ * reference to an EARLIER CONVERSATION recalled from chat memory, which is not an
+ * entity and opens in the drawer rather than on a page (`ChatReferenceChip`).
+ * GraphQL types (device, customer, kb article, kb folder, scheduled script,
+ * incident, software) resolve via Relay; REST/ai-agent types (policy, query,
+ * user, ticket) via `RestMentionChip`; a vulnerability needs no fetch at all —
+ * its CVE id IS its name. SCRIPT is dual-sourced — a NEW script (24-char
+ * ObjectId) resolves via Relay, a LEGACY Tactical script (numeric id) via REST —
+ * so both kinds of script id render regardless of the flag. Every chip falls
+ * back to a plain id chip (clickable where a route exists) if its fetch can't
+ * resolve a name. Unknown marker → bare token.
  */
 
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
 import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
 import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
+import { CHAT_REFERENCE_MARKER, ChatReferenceChip } from './chat-reference-chip';
 import { MentionTag } from './mention-tag';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
 
 const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
 const KB_FOLDER_ICON = <KbFolderIcon size={24} />;
+const CHAT_REFERENCE_ICON = <ChatsIcon size={24} />;
 
 /** marker → lead icon, taken from the picker's entity-type config, plus the
  *  mention-only kinds the picker doesn't offer. */
@@ -65,6 +70,10 @@ export function renderMingoMention({
 }): ReactNode {
   const icon = ICON_BY_MARKER.get(marker);
   switch (marker) {
+    case CHAT_REFERENCE_MARKER:
+      // Not an entity: an earlier conversation Mingo cites from chat memory.
+      // Opens IN the drawer (see the chip), never on a page.
+      return <ChatReferenceChip id={id} icon={CHAT_REFERENCE_ICON} />;
     case M.DEVICE:
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.DEVICE} id={id} icon={icon} fallbackLabel={label} />;
     case M.ORGANIZATION:

@@ -226,7 +226,7 @@ function TimeTrackerHost({ enabled, children }: { enabled: boolean; children: Re
       if (!node) return;
       setEditTarget({
         id: node.id,
-        durationSeconds: Number(node.durationSeconds),
+        durationSeconds: node.durationSeconds,
         startedAt: node.startedAt,
         ticketId: node.ticketId ?? null,
         ticketNumber: node.ticketNumber ?? null,

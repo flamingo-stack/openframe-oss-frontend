@@ -14,12 +14,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMingoDialogUrlSync } from '@/app/(app)/mingo/hooks/use-mingo-dialog-url-sync';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
-import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
-import {
-  countCompleted,
-  TENANT_ONBOARDING_STEPS,
-  USER_ONBOARDING_STEPS,
-} from '@/app/(app)/onboarding/onboarding-steps';
+import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
@@ -30,7 +25,6 @@ import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-fl
 import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
-import { writeCachedOnboardingTopBar } from '@/lib/onboarding-top-bar-cache';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal';
@@ -42,14 +36,11 @@ import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
 import { AiSpendLimitBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
-import { InitialSetupBar } from './initial-setup-bar';
 import { MingoCompactionWatchers } from './mingo-compaction-watchers';
 import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
 import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
-import { CachedOnboardingTopBar, useCachedOnboardingTopBar } from './onboarding-top-bar-cache';
-import { OnboardingTourBar } from './onboarding-tour-bar';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { PresenceHeartbeat } from './presence-heartbeat';
 import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
@@ -147,10 +138,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const { isReady: sessionResolved, isAuthenticated } = useAuthSession();
   const sessionReady = sessionResolved && isAuthenticated;
 
-  const userId = useAuthStore(state => state.user?.id);
-  // Persisted alongside `user` in `auth-storage`, so on a reload it is what we
-  // know about the session BEFORE `/me` answers — see `cacheOwnerId` below.
-  const storeAuthenticated = useAuthStore(state => state.isAuthenticated);
   const userFirstName = useAuthStore(state => state.user?.firstName);
   const userLastName = useAuthStore(state => state.user?.lastName);
   const userEmail = useAuthStore(state => state.user?.email);
@@ -336,10 +323,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   }, [chatEnabled, setChatCanOpen]);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCountsByCategory>({});
 
-  // Onboarding chrome: the sidebar "Onboarding" tab/badge and the Initial Setup /
-  // tour top bars. Progress comes from the backend via the onboarding store, hydrated
-  // by `OnboardingProgressHydrator` below. `onboardingLoaded` gates the chrome so
-  // nothing flickers before we know the real state.
+  // Onboarding chrome: the sidebar "Onboarding" tab/badge. Progress comes from the
+  // backend via the onboarding store, hydrated by `OnboardingProgressHydrator` below.
+  // `onboardingLoaded` gates the chrome so nothing flickers before we know the real state.
   const tenantProgress = useOnboardingStore(state => state.tenant);
   const userProgress = useOnboardingStore(state => state.user);
   const onboardingLoaded = useOnboardingStore(state => state.isLoaded);
@@ -381,18 +367,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const chromeIncomplete = !flagsReady || (sessionReady && !isLocked && !onboardingLoaded);
   const chromeLoading = useFailOpen(chromeIncomplete, CHROME_LOADING_FAIL_OPEN_MS);
 
-  const tenantDone = countCompleted(TENANT_ONBOARDING_STEPS, tenantProgress?.completedSteps ?? []);
   const userDone = countCompleted(USER_ONBOARDING_STEPS, userProgress?.completedSteps ?? []);
   const userRemaining = USER_ONBOARDING_STEPS.length - userDone;
   // User "Get Started" is live until the user explicitly finishes or skips it.
   const userInProgress = !!userProgress && !userProgress.completed && !userProgress.skipped;
   // Tenant phase ends when an admin clicks the explicit "Complete Setup".
   const initialSetupComplete = tenantProgress?.completed ?? false;
-  // Shared predicate for the tenant Initial Setup surfaces — the SAME one that gates the
-  // dashboard card + dimming, so the yellow bar can never show without the card. Requires a
-  // real (non-null) tenant record, unlike `!initialSetupComplete` which treated a failed/empty
-  // progress fetch (tenant === null) as "incomplete" and lit the bar with no card behind it.
-  const initialSetupActive = useInitialSetupActive();
   const showOnboardingChrome = onboardingLoaded;
 
   // The personal "Get Started" tour (sidebar tab + badge) only appears once the
@@ -439,50 +419,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     [navigationItems, chromeLoading, handleNavigate],
   );
 
-  // Onboarding top bar (single `topBar` slot, one bar at a time):
-  //   Tenant phase (Initial Setup incomplete): the yellow `InitialSetupBar` on
-  //     EVERY page — on the dashboard (which hosts the setup card) the CTA is
-  //     dropped, everywhere else it links back to the card.
-  //   User phase (Initial Setup done, Get Started still in progress): the
-  //     `OnboardingTourBar` on EVERY page — on `/onboarding` the CTA is dropped.
-  // Each bar's CTA reads "Start …"/"Take …" until its first step is done, then
-  // "Continue …". Driven by the backend onboarding progress in the store.
-  //   Otherwise: the hub announcement — informational and dismissible, so it
-  //     ranks below every bar that asks for an action, and it only ever
-  //     replaces an empty slot (never stacks, never bumps a bar out).
-  const isOnboardingPage = pathname?.startsWith('/onboarding') ?? false;
-  const isDashboardPage = pathname === '/' || (pathname?.startsWith('/dashboard') ?? false);
-  // Who the cached band is allowed to speak for. The replay below is the ONLY
-  // branch a signed-out shell can reach — `showOnboardingChrome` needs the
-  // hydrator, which needs a session — so without an owner it held the previous
-  // session's banner over the skeleton indefinitely, CTA and all.
-  //
-  // Before `/me` answers we go on the PERSISTED auth store: a user who signed
-  // out left it false, so a reload after logout reserves nothing, while an
-  // ordinary signed-in reload still gets the band reserved ahead of the session
-  // round-trip — which is the layout shift the cache exists to prevent. Once the
-  // session has answered, its verdict wins in both directions.
-  const cacheOwnerId = (sessionResolved ? isAuthenticated : storeAuthenticated) ? (userId ?? null) : null;
-  // Read per owner, and past hydration, since the cache behind it is
-  // browser-only (see `useCachedOnboardingTopBar`).
-  const cachedTopBar = useCachedOnboardingTopBar(cacheOwnerId);
+  // Single `topBar` slot, one bar at a time: the billing bars first, since they
+  // ask for an action; otherwise the hub announcement — informational and
+  // dismissible, so it only ever fills an empty slot (never stacks, never bumps
+  // a bar out).
   let topBar: React.ReactNode;
   if (showLockContent) {
     // No band of any kind over the lock screen — whatever it would say, this
     // workspace cannot act on it: the AI and trial bars send you to Billing &
-    // Usage, and both onboarding bars send you into the app. The one that
-    // actually showed up here was the CACHED onboarding band: a locked workspace
-    // never mounts `OnboardingProgressHydrator`, so `onboardingLoaded` stays
-    // false forever and the `else` at the bottom of this chain replayed the last
-    // session's bar over the paywall, CTA and all. Answered first, so no later
-    // branch has to remember the lock.
+    // Usage. Answered first, so no later branch has to remember the lock.
     topBar = undefined;
   } else if (showAiSpendBar && billingBars.ai.tone !== 'default') {
-    // Ahead of the onboarding bars, and the only thing that outranks them:
-    // finishing a setup tour can wait, agents about to stop answering cannot,
-    // and this state is invisible from every page but Billing & Usage. Not
-    // cached like the onboarding decision below — replaying a red bar on a cold
-    // start would announce a limit the tenant may have already raised.
+    // First in line: agents about to stop answering cannot wait, and this
+    // state is invisible from every page but Billing & Usage.
     topBar = (
       <AiSpendLimitBar
         tone={billingBars.ai.tone}
@@ -491,9 +440,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       />
     );
   } else if (showAiSpendBar && billingBars.trial && !trialDismissed) {
-    // Below the AI bars and above onboarding: a trial past its halfway point is
-    // a deadline, not a failure — but it still outranks a setup tour, because
-    // missing it locks the workspace and the tour can be finished afterwards.
+    // Below the AI bars: a trial past its halfway point is a deadline, not a
+    // failure.
     topBar = (
       <TrialEndingBar
         daysLeft={billingBars.trial.daysLeft}
@@ -506,56 +454,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       />
     );
   } else if (showOnboardingChrome) {
-    if (initialSetupActive) {
-      topBar = (
-        <InitialSetupBar
-          onStart={() => router.push(routes.dashboard)}
-          started={tenantDone > 0}
-          showAction={!isDashboardPage}
-        />
-      );
-    } else if (initialSetupComplete && userInProgress) {
-      topBar = (
-        <OnboardingTourBar
-          onStart={() => router.push(routes.onboarding)}
-          started={userDone > 0}
-          showAction={!isOnboardingPage}
-        />
-      );
-    } else {
-      topBar = <AnnouncementTopBar />;
-    }
-  } else {
-    // Progress hasn't loaded yet. Rendering nothing here just moves the jump
-    // from the skeleton to this side of the handoff — the shell reserves the
-    // band, then the live layout drops it and the app snaps up until the query
-    // lands. Replay the same cached decision until we know better.
-    topBar = (
-      <CachedOnboardingTopBar
-        cached={cachedTopBar}
-        pathname={pathname}
-        onStart={() => router.push(cachedTopBar?.kind === 'tour' ? routes.onboarding : routes.dashboard)}
-      />
-    );
+    // Loaded progress doubles as "a live, unlocked session": the hydrator behind
+    // it only runs with one, and the announcement fetches on mount.
+    topBar = <AnnouncementTopBar />;
   }
-
-  // Remember which banner (if any) this slot resolved to, so the next cold start can
-  // replay the same decision instead of letting the bar drop in late and push the whole
-  // app down. Only once progress has actually loaded — before that `topBar` is
-  // undefined because we don't know yet, which is not the same answer as "no bar".
-  //
-  // Stamped with the user it was computed for: the entry outlives the session, and
-  // an unattributed one is replayable by whoever opens the tab next.
-  useEffect(() => {
-    if (!onboardingLoaded || !userId) return;
-    if (initialSetupActive) {
-      writeCachedOnboardingTopBar({ kind: 'initial-setup', started: tenantDone > 0, userId });
-    } else if (initialSetupComplete && userInProgress) {
-      writeCachedOnboardingTopBar({ kind: 'tour', started: userDone > 0, userId });
-    } else {
-      writeCachedOnboardingTopBar({ kind: 'none', started: false, userId });
-    }
-  }, [onboardingLoaded, initialSetupActive, initialSetupComplete, userInProgress, tenantDone, userDone, userId]);
 
   const displayName = useMemo(
     () => `${userFirstName || ''} ${userLastName || ''}`.trim(),

@@ -14,16 +14,12 @@ import type {
   softwareTable_software$key,
 } from '@/__generated__/softwareTable_software.graphql';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared';
-import type { SoftwareVersionStatus } from '@/generated/schema-enums';
-import type { SoftwareFilterOptions } from '@/graphql/software/software-facets-fields';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { multiSelectFilterFn } from '@/lib/table-filters';
-import { multiColumnFilter } from '../shared/column-filters';
+import { FLEET_LIST_SKELETON_ROWS } from '../shared/fleet-list-paging';
 import { OpenRowButton } from '../shared/open-row-button';
-import type { ListSelections } from '../shared/software-list-frame';
 import { SoftwareDevicesCell } from './software-devices-cell';
-import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
+import { SOFTWARE_LIST_COLUMNS } from './software-list-columns';
 import { SoftwareNameCell } from './software-name-cell';
 import { SoftwareVersionCell } from './software-version-cell';
 import { SoftwareVulnerabilitiesCell } from './software-vulnerabilities-cell';
@@ -38,9 +34,6 @@ import { SoftwareVulnerabilitiesCell } from './software-vulnerabilities-cell';
 const softwareTableFragment = graphql`
   fragment softwareTable_software on Software @relay(plural: true) {
     id
-    # What the funnel narrows the rows on screen by, while the refetch it
-    # triggered is still in flight.
-    versionStatus
     ...softwareNameCell_software
     ...softwareVersionCell_software
     ...softwareDevicesCell_software
@@ -51,25 +44,6 @@ const softwareTableFragment = graphql`
 type SoftwareRow = softwareTable_software$data[number];
 
 /**
- * The funnel's selection as `SoftwareFilterInput` takes it — declared here
- * rather than imported from a Relay artifact, which relay-compiler owns and
- * prunes, with the enums from the generated SDL enums per the project rule.
- */
-export interface SoftwareFilterSelection {
-  versionStatuses?: SoftwareVersionStatus[];
-}
-
-/**
- * The selection as the connection's `filter` — null when nothing is ticked,
- * so the query and the empty-state guard read "unfiltered" off one value.
- */
-export function toSoftwareFilterInput(selections: ListSelections): SoftwareFilterSelection | null {
-  const versionStatuses = selections[SOFTWARE_LIST_COLUMNS.currentVersion.id] ?? [];
-  if (versionStatuses.length === 0) return null;
-  return { versionStatuses: [...versionStatuses] as SoftwareVersionStatus[] };
-}
-
-/**
  * The layout says which headers CAN carry a sort toggle; the surface says which
  * DO — a toggle the connection cannot honour is worse than none.
  */
@@ -77,7 +51,7 @@ function columnMeta<const T extends object>(column: TableSkeletonColumn, sortabl
   return liveColumnMeta({ ...column, sortable: sortableIds.includes(column.id) }, extra);
 }
 
-function buildColumns(sortableIds: readonly string[], filterOptions: SoftwareFilterOptions): ColumnDef<SoftwareRow>[] {
+function buildColumns(sortableIds: readonly string[]): ColumnDef<SoftwareRow>[] {
   return [
     {
       id: SOFTWARE_LIST_COLUMNS.name.id,
@@ -89,13 +63,9 @@ function buildColumns(sortableIds: readonly string[], filterOptions: SoftwareFil
     {
       id: SOFTWARE_LIST_COLUMNS.currentVersion.id,
       header: SOFTWARE_LIST_COLUMNS.currentVersion.header,
-      accessorFn: (row: SoftwareRow) => row.versionStatus ?? '',
       cell: ({ row }: { row: Row<SoftwareRow> }) => <SoftwareVersionCell software={row.original} />,
       enableSorting: false,
-      filterFn: multiSelectFilterFn,
-      meta: columnMeta(SOFTWARE_LIST_COLUMNS.currentVersion, sortableIds, {
-        filter: { options: filterOptions.versionStatuses },
-      }),
+      meta: columnMeta(SOFTWARE_LIST_COLUMNS.currentVersion, sortableIds),
     },
     {
       // Column ids of the sortable headers ARE the backend sort fields.
@@ -137,16 +107,9 @@ export interface SoftwareTableProps {
   /** Live sort — drives the header indicator so it flips instantly on click. */
   sortState: DataTableSortState | null;
   onSortChange: (columnId: string) => void;
-  /** The funnel's options, from the surface's own facet query. */
-  filterOptions: SoftwareFilterOptions;
-  /** Live funnel selection by column id — what the headers draw as ticked, so a tick lands instantly. */
-  selections: ListSelections;
-  onSelectionsChange: (next: Record<string, string[]>) => void;
-  /** The rows answer a narrowed query (a funnel is ticked), so an empty page is a miss, not an empty list. */
-  isFiltered: boolean;
   /** True while a refetch is in flight — dims the stale rows and guards the empty state. */
   isPending: boolean;
-  /** Drawn for a list with nothing in it at all (not a search or funnel miss). */
+  /** Drawn for a list with nothing in it at all (not a search miss). */
   emptyState: ReactNode;
   /** Nothing in the list at all — the caller drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
@@ -165,10 +128,6 @@ export function SoftwareTable({
   sortableIds,
   sortState,
   onSortChange,
-  filterOptions,
-  selections,
-  onSelectionsChange,
-  isFiltered,
   isPending,
   emptyState,
   onEmptyChange,
@@ -177,21 +136,17 @@ export function SoftwareTable({
 }: SoftwareTableProps) {
   const rows = useFragment(softwareTableFragment, rowRefs);
 
-  const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
-
   const table = useDataTable<SoftwareRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
     data: rows as SoftwareRow[],
-    columns: buildColumns(sortableIds, filterOptions),
+    columns: buildColumns(sortableIds),
     getRowId,
     enableSorting: false,
-    state: { columnFilters },
-    onColumnFiltersChange,
   });
 
-  // A search or a funnel that finds nothing keeps the table (its own "no match"
-  // row); a list with nothing in it at all gets the surface's empty state instead.
-  const showEmptyState = !debouncedSearch && !isFiltered && !isPending && rows.length === 0;
+  // A search that finds nothing keeps the table (its own "no match" row); a list
+  // with nothing in it at all gets the surface's empty state instead.
+  const showEmptyState = !debouncedSearch && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -215,11 +170,11 @@ export function SoftwareTable({
           onSortChange={onSortChange}
         />
         <DataTable.Body
-          skeletonRows={SOFTWARE_LIST_PAGE_SIZE}
+          skeletonRows={FLEET_LIST_SKELETON_ROWS}
           emptyState={{
             title: debouncedSearch
               ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No software matches the selected filters. Try adjusting your filters.',
+              : 'No software found.',
           }}
           rowClassName="mb-1"
           rowHref={rowHref}
