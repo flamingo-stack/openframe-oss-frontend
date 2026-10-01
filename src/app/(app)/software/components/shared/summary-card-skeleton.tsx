@@ -2,12 +2,12 @@
 
 import type { ReactNode } from 'react';
 import { InlineSkeleton } from '@/app/components/shared';
-import { SummaryCard } from './summary-card';
+import { SummaryCard, type SummaryCardColumns } from './summary-card';
 
 interface SummaryCardSkeletonProps {
   /** The live card's labels, in its order — they are static, so they render for real. */
   labels: readonly string[];
-  columns: 2 | 4;
+  columns: SummaryCardColumns;
   lead?: ReactNode;
 }
 

@@ -3,7 +3,7 @@
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { FLEET_LIST_SKELETON_ROWS } from '../shared/fleet-list-paging';
 import { SoftwareListFrame } from '../shared/software-list-frame';
-import { SOFTWARE_LIST_SORTABLE_COLUMN_IDS, SOFTWARE_LIST_TABLE_COLUMNS } from './software-list-columns';
+import { SOFTWARE_LIST_TABLE_COLUMNS } from './software-list-columns';
 import { SoftwareListTable } from './software-list-table';
 
 export interface SoftwareListViewProps {
@@ -27,7 +27,6 @@ export function SoftwareListView({ title, emptyTitle, emptyDescription, loading 
     <PageLayout title={title}>
       <SoftwareListFrame
         placeholder="Search for Software"
-        sortableIds={SOFTWARE_LIST_SORTABLE_COLUMN_IDS}
         skeletonColumns={SOFTWARE_LIST_TABLE_COLUMNS}
         skeletonRows={FLEET_LIST_SKELETON_ROWS}
         loading={loading}
