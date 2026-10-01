@@ -1,3 +1,4 @@
+import type { DataTableFilterOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SoftwareOnDeviceStatus } from '@/generated/schema-enums';
 import { OUTDATED_TAG } from '../../shared/outdated-tag';
 
@@ -21,3 +22,16 @@ export const SOFTWARE_ON_DEVICE_STATUS: Record<SoftwareOnDeviceStatus, SoftwareO
   [SoftwareOnDeviceStatus.UNINSTALLING]: { label: 'Uninstalling', tag: { variant: 'outline', inFlight: true } },
   [SoftwareOnDeviceStatus.SCHEDULED_UNINSTALL]: { label: 'Scheduled uninstall', tag: { variant: 'warning' } },
 };
+
+/**
+ * The Status funnel's options — fixed, not a facet query. The backend only ever
+ * derives two states (the device's version is the title's latest, or it is
+ * not), and asking which of them occur cost a second full host scan per title,
+ * as heavy as the rows themselves. The price: no per-option counts, and a state
+ * no device is in is still offered. Extend this when the backend starts
+ * reporting the scheduled / uninstalling states.
+ */
+export const SOFTWARE_ON_DEVICE_STATUS_OPTIONS: DataTableFilterOption[] = [
+  SoftwareOnDeviceStatus.UP_TO_DATE,
+  SoftwareOnDeviceStatus.OUTDATED,
+].map(status => ({ id: status, value: status, label: SOFTWARE_ON_DEVICE_STATUS[status].label }));

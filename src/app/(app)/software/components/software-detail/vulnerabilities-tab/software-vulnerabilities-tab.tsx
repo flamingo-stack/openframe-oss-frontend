@@ -6,10 +6,10 @@ import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
+import { FLEET_LIST_SKELETON_ROWS, FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
 import { SoftwareSearchToolbar } from '../../shared/software-search-toolbar';
 import { useServerSort } from '../../shared/use-server-sort';
 import {
-  SOFTWARE_VULNERABILITIES_PAGE_SIZE,
   SOFTWARE_VULNERABILITIES_SORTABLE_COLUMN_IDS,
   SOFTWARE_VULNERABILITIES_TABLE_COLUMNS,
 } from './software-vulnerabilities-columns';
@@ -37,7 +37,7 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
     search: searchInput,
     setSearch: setSearchInput,
     debouncedSearch,
-  } = useSearchParam(params.cveSearch, value => setParam('cveSearch', value), 300);
+  } = useSearchParam(params.cveSearch, value => setParam('cveSearch', value), FLEET_SEARCH_DEBOUNCE_MS);
 
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -57,7 +57,7 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
   const tableSkeleton = (
     <TableSkeleton
       columns={SOFTWARE_VULNERABILITIES_TABLE_COLUMNS}
-      rows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
+      rows={FLEET_LIST_SKELETON_ROWS}
       stickyHeaderOffset={stickyHeaderOffset}
     />
   );
