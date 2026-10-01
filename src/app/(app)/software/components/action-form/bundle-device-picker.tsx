@@ -9,13 +9,14 @@ import { EMPTY_NARROWING, narrowingToFilter } from '@/app/components/shared/devi
 import { ServerDevicePickerSkeleton } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { BundlePickerLists } from './bundle-picker-lists';
-import { FleetPickerLists } from './fleet-picker-lists';
 import { useBundleDeviceAssignment } from './use-bundle-device-assignment';
 
 interface BundleDevicePickerProps {
-  /** The draft, once the first device has been assigned. */
+  /** The draft — null while it is being opened (`useDraftBundle`). */
   bundleId: string | null;
-  ensureBundle: () => Promise<string>;
+  /** Opening the draft failed; shown with the boundary's Retry, which calls `onRetryCreate`. */
+  createError: Error | null;
+  onRetryCreate: () => void;
   /** The form's own scope — the OS the chosen packages install on, and live devices only. */
   scope: DeviceFilterInput;
   isDeviceDisabled?: (device: Device) => string | undefined;
@@ -34,22 +35,51 @@ function narrowWithinScope(scope: DeviceFilterInput, narrowing: DeviceFilterInpu
   };
 }
 
+/** Hands a failed draft creation to the boundary, so it gets the same error card and Retry as a failed query. */
+function ThrowError({ error }: { error: Error }): never {
+  throw error;
+}
+
 /**
- * "Device Selection" on the Install / Update Software form: the picker's state
- * — tab, search, funnels — and every write it performs. Each +/− commits as it
- * is clicked, so there is nothing to collect for submit; the bundle IS the
- * selection.
- *
- * Two lists back it in turn. Until the first device is assigned there is no
- * bundle, and the fleet answers the Available tab; the first "+" creates the
- * draft and the bundle's own lists take over, under this same state, so the
- * search and the funnels survive the swap.
- *
- * Its own boundary, because the form around it holds unsaved work: a query
- * that fails must not reach the route's `error.tsx` and discard the packages
- * the user has already picked.
+ * "Device Selection" on the Install / Update Software form. Its own boundary,
+ * because the form around it holds unsaved work: a query that fails must not
+ * reach the route's `error.tsx` and discard the packages the user has already
+ * picked. The picker proper waits for the draft — the skeleton stands in until
+ * the form has one — so there is a single set of lists, the bundle's, from the
+ * first click on.
  */
-export function BundleDevicePicker({ bundleId, ensureBundle, scope, isDeviceDisabled }: BundleDevicePickerProps) {
+export function BundleDevicePicker({
+  bundleId,
+  createError,
+  onRetryCreate,
+  scope,
+  isDeviceDisabled,
+}: BundleDevicePickerProps) {
+  return (
+    <ContentErrorBoundary label="software-bundle-picker" message="Couldn't load devices." onRetry={onRetryCreate}>
+      <Suspense fallback={<ServerDevicePickerSkeleton />}>
+        {createError ? (
+          <ThrowError error={createError} />
+        ) : bundleId ? (
+          <BundleDevicePickerLists bundleId={bundleId} scope={scope} isDeviceDisabled={isDeviceDisabled} />
+        ) : (
+          <ServerDevicePickerSkeleton />
+        )}
+      </Suspense>
+    </ContentErrorBoundary>
+  );
+}
+
+/**
+ * The picker's state — tab, search, funnels — and every write it performs. Each
+ * +/− commits as it is clicked, so there is nothing to collect for submit; the
+ * bundle IS the selection.
+ */
+function BundleDevicePickerLists({
+  bundleId,
+  scope,
+  isDeviceDisabled,
+}: Omit<BundleDevicePickerProps, 'bundleId' | 'createError' | 'onRetryCreate'> & { bundleId: string }) {
   const [activeTab, setActiveTab] = useState<SubTab>('available');
   const [search, setSearch] = useState('');
   const [narrowing, setNarrowing] = useState<DeviceSelectorNarrowing>(EMPTY_NARROWING);
@@ -58,9 +88,8 @@ export function BundleDevicePicker({ bundleId, ensureBundle, scope, isDeviceDisa
   const filter = useMemo(() => narrowWithinScope(scope, narrowingToFilter(narrowing)), [scope, narrowing]);
   const { deferredFilters: deferredFilter, deferredSearch } = useDeferredQuery(filter, debouncedSearch);
 
-  const { busy, pendingIds, addDevice, removeDevice, addAllDevices, removeAllDevices } = useBundleDeviceAssignment({
+  const { busy, addDevice, removeDevice, addAllDevices, removeAllDevices } = useBundleDeviceAssignment({
     bundleId,
-    ensureBundle,
     filter,
     search: debouncedSearch,
     deferredFilter,
@@ -87,21 +116,10 @@ export function BundleDevicePicker({ bundleId, ensureBundle, scope, isDeviceDisa
     busy,
     onAdd: addDevice,
     onRemove: removeDevice,
-    pendingIds,
     onAddAll: addAllDevices,
     onRemoveAll: removeAllDevices,
     isDeviceDisabled,
   };
 
-  return (
-    <ContentErrorBoundary label="software-bundle-picker" message="Couldn't load devices.">
-      <Suspense fallback={<ServerDevicePickerSkeleton />}>
-        {bundleId ? (
-          <BundlePickerLists bundleId={bundleId} scope={scope} {...lists} />
-        ) : (
-          <FleetPickerLists scope={scope} {...lists} />
-        )}
-      </Suspense>
-    </ContentErrorBoundary>
-  );
+  return <BundlePickerLists bundleId={bundleId} scope={scope} {...lists} />;
 }

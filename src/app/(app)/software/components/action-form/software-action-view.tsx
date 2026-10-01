@@ -33,9 +33,9 @@ function agentMissing(device: Device): string | undefined {
  * both flows.
  *
  * The packages and the timing are form state; the devices are not. They live on
- * a draft bundle the first assignment opens (`useDraftBundle`) and every later
- * one edits in place, so the selection is never held in the browser — and
- * submit sends the bundle's id, not a list (`useSoftwareActionSubmit`).
+ * a draft bundle the form opens (`useDraftBundle`) and every assignment edits in
+ * place, so the selection is never held in the browser — and submit sends the
+ * bundle's id, not a list (`useSoftwareActionSubmit`).
  */
 export function SoftwareActionView({
   action,
@@ -47,7 +47,7 @@ export function SoftwareActionView({
 }) {
   const copy = SOFTWARE_ACTION_COPY[action];
   const handleBack = useSafeBack(routes.software.actions);
-  const { bundleId, deviceCount, ensureBundle, markSubmitted } = useDraftBundle();
+  const { bundleId, deviceCount, createError, retryCreate, markSubmitted } = useDraftBundle({ enabled: !loading });
   const { submit, isSubmitting } = useSoftwareActionSubmit(action, { onSubmitted: markSubmitted });
 
   const [rows, setRows] = useState<SoftwareRow[]>(() => [newSoftwareRow('row-0')]);
@@ -104,7 +104,7 @@ export function SoftwareActionView({
         size="small"
         className="self-start"
         onClick={addRow}
-        leftIcon={<PlusCircleIcon size={24} className="text-ods-text-primary" />}
+        leftIcon={<PlusCircleIcon size={24} className="text-ods-text-secondary" />}
       >
         Add Software
       </Button>
@@ -142,7 +142,8 @@ export function SoftwareActionView({
           // it, which is right: they narrowed a list that no longer exists.
           key={osTypesKey}
           bundleId={bundleId}
-          ensureBundle={ensureBundle}
+          createError={createError}
+          onRetryCreate={retryCreate}
           scope={scope}
           isDeviceDisabled={agentMissing}
         />

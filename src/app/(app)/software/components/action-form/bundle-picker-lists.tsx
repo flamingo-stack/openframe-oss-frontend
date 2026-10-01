@@ -156,8 +156,6 @@ interface BundlePickerListsProps {
   busy: boolean;
   onAdd: (device: Device) => void;
   onRemove: (device: Device) => void;
-  /** Rows whose single +/− is in flight. */
-  pendingIds: ReadonlySet<string>;
   onAddAll: () => void;
   onRemoveAll: () => void;
   isDeviceDisabled?: (device: Device) => string | undefined;
@@ -182,7 +180,6 @@ export function BundlePickerLists({
   busy,
   onAdd,
   onRemove,
-  pendingIds,
   onAddAll,
   onRemoveAll,
   isDeviceDisabled,
@@ -249,7 +246,6 @@ export function BundlePickerLists({
       busy={busy}
       onAdd={onAdd}
       onRemove={onRemove}
-      pendingIds={pendingIds}
       onAddAll={onAddAll}
       onRemoveAll={onRemoveAll}
       isDeviceDisabled={isDeviceDisabled}
