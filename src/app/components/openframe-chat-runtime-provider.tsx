@@ -65,7 +65,7 @@ import { refreshAccessToken } from '@/lib/token-refresh-manager';
  * case-study / …) still opens OUT to its RAG-authoritative `externalUrl` on
  * the content hub.
  */
-import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '@/lib/token-store';
+import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between
@@ -134,6 +134,18 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   // `embedAuthedFetch`'s cross-origin guard. Empty on the web, where the
   // same-origin rule stays absolute.
   allowedOrigins: CONTENT_ORIGIN ? [CONTENT_ORIGIN] : [],
+  // Epoch-gated, per `EmbedAuthAdapter.subscribe`'s "real change only"
+  // contract: `adoptNativeTokens` also emits when the shell hands back the SAME
+  // token (a refresh it could not run). Native-only: the web branch never emits.
+  subscribe: listener => {
+    let seenEpoch = getTokenEpoch();
+    return subscribeToTokenChange(() => {
+      const epoch = getTokenEpoch();
+      if (epoch === seenEpoch) return;
+      seenEpoch = epoch;
+      listener();
+    });
+  },
 };
 
 // Register the auth adapter + drop legacy proxy-auth ONCE, at module load —
