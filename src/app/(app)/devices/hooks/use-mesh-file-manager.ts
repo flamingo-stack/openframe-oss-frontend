@@ -11,6 +11,9 @@ import { convertFileEntriesToItems, sanitizePath } from '../utils/file-manager-u
 // Global map to track active file manager instances by device ID (React Strict Mode protection)
 const activeFileManagers = new Map<string, boolean>();
 
+// The control socket retries with backoff for about 3 minutes before it reports a failure. Users leave long before that.
+const CONNECT_TIMEOUT_MS = 15000;
+
 // Extract directory path from file IDs
 function getDirectoryFromFileIds(fileIds: string[]): string {
   if (fileIds.length === 0) return '/';
@@ -130,6 +133,7 @@ export function useMeshFileManager({
       initializingRef.current = true;
 
       let initSucceeded = false;
+      let connectTimeout: ReturnType<typeof setTimeout> | undefined;
 
       try {
         setLoading(true);
@@ -261,7 +265,15 @@ export function useMeshFileManager({
           return;
         }
 
-        await fileManager.connect();
+        await Promise.race([
+          fileManager.connect(),
+          new Promise<never>((_, reject) => {
+            connectTimeout = setTimeout(
+              () => reject(new Error('Timed out connecting to the device')),
+              CONNECT_TIMEOUT_MS,
+            );
+          }),
+        ]);
         if (token.cancelled) {
           fileManager.disconnect();
           controlClient.close();
@@ -272,7 +284,11 @@ export function useMeshFileManager({
         }
         initSucceeded = true;
       } catch (error) {
+        // The effect cleanup closed the client. Nobody waits for this result.
+        if (token.cancelled) return;
         const err = error as Error;
+        // Stops the control socket's reconnect loop. Retry builds a new client.
+        controlClientRef.current?.close();
         if (mounted) {
           setConnectionState('failed');
           capturePosthogEvent(PRODUCT_EVENTS.FILE_MANAGER_CONNECTION_FAILED, {
@@ -288,6 +304,7 @@ export function useMeshFileManager({
         });
         onErrorRef.current?.(err);
       } finally {
+        clearTimeout(connectTimeout);
         if (mounted) {
           setLoading(false);
         }
