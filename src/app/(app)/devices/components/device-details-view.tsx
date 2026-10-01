@@ -59,13 +59,20 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   // Controlled mode for TabNavigation: URL is the single source of truth.
   // Avoids a flicker bug in `urlSync` mode where the internal sync effect
   // briefly resets the active tab to the URL's previous value during navigation.
+  //
+  // Written with `history.replaceState`, not `router.replace`: a tab is a view of
+  // the same page, and a router navigation re-renders the route's metadata — the
+  // <title> is removed and re-inserted, so the browser tab (and the desktop
+  // shell's window title) blinked empty on every switch. Next syncs a native
+  // `replaceState` into `useSearchParams`, so the tab still follows the URL.
+  // Re-based on the live search string, so params written beside `tab` survive.
   const handleTabChange = useCallback(
     (tabId: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
       params.set('tab', tabId);
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      window.history.replaceState(null, '', `${pathname}?${params.toString()}${window.location.hash}`);
     },
-    [router, pathname, searchParams],
+    [pathname],
   );
 
   const { deviceDetails, isLoading, error } = useDeviceDetails(deviceId);

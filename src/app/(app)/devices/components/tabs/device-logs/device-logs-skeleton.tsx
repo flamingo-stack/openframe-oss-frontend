@@ -21,8 +21,8 @@ export function DeviceLogsRowsSkeleton({ rows = 8, dayHeader = false }: { rows?:
     <div className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-hidden="true">
       {dayHeader && (
         <div className={DEVICE_LOG_DAY_HEADER}>
-          {/* 1lh of text-h5: the heading's own line box, at every breakpoint. */}
-          <Skeleton className="h-[1lh] w-28 text-h5" />
+          {/* The heading's own box: 1lh tall and 8ch wide (a short date) in its text-h5 font. */}
+          <Skeleton className="h-[1lh] w-[8ch] text-h5" />
           <span className="h-px flex-1 bg-ods-border" />
         </div>
       )}
