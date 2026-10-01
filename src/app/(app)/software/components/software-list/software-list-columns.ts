@@ -19,10 +19,9 @@ const SOFTWARE_LIST_COLUMNS = {
   // answers with options, so a skeleton that promised it would show a control
   // the loaded table then takes away.
   currentVersion: { id: 'currentVersion', header: 'Current Version', width: 'flex-1 min-w-0', hideAt: 'md' },
-  // DEVICES and VULNS carry the server-side sort toggles; VULNS sorts by the
-  // CVE count, the one figure the column shows.
+  // DEVICES carries the one server-side sort toggle; VULNS is not sortable.
   devicesCount: { id: 'devicesCount', header: 'Devices', width: 'w-[100px] md:w-[144px]', sortable: true },
-  vulnerabilities: { id: 'cveCount', header: 'Vulns', width: 'w-[96px]', sortable: true },
+  vulnerabilities: { id: 'cveCount', header: 'Vulns', width: 'w-[96px]' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
@@ -40,13 +39,10 @@ export const SOFTWARE_LIST_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
 /**
  * The only values allowed to reach `SortInput.field` — everything else in the
  * URL falls back to the backend's own order. `softwares` and `deviceSoftware`
- * both sort by these (and by name and highest severity, which the design does
- * not offer).
+ * both sort by these (and by name, highest severity and CVE count, which the
+ * table does not offer).
  */
-export const SOFTWARE_LIST_SORTABLE_COLUMN_IDS: readonly string[] = [
-  SOFTWARE_LIST_COLUMNS.devicesCount.id,
-  SOFTWARE_LIST_COLUMNS.vulnerabilities.id,
-];
+export const SOFTWARE_LIST_SORTABLE_COLUMN_IDS: readonly string[] = [SOFTWARE_LIST_COLUMNS.devicesCount.id];
 
 /** The funnels' column ids — the keys their selections travel under in the URL. */
 export const SOFTWARE_LIST_FILTER_COLUMN_IDS: readonly string[] = [SOFTWARE_LIST_COLUMNS.currentVersion.id];
