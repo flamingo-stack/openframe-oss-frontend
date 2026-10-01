@@ -5,6 +5,7 @@ import { MeshCentralFileManager } from '@/lib/meshcentral/file-manager';
 import type { FileConnectionState, FileEntry, FileTransferProgress } from '@/lib/meshcentral/file-manager-types';
 import { FileDeleteError } from '@/lib/meshcentral/file-operations';
 import { MeshControlClient } from '@/lib/meshcentral/meshcentral-control';
+import { capturePosthogEvent, PRODUCT_EVENTS } from '@/lib/posthog/posthog-events';
 import { convertFileEntriesToItems, sanitizePath } from '../utils/file-manager-utils';
 
 // Global map to track active file manager instances by device ID (React Strict Mode protection)
@@ -63,6 +64,7 @@ interface UseMeshFileManagerReturn {
   selectFile: (fileId: string, selected: boolean) => void;
   selectAll: (selected: boolean) => void;
   handleFileAction: (action: FileAction, fileId?: string) => Promise<void>;
+  retryConnection: () => void;
 }
 
 interface ClipboardItem {
@@ -86,6 +88,7 @@ export function useMeshFileManager({
   const [downloadProgress, setDownloadProgress] = useState<FileTransferProgress | null>(null);
   const [clipboard, setClipboard] = useState<ClipboardItem | null>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [connectAttempt, setConnectAttempt] = useState(0);
 
   const fileManagerRef = useRef<MeshCentralFileManager | null>(null);
   const controlClientRef = useRef<MeshControlClient | null>(null);
@@ -109,6 +112,7 @@ export function useMeshFileManager({
 
     let mounted = true;
     let _isInitializing = false;
+    let recoveryReported = false;
 
     const initFileManager = async () => {
       const token = { cancelled: false };
@@ -151,6 +155,10 @@ export function useMeshFileManager({
               setConnectionState(state);
 
               if (state === 'connected_end_to_end') {
+                if (connectAttempt > 0 && !recoveryReported) {
+                  recoveryReported = true;
+                  capturePosthogEvent(PRODUCT_EVENTS.FILE_MANAGER_RECOVERED_AFTER_RETRY, { attempt: connectAttempt });
+                }
                 toastRef.current?.({
                   title: 'Connected',
                   description: 'File manager connected successfully',
@@ -158,6 +166,7 @@ export function useMeshFileManager({
                   duration: 2000,
                 });
               } else if (state === 'failed') {
+                capturePosthogEvent(PRODUCT_EVENTS.FILE_MANAGER_CONNECTION_FAILED, { stage: 'navigation' });
                 toastRef.current?.({
                   title: 'Connection Failed',
                   description: 'Failed to establish connection to file system',
@@ -264,6 +273,13 @@ export function useMeshFileManager({
         initSucceeded = true;
       } catch (error) {
         const err = error as Error;
+        if (mounted) {
+          setConnectionState('failed');
+          capturePosthogEvent(PRODUCT_EVENTS.FILE_MANAGER_CONNECTION_FAILED, {
+            stage: 'init',
+            attempt: connectAttempt,
+          });
+        }
         toastRef.current?.({
           title: 'Connection Failed',
           description: err.message || 'Failed to connect to file manager',
@@ -309,7 +325,13 @@ export function useMeshFileManager({
         controlClientRef.current = null;
       }
     };
-  }, [meshcentralAgentId, isRemote]);
+  }, [meshcentralAgentId, isRemote, connectAttempt]);
+
+  // The effect cleanup closes the failed client. The effect then connects again with a new one.
+  const retryConnection = useCallback(() => {
+    capturePosthogEvent(PRODUCT_EVENTS.FILE_MANAGER_RETRY_CLICKED, { attempt: connectAttempt + 1 });
+    setConnectAttempt(attempt => attempt + 1);
+  }, [connectAttempt]);
 
   const refreshCurrentDirectory = useCallback(async () => {
     const fileManager = fileManagerRef.current;
@@ -830,5 +852,6 @@ export function useMeshFileManager({
     selectFile,
     selectAll,
     handleFileAction,
+    retryConnection,
   };
 }

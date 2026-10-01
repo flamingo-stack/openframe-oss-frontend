@@ -109,3 +109,24 @@ export function appendPosthogHandoff(url: string): string {
     return url;
   }
 }
+
+/** Product events captured straight through the GTM-loaded `window.posthog`, with no GTM trigger. */
+export const PRODUCT_EVENTS = {
+  FILE_MANAGER_CONNECTION_FAILED: 'file_manager_connection_failed',
+  FILE_MANAGER_RETRY_CLICKED: 'file_manager_retry_clicked',
+  FILE_MANAGER_RECOVERED_AFTER_RETRY: 'file_manager_recovered_after_retry',
+} as const;
+
+/** Fire-and-forget capture. No-op when PostHog is not loaded. */
+export function capturePosthogEvent(event: string, properties?: Record<string, unknown>): void {
+  try {
+    const ph = (typeof window !== 'undefined' ? (window as unknown as Record<string, unknown>).posthog : undefined) as
+      Record<string, unknown> | undefined;
+    const capture = ph?.capture;
+    if (typeof capture === 'function') {
+      (capture as (event: string, properties?: Record<string, unknown>) => void).call(ph, event, properties);
+    }
+  } catch {
+    // Analytics is best-effort.
+  }
+}
