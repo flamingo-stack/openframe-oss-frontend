@@ -16,11 +16,11 @@ import { notificationFieldsFragment } from './notification-fields';
 
 export {
   INCIDENT_DETECTED_TYPE,
-  INSIGHT_DETECTED_TYPE,
   isApprovalNotificationType,
   isApprovalResolved,
   isIncidentDetectedType,
   isIncidentNotificationType,
+  LEGACY_INSIGHT_DETECTED_TYPE,
   MINGO_APPROVAL_REQUEST_TYPE,
   NOTIFICATION_ATTR,
   parseAttributeToolCalls,
@@ -332,7 +332,7 @@ export function notificationTypeLabel(type: string | null | undefined): string |
 }
 
 /** Incident severities whose detection card is painted red (Figma: the error variant). */
-const RED_INSIGHT_SEVERITIES: ReadonlySet<string> = new Set([InsightSeverity.CRITICAL, InsightSeverity.HIGH]);
+const RED_INCIDENT_SEVERITIES: ReadonlySet<string> = new Set([InsightSeverity.CRITICAL, InsightSeverity.HIGH]);
 
 /**
  * The severity an incident notification is DRAWN with, which is not the one the backend
@@ -353,7 +353,7 @@ function presentedSeverity(
 ): KnownSeverity | undefined {
   if (!isIncidentNotificationType(type)) return stamped;
   const insightSeverity = attributes[NOTIFICATION_ATTR.insightSeverity];
-  const isRed = isIncidentDetectedType(type) && insightSeverity != null && RED_INSIGHT_SEVERITIES.has(insightSeverity);
+  const isRed = isIncidentDetectedType(type) && insightSeverity != null && RED_INCIDENT_SEVERITIES.has(insightSeverity);
   return isRed ? 'DANGER' : 'INFO';
 }
 

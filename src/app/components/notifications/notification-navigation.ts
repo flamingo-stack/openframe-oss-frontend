@@ -1,7 +1,7 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import {
-  INSIGHT_DETECTED_TYPE,
+  INCIDENT_DETECTED_TYPE,
   isApprovalNotificationType,
   isIncidentNotificationType,
   NOTIFICATION_ATTR,
@@ -25,7 +25,7 @@ export const CUSTOMER_MESSAGE_PUBLISHED_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
 export const ADMIN_MESSAGE_PUBLISHED_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
 // The incident family (the detection and its status transitions) is declared with the
 // attribute contract, Relay-free, because the mapper reads it too.
-export { INSIGHT_DETECTED_TYPE };
+export { INCIDENT_DETECTED_TYPE };
 
 /**
  * Types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`.

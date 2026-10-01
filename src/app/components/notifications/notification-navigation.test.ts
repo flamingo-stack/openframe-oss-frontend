@@ -97,25 +97,32 @@ describe('incident deep links', () => {
   const globalId = toGlobalId('Insight', 'i-1');
   const incidentRoute = `/incidents/details?id=${globalId}`;
 
-  it('routes an insight notification to its incident on every transport', () => {
-    expect(resolvePushNotificationRoute({ type: 'INSIGHT_DETECTED', insightId: 'i-1' })).toBe(incidentRoute);
-    expect(resolveNatsNotificationRoute({ type: 'INSIGHT_DETECTED', attributes: { insightId: 'i-1' } })).toBe(
+  it('routes an incident notification to its incident on every transport', () => {
+    expect(resolvePushNotificationRoute({ type: 'INCIDENT_DETECTED', insightId: 'i-1' })).toBe(incidentRoute);
+    expect(resolveNatsNotificationRoute({ type: 'INCIDENT_DETECTED', attributes: { insightId: 'i-1' } })).toBe(
       incidentRoute,
     );
     const action = resolveNotificationAction({
-      meta: { notificationType: 'INSIGHT_DETECTED', insightId: 'i-1' },
+      meta: { notificationType: 'INCIDENT_DETECTED', insightId: 'i-1' },
     } as unknown as Notification);
     expect(action).toEqual({ label: 'Incident Details', route: incidentRoute });
   });
 
+  // The backend spelled the family INSIGHT_* before the rename; a push or a row from then
+  // still opens its incident.
+  it('routes the pre-rename INSIGHT_* spelling the same way', () => {
+    expect(resolvePushNotificationRoute({ type: 'INSIGHT_DETECTED', insightId: 'i-1' })).toBe(incidentRoute);
+    expect(resolvePushNotificationRoute({ type: 'INSIGHT_SNOOZED', insightId: 'i-1' })).toBe(incidentRoute);
+  });
+
   it('does not double-encode an id that is already global', () => {
-    expect(resolvePushNotificationRoute({ type: 'INSIGHT_DETECTED', insightId: globalId })).toBe(incidentRoute);
+    expect(resolvePushNotificationRoute({ type: 'INCIDENT_DETECTED', insightId: globalId })).toBe(incidentRoute);
   });
 
   // The transitions announce what someone did to the incident; the incident is still
   // the thing to open.
-  it('routes every status transition to the same incident, under either spelling of the family', () => {
-    for (const type of ['INSIGHT_ACKNOWLEDGED', 'INSIGHT_SNOOZED', 'INSIGHT_RESOLVED', 'INCIDENT_DETECTED']) {
+  it('routes every status transition to the same incident', () => {
+    for (const type of ['INCIDENT_ACKNOWLEDGED', 'INCIDENT_SNOOZED', 'INCIDENT_RESOLVED']) {
       expect(resolvePushNotificationRoute({ type, insightId: 'i-1', actor: 'Ann' }), type).toBe(incidentRoute);
       const action = resolveNotificationAction({
         meta: { notificationType: type, insightId: 'i-1', actor: 'Ann' },
@@ -125,14 +132,14 @@ describe('incident deep links', () => {
   });
 
   it('routes an unrecognised type by its insight id, after a ticket id', () => {
-    expect(resolvePushNotificationRoute({ type: 'INSIGHT_SHIPPED_LATER', insightId: 'i-1' })).toBe(incidentRoute);
+    expect(resolvePushNotificationRoute({ type: 'INCIDENT_SHIPPED_LATER', insightId: 'i-1' })).toBe(incidentRoute);
     expect(resolvePushNotificationRoute({ type: 'SOMETHING_ELSE', insightId: 'i-1', ticketId: 't-1' })).toBe(
       '/tickets/dialog?id=t-1',
     );
   });
 
   it('yields null without an insight id', () => {
-    expect(resolvePushNotificationRoute({ type: 'INSIGHT_DETECTED' })).toBeNull();
+    expect(resolvePushNotificationRoute({ type: 'INCIDENT_DETECTED' })).toBeNull();
   });
 });
 
