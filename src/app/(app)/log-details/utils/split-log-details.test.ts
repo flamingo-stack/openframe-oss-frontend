@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { asInstant } from '@/lib/graphql-scalars';
 import type { LogEntry } from '../../logs-page/types/log.types';
 import { splitLogDetails } from './split-log-details';
 
@@ -10,7 +11,8 @@ const base: LogEntry = {
   severity: 'INFO',
   summary: 'Script executed',
   message: 'Script hello executed.',
-  timestamp: '2026-10-01T10:46:31.534Z',
+  timestamp: asInstant('2026-10-01T10:46:31.534Z'),
+  details: null,
 };
 
 const scriptRun = {

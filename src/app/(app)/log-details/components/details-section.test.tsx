@@ -8,6 +8,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { asInstant } from '@/lib/graphql-scalars';
 import type { LogEntry } from '../../logs-page/types/log.types';
 import { DetailsSection } from './details-section';
 
@@ -26,7 +27,8 @@ const BASE: LogEntry = {
   severity: 'INFO',
   summary: 'Script executed',
   message: 'Script hello executed.',
-  timestamp: '2026-10-01T10:46:31.534Z',
+  timestamp: asInstant('2026-10-01T10:46:31.534Z'),
+  details: null,
 };
 
 const SCRIPT_RUN = {
