@@ -38,7 +38,7 @@ export function SoftwareDetailContent({ softwareId }: { softwareId: string }) {
   const { software } = useLazyLoadQuery<SoftwareDetailContentQueryType>(
     softwareDetailContentQuery,
     { id: softwareId },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
   // Register this title as the Mingo "open view" so the agent gets the user's

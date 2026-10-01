@@ -71,7 +71,7 @@ export function DeviceVulnerabilitiesTable({
   const queryData = useLazyLoadQuery<DeviceVulnerabilitiesTableQueryType>(
     deviceVulnerabilitiesTableQuery,
     { machineId, search: debouncedSearch || null, first: VULNERABILITY_LIST_PAGE_SIZE, after: null },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<

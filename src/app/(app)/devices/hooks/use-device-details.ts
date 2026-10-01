@@ -3,6 +3,7 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
+import { featureFlags } from '@/lib/feature-flags';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import {
   getMeshCentralDeviceInfo,
@@ -48,10 +49,10 @@ export function createDevice(
   meshCentralLastSeen: string | null,
   sources: DeviceDataSources,
 ): Device {
-  // Transform Fleet software to unified Software type. The host payload carries
-  // the inventory already, so this costs no request; it feeds the Fleet-backed
-  // Software / Vulnerabilities tabs (`software-management` off) — the module's
-  // tabs read their own connections and never look here.
+  // Transform Fleet software to unified Software type. It feeds the
+  // Fleet-backed Software / Vulnerabilities tabs (`software-management` off)
+  // only — the module's tabs read their own connections and never look here,
+  // so with the module on the host is fetched without it (`fetchDeviceDetails`).
   const software: Software[] =
     fleetData?.software?.map(fs => {
       const signatureTeamId = fs.signature_information?.find(s => s.team_identifier)?.team_identifier;
@@ -324,7 +325,12 @@ async function fetchDeviceDetails(machineId: string): Promise<Device> {
     // Validate that agentToolId is a valid numeric string before calling Fleet API
     const fleetHostId = Number(fleet?.agentToolId);
     if (Number.isInteger(fleetHostId) && fleetHostId > 0) {
-      const fResponse = await fleetApiClient.getHost(fleetHostId);
+      const fResponse = await fleetApiClient.getHost(fleetHostId, {
+        // The software list feeds only the Fleet-backed tabs, which the module
+        // replaces — and this query re-runs every 10 seconds on every tab. Not
+        // loaded yet reads as off, so the payload stays complete until we know.
+        excludeSoftware: featureFlags.softwareManagement.enabled(),
+      });
       if (fResponse.ok && fResponse.data?.host) {
         fleetData = fResponse.data.host;
         fleetSource = 'ok';
